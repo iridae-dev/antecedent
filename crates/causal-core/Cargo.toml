@@ -1,0 +1,15 @@
+[package]
+name = "causal-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Core identifiers, schemas, assumptions, provenance, and execution policy for causal-library"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
