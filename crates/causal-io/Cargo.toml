@@ -1,0 +1,22 @@
+[package]
+name = "causal-io"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Versioned artifact container and wire types for causal-library"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+causal-core = { path = "../causal-core" }
+causal-graph = { path = "../causal-graph" }
+blake3 = "1"
+ciborium = "0.2"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]

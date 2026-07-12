@@ -5,12 +5,14 @@ members = [
     "crates/causal-kernels",
     "crates/causal-data",
     "crates/causal-graph",
+    "crates/causal-io",
 ]
 default-members = [
     "crates/causal-core",
     "crates/causal-kernels",
     "crates/causal-data",
     "crates/causal-graph",
+    "crates/causal-io",
 ]
 
 [workspace.package]

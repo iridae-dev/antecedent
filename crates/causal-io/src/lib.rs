@@ -1,0 +1,91 @@
+//! Versioned artifact IO for causal-library.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![forbid(unsafe_code)]
+#![deny(missing_docs)]
+
+pub mod container;
+pub mod convert;
+pub mod error;
+pub mod wire;
+
+pub use container::{
+    ArtifactManifest, CONTAINER_VERSION, EncodedArtifact, MAGIC, SectionBytes, section_descriptor,
+};
+pub use convert::{dag_from_wire, dag_to_wire, from_cbor, schema_to_wire, to_cbor};
+pub use error::IoError;
+pub use wire::{
+    ArtifactKind, DagWire, FormatVersion, ProvenanceWire, SchemaWire, SectionDescriptor,
+    SemanticVersion,
+};
+
+#[cfg(test)]
+mod tests {
+    use causal_core::{
+        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, VERSION, ValueType,
+    };
+    use causal_graph::{Dag, DenseNodeId};
+
+    use super::*;
+
+    #[test]
+    fn schema_and_dag_artifact_round_trip() {
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+
+        let schema_bytes = to_cbor(&schema_to_wire(&schema)).unwrap();
+        let dag_bytes = to_cbor(&dag_to_wire(&dag).unwrap()).unwrap();
+
+        let schema_desc = section_descriptor("schema", "application/cbor", &schema_bytes);
+        let dag_desc = section_descriptor("dag", "application/cbor", &dag_bytes);
+
+        let artifact = EncodedArtifact {
+            manifest: ArtifactManifest {
+                format_version: FormatVersion { major: 0, minor: 1 },
+                minimum_reader_version: FormatVersion { major: 0, minor: 1 },
+                artifact_kind: ArtifactKind::SchemaGraph,
+                library_version: SemanticVersion::from_crate_version(VERSION),
+                artifact_id: "test-schema-graph".into(),
+                sections: vec![schema_desc, dag_desc],
+                provenance: ProvenanceWire { note: "phase0-roundtrip".into() },
+            },
+            sections: vec![
+                SectionBytes { id: "schema".into(), data: schema_bytes },
+                SectionBytes { id: "dag".into(), data: dag_bytes },
+            ],
+        };
+
+        let mut buf = Vec::new();
+        artifact.write_to(&mut buf).unwrap();
+        let decoded = EncodedArtifact::read_from(buf.as_slice()).unwrap();
+        assert_eq!(decoded.manifest.artifact_id, "test-schema-graph");
+
+        let schema_wire: SchemaWire = from_cbor(&decoded.sections[0].data).unwrap();
+        assert_eq!(schema_wire.variable_names, vec!["x", "y"]);
+        let dag_wire: DagWire = from_cbor(&decoded.sections[1].data).unwrap();
+        let dag2 = dag_from_wire(&dag_wire).unwrap();
+        assert!(dag2.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+    }
+}
