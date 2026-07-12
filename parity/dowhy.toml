@@ -60,16 +60,16 @@ phase = 1
 id = "dowhy.identify.automatic"
 group = "identification"
 description = "Automatic identification"
-status = "pending"
-owner = ""
+status = "in_progress"
+owner = "phase1"
 phase = 1
 
 [[capabilities]]
 id = "dowhy.identify.backdoor"
 group = "identification"
 description = "Backdoor"
-status = "pending"
-owner = ""
+status = "in_progress"
+owner = "phase1"
 phase = 1
 
 [[capabilities]]

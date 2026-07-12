@@ -434,9 +434,8 @@ mod tests {
         let in_z = z.contains(cur);
         match (kind_in, kind_out) {
             // chain / fork: blocked iff middle in Z
-            (EdgeKind::FromParent, EdgeKind::ToChild)
-            | (EdgeKind::ToChild, EdgeKind::FromParent)
-            | (EdgeKind::ToChild, EdgeKind::ToChild) => !in_z,
+            (EdgeKind::FromParent | EdgeKind::ToChild, EdgeKind::ToChild)
+            | (EdgeKind::ToChild, EdgeKind::FromParent) => !in_z,
             // collider: -> cur <-
             (EdgeKind::FromParent, EdgeKind::FromParent) => in_z || has_descendant_in_z(g, cur, z),
         }

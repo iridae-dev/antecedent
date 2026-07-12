@@ -185,6 +185,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "causal-identify"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+ "causal-expr",
+ "causal-graph",
+ "criterion",
+]
+
+[[package]]
 name = "causal-io"
 version = "0.1.0"
 dependencies = [

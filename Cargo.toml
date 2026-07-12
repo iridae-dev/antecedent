@@ -7,6 +7,7 @@ members = [
     "crates/causal-graph",
     "crates/causal-io",
     "crates/causal-expr",
+    "crates/causal-identify",
     "python",
 ]
 default-members = [
@@ -16,6 +17,7 @@ default-members = [
     "crates/causal-graph",
     "crates/causal-io",
     "crates/causal-expr",
+    "crates/causal-identify",
 ]
 
 [workspace.package]
