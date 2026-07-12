@@ -1,0 +1,38 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Python / maturin
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+dist/
+wheels/
+*.egg-info/
+.eggs/
+python/target/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Benchmarks / fuzz artifacts
+benches/reports/
+fuzz/artifacts/
+fuzz/corpus/
+*.profraw
+*.profdata
+
+# Secrets / local
+.env
+.env.*

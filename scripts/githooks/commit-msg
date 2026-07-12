@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Reject commits missing a DCO Signed-off-by trailer.
+set -euo pipefail
+
+MSG_FILE="${1:-}"
+if [[ -z "${MSG_FILE}" || ! -f "${MSG_FILE}" ]]; then
+  echo "commit-msg: missing commit message file" >&2
+  exit 1
+fi
+
+if ! grep -qE '^Signed-off-by: .+ <.+@.+>$' "${MSG_FILE}"; then
+  echo "commit-msg: missing DCO Signed-off-by trailer." >&2
+  echo "Use: git commit -s" >&2
+  exit 1
+fi
