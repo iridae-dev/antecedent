@@ -1,0 +1,241 @@
+# Tigramite parity baseline pin and capability inventory.
+# Status values: pending | in_progress | done | intentional_deviation
+
+[baseline]
+project = "tigramite"
+version = "5.2.1.25"
+commit = "5a8768754e6103755b006e9357e21c1a58534927"
+extended_snapshot_commit = "ff3ff13e1481073b8c5833a6fde1c304627a208e"
+notes = "Pinned per DESIGN.md §35.9 / ADR 0009. Extended snapshot covers post-release features."
+
+[[capabilities]]
+id = "tigramite.data.dataframe"
+group = "data_processing"
+description = "Dataframe-equivalent temporal data abstraction"
+status = "pending"
+owner = ""
+phase = 0
+
+[[capabilities]]
+id = "tigramite.data.masks"
+group = "data_processing"
+description = "Masks and missing flags"
+status = "pending"
+owner = ""
+phase = 0
+
+[[capabilities]]
+id = "tigramite.data.multiple_datasets"
+group = "data_processing"
+description = "Multiple datasets"
+status = "pending"
+owner = ""
+phase = 2
+
+[[capabilities]]
+id = "tigramite.data.offsets"
+group = "data_processing"
+description = "Time offsets / reference points"
+status = "pending"
+owner = ""
+phase = 2
+
+[[capabilities]]
+id = "tigramite.data.vector_variables"
+group = "data_processing"
+description = "Vector variables"
+status = "pending"
+owner = ""
+phase = 0
+
+[[capabilities]]
+id = "tigramite.data.transforms"
+group = "data_processing"
+description = "Transformations, smoothing, binning, ordinal patterns"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.data.bootstrap"
+group = "data_processing"
+description = "Bootstrap generation"
+status = "pending"
+owner = ""
+phase = 2
+
+[[capabilities]]
+id = "tigramite.ci.partial_corr"
+group = "conditional_independence"
+description = "Partial correlation"
+status = "pending"
+owner = ""
+phase = 2
+
+[[capabilities]]
+id = "tigramite.ci.multivariate_partial_corr"
+group = "conditional_independence"
+description = "Multivariate partial correlation"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.ci.weighted_partial_corr"
+group = "conditional_independence"
+description = "Weighted partial correlation"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.ci.robust_partial_corr"
+group = "conditional_independence"
+description = "Robust partial correlation"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.ci.regression"
+group = "conditional_independence"
+description = "Regression CI"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.ci.cmi_knn"
+group = "conditional_independence"
+description = "CMI kNN"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.ci.mixed_cmi_knn"
+group = "conditional_independence"
+description = "Mixed CMI kNN"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.ci.symbolic_cmi"
+group = "conditional_independence"
+description = "Symbolic CMI"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.ci.gpdc"
+group = "conditional_independence"
+description = "GPDC"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.ci.gsquared"
+group = "conditional_independence"
+description = "G-squared"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.ci.oracle"
+group = "conditional_independence"
+description = "Oracle CI"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.discovery.pcmci"
+group = "discovery"
+description = "PCMCI"
+status = "pending"
+owner = ""
+phase = 2
+
+[[capabilities]]
+id = "tigramite.discovery.pcmci_plus"
+group = "discovery"
+description = "PCMCI+"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.discovery.lpcmci"
+group = "discovery"
+description = "LPCMCI"
+status = "pending"
+owner = ""
+phase = 8
+
+[[capabilities]]
+id = "tigramite.discovery.jpcmci_plus"
+group = "discovery"
+description = "J-PCMCI+"
+status = "pending"
+owner = ""
+phase = 9
+
+[[capabilities]]
+id = "tigramite.discovery.rpcmci"
+group = "discovery"
+description = "RPCMCI"
+status = "pending"
+owner = ""
+phase = 9
+
+[[capabilities]]
+id = "tigramite.discovery.fdr"
+group = "discovery"
+description = "FDR and confidence intervals"
+status = "pending"
+owner = ""
+phase = 2
+
+[[capabilities]]
+id = "tigramite.graphs.ts_graph"
+group = "graphs"
+description = "Time-series graph representations and stationarity"
+status = "pending"
+owner = ""
+phase = 0
+
+[[capabilities]]
+id = "tigramite.graphs.separation"
+group = "graphs"
+description = "Path and separation functions"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "tigramite.graphs.endpoints"
+group = "graphs"
+description = "Endpoint / orientation semantics"
+status = "pending"
+owner = ""
+phase = 5
+
+[[capabilities]]
+id = "tigramite.effects"
+group = "effects_and_models"
+description = "Causal effects, mediation, prediction"
+status = "pending"
+owner = ""
+phase = 3
+
+[[capabilities]]
+id = "tigramite.simulation"
+group = "simulation_and_presentation"
+description = "Structural process generators and toy models"
+status = "pending"
+owner = ""
+phase = 2

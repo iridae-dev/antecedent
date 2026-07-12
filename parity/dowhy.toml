@@ -1,0 +1,281 @@
+# DoWhy parity baseline pin and capability inventory.
+# Status values: pending | in_progress | done | intentional_deviation
+# Assign owners when work begins; do not mark done without conformance fixtures.
+
+[baseline]
+project = "dowhy"
+version = "0.14"
+commit = "178ecc9c690a02f2801c1f70da2695f5744186cc"
+notes = "Pinned per DESIGN.md §35.9 / ADR 0009"
+
+[[capabilities]]
+id = "dowhy.model_graph.construction"
+group = "model_and_graph_workflow"
+description = "Causal model construction from data and graph"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.model_graph.treatment_outcome"
+group = "model_and_graph_workflow"
+description = "Explicit treatment/outcome/effect modifiers"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.model_graph.parsing"
+group = "model_and_graph_workflow"
+description = "Graph parsing and validation"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.model_graph.assumptions"
+group = "model_and_graph_workflow"
+description = "Inspectable assumptions"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.model_graph.workflow"
+group = "model_and_graph_workflow"
+description = "Model, identify, estimate, refute workflow"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.identify.adjustment_sets"
+group = "identification"
+description = "Adjustment sets"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.identify.automatic"
+group = "identification"
+description = "Automatic identification"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.identify.backdoor"
+group = "identification"
+description = "Backdoor"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.identify.efficient_backdoor"
+group = "identification"
+description = "Efficient backdoor"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.identify.general_id"
+group = "identification"
+description = "General ID"
+status = "pending"
+owner = ""
+phase = 8
+
+[[capabilities]]
+id = "dowhy.identify.estimand"
+group = "identification"
+description = "Identified-estimand representation"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.estimate.linear_regression"
+group = "estimation"
+description = "Linear regression"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.estimate.glm"
+group = "estimation"
+description = "Generalized linear model"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.estimate.propensity"
+group = "estimation"
+description = "Propensity base, matching, stratification, weighting"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.estimate.matching"
+group = "estimation"
+description = "Distance matching"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.estimate.doubly_robust"
+group = "estimation"
+description = "Doubly robust"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.estimate.iv"
+group = "estimation"
+description = "Instrumental variables"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.estimate.rd"
+group = "estimation"
+description = "Regression discontinuity"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.estimate.two_stage"
+group = "estimation"
+description = "Two-stage regression"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.estimate.conditional"
+group = "estimation"
+description = "Conditional effects / effect modifiers"
+status = "pending"
+owner = ""
+phase = 9
+
+[[capabilities]]
+id = "dowhy.refute.placebo"
+group = "refutation_and_sensitivity"
+description = "Placebo treatment"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.refute.random_common_cause"
+group = "refutation_and_sensitivity"
+description = "Random common cause"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.refute.bootstrap"
+group = "refutation_and_sensitivity"
+description = "Bootstrap"
+status = "pending"
+owner = ""
+phase = 1
+
+[[capabilities]]
+id = "dowhy.refute.unobserved_common_cause"
+group = "refutation_and_sensitivity"
+description = "Unobserved common cause"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.refute.overlap"
+group = "refutation_and_sensitivity"
+description = "Overlap and overlap-rule assessment"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.refute.data_subset"
+group = "refutation_and_sensitivity"
+description = "Data subset"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.refute.dummy_outcome"
+group = "refutation_and_sensitivity"
+description = "Dummy outcome"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.refute.evalue"
+group = "refutation_and_sensitivity"
+description = "E-value"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.refute.graph"
+group = "refutation_and_sensitivity"
+description = "Graph refutation"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.refute.sensitivity"
+group = "refutation_and_sensitivity"
+description = "Linear, partial-linear, and nonparametric sensitivity"
+status = "pending"
+owner = ""
+phase = 4
+
+[[capabilities]]
+id = "dowhy.do_sampling"
+group = "do_sampling"
+description = "Do-sampling (weighting, KDE, MCMC)"
+status = "pending"
+owner = ""
+phase = 7
+
+[[capabilities]]
+id = "dowhy.gcm"
+group = "gcm"
+description = "GCM mechanisms, attribution, falsification, Shapley utilities"
+status = "pending"
+owner = ""
+phase = 7
+
+[[capabilities]]
+id = "dowhy.secondary"
+group = "secondary_surfaces"
+description = "Graph learners, transformers, interpreters, time-series helpers"
+status = "pending"
+owner = ""
+phase = 12
+
+[excluded]
+econml_adapter = true
+econml_model_composition = true
+
+[optional_adapters]
+causalml = "pending"
+tabpfn = "pending"
