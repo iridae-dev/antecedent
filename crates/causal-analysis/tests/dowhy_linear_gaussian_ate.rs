@@ -1,0 +1,130 @@
+//! DoWhy linear-Gaussian ATE conformance (StableFloat).
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(clippy::cast_precision_loss)]
+
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use causal_analysis::{CausalAnalysis, RefuteSuite};
+use causal_core::{
+    AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
+    SmallRoleSet, ToleranceClass, ValueType, VariableId,
+};
+use causal_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use causal_graph::{Dag, DenseNodeId};
+
+fn fixture_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/dowhy/linear_gaussian_ate")
+}
+
+fn load_csv() -> (TabularData, Dag, AverageEffectQuery) {
+    let csv = fs::read_to_string(fixture_dir().join("data.csv")).expect("data.csv");
+    let mut t = Vec::new();
+    let mut y = Vec::new();
+    let mut z = Vec::new();
+    for (i, line) in csv.lines().enumerate() {
+        if i == 0 {
+            continue;
+        }
+        let mut parts = line.split(',');
+        t.push(parts.next().unwrap().parse::<f64>().unwrap());
+        y.push(parts.next().unwrap().parse::<f64>().unwrap());
+        z.push(parts.next().unwrap().parse::<f64>().unwrap());
+    }
+    let n = t.len();
+    let mut b = CausalSchemaBuilder::new();
+    b.add_variable(
+        "t",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "y",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "z",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::Context),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    let schema = b.build().unwrap();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    (TabularData::new(storage), dag, query)
+}
+
+#[test]
+fn dowhy_linear_gaussian_ate_stable_float() {
+    let expected_raw = fs::read_to_string(fixture_dir().join("expected.json")).unwrap();
+    assert!(expected_raw.contains("StableFloat"));
+    assert!(expected_raw.contains("\"true_ate\": 2.0"));
+    assert!(expected_raw.contains("\"reference_ate\": 2.0"));
+
+    let (data, graph, query) = load_csv();
+    let analysis = CausalAnalysis::builder()
+        .data(data)
+        .graph(graph)
+        .query(query)
+        .refute(RefuteSuite::PlaceboAndRcc)
+        .bootstrap_replicates(20)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(42);
+    let result = analysis.run(&ctx).unwrap();
+
+    let true_ate = 2.0;
+    let reference_ate = 2.0;
+    assert!(
+        ToleranceClass::StableFloat.close(result.estimate.ate, true_ate),
+        "ate={} vs true {}",
+        result.estimate.ate,
+        true_ate
+    );
+    assert!(
+        ToleranceClass::StableFloat.close(result.estimate.ate, reference_ate),
+        "ate={} vs DoWhy/reference {}",
+        result.estimate.ate,
+        reference_ate
+    );
+    assert_eq!(result.estimand.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+    assert_eq!(result.refutations.len(), 2);
+    assert!(result.refutations.iter().all(|r| r.passed));
+    assert!(!result.estimate.assumptions.is_empty());
+    assert!(!result.identification.derivation.steps.is_empty());
+}

@@ -19,6 +19,7 @@ pub mod plan;
 pub mod provenance;
 pub mod query;
 pub mod schema;
+pub mod tolerance;
 pub mod value;
 
 pub use assumption::{
@@ -43,6 +44,7 @@ pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
     ValueType, VariableSchema,
 };
+pub use tolerance::ToleranceClass;
 pub use value::Value;
 
 /// Library crate version string from Cargo.

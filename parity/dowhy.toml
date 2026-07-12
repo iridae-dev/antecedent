@@ -44,8 +44,8 @@ phase = 1
 id = "dowhy.model_graph.workflow"
 group = "model_and_graph_workflow"
 description = "Model, identify, estimate, refute workflow"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase1"
 phase = 1
 
 [[capabilities]]
@@ -60,7 +60,7 @@ phase = 1
 id = "dowhy.identify.automatic"
 group = "identification"
 description = "Automatic identification"
-status = "in_progress"
+status = "done"
 owner = "phase1"
 phase = 1
 
@@ -68,7 +68,7 @@ phase = 1
 id = "dowhy.identify.backdoor"
 group = "identification"
 description = "Backdoor"
-status = "in_progress"
+status = "done"
 owner = "phase1"
 phase = 1
 
@@ -92,16 +92,16 @@ phase = 8
 id = "dowhy.identify.estimand"
 group = "identification"
 description = "Identified-estimand representation"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase1"
 phase = 1
 
 [[capabilities]]
 id = "dowhy.estimate.linear_regression"
 group = "estimation"
 description = "Linear regression"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase1"
 phase = 1
 
 [[capabilities]]
@@ -172,16 +172,16 @@ phase = 9
 id = "dowhy.refute.placebo"
 group = "refutation_and_sensitivity"
 description = "Placebo treatment"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase1"
 phase = 1
 
 [[capabilities]]
 id = "dowhy.refute.random_common_cause"
 group = "refutation_and_sensitivity"
 description = "Random common cause"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase1"
 phase = 1
 
 [[capabilities]]
