@@ -8,19 +8,27 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+#[cfg(feature = "arrow")]
+pub mod arrow_adapter;
 pub mod column;
+pub mod dataset;
 pub mod error;
 pub mod materialize;
 pub mod storage;
 pub mod table;
+pub mod temporal;
 
+#[cfg(feature = "arrow")]
+pub use arrow_adapter::{ArrowLoadResult, tabular_from_record_batch};
 pub use column::{
     BooleanColumn, ColumnView, Float64Column, Int64Column, OwnedColumn, ValidityBitmap,
 };
+pub use dataset::{TabularData, TimeSeriesData};
 pub use error::DataError;
 pub use materialize::{MaterializationReason, materialization_diagnostic};
 pub use storage::OwnedColumnarStorage;
 pub use table::TableView;
+pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss)]
@@ -103,10 +111,23 @@ mod tests {
             let ColumnView::Float64(c2) = again else {
                 panic!("expected float");
             };
-            // Same Arc buffer: no repeated scratch allocation on view access.
             assert_eq!(c2.values.as_ptr(), ptr);
             let view = c2.as_f64_view();
             assert_eq!(view.len(), 1000);
         }
+    }
+
+    #[test]
+    fn timeseries_wraps_storage() {
+        let storage = two_col_table();
+        let ts = TimeSeriesData::try_new(
+            storage,
+            TimeIndex {
+                regularity: SamplingRegularity::Regular { interval_ns: 1_000 },
+                length: 1000,
+            },
+        )
+        .unwrap();
+        assert_eq!(ts.row_count(), 1000);
     }
 }

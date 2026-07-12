@@ -13,7 +13,7 @@ readme = "README.md"
 workspace = true
 
 [features]
-default = []
+default = ["arrow"]
 arrow = ["dep:arrow-array", "dep:arrow-schema", "dep:arrow-buffer"]
 
 [dependencies]
