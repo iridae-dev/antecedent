@@ -14,9 +14,12 @@ pub mod diagnostic;
 pub mod error;
 pub mod execution;
 pub mod ids;
+pub mod intervention;
 pub mod plan;
 pub mod provenance;
+pub mod query;
 pub mod schema;
+pub mod value;
 
 pub use assumption::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
@@ -29,15 +32,18 @@ pub use execution::{
     MemoryBudget, NonZeroThreadCount, Parallelism, ProgressSink, RngFactory,
 };
 pub use ids::{CategoryDomainId, EnvironmentId, Lag, RegimeId, VariableId};
+pub use intervention::Intervention;
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
     LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
 };
 pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
+pub use query::{AverageEffectQuery, CausalQuery, QueryError, TargetPopulation};
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
     ValueType, VariableSchema,
 };
+pub use value::Value;
 
 /// Library crate version string from Cargo.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
