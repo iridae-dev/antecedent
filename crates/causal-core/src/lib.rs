@@ -9,6 +9,17 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod error;
+pub mod ids;
+pub mod schema;
+
+pub use error::SchemaError;
+pub use ids::{CategoryDomainId, EnvironmentId, Lag, RegimeId, VariableId};
+pub use schema::{
+    CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
+    ValueType, VariableSchema,
+};
+
 /// Library crate version string from Cargo.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
