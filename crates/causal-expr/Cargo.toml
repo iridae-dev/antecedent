@@ -1,0 +1,16 @@
+[package]
+name = "causal-expr"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Arena-backed symbolic causal-functional IR"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+causal-core = { path = "../causal-core" }

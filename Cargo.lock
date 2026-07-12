@@ -169,6 +169,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "causal-expr"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+]
+
+[[package]]
 name = "causal-graph"
 version = "0.1.0"
 dependencies = [
