@@ -1,0 +1,26 @@
+[package]
+name = "causal-data"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Library-owned causal data views and Arrow-backed adapters"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+arrow = ["dep:arrow-array", "dep:arrow-schema", "dep:arrow-buffer"]
+
+[dependencies]
+causal-core = { path = "../causal-core" }
+causal-kernels = { path = "../causal-kernels" }
+arrow-array = { version = "54", optional = true, default-features = false }
+arrow-schema = { version = "54", optional = true, default-features = false }
+arrow-buffer = { version = "54", optional = true, default-features = false }
+
+[dev-dependencies]

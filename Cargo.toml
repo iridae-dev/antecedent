@@ -3,10 +3,12 @@ resolver = "2"
 members = [
     "crates/causal-core",
     "crates/causal-kernels",
+    "crates/causal-data",
 ]
 default-members = [
     "crates/causal-core",
     "crates/causal-kernels",
+    "crates/causal-data",
 ]
 
 [workspace.package]

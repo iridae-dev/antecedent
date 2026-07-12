@@ -5,8 +5,8 @@
 #![allow(missing_docs, clippy::cast_precision_loss)]
 
 use causal_core::KernelPolicy;
-use causal_kernels::{gather, F64VectorView};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use causal_kernels::{F64VectorView, gather};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn bench_gather(c: &mut Criterion) {
     let n = 100_000usize;
@@ -18,12 +18,7 @@ fn bench_gather(c: &mut Criterion) {
 
     c.bench_function("gather_stride10_n100k", |b| {
         b.iter(|| {
-            gather(
-                black_box(&policy),
-                black_box(src),
-                black_box(&indices),
-                black_box(&mut out),
-            );
+            gather(black_box(&policy), black_box(src), black_box(&indices), black_box(&mut out));
         });
     });
 }
