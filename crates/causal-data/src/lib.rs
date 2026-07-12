@@ -22,8 +22,8 @@ pub mod temporal;
 #[cfg(feature = "arrow")]
 pub use arrow_adapter::{ArrowLoadResult, tabular_from_record_batch};
 pub use categorical::{
-    compile_contrast_matrix, CategoricalColumn, CategoricalView, CategoryCode, CategoryDomain,
-    CategoryLevel, Contrast, ContrastMatrix, UnknownCategoryPolicy,
+    CategoricalColumn, CategoricalView, CategoryCode, CategoryDomain, CategoryLevel, Contrast,
+    ContrastMatrix, UnknownCategoryPolicy, compile_contrast_matrix,
 };
 pub use column::{
     BooleanColumn, ColumnView, Float64Column, Int64Column, OwnedColumn, ValidityBitmap,

@@ -131,6 +131,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "causal-graph"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+ "causal-data",
+ "criterion",
+]
+
+[[package]]
 name = "causal-kernels"
 version = "0.1.0"
 dependencies = [

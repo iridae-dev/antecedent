@@ -81,30 +81,19 @@ impl CategoryDomain {
                 message: "category domain requires at least one level",
             });
         }
-        let n = u32::try_from(levels.len()).map_err(|_| DataError::InvalidValidity {
-            message: "too many category levels",
-        })?;
+        let n = u32::try_from(levels.len())
+            .map_err(|_| DataError::InvalidValidity { message: "too many category levels" })?;
         if let Some(r) = reference {
             if r.raw() >= n {
-                return Err(DataError::InvalidValidity {
-                    message: "reference code out of range",
-                });
+                return Err(DataError::InvalidValidity { message: "reference code out of range" });
             }
         }
         if let UnknownCategoryPolicy::MapToOther { other } = unknown_policy {
             if other.raw() >= n {
-                return Err(DataError::InvalidValidity {
-                    message: "Other code out of range",
-                });
+                return Err(DataError::InvalidValidity { message: "Other code out of range" });
             }
         }
-        Ok(Self {
-            id,
-            levels,
-            ordered,
-            reference,
-            unknown_policy,
-        })
+        Ok(Self { id, levels, ordered, reference, unknown_policy })
     }
 
     /// Number of levels.
@@ -169,12 +158,7 @@ impl CategoricalColumn {
                 }
             }
         }
-        Ok(Self {
-            id,
-            codes,
-            validity,
-            domain,
-        })
+        Ok(Self { id, codes, validity, domain })
     }
 
     /// Row count.
@@ -192,11 +176,7 @@ impl CategoricalColumn {
     /// Borrowed view.
     #[must_use]
     pub fn as_view(&self) -> CategoricalView<'_> {
-        CategoricalView {
-            codes: &self.codes,
-            validity: &self.validity,
-            domain: &self.domain,
-        }
+        CategoricalView { codes: &self.codes, validity: &self.validity, domain: &self.domain }
     }
 }
 
@@ -254,20 +234,18 @@ impl ContrastMatrix {
         values: impl Into<Arc<[f64]>>,
     ) -> Result<Self, DataError> {
         let values = values.into();
-        if values.len() != n_levels.checked_mul(n_columns).ok_or(DataError::InvalidValidity {
-            message: "contrast shape overflow",
-        })? {
+        if values.len()
+            != n_levels
+                .checked_mul(n_columns)
+                .ok_or(DataError::InvalidValidity { message: "contrast shape overflow" })?
+        {
             return Err(DataError::LengthMismatch {
                 expected: n_levels * n_columns,
                 actual: values.len(),
                 context: "contrast matrix",
             });
         }
-        Ok(Self {
-            n_levels,
-            n_columns,
-            values,
-        })
+        Ok(Self { n_levels, n_columns, values })
     }
 }
 
@@ -338,15 +316,9 @@ mod tests {
             CategoryDomain::try_new(
                 CategoryDomainId::from_raw(0),
                 Arc::<[CategoryLevel]>::from(vec![
-                    CategoryLevel {
-                        label: Arc::from("a"),
-                    },
-                    CategoryLevel {
-                        label: Arc::from("b"),
-                    },
-                    CategoryLevel {
-                        label: Arc::from("c"),
-                    },
+                    CategoryLevel { label: Arc::from("a") },
+                    CategoryLevel { label: Arc::from("b") },
+                    CategoryLevel { label: Arc::from("c") },
                 ]),
                 false,
                 Some(CategoryCode::from_raw(0)),
@@ -361,9 +333,7 @@ mod tests {
         let d = domain();
         let m = compile_contrast_matrix(
             &d,
-            &Contrast::Treatment {
-                reference: CategoryCode::from_raw(0),
-            },
+            &Contrast::Treatment { reference: CategoryCode::from_raw(0) },
         )
         .unwrap();
         assert_eq!(m.n_levels, 3);
