@@ -1,0 +1,21 @@
+[package]
+name = "causal-analysis"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Static ATE identify-estimate-refute analysis facade"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+causal-core = { path = "../causal-core" }
+causal-data = { path = "../causal-data" }
+causal-estimate = { path = "../causal-estimate" }
+causal-graph = { path = "../causal-graph" }
+causal-identify = { path = "../causal-identify" }
+causal-validate = { path = "../causal-validate" }

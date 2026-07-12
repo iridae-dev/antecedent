@@ -19,6 +19,8 @@ workspace = true
 [dependencies]
 causal-core = { path = "../crates/causal-core" }
 causal-data = { path = "../crates/causal-data", features = ["arrow"] }
+causal-analysis = { path = "../crates/causal-analysis" }
+causal-graph = { path = "../crates/causal-graph" }
 pyo3 = { version = "0.23", features = ["extension-module"] }
 arrow-array = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }

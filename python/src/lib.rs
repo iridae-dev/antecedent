@@ -1,4 +1,4 @@
-//! PyO3 bindings — Phase 0 skeleton: Arrow float64 load with copy diagnostics.
+//! PyO3 bindings — Phase 0/1: Arrow load + coarse-grained `analyze_ate`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -9,7 +9,10 @@ use std::sync::Arc;
 
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
+use causal_analysis::{CausalAnalysis, RefuteSuite};
+use causal_core::{AverageEffectQuery, ExecutionContext};
 use causal_data::{TableView, tabular_from_record_batch};
+use causal_graph::{Dag, DenseNodeId};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -17,29 +20,43 @@ use pyo3::prelude::*;
 /// Result of loading columns into the Rust data layer.
 #[pyclass]
 struct ArrowLoadInfo {
-    /// Number of rows.
     #[pyo3(get)]
     row_count: usize,
-    /// Number of columns.
     #[pyo3(get)]
     column_count: usize,
-    /// Bytes copied into owned Rust buffers.
     #[pyo3(get)]
     bytes_copied: u64,
-    /// Number of materialization diagnostics recorded.
     #[pyo3(get)]
     diagnostic_count: usize,
 }
 
-/// Load float64 NumPy columns (copied into Arrow, then into library-owned storage).
-///
-/// Phase 0 measures copy behavior explicitly: inputs cross the Python boundary
-/// as owned buffers; `bytes_copied` reports Rust-side materialization size.
-#[pyfunction]
-fn load_float64_columns(
-    names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
-) -> PyResult<ArrowLoadInfo> {
+/// Coarse-grained ATE analysis result (single boundary crossing).
+#[pyclass]
+struct AteAnalysisResult {
+    #[pyo3(get)]
+    ate: f64,
+    #[pyo3(get)]
+    se_analytic: f64,
+    #[pyo3(get)]
+    se_bootstrap: Option<f64>,
+    #[pyo3(get)]
+    adjustment_set: Vec<String>,
+    #[pyo3(get)]
+    identification_status: String,
+    #[pyo3(get)]
+    refutation_passed: bool,
+    #[pyo3(get)]
+    refutation_count: usize,
+    #[pyo3(get)]
+    assumption_count: usize,
+    #[pyo3(get)]
+    derivation_step_count: usize,
+}
+
+fn columns_to_batch(
+    names: &[String],
+    columns: &[PyReadonlyArray1<'_, f64>],
+) -> PyResult<RecordBatch> {
     if names.len() != columns.len() {
         return Err(PyValueError::new_err("names and columns must have the same length"));
     }
@@ -47,13 +64,12 @@ fn load_float64_columns(
         return Err(PyValueError::new_err("at least one column required"));
     }
     let n = columns[0].as_array().len();
-    for col in &columns {
+    for col in columns {
         if col.as_array().len() != n {
             return Err(PyValueError::new_err("column length mismatch"));
         }
     }
-
-    let fields: Vec<Field> = names.iter().map(|n| Field::new(n, DataType::Float64, true)).collect();
+    let fields: Vec<Field> = names.iter().map(|nm| Field::new(nm, DataType::Float64, true)).collect();
     let schema = Schema::new(fields);
     let arrays: Vec<Arc<dyn arrow_array::Array>> = columns
         .iter()
@@ -63,12 +79,18 @@ fn load_float64_columns(
             Arc::new(Float64Array::from(values)) as Arc<dyn arrow_array::Array>
         })
         .collect();
-    let batch = RecordBatch::try_new(Arc::new(schema), arrays)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    RecordBatch::try_new(Arc::new(schema), arrays).map_err(|e| PyValueError::new_err(e.to_string()))
+}
 
+/// Load float64 NumPy columns (copied into Arrow, then into library-owned storage).
+#[pyfunction]
+fn load_float64_columns(
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+) -> PyResult<ArrowLoadInfo> {
+    let batch = columns_to_batch(&names, &columns)?;
     let loaded =
         tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
-
     Ok(ArrowLoadInfo {
         row_count: loaded.data.row_count(),
         column_count: loaded.data.schema().len(),
@@ -77,11 +99,106 @@ fn load_float64_columns(
     })
 }
 
+/// Run static ATE: identify (backdoor) → linear estimate → optional refute.
+///
+/// Crosses the Python boundary once: NumPy columns + edge list in, structured
+/// summary out. No per-row callbacks.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, treatment, outcome, *, refute=true, seed=1, bootstrap=50))]
+fn analyze_ate(
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    refute: bool,
+    seed: u64,
+    bootstrap: u32,
+) -> PyResult<AteAnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let loaded =
+        tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let data = loaded.data;
+    let t_id = data
+        .schema()
+        .id_of(&treatment)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let y_id = data
+        .schema()
+        .id_of(&outcome)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+    let n_vars = u32::try_from(data.schema().len())
+        .map_err(|_| PyValueError::new_err("too many variables"))?;
+    let mut dag = Dag::with_variables(n_vars);
+    for (from, to) in &edges {
+        let from_id = data
+            .schema()
+            .id_of(from)
+            .map_err(|e| PyValueError::new_err(format!("edge from: {e}")))?;
+        let to_id = data
+            .schema()
+            .id_of(to)
+            .map_err(|e| PyValueError::new_err(format!("edge to: {e}")))?;
+        dag.insert_directed(
+            DenseNodeId::from_raw(from_id.raw()),
+            DenseNodeId::from_raw(to_id.raw()),
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    }
+
+    let query = AverageEffectQuery::binary_ate(t_id, y_id);
+    let suite = if refute {
+        RefuteSuite::PlaceboAndRcc
+    } else {
+        RefuteSuite::None
+    };
+    let analysis = CausalAnalysis::builder()
+        .data(data)
+        .graph(dag)
+        .query(query)
+        .refute(suite)
+        .bootstrap_replicates(bootstrap)
+        .build()
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let ctx = ExecutionContext::for_tests(seed);
+    let result = analysis.run(&ctx).map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+    let adjustment_set: Vec<String> = result
+        .estimand
+        .adjustment_set
+        .iter()
+        .map(|id| {
+            names
+                .get(id.as_usize())
+                .cloned()
+                .unwrap_or_else(|| format!("var{}", id.raw()))
+        })
+        .collect();
+
+    let refutation_passed =
+        result.refutations.is_empty() || result.refutations.iter().all(|r| r.passed);
+
+    Ok(AteAnalysisResult {
+        ate: result.estimate.ate,
+        se_analytic: result.estimate.se_analytic,
+        se_bootstrap: result.estimate.se_bootstrap,
+        adjustment_set,
+        identification_status: format!("{:?}", result.identification.status),
+        refutation_passed,
+        refutation_count: result.refutations.len(),
+        assumption_count: result.estimate.assumptions.len(),
+        derivation_step_count: result.identification.derivation.steps.len(),
+    })
+}
+
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;
+    m.add_class::<AteAnalysisResult>()?;
     m.add("__version__", causal_core::VERSION)?;
     Ok(())
 }

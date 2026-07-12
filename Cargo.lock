@@ -179,10 +179,24 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
+ "causal-analysis",
  "causal-core",
  "causal-data",
+ "causal-graph",
  "numpy",
  "pyo3",
+]
+
+[[package]]
+name = "causal-analysis"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+ "causal-data",
+ "causal-estimate",
+ "causal-graph",
+ "causal-identify",
+ "causal-validate",
 ]
 
 [[package]]

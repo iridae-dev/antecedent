@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
-from causal._native import ArrowLoadInfo, load_float64_columns
+from causal._native import ArrowLoadInfo, AteAnalysisResult, analyze_ate, load_float64_columns
 
-__all__ = ["ArrowLoadInfo", "load_float64_columns", "__version__"]
+__all__ = [
+    "ArrowLoadInfo",
+    "AteAnalysisResult",
+    "analyze_ate",
+    "load_float64_columns",
+    "__version__",
+]
 
 try:
     from causal._native import __version__ as __version__
