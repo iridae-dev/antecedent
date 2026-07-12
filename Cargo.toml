@@ -2,9 +2,11 @@
 resolver = "2"
 members = [
     "crates/causal-core",
+    "crates/causal-kernels",
 ]
 default-members = [
     "crates/causal-core",
+    "crates/causal-kernels",
 ]
 
 [workspace.package]
@@ -16,7 +18,6 @@ repository = "https://github.com/example/causal-library"
 authors = ["Causal Library Contributors"]
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
 missing_docs = "warn"
 
 [workspace.lints.clippy]

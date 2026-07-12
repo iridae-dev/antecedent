@@ -1,0 +1,27 @@
+[package]
+name = "causal-kernels"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Low-level borrowed views and scalar/optimized numerical kernels"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["portable-optimized"]
+portable-optimized = []
+
+[dependencies]
+causal-core = { path = "../causal-core" }
+
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "gather"
+harness = false
