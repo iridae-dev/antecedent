@@ -1,0 +1,20 @@
+[package]
+name = "causal-validate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Effect refuters and validation diagnostics"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+causal-core = { path = "../causal-core" }
+causal-data = { path = "../causal-data" }
+causal-estimate = { path = "../causal-estimate" }
+causal-expr = { path = "../causal-expr" }
+causal-identify = { path = "../causal-identify" }
