@@ -9,12 +9,31 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod assumption;
+pub mod diagnostic;
 pub mod error;
+pub mod execution;
 pub mod ids;
+pub mod plan;
+pub mod provenance;
 pub mod schema;
 
+pub use assumption::{
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, ParametricAssumption, PriorAssumption,
+};
+pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
+pub use execution::{
+    CachePolicy, CancellationToken, CausalRng, Determinism, ExecutionContext, KernelPolicy,
+    MemoryBudget, NonZeroThreadCount, Parallelism, ProgressSink, RngFactory,
+};
 pub use ids::{CategoryDomainId, EnvironmentId, Lag, RegimeId, VariableId};
+pub use plan::{
+    BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
+    LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
+};
+pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
     ValueType, VariableSchema,
