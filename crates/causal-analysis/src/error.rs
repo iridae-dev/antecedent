@@ -26,9 +26,8 @@ impl fmt::Display for AnalysisError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Identify(m) | Self::Estimate(m) | Self::Validate(m) => write!(f, "{m}"),
-            Self::Unsupported { message } | Self::Missing { field: message } => {
-                write!(f, "{message}")
-            }
+            Self::Unsupported { message } => write!(f, "{message}"),
+            Self::Missing { field } => write!(f, "missing required field: {field}"),
         }
     }
 }

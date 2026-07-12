@@ -9,10 +9,12 @@ pub mod design;
 pub mod error;
 #[cfg(feature = "faer")]
 pub mod faer_backend;
+pub mod gram;
 pub mod linalg;
 
 pub use design::{CompiledDesign, DesignColumnRole};
 pub use error::StatsError;
 #[cfg(feature = "faer")]
 pub use faer_backend::FaerBackend;
+pub use gram::{form_xtx, invert_square};
 pub use linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};

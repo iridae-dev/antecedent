@@ -9,8 +9,7 @@ use causal_core::{
     VariableId,
 };
 use causal_data::{
-    ColumnView, Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData,
-    ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
 };
 use causal_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte};
 use causal_identify::IdentifiedEstimand;
@@ -55,10 +54,7 @@ pub struct RefutationProblem<'a> {
 
 /// Extract a float64 column as owned values.
 pub(crate) fn float_col(data: &TabularData, id: VariableId) -> Result<Vec<f64>, ValidationError> {
-    match data.column(id).map_err(|e| ValidationError::Data(e.to_string()))? {
-        ColumnView::Float64(c) => Ok(c.values.to_vec()),
-        _ => Err(ValidationError::Data(format!("variable {id:?} is not float64"))),
-    }
+    data.float64_values(id).map_err(|e| ValidationError::Data(e.to_string()))
 }
 
 /// Rebuild tabular data replacing one float column.

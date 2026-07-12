@@ -8,6 +8,7 @@ use faer::Mat;
 use faer::linalg::solvers::{FullPivLu, Solve};
 
 use crate::error::StatsError;
+use crate::gram::form_xtx;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
 
 /// Default `faer` backend.
@@ -34,21 +35,9 @@ impl DenseLinearAlgebra for FaerBackend {
         }
         workspace.prepare(nrows, ncols);
 
-        // Form XᵀX and Xᵀy via explicit loops (stable, no per-call Mat alloc beyond temps).
+        // Form XᵀX and Xᵀy via shared Gram helper (stable, no per-call Mat alloc beyond temps).
         let xtx = &mut workspace.scratch[..ncols * ncols];
-        xtx.fill(0.0);
-        for c1 in 0..ncols {
-            for c2 in c1..ncols {
-                let mut acc = 0.0;
-                let col1 = &x_colmajor[c1 * nrows..(c1 + 1) * nrows];
-                let col2 = &x_colmajor[c2 * nrows..(c2 + 1) * nrows];
-                for r in 0..nrows {
-                    acc += col1[r] * col2[r];
-                }
-                xtx[c1 * ncols + c2] = acc;
-                xtx[c2 * ncols + c1] = acc;
-            }
-        }
+        form_xtx(x_colmajor, nrows, ncols, xtx);
         let xty = &mut workspace.rhs[..ncols];
         xty.fill(0.0);
         for c in 0..ncols {

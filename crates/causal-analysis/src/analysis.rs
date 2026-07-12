@@ -10,21 +10,20 @@ use causal_core::{
     AverageEffectQuery, BufferMaterialization, CausalQuery, DataClassification, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord,
     KernelSelection, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph,
-    ProvenanceNode, VERSION, VariableId,
+    ProvenanceNode, VERSION,
 };
 use causal_data::TabularData;
 use causal_estimate::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
 };
 use causal_graph::Dag;
-use causal_identify::{
-    BackdoorIdentifier, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-};
+use causal_identify::{BackdoorIdentifier, IdentificationStatus, IdentifiedEstimand};
 use causal_validate::{
     PlaceboTreatment, RandomCommonCause, RefutationProblem, RefutationReport,
 };
 
 use crate::error::AnalysisError;
+use crate::result::CausalAnalysisResult;
 
 /// Which Phase 1 refuters to run.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -270,31 +269,4 @@ fn run_refuters(
         .refute(&problem, workspace, ctx)
         .map_err(|e| AnalysisError::Validate(e.to_string()))?;
     Ok(vec![placebo, rcc])
-}
-
-/// End-to-end analysis result.
-#[derive(Clone, Debug)]
-pub struct CausalAnalysisResult {
-    /// Logical plan record.
-    pub logical_plan: LogicalAnalysisPlanRecord,
-    /// Physical plan record.
-    pub physical_plan: PhysicalExecutionPlanRecord,
-    /// Full identification artifact.
-    pub identification: IdentificationResult,
-    /// Primary estimand used for estimation.
-    pub estimand: IdentifiedEstimand,
-    /// Point estimate + uncertainty.
-    pub estimate: EffectEstimate,
-    /// Refutation reports (may be empty).
-    pub refutations: Vec<RefutationReport>,
-    /// Diagnostics.
-    pub diagnostics: Vec<Diagnostic>,
-    /// Provenance.
-    pub provenance: ProvenanceGraph,
-    /// Performance record.
-    pub performance: ExecutionPerformanceRecord,
-    /// Treatment variable.
-    pub treatment: VariableId,
-    /// Outcome variable.
-    pub outcome: VariableId,
 }

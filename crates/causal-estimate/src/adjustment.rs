@@ -11,9 +11,12 @@
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, ExecutionContext, VariableId};
-use causal_data::{ColumnView, TableView, TabularData};
+use causal_data::{TableView, TabularData};
 use causal_identify::IdentifiedEstimand;
-use causal_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use causal_stats::{
+    CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx,
+    invert_square,
+};
 
 use crate::error::EstimationError;
 
@@ -109,11 +112,18 @@ impl LinearAdjustmentAte {
                 message: "LinearAdjustmentAte expects backdoor.adjustment",
             });
         }
-        let t = float_col(data, treatment)?;
-        let y = float_col(data, outcome)?;
+        let t = data
+            .float64_values(treatment)
+            .map_err(|e| EstimationError::Data(e.to_string()))?;
+        let y = data
+            .float64_values(outcome)
+            .map_err(|e| EstimationError::Data(e.to_string()))?;
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
-            covs.push((z, float_col(data, z)?));
+            covs.push((
+                z,
+                data.float64_values(z).map_err(|e| EstimationError::Data(e.to_string()))?,
+            ));
         }
         let cov_refs: Vec<(VariableId, &[f64])> =
             covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
@@ -214,18 +224,6 @@ impl LinearAdjustmentAte {
     }
 }
 
-fn float_col(data: &TabularData, id: VariableId) -> Result<Vec<f64>, EstimationError> {
-    match data
-        .column(id)
-        .map_err(|e| EstimationError::Data(e.to_string()))?
-    {
-        ColumnView::Float64(c) => Ok(c.values.to_vec()),
-        _ => Err(EstimationError::Data(format!(
-            "variable {id} is not float64"
-        ))),
-    }
-}
-
 fn analytic_se_treatment(
     x_colmajor: &[f64],
     nrows: usize,
@@ -233,41 +231,11 @@ fn analytic_se_treatment(
     t_col: usize,
     sigma2: f64,
 ) -> f64 {
-    let mut a = vec![0.0; ncols * ncols];
-    for c1 in 0..ncols {
-        for c2 in c1..ncols {
-            let mut acc = 0.0;
-            for r in 0..nrows {
-                acc += x_colmajor[c1 * nrows + r] * x_colmajor[c2 * nrows + r];
-            }
-            a[c1 * ncols + c2] = acc;
-            a[c2 * ncols + c1] = acc;
-        }
-    }
-    let mut inv = vec![0.0; ncols * ncols];
-    for i in 0..ncols {
-        inv[i * ncols + i] = 1.0;
-    }
-    for col in 0..ncols {
-        let pivot = a[col * ncols + col];
-        if pivot.abs() < 1e-14 {
-            return f64::NAN;
-        }
-        for j in 0..ncols {
-            a[col * ncols + j] /= pivot;
-            inv[col * ncols + j] /= pivot;
-        }
-        for row in 0..ncols {
-            if row == col {
-                continue;
-            }
-            let factor = a[row * ncols + col];
-            for j in 0..ncols {
-                a[row * ncols + j] -= factor * a[col * ncols + j];
-                inv[row * ncols + j] -= factor * inv[col * ncols + j];
-            }
-        }
-    }
+    let mut xtx = vec![0.0; ncols * ncols];
+    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
+    let Some(inv) = invert_square(&xtx, ncols) else {
+        return f64::NAN;
+    };
     (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
 }
 

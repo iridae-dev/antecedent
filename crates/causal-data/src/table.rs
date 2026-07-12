@@ -21,4 +21,16 @@ pub trait TableView {
     ///
     /// Unknown variable or type issues.
     fn column(&self, id: VariableId) -> Result<ColumnView<'_>, DataError>;
+
+    /// Copy a float64 column into an owned buffer.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variable or non-float64 column.
+    fn float64_values(&self, id: VariableId) -> Result<Vec<f64>, DataError> {
+        match self.column(id)? {
+            ColumnView::Float64(c) => Ok(c.values.to_vec()),
+            _ => Err(DataError::TypeMismatch { id, expected: "float64" }),
+        }
+    }
 }

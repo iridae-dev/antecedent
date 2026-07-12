@@ -7,9 +7,11 @@
 
 pub mod analysis;
 pub mod error;
+pub mod result;
 
-pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, CausalAnalysisResult, RefuteSuite};
+pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RefuteSuite};
 pub use error::AnalysisError;
+pub use result::CausalAnalysisResult;
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
