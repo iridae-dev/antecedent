@@ -1,0 +1,22 @@
+[package]
+name = "causal-stats"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Statistical kernels, regression, and linear algebra backends"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["faer"]
+faer = ["dep:faer"]
+
+[dependencies]
+causal-core = { path = "../causal-core" }
+causal-kernels = { path = "../causal-kernels" }
+faer = { version = "0.21", optional = true }
