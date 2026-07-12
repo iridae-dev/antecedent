@@ -1,0 +1,19 @@
+[package]
+name = "causal-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+causal-core = { path = "../crates/causal-core" }
+
+[[bin]]
+name = "schema_names"
+path = "fuzz_targets/schema_names.rs"
+test = false
+doc = false
+bench = false

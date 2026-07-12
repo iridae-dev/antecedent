@@ -6,6 +6,7 @@ members = [
     "crates/causal-data",
     "crates/causal-graph",
     "crates/causal-io",
+    "python",
 ]
 default-members = [
     "crates/causal-core",

@@ -1,0 +1,25 @@
+[package]
+name = "causal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Python extension for causal-library (PyO3)"
+publish = false
+
+[lib]
+name = "causal"
+crate-type = ["cdylib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+causal-core = { path = "../crates/causal-core" }
+causal-data = { path = "../crates/causal-data", features = ["arrow"] }
+pyo3 = { version = "0.23", features = ["extension-module"] }
+arrow-array = { version = "54", default-features = false }
+arrow-schema = { version = "54", default-features = false }
+numpy = { version = "0.23", default-features = false }

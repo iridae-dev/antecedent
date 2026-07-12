@@ -46,7 +46,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 mod tests {
     #[test]
     fn version_is_semver_like() {
-        assert!(!super::VERSION.is_empty());
         assert!(super::VERSION.contains('.'));
     }
 }
