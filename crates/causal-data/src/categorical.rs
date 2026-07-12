@@ -274,7 +274,7 @@ impl ContrastMatrix {
 /// Compile a contrast into a design matrix for valid rows (Phase 0 helper).
 ///
 /// Full design-matrix compilation for estimators is Phase 1; this builds the
-/// contrast matrix itself for Treatment / FullRankIndicator / Custom.
+/// contrast matrix itself for `Treatment` / `FullRankIndicator` / `Custom`.
 ///
 /// # Errors
 ///

@@ -10,6 +10,7 @@
 
 #[cfg(feature = "arrow")]
 pub mod arrow_adapter;
+pub mod categorical;
 pub mod column;
 pub mod dataset;
 pub mod error;
@@ -20,6 +21,10 @@ pub mod temporal;
 
 #[cfg(feature = "arrow")]
 pub use arrow_adapter::{ArrowLoadResult, tabular_from_record_batch};
+pub use categorical::{
+    compile_contrast_matrix, CategoricalColumn, CategoricalView, CategoryCode, CategoryDomain,
+    CategoryLevel, Contrast, ContrastMatrix, UnknownCategoryPolicy,
+};
 pub use column::{
     BooleanColumn, ColumnView, Float64Column, Int64Column, OwnedColumn, ValidityBitmap,
 };
