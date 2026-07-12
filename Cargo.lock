@@ -201,6 +201,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "causal-estimate"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+ "causal-data",
+ "causal-expr",
+ "causal-identify",
+ "causal-stats",
+]
+
+[[package]]
 name = "causal-expr"
 version = "0.1.0"
 dependencies = [

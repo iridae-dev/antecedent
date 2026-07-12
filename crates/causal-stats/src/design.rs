@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::needless_range_loop, clippy::manual_memcpy)]
+
 use std::sync::Arc;
 
 use causal_core::VariableId;

@@ -37,9 +37,9 @@ pub trait DenseLinearAlgebra: Send + Sync {
 /// Reusable scratch for repeated least-squares fits.
 #[derive(Clone, Debug, Default)]
 pub struct LeastSquaresWorkspace {
-    /// Scratch for XᵀX / factorizations (backend-specific packing).
+    /// Scratch for `XtX` / factorizations (backend-specific packing).
     pub scratch: Vec<f64>,
-    /// Scratch for Xᵀy / coefficients.
+    /// Scratch for `Xty` / coefficients.
     pub rhs: Vec<f64>,
     /// Residual buffer.
     pub residuals: Vec<f64>,

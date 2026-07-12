@@ -17,6 +17,12 @@ use causal_core::VariableId;
 pub struct ExprId(u32);
 
 impl ExprId {
+    /// Create from a raw index (tests / deserialization).
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
     /// Raw index.
     #[must_use]
     pub const fn raw(self) -> u32 {
