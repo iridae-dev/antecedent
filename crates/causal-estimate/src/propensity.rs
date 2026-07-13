@@ -110,8 +110,31 @@ impl PropensityModel {
     }
 }
 
-/// Reusable scratch for propensity estimators (bootstrap-safe: no per-replicate reallocation
-/// beyond what `MatchingIndex` construction requires, since donor rows differ per replicate).
+/// Geometry key for a cached [`MatchingIndex`] (rebuild when this changes).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct MatchingIndexKey {
+    dim: usize,
+    n_donors: usize,
+    distance: MatchingDistance,
+    /// FNV-1a over donor feature bytes (stable across identical layouts).
+    features_hash: u64,
+}
+
+impl Default for MatchingIndexKey {
+    fn default() -> Self {
+        Self {
+            dim: 0,
+            n_donors: 0,
+            distance: MatchingDistance::Euclidean,
+            features_hash: 0,
+        }
+    }
+}
+
+/// Reusable scratch for propensity estimators.
+///
+/// Point estimates retain a [`MatchingIndex`] across compatible donor geometries (DESIGN §14.6).
+/// Bootstrap replicates rebuild the index whenever resampled donors change the geometry key.
 #[derive(Clone, Debug, Default)]
 pub struct PropensityEstimationWorkspace {
     /// Logistic IRLS scratch reused across point-estimate and bootstrap propensity refits.
@@ -120,6 +143,53 @@ pub struct PropensityEstimationWorkspace {
     pub matching_donor_rows: Vec<usize>,
     /// Matching output buffer: distance to the matched donor per query row.
     pub matching_distances: Vec<f64>,
+    /// Cached nearest-neighbor index for the current donor geometry.
+    matching_index: Option<MatchingIndex>,
+    /// Key of [`Self::matching_index`].
+    matching_index_key: MatchingIndexKey,
+    /// Number of times a new [`MatchingIndex`] was constructed (reuse diagnostics / benches).
+    pub matching_index_builds: u32,
+}
+
+impl PropensityEstimationWorkspace {
+    /// Ensure a matching index for `donor_features`, rebuilding only when geometry changes.
+    fn ensure_matching_index(
+        &mut self,
+        donor_features: &[f64],
+        dim: usize,
+        distance: MatchingDistance,
+    ) -> Result<(), EstimationError> {
+        let n_donors = donor_features.len() / dim.max(1);
+        let key = MatchingIndexKey {
+            dim,
+            n_donors,
+            distance,
+            features_hash: fnv1a64(donor_features),
+        };
+        let needs_rebuild = self.matching_index.is_none() || self.matching_index_key != key;
+        if needs_rebuild {
+            let donor_ids: Vec<usize> = (0..n_donors).collect();
+            let index = MatchingIndex::exact(donor_features, dim, &donor_ids, distance)
+                .map_err(stats_err)?;
+            self.matching_index = Some(index);
+            self.matching_index_key = key;
+            self.matching_index_builds = self.matching_index_builds.saturating_add(1);
+        }
+        Ok(())
+    }
+}
+
+fn fnv1a64(bytes_as_f64: &[f64]) -> u64 {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let mut hash = OFFSET;
+    for &v in bytes_as_f64 {
+        for b in v.to_bits().to_le_bytes() {
+            hash ^= u64::from(b);
+            hash = hash.wrapping_mul(PRIME);
+        }
+    }
+    hash
 }
 
 /// Default overlap policy for all Phase 4 propensity estimators: diagnostics mandatory,
@@ -746,6 +816,9 @@ fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<f64> {
 
 /// Match each `query` row to its nearest `donor` row; returns `query_y[q] - donor_y[matched]`
 /// for every query matched within the caliper (caliper-rejected queries are omitted).
+///
+/// Reuses [`PropensityEstimationWorkspace`]'s cached [`MatchingIndex`] when donor geometry
+/// is unchanged.
 fn match_diffs(
     donor_features: &[f64],
     donor_outcome: &[f64],
@@ -754,30 +827,35 @@ fn match_diffs(
     query_features: &[f64],
     query_outcome: &[f64],
     caliper: Option<f64>,
-    donor_rows_buf: &mut Vec<usize>,
-    distances_buf: &mut Vec<f64>,
+    workspace: &mut PropensityEstimationWorkspace,
 ) -> Result<Vec<f64>, EstimationError> {
     let n_donors = donor_outcome.len();
     if n_donors == 0 {
         return Err(EstimationError::Data("matching requires at least one donor row".into()));
     }
-    let donor_ids: Vec<usize> = (0..n_donors).collect();
-    let index = MatchingIndex::exact(donor_features, dim, &donor_ids, distance).map_err(stats_err)?;
+    workspace.ensure_matching_index(donor_features, dim, distance)?;
     let n_queries = query_outcome.len();
-    donor_rows_buf.clear();
-    donor_rows_buf.resize(n_queries, 0);
-    distances_buf.clear();
-    distances_buf.resize(n_queries, 0.0);
-    index
-        .match_all(query_features, n_queries, caliper, donor_rows_buf, distances_buf)
-        .map_err(stats_err)?;
+    let mut donor_rows = std::mem::take(&mut workspace.matching_donor_rows);
+    let mut distances = std::mem::take(&mut workspace.matching_distances);
+    donor_rows.clear();
+    donor_rows.resize(n_queries, 0);
+    distances.clear();
+    distances.resize(n_queries, 0.0);
+    {
+        let index = workspace.matching_index.as_ref().expect("ensured");
+        index
+            .match_all(query_features, n_queries, caliper, &mut donor_rows, &mut distances)
+            .map_err(stats_err)?;
+    }
     let mut diffs = Vec::with_capacity(n_queries);
     for q in 0..n_queries {
-        let d = donor_rows_buf[q];
+        let d = donor_rows[q];
         if d != usize::MAX {
             diffs.push(query_outcome[q] - donor_outcome[d]);
         }
     }
+    workspace.matching_donor_rows = donor_rows;
+    workspace.matching_distances = distances;
     Ok(diffs)
 }
 
@@ -798,8 +876,7 @@ fn matching_contrast(
     distance: MatchingDistance,
     target: &TargetPopulation,
     caliper: Option<f64>,
-    donor_rows_buf: &mut Vec<usize>,
-    distances_buf: &mut Vec<f64>,
+    workspace: &mut PropensityEstimationWorkspace,
 ) -> Result<MatchedEstimate, EstimationError> {
     let (treated_idx, control_idx) = split_by_treatment(treatment);
     if treated_idx.is_empty() || control_idx.is_empty() {
@@ -812,24 +889,48 @@ fn matching_contrast(
 
     let per_unit_effects: Vec<f64> = match target {
         TargetPopulation::Treated => match_diffs(
-            &control_feat, &control_y, dim, distance, &treated_feat, &treated_y, caliper,
-            donor_rows_buf, distances_buf,
+            &control_feat,
+            &control_y,
+            dim,
+            distance,
+            &treated_feat,
+            &treated_y,
+            caliper,
+            workspace,
         )?,
         TargetPopulation::Untreated => match_diffs(
-            &treated_feat, &treated_y, dim, distance, &control_feat, &control_y, caliper,
-            donor_rows_buf, distances_buf,
+            &treated_feat,
+            &treated_y,
+            dim,
+            distance,
+            &control_feat,
+            &control_y,
+            caliper,
+            workspace,
         )?
         .into_iter()
         .map(|d| -d)
         .collect(),
         TargetPopulation::AllObserved => {
             let mut att_diffs = match_diffs(
-                &control_feat, &control_y, dim, distance, &treated_feat, &treated_y, caliper,
-                donor_rows_buf, distances_buf,
+                &control_feat,
+                &control_y,
+                dim,
+                distance,
+                &treated_feat,
+                &treated_y,
+                caliper,
+                workspace,
             )?;
             let atc_diffs: Vec<f64> = match_diffs(
-                &treated_feat, &treated_y, dim, distance, &control_feat, &control_y, caliper,
-                donor_rows_buf, distances_buf,
+                &treated_feat,
+                &treated_y,
+                dim,
+                distance,
+                &control_feat,
+                &control_y,
+                caliper,
+                workspace,
             )?
             .into_iter()
             .map(|d| -d)
@@ -839,7 +940,8 @@ fn matching_contrast(
         }
         _ => {
             return Err(EstimationError::UnsupportedQuery(
-                "matching estimators support AllObserved, Treated, or Untreated target populations".into(),
+                "matching estimators support AllObserved, Treated, or Untreated target populations"
+                    .into(),
             ));
         }
     };
@@ -925,8 +1027,7 @@ impl PropensityMatching {
             MatchingDistance::Absolute,
             &problem.target_population,
             self.caliper,
-            &mut workspace.matching_donor_rows,
-            &mut workspace.matching_distances,
+            workspace,
         )?;
 
         let se_bootstrap = if self.bootstrap_replicates == 0 {
@@ -986,8 +1087,14 @@ impl PropensityMatching {
                 clamp_scores(&mut scores, c);
             }
             if let Ok(m) = matching_contrast(
-                &t_boot, &y_boot, &scores, 1, MatchingDistance::Absolute, &problem.target_population,
-                self.caliper, &mut workspace.matching_donor_rows, &mut workspace.matching_distances,
+                &t_boot,
+                &y_boot,
+                &scores,
+                1,
+                MatchingDistance::Absolute,
+                &problem.target_population,
+                self.caliper,
+                workspace,
             ) {
                 estimates.push(m.ate);
             }
@@ -1080,8 +1187,7 @@ impl DistanceMatching {
             MatchingDistance::Euclidean,
             &problem.target_population,
             self.caliper,
-            &mut workspace.matching_donor_rows,
-            &mut workspace.matching_distances,
+            workspace,
         )?;
 
         // Diagnostic-only propensity fit: populates the mandatory overlap report without
@@ -1131,8 +1237,14 @@ impl DistanceMatching {
                 }
             }
             if let Ok(m) = matching_contrast(
-                &t_boot, &y_boot, &feat_boot, dim, MatchingDistance::Euclidean, &problem.target_population,
-                self.caliper, &mut workspace.matching_donor_rows, &mut workspace.matching_distances,
+                &t_boot,
+                &y_boot,
+                &feat_boot,
+                dim,
+                MatchingDistance::Euclidean,
+                &problem.target_population,
+                self.caliper,
+                workspace,
             ) {
                 estimates.push(m.ate);
             }
@@ -1320,6 +1432,25 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "att={}", effect.ate);
         assert!(effect.se_bootstrap.is_some());
+    }
+
+    #[test]
+    fn matching_index_reused_across_compatible_point_fits() {
+        let (data, estimand) = confounded_scm(400, 7);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Treated);
+        let est = PropensityMatching { bootstrap_replicates: 0, ..PropensityMatching::new() };
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let _ = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let builds_after_first = ws.matching_index_builds;
+        assert!(builds_after_first >= 1);
+        let _ = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert_eq!(
+            ws.matching_index_builds, builds_after_first,
+            "identical donor geometry must not rebuild MatchingIndex"
+        );
     }
 
     #[test]
