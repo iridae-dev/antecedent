@@ -167,8 +167,8 @@ phase = 2
 id = "tigramite.discovery.pcmci_plus"
 group = "discovery"
 description = "PCMCI+"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]

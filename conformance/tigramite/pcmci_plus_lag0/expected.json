@@ -1,0 +1,31 @@
+{
+  "true_parents": [
+    {
+      "source": "x",
+      "source_lag": 1,
+      "target": "y",
+      "target_lag": 0
+    },
+    {
+      "source": "x",
+      "source_lag": 0,
+      "target": "y",
+      "target_lag": 0
+    }
+  ],
+  "tolerance_class": "Exact",
+  "max_lag": 1,
+  "min_lag": 0,
+  "alpha": 0.05,
+  "fdr": false,
+  "n": 500,
+  "scm": "x_t ~ N(0,1); y_t = 0.8*x_{t-1} + 0.5*x_t + 0.2*N(0,1); seed=0 LCG",
+  "tigramite": {
+    "available": false,
+    "note": "clean-room synthetic; no black-box pin in this fixture"
+  },
+  "generation": {
+    "script": "inline clean-room generator in agent session",
+    "note": "deterministic LCG Gaussian"
+  }
+}

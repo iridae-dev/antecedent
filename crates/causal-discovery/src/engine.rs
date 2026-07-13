@@ -235,11 +235,16 @@ impl PcmciEngine {
         ctx: &ExecutionContext,
     ) -> Result<ScoredLink, DiscoveryError> {
         workspace.others.clear();
+        let src_key = (link.source, link.source_lag);
+        let tgt_key = (link.target, link.target_lag);
         workspace.others.extend(
-            parents_target.iter().copied().filter(|p| *p != (link.source, link.source_lag)),
+            parents_target
+                .iter()
+                .copied()
+                .filter(|p| *p != src_key && *p != tgt_key),
         );
         for p in parents_source {
-            if !workspace.others.contains(p) && *p != (link.source, link.source_lag) {
+            if !workspace.others.contains(p) && *p != src_key && *p != tgt_key {
                 workspace.others.push(*p);
             }
         }

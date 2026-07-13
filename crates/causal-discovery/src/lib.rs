@@ -12,6 +12,7 @@ pub mod error;
 pub mod evidence;
 pub mod orientation;
 pub mod pcmci;
+pub mod pcmci_plus;
 pub mod result;
 
 pub use constraints::{
@@ -25,6 +26,7 @@ pub use orientation::{
     OrientationState, RuleDelta, run_orientation_to_fixed_point,
 };
 pub use pcmci::Pcmci;
+pub use pcmci_plus::PcmciPlus;
 pub use result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
     DiscoveryResult, GraphEvidence, LaggedLink, ScoredLink,
