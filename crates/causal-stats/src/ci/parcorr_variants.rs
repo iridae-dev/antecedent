@@ -191,20 +191,54 @@ fn project_first_pc(columns: &[&[f64]], idxs: &[usize], n: usize) -> Result<Vec<
     if idxs.len() == 1 {
         return Ok(columns[idxs[0]].to_vec());
     }
-    // Mean-center and take equal-weight sum as a cheap first-PC surrogate.
-    let mut out = vec![0.0; n];
-    for &c in idxs {
+    let p = idxs.len();
+    // Mean-center columns into X (n × p row-major).
+    let mut means = vec![0.0; p];
+    for (j, &c) in idxs.iter().enumerate() {
         if columns[c].len() != n {
             return Err(StatsError::Shape { message: "column length mismatch" });
         }
-        let mean = columns[c].iter().sum::<f64>() / n as f64;
-        for r in 0..n {
-            out[r] += columns[c][r] - mean;
+        means[j] = columns[c].iter().sum::<f64>() / n as f64;
+    }
+    let mut x = vec![0.0; n * p];
+    for r in 0..n {
+        for (j, &c) in idxs.iter().enumerate() {
+            x[r * p + j] = columns[c][r] - means[j];
         }
     }
-    let norm = out.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-12);
-    for v in &mut out {
-        *v /= norm;
+    // Covariance (p × p) = X'X / (n-1).
+    let mut cov = vec![0.0; p * p];
+    let denom = (n.saturating_sub(1)).max(1) as f64;
+    for i in 0..p {
+        for j in 0..p {
+            let mut s = 0.0;
+            for r in 0..n {
+                s += x[r * p + i] * x[r * p + j];
+            }
+            cov[i * p + j] = s / denom;
+        }
+    }
+    // Power iteration for leading eigenvector.
+    let mut v = vec![1.0 / (p as f64).sqrt(); p];
+    for _ in 0..64 {
+        let mut w = vec![0.0; p];
+        for i in 0..p {
+            for j in 0..p {
+                w[i] += cov[i * p + j] * v[j];
+            }
+        }
+        let norm = w.iter().map(|a| a * a).sum::<f64>().sqrt().max(1e-15);
+        for i in 0..p {
+            v[i] = w[i] / norm;
+        }
+    }
+    let mut out = vec![0.0; n];
+    for r in 0..n {
+        let mut s = 0.0;
+        for j in 0..p {
+            s += x[r * p + j] * v[j];
+        }
+        out[r] = s;
     }
     Ok(out)
 }
