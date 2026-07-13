@@ -267,11 +267,34 @@ pub(crate) fn is_backdoor_adjustment(
 }
 
 pub(crate) fn remove_outgoing(dag: &Dag, t: DenseNodeId) -> Result<Dag, IdentificationError> {
+    remove_outgoing_set(dag, &[t])
+}
+
+/// `G` with outgoing edges from every node in `nodes` removed (node ids preserved).
+pub(crate) fn remove_outgoing_set(
+    dag: &Dag,
+    nodes: &[DenseNodeId],
+) -> Result<Dag, IdentificationError> {
     let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::Graph("n".into()))?;
     let mut out = Dag::with_variables(n);
     for e in dag.edges() {
         let (from, to) = e.parent_child().expect("dag");
-        if from == t {
+        if nodes.contains(&from) {
+            continue;
+        }
+        out.insert_directed(from, to).map_err(|e| IdentificationError::Graph(e.to_string()))?;
+    }
+    Ok(out)
+}
+
+/// `G` with every node in `nodes` fully removed (both incoming and outgoing
+/// edges dropped; node ids and count preserved).
+pub(crate) fn remove_nodes(dag: &Dag, nodes: &[DenseNodeId]) -> Result<Dag, IdentificationError> {
+    let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::Graph("n".into()))?;
+    let mut out = Dag::with_variables(n);
+    for e in dag.edges() {
+        let (from, to) = e.parent_child().expect("dag");
+        if nodes.contains(&from) || nodes.contains(&to) {
             continue;
         }
         out.insert_directed(from, to).map_err(|e| IdentificationError::Graph(e.to_string()))?;

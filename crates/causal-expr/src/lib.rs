@@ -374,6 +374,112 @@ impl CausalExprArena {
         })
     }
 
+    /// Build the front-door functional for ATE:
+    /// `E[Y | do(T=active)] − E[Y | do(T=control)]`, mediated through `M` via
+    /// `sum_m P(m | do(t)) * sum_t' P(y | m, t') P(t')`.
+    pub fn frontdoor_ate(
+        &mut self,
+        treatment: VariableId,
+        outcome: VariableId,
+        mediators: &[VariableId],
+        active: Value,
+        control: Value,
+    ) -> ExprId {
+        let left = self.frontdoor_potential_outcome(treatment, outcome, mediators, active);
+        let right = self.frontdoor_potential_outcome(treatment, outcome, mediators, control);
+        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
+        self.set_derivation(
+            contrast,
+            DerivationMeta {
+                rule: Arc::from("frontdoor"),
+                note: Some(Arc::from(format!("front-door mediator set size {}", mediators.len()))),
+            },
+        );
+        contrast
+    }
+
+    fn frontdoor_potential_outcome(
+        &mut self,
+        treatment: VariableId,
+        outcome: VariableId,
+        mediators: &[VariableId],
+        level: Value,
+    ) -> ExprId {
+        let m = self.intern_var_set(mediators.iter().copied());
+        let y = self.intern_var_set([outcome]);
+        let t = self.intern_var_set([treatment]);
+        let m_and_t = self.intern_var_set(mediators.iter().copied().chain([treatment]));
+        let empty = self.empty_var_set();
+        let empty_i = self.empty_intervention_set();
+        let do_t = self.intern_intervention_assignments([InterventionAssignment {
+            variable: treatment,
+            value: level,
+        }]);
+
+        // P(m | do(t)).
+        let m_given_do_t = self.intern(ExprNode::Distribution {
+            variables: m,
+            conditioned_on: empty,
+            intervention: do_t,
+            domain: DomainRef::Interventional,
+        });
+        // P(y | m, t').
+        let y_given_m_t = self.intern(ExprNode::Distribution {
+            variables: y,
+            conditioned_on: m_and_t,
+            intervention: empty_i,
+            domain: DomainRef::Observational,
+        });
+        // P(t').
+        let t_marginal = self.intern(ExprNode::Distribution {
+            variables: t,
+            conditioned_on: empty,
+            intervention: empty_i,
+            domain: DomainRef::Observational,
+        });
+        let inner_product = {
+            let list = self.intern_list([y_given_m_t, t_marginal]);
+            self.intern(ExprNode::Product(list))
+        };
+        let inner_summed = self.intern(ExprNode::SumOut { variables: t, expr: inner_product });
+        let outer_product = {
+            let list = self.intern_list([m_given_do_t, inner_summed]);
+            self.intern(ExprNode::Product(list))
+        };
+        let outer_summed = self.intern(ExprNode::SumOut { variables: m, expr: outer_product });
+        self.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(outcome),
+            distribution: outer_summed,
+        })
+    }
+
+    /// Build the Wald IV functional for ATE as a contrast of potential
+    /// outcomes with an empty adjustment set; the instrument set is recorded
+    /// only in derivation metadata (Phase 1 keeps the IR unadjusted).
+    pub fn iv_wald(
+        &mut self,
+        treatment: VariableId,
+        outcome: VariableId,
+        instruments: &[VariableId],
+        active: Value,
+        control: Value,
+    ) -> ExprId {
+        let left = self.backdoor_potential_outcome(treatment, outcome, &[], active);
+        let right = self.backdoor_potential_outcome(treatment, outcome, &[], control);
+        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
+        self.set_derivation(
+            contrast,
+            DerivationMeta {
+                rule: Arc::from("iv.wald"),
+                note: Some(Arc::from(format!(
+                    "Wald IV ratio using {} instrument(s)",
+                    instruments.len()
+                ))),
+            },
+        );
+        contrast
+    }
+
     /// Pretty-print an expression (diagnostics only; not an equality key).
     #[must_use]
     pub fn pretty(&self, id: ExprId) -> String {
@@ -439,5 +545,41 @@ mod tests {
         assert_ne!(left, right);
         let pretty = a.pretty(id);
         assert!(pretty.contains('−') || pretty.contains("E["));
+    }
+
+    #[test]
+    fn frontdoor_ate_contrasts_distinct_levels() {
+        let mut a = CausalExprArena::new();
+        let id = a.frontdoor_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &[VariableId::from_raw(2)],
+            Value::f64(1.0),
+            Value::f64(0.0),
+        );
+        let meta = a.derivation(id).unwrap();
+        assert_eq!(&*meta.rule, "frontdoor");
+        let ExprNode::Contrast { left, right, .. } = a.node(id) else {
+            panic!("expected contrast");
+        };
+        assert_ne!(left, right);
+    }
+
+    #[test]
+    fn iv_wald_contrasts_distinct_levels() {
+        let mut a = CausalExprArena::new();
+        let id = a.iv_wald(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &[VariableId::from_raw(2)],
+            Value::f64(1.0),
+            Value::f64(0.0),
+        );
+        let meta = a.derivation(id).unwrap();
+        assert_eq!(&*meta.rule, "iv.wald");
+        let ExprNode::Contrast { left, right, .. } = a.node(id) else {
+            panic!("expected contrast");
+        };
+        assert_ne!(left, right);
     }
 }

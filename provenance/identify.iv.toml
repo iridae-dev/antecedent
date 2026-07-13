@@ -1,0 +1,20 @@
+feature_id = "identify.iv"
+implementation_crate = "causal-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["7.2 Instrumental variables"] },
+  { title = "Instrumental Variables in Causal Inference and Machine Learning", doi = "10.48550/arXiv.2212.05778", sections = ["graphical IV criteria"] },
+]
+
+upstream_implementations_observed = [
+  { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+  "independently generated synthetic SCMs with unmeasured T-Y confounders",
+  "property tests vs path-enumeration d-separation oracle",
+]

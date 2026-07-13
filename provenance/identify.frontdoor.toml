@@ -1,0 +1,20 @@
+feature_id = "identify.frontdoor"
+implementation_crate = "causal-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Causal Inference in Statistics: A Primer", doi = "10.1002/9781119186844", sections = ["front-door criterion"] },
+  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["3.3.2"] },
+]
+
+upstream_implementations_observed = [
+  { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+  "independently generated synthetic SCMs with unmeasured T-Y confounders",
+  "property tests vs path-enumeration d-separation oracle",
+]
