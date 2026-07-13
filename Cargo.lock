@@ -237,6 +237,7 @@ dependencies = [
  "causal-core",
  "causal-data",
  "causal-expr",
+ "causal-graph",
  "causal-identify",
  "causal-stats",
 ]

@@ -16,5 +16,6 @@ workspace = true
 causal-core = { path = "../causal-core" }
 causal-data = { path = "../causal-data" }
 causal-expr = { path = "../causal-expr" }
+causal-graph = { path = "../causal-graph" }
 causal-identify = { path = "../causal-identify" }
 causal-stats = { path = "../causal-stats" }

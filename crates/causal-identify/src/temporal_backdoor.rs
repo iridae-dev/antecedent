@@ -88,6 +88,9 @@ impl TemporalBackdoorIdentifier {
             .identify(&prepared, &CausalQuery::AverageEffect(ate))?;
 
         result.query = CausalQuery::TemporalEffect(query.clone());
+        for e in &mut result.estimands {
+            e.method = Arc::from("temporal.backdoor.unfolded");
+        }
         result.required_assumptions.push(AssumptionRecord {
             assumption: Assumption::Stationarity,
             source: AssumptionSource::AlgorithmDefault {

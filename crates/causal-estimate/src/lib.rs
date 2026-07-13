@@ -7,9 +7,11 @@
 
 pub mod adjustment;
 pub mod error;
+pub mod temporal_adjustment;
 
 pub use adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
     PreparedEstimationProblem,
 };
 pub use error::EstimationError;
+pub use temporal_adjustment::TemporalLinearAdjustment;
