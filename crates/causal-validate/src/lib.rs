@@ -31,7 +31,7 @@ pub use overlap::OverlapRefuter;
 pub use overlap_rule::OverlapRuleRefuter;
 pub use placebo::PlaceboTreatment;
 pub use rcc::RandomCommonCause;
-pub use sensitivity::{LinearSensitivity, PartialLinearSensitivity};
+pub use sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 pub use stability::{BlockBootstrapStability, DiscoveryStabilityReport, LinkStability};
 pub use unobserved_common_cause::UnobservedCommonCause;
 
@@ -385,5 +385,30 @@ mod tests {
         assert!(report.comparison > 0.0);
         assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
         assert_eq!(report.replicates as usize, refuter.partial_r2_grid.len());
+    }
+
+    #[test]
+    fn nonparametric_sensitivity_reports_a_bounded_robustness_value() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(47);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let refuter = NonparametricSensitivity::new();
+        let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric");
+        assert!(report.comparison > 0.0);
+        assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
     }
 }
