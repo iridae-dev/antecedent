@@ -42,6 +42,8 @@ impl SemanticVersion {
 pub enum ArtifactKind {
     /// Schema + graph bundle (Phase 0).
     SchemaGraph,
+    /// Identification/estimation analysis trace (Phase 1).
+    AnalysisTrace,
     /// Other / future.
     Other(String),
 }

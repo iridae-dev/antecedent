@@ -196,7 +196,9 @@ dependencies = [
  "causal-estimate",
  "causal-graph",
  "causal-identify",
+ "causal-io",
  "causal-validate",
+ "serde_json",
 ]
 
 [[package]]

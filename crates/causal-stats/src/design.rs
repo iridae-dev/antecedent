@@ -161,10 +161,44 @@ mod tests {
         let _ = design.fit_ols(&backend, &mut ws).unwrap();
         let cap_scratch = ws.scratch.capacity();
         let ptr = ws.scratch.as_ptr();
+        let res_ptr = ws.residuals.as_ptr();
+        let res_cap = ws.residuals.capacity();
         for _ in 0..20 {
             let _ = design.fit_ols(&backend, &mut ws).unwrap();
             assert_eq!(ws.scratch.as_ptr(), ptr);
             assert_eq!(ws.scratch.capacity(), cap_scratch);
+            assert_eq!(ws.residuals.as_ptr(), res_ptr);
+            assert_eq!(ws.residuals.capacity(), res_cap);
+        }
+    }
+
+    #[test]
+    fn phase0_hot_path_allocation_gate_no_scratch_growth() {
+        // Phase 0 exit: prepared OLS hot path performs no repeated scratch allocation.
+        let n = 400usize;
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + z[i]).collect();
+        let design = CompiledDesign::linear_adjustment(
+            &t,
+            &[(VariableId::from_raw(2), z.as_slice())],
+            &y,
+            &[],
+        )
+        .unwrap();
+        let backend = FaerBackend;
+        let mut ws = LeastSquaresWorkspace::default();
+        let _ = design.fit_ols(&backend, &mut ws).unwrap();
+        let scratch_ptr = ws.scratch.as_ptr();
+        let scratch_cap = ws.scratch.capacity();
+        let rhs_ptr = ws.rhs.as_ptr();
+        let rhs_cap = ws.rhs.capacity();
+        for _ in 0..250 {
+            let _ = design.fit_ols(&backend, &mut ws).unwrap();
+            assert_eq!(ws.scratch.as_ptr(), scratch_ptr);
+            assert_eq!(ws.scratch.capacity(), scratch_cap);
+            assert_eq!(ws.rhs.as_ptr(), rhs_ptr);
+            assert_eq!(ws.rhs.capacity(), rhs_cap);
         }
     }
 }

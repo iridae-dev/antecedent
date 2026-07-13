@@ -9,6 +9,7 @@ pub mod arrow_section;
 pub mod container;
 pub mod convert;
 pub mod error;
+pub mod trace;
 pub mod wire;
 
 pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section};
@@ -17,6 +18,10 @@ pub use container::{
 };
 pub use convert::{dag_from_wire, dag_to_wire, from_cbor, schema_to_wire, to_cbor};
 pub use error::IoError;
+pub use trace::{
+    AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,
+    assumptions_to_wire,
+};
 pub use wire::{
     ArtifactKind, DagWire, FormatVersion, ProvenanceWire, SchemaWire, SectionDescriptor,
     SemanticVersion,
@@ -89,5 +94,55 @@ mod tests {
         let dag_wire: DagWire = from_cbor(&decoded.sections[1].data).unwrap();
         let dag2 = dag_from_wire(&dag_wire).unwrap();
         assert!(dag2.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+    }
+
+    #[test]
+    fn analysis_trace_artifact_round_trips_assumptions_and_derivation() {
+        use std::sync::Arc;
+
+        use causal_core::{
+            Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+            AssumptionStatus,
+        };
+
+        let mut assumptions = AssumptionSet::new();
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::CausalMarkov,
+            source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("backdoor") },
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+        let trace = AnalysisTraceWire {
+            assumptions: assumptions_to_wire(&assumptions),
+            derivation: vec![DerivationStepWire {
+                rule: "backdoor.criterion".into(),
+                detail: "Z blocks all backdoor paths".into(),
+            }],
+            method: "backdoor.adjustment".into(),
+            adjustment_set: vec![2],
+        };
+        let bytes = to_cbor(&trace).unwrap();
+        let desc = section_descriptor("analysis.trace", "application/cbor", &bytes);
+        let artifact = EncodedArtifact {
+            manifest: ArtifactManifest {
+                format_version: FormatVersion { major: 0, minor: 1 },
+                minimum_reader_version: FormatVersion { major: 0, minor: 1 },
+                artifact_kind: ArtifactKind::AnalysisTrace,
+                library_version: SemanticVersion::from_crate_version(VERSION),
+                artifact_id: "test-analysis-trace".into(),
+                sections: vec![desc],
+                provenance: ProvenanceWire { note: "phase1-trace".into() },
+            },
+            sections: vec![SectionBytes { id: "analysis.trace".into(), data: bytes }],
+        };
+        let mut buf = Vec::new();
+        artifact.write_to(&mut buf).unwrap();
+        let decoded = EncodedArtifact::read_from(buf.as_slice()).unwrap();
+        let round: AnalysisTraceWire = from_cbor(&decoded.sections[0].data).unwrap();
+        assert_eq!(round.method, "backdoor.adjustment");
+        assert_eq!(round.adjustment_set, vec![2]);
+        assert_eq!(round.assumptions.len(), 1);
+        assert_eq!(round.assumptions[0].assumption, AssumptionTagWire::CausalMarkov);
+        assert_eq!(round.derivation[0].rule, "backdoor.criterion");
     }
 }

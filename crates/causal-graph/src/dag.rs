@@ -235,4 +235,25 @@ mod tests {
         let pos = |id: u32| order.iter().position(|n| n.raw() == id).unwrap();
         assert!(pos(0) < pos(1) && pos(1) < pos(2));
     }
+
+    #[test]
+    fn phase0_traversal_workspace_reuses_frontier_capacity() {
+        let mut dag = Dag::with_variables(1_000);
+        for i in 0..999 {
+            dag.insert_directed(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
+        }
+        let mut ws = GraphWorkspace::default();
+        assert!(dag.reaches_with(DenseNodeId::from_raw(0), DenseNodeId::from_raw(999), &mut ws));
+        let ptr = ws.frontier.as_ptr();
+        let cap = ws.frontier.capacity();
+        for _ in 0..50 {
+            assert!(dag.reaches_with(
+                DenseNodeId::from_raw(0),
+                DenseNodeId::from_raw(999),
+                &mut ws
+            ));
+            assert_eq!(ws.frontier.as_ptr(), ptr);
+            assert_eq!(ws.frontier.capacity(), cap);
+        }
+    }
 }

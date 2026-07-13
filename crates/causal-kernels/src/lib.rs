@@ -9,6 +9,7 @@
 #![deny(missing_docs)]
 // Unsafe is confined to validated unchecked view indexing in hot loops.
 #![allow(unsafe_code)]
+#![cfg_attr(test, allow(clippy::cast_precision_loss))]
 
 pub mod dispatch;
 pub mod portable;
@@ -89,5 +90,22 @@ mod tests {
         let mut expected = vec![0.0; 8];
         scalar::gather(x, &idx, &mut expected);
         assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn phase0_gather_hot_path_reuses_output_buffer() {
+        let n = 8_000usize;
+        let data: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let src = F64VectorView::contiguous(&data);
+        let indices: Vec<usize> = (0..n).step_by(8).collect();
+        let mut out = vec![0.0; indices.len()];
+        let policy = KernelPolicy::default_policy();
+        let ptr = out.as_ptr();
+        let cap = out.capacity();
+        for _ in 0..200 {
+            gather(&policy, src, &indices, &mut out);
+            assert_eq!(out.as_ptr(), ptr);
+            assert_eq!(out.capacity(), cap);
+        }
     }
 }

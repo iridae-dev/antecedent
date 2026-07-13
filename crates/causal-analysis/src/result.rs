@@ -8,6 +8,7 @@ use causal_core::{
 };
 use causal_estimate::EffectEstimate;
 use causal_identify::{IdentificationResult, IdentifiedEstimand};
+use causal_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
 use causal_validate::RefutationReport;
 
 /// End-to-end analysis result.
@@ -35,4 +36,26 @@ pub struct CausalAnalysisResult {
     pub treatment: VariableId,
     /// Outcome variable.
     pub outcome: VariableId,
+}
+
+impl CausalAnalysisResult {
+    /// Build a durable analysis-trace wire payload (assumptions + derivation).
+    #[must_use]
+    pub fn analysis_trace_wire(&self) -> AnalysisTraceWire {
+        AnalysisTraceWire {
+            assumptions: assumptions_to_wire(&self.estimate.assumptions),
+            derivation: self
+                .identification
+                .derivation
+                .steps
+                .iter()
+                .map(|s| DerivationStepWire {
+                    rule: s.rule.to_string(),
+                    detail: s.detail.to_string(),
+                })
+                .collect(),
+            method: self.estimand.method.to_string(),
+            adjustment_set: self.estimand.adjustment_set.iter().map(|id| id.raw()).collect(),
+        }
+    }
 }

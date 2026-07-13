@@ -80,5 +80,6 @@ jobs:
       - name: Install wheel and smoke-import
         working-directory: python
         run: |
-          pip install dist/*.whl
+          pip install dist/*.whl numpy pytest
           python -c "import causal; print(causal.__version__)"
+          pytest -q tests/test_arrow_copy_gate.py

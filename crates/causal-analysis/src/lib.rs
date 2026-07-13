@@ -120,5 +120,14 @@ mod tests {
         assert_eq!(result.refutations.len(), 2);
         assert!(!result.provenance.is_empty());
         assert!(!result.identification.derivation.steps.is_empty());
+
+        let trace = result.analysis_trace_wire();
+        assert_eq!(&*trace.method, "backdoor.adjustment");
+        assert!(!trace.assumptions.is_empty());
+        assert!(!trace.derivation.is_empty());
+        let bytes = causal_io::to_cbor(&trace).unwrap();
+        let round: causal_io::AnalysisTraceWire = causal_io::from_cbor(&bytes).unwrap();
+        assert_eq!(round.method, trace.method);
+        assert_eq!(round.derivation.len(), trace.derivation.len());
     }
 }
