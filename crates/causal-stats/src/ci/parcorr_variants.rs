@@ -19,6 +19,9 @@ use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
     SignificanceMethod,
 };
+
+#[cfg(test)]
+use super::types::CiQuery;
 use crate::error::StatsError;
 
 fn rank_column(col: &[f64], out: &mut [f64]) {

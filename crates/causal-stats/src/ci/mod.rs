@@ -7,15 +7,17 @@
 mod advanced;
 mod analytic;
 mod block_shuffle;
+mod calibration;
 mod gsquared;
 mod parcorr;
 mod parcorr_variants;
 mod types;
 
 pub use advanced::{
-    Gpdc, KnnCmi, KnnCmiWorkspace, MixedKnnCmi, OracleCi, SymbolicCmi,
+    Gpdc, KnnCmi, MixedKnnCmi, OracleCi, SymbolicCmi,
 };
 pub use analytic::analytic_parcorr_ci;
+pub use calibration::{CalibrationReport, calibrate_parcorr_like};
 pub use gsquared::{GSquared, RegressionCi};
 pub use parcorr::PartialCorrelation;
 pub use parcorr_variants::{
@@ -23,7 +25,7 @@ pub use parcorr_variants::{
 };
 pub use types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
-    SignificanceMethod,
+    KnnCmiWorkspace, SignificanceMethod,
 };
 
 #[cfg(test)]
@@ -89,5 +91,34 @@ mod tests {
         let ctx = ExecutionContext::for_tests(3);
         let out = PartialCorrelation::new().test_batch(&req, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out.results[0].p_value));
+    }
+
+    #[test]
+    fn knn_reuses_permutation_plan_across_queries() {
+        let n = 80usize;
+        let x: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
+        let y: Vec<f64> = (0..n).map(|i| (i as f64 * 0.3).cos()).collect();
+        let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.1).sin()).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [
+            CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 },
+            CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 },
+            CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 },
+        ];
+        let z_flat = [2usize];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::Analytic,
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(9);
+        let _ = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        let gen_after_first = ws.knn.index_generation;
+        let perm_ptr = ws.knn.perm.as_ptr();
+        let _ = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        assert_eq!(ws.knn.index_generation, gen_after_first, "index must not rebuild per batch");
+        assert_eq!(ws.knn.perm.as_ptr(), perm_ptr, "permutation plan buffer must be reused");
     }
 }

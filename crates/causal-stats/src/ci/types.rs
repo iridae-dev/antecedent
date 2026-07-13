@@ -7,6 +7,21 @@ use causal_kernels::ParCorrWorkspace;
 
 use crate::error::StatsError;
 
+/// Reusable kNN index + permutation plan for CMI.
+#[derive(Clone, Debug, Default)]
+pub struct KnnCmiWorkspace {
+    /// Built neighbor index (reused across queries when geometry unchanged).
+    pub index_generation: u64,
+    /// Last built feature dim.
+    pub last_dim: usize,
+    /// Last n.
+    pub last_n: usize,
+    /// Permutation plan (row indexes).
+    pub perm: Vec<usize>,
+    /// Distance scratch.
+    pub distances: Vec<f64>,
+}
+
 /// Significance method for a CI statistic.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SignificanceMethod {
@@ -91,8 +106,10 @@ pub struct CiWorkspace {
     pub stats: Vec<Option<f64>>,
     /// Block-shuffle column scratch.
     pub shuffled: Vec<f64>,
-    /// Block starts for shuffle.
+    /// Block starts for shuffle / reusable permutation plan.
     pub block_perm: Vec<usize>,
+    /// kNN CMI index / permutation reuse state.
+    pub knn: KnnCmiWorkspace,
 }
 
 impl CiWorkspace {

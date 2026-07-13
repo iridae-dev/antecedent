@@ -11,6 +11,9 @@ use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
 };
+
+#[cfg(test)]
+use super::types::{CiQuery, SignificanceMethod};
 use crate::error::StatsError;
 
 /// G-squared conditional independence for discrete (integer-coded) columns.

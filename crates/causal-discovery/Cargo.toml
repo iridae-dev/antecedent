@@ -25,3 +25,7 @@ serde_json = "1"
 [[bench]]
 name = "pcmci"
 harness = false
+
+[[bench]]
+name = "orientation"
+harness = false

@@ -56,21 +56,6 @@ impl ConditionalIndependence for OracleCi {
     }
 }
 
-/// Reusable kNN index + permutation plan for CMI.
-#[derive(Clone, Debug, Default)]
-pub struct KnnCmiWorkspace {
-    /// Built neighbor index (reused across queries when geometry unchanged).
-    pub index_generation: u64,
-    /// Last built feature dim.
-    pub last_dim: usize,
-    /// Last n.
-    pub last_n: usize,
-    /// Permutation plan (row indexes).
-    pub perm: Vec<usize>,
-    /// Distance scratch.
-    pub distances: Vec<f64>,
-}
-
 /// kNN conditional mutual information CI (KSG-style rank proxy).
 #[derive(Clone, Debug)]
 pub struct KnnCmi {
@@ -103,14 +88,27 @@ impl ConditionalIndependence for KnnCmi {
         if n < self.k + 2 {
             return Err(StatsError::Shape { message: "n too small for kNN CMI" });
         }
-        // Ensure permutation plan reused.
+        // Reusable permutation plan (row order); rebuild only when `n` changes.
+        if workspace.knn.perm.len() != n {
+            workspace.knn.perm = (0..n).collect();
+            workspace.knn.index_generation = workspace.knn.index_generation.saturating_add(1);
+            workspace.knn.last_n = n;
+        }
         if workspace.block_perm.len() != n {
-            workspace.block_perm = (0..n).collect();
+            workspace.block_perm = workspace.knn.perm.clone();
         }
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
-            let stat = knn_mi_proxy(request.columns, q.x, q.y, z, self.k, &workspace.block_perm)?;
+            let dim = 2 + z.len();
+            if workspace.knn.last_dim != dim || workspace.knn.last_n != n {
+                workspace.knn.last_dim = dim;
+                workspace.knn.last_n = n;
+                workspace.knn.index_generation =
+                    workspace.knn.index_generation.saturating_add(1);
+            }
+            let gen_before = workspace.knn.index_generation;
+            let stat = knn_mi_proxy(request.columns, q.x, q.y, z, self.k, &workspace.knn.perm)?;
             // Null via one permutation of Y (reuse plan order from RNG stream).
             let mut y_perm = request.columns[q.y].to_vec();
             let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(qi as u64));
@@ -120,7 +118,9 @@ impl ConditionalIndependence for KnnCmi {
             }
             let mut cols: Vec<&[f64]> = request.columns.to_vec();
             cols[q.y] = &y_perm;
-            let null = knn_mi_proxy(&cols, q.x, q.y, z, self.k, &workspace.block_perm)?;
+            let null = knn_mi_proxy(&cols, q.x, q.y, z, self.k, &workspace.knn.perm)?;
+            // Same geometry: generation must not bump again inside the proxy.
+            debug_assert_eq!(workspace.knn.index_generation, gen_before);
             let p = if stat <= null { 0.5 } else { 0.05 }; // coarse Phase 5 significance
             results.push(CiResult {
                 statistic: stat,
