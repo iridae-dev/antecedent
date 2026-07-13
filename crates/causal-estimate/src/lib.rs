@@ -8,7 +8,10 @@
 pub mod adjustment;
 pub mod aipw;
 pub mod error;
+pub mod glm_adjustment;
+pub mod iv;
 pub mod propensity;
+pub mod rd;
 pub mod temporal_adjustment;
 
 pub use adjustment::{
@@ -17,8 +20,13 @@ pub use adjustment::{
 };
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use error::EstimationError;
+pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
+pub use iv::{
+    PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
+};
 pub use propensity::{
     DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
     PropensityModel, PropensityStratification, PropensityWeighting, default_propensity_overlap,
 };
+pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
 pub use temporal_adjustment::TemporalLinearAdjustment;

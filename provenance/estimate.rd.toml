@@ -1,0 +1,19 @@
+feature_id = "estimate.rd"
+implementation_crate = "causal-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Identification and Estimation of Treatment Effects with a Regression-Discontinuity Design", doi = "10.1111/1468-0262.00183", sections = ["sharp RD"] },
+  { title = "Regression Discontinuity Designs: A Guide to Practice", doi = "10.1016/j.jeconom.2007.05.001", sections = ["local-linear estimation"] },
+]
+
+upstream_implementations_observed = [
+  { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+  "independently generated synthetic sharp-RD SCM with known jump size at the cutoff",
+]

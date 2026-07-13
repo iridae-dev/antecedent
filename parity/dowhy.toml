@@ -108,8 +108,8 @@ phase = 1
 id = "dowhy.estimate.glm"
 group = "estimation"
 description = "Generalized linear model"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
@@ -140,16 +140,16 @@ phase = 4
 id = "dowhy.estimate.iv"
 group = "estimation"
 description = "Instrumental variables"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
 id = "dowhy.estimate.rd"
 group = "estimation"
 description = "Regression discontinuity"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
