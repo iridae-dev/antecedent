@@ -10,6 +10,7 @@ pub mod constraints;
 pub mod engine;
 pub mod error;
 pub mod evidence;
+pub mod orientation;
 pub mod pcmci;
 pub mod result;
 
@@ -19,6 +20,10 @@ pub use constraints::{
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
 pub use evidence::graph_evidence_from_scored;
+pub use orientation::{
+    MeekR1, MeekR2, OrientCollider, OrientationError, OrientationQueue, OrientationRule,
+    OrientationState, RuleDelta, run_orientation_to_fixed_point,
+};
 pub use pcmci::Pcmci;
 pub use result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
