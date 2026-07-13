@@ -1,4 +1,5 @@
-//! `PyO3` bindings — Phase 0–3: Arrow load, `analyze_ate`, `analyze`, `discover_pcmci`.
+//! `PyO3` bindings — Phase 0–4: Arrow load, `analyze_ate` (identifier/estimator selectable),
+//! `analyze`, `discover_pcmci`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -65,6 +66,14 @@ struct AteAnalysisResult {
     assumption_count: usize,
     #[pyo3(get)]
     derivation_step_count: usize,
+    #[pyo3(get)]
+    method: String,
+    #[pyo3(get)]
+    estimator_id: String,
+    #[pyo3(get)]
+    overlap_ess: Option<f64>,
+    #[pyo3(get)]
+    overlap_propensity_min: Option<f64>,
 }
 
 fn columns_to_batch(
@@ -115,12 +124,29 @@ fn load_float64_columns(
     })
 }
 
-/// Run static ATE: identify (backdoor) → linear estimate → optional refute.
+/// Run static ATE: identify → estimate → optional refute (Phase 4; DESIGN.md §21.2).
+///
+/// `identifier`/`estimator` select the identification strategy and estimator; leaving both
+/// `None` preserves the Phase 0–3 default (`backdoor.adjustment` + `linear.adjustment.ate`).
+/// See [`causal_analysis::CausalAnalysisBuilder::identifier`] and
+/// [`causal_analysis::CausalAnalysisBuilder::estimator`] for the supported ids.
 ///
 /// Crosses the Python boundary once: NumPy columns + edge list in, structured
 /// summary out. No per-row callbacks. Releases the GIL during native work.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment, outcome, *, refute=true, seed=1, bootstrap=50))]
+#[pyo3(signature = (
+    names,
+    columns,
+    edges,
+    treatment,
+    outcome,
+    *,
+    identifier=None,
+    estimator=None,
+    refute=true,
+    seed=1,
+    bootstrap=50
+))]
 fn analyze_ate(
     py: Python<'_>,
     names: Vec<String>,
@@ -128,6 +154,8 @@ fn analyze_ate(
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
+    identifier: Option<String>,
+    estimator: Option<String>,
     refute: bool,
     seed: u64,
     bootstrap: u32,
@@ -166,14 +194,19 @@ fn analyze_ate(
 
         let query = AverageEffectQuery::binary_ate(t_id, y_id);
         let suite = if refute { RefuteSuite::PlaceboAndRcc } else { RefuteSuite::None };
-        let analysis = CausalAnalysis::builder()
+        let mut builder = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
             .query(query)
             .refute(suite)
-            .bootstrap_replicates(bootstrap)
-            .build()
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .bootstrap_replicates(bootstrap);
+        if let Some(id) = identifier {
+            builder = builder.identifier(id);
+        }
+        if let Some(est) = estimator {
+            builder = builder.estimator(est);
+        }
+        let analysis = builder.build().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let ctx = ExecutionContext::for_tests(seed);
         let result = analysis.run(&ctx).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
@@ -188,6 +221,11 @@ fn analyze_ate(
 
         let refutation_passed =
             result.refutations.is_empty() || result.refutations.iter().all(|r| r.passed);
+        let estimator_id =
+            result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
+        let overlap_ess = result.estimate.overlap_report.as_ref().map(|r| r.ess);
+        let overlap_propensity_min =
+            result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
 
         Ok(AteAnalysisResult {
             ate: result.estimate.ate,
@@ -199,6 +237,10 @@ fn analyze_ate(
             refutation_count: result.refutations.len(),
             assumption_count: result.estimate.assumptions.len(),
             derivation_step_count: result.identification.derivation.steps.len(),
+            method: result.estimand.method.to_string(),
+            estimator_id,
+            overlap_ess,
+            overlap_propensity_min,
         })
     })
 }

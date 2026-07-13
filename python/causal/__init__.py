@@ -1,4 +1,11 @@
-"""causal — Python bindings for the causal-library Rust workspace."""
+"""causal — Python bindings for the causal-library Rust workspace (Phase 0–4).
+
+`analyze_ate` accepts optional `identifier`/`estimator` kwargs to select any of the
+Phase 4 identification/estimation pairs (e.g. `estimator="propensity.weighting"`,
+`identifier="iv", estimator="iv.2sls"`, `identifier="frontdoor",
+estimator="frontdoor.two_stage"`); omitting both preserves the Phase 0–3 default
+(`backdoor.adjustment` + `linear.adjustment.ate`).
+"""
 
 from __future__ import annotations
 
