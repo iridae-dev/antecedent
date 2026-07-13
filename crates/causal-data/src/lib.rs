@@ -26,6 +26,7 @@ pub mod split;
 pub mod storage;
 pub mod table;
 pub mod temporal;
+pub mod transforms;
 
 #[cfg(test)]
 mod testing;
@@ -55,6 +56,7 @@ pub use split::{DiscoveryEstimationSplit, TimeRange};
 pub use storage::OwnedColumnarStorage;
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
+pub use transforms::{equal_width_bin, moving_average, ordinal_patterns};
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss)]

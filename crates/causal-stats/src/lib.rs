@@ -20,7 +20,9 @@ pub mod twosls;
 
 pub use ci::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
-    PartialCorrelation, SignificanceMethod, analytic_parcorr_ci,
+    Gpdc, GSquared, KnnCmi, MixedKnnCmi, MultivariatePartialCorrelation, OracleCi,
+    PartialCorrelation, RegressionCi, RobustPartialCorrelation, SignificanceMethod, SymbolicCmi,
+    WeightedPartialCorrelation, analytic_parcorr_ci,
 };
 pub use design::{CompiledDesign, DesignColumnRole};
 pub use error::StatsError;

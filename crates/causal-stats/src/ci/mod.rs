@@ -2,17 +2,29 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::all, clippy::pedantic, clippy::nursery, clippy::restriction)]
+
+mod advanced;
 mod analytic;
 mod block_shuffle;
+mod gsquared;
 mod parcorr;
+mod parcorr_variants;
 mod types;
 
+pub use advanced::{
+    Gpdc, KnnCmi, KnnCmiWorkspace, MixedKnnCmi, OracleCi, SymbolicCmi,
+};
+pub use analytic::analytic_parcorr_ci;
+pub use gsquared::{GSquared, RegressionCi};
 pub use parcorr::PartialCorrelation;
+pub use parcorr_variants::{
+    MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
+};
 pub use types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
     SignificanceMethod,
 };
-pub use analytic::analytic_parcorr_ci;
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
