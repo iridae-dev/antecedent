@@ -9,6 +9,7 @@ pub mod analysis;
 pub mod error;
 pub mod planner;
 pub mod result;
+pub mod review;
 
 pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RefuteSuite};
 pub use error::AnalysisError;
@@ -17,6 +18,9 @@ pub use planner::{
     StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
 };
 pub use result::CausalAnalysisResult;
+pub use review::{
+    PendingGraphReview, compile_review_required, compile_temporal_with_graph, ensure_review_complete,
+};
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
