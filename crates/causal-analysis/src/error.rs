@@ -10,7 +10,22 @@ pub enum AnalysisError {
     Estimate(String),
     /// Validation / refutation failed.
     Validate(String),
-    /// Query unsupported in Phase 1.
+    /// Logical / physical plan compilation failed.
+    Compile {
+        /// Message.
+        message: String,
+    },
+    /// Memory or other resource refusal.
+    Resource {
+        /// Message.
+        message: String,
+    },
+    /// Graph review incomplete.
+    ReviewRequired {
+        /// Message.
+        message: String,
+    },
+    /// Query / feature unsupported.
     Unsupported {
         /// Message.
         message: &'static str,
@@ -26,6 +41,9 @@ impl fmt::Display for AnalysisError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Identify(m) | Self::Estimate(m) | Self::Validate(m) => write!(f, "{m}"),
+            Self::Compile { message }
+            | Self::Resource { message }
+            | Self::ReviewRequired { message } => write!(f, "{message}"),
             Self::Unsupported { message } => write!(f, "{message}"),
             Self::Missing { field } => write!(f, "missing required field: {field}"),
         }

@@ -7,10 +7,15 @@
 
 pub mod analysis;
 pub mod error;
+pub mod planner;
 pub mod result;
 
 pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RefuteSuite};
 pub use error::AnalysisError;
+pub use planner::{
+    CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
+    StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
+};
 pub use result::CausalAnalysisResult;
 
 #[cfg(test)]

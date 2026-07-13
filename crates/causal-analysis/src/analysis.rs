@@ -7,10 +7,8 @@
 use std::sync::Arc;
 
 use causal_core::{
-    AverageEffectQuery, BufferMaterialization, CausalQuery, DataClassification, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord,
-    KernelSelection, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph,
-    ProvenanceNode, VERSION,
+    AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    ExecutionContext, ExecutionPerformanceRecord, ProvenanceGraph, ProvenanceNode, VERSION,
 };
 use causal_data::TabularData;
 use causal_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy};
@@ -19,6 +17,7 @@ use causal_identify::{BackdoorIdentifier, IdentificationStatus, IdentifiedEstima
 use causal_validate::{PlaceboTreatment, RandomCommonCause, RefutationProblem, RefutationReport};
 
 use crate::error::AnalysisError;
+use crate::planner::{StaticAteCompileInput, compile_logical_static_ate};
 use crate::result::CausalAnalysisResult;
 
 /// Which Phase 1 refuters to run.
@@ -133,33 +132,18 @@ impl CausalAnalysis {
     ///
     /// Identification, estimation, or validation failures.
     pub fn run(&self, ctx: &ExecutionContext) -> Result<CausalAnalysisResult, AnalysisError> {
-        let logical = LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("phase1.static_ate"),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: Some(Arc::from("backdoor.adjustment")),
-            estimator: Some(Arc::from("linear.adjustment.ate")),
+        let logical = compile_logical_static_ate(StaticAteCompileInput {
+            data: &self.data,
+            graph: &self.graph,
+            query: &self.query,
             validation_suite: match self.refute {
                 RefuteSuite::None => None,
                 RefuteSuite::PlaceboAndRcc => Some(Arc::from("placebo+rcc")),
             },
-            query_variables: Arc::from([self.query.treatment, self.query.outcome]),
-        };
-        let physical = PhysicalExecutionPlanRecord {
-            plan_id: Arc::clone(&logical.plan_id),
-            materializations: Arc::from([(
-                Arc::from("design.matrix"),
-                BufferMaterialization::CopiedContiguous,
-            )]),
-            kernels: Arc::from([(Arc::from("ols.faer"), KernelSelection::DenseBackend)]),
-            batch_size: None,
-            workspace_bytes: None,
-            estimated_peak_memory_bytes: None,
-            worker_threads: 0,
-            deterministic_reductions: true,
-            expected_python_crossings: 1,
-        };
+        })?;
+        let physical = logical.compile_physical(ctx)?;
+        let logical = physical.logical.record.clone();
+        let physical = physical.record;
 
         let identifier = BackdoorIdentifier::new();
         let prepared =
