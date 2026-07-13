@@ -141,15 +141,7 @@ impl ConditionalIndependence for PartialCorrelation {
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        if request.columns.is_empty() {
-            return Err(StatsError::Shape { message: "no columns" });
-        }
-        let n = request.columns[0].len();
-        for col in request.columns {
-            if col.len() != n {
-                return Err(StatsError::Shape { message: "column length mismatch" });
-            }
-        }
+        let n = request.nrows()?;
         let nq = request.queries.len();
         workspace.prepare_queries(nq);
         let queries: Vec<ParCorrQuery> = request

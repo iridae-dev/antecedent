@@ -20,7 +20,7 @@ pub use constraints::{
 };
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
-pub use evidence::graph_evidence_from_scored;
+pub use evidence::{graph_evidence_from_scored, threshold_scored_links};
 pub use orientation::{
     MeekR1, MeekR2, OrientCollider, OrientationError, OrientationQueue, OrientationRule,
     OrientationState, RuleDelta, run_orientation_to_fixed_point,

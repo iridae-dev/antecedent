@@ -97,6 +97,26 @@ pub trait ConditionalIndependence {
     ) -> Result<CiBatchResult, StatsError>;
 }
 
+impl CiBatchRequest<'_> {
+    /// Validate non-empty equal-length columns; returns `n`.
+    ///
+    /// # Errors
+    ///
+    /// Empty column list or length mismatch.
+    pub fn nrows(&self) -> Result<usize, StatsError> {
+        if self.columns.is_empty() {
+            return Err(StatsError::Shape { message: "no columns" });
+        }
+        let n = self.columns[0].len();
+        for col in self.columns {
+            if col.len() != n {
+                return Err(StatsError::Shape { message: "column length mismatch" });
+            }
+        }
+        Ok(n)
+    }
+}
+
 /// Shared scratch for CI batches.
 #[derive(Clone, Debug, Default)]
 pub struct CiWorkspace {

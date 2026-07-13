@@ -10,16 +10,16 @@ use std::sync::Arc;
 use causal_core::{ExecutionContext, Lag, VariableId};
 use causal_data::TimeSeriesData;
 use causal_graph::{DenseNodeId, TemporalCpdag, TemporalGraphReview};
-use causal_stats::benjamini_hochberg;
+use causal_stats::ConditionalIndependence;
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
-use crate::evidence::graph_evidence_from_scored;
+use crate::evidence::{graph_evidence_from_scored, threshold_scored_links};
 use crate::orientation::{
     MeekR1, MeekR2, OrientCollider, OrientationRule, OrientationState, run_orientation_to_fixed_point,
 };
-use crate::result::{AlgorithmRecord, DiscoveryDiagnostic, DiscoveryResult, ScoredLink};
+use crate::result::{AlgorithmRecord, DiscoveryDiagnostic, DiscoveryResult};
 
 /// PCMCI+ discovery: contemporaneous + lagged links → oriented [`TemporalCpdag`].
 #[derive(Clone, Debug)]
@@ -62,6 +62,13 @@ impl PcmciPlus {
         self
     }
 
+    /// Replace the CI test on the shared engine.
+    #[must_use]
+    pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
+        self.engine = self.engine.with_ci(ci);
+        self
+    }
+
     /// Run PCMCI+ and return discovery result plus oriented [`TemporalCpdag`].
     ///
     /// # Errors
@@ -77,15 +84,11 @@ impl PcmciPlus {
         let mut result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
         let alpha = self.engine.constraints.alpha;
 
-        let mut scored: Vec<ScoredLink> = result.evidence.links.iter().copied().collect();
-        if self.fdr && !scored.is_empty() {
-            let pvals: Vec<f64> = scored.iter().map(|l| l.p_value).collect();
-            let adj = benjamini_hochberg(&pvals);
-            for (link, &p_adj) in scored.iter_mut().zip(adj.iter()) {
-                link.p_value = p_adj;
-            }
-        }
-        scored.retain(|l| l.p_value < alpha);
+        let scored = threshold_scored_links(
+            result.evidence.links.iter().copied().collect(),
+            self.fdr,
+            alpha,
+        );
 
         let mut cpdag = TemporalCpdag::empty();
         let max_lag = self.engine.constraints.temporal.max_lag.raw();

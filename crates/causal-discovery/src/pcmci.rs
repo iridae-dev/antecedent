@@ -9,13 +9,13 @@ use std::sync::Arc;
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::TimeSeriesData;
 use causal_graph::TemporalGraphReview;
-use causal_stats::benjamini_hochberg;
+use causal_stats::ConditionalIndependence;
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
-use crate::evidence::graph_evidence_from_scored;
-use crate::result::{AlgorithmRecord, DiscoveryResult, ScoredLink};
+use crate::evidence::{graph_evidence_from_scored, threshold_scored_links};
+use crate::result::{AlgorithmRecord, DiscoveryResult};
 
 /// Lagged PCMCI discovery algorithm.
 #[derive(Clone, Debug)]
@@ -53,6 +53,13 @@ impl Pcmci {
         self
     }
 
+    /// Replace the CI test on the shared engine.
+    #[must_use]
+    pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
+        self.engine = self.engine.with_ci(ci);
+        self
+    }
+
     /// Run lagged PCMCI on `variables` in `data`.
     ///
     /// MCI scores the full candidate family from PC parents. When `fdr` is set,
@@ -71,15 +78,11 @@ impl Pcmci {
         let mut result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
         let alpha = self.engine.constraints.alpha;
 
-        let mut scored: Vec<ScoredLink> = result.evidence.links.iter().copied().collect();
-        if self.fdr && !scored.is_empty() {
-            let pvals: Vec<f64> = scored.iter().map(|l| l.p_value).collect();
-            let adj = benjamini_hochberg(&pvals);
-            for (link, &p_adj) in scored.iter_mut().zip(adj.iter()) {
-                link.p_value = p_adj;
-            }
-        }
-        scored.retain(|s| s.p_value < alpha);
+        let scored = threshold_scored_links(
+            result.evidence.links.iter().copied().collect(),
+            self.fdr,
+            alpha,
+        );
 
         result.evidence = graph_evidence_from_scored(scored)?;
         result.algorithm = AlgorithmRecord {

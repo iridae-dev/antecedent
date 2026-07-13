@@ -65,10 +65,7 @@ impl ConditionalIndependence for RobustPartialCorrelation {
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        if request.columns.is_empty() {
-            return Err(StatsError::Shape { message: "no columns" });
-        }
-        let n = request.columns[0].len();
+        let n = request.nrows()?;
         let mut ranked: Vec<Vec<f64>> = request.columns.iter().map(|_| vec![0.0; n]).collect();
         for (c, col) in request.columns.iter().enumerate() {
             rank_column(col, &mut ranked[c]);
@@ -107,10 +104,7 @@ impl ConditionalIndependence for WeightedPartialCorrelation {
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        if request.columns.is_empty() {
-            return Err(StatsError::Shape { message: "no columns" });
-        }
-        let n = request.columns[0].len();
+        let n = request.nrows()?;
         if self.weights.len() != n {
             return Err(StatsError::Shape { message: "weights length != nrows" });
         }

@@ -340,7 +340,7 @@ fn discover_pcmci(
             .iter()
             .map(|v| v.id)
             .collect();
-        let mut pcmci = Pcmci::new()
+        let pcmci = Pcmci::new()
             .with_fdr(fdr)
             .with_constraints(DiscoveryConstraints {
                 temporal: TemporalConstraints {
@@ -350,8 +350,8 @@ fn discover_pcmci(
                 alpha,
                 max_cond_size: 2,
                 ..DiscoveryConstraints::default()
-            });
-        pcmci.engine = pcmci.engine.with_ci(ci_impl);
+            })
+            .with_ci(ci_impl);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(seed);
         let result = pcmci
@@ -433,16 +433,18 @@ fn discover_pcmci_plus(
             .iter()
             .map(|v| v.id)
             .collect();
-        let mut plus = PcmciPlus::new().with_fdr(fdr).with_constraints(DiscoveryConstraints {
-            temporal: TemporalConstraints {
-                max_lag: Lag::from_raw(max_lag),
-                min_lag: Lag::CONTEMPORANEOUS,
-            },
-            alpha,
-            max_cond_size: 2,
-            ..DiscoveryConstraints::default()
-        });
-        plus.engine = plus.engine.with_ci(ci_impl);
+        let plus = PcmciPlus::new()
+            .with_fdr(fdr)
+            .with_constraints(DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(max_lag),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                alpha,
+                max_cond_size: 2,
+                ..DiscoveryConstraints::default()
+            })
+            .with_ci(ci_impl);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(seed);
         let (result, cpdag) = plus
