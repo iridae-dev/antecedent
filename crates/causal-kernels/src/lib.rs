@@ -12,13 +12,16 @@
 #![cfg_attr(test, allow(clippy::cast_precision_loss))]
 
 pub mod dispatch;
+pub mod parcorr;
 pub mod portable;
 pub mod scalar;
 pub mod view;
 
 pub use dispatch::{
-    KernelImpl, copy_vec, gather, masked_mean, masked_sum, masked_variance, select_impl,
+    KernelImpl, copy_vec, gather, masked_mean, masked_sum, masked_variance, partial_correlation,
+    select_impl,
 };
+pub use parcorr::{ParCorrQuery, ParCorrWorkspace, pearson, partial_correlation_batch};
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 
 #[cfg(test)]

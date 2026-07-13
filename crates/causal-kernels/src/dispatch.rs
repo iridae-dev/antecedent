@@ -81,3 +81,22 @@ pub fn copy_vec(policy: &KernelPolicy, src: F64VectorView<'_>, dst: &mut [f64]) 
         KernelImpl::PortableOptimized => crate::portable::copy_vec(src, dst),
     }
 }
+
+/// Public semantic entry: partial correlation of `x` and `y` given `z_cols`.
+#[must_use]
+pub fn partial_correlation(
+    policy: &KernelPolicy,
+    x: &[f64],
+    y: &[f64],
+    z_cols: &[&[f64]],
+    workspace: &mut crate::parcorr::ParCorrWorkspace,
+) -> Option<f64> {
+    match select_impl(policy) {
+        KernelImpl::Scalar => {
+            crate::parcorr::partial_correlation_scalar(x, y, z_cols, workspace)
+        }
+        KernelImpl::PortableOptimized => {
+            crate::parcorr::partial_correlation_portable(x, y, z_cols, workspace)
+        }
+    }
+}
