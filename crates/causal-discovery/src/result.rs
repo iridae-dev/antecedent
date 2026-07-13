@@ -99,4 +99,6 @@ pub struct DiscoveryResult {
     pub diagnostics: Vec<DiscoveryDiagnostic>,
     /// Performance.
     pub performance: DiscoveryPerformanceRecord,
+    /// PC separating sets: `(source, source_lag, target, target_lag) → conditioning set`.
+    pub sepsets: std::collections::HashMap<(VariableId, Lag, VariableId, Lag), Arc<[(VariableId, Lag)]>>,
 }

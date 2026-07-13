@@ -113,20 +113,33 @@ impl PcmciPlus {
             else {
                 continue;
             };
-            if link.link.source_lag.is_contemporaneous()
+                if link.link.source_lag.is_contemporaneous()
                 && link.link.target_lag.is_contemporaneous()
-            {
+                {
                 if !cpdag.has_edge(src, tgt) {
                     cpdag
                         .insert_undirected(src, tgt)
                         .map_err(|e| DiscoveryError::Data(e.to_string()))?;
                 }
-                state.set_sepset(src, tgt, Arc::from([]));
             } else if !cpdag.has_edge(src, tgt) {
                 cpdag
                     .insert_directed(src, tgt)
                     .map_err(|e| DiscoveryError::Data(e.to_string()))?;
             }
+        }
+
+        for ((s, slag, t, tlag), sep) in &result.sepsets {
+            let Some(&sa) = node_ids.get(&(s.raw(), slag.raw())) else {
+                continue;
+            };
+            let Some(&tb) = node_ids.get(&(t.raw(), tlag.raw())) else {
+                continue;
+            };
+            let mapped: Vec<DenseNodeId> = sep
+                .iter()
+                .filter_map(|(v, l)| node_ids.get(&(v.raw(), l.raw())).copied())
+                .collect();
+            state.set_sepset(sa, tb, Arc::from(mapped));
         }
 
         let rules: [&dyn OrientationRule; 3] = [&OrientCollider, &MeekR1, &MeekR2];

@@ -12,6 +12,7 @@
     clippy::too_many_lines
 )]
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
@@ -35,7 +36,7 @@ const MAX_CI_COLS: usize = 32;
 
 type ParentSet = Vec<(VariableId, Lag)>;
 type TargetParents = (VariableId, ParentSet);
-type ParentSelectOut = (VariableId, ParentSet, u64);
+type ParentSelectOut = (VariableId, ParentSet, u64, HashMap<(VariableId, Lag, VariableId, Lag), Arc<[(VariableId, Lag)]>>);
 type MciChunkOut = (Vec<ScoredLink>, u64);
 
 /// Reusable target-local discovery workspace.
@@ -55,6 +56,11 @@ pub struct DiscoveryWorkspace {
     pub others: Vec<(VariableId, Lag)>,
     /// Scratch removal list for one conditioning-size pass.
     pub removed: Vec<(VariableId, Lag)>,
+    /// Separating sets recorded when PC removes a candidate parent.
+    ///
+    /// Key: `(source, source_lag, target, target_lag)` with `target_lag` contemporaneous
+    /// in the PC phase. Value: conditioning set that rendered the pair independent.
+    pub sepsets: HashMap<(VariableId, Lag, VariableId, Lag), Arc<[(VariableId, Lag)]>>,
 }
 
 /// Shared PCMCI engine core.
@@ -168,6 +174,7 @@ impl PcmciEngine {
 
                 let mut combo = std::mem::take(&mut workspace.combo);
                 let mut indep = false;
+                let mut sep_for_removal: Option<Arc<[(VariableId, Lag)]>> = None;
                 let mut err: Option<DiscoveryError> = None;
                 for_each_combination(&others, cond_size, &mut combo, |cond| {
                     match self.ci_independent(
@@ -183,6 +190,7 @@ impl PcmciEngine {
                         Ok(true) => {
                             ci_tests += 1;
                             indep = true;
+                            sep_for_removal = Some(Arc::from(cond.to_vec().into_boxed_slice()));
                             false
                         }
                         Ok(false) => {
@@ -209,6 +217,12 @@ impl PcmciEngine {
                     };
                     if !compiled.requires(link) {
                         workspace.removed.push((src, slag));
+                        if let Some(sep) = sep_for_removal {
+                            workspace.sepsets.insert(
+                                (src, slag, target, Lag::CONTEMPORANEOUS),
+                                sep,
+                            );
+                        }
                     }
                 }
             }
@@ -314,6 +328,7 @@ impl PcmciEngine {
         };
         let review = TemporalGraphReview::from_graph(evidence.graph.clone(), algorithm.id.clone());
         let n_links = evidence.links.len() as u64;
+        let sepsets = std::mem::take(&mut workspace.sepsets);
         Ok(DiscoveryResult {
             evidence,
             review,
@@ -328,6 +343,7 @@ impl PcmciEngine {
                 lagged_frame_bytes: frame.values_bytes(),
                 worker_threads: threads,
             },
+            sepsets,
         })
     }
 
@@ -377,7 +393,10 @@ impl PcmciEngine {
                                 .select_parents(
                                     frame, target, variables, compiled, &mut local_ws, ctx,
                                 )
-                                .map(|(p, tests)| (target, p, tests)),
+                                .map(|(p, tests)| {
+                                    let seps = std::mem::take(&mut local_ws.sepsets);
+                                    (target, p, tests, seps)
+                                }),
                         );
                     }
                 });
@@ -390,11 +409,12 @@ impl PcmciEngine {
         let mut iterations = Vec::with_capacity(n);
         let mut ci_tests = 0u64;
         for (i, slot) in slots.into_iter().enumerate() {
-            let (target, parents, tests) = slot.ok_or(DiscoveryError::Unsupported {
+            let (target, parents, tests, seps) = slot.ok_or(DiscoveryError::Unsupported {
                 message: "parallel PC worker left empty slot",
             })??;
             debug_assert_eq!(target, variables[i]);
             ci_tests += tests;
+            workspace.sepsets.extend(seps);
             iterations.push(DiscoveryIteration {
                 label: Arc::from(format!("pc_parents:{target}")),
                 ci_tests: tests,
