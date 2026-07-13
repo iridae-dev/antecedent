@@ -62,7 +62,7 @@ pub struct CiBatchRequest<'a> {
 /// One CI result.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CiResult {
-    /// Test statistic (partial correlation for ParCorr CI).
+    /// Test statistic (partial correlation for partial-correlation CI).
     pub statistic: f64,
     /// Two-sided p-value.
     pub p_value: f64,

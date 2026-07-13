@@ -11,6 +11,7 @@ pub mod dsep;
 pub mod error;
 pub mod temporal;
 pub mod types;
+pub mod unfold;
 pub mod workspace;
 
 pub use dag::Dag;
@@ -18,4 +19,5 @@ pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, Separation
 pub use error::GraphError;
 pub use temporal::TemporalDag;
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
+pub use unfold::{TemporalGraphReview, UnfoldedTemporalGraph, ensure_lagged};
 pub use workspace::{BitSet, GraphWorkspace};
