@@ -228,11 +228,11 @@ impl BackdoorIdentifier {
                 }
             };
             let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
-            estimands.push(IdentifiedEstimand {
-                method: Arc::from("backdoor.adjustment"),
-                adjustment_set: Arc::from(vars),
+            estimands.push(IdentifiedEstimand::backdoor(
+                "backdoor.adjustment",
+                Arc::from(vars),
                 functional,
-            });
+            ));
             derivation.push("backdoor.adjustment_set", format!("|Z|={}", z.len()));
         }
 

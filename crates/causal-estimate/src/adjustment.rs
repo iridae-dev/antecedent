@@ -17,11 +17,97 @@ use causal_stats::{
 
 use crate::error::EstimationError;
 
-/// Overlap / positivity handling for Phase 1.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+/// Overlap / positivity handling (DESIGN §14.3).
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OverlapPolicy {
-    /// Explicitly skip propensity-based overlap (Phase 1 OLS path).
+    /// Explicitly skip propensity-based overlap (linear adjustment path).
     ExplicitOverride,
+    /// Require propensity diagnostics; optional clip/trim thresholds in `(0, 0.5)`.
+    RequireDiagnostics {
+        /// Clip propensities into `[clip, 1 - clip]` when `Some`.
+        clip: Option<f64>,
+        /// Drop units outside `[trim, 1 - trim]` when `Some`.
+        trim: Option<f64>,
+    },
+}
+
+impl OverlapPolicy {
+    /// Require diagnostics with no clipping or trimming.
+    #[must_use]
+    pub const fn require_diagnostics() -> Self {
+        Self::RequireDiagnostics { clip: None, trim: None }
+    }
+}
+
+/// Propensity overlap / positivity report retained on estimates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OverlapReport {
+    /// Minimum fitted propensity (before clipping).
+    pub propensity_min: f64,
+    /// Maximum fitted propensity (before clipping).
+    pub propensity_max: f64,
+    /// Kish effective sample size of the applied weights.
+    pub ess: f64,
+    /// Count of weights above the extreme-weight threshold (default 10).
+    pub extreme_weight_count: u32,
+    /// Fraction of rows excluded by trimming (0 if no trim).
+    pub excluded_fraction: f64,
+    /// Clip threshold applied, if any.
+    pub clip: Option<f64>,
+    /// Trim threshold applied, if any.
+    pub trim: Option<f64>,
+}
+
+impl OverlapReport {
+    /// Build a report from fitted propensities and optional IPW weights.
+    #[must_use]
+    pub fn from_propensities(
+        propensities: &[f64],
+        weights: Option<&[f64]>,
+        policy: OverlapPolicy,
+    ) -> Self {
+        let (clip, trim) = match policy {
+            OverlapPolicy::ExplicitOverride => (None, None),
+            OverlapPolicy::RequireDiagnostics { clip, trim } => (clip, trim),
+        };
+        let mut min_p = f64::INFINITY;
+        let mut max_p = f64::NEG_INFINITY;
+        let mut excluded = 0u32;
+        for &p in propensities {
+            min_p = min_p.min(p);
+            max_p = max_p.max(p);
+            if let Some(t) = trim {
+                if p < t || p > 1.0 - t {
+                    excluded = excluded.saturating_add(1);
+                }
+            }
+        }
+        if propensities.is_empty() {
+            min_p = f64::NAN;
+            max_p = f64::NAN;
+        }
+        let n = propensities.len().max(1) as f64;
+        let excluded_fraction = f64::from(excluded) / n;
+        let (ess, extreme_weight_count) = match weights {
+            Some(w) if !w.is_empty() => {
+                let sum: f64 = w.iter().sum();
+                let sum_sq: f64 = w.iter().map(|x| x * x).sum();
+                let ess = if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 };
+                let extreme = w.iter().filter(|&&x| x > 10.0).count();
+                (ess, u32::try_from(extreme).unwrap_or(u32::MAX))
+            }
+            _ => (f64::from(u32::try_from(propensities.len()).unwrap_or(u32::MAX)), 0),
+        };
+        Self {
+            propensity_min: min_p,
+            propensity_max: max_p,
+            ess,
+            extreme_weight_count,
+            excluded_fraction,
+            clip,
+            trim,
+        }
+    }
 }
 
 /// Prepared estimation problem (compiled design retained).
@@ -59,6 +145,8 @@ pub struct EffectEstimate {
     pub assumptions: AssumptionSet,
     /// Overlap policy recorded on the artifact.
     pub overlap: OverlapPolicy,
+    /// Propensity overlap diagnostics when computed.
+    pub overlap_report: Option<OverlapReport>,
 }
 
 /// Linear adjustment estimator for backdoor ATE.
@@ -102,7 +190,7 @@ impl LinearAdjustmentAte {
     ) -> Result<PreparedEstimationProblem, EstimationError> {
         if self.overlap != OverlapPolicy::ExplicitOverride {
             return Err(EstimationError::Overlap {
-                message: "Phase 1 requires ExplicitOverride overlap policy",
+                message: "LinearAdjustmentAte requires ExplicitOverride overlap policy",
             });
         }
         if &*estimand.method != "backdoor.adjustment" {
@@ -206,7 +294,14 @@ impl LinearAdjustmentAte {
             Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
         };
 
-        Ok(EffectEstimate { ate, se_analytic, se_bootstrap, assumptions, overlap: problem.overlap })
+        Ok(EffectEstimate {
+            ate,
+            se_analytic,
+            se_bootstrap,
+            assumptions,
+            overlap: problem.overlap,
+            overlap_report: None,
+        })
     }
 
     fn bootstrap_se(
@@ -355,12 +450,41 @@ mod tests {
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        let estimand = IdentifiedEstimand {
-            method: Arc::from("backdoor.adjustment"),
-            adjustment_set: Arc::from([VariableId::from_raw(2)]),
-            functional: ExprId::from_raw(0),
-        };
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
         (TabularData::new(storage), estimand)
+    }
+
+    #[test]
+    fn overlap_report_from_propensities() {
+        let ps = [0.1, 0.5, 0.9];
+        let ws = [10.0, 2.0, 1.111];
+        let report = OverlapReport::from_propensities(
+            &ps,
+            Some(&ws),
+            OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: Some(0.05) },
+        );
+        assert!((report.propensity_min - 0.1).abs() < 1e-12);
+        assert!((report.propensity_max - 0.9).abs() < 1e-12);
+        assert_eq!(report.extreme_weight_count, 0); // none strictly > 10
+        assert_eq!(report.clip, Some(0.05));
+        assert!((report.excluded_fraction - 0.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn rejects_require_diagnostics_on_linear_path() {
+        let (data, estimand) = toy();
+        let est = LinearAdjustmentAte {
+            overlap: OverlapPolicy::require_diagnostics(),
+            ..LinearAdjustmentAte::new()
+        };
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let err = est.prepare(&data, &estimand, &query).unwrap_err();
+        assert!(matches!(err, EstimationError::Overlap { .. }));
     }
 
     #[test]

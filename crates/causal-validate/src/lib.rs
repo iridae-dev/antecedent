@@ -97,11 +97,11 @@ mod tests {
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        let estimand = IdentifiedEstimand {
-            method: Arc::from("backdoor.adjustment"),
-            adjustment_set: Arc::from([VariableId::from_raw(2)]),
-            functional: ExprId::from_raw(0),
-        };
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
         (TabularData::new(storage), estimand, 2.0)
     }
 

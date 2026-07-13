@@ -108,6 +108,8 @@ fn extend_adjustment(base: &IdentifiedEstimand, extra: VariableId) -> Identified
     IdentifiedEstimand {
         method: Arc::clone(&base.method),
         adjustment_set: Arc::from(zs),
+        instruments: Arc::clone(&base.instruments),
+        mediators: Arc::clone(&base.mediators),
         functional: base.functional,
     }
 }
