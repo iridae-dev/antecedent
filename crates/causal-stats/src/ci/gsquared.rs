@@ -4,6 +4,8 @@
 
 #![allow(clippy::all)]
 
+use std::collections::HashMap;
+
 use causal_core::ExecutionContext;
 
 use super::analytic::analytic_parcorr_pvalue;
@@ -58,41 +60,61 @@ fn g_squared_statistic(
     n: usize,
     workspace: &mut CiWorkspace,
 ) -> Result<(f64, f64), StatsError> {
-    // Stratify on Z by hashing discrete levels into a coarse key, then 2x2 X-Y within strata.
-    // For general discrete, bin each column to integers.
     let xi: Vec<i32> = columns[x].iter().map(|v| v.round() as i32).collect();
     let yi: Vec<i32> = columns[y].iter().map(|v| v.round() as i32).collect();
-    let mut levels_x: Vec<i32> = xi.clone();
+    let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
+    for r in 0..n {
+        let key = if z.is_empty() {
+            0u64
+        } else {
+            let mut h = 0xcbf29ce484222325u64;
+            for &zc in z {
+                let v = columns[zc][r].round() as i32;
+                h ^= v as u64;
+                h = h.wrapping_mul(0x100000001b3);
+            }
+            h
+        };
+        strata.entry(key).or_default().push(r);
+    }
+    let mut g_total = 0.0;
+    let mut df_total = 0.0;
+    for rows in strata.values() {
+        if rows.len() < 2 {
+            continue;
+        }
+        let (g, df) = g_squared_on_rows(&xi, &yi, rows, workspace)?;
+        g_total += g;
+        df_total += df;
+    }
+    if df_total <= 0.0 {
+        return Err(StatsError::Shape { message: "empty stratified contingency" });
+    }
+    Ok((g_total, df_total))
+}
+
+fn g_squared_on_rows(
+    xi: &[i32],
+    yi: &[i32],
+    rows: &[usize],
+    workspace: &mut CiWorkspace,
+) -> Result<(f64, f64), StatsError> {
+    let mut levels_x: Vec<i32> = rows.iter().map(|&r| xi[r]).collect();
     levels_x.sort_unstable();
     levels_x.dedup();
-    let mut levels_y: Vec<i32> = yi.clone();
+    let mut levels_y: Vec<i32> = rows.iter().map(|&r| yi[r]).collect();
     levels_y.sort_unstable();
     levels_y.dedup();
     let lx = levels_x.len().max(1);
     let ly = levels_y.len().max(1);
     let need = lx * ly;
-    if workspace.stats.len() < need {
-        workspace.stats.resize(need, None);
-    }
-    // Use shuffled buffer as f64 contingency (clear touched).
     if workspace.shuffled.len() < need {
         workspace.shuffled.resize(need, 0.0);
     }
     for v in &mut workspace.shuffled[..need] {
         *v = 0.0;
     }
-    // Ignore Z for empty conditioning; for non-empty Z, filter to modal stratum only
-    // as a Phase 5 simplification when Z is present (full multi-way tables later).
-    let mask: Vec<bool> = if z.is_empty() {
-        vec![true; n]
-    } else {
-        // Keep all rows; Z handled by residualizing via adding Z to table key.
-        vec![true; n]
-    };
-    for r in 0..n {
-        if !mask[r] {
-            continue;
-        }
+    for &r in rows {
         let ix = levels_x.binary_search(&xi[r]).unwrap_or(0);
         let iy = levels_y.binary_search(&yi[r]).unwrap_or(0);
         workspace.shuffled[ix * ly + iy] += 1.0;
@@ -109,7 +131,7 @@ fn g_squared_statistic(
         }
     }
     if total < 1.0 {
-        return Err(StatsError::Shape { message: "empty contingency" });
+        return Ok((0.0, 0.0));
     }
     let mut g = 0.0;
     for i in 0..lx {
@@ -122,7 +144,6 @@ fn g_squared_statistic(
         }
     }
     let df = ((lx - 1) * (ly - 1)) as f64;
-    let _ = z; // Phase 5: Z reserved for stratified extension
     Ok((g, df.max(1.0)))
 }
 
