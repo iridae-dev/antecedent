@@ -82,6 +82,7 @@ description = "Multivariate partial correlation"
 status = "done"
 owner = "phase5"
 phase = 5
+notes = "First-PC block reduction then scalar ParCorr (intentional vs full matrix-variate)."
 
 [[capabilities]]
 id = "tigramite.ci.weighted_partial_corr"
@@ -90,6 +91,7 @@ description = "Weighted partial correlation"
 status = "done"
 owner = "phase5"
 phase = 5
+notes = "Python discover_pcmci(_plus) accepts weights= when ci=weighted_parcorr."
 
 [[capabilities]]
 id = "tigramite.ci.robust_partial_corr"
@@ -135,9 +137,10 @@ phase = 5
 id = "tigramite.ci.gpdc"
 group = "conditional_independence"
 description = "GPDC"
-status = "done"
+status = "intentional_deviation"
 owner = "phase5"
 phase = 5
+notes = "Native RBF-GP + distance correlation; no torch backend (see parity/phase5_deviations.md)."
 
 [[capabilities]]
 id = "tigramite.ci.gsquared"
@@ -167,9 +170,10 @@ phase = 2
 id = "tigramite.discovery.pcmci_plus"
 group = "discovery"
 description = "PCMCI+"
-status = "done"
+status = "intentional_deviation"
 owner = "phase5"
 phase = 5
+notes = "Clean-room Exact parents pin; black-box Tigramite graph compare not required (phase5_deviations.md)."
 
 [[capabilities]]
 id = "tigramite.discovery.lpcmci"

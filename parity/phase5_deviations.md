@@ -3,39 +3,32 @@
 Intentional deviations / notes for DESIGN.md §32 Phase 5 (PCMCI+ and full CI
 framework) relative to `parity/tigramite.toml` (authoritative for `status`).
 
-## 1. Weighted ParCorr via name string uses unit weights
+**Kept deferrals only** (everything else in Phase 5 is production depth with
+calibration / conformance / benches as applicable):
 
-`ci_from_name("weighted_parcorr")` (and the Python `ci=` kwarg) constructs a
-unit-weight adapter. Custom observation weights remain available in Rust via
-`WeightedPartialCorrelation::new(weights)`. Discovery does not accept a weight
-vector across the Python FFI boundary in Phase 5.
-
-## 2. Multivariate ParCorr is a first-PC approximation
-
-`MultivariatePartialCorrelation` residualizes each multivariate block onto its
-leading principal direction then applies scalar ParCorr. Full matrix-variate
-partial correlation (Tigramite’s denser multivariate API) is not claimed.
-
-## 3. kNN / mixed / symbolic CMI significance is coarse
-
-Phase 5 CMI tests use a lightweight permutation / proxy p-value suitable for
-wiring and calibration smoke tests. Analytic KSG degrees-of-freedom and full
-null distributions may be tightened in a later stats pass without changing the
-`ConditionalIndependence` surface.
-
-## 4. GPDC is native RBF-GP + distance correlation (no torch)
+## 1. GPDC is native RBF-GP + distance correlation (no torch)
 
 Matches the Phase 5 locked decision. Numerical parity with Tigramite’s
 torch-backed GPDC is not required; deviations are expected under the native
-backend.
+backend. Tracked as `intentional_deviation` on `tigramite.ci.gpdc`.
 
-## 5. PCMCI+ conformance is clean-room Exact parents
+## 2. PCMCI+ conformance is clean-room Exact parents
 
 `conformance/tigramite/pcmci_plus_lag0` pins a synthetic SCM with lagged +
 contemporaneous parents. Black-box Tigramite PCMCI+ graph comparison is not
-pinned in this fixture (`tigramite.available = false`).
+pinned in this fixture (`tigramite.available = false`). Tracked as
+`intentional_deviation` on `tigramite.discovery.pcmci_plus`.
 
-## 6. Circle endpoints / LPCMCI remain Phase 8
+## 3. Circle endpoints / PAG / LPCMCI remain Phase 8
 
 Temporal CPDAG rejects `Endpoint::Circle` with a clear error. PAG / LPCMCI stay
-out of Phase 5.
+out of Phase 5 (`tigramite.discovery.lpcmci` pending → Phase 8).
+
+## Notes (not deviations)
+
+- Multivariate ParCorr uses a real first principal component per block, then
+  scalar ParCorr (documented intentional block reduction vs full matrix-variate).
+- `weighted_parcorr` accepts observation weights via Python
+  `discover_pcmci(_plus)(..., weights=...)`.
+- Pairwise multivariate wrapper is registered as `pairwise_multivariate`.
+- J-PCMCI+ / RPCMCI remain Phase 9 (pending in the inventory).
