@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, Lag, VariableId};
-use causal_graph::{TemporalDag, TemporalGraphReview};
+use causal_graph::{TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
 
 /// One lagged parent `(variable, lag)`.
 pub type LaggedParent = (VariableId, Lag);
@@ -29,14 +29,71 @@ pub struct LaggedLink {
     pub target_lag: Lag,
 }
 
-/// Graph evidence for a discovered temporal DAG.
+/// Graph evidence for a discovered graph of class `G` (DESIGN.md §6.4 / §13.1).
 #[derive(Clone, Debug)]
-pub struct GraphEvidence {
-    /// Temporal DAG summary.
-    pub graph: TemporalDag,
-    /// Kept links with MCI statistics.
+pub struct GraphEvidence<G> {
+    /// Graph summary (DAG, CPDAG, …).
+    pub graph: G,
+    /// Per-edge evidence keyed by compact lagged links (not high-level node objects).
+    pub edge_evidence: Arc<[EdgeEvidence]>,
+    /// Kept links with MCI statistics (aligned with [`Self::edge_evidence`] for Phase 2–5 callers).
     pub links: Arc<[ScoredLink]>,
+    /// How the evidence was produced.
+    pub source: EvidenceSource,
 }
+
+/// How graph evidence was obtained (DESIGN.md §6.4).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EvidenceSource {
+    /// Temporal discovery (PCMCI / PCMCI+).
+    Discovery {
+        /// Algorithm id.
+        algorithm: Arc<str>,
+    },
+    /// Expert / manually supplied.
+    Expert,
+}
+
+/// Per-edge statistical / orientation evidence (DESIGN.md §6.4).
+#[derive(Clone, Debug, PartialEq)]
+pub struct EdgeEvidence {
+    /// Compact lagged edge key.
+    pub link: LaggedLink,
+    /// Dependence statistic (e.g. partial correlation).
+    pub statistic: Option<f64>,
+    /// Raw p-value.
+    pub p_value: Option<f64>,
+    /// Multiple-testing adjusted p-value when available.
+    pub adjusted_p_value: Option<f64>,
+    /// Optional confidence interval for the statistic.
+    pub interval: Option<(f64, f64)>,
+    /// Separating sets used during PC / orientation (may be empty).
+    pub separating_sets: Arc<[Arc<[LaggedParent]>]>,
+    /// Short provenance tags (e.g. `mci`, `orient.meek_r1`).
+    pub provenance: Arc<[Arc<str>]>,
+}
+
+impl EdgeEvidence {
+    /// Build from a scored MCI link.
+    #[must_use]
+    pub fn from_scored(link: ScoredLink, sepsets: Arc<[Arc<[LaggedParent]>]>) -> Self {
+        Self {
+            link: link.link,
+            statistic: Some(link.statistic),
+            p_value: Some(link.p_value),
+            adjusted_p_value: None,
+            interval: None,
+            separating_sets: sepsets,
+            provenance: Arc::from([Arc::from("mci")]),
+        }
+    }
+}
+
+/// PCMCI (lagged) graph evidence.
+pub type DagGraphEvidence = GraphEvidence<TemporalDag>;
+
+/// PCMCI+ graph evidence.
+pub type CpdagGraphEvidence = GraphEvidence<TemporalCpdag>;
 
 /// Link with MCI statistic / p-value.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -91,13 +148,13 @@ pub struct DiscoveryPerformanceRecord {
     pub worker_threads: u32,
 }
 
-/// Full discovery result.
+/// Full discovery result parameterized by graph class and review artifact (DESIGN.md §13.1).
 #[derive(Clone, Debug)]
-pub struct DiscoveryResult {
+pub struct DiscoveryResult<G, R> {
     /// Evidence.
-    pub evidence: GraphEvidence,
-    /// Review artifact listing pending edges (Phase 3 consumes).
-    pub review: TemporalGraphReview,
+    pub evidence: GraphEvidence<G>,
+    /// Review artifact listing pending edges / orientations.
+    pub review: R,
     /// Algorithm.
     pub algorithm: AlgorithmRecord,
     /// Assumptions.
@@ -111,3 +168,9 @@ pub struct DiscoveryResult {
     /// PC separating sets: `(source, source_lag, target, target_lag) → conditioning set`.
     pub sepsets: PcSepsets,
 }
+
+/// Lagged PCMCI discovery result (`TemporalDag` evidence + DAG review).
+pub type DagDiscoveryResult = DiscoveryResult<TemporalDag, TemporalGraphReview>;
+
+/// PCMCI+ discovery result (`TemporalCpdag` evidence + CPDAG review).
+pub type CpdagDiscoveryResult = DiscoveryResult<TemporalCpdag, TemporalCpdagReview>;

@@ -8,7 +8,7 @@ use causal_core::ExecutionContext;
 
 use super::parcorr_variants::MultivariatePartialCorrelation;
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
     SignificanceMethod,
 };
 use crate::error::StatsError;
@@ -33,7 +33,7 @@ impl Default for PairwiseMultivariateCi {
 }
 
 impl PairwiseMultivariateCi {
-    /// Singleton-block wrapper (equivalent to scalar ParCorr via first-PC of length 1).
+    /// Singleton-block wrapper (equivalent to scalar ParCorr).
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -50,7 +50,7 @@ impl PairwiseMultivariateCi {
     }
 }
 
-impl ConditionalIndependence for PairwiseMultivariateCi {
+impl ConditionalIndependenceTest for PairwiseMultivariateCi {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,

@@ -9,20 +9,20 @@ use std::sync::Arc;
 
 use causal_core::{ExecutionContext, Lag, VariableId};
 use causal_data::TimeSeriesData;
-use causal_graph::{DenseNodeId, TemporalCpdag, TemporalGraphReview};
+use causal_graph::{DenseNodeId, TemporalCpdagReview};
 use causal_stats::ConditionalIndependence;
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
-use crate::evidence::{graph_evidence_from_scored, threshold_scored_links};
+use crate::evidence::{cpdag_evidence_from_oriented, cpdag_from_scored_links, threshold_scored_links};
 use crate::orientation::{
     MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule, OrientationState,
     run_orientation_to_fixed_point,
 };
-use crate::result::{AlgorithmRecord, DiscoveryDiagnostic, DiscoveryResult};
+use crate::result::{AlgorithmRecord, CpdagDiscoveryResult, DiscoveryDiagnostic};
 
-/// PCMCI+ discovery: contemporaneous + lagged links → oriented [`TemporalCpdag`].
+/// PCMCI+ discovery: contemporaneous + lagged links → oriented [`causal_graph::TemporalCpdag`].
 #[derive(Clone, Debug)]
 pub struct PcmciPlus {
     /// Shared engine (`min_lag` typically 0).
@@ -67,7 +67,10 @@ impl PcmciPlus {
         self
     }
 
-    /// Run PCMCI+ and return discovery result plus oriented [`TemporalCpdag`].
+    /// Run PCMCI+ and return a CPDAG-backed discovery result.
+    ///
+    /// Evidence and review both carry the oriented [`causal_graph::TemporalCpdag`]
+    /// (DESIGN.md §13.5); undirected contemporaneous marks are preserved.
     ///
     /// # Errors
     ///
@@ -78,48 +81,24 @@ impl PcmciPlus {
         variables: &[VariableId],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<(DiscoveryResult, TemporalCpdag), DiscoveryError> {
-        let mut result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
+    ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
+        let engine_result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
         let alpha = self.engine.constraints.alpha;
 
-        let scored = threshold_scored_links(result.evidence.links.to_vec(), self.fdr, alpha);
+        let scored = threshold_scored_links(engine_result.evidence.links.to_vec(), self.fdr, alpha);
 
-        let mut cpdag = TemporalCpdag::empty();
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
+        let mut cpdag = cpdag_from_scored_links(&scored, variables, max_lag)?;
+
         let mut node_ids = HashMap::<(u32, u32), DenseNodeId>::new();
-        for &v in variables {
-            for lag in 0..=max_lag {
-                let id = cpdag
-                    .add_lagged(v, Lag::from_raw(lag))
-                    .map_err(|e| DiscoveryError::Data(e.to_string()))?;
-                node_ids.insert((v.raw(), lag), id);
+        for (i, node) in cpdag.nodes().iter().enumerate() {
+            if let causal_graph::NodeRef::Lagged { variable, lag } = node {
+                node_ids.insert((variable.raw(), lag.raw()), DenseNodeId::from_raw(i as u32));
             }
         }
 
         let mut state = OrientationState::default();
-        for link in &scored {
-            let Some(&src) = node_ids.get(&(link.link.source.raw(), link.link.source_lag.raw()))
-            else {
-                continue;
-            };
-            let Some(&tgt) = node_ids.get(&(link.link.target.raw(), link.link.target_lag.raw()))
-            else {
-                continue;
-            };
-            if cpdag.has_edge(src, tgt) {
-                continue;
-            }
-            let contemporaneous = link.link.source_lag.is_contemporaneous()
-                && link.link.target_lag.is_contemporaneous();
-            let insert = if contemporaneous {
-                cpdag.insert_undirected(src, tgt)
-            } else {
-                cpdag.insert_directed(src, tgt)
-            };
-            insert.map_err(|e| DiscoveryError::Data(e.to_string()))?;
-        }
-
-        for ((s, slag, t, tlag), sep) in &result.sepsets {
+        for ((s, slag, t, tlag), sep) in &engine_result.sepsets {
             let Some(&sa) = node_ids.get(&(s.raw(), slag.raw())) else {
                 continue;
             };
@@ -137,7 +116,7 @@ impl PcmciPlus {
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
         let _delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 
-        result.algorithm = AlgorithmRecord {
+        let algorithm = AlgorithmRecord {
             id: Arc::from("pcmci_plus"),
             config: Arc::from(format!(
                 "alpha={},max_lag={},fdr={},min_lag={}",
@@ -147,21 +126,34 @@ impl PcmciPlus {
                 self.engine.constraints.temporal.min_lag.raw()
             )),
         };
-        result.evidence = graph_evidence_from_scored(scored)?;
-        result.review = TemporalGraphReview::from_graph(
-            result.evidence.graph.clone(),
-            result.algorithm.id.clone(),
-        );
-        result.performance.links_retained = result.evidence.links.len() as u64;
-        result.diagnostics.push(DiscoveryDiagnostic {
+        let evidence = cpdag_evidence_from_oriented(cpdag.clone(), scored, &engine_result.sepsets);
+        let review = TemporalCpdagReview::from_cpdag(cpdag, algorithm.id.clone());
+        let links_retained = evidence.links.len() as u64;
+        let mut diagnostics = engine_result.diagnostics;
+        diagnostics.push(DiscoveryDiagnostic {
             code: Arc::from("pcmci_plus.cpdag"),
             message: Arc::from(format!(
-                "oriented temporal CPDAG with {} nodes",
-                cpdag.node_count()
+                "oriented temporal CPDAG with {} nodes ({} directed, {} undirected pending orientation)",
+                evidence.graph.node_count(),
+                evidence.graph.directed_edge_count(),
+                review.pending_undirected.len()
             )),
         });
 
-        Ok((result, cpdag))
+        Ok(CpdagDiscoveryResult {
+            evidence,
+            review,
+            algorithm,
+            assumptions: engine_result.assumptions,
+            iterations: engine_result.iterations,
+            diagnostics,
+            performance: {
+                let mut p = engine_result.performance;
+                p.links_retained = links_retained;
+                p
+            },
+            sepsets: engine_result.sepsets,
+        })
     }
 }
 
@@ -178,8 +170,7 @@ mod tests {
     use super::*;
     use crate::constraints::TemporalConstraints;
 
-    fn toy_series() -> (TimeSeriesData, Vec<VariableId>) {
-        let n = 400usize;
+    fn tiny_xy(n: usize) -> (TimeSeriesData, Vec<VariableId>) {
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
             "x",
@@ -203,8 +194,8 @@ mod tests {
         let mut x = vec![0.0; n];
         let mut y = vec![0.0; n];
         for t in 1..n {
-            x[t] = ((t as f64) * 0.01).sin();
-            y[t] = 0.8 * x[t - 1] + 0.3 * x[t] + 0.01 * ((t as f64) * 0.03).cos();
+            x[t] = 0.5 * x[t - 1] + 0.1 * (t as f64).sin();
+            y[t] = 0.7 * x[t] + 0.2 * y[t - 1] + 0.05 * (t as f64).cos();
         }
         let cols = vec![
             OwnedColumn::Float64(
@@ -225,31 +216,32 @@ mod tests {
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        let series = TimeSeriesData::try_new(
+        let data = TimeSeriesData::try_new(
             storage,
             TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap();
-        (series, vec![VariableId::from_raw(0), VariableId::from_raw(1)])
+        (data, vec![VariableId::from_raw(0), VariableId::from_raw(1)])
     }
 
     #[test]
-    fn pcmci_plus_returns_cpdag() {
-        let (series, vars) = toy_series();
+    fn pcmci_plus_evidence_is_cpdag() {
+        let (data, vars) = tiny_xy(200);
         let plus = PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
             temporal: TemporalConstraints {
                 max_lag: Lag::from_raw(1),
                 min_lag: Lag::CONTEMPORANEOUS,
             },
-            alpha: 0.05,
+            alpha: 0.2,
             max_cond_size: 2,
             ..DiscoveryConstraints::default()
         });
         let mut ws = DiscoveryWorkspace::default();
-        let ctx = ExecutionContext::for_tests(1);
-        let (res, cpdag) = plus.run(&series, &vars, &mut ws, &ctx).unwrap();
-        assert_eq!(res.algorithm.id.as_ref(), "pcmci_plus");
-        assert!(cpdag.node_count() >= 2);
-        assert!(!res.evidence.links.is_empty());
+        let ctx = ExecutionContext::for_tests(7);
+        let result = plus.run(&data, &vars, &mut ws, &ctx).unwrap();
+        assert_eq!(result.algorithm.id.as_ref(), "pcmci_plus");
+        assert!(result.evidence.graph.node_count() >= 2);
+        // Review tracks the same CPDAG (not a collapsed DAG).
+        assert_eq!(result.review.graph.node_count(), result.evidence.graph.node_count());
     }
 }

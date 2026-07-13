@@ -14,7 +14,6 @@ workspace = true
 
 [dependencies]
 causal-core = { path = "../causal-core" }
-causal-data = { path = "../causal-data" }
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }

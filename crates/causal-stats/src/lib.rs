@@ -19,11 +19,12 @@ pub mod propensity;
 pub mod twosls;
 
 pub use ci::{
-    CalibrationReport, CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace,
-    ConditionalIndependence, GSquared, Gpdc, KnnCmi, KnnCmiWorkspace, MixedKnnCmi,
-    MultivariatePartialCorrelation, OracleCi, PartialCorrelation, RegressionCi,
-    RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
-    analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
+    CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult,
+    CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, GSquared,
+    Gpdc, KnnCmi, KnnCmiWorkspace, MixedKnnCmi, MultivariatePartialCorrelation, OracleCi,
+    PartialCorrelation, PreparedCiTest, RegressionCi, RobustPartialCorrelation, SignificanceMethod,
+    SymbolicCmi, WeightedPartialCorrelation, analytic_parcorr_ci, calibrate_parcorr_like,
+    ci_from_name,
 };
 pub use design::{CompiledDesign, DesignColumnRole};
 pub use error::StatsError;

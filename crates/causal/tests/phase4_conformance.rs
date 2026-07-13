@@ -12,7 +12,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal_analysis::CausalAnalysis;
+use causal::CausalAnalysis;
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -70,7 +70,7 @@ fn tabular_data(vars: &[(&str, RoleHint, Vec<f64>)]) -> TabularData {
     TabularData::new(storage)
 }
 
-fn assert_recovers(result: &causal_analysis::CausalAnalysisResult, expected: &JsonValue) {
+fn assert_recovers(result: &causal::CausalAnalysisResult, expected: &JsonValue) {
     let true_effect = expected["true_effect"].as_f64().unwrap();
     let tolerance = expected["tolerance"].as_f64().unwrap();
     assert!(

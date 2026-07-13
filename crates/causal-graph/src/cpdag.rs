@@ -7,7 +7,7 @@
 
 #![allow(clippy::many_single_char_names)]
 
-use causal_core::{Lag, VariableId};
+use causal_core::{Lag, TemporalNodeKey, VariableId};
 
 use crate::error::GraphError;
 use crate::temporal::TemporalDag;
@@ -293,6 +293,46 @@ impl TemporalCpdag {
             }
         }
         Ok(dag)
+    }
+
+    /// Convert to a [`TemporalDag`] only when no undirected edges remain.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::InvalidEndpoints`] if any Tail–Tail edge is still present, or insert failure.
+    pub fn try_into_temporal_dag(&self) -> Result<TemporalDag, GraphError> {
+        for e in self.edges() {
+            if e.is_undirected() {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "cannot complete TemporalCpdag to TemporalDag while undirected edges remain",
+                });
+            }
+        }
+        self.to_directed_skeleton()
+    }
+
+    /// Map dense id to a serializable [`TemporalNodeKey`].
+    #[must_use]
+    pub fn temporal_key(&self, id: DenseNodeId) -> Option<TemporalNodeKey> {
+        match self.nodes.get(id.as_usize())? {
+            NodeRef::Lagged { variable, lag } => {
+                let offset = -i32::try_from(lag.raw()).ok()?;
+                Some(TemporalNodeKey { variable: *variable, offset })
+            }
+            _ => None,
+        }
+    }
+
+    /// Count undirected (Tail–Tail) edges.
+    #[must_use]
+    pub fn undirected_edge_count(&self) -> usize {
+        self.edges().iter().filter(|e| e.is_undirected()).count()
+    }
+
+    /// Count directed edges.
+    #[must_use]
+    pub fn directed_edge_count(&self) -> usize {
+        self.edges().iter().filter(|e| e.parent_child().is_some()).count()
     }
 
     fn reaches_directed(&self, from: DenseNodeId, to: DenseNodeId) -> bool {

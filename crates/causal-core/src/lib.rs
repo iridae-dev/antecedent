@@ -19,6 +19,7 @@ pub mod plan;
 pub mod provenance;
 pub mod query;
 pub mod schema;
+pub mod temporal;
 pub mod tolerance;
 pub mod value;
 
@@ -47,6 +48,7 @@ pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
     ValueType, VariableSchema,
 };
+pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 pub use tolerance::ToleranceClass;
 pub use value::Value;
 

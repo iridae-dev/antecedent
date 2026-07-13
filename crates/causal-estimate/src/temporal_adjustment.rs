@@ -16,7 +16,7 @@ use causal_core::{AssumptionSet, ExecutionContext, Lag, TemporalEffectQuery, Var
 use causal_data::{
     DiscoveryEstimationSplit, LaggedColumn, SampleWorkspace, TemporalIndexer, TimeSeriesData,
 };
-use causal_identify::IdentifiedEstimand;
+use causal_expr::IdentifiedEstimand;
 use causal_stats::CompiledDesign;
 
 use crate::adjustment::{

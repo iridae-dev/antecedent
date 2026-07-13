@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal_core::{Lag, VariableId};
-use causal_data::TemporalNodeKey;
+use causal_core::TemporalNodeKey;
 
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};

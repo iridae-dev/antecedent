@@ -10,7 +10,8 @@ use std::sync::Arc;
 use causal_core::ExecutionContext;
 
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence, KnnCmiWorkspace,
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    ConfidenceMethod, KnnCmiWorkspace,
 };
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
@@ -35,7 +36,7 @@ impl OracleCi {
     }
 }
 
-impl ConditionalIndependence for OracleCi {
+impl ConditionalIndependenceTest for OracleCi {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -77,7 +78,7 @@ impl KnnCmi {
     }
 }
 
-impl ConditionalIndependence for KnnCmi {
+impl ConditionalIndependenceTest for KnnCmi {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -219,7 +220,7 @@ impl MixedKnnCmi {
     }
 }
 
-impl ConditionalIndependence for MixedKnnCmi {
+impl ConditionalIndependenceTest for MixedKnnCmi {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -240,6 +241,7 @@ impl ConditionalIndependence for MixedKnnCmi {
             queries: request.queries,
             z_flat: request.z_flat,
             significance: request.significance,
+            confidence: request.confidence,
         };
         let _ = n;
         self.inner.test_batch(&ranked_req, workspace, ctx)
@@ -269,7 +271,7 @@ impl SymbolicCmi {
     }
 }
 
-impl ConditionalIndependence for SymbolicCmi {
+impl ConditionalIndependenceTest for SymbolicCmi {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -382,7 +384,7 @@ impl Gpdc {
     }
 }
 
-impl ConditionalIndependence for Gpdc {
+impl ConditionalIndependenceTest for Gpdc {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -519,7 +521,9 @@ fn double_center_inplace(a: &mut [f64], n: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ci::types::{CiBatchRequest, CiQuery, CiWorkspace, SignificanceMethod};
+    use crate::ci::types::{
+        CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod,
+    };
 
     #[test]
     fn oracle_marks_dependence() {
@@ -533,6 +537,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
@@ -551,6 +556,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
@@ -572,6 +578,7 @@ mod tests {
             queries: &queries,
             z_flat: &z_flat,
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);

@@ -1,4 +1,4 @@
-//! CI request / result types and workspace.
+//! CI request / result types and workspace (DESIGN.md §12).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -42,6 +42,53 @@ pub enum SignificanceMethod {
     },
 }
 
+/// Confidence interval method for a CI statistic (DESIGN.md §12).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ConfidenceMethod {
+    /// No interval.
+    None,
+    /// Analytic Fisher-z interval at the given level in `(0, 1)`.
+    Analytic {
+        /// Confidence level (e.g. `0.95`).
+        level: f64,
+    },
+}
+
+impl Default for ConfidenceMethod {
+    fn default() -> Self {
+        Self::Analytic { level: 0.95 }
+    }
+}
+
+/// Preparation plan for a CI session (DESIGN.md §12 `prepare`).
+#[derive(Clone, Debug)]
+pub struct CiPreparationPlan {
+    /// Significance method applied to subsequent queries.
+    pub significance: SignificanceMethod,
+    /// Confidence method applied when analytic intervals are available.
+    pub confidence: ConfidenceMethod,
+}
+
+impl Default for CiPreparationPlan {
+    fn default() -> Self {
+        Self {
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        }
+    }
+}
+
+/// Prepared CI state after [`ConditionalIndependenceTest::prepare`].
+#[derive(Clone, Debug)]
+pub struct PreparedCiTest {
+    /// Row count observed at prepare time.
+    pub n: usize,
+    /// Column count observed at prepare time.
+    pub ncols: usize,
+    /// Plan used for preparation.
+    pub plan: CiPreparationPlan,
+}
+
 /// One CI query over column indexes into a shared matrix.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct CiQuery {
@@ -66,6 +113,8 @@ pub struct CiBatchRequest<'a> {
     pub z_flat: &'a [usize],
     /// Significance.
     pub significance: SignificanceMethod,
+    /// Confidence intervals (when the test supports analytic intervals).
+    pub confidence: ConfidenceMethod,
 }
 
 /// One CI result.
@@ -88,9 +137,63 @@ pub struct CiBatchResult {
     pub results: Vec<CiResult>,
 }
 
-/// Conditional independence test.
-pub trait ConditionalIndependence {
-    /// Evaluate a batch of queries.
+/// Conditional independence test (DESIGN.md §12 `ConditionalIndependenceTest`).
+///
+/// Numeric kernels live in `causal-stats`; discovery owns the algorithm surface and
+/// re-exports this trait.
+pub trait ConditionalIndependenceTest {
+    /// Prepare once for a data view / plan (sample planning, caches).
+    ///
+    /// # Errors
+    ///
+    /// Shape failures.
+    fn prepare(
+        &self,
+        columns: &[&[f64]],
+        plan: &CiPreparationPlan,
+        _ctx: &ExecutionContext,
+    ) -> Result<PreparedCiTest, StatsError> {
+        if columns.is_empty() {
+            return Err(StatsError::Shape { message: "no columns" });
+        }
+        let n = columns[0].len();
+        for col in columns {
+            if col.len() != n {
+                return Err(StatsError::Shape { message: "column length mismatch" });
+            }
+        }
+        Ok(PreparedCiTest { n, ncols: columns.len(), plan: plan.clone() })
+    }
+
+    /// Single query (convenience over [`Self::test_batch`]).
+    ///
+    /// # Errors
+    ///
+    /// Shape / numerical failures.
+    fn test(
+        &self,
+        prepared: &PreparedCiTest,
+        columns: &[&[f64]],
+        query: CiQuery,
+        z_flat: &[usize],
+        workspace: &mut CiWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<CiResult, StatsError> {
+        let req = CiBatchRequest {
+            columns,
+            queries: std::slice::from_ref(&query),
+            z_flat,
+            significance: prepared.plan.significance,
+            confidence: prepared.plan.confidence,
+        };
+        let out = self.test_batch(&req, workspace, ctx)?;
+        out.results
+            .into_iter()
+            .next()
+            .ok_or(StatsError::Shape { message: "CI test returned no results" })
+    }
+
+    /// Evaluate a batch of queries (deterministic output order).
     ///
     /// # Errors
     ///
@@ -102,6 +205,11 @@ pub trait ConditionalIndependence {
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError>;
 }
+
+/// Conditional independence test (DESIGN.md §12).
+///
+/// Prefer this name; [`ConditionalIndependenceTest`] is the same trait.
+pub use ConditionalIndependenceTest as ConditionalIndependence;
 
 impl CiBatchRequest<'_> {
     /// Validate non-empty equal-length columns; returns `n`.

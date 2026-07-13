@@ -13,7 +13,7 @@ use causal_core::{
 use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
 use causal_estimate::{PropensityEstimationWorkspace, PropensityWeighting};
 use causal_expr::ExprId;
-use causal_identify::IdentifiedEstimand;
+use causal_expr::IdentifiedEstimand;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn standard_normal(rng: &mut causal_core::CausalRng) -> f64 {

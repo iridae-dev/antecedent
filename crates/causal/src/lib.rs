@@ -19,8 +19,8 @@ pub use planner::{
 };
 pub use result::CausalAnalysisResult;
 pub use review::{
-    PendingGraphReview, compile_review_required, compile_temporal_with_graph,
-    ensure_review_complete,
+    PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
+    compile_temporal_with_graph, ensure_review_complete,
 };
 
 #[cfg(test)]
@@ -445,7 +445,9 @@ mod tests {
                 assert!(plan.temporal_graph().is_some());
                 assert_eq!(plan.record.batch_size, Some(250));
             }
-            CompiledAnalysis::ReviewRequired(_) => panic!("expected Ready"),
+            CompiledAnalysis::ReviewRequired(_) | CompiledAnalysis::ReviewRequiredCpdag(_) => {
+                panic!("expected Ready")
+            }
         }
     }
 }

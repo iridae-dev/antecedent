@@ -26,9 +26,9 @@ out of Phase 5 (`tigramite.discovery.lpcmci` pending → Phase 8).
 
 ## Notes (not deviations)
 
-- Multivariate ParCorr uses a real first principal component per block, then
-  scalar ParCorr (documented intentional block reduction vs full matrix-variate).
 - `weighted_parcorr` accepts observation weights via Python
   `discover_pcmci(_plus)(..., weights=...)`.
 - Pairwise multivariate wrapper is registered as `pairwise_multivariate`.
+- Multivariate ParCorr uses block residualization + first canonical correlation
+  (scalar blocks reduce to ordinary ParCorr).
 - J-PCMCI+ / RPCMCI remain Phase 9 (pending in the inventory).

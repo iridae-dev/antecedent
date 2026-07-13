@@ -6,12 +6,12 @@
 
 use causal_core::{ExecutionContext, TemporalEffectQuery};
 use causal_data::{DiscoveryEstimationSplit, TemporalNodeKey, TimeSeriesData};
-use causal_graph::{DenseNodeId, TemporalDag, TemporalGraphReview};
+use causal_graph::{DenseNodeId, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
 
 use crate::error::AnalysisError;
 use crate::planner::{CompiledAnalysis, LogicalAnalysisPlan, compile_logical_temporal_effect};
 
-/// Pending review session that must complete before estimation.
+/// Pending review session that must complete before estimation (DAG discovery).
 #[derive(Clone, Debug)]
 pub struct PendingGraphReview {
     /// Review artifact.
@@ -109,6 +109,104 @@ impl PendingGraphReview {
     }
 }
 
+/// Pending review for a PCMCI+ temporal CPDAG (DESIGN.md §21.3 / §13.5).
+///
+/// Directed edges must be accepted; undirected marks must be explicitly oriented
+/// before completion to a [`TemporalDag`]. Auto-accept never drops undirected edges.
+#[derive(Clone, Debug)]
+pub struct PendingCpdagReview {
+    /// CPDAG review artifact.
+    pub review: TemporalCpdagReview,
+    /// Series length (for diagnostics).
+    pub series_len: usize,
+    /// Temporal effect query.
+    pub query: TemporalEffectQuery,
+    /// Optional discovery/estimation split.
+    pub split: Option<DiscoveryEstimationSplit>,
+}
+
+impl PendingCpdagReview {
+    /// Wrap a CPDAG review with query context.
+    #[must_use]
+    pub fn new(
+        review: TemporalCpdagReview,
+        series_len: usize,
+        query: TemporalEffectQuery,
+        split: Option<DiscoveryEstimationSplit>,
+    ) -> Self {
+        Self { review, series_len, query, split }
+    }
+
+    /// Accept one pending directed edge.
+    #[must_use]
+    pub fn accept_edge(mut self, from: TemporalNodeKey, to: TemporalNodeKey) -> Self {
+        self.review = self.review.accept_edge(from, to);
+        self
+    }
+
+    /// Orient an undirected edge as `from -> to`.
+    ///
+    /// # Errors
+    ///
+    /// Missing undirected edge, cycle, or unknown nodes.
+    pub fn orient_edge(
+        mut self,
+        from: TemporalNodeKey,
+        to: TemporalNodeKey,
+    ) -> Result<Self, AnalysisError> {
+        self.review = self
+            .review
+            .orient_edge(from, to)
+            .map_err(|e| AnalysisError::ReviewRequired { message: e.to_string() })?;
+        Ok(self)
+    }
+
+    /// Accept all directed pending edges.
+    ///
+    /// Does **not** orient or drop undirected edges — call [`Self::orient_edge`] first.
+    #[must_use]
+    pub fn accept_all_directed(mut self) -> Self {
+        self.review.pending_edges = std::sync::Arc::from([]);
+        self
+    }
+
+    /// Finish into a Ready plan only when review is complete (no undirected remain).
+    ///
+    /// # Errors
+    ///
+    /// Incomplete review (including remaining undirected marks) or compile failure.
+    pub fn finish(
+        self,
+        data: &TimeSeriesData,
+        ctx: &ExecutionContext,
+    ) -> Result<CompiledAnalysis, AnalysisError> {
+        let _ = self.series_len;
+        if !self.review.pending_undirected.is_empty() {
+            return Err(AnalysisError::ReviewRequired {
+                message: format!(
+                    "{} undirected CPDAG edges remain; orient them explicitly before estimation (no silent coercion)",
+                    self.review.pending_undirected.len()
+                ),
+            });
+        }
+        if !self.review.is_complete() {
+            return Err(AnalysisError::ReviewRequired {
+                message: format!(
+                    "{} pending directed edges remain; accept them before estimation",
+                    self.review.pending_edges.len()
+                ),
+            });
+        }
+        let dag = self
+            .review
+            .try_into_temporal_dag()
+            .map_err(|e| AnalysisError::ReviewRequired { message: e.to_string() })?;
+        let logical = compile_logical_temporal_effect(data, &dag, &self.query, self.split, false)?;
+        let physical = logical.compile_physical_with_graph(ctx, Some(dag))?;
+        Ok(CompiledAnalysis::Ready(physical))
+    }
+}
+
 fn edge_in_graph(graph: &TemporalDag, from: TemporalNodeKey, to: TemporalNodeKey) -> bool {
     let mut from_id = None;
     let mut to_id = None;
@@ -146,10 +244,16 @@ pub fn compile_temporal_with_graph(
     Ok(CompiledAnalysis::Ready(physical))
 }
 
-/// Wrap discovery output as review-required.
+/// Wrap discovery output as review-required (DAG).
 #[must_use]
 pub fn compile_review_required(review: TemporalGraphReview) -> CompiledAnalysis {
     CompiledAnalysis::ReviewRequired(review)
+}
+
+/// Wrap PCMCI+ output as CPDAG review-required.
+#[must_use]
+pub fn compile_review_required_cpdag(review: TemporalCpdagReview) -> CompiledAnalysis {
+    CompiledAnalysis::ReviewRequiredCpdag(review)
 }
 
 /// Refuse when the logical plan still requires review.
@@ -169,7 +273,7 @@ pub fn ensure_review_complete(plan: &LogicalAnalysisPlan) -> Result<(), Analysis
 #[cfg(test)]
 mod tests {
     use causal_core::{Lag, TemporalEffectQuery, VariableId};
-    use causal_graph::{TemporalDag, TemporalGraphReview, ensure_lagged};
+    use causal_graph::{TemporalCpdag, TemporalDag, TemporalGraphReview, ensure_lagged};
 
     use super::*;
 
@@ -235,5 +339,23 @@ mod tests {
         let missing_from = TemporalNodeKey { variable: VariableId::from_raw(9), offset: 0 };
         let missing_to = TemporalNodeKey { variable: VariableId::from_raw(8), offset: 0 };
         assert!(pending.require_edge(missing_from, missing_to).is_err());
+    }
+
+    #[test]
+    fn cpdag_finish_refuses_undirected() {
+        let mut g = TemporalCpdag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_undirected(a, b).unwrap();
+        let review = TemporalCpdagReview::from_cpdag(g, "pcmci_plus");
+        assert!(!review.pending_undirected.is_empty());
+        let pending = PendingCpdagReview::new(
+            review,
+            10,
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0),
+            None,
+        )
+        .accept_all_directed();
+        assert!(!pending.review.is_complete());
     }
 }

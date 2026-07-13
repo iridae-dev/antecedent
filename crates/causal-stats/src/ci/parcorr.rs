@@ -10,8 +10,8 @@ use causal_kernels::{ParCorrQuery, partial_correlation_batch};
 use super::analytic::{analytic_parcorr_ci, analytic_parcorr_pvalue};
 use super::block_shuffle::block_shuffle_pvalue;
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
-    SignificanceMethod,
+    CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    ConfidenceMethod, SignificanceMethod,
 };
 use crate::error::StatsError;
 
@@ -74,7 +74,7 @@ impl PartialCorrelation {
         let r = workspace.stats[0]
             .ok_or(StatsError::Shape { message: "partial correlation failed" })?;
         let ci_query = CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() };
-        self.interpret(r, n, ci_query, significance, columns, z_flat, workspace, ctx, 0)
+        self.interpret(r, n, ci_query, significance, ConfidenceMethod::default(), columns, z_flat, workspace, ctx, 0)
     }
 
     /// Map a partial-correlation statistic to a [`CiResult`] under `significance`.
@@ -85,6 +85,7 @@ impl PartialCorrelation {
         n: usize,
         query: CiQuery,
         significance: SignificanceMethod,
+        confidence: ConfidenceMethod,
         columns: &[&[f64]],
         z_flat: &[usize],
         workspace: &mut CiWorkspace,
@@ -98,11 +99,17 @@ impl PartialCorrelation {
                     return Err(StatsError::Shape { message: "non-positive residual df" });
                 }
                 let p = analytic_parcorr_pvalue(r, df);
+                let ci = match confidence {
+                    ConfidenceMethod::None => None,
+                    ConfidenceMethod::Analytic { level } => {
+                        Some(analytic_parcorr_ci(r, df, level))
+                    }
+                };
                 Ok(CiResult {
                     statistic: r,
                     p_value: p,
                     df,
-                    ci: Some(analytic_parcorr_ci(r, df, 0.95)),
+                    ci,
                 })
             }
             SignificanceMethod::BlockShuffle { replicates, block_size } => {
@@ -129,7 +136,7 @@ impl PartialCorrelation {
     }
 }
 
-impl ConditionalIndependence for PartialCorrelation {
+impl ConditionalIndependenceTest for PartialCorrelation {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -163,6 +170,7 @@ impl ConditionalIndependence for PartialCorrelation {
                 n,
                 *q,
                 request.significance,
+                request.confidence,
                 request.columns,
                 request.z_flat,
                 workspace,

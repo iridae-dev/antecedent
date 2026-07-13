@@ -1,6 +1,6 @@
 # Phase 4 IV / two-stage-least-squares conformance fixture
 
-Generated inline by `crates/causal-analysis/tests/phase4_conformance.rs` — no
+Generated inline by `crates/causal/tests/phase4_conformance.rs` — no
 CSV, no DoWhy install. Clean-room synthetic SCM, deterministic from a fixed
 `ExecutionContext` seed.
 

@@ -82,7 +82,7 @@ description = "Multivariate partial correlation"
 status = "done"
 owner = "phase5"
 phase = 5
-notes = "First-PC block reduction then scalar ParCorr (intentional vs full matrix-variate)."
+notes = "Block residualization + first canonical correlation; scalar blocks reduce to ParCorr."
 
 [[capabilities]]
 id = "tigramite.ci.weighted_partial_corr"

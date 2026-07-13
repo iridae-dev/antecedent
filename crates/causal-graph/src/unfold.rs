@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use causal_core::VariableId;
-use causal_data::{TemporalIndexer, TemporalNodeKey};
+use causal_core::{TemporalIndexer, TemporalNodeKey};
 
 use crate::dag::Dag;
 use crate::error::GraphError;
@@ -175,7 +175,7 @@ fn insert_replicated_edges(
     Ok(())
 }
 
-/// Review-required temporal graph artifact (Phase 2 produces; Phase 3 consumes).
+/// Review-required temporal DAG artifact (Phase 2 produces; Phase 3 consumes).
 #[derive(Clone, Debug)]
 pub struct TemporalGraphReview {
     /// Proposed discovery graph.
@@ -221,6 +221,120 @@ impl TemporalGraphReview {
     }
 }
 
+/// Review-required temporal CPDAG artifact (Phase 5 PCMCI+).
+///
+/// Directed edges must be accepted; undirected edges must be explicitly oriented
+/// before the CPDAG can be completed to a [`TemporalDag`] for identification.
+#[derive(Clone, Debug)]
+pub struct TemporalCpdagReview {
+    /// Proposed discovery CPDAG.
+    pub graph: crate::TemporalCpdag,
+    /// Directed edges awaiting acceptance.
+    pub pending_edges: Arc<[(TemporalNodeKey, TemporalNodeKey)]>,
+    /// Undirected edges awaiting explicit orientation `(a, b)` with `a` lexicographically first.
+    pub pending_undirected: Arc<[(TemporalNodeKey, TemporalNodeKey)]>,
+    /// Algorithm id that produced the proposal.
+    pub algorithm: Arc<str>,
+}
+
+impl TemporalCpdagReview {
+    /// Construct a review listing all directed edges as pending and all undirected as pending orientation.
+    #[must_use]
+    pub fn from_cpdag(graph: crate::TemporalCpdag, algorithm: impl Into<Arc<str>>) -> Self {
+        let mut pending = Vec::new();
+        let mut undirected = Vec::new();
+        for e in graph.edges() {
+            if let Some((from, to)) = e.parent_child() {
+                if let (Some(fk), Some(tk)) = (graph.temporal_key(from), graph.temporal_key(to)) {
+                    pending.push((fk, tk));
+                }
+            } else if e.is_undirected() {
+                if let (Some(ak), Some(bk)) = (graph.temporal_key(e.a), graph.temporal_key(e.b)) {
+                    if (ak.variable, ak.offset) <= (bk.variable, bk.offset) {
+                        undirected.push((ak, bk));
+                    } else {
+                        undirected.push((bk, ak));
+                    }
+                }
+            }
+        }
+        Self {
+            graph,
+            pending_edges: Arc::from(pending),
+            pending_undirected: Arc::from(undirected),
+            algorithm: algorithm.into(),
+        }
+    }
+
+    /// Accept a pending directed edge (no-op if absent).
+    #[must_use]
+    pub fn accept_edge(mut self, from: TemporalNodeKey, to: TemporalNodeKey) -> Self {
+        let pending: Vec<_> =
+            self.pending_edges.iter().copied().filter(|e| *e != (from, to)).collect();
+        self.pending_edges = Arc::from(pending);
+        self
+    }
+
+    /// Orient an undirected edge as `from -> to` and remove it from pending undirected.
+    ///
+    /// # Errors
+    ///
+    /// Missing undirected edge, cycle, or unknown nodes.
+    pub fn orient_edge(
+        mut self,
+        from: TemporalNodeKey,
+        to: TemporalNodeKey,
+    ) -> Result<Self, GraphError> {
+        let from_id = self.resolve_key(from)?;
+        let to_id = self.resolve_key(to)?;
+        self.graph.orient_undirected(from_id, to_id)?;
+        let undirected: Vec<_> = self
+            .pending_undirected
+            .iter()
+            .copied()
+            .filter(|&(a, b)| (a, b) != (from, to) && (a, b) != (to, from))
+            .collect();
+        self.pending_undirected = Arc::from(undirected);
+        // Newly directed edge still needs acceptance unless already accepted.
+        if !self.pending_edges.iter().any(|e| *e == (from, to)) {
+            let mut pending = self.pending_edges.to_vec();
+            pending.push((from, to));
+            self.pending_edges = Arc::from(pending);
+        }
+        Ok(self)
+    }
+
+    /// Whether all directed edges are accepted and no undirected edges remain.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.pending_edges.is_empty() && self.pending_undirected.is_empty()
+    }
+
+    /// Complete to a [`TemporalDag`] after review (errors if undirected edges remain).
+    ///
+    /// # Errors
+    ///
+    /// Incomplete review or conversion failure.
+    pub fn try_into_temporal_dag(self) -> Result<TemporalDag, GraphError> {
+        if !self.is_complete() {
+            return Err(GraphError::InvalidEndpoints {
+                message: "TemporalCpdagReview is incomplete; accept directed and orient undirected edges first",
+            });
+        }
+        self.graph.try_into_temporal_dag()
+    }
+
+    fn resolve_key(&self, key: TemporalNodeKey) -> Result<DenseNodeId, GraphError> {
+        for i in 0..self.graph.node_count() {
+            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            if self.graph.temporal_key(id) == Some(key) {
+                return Ok(id);
+            }
+        }
+        Err(GraphError::UnknownNode { id: key.variable.raw() })
+    }
+}
+
 /// Helper for tests / discovery: ensure a lagged node exists.
 pub fn ensure_lagged(
     graph: &mut TemporalDag,
@@ -241,7 +355,7 @@ pub fn ensure_lagged(
 #[allow(clippy::many_single_char_names)]
 mod tests {
     use causal_core::{Lag, VariableId};
-    use causal_data::TemporalIndexer;
+    use causal_core::TemporalIndexer;
 
     use super::*;
     use crate::dsep::DSeparationWorkspace;

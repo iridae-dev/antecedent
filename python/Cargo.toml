@@ -1,5 +1,5 @@
 [package]
-name = "causal"
+name = "causal-py"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -19,7 +19,7 @@ workspace = true
 [dependencies]
 causal-core = { path = "../crates/causal-core" }
 causal-data = { path = "../crates/causal-data", features = ["arrow"] }
-causal-analysis = { path = "../crates/causal-analysis" }
+causal = { path = "../crates/causal" }
 causal-discovery = { path = "../crates/causal-discovery" }
 causal-graph = { path = "../crates/causal-graph" }
 causal-stats = { path = "../crates/causal-stats" }

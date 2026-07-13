@@ -14,8 +14,8 @@ use causal_stats::ConditionalIndependence;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
-use crate::evidence::{graph_evidence_from_scored, threshold_scored_links};
-use crate::result::{AlgorithmRecord, DiscoveryResult};
+use crate::evidence::{graph_evidence_from_scored_with_sepsets, threshold_scored_links};
+use crate::result::{AlgorithmRecord, DagDiscoveryResult};
 
 /// Lagged PCMCI discovery algorithm.
 #[derive(Clone, Debug)]
@@ -74,7 +74,7 @@ impl Pcmci {
         variables: &[VariableId],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<DiscoveryResult, DiscoveryError> {
+    ) -> Result<DagDiscoveryResult, DiscoveryError> {
         let mut result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
         let alpha = self.engine.constraints.alpha;
 
@@ -84,7 +84,7 @@ impl Pcmci {
             alpha,
         );
 
-        result.evidence = graph_evidence_from_scored(scored)?;
+        result.evidence = graph_evidence_from_scored_with_sepsets(scored, &result.sepsets)?;
         result.algorithm = AlgorithmRecord {
             id: Arc::from("pcmci"),
             config: Arc::from(format!(

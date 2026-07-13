@@ -89,7 +89,7 @@ print(f"parity inventory evidence map: ok ({len(EVIDENCE)} phase 4/5 rows)")
 PY
 
 echo "== conformance / calibration =="
-cargo test -p causal-analysis --test phase4_conformance --test dowhy_linear_gaussian_ate
+cargo test -p causal --test phase4_conformance --test dowhy_linear_gaussian_ate
 cargo test -p causal-validate --test phase4_refuters
 cargo test -p causal-discovery --test tigramite_pcmci_lag1 --test tigramite_pcmci_plus_lag0
 cargo test -p causal-stats --lib ci::calibration

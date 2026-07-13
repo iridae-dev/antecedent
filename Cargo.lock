@@ -177,22 +177,6 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 name = "causal"
 version = "0.1.0"
 dependencies = [
- "arrow-array",
- "arrow-schema",
- "causal-analysis",
- "causal-core",
- "causal-data",
- "causal-discovery",
- "causal-graph",
- "causal-stats",
- "numpy",
- "pyo3",
-]
-
-[[package]]
-name = "causal-analysis"
-version = "0.1.0"
-dependencies = [
  "causal-core",
  "causal-data",
  "causal-discovery",
@@ -258,7 +242,6 @@ name = "causal-graph"
 version = "0.1.0"
 dependencies = [
  "causal-core",
- "causal-data",
  "criterion",
 ]
 
@@ -290,6 +273,22 @@ version = "0.1.0"
 dependencies = [
  "causal-core",
  "criterion",
+]
+
+[[package]]
+name = "causal-py"
+version = "0.1.0"
+dependencies = [
+ "arrow-array",
+ "arrow-schema",
+ "causal",
+ "causal-core",
+ "causal-data",
+ "causal-discovery",
+ "causal-graph",
+ "causal-stats",
+ "numpy",
+ "pyo3",
 ]
 
 [[package]]

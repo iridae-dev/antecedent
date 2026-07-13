@@ -11,7 +11,7 @@ members = [
     "crates/causal-stats",
     "crates/causal-estimate",
     "crates/causal-validate",
-    "crates/causal-analysis",
+    "crates/causal",
     "crates/causal-discovery",
     "python",
 ]
@@ -26,7 +26,7 @@ default-members = [
     "crates/causal-stats",
     "crates/causal-estimate",
     "crates/causal-validate",
-    "crates/causal-analysis",
+    "crates/causal",
     "crates/causal-discovery",
 ]
 

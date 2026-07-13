@@ -5,7 +5,10 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod estimand;
 mod pretty;
+
+pub use estimand::IdentifiedEstimand;
 
 use pretty::pretty_expr;
 

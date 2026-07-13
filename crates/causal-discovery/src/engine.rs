@@ -18,15 +18,16 @@ use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::{LaggedFrame, TimeSeriesData};
 use causal_graph::TemporalGraphReview;
 use causal_stats::{
-    CiBatchRequest, CiQuery, CiResult, CiWorkspace, ConditionalIndependence, PartialCorrelation,
+    CiBatchRequest, CiQuery, CiResult, CiWorkspace, ConditionalIndependence, ConfidenceMethod, PartialCorrelation,
 };
 
 use crate::combinations::for_each_combination;
 use crate::constraints::{CompiledConstraints, DiscoveryConstraints};
 use crate::error::DiscoveryError;
-use crate::evidence::graph_evidence_from_scored;
+use crate::evidence::graph_evidence_from_scored_with_sepsets;
 use crate::result::{
-    AlgorithmRecord, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult, LaggedLink,
+        AlgorithmRecord, DagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord,
+        LaggedLink,
     PcSepsets, ScoredLink,
 };
 
@@ -298,7 +299,7 @@ impl PcmciEngine {
         variables: &[VariableId],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<DiscoveryResult, DiscoveryError> {
+    ) -> Result<DagDiscoveryResult, DiscoveryError> {
         let max_lag = self.constraints.temporal.max_lag.raw();
         let frame = LaggedFrame::from_series(data, variables, max_lag)
             .map_err(|e| DiscoveryError::Data(e.to_string()))?;
@@ -312,6 +313,20 @@ impl PcmciEngine {
 
         let threads = ctx.parallelism.max_threads.get().max(1);
         let compiled = self.constraints.compile(variables)?;
+
+        // DESIGN.md §12: prepare CI once for the lagged frame.
+        {
+            let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
+            let plan = causal_stats::CiPreparationPlan {
+                significance: self.constraints.significance,
+                confidence: ConfidenceMethod::default(),
+            };
+            let _prepared = self
+                .ci
+                .prepare(&cols, &plan, ctx)
+                .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
+        }
+
         let (all_parents, iterations, mut ci_tests) =
             self.select_parents_all(&frame, variables, &compiled, workspace, ctx, threads)?;
 
@@ -319,7 +334,8 @@ impl PcmciEngine {
         let mci_tests = self.mci_all(&frame, &all_parents, &mut scored, workspace, ctx, threads)?;
         ci_tests += mci_tests;
 
-        let evidence = graph_evidence_from_scored(scored)?;
+        let sepsets = std::mem::take(&mut workspace.sepsets);
+        let evidence = graph_evidence_from_scored_with_sepsets(scored, &sepsets)?;
         let algorithm = AlgorithmRecord {
             id: Arc::from("pcmci.engine.pc_mci"),
             config: Arc::from(format!(
@@ -330,8 +346,7 @@ impl PcmciEngine {
         };
         let review = TemporalGraphReview::from_graph(evidence.graph.clone(), algorithm.id.clone());
         let n_links = evidence.links.len() as u64;
-        let sepsets = std::mem::take(&mut workspace.sepsets);
-        Ok(DiscoveryResult {
+        Ok(DagDiscoveryResult {
             evidence,
             review,
             algorithm,
@@ -445,19 +460,16 @@ impl PcmciEngine {
         if threads <= 1 || all_parents.len() <= 1 {
             let mut tests = 0u64;
             for (target, parents) in all_parents {
-                for &(src, slag) in parents {
-                    let link = link_to_target(src, slag, *target);
-                    let src_parents = parents_of(all_parents, src);
-                    scored.push(self.mci_test(
-                        frame,
-                        link,
-                        parents,
-                        src_parents,
-                        workspace,
-                        ctx,
-                    )?);
-                    tests += 1;
-                }
+                let batch = self.mci_batch_for_target(
+                    frame,
+                    *target,
+                    parents,
+                    all_parents,
+                    workspace,
+                    ctx,
+                )?;
+                tests += batch.len() as u64;
+                scored.extend(batch);
             }
             return Ok(tests);
         }
@@ -477,19 +489,16 @@ impl PcmciEngine {
                     let mut local_scored = Vec::new();
                     let mut tests = 0u64;
                     for (target, parents) in chunk_parents {
-                        for &(src, slag) in parents {
-                            let link = link_to_target(src, slag, *target);
-                            let src_parents = parents_of(all_parents, src);
-                            local_scored.push(engine.mci_test(
-                                frame,
-                                link,
-                                parents,
-                                src_parents,
-                                &mut local_ws,
-                                ctx,
-                            )?);
-                            tests += 1;
-                        }
+                        let batch = engine.mci_batch_for_target(
+                            frame,
+                            *target,
+                            parents,
+                            all_parents,
+                            &mut local_ws,
+                            ctx,
+                        )?;
+                        tests += batch.len() as u64;
+                        local_scored.extend(batch);
                     }
                     Ok(MciChunkOut {
                         scored: local_scored,
@@ -511,6 +520,92 @@ impl PcmciEngine {
             scored.extend(chunk.scored);
         }
         Ok(tests)
+    }
+
+    /// MCI-test all parents of one target in a single CI batch (DESIGN.md §12.1).
+    fn mci_batch_for_target(
+        &self,
+        frame: &LaggedFrame,
+        target: VariableId,
+        parents: &[(VariableId, Lag)],
+        all_parents: &[TargetParents],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<ScoredLink>, DiscoveryError> {
+        if parents.is_empty() {
+            return Ok(Vec::new());
+        }
+        let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
+        let mut queries = Vec::with_capacity(parents.len());
+        let mut z_flat = Vec::new();
+        let mut links = Vec::with_capacity(parents.len());
+
+        for &(src, slag) in parents {
+            let link = link_to_target(src, slag, target);
+            let src_parents = parents_of(all_parents, src);
+            workspace.others.clear();
+            let src_key = (link.source, link.source_lag);
+            let tgt_key = (link.target, link.target_lag);
+            workspace
+                .others
+                .extend(parents.iter().copied().filter(|p| *p != src_key && *p != tgt_key));
+            for p in src_parents {
+                if !workspace.others.contains(p) && *p != src_key && *p != tgt_key {
+                    workspace.others.push(*p);
+                }
+            }
+            if workspace.others.len() > MAX_CI_COLS - 2 {
+                workspace.others.truncate(MAX_CI_COLS - 2);
+            }
+
+            let xi = frame.column_index(link.source, link.source_lag).ok_or_else(|| {
+                DiscoveryError::Data(format!("missing lagged column for {:?}", link.source))
+            })?;
+            let yi = frame.column_index(link.target, link.target_lag).ok_or_else(|| {
+                DiscoveryError::Data(format!("missing lagged column for {:?}", link.target))
+            })?;
+            let z_start = z_flat.len();
+            for &(v, l) in &workspace.others {
+                let zi = frame.column_index(v, l).ok_or_else(|| {
+                    DiscoveryError::Data(format!("missing lagged column for {v:?} lag {l:?}"))
+                })?;
+                z_flat.push(zi);
+            }
+            queries.push(CiQuery {
+                x: xi,
+                y: yi,
+                z_start,
+                z_len: workspace.others.len(),
+            });
+            links.push(link);
+        }
+
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: self.constraints.significance,
+            confidence: ConfidenceMethod::default(),
+        };
+        let out = self
+            .ci
+            .test_batch(&req, &mut workspace.ci, ctx)
+            .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
+        if out.results.len() != links.len() {
+            return Err(DiscoveryError::Stats("CI batch result length mismatch".into()));
+        }
+        let mut scored = Vec::with_capacity(links.len());
+        for (link, result) in links.into_iter().zip(out.results) {
+            if !result.statistic.is_finite() || !result.p_value.is_finite() {
+                return Err(DiscoveryError::Stats("non-finite CI statistic or p-value".into()));
+            }
+            scored.push(ScoredLink {
+                link,
+                statistic: result.statistic,
+                p_value: result.p_value,
+            });
+        }
+        Ok(scored)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -578,6 +673,7 @@ impl PcmciEngine {
                 queries: &queries,
                 z_flat: &workspace.z_flat,
                 significance: self.constraints.significance,
+                confidence: ConfidenceMethod::default(),
             };
             let out = self
                 .ci

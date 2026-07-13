@@ -1,6 +1,6 @@
 //! Manufacturing-style temporal effect example (DESIGN.md §34.2 / Phase 3).
 //!
-//! Run: `cargo +1.85 test -p causal-analysis --test manufacturing_temporal -- --nocapture`
+//! Run: `cargo +1.85 test -p causal --test manufacturing_temporal -- --nocapture`
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use causal_analysis::CausalAnalysis;
+use causal::CausalAnalysis;
 use causal_core::{
     CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
     TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,

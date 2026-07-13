@@ -29,6 +29,7 @@ pub use parcorr_variants::{
 };
 pub use types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
+    ConditionalIndependenceTest, ConfidenceMethod, CiPreparationPlan, PreparedCiTest,
     KnnCmiWorkspace, SignificanceMethod,
 };
 
@@ -51,6 +52,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
@@ -70,6 +72,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
@@ -90,6 +93,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::BlockShuffle { replicates: 50, block_size: 10 },
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(3);
@@ -115,6 +119,7 @@ mod tests {
             queries: &queries,
             z_flat: &z_flat,
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(9);

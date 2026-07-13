@@ -25,7 +25,7 @@ use causal_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
 };
 use causal_data::TabularData;
-use causal_identify::IdentifiedEstimand;
+use causal_expr::IdentifiedEstimand;
 use causal_stats::{
     CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
     fit_glm,
@@ -359,7 +359,7 @@ mod tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
     use causal_expr::ExprId;
-    use causal_identify::IdentifiedEstimand;
+    use causal_expr::IdentifiedEstimand;
 
     use super::*;
     use crate::adjustment::OverlapPolicy;

@@ -11,8 +11,8 @@
 
 use causal_core::ExecutionContext;
 use causal_stats::{
-    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, GSquared, KnnCmi,
-    PartialCorrelation, RobustPartialCorrelation, SignificanceMethod,
+    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod, GSquared,
+    KnnCmi, PartialCorrelation, RobustPartialCorrelation, SignificanceMethod,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
@@ -95,6 +95,7 @@ fn bench_one_ci<C: ConditionalIndependence>(
                 queries: black_box(&queries),
                 z_flat: black_box(&z_flat),
                 significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::default(),
             };
             let _ = black_box(ci.test_batch(&req, &mut ws, &ctx));
         });
@@ -155,6 +156,7 @@ fn bench_knn_reuse(c: &mut Criterion) {
             queries: &queries,
             z_flat: &z_flat,
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let _ = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx);
         let gen0 = ws.knn.index_generation;
@@ -164,6 +166,7 @@ fn bench_knn_reuse(c: &mut Criterion) {
                 queries: black_box(&queries),
                 z_flat: black_box(&z_flat),
                 significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::default(),
             };
             let _ = black_box(KnnCmi::new(3).test_batch(&req, &mut ws, &ctx));
             assert_eq!(ws.knn.index_generation, gen0, "kNN must not rebuild index per query batch");

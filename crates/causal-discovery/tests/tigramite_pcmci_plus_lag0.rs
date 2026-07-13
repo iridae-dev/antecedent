@@ -113,7 +113,7 @@ fn tigramite_pcmci_plus_lag0_exact_parents() {
     });
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(42);
-    let (result, cpdag) = plus.run(&data, &vars, &mut ws, &ctx).unwrap();
+    let result = plus.run(&data, &vars, &mut ws, &ctx).unwrap();
 
     let recovered: BTreeSet<(u32, u32, u32, u32)> = result
         .evidence
@@ -145,5 +145,6 @@ fn tigramite_pcmci_plus_lag0_exact_parents() {
         "missing true parents: true={true_set:?} recovered={recovered:?}"
     );
     assert_eq!(result.algorithm.id.as_ref(), "pcmci_plus");
-    assert!(cpdag.node_count() >= 2);
+    assert!(result.evidence.graph.node_count() >= 2);
+    assert_eq!(result.review.graph.node_count(), result.evidence.graph.node_count());
 }

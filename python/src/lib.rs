@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
-use causal_analysis::{CausalAnalysis, RefuteSuite};
+use causal::{CausalAnalysis, RefuteSuite};
 use causal_core::{
     AverageEffectQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
@@ -133,8 +133,8 @@ fn load_float64_columns(
 ///
 /// `identifier`/`estimator` select the identification strategy and estimator; leaving both
 /// `None` preserves the Phase 0–3 default (`backdoor.adjustment` + `linear.adjustment.ate`).
-/// See [`causal_analysis::CausalAnalysisBuilder::identifier`] and
-/// [`causal_analysis::CausalAnalysisBuilder::estimator`] for the supported ids.
+/// See [`causal::CausalAnalysisBuilder::identifier`] and
+/// [`causal::CausalAnalysisBuilder::estimator`] for the supported ids.
 ///
 /// Crosses the Python boundary once: NumPy columns + edge list in, structured
 /// summary out. No per-row callbacks. Releases the GIL during native work.
@@ -333,11 +333,9 @@ fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<Varia
 
 fn discovered_links(
     names: &[String],
-    result: &causal_discovery::DiscoveryResult,
+    links: &[causal_discovery::ScoredLink],
 ) -> Vec<DiscoveredLink> {
-    result
-        .evidence
-        .links
+    links
         .iter()
         .map(|s| DiscoveredLink {
             source: names
@@ -358,21 +356,25 @@ fn discovered_links(
 
 fn discovery_result_fields(
     names: &[String],
-    result: &causal_discovery::DiscoveryResult,
+    links: &[causal_discovery::ScoredLink],
+    algorithm_id: &str,
+    algorithm_config: &str,
+    performance: &causal_discovery::DiscoveryPerformanceRecord,
+    pending_edge_count: u64,
     ci_name: String,
     cpdag_nodes: u64,
     cpdag_directed_edges: u64,
     cpdag_undirected_edges: u64,
 ) -> PcmciDiscoveryResult {
     PcmciDiscoveryResult {
-        links: discovered_links(names, result),
-        algorithm_id: result.algorithm.id.to_string(),
-        algorithm_config: result.algorithm.config.to_string(),
-        ci_tests: result.performance.ci_tests,
-        links_retained: result.performance.links_retained,
-        pending_edge_count: result.review.pending_edges.len() as u64,
-        lagged_frame_bytes: result.performance.lagged_frame_bytes,
-        worker_threads: result.performance.worker_threads,
+        links: discovered_links(names, links),
+        algorithm_id: algorithm_id.to_string(),
+        algorithm_config: algorithm_config.to_string(),
+        ci_tests: performance.ci_tests,
+        links_retained: performance.links_retained,
+        pending_edge_count,
+        lagged_frame_bytes: performance.lagged_frame_bytes,
+        worker_threads: performance.worker_threads,
         ci_name,
         cpdag_nodes,
         cpdag_directed_edges,
@@ -421,7 +423,18 @@ fn discover_pcmci(
         let result = pcmci
             .run(&series, &variables, &mut ws, &ctx)
             .map_err(py_err)?;
-        Ok(discovery_result_fields(&names, &result, ci_name, 0, 0, 0))
+        Ok(discovery_result_fields(
+            &names,
+            &result.evidence.links,
+            result.algorithm.id.as_ref(),
+            result.algorithm.config.as_ref(),
+            &result.performance,
+            result.review.pending_edges.len() as u64,
+            ci_name,
+            0,
+            0,
+            0,
+        ))
     })
 }
 
@@ -460,23 +473,23 @@ fn discover_pcmci_plus(
             .with_ci(ci_impl);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(seed);
-        let (result, cpdag) = plus
+        let result = plus
             .run(&series, &variables, &mut ws, &ctx)
             .map_err(py_err)?;
 
-        let mut directed = 0u64;
-        let mut undirected = 0u64;
-        for e in cpdag.edges() {
-            if e.is_undirected() {
-                undirected += 1;
-            } else if e.parent_child().is_some() {
-                directed += 1;
-            }
-        }
+        let cpdag = &result.evidence.graph;
+        let directed = cpdag.directed_edge_count() as u64;
+        let undirected = cpdag.undirected_edge_count() as u64;
+        let pending = result.review.pending_edges.len() as u64
+            + result.review.pending_undirected.len() as u64;
 
         Ok(discovery_result_fields(
             &names,
-            &result,
+            &result.evidence.links,
+            result.algorithm.id.as_ref(),
+            result.algorithm.config.as_ref(),
+            &result.performance,
+            pending,
             ci_name,
             cpdag.node_count() as u64,
             directed,

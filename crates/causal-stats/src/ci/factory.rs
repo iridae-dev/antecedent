@@ -13,7 +13,7 @@ use super::parcorr::PartialCorrelation;
 use super::parcorr_variants::{
     MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
 };
-use super::types::{CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependence};
+use super::types::{CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest};
 use crate::error::StatsError;
 
 /// Resolve a CI test by stable name string.
@@ -65,7 +65,7 @@ pub fn ci_from_name(
 #[derive(Clone, Copy, Debug, Default)]
 struct UnitWeightedParCorr;
 
-impl ConditionalIndependence for UnitWeightedParCorr {
+impl ConditionalIndependenceTest for UnitWeightedParCorr {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,

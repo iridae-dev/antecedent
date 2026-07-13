@@ -10,7 +10,10 @@ use causal_core::ExecutionContext;
 
 use super::analytic::normal_ppf;
 use super::parcorr::PartialCorrelation;
-use super::types::{CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence};
+use super::types::{
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    ConfidenceMethod,
+};
 
 #[cfg(test)]
 use super::types::{CiQuery, SignificanceMethod};
@@ -28,7 +31,7 @@ impl GSquared {
     }
 }
 
-impl ConditionalIndependence for GSquared {
+impl ConditionalIndependenceTest for GSquared {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -200,7 +203,7 @@ impl RegressionCi {
     }
 }
 
-impl ConditionalIndependence for RegressionCi {
+impl ConditionalIndependenceTest for RegressionCi {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -227,6 +230,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
@@ -246,6 +250,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);

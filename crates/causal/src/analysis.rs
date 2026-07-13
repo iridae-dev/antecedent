@@ -10,15 +10,16 @@
 )]
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use causal_core::{
-    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    ExecutionContext, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord,
-    PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode, TemporalEffectQuery, VERSION,
-    VariableId,
+    AssumptionSet, AverageEffectQuery, BufferMaterialization, CausalQuery, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord,
+    LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode,
+    TemporalEffectQuery, VERSION, VariableId,
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
+use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus, TemporalConstraints};
 use causal_estimate::{
     AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace,
     FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
@@ -26,13 +27,12 @@ use causal_estimate::{
     PropensityStratification, PropensityWeighting, RdWorkspace, SharpRegressionDiscontinuity,
     TemporalLinearAdjustment, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
 };
-use causal_expr::{CausalExprArena, ExprId};
-use causal_graph::{Dag, TemporalDag, TemporalGraphReview};
+use causal_expr::IdentifiedEstimand;
+use causal_graph::{Dag, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
 use causal_identify::{
-    BackdoorIdentifier, DerivationTrace, EfficientBackdoorIdentifier, FrontDoorIdentifier,
-    IdentificationError, IdentificationPerformanceRecord, IdentificationResult,
-    IdentificationStatus, IdentifiedEstimand, InstrumentalVariableIdentifier,
-    TemporalBackdoorIdentifier,
+    BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier, IdentificationError,
+    IdentificationResult, IdentificationStatus, InstrumentalVariableIdentifier, SharpRdConfig,
+    SharpRdIdentifier, TemporalBackdoorIdentifier,
 };
 use causal_validate::{RefutationProblem, RefutationReport, ValidationSuite};
 
@@ -42,7 +42,10 @@ use crate::planner::{
     StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
 };
 use crate::result::CausalAnalysisResult;
-use crate::review::{PendingGraphReview, compile_review_required, ensure_review_complete};
+use crate::review::{
+    PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
+    ensure_review_complete,
+};
 
 /// Which refuters to run (static ATE path).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -143,6 +146,21 @@ impl CausalAnalysisBuilder {
     pub fn discover_pcmci(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
         self.graph =
             Some(GraphInput::DiscoverPcmci { max_lag, alpha, fdr, accept_discovered: accept });
+        self
+    }
+
+    /// Discover with PCMCI+ (typically yields [`CompiledAnalysis::ReviewRequiredCpdag`]).
+    ///
+    /// `accept` only auto-completes when the oriented CPDAG has no undirected marks;
+    /// otherwise compile still returns review-required (no silent coercion).
+    #[must_use]
+    pub fn discover_pcmci_plus(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
+        self.graph = Some(GraphInput::DiscoverPcmciPlus {
+            max_lag,
+            alpha,
+            fdr,
+            accept_discovered: accept,
+        });
         self
     }
 
@@ -296,6 +314,11 @@ impl CausalAnalysis {
                 DataInput::Temporal(data),
                 CausalQuery::TemporalEffect(q),
                 GraphInput::DiscoverPcmci { .. },
+            )
+            | (
+                DataInput::Temporal(data),
+                CausalQuery::TemporalEffect(q),
+                GraphInput::DiscoverPcmciPlus { .. },
             ) => {
                 // Review usually required; logical metadata still inspectable.
                 compile_logical_temporal_effect(data, &TemporalDag::empty(), q, self.split, true)
@@ -356,6 +379,20 @@ impl CausalAnalysis {
                     Ok(compile_review_required(review))
                 }
             }
+            (
+                DataInput::Temporal(data),
+                CausalQuery::TemporalEffect(q),
+                GraphInput::DiscoverPcmciPlus { max_lag, alpha, fdr, accept_discovered },
+            ) => {
+                let review = run_pcmci_plus_review(data, *max_lag, *alpha, *fdr, ctx)?;
+                if *accept_discovered && review.pending_undirected.is_empty() {
+                    PendingCpdagReview::new(review, data.row_count(), q.clone(), self.split)
+                        .accept_all_directed()
+                        .finish(data, ctx)
+                } else {
+                    Ok(compile_review_required_cpdag(review))
+                }
+            }
             _ => Err(AnalysisError::Unsupported {
                 message: "unsupported data/graph/query combination in Phase 3",
             }),
@@ -384,10 +421,12 @@ impl CausalAnalysis {
                             .into(),
                 });
             }
-            (DataInput::Tabular(_), _, GraphInput::DiscoverPcmci { .. }) => {
+            (DataInput::Tabular(_), _, GraphInput::DiscoverPcmci { .. })
+            | (DataInput::Tabular(_), _, GraphInput::DiscoverPcmciPlus { .. }) => {
                 return Err(AnalysisError::Compile {
-                    message: "PCMCI discovery requires temporal data and a temporal effect query"
-                        .into(),
+                    message:
+                        "PCMCI / PCMCI+ discovery requires temporal data and a temporal effect query"
+                            .into(),
                 });
             }
             _ => {}
@@ -483,7 +522,7 @@ impl CausalAnalysis {
         self.execute(&compiled, ctx)
     }
 
-    /// Continue after review: accept all pending edges then execute.
+    /// Continue after DAG review: accept all pending edges then execute.
     ///
     /// # Errors
     ///
@@ -509,6 +548,31 @@ impl CausalAnalysis {
         self.execute(&compiled, ctx)
     }
 
+    /// Continue after PCMCI+ CPDAG review once undirected marks are oriented and directed accepted.
+    ///
+    /// # Errors
+    ///
+    /// Incomplete CPDAG review (undirected remain) or execute failures.
+    pub fn finish_cpdag_review_and_run(
+        &self,
+        review: TemporalCpdagReview,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalAnalysisResult, AnalysisError> {
+        let DataInput::Temporal(data) = &self.data else {
+            return Err(AnalysisError::Compile {
+                message: "finish_cpdag_review_and_run requires temporal data".into(),
+            });
+        };
+        let CausalQuery::TemporalEffect(q) = &self.query else {
+            return Err(AnalysisError::Compile {
+                message: "finish_cpdag_review_and_run requires temporal effect query".into(),
+            });
+        };
+        let compiled = PendingCpdagReview::new(review, data.row_count(), q.clone(), self.split)
+            .finish(data, ctx)?;
+        self.execute(&compiled, ctx)
+    }
+
     /// Dispatch identify → estimate for the static ATE path, routing on the plan's resolved
     /// identifier/estimator (Phase 4; DESIGN.md §21.2).
     fn execute_static(
@@ -519,6 +583,7 @@ impl CausalAnalysis {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, AnalysisError> {
+        let started = Instant::now();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or("backdoor.adjustment");
         let estimator =
@@ -653,11 +718,11 @@ impl CausalAnalysis {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
+            wall_time_ns: started.elapsed().as_nanos() as u64,
         }))
     }
 
-    /// `rd.sharp` execute path: no graph-based identification, a synthesized `IdentifiedEstimand`
-    /// / `IdentificationResult`, and the configured [`RdConfig`] (DESIGN.md §21.2).
+    /// `rd.sharp` execute path: identify via [`SharpRdIdentifier`], then estimate.
     fn execute_rd(
         &self,
         data: &TabularData,
@@ -665,40 +730,36 @@ impl CausalAnalysis {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, AnalysisError> {
+        let started = Instant::now();
         let rd = self.rd.ok_or_else(|| AnalysisError::Compile {
             message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
         })?;
-        let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
-        let assumptions = AssumptionSet::new();
+        let identification = SharpRdIdentifier::new(SharpRdConfig {
+            running_variable: rd.running_variable,
+            cutoff: rd.cutoff,
+            bandwidth: rd.bandwidth,
+        })
+        .identify(CausalQuery::AverageEffect(query.clone()))
+        .map_err(identify_err)?;
+        let estimand = identification
+            .estimands
+            .first()
+            .cloned()
+            .ok_or_else(|| AnalysisError::Identify("rd.sharp returned no estimand".into()))?;
 
         let mut est =
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
         est.bootstrap_replicates = self.bootstrap_replicates;
         let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
         let mut ws = RdWorkspace::default();
-        let estimate = est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?;
-
-        let mut derivation = DerivationTrace::default();
-        derivation.push(
-            "rd.sharp",
-            "sharp regression discontinuity: T = 1{running >= cutoff} deterministic assignment; \
-             no graph-based identification step",
-        );
-        let identification = IdentificationResult {
-            status: IdentificationStatus::NonparametricallyIdentified,
-            query: CausalQuery::AverageEffect(query.clone()),
-            estimands: vec![estimand.clone()],
-            arena: CausalExprArena::new(),
-            derivation,
-            required_assumptions: assumptions,
-            diagnostics: Vec::new(),
-            performance: IdentificationPerformanceRecord::default(),
-        };
+        let estimate = est
+            .fit(&prep, &mut ws, ctx, identification.required_assumptions.clone())
+            .map_err(est_err)?;
 
         let diagnostics = vec![overlap_diagnostic(estimate.overlap)];
 
         let provenance = provenance_pair(
-            ("identify.rd_design", "identify.rd_design", &[], &identification.required_assumptions),
+            ("identify.rd_design", "identify.rd_sharp", &[], &identification.required_assumptions),
             ("estimate.rd", "estimate.rd_sharp", &["identify.rd_design"], &estimate.assumptions),
         );
 
@@ -713,6 +774,7 @@ impl CausalAnalysis {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
+            wall_time_ns: started.elapsed().as_nanos() as u64,
         }))
     }
 
@@ -724,6 +786,7 @@ impl CausalAnalysis {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, AnalysisError> {
+        let started = Instant::now();
         let id_res = TemporalBackdoorIdentifier::new()
             .identify_temporal(graph, query)
             .map_err(|e| AnalysisError::Identify(e.to_string()))?;
@@ -774,6 +837,7 @@ impl CausalAnalysis {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
+            wall_time_ns: started.elapsed().as_nanos() as u64,
         }))
     }
 }
@@ -789,9 +853,17 @@ struct AssembleArgs<'a> {
     provenance: ProvenanceGraph,
     treatment: VariableId,
     outcome: VariableId,
+    /// Wall-clock nanoseconds for identify→estimate→refute.
+    wall_time_ns: u64,
 }
 
 fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
+    let copy_count = args
+        .physical
+        .materializations
+        .iter()
+        .filter(|(_, m)| !matches!(m, BufferMaterialization::Borrowed))
+        .count() as u64;
     CausalAnalysisResult {
         logical_plan: args.logical.clone(),
         physical_plan: args.physical.clone(),
@@ -801,7 +873,12 @@ fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
         refutations: args.refutations,
         diagnostics: args.diagnostics,
         provenance: args.provenance,
-        performance: ExecutionPerformanceRecord::default(),
+        performance: ExecutionPerformanceRecord {
+            wall_time_ns: Some(args.wall_time_ns),
+            peak_rss_bytes: None,
+            copy_count,
+            scalar_fallback_count: 0,
+        },
         treatment: args.treatment,
         outcome: args.outcome,
     }
@@ -846,6 +923,31 @@ fn run_pcmci_review(
     });
     let mut ws = DiscoveryWorkspace::default();
     let result = pcmci
+        .run(data, &vars, &mut ws, ctx)
+        .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    Ok(result.review)
+}
+
+fn run_pcmci_plus_review(
+    data: &TimeSeriesData,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    ctx: &ExecutionContext,
+) -> Result<TemporalCpdagReview, AnalysisError> {
+    let schema = data.schema();
+    let vars: Vec<VariableId> = schema.variables().iter().map(|v| v.id).collect();
+    let plus = PcmciPlus::new().with_fdr(fdr).with_constraints(DiscoveryConstraints {
+        temporal: TemporalConstraints {
+            max_lag: causal_core::Lag::from_raw(max_lag),
+            min_lag: causal_core::Lag::CONTEMPORANEOUS,
+        },
+        alpha,
+        max_cond_size: 2,
+        ..DiscoveryConstraints::default()
+    });
+    let mut ws = DiscoveryWorkspace::default();
+    let result = plus
         .run(data, &vars, &mut ws, ctx)
         .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
     Ok(result.review)

@@ -16,8 +16,8 @@ use causal_core::ExecutionContext;
 
 use super::parcorr::PartialCorrelation;
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
-    SignificanceMethod,
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    ConfidenceMethod, SignificanceMethod,
 };
 
 #[cfg(test)]
@@ -58,7 +58,7 @@ impl RobustPartialCorrelation {
     }
 }
 
-impl ConditionalIndependence for RobustPartialCorrelation {
+impl ConditionalIndependenceTest for RobustPartialCorrelation {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -76,6 +76,7 @@ impl ConditionalIndependence for RobustPartialCorrelation {
             queries: request.queries,
             z_flat: request.z_flat,
             significance: request.significance,
+            confidence: request.confidence,
         };
         self.inner.test_batch(&req, workspace, ctx)
     }
@@ -97,7 +98,7 @@ impl WeightedPartialCorrelation {
     }
 }
 
-impl ConditionalIndependence for WeightedPartialCorrelation {
+impl ConditionalIndependenceTest for WeightedPartialCorrelation {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
@@ -121,13 +122,18 @@ impl ConditionalIndependence for WeightedPartialCorrelation {
             queries: request.queries,
             z_flat: request.z_flat,
             significance: request.significance,
+            confidence: request.confidence,
         };
         self.inner.test_batch(&req, workspace, ctx)
     }
 }
 
-/// Multivariate partial correlation: residualize vector blocks via first principal
-/// direction of each block, then scalar ParCorr (Phase 5 practical approximation).
+/// Multivariate partial correlation via block residualization and first canonical
+/// correlation (DESIGN.md §12).
+///
+/// Each column of X and Y is residualized against Z by OLS; the leading canonical
+/// correlation between residual blocks is the dependence statistic. When both blocks
+/// are scalar this reduces to ordinary partial correlation.
 #[derive(Clone, Debug, Default)]
 pub struct MultivariatePartialCorrelation {
     inner: PartialCorrelation,
@@ -160,87 +166,340 @@ impl MultivariatePartialCorrelation {
         if x_cols.is_empty() || y_cols.is_empty() {
             return Err(StatsError::Shape { message: "empty X or Y block" });
         }
-        let n = columns[0].len();
-        let px = project_first_pc(columns, x_cols, n)?;
-        let py = project_first_pc(columns, y_cols, n)?;
-        let mut owned: Vec<Vec<f64>> = Vec::with_capacity(2 + z_flat.len());
-        owned.push(px);
-        owned.push(py);
-        for &z in z_flat {
-            owned.push(columns[z].to_vec());
+        // Scalar path: exact partial correlation.
+        if x_cols.len() == 1 && y_cols.len() == 1 {
+            let n = columns[0].len();
+            let mut owned: Vec<Vec<f64>> = Vec::with_capacity(2 + z_flat.len());
+            owned.push(columns[x_cols[0]].to_vec());
+            owned.push(columns[y_cols[0]].to_vec());
+            for &z in z_flat {
+                if columns[z].len() != n {
+                    return Err(StatsError::Shape { message: "column length mismatch" });
+                }
+                owned.push(columns[z].to_vec());
+            }
+            let refs: Vec<&[f64]> = owned.iter().map(Vec::as_slice).collect();
+            let z_idx: Vec<usize> = (2..2 + z_flat.len()).collect();
+            return self.inner.test_one(&refs, &z_idx, significance, workspace, ctx);
         }
-        let refs: Vec<&[f64]> = owned.iter().map(Vec::as_slice).collect();
-        let z_idx: Vec<usize> = (2..2 + z_flat.len()).collect();
-        self.inner.test_one(&refs, &z_idx, significance, workspace, ctx)
+
+        let n = columns[0].len();
+        for &c in x_cols.iter().chain(y_cols.iter()).chain(z_flat.iter()) {
+            if columns[c].len() != n {
+                return Err(StatsError::Shape { message: "column length mismatch" });
+            }
+        }
+
+        let rx = residualize_block(columns, x_cols, z_flat, n)?;
+        let ry = residualize_block(columns, y_cols, z_flat, n)?;
+        let px = x_cols.len();
+        let py = y_cols.len();
+        let rho = first_canonical_correlation(&rx, &ry, n, px, py)?;
+
+        let df = (n as f64) - 2.0 - (z_flat.len() as f64) - ((px + py) as f64 - 2.0).max(0.0);
+        match significance {
+            SignificanceMethod::Analytic => {
+                if df <= 0.0 {
+                    return Err(StatsError::Shape { message: "non-positive residual df" });
+                }
+                // Bartlett approximation on first canonical correlation (Fisher-z of ρ).
+                let p = crate::ci::analytic::analytic_parcorr_pvalue(rho, df);
+                Ok(CiResult {
+                    statistic: rho,
+                    p_value: p,
+                    df,
+                    ci: Some(crate::ci::analytic::analytic_parcorr_ci(rho, df, 0.95)),
+                })
+            }
+            SignificanceMethod::BlockShuffle { .. } => {
+                // Delegate shuffle significance through scalar ParCorr on projected residuals
+                // of the leading CCA directions when requested.
+                let (ux, uy) = leading_cca_scores(&rx, &ry, n, px, py)?;
+                let mut owned = vec![ux, uy];
+                for &z in z_flat {
+                    owned.push(columns[z].to_vec());
+                }
+                // Residuals already orthogonal to Z; test without Z for shuffle path.
+                let refs: Vec<&[f64]> = owned.iter().map(Vec::as_slice).collect();
+                self.inner.test_one(&refs, &[], significance, workspace, ctx)
+            }
+        }
     }
 }
 
-impl ConditionalIndependence for MultivariatePartialCorrelation {
+impl ConditionalIndependenceTest for MultivariatePartialCorrelation {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        // Scalar path: same as ParCorr when X/Y are single columns.
+        // Scalar queries: exact ParCorr. Block queries go through test_blocks via pairwise wrapper.
         self.inner.test_batch(request, workspace, ctx)
     }
 }
 
-fn project_first_pc(columns: &[&[f64]], idxs: &[usize], n: usize) -> Result<Vec<f64>, StatsError> {
-    if idxs.len() == 1 {
-        return Ok(columns[idxs[0]].to_vec());
-    }
+/// Residualize each column in `idxs` against the Z design (intercept + Z columns).
+fn residualize_block(
+    columns: &[&[f64]],
+    idxs: &[usize],
+    z_flat: &[usize],
+    n: usize,
+) -> Result<Vec<f64>, StatsError> {
     let p = idxs.len();
-    // Mean-center columns into X (n × p row-major).
-    let mut means = vec![0.0; p];
-    for (j, &c) in idxs.iter().enumerate() {
-        if columns[c].len() != n {
-            return Err(StatsError::Shape { message: "column length mismatch" });
-        }
-        means[j] = columns[c].iter().sum::<f64>() / n as f64;
-    }
-    let mut x = vec![0.0; n * p];
+    let q = z_flat.len() + 1; // intercept
+    let mut design = vec![0.0; n * q];
     for r in 0..n {
-        for (j, &c) in idxs.iter().enumerate() {
-            x[r * p + j] = columns[c][r] - means[j];
+        design[r] = 1.0; // col-major: column 0
+    }
+    for (j, &z) in z_flat.iter().enumerate() {
+        for r in 0..n {
+            design[(j + 1) * n + r] = columns[z][r];
         }
     }
-    // Covariance (p × p) = X'X / (n-1).
-    let mut cov = vec![0.0; p * p];
-    let denom = (n.saturating_sub(1)).max(1) as f64;
-    for i in 0..p {
-        for j in 0..p {
+    // Gram matrix G = D'D (q × q) and its inverse via Gauss-Jordan.
+    let mut g = vec![0.0; q * q];
+    for i in 0..q {
+        for j in 0..q {
             let mut s = 0.0;
             for r in 0..n {
-                s += x[r * p + i] * x[r * p + j];
+                s += design[i * n + r] * design[j * n + r];
             }
-            cov[i * p + j] = s / denom;
+            g[i * q + j] = s;
         }
     }
-    // Power iteration for leading eigenvector.
-    let mut v = vec![1.0 / (p as f64).sqrt(); p];
-    for _ in 0..64 {
-        let mut w = vec![0.0; p];
-        for i in 0..p {
-            for j in 0..p {
-                w[i] += cov[i * p + j] * v[j];
+    let g_inv = invert_symmetric(&g, q)?;
+    let mut out = vec![0.0; n * p];
+    for (k, &c) in idxs.iter().enumerate() {
+        // beta = G^{-1} D' y
+        let mut dty = vec![0.0; q];
+        for i in 0..q {
+            let mut s = 0.0;
+            for r in 0..n {
+                s += design[i * n + r] * columns[c][r];
+            }
+            dty[i] = s;
+        }
+        let mut beta = vec![0.0; q];
+        for i in 0..q {
+            for j in 0..q {
+                beta[i] += g_inv[i * q + j] * dty[j];
             }
         }
-        let norm = w.iter().map(|a| a * a).sum::<f64>().sqrt().max(1e-15);
-        for i in 0..p {
-            v[i] = w[i] / norm;
+        for r in 0..n {
+            let mut pred = 0.0;
+            for i in 0..q {
+                pred += design[i * n + r] * beta[i];
+            }
+            out[k * n + r] = columns[c][r] - pred;
         }
-    }
-    let mut out = vec![0.0; n];
-    for r in 0..n {
-        let mut s = 0.0;
-        for j in 0..p {
-            s += x[r * p + j] * v[j];
-        }
-        out[r] = s;
     }
     Ok(out)
+}
+
+fn invert_symmetric(a: &[f64], m: usize) -> Result<Vec<f64>, StatsError> {
+    let mut aug = vec![0.0; m * 2 * m];
+    for i in 0..m {
+        for j in 0..m {
+            aug[i * 2 * m + j] = a[i * m + j];
+        }
+        aug[i * 2 * m + m + i] = 1.0;
+    }
+    for col in 0..m {
+        let mut pivot = col;
+        for r in col..m {
+            if aug[r * 2 * m + col].abs() > aug[pivot * 2 * m + col].abs() {
+                pivot = r;
+            }
+        }
+        if aug[pivot * 2 * m + col].abs() < 1e-14 {
+            return Err(StatsError::Shape { message: "singular Z design in multivariate ParCorr" });
+        }
+        if pivot != col {
+            for j in 0..2 * m {
+                aug.swap(col * 2 * m + j, pivot * 2 * m + j);
+            }
+        }
+        let div = aug[col * 2 * m + col];
+        for j in 0..2 * m {
+            aug[col * 2 * m + j] /= div;
+        }
+        for r in 0..m {
+            if r == col {
+                continue;
+            }
+            let f = aug[r * 2 * m + col];
+            for j in 0..2 * m {
+                aug[r * 2 * m + j] -= f * aug[col * 2 * m + j];
+            }
+        }
+    }
+    let mut inv = vec![0.0; m * m];
+    for i in 0..m {
+        for j in 0..m {
+            inv[i * m + j] = aug[i * 2 * m + m + j];
+        }
+    }
+    Ok(inv)
+}
+
+/// First canonical correlation between residual blocks (col-major `n×px`, `n×py`).
+fn first_canonical_correlation(
+    rx: &[f64],
+    ry: &[f64],
+    n: usize,
+    px: usize,
+    py: usize,
+) -> Result<f64, StatsError> {
+    let (rho, _, _) = cca_leading(rx, ry, n, px, py)?;
+    Ok(rho)
+}
+
+fn leading_cca_scores(
+    rx: &[f64],
+    ry: &[f64],
+    n: usize,
+    px: usize,
+    py: usize,
+) -> Result<(Vec<f64>, Vec<f64>), StatsError> {
+    let (_, ax, ay) = cca_leading(rx, ry, n, px, py)?;
+    let mut ux = vec![0.0; n];
+    let mut uy = vec![0.0; n];
+    for r in 0..n {
+        for j in 0..px {
+            ux[r] += rx[j * n + r] * ax[j];
+        }
+        for j in 0..py {
+            uy[r] += ry[j * n + r] * ay[j];
+        }
+    }
+    Ok((ux, uy))
+}
+
+/// Return (ρ, a_x, a_y) for the leading canonical pair via power iteration on
+/// Cxx^{-1} Cxy Cyy^{-1} Cyx.
+fn cca_leading(
+    rx: &[f64],
+    ry: &[f64],
+    n: usize,
+    px: usize,
+    py: usize,
+) -> Result<(f64, Vec<f64>, Vec<f64>), StatsError> {
+    let denom = (n.saturating_sub(1)).max(1) as f64;
+    let mut cxx = vec![0.0; px * px];
+    let mut cyy = vec![0.0; py * py];
+    let mut cxy = vec![0.0; px * py];
+    for i in 0..px {
+        for j in 0..px {
+            let mut s = 0.0;
+            for r in 0..n {
+                s += rx[i * n + r] * rx[j * n + r];
+            }
+            cxx[i * px + j] = s / denom;
+        }
+    }
+    for i in 0..py {
+        for j in 0..py {
+            let mut s = 0.0;
+            for r in 0..n {
+                s += ry[i * n + r] * ry[j * n + r];
+            }
+            cyy[i * py + j] = s / denom;
+        }
+    }
+    for i in 0..px {
+        for j in 0..py {
+            let mut s = 0.0;
+            for r in 0..n {
+                s += rx[i * n + r] * ry[j * n + r];
+            }
+            cxy[i * py + j] = s / denom;
+        }
+    }
+    // Regularize diagonals slightly for numerical stability.
+    for i in 0..px {
+        cxx[i * px + i] += 1e-8;
+    }
+    for i in 0..py {
+        cyy[i * py + i] += 1e-8;
+    }
+    let cxx_inv = invert_symmetric(&cxx, px)?;
+    let cyy_inv = invert_symmetric(&cyy, py)?;
+
+    // M = Cxx^{-1} Cxy Cyy^{-1} Cyx  (px × px)
+    // temp = Cxy Cyy^{-1}  (px × py)
+    let mut temp = vec![0.0; px * py];
+    for i in 0..px {
+        for j in 0..py {
+            let mut s = 0.0;
+            for k in 0..py {
+                s += cxy[i * py + k] * cyy_inv[k * py + j];
+            }
+            temp[i * py + j] = s;
+        }
+    }
+    // Cyx = Cxy'
+    // temp2 = temp * Cyx = temp * Cxy'  (px × px)
+    let mut temp2 = vec![0.0; px * px];
+    for i in 0..px {
+        for j in 0..px {
+            let mut s = 0.0;
+            for k in 0..py {
+                s += temp[i * py + k] * cxy[j * py + k];
+            }
+            temp2[i * px + j] = s;
+        }
+    }
+    // M = Cxx^{-1} temp2
+    let mut m = vec![0.0; px * px];
+    for i in 0..px {
+        for j in 0..px {
+            let mut s = 0.0;
+            for k in 0..px {
+                s += cxx_inv[i * px + k] * temp2[k * px + j];
+            }
+            m[i * px + j] = s;
+        }
+    }
+
+    // Power iteration for leading eigenvector of M.
+    let mut a = vec![1.0 / (px as f64).sqrt(); px];
+    let mut lambda = 0.0;
+    for _ in 0..64 {
+        let mut w = vec![0.0; px];
+        for i in 0..px {
+            for j in 0..px {
+                w[i] += m[i * px + j] * a[j];
+            }
+        }
+        lambda = w.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-15);
+        for i in 0..px {
+            a[i] = w[i] / lambda;
+        }
+    }
+    // ρ = sqrt(λ) where λ is the eigenvalue of the CCA matrix (canonical correlation²).
+    let rho = lambda.sqrt().clamp(0.0, 1.0 - 1e-12);
+
+    // b ∝ Cyy^{-1} Cyx a
+    let mut cyx_a = vec![0.0; py];
+    for j in 0..py {
+        let mut s = 0.0;
+        for i in 0..px {
+            s += cxy[i * py + j] * a[i];
+        }
+        cyx_a[j] = s;
+    }
+    let mut b = vec![0.0; py];
+    for i in 0..py {
+        for j in 0..py {
+            b[i] += cyy_inv[i * py + j] * cyx_a[j];
+        }
+    }
+    let bn = b.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-15);
+    for v in &mut b {
+        *v /= bn;
+    }
+    Ok((rho, a, b))
 }
 
 #[cfg(test)]
@@ -259,6 +518,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
@@ -279,11 +539,56 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
         let a = PartialCorrelation::new().test_batch(&req, &mut ws, &ctx).unwrap();
         let b = WeightedPartialCorrelation::new(w).test_batch(&req, &mut ws, &ctx).unwrap();
         assert!((a.results[0].statistic - b.results[0].statistic).abs() < 1e-9);
+    }
+
+    #[test]
+    fn multivariate_scalar_matches_parcorr() {
+        let n = 150usize;
+        let x: Vec<f64> = (0..n).map(|i| (i as f64) * 0.01).collect();
+        let y: Vec<f64> = x.iter().map(|&v| 0.8 * v + 0.1).collect();
+        let z: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(3);
+        let a = PartialCorrelation::new()
+            .test_one(&cols, &[2], SignificanceMethod::Analytic, &mut ws, &ctx)
+            .unwrap();
+        let b = MultivariatePartialCorrelation::new()
+            .test_blocks(&cols, &[0], &[1], &[2], SignificanceMethod::Analytic, &mut ws, &ctx)
+            .unwrap();
+        assert!((a.statistic - b.statistic).abs() < 1e-8);
+    }
+
+    #[test]
+    fn multivariate_block_detects_shared_latent() {
+        let n = 300usize;
+        let mut latent = vec![0.0; n];
+        let mut x1 = vec![0.0; n];
+        let mut x2 = vec![0.0; n];
+        let mut y1 = vec![0.0; n];
+        let mut y2 = vec![0.0; n];
+        for i in 0..n {
+            let t = i as f64 * 0.05;
+            latent[i] = t.sin();
+            x1[i] = latent[i] + 0.05 * (i as f64).cos();
+            x2[i] = 0.7 * latent[i] + 0.05 * (i as f64).sin();
+            y1[i] = 0.9 * latent[i] + 0.05 * ((i + 3) as f64).cos();
+            y2[i] = 0.6 * latent[i] + 0.05 * ((i + 7) as f64).sin();
+        }
+        let cols: [&[f64]; 4] = [&x1, &x2, &y1, &y2];
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(4);
+        let out = MultivariatePartialCorrelation::new()
+            .test_blocks(&cols, &[0, 1], &[2, 3], &[], SignificanceMethod::Analytic, &mut ws, &ctx)
+            .unwrap();
+        assert!(out.p_value < 1e-3, "p={}, r={}", out.p_value, out.statistic);
+        assert!(out.statistic.abs() > 0.5);
     }
 }

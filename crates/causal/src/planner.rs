@@ -12,7 +12,7 @@ use causal_core::{
     TargetPopulation, TemporalEffectQuery,
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use causal_graph::{Dag, TemporalDag, TemporalGraphReview};
+use causal_graph::{Dag, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
 
 use crate::error::AnalysisError;
 
@@ -32,6 +32,20 @@ pub enum GraphInput {
         /// Apply FDR.
         fdr: bool,
         /// Auto-accept discovered edges (skip review).
+        accept_discovered: bool,
+    },
+    /// Discover with PCMCI+ (temporal CPDAG; review/orientation usually required).
+    DiscoverPcmciPlus {
+        /// Max lag for PCMCI+.
+        max_lag: u32,
+        /// Significance level.
+        alpha: f64,
+        /// Apply FDR.
+        fdr: bool,
+        /// Auto-accept directed edges when no undirected marks remain.
+        ///
+        /// If undirected contemporaneous edges remain after orientation, compile still
+        /// returns [`CompiledAnalysis::ReviewRequiredCpdag`] (never silently coerces).
         accept_discovered: bool,
     },
 }
@@ -69,11 +83,13 @@ impl LogicalAnalysisPlan {
             }
             _ => {}
         }
-        if self.record.discovery_algorithm.as_deref() == Some("pcmci")
-            && self.record.data_classification != DataClassification::Temporal
+        if matches!(
+            self.record.discovery_algorithm.as_deref(),
+            Some("pcmci" | "pcmci_plus")
+        ) && self.record.data_classification != DataClassification::Temporal
         {
             return Err(AnalysisError::Compile {
-                message: "PCMCI requires temporal data metadata".into(),
+                message: "PCMCI / PCMCI+ requires temporal data metadata".into(),
             });
         }
         self.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
@@ -212,8 +228,10 @@ impl PhysicalExecutionPlan {
 pub enum CompiledAnalysis {
     /// Physical plan may execute.
     Ready(PhysicalExecutionPlan),
-    /// Discovery / incomplete graph needs human acceptance.
+    /// Discovery / incomplete DAG needs human acceptance.
     ReviewRequired(TemporalGraphReview),
+    /// PCMCI+ CPDAG needs acceptance of directed edges and orientation of undirected marks.
+    ReviewRequiredCpdag(TemporalCpdagReview),
 }
 
 /// Inputs needed to compile a logical plan for the static ATE path.

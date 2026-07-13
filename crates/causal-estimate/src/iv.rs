@@ -27,7 +27,7 @@ use causal_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
 };
 use causal_data::TabularData;
-use causal_identify::IdentifiedEstimand;
+use causal_expr::IdentifiedEstimand;
 use causal_stats::{FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx, invert_square};
 
 use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
@@ -525,7 +525,7 @@ mod tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
     use causal_expr::ExprId;
-    use causal_identify::IdentifiedEstimand;
+    use causal_expr::IdentifiedEstimand;
 
     use super::*;
     use crate::adjustment::OverlapPolicy;

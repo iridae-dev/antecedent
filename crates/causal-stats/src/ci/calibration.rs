@@ -7,7 +7,8 @@
 use causal_core::ExecutionContext;
 
 use crate::ci::types::{
-    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, SignificanceMethod,
+    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest,
+    ConfidenceMethod, SignificanceMethod,
 };
 use crate::error::StatsError;
 
@@ -86,6 +87,7 @@ pub fn calibrate_parcorr_like(
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let out = ci.test_batch(&req, &mut ws, &ctx)?;
         if out.results[0].p_value < alpha {
@@ -107,6 +109,7 @@ pub fn calibrate_parcorr_like(
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let out_alt = ci.test_batch(&req_alt, &mut ws, &ctx)?;
         if out_alt.results[0].p_value < alpha {
@@ -152,6 +155,7 @@ pub fn calibrate_gsquared(
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let out = ci.test_batch(&req, &mut ws, &ctx)?;
         if out.results[0].p_value < alpha {
@@ -174,6 +178,7 @@ pub fn calibrate_gsquared(
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let out_alt = ci.test_batch(&req_alt, &mut ws, &ctx)?;
         if out_alt.results[0].p_value < alpha {
@@ -263,6 +268,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let out = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out.results[0].p_value));
@@ -272,6 +278,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let out_alt = KnnCmi::new(3).test_batch(&req_alt, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out_alt.results[0].p_value));
@@ -312,6 +319,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
         let cols_alt: [&[f64]; 2] = [&x, &x];
         let req_alt = CiBatchRequest {
@@ -319,6 +327,7 @@ mod tests {
             queries: &queries,
             z_flat: &[],
             significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
         };
 
         for (name, ci) in [

@@ -11,6 +11,7 @@ pub mod efficient;
 pub mod error;
 pub mod frontdoor;
 pub mod iv;
+pub mod rd;
 pub mod result;
 pub mod temporal_backdoor;
 
@@ -19,6 +20,7 @@ pub use efficient::EfficientBackdoorIdentifier;
 pub use error::IdentificationError;
 pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
+pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use result::{
     DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand,
