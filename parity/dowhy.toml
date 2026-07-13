@@ -188,64 +188,64 @@ phase = 1
 id = "dowhy.refute.bootstrap"
 group = "refutation_and_sensitivity"
 description = "Bootstrap"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 1
 
 [[capabilities]]
 id = "dowhy.refute.unobserved_common_cause"
 group = "refutation_and_sensitivity"
 description = "Unobserved common cause"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
 id = "dowhy.refute.overlap"
 group = "refutation_and_sensitivity"
 description = "Overlap and overlap-rule assessment"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
 id = "dowhy.refute.data_subset"
 group = "refutation_and_sensitivity"
 description = "Data subset"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
 id = "dowhy.refute.dummy_outcome"
 group = "refutation_and_sensitivity"
 description = "Dummy outcome"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
 id = "dowhy.refute.evalue"
 group = "refutation_and_sensitivity"
 description = "E-value"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
 id = "dowhy.refute.graph"
 group = "refutation_and_sensitivity"
 description = "Graph refutation"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
 id = "dowhy.refute.sensitivity"
 group = "refutation_and_sensitivity"
 description = "Linear, partial-linear, and nonparametric sensitivity"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]

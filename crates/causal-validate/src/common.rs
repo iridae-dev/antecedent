@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use causal_core::{AverageEffectQuery, ExecutionContext, VariableId};
-use causal_data::TabularData;
+use causal_data::{TabularData, TableView, ValidityBitmap};
 use causal_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte};
 use causal_identify::IdentifiedEstimand;
 
@@ -92,6 +92,60 @@ pub(crate) fn fit_once(
     estimator
         .fit(&prep, workspace, ctx, causal_core::AssumptionSet::new())
         .map_err(|e| ValidationError::Estimation(e.to_string()))
+}
+
+/// Copy a full-length float64 column (unmasked; caller handles missingness).
+pub(crate) fn float64_full(data: &TabularData, id: VariableId) -> Result<Vec<f64>, ValidationError> {
+    data.float64_values(id).map_err(|e| ValidationError::Data(e.to_string()))
+}
+
+/// Restrict analysis to a random `keep_fraction` of rows (Bernoulli per-row draw), intersected
+/// with any existing analysis mask / column validity.
+pub(crate) fn with_row_subset(
+    data: &TabularData,
+    keep_fraction: f64,
+    ctx: &ExecutionContext,
+    stream_id: u64,
+) -> Result<TabularData, ValidationError> {
+    let n = data.row_count();
+    let mut rng = ctx.rng.stream(stream_id);
+    let mut bytes = vec![0u8; n.div_ceil(8)];
+    for i in 0..n {
+        if rng.next_f64() < keep_fraction {
+            bytes[i / 8] |= 1 << (i % 8);
+        }
+    }
+    let mask = ValidityBitmap::from_bytes(bytes, n).map_err(|e| ValidationError::Data(e.to_string()))?;
+    data.with_analysis_mask(mask).map_err(|e| ValidationError::Data(e.to_string()))
+}
+
+/// Rebuild tabular data with `ids` columns resampled (with replacement) per `idx`; all other
+/// columns and metadata are preserved. `idx.len()` must equal `data.row_count()`.
+pub(crate) fn with_resampled_rows(
+    data: &TabularData,
+    resample_ids: &[VariableId],
+    row_idx: &[usize],
+) -> Result<TabularData, ValidationError> {
+    let mut out = data.clone();
+    for &id in resample_ids {
+        let full = float64_full(&out, id)?;
+        let resampled: Vec<f64> = row_idx.iter().map(|&i| full[i]).collect();
+        out = with_replaced_float(&out, id, Arc::from(resampled))?;
+    }
+    Ok(out)
+}
+
+/// Sample standard deviation (`NaN` for fewer than 2 values).
+pub(crate) fn sample_sd(values: &[f64]) -> f64 {
+    let n = values.len();
+    if n < 2 {
+        return f64::NAN;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let n_f = n as f64;
+    let mean = values.iter().sum::<f64>() / n_f;
+    let var = values.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (n_f - 1.0);
+    var.sqrt()
 }
 
 /// Standard-normal-ish draws via Box–Muller from [`ExecutionContext`] RNG.

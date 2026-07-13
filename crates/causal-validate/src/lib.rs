@@ -5,17 +5,33 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod bootstrap_refute;
 pub mod common;
+pub mod data_subset;
+pub mod dummy_outcome;
 pub mod error;
+pub mod evalue;
+pub mod graph_refute;
+pub mod overlap;
 pub mod placebo;
 pub mod rcc;
+pub mod sensitivity;
 pub mod stability;
+pub mod unobserved_common_cause;
 
+pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport};
+pub use data_subset::DataSubsetRefuter;
+pub use dummy_outcome::DummyOutcome;
 pub use error::ValidationError;
+pub use evalue::EValue;
+pub use graph_refute::GraphRefuter;
+pub use overlap::OverlapRefuter;
 pub use placebo::PlaceboTreatment;
 pub use rcc::RandomCommonCause;
+pub use sensitivity::{LinearSensitivity, PartialLinearSensitivity};
 pub use stability::{BlockBootstrapStability, DiscoveryStabilityReport, LinkStability};
+pub use unobserved_common_cause::UnobservedCommonCause;
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
@@ -150,5 +166,222 @@ mod tests {
         let report = RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.passed, "{:?}", report.failure_condition);
         assert!((report.refuted_ate - original.ate).abs() < 0.15);
+    }
+
+    #[test]
+    fn unobserved_common_cause_is_robust_to_mild_confounding() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(13);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let report = UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(report.comparison >= 0.0);
+        assert!(report.passed, "{:?}", report.failure_condition);
+    }
+
+    #[test]
+    fn overlap_flags_near_deterministic_treatment_assignment() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(17);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        assert!(original.overlap_report.is_none());
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let report = OverlapRefuter::new().refute(&problem).unwrap();
+        assert_eq!(report.replicates, 1);
+        // T is a deterministic step function of Z (t = 1{z > 0.5}); the diagnostic propensity
+        // fit should show near-degenerate propensities, failing the overlap check.
+        assert!(!report.passed, "{:?}", report.failure_condition);
+    }
+
+    #[test]
+    fn data_subset_preserves_ate() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(19);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let report = DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(report.passed, "{:?}", report.failure_condition);
+        assert!((report.refuted_ate - original.ate).abs() < 0.3);
+    }
+
+    #[test]
+    fn dummy_outcome_near_zero() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(23);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let report = DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(report.passed, "{:?}", report.failure_condition);
+        assert!(report.comparison < 0.25);
+    }
+
+    #[test]
+    fn bootstrap_refute_contains_original_ate() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(29);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let mut refuter = BootstrapRefute::new();
+        refuter.replicates = 100;
+        let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(report.passed, "{:?}", report.failure_condition);
+        assert!(report.comparison > 0.0, "expected a non-degenerate CI width");
+    }
+
+    #[test]
+    fn evalue_exceeds_one_for_nonnull_effect() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(31);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let report = EValue::new().refute(&problem).unwrap();
+        assert!(report.comparison > 1.0, "e_value={}", report.comparison);
+        assert!(report.passed, "{:?}", report.failure_condition);
+    }
+
+    #[test]
+    fn graph_refute_flags_dropping_the_true_confounder() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(37);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let report = GraphRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
+        // Z is the only, essential confounder; dropping it should visibly bias the estimate.
+        assert!(!report.passed, "{:?}", report.failure_condition);
+        assert!(report.comparison > 0.5);
+    }
+
+    #[test]
+    fn linear_sensitivity_reports_a_bounded_robustness_value() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(41);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let refuter = LinearSensitivity::new();
+        let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(report.comparison > 0.0);
+        assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
+        assert_eq!(report.replicates as usize, refuter.partial_r2_grid.len());
+    }
+
+    #[test]
+    fn partial_linear_sensitivity_reports_a_bounded_robustness_value() {
+        let (data, estimand, _) = toy_confounded();
+        let mut est = LinearAdjustmentAte::new();
+        est.bootstrap_replicates = 0;
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(43);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+        let problem = RefutationProblem {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            original: &original,
+        };
+        let refuter = PartialLinearSensitivity::new();
+        let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(report.comparison > 0.0);
+        assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
+        assert_eq!(report.replicates as usize, refuter.partial_r2_grid.len());
     }
 }
