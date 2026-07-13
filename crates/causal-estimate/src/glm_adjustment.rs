@@ -230,17 +230,16 @@ impl GlmAdjustmentAte {
         )
         .map_err(stats_err)?;
 
-        let diffs = GCompContrast {
-            family: problem.family,
-            x_colmajor: &problem.design.matrix,
-            nrows: problem.design.nrows,
-            ncols: problem.design.ncols,
+        let diffs = gcomp_diffs(
+            problem.family,
+            &problem.design.matrix,
+            problem.design.nrows,
+            problem.design.ncols,
             t_col,
-            coefficients: &glm_fit.coefficients,
-            active: problem.active,
-            control: problem.control,
-        }
-        .diffs();
+            &glm_fit.coefficients,
+            problem.active,
+            problem.control,
+        );
         let n = diffs.len() as f64;
         let ate = diffs.iter().sum::<f64>() / n;
         // Naive per-unit dispersion of the g-computation contrast; ignores GLM parameter
@@ -295,17 +294,16 @@ impl GlmAdjustmentAte {
             ) else {
                 continue;
             };
-            let diffs = GCompContrast {
-                family: problem.family,
-                x_colmajor: &x_boot,
-                nrows: n,
-                ncols: p,
+            let diffs = gcomp_diffs(
+                problem.family,
+                &x_boot,
+                n,
+                p,
                 t_col,
-                coefficients: &fit.coefficients,
-                active: problem.active,
-                control: problem.control,
-            }
-            .diffs();
+                &fit.coefficients,
+                problem.active,
+                problem.control,
+            );
             let m = diffs.len() as f64;
             estimates.push(diffs.iter().sum::<f64>() / m);
         }
@@ -317,40 +315,35 @@ impl GlmAdjustmentAte {
 }
 
 /// Per-row mean-scale contrast `μ(T=active, Z) − μ(T=control, Z)`.
-struct GCompContrast<'a> {
+#[allow(clippy::too_many_arguments)]
+fn gcomp_diffs(
     family: GlmFamily,
-    x_colmajor: &'a [f64],
+    x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
     t_col: usize,
-    coefficients: &'a [f64],
+    coefficients: &[f64],
     active: f64,
     control: f64,
-}
-
-impl GCompContrast<'_> {
-    fn diffs(&self) -> Vec<f64> {
-        let mut diffs = Vec::with_capacity(self.nrows);
-        for r in 0..self.nrows {
-            let mut eta_active = 0.0;
-            let mut eta_control = 0.0;
-            for c in 0..self.ncols {
-                let coef = self.coefficients[c];
-                if c == self.t_col {
-                    eta_active += self.active * coef;
-                    eta_control += self.control * coef;
-                } else {
-                    let val = self.x_colmajor[c * self.nrows + r];
-                    eta_active += val * coef;
-                    eta_control += val * coef;
-                }
+) -> Vec<f64> {
+    let mut diffs = Vec::with_capacity(nrows);
+    for r in 0..nrows {
+        let mut eta_active = 0.0;
+        let mut eta_control = 0.0;
+        for c in 0..ncols {
+            let coef = coefficients[c];
+            if c == t_col {
+                eta_active += active * coef;
+                eta_control += control * coef;
+            } else {
+                let val = x_colmajor[c * nrows + r];
+                eta_active += val * coef;
+                eta_control += val * coef;
             }
-            diffs.push(
-                self.family.mean_from_eta(eta_active) - self.family.mean_from_eta(eta_control),
-            );
         }
-        diffs
+        diffs.push(family.mean_from_eta(eta_active) - family.mean_from_eta(eta_control));
     }
+    diffs
 }
 
 #[cfg(test)]

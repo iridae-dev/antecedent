@@ -236,6 +236,19 @@ impl TemporalCpdag {
             .collect()
     }
 
+    /// Directed parents of `id` (incoming arrows).
+    #[must_use]
+    pub fn parents(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+        if id.as_usize() >= self.node_count() {
+            return Vec::new();
+        }
+        self.adj[id.as_usize()]
+            .iter()
+            .filter(|e| matches!((e.at_self, e.at_neighbor), (Endpoint::Arrow, Endpoint::Tail)))
+            .map(|e| e.neighbor)
+            .collect()
+    }
+
     /// Undirected neighbors of `id`.
     #[must_use]
     pub fn undirected_neighbors(&self, id: DenseNodeId) -> Vec<DenseNodeId> {

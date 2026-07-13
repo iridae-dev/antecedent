@@ -8,8 +8,8 @@ use causal_core::ExecutionContext;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    NoiseReplaceConfig, NoiseReplaceTarget, RefutationProblem, RefutationReport,
-    linear_estimator_no_bootstrap, noise_replace_refute,
+    NoiseReplaceTarget, RefutationProblem, RefutationReport, linear_estimator_no_bootstrap,
+    noise_replace_refute,
 };
 use crate::error::ValidationError;
 
@@ -34,7 +34,11 @@ impl PlaceboTreatment {
     /// Default: 20 replicates, threshold 0.25.
     #[must_use]
     pub fn new() -> Self {
-        Self { replicates: 20, abs_ate_threshold: 0.25, estimator: linear_estimator_no_bootstrap() }
+        Self {
+            replicates: 20,
+            abs_ate_threshold: 0.25,
+            estimator: linear_estimator_no_bootstrap(),
+        }
     }
 
     /// Run the placebo refuter.
@@ -52,15 +56,13 @@ impl PlaceboTreatment {
             problem,
             workspace,
             ctx,
-            &NoiseReplaceConfig {
-                estimator: &self.estimator,
-                replicates: self.replicates,
-                abs_ate_threshold: self.abs_ate_threshold,
-                target: NoiseReplaceTarget::Treatment,
-                stream_base: 0xA7E0_0001,
-                refuter_id: "placebo.treatment",
-                failure_label: "placebo",
-            },
+            &self.estimator,
+            self.replicates,
+            self.abs_ate_threshold,
+            NoiseReplaceTarget::Treatment,
+            0xA7E0_0001,
+            "placebo.treatment",
+            "placebo",
         )
     }
 }

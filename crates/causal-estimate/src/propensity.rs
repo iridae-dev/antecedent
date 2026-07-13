@@ -292,16 +292,17 @@ pub(crate) fn prepare_propensity_problem(
 }
 
 pub(crate) fn clip_of(overlap: OverlapPolicy) -> Option<f64> {
-    match overlap {
-        OverlapPolicy::RequireDiagnostics { clip, .. } => clip,
-        OverlapPolicy::ExplicitOverride => None,
-    }
+    overlap_clip_trim(overlap).0
 }
 
 fn trim_of(overlap: OverlapPolicy) -> Option<f64> {
+    overlap_clip_trim(overlap).1
+}
+
+fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<f64>) {
     match overlap {
-        OverlapPolicy::RequireDiagnostics { trim, .. } => trim,
-        OverlapPolicy::ExplicitOverride => None,
+        OverlapPolicy::RequireDiagnostics { clip, trim, .. } => (clip, trim),
+        OverlapPolicy::ExplicitOverride => (None, None),
     }
 }
 
@@ -398,13 +399,12 @@ fn compute_ipw_weights(
 
 fn hajek_difference(treatment: &[f64], outcome: &[f64], weights: &[f64]) -> f64 {
     let (mut num1, mut den1, mut num0, mut den0) = (0.0, 0.0, 0.0, 0.0);
-    for i in 0..treatment.len() {
-        let w = weights[i];
-        if treatment[i] > 0.5 {
-            num1 += w * outcome[i];
+    for ((&t, &y), &w) in treatment.iter().zip(outcome).zip(weights) {
+        if t > 0.5 {
+            num1 += w * y;
             den1 += w;
         } else {
-            num0 += w * outcome[i];
+            num0 += w * y;
             den0 += w;
         }
     }

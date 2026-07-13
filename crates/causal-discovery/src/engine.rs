@@ -35,8 +35,18 @@ const MAX_CI_COLS: usize = 32;
 
 type ParentSet = Vec<(VariableId, Lag)>;
 type TargetParents = (VariableId, ParentSet);
-type ParentSelectOut = (VariableId, ParentSet, u64, PcSepsets);
-type MciChunkOut = (Vec<ScoredLink>, u64);
+
+struct ParentSelectOut {
+    target: VariableId,
+    parents: ParentSet,
+    tests: u64,
+    sepsets: PcSepsets,
+}
+
+struct MciChunkOut {
+    scored: Vec<ScoredLink>,
+    tests: u64,
+}
 
 /// Reusable target-local discovery workspace.
 #[derive(Clone, Debug, Default)]
@@ -390,9 +400,11 @@ impl PcmciEngine {
                                     &mut local_ws,
                                     ctx,
                                 )
-                                .map(|(p, tests)| {
-                                    let seps = std::mem::take(&mut local_ws.sepsets);
-                                    (target, p, tests, seps)
+                                .map(|(parents, tests)| ParentSelectOut {
+                                    target,
+                                    parents,
+                                    tests,
+                                    sepsets: std::mem::take(&mut local_ws.sepsets),
                                 }),
                         );
                     }
@@ -406,17 +418,17 @@ impl PcmciEngine {
         let mut iterations = Vec::with_capacity(n);
         let mut ci_tests = 0u64;
         for (i, slot) in slots.into_iter().enumerate() {
-            let (target, parents, tests, seps) = slot.ok_or(DiscoveryError::Unsupported {
+            let out = slot.ok_or(DiscoveryError::Unsupported {
                 message: "parallel PC worker left empty slot",
             })??;
-            debug_assert_eq!(target, variables[i]);
-            ci_tests += tests;
-            workspace.sepsets.extend(seps);
+            debug_assert_eq!(out.target, variables[i]);
+            ci_tests += out.tests;
+            workspace.sepsets.extend(out.sepsets);
             iterations.push(DiscoveryIteration {
-                label: Arc::from(format!("pc_parents:{target}")),
-                ci_tests: tests,
+                label: Arc::from(format!("pc_parents:{}", out.target)),
+                ci_tests: out.tests,
             });
-            all_parents.push((target, parents));
+            all_parents.push((out.target, out.parents));
         }
         Ok((all_parents, iterations, ci_tests))
     }
@@ -479,7 +491,10 @@ impl PcmciEngine {
                             tests += 1;
                         }
                     }
-                    Ok((local_scored, tests))
+                    Ok(MciChunkOut {
+                        scored: local_scored,
+                        tests,
+                    })
                 }));
             }
             for h in handles {
@@ -489,11 +504,11 @@ impl PcmciEngine {
 
         let mut tests = 0u64;
         for slot in partials {
-            let (local, t) = slot.ok_or(DiscoveryError::Unsupported {
+            let chunk = slot.ok_or(DiscoveryError::Unsupported {
                 message: "parallel MCI worker left empty slot",
             })??;
-            tests += t;
-            scored.extend(local);
+            tests += chunk.tests;
+            scored.extend(chunk.scored);
         }
         Ok(tests)
     }

@@ -8,8 +8,8 @@ use causal_core::ExecutionContext;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    NoiseReplaceConfig, NoiseReplaceTarget, RefutationProblem, RefutationReport,
-    linear_estimator_no_bootstrap, noise_replace_refute,
+    NoiseReplaceTarget, RefutationProblem, RefutationReport, linear_estimator_no_bootstrap,
+    noise_replace_refute,
 };
 use crate::error::ValidationError;
 
@@ -34,7 +34,11 @@ impl DummyOutcome {
     /// Default: 20 replicates, threshold 0.25.
     #[must_use]
     pub fn new() -> Self {
-        Self { replicates: 20, abs_ate_threshold: 0.25, estimator: linear_estimator_no_bootstrap() }
+        Self {
+            replicates: 20,
+            abs_ate_threshold: 0.25,
+            estimator: linear_estimator_no_bootstrap(),
+        }
     }
 
     /// Run the dummy-outcome refuter.
@@ -52,15 +56,13 @@ impl DummyOutcome {
             problem,
             workspace,
             ctx,
-            &NoiseReplaceConfig {
-                estimator: &self.estimator,
-                replicates: self.replicates,
-                abs_ate_threshold: self.abs_ate_threshold,
-                target: NoiseReplaceTarget::Outcome,
-                stream_base: 0xA7E0_0008,
-                refuter_id: "dummy.outcome",
-                failure_label: "dummy-outcome",
-            },
+            &self.estimator,
+            self.replicates,
+            self.abs_ate_threshold,
+            NoiseReplaceTarget::Outcome,
+            0xA7E0_0008,
+            "dummy.outcome",
+            "dummy-outcome",
         )
     }
 }

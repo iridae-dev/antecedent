@@ -33,6 +33,10 @@ use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+fn py_err(e: impl ToString) -> PyErr {
+    PyValueError::new_err(e.to_string())
+}
+
 /// Result of loading columns into the Rust data layer.
 #[pyclass]
 struct ArrowLoadInfo {
@@ -105,7 +109,7 @@ fn columns_to_batch(
             Arc::new(Float64Array::from(values)) as Arc<dyn arrow_array::Array>
         })
         .collect();
-    RecordBatch::try_new(Arc::new(schema), arrays).map_err(|e| PyValueError::new_err(e.to_string()))
+    RecordBatch::try_new(Arc::new(schema), arrays).map_err(py_err)
 }
 
 /// Load float64 NumPy columns (copied into Arrow, then into library-owned storage).
@@ -116,7 +120,7 @@ fn load_float64_columns(
 ) -> PyResult<ArrowLoadInfo> {
     let batch = columns_to_batch(&names, &columns)?;
     let loaded =
-        tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        tabular_from_record_batch(&batch).map_err(py_err)?;
     Ok(ArrowLoadInfo {
         row_count: loaded.data.row_count(),
         column_count: loaded.data.schema().len(),
@@ -167,12 +171,12 @@ fn analyze_ate(
 
     py.allow_threads(move || {
         let loaded =
-            tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id =
-            data.schema().id_of(&treatment).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id =
-            data.schema().id_of(&outcome).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            data.schema().id_of(&outcome).map_err(py_err)?;
 
         let n_vars = u32::try_from(data.schema().len())
             .map_err(|_| PyValueError::new_err("too many variables"))?;
@@ -190,7 +194,7 @@ fn analyze_ate(
                 DenseNodeId::from_raw(from_id.raw()),
                 DenseNodeId::from_raw(to_id.raw()),
             )
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(py_err)?;
         }
 
         let query = AverageEffectQuery::binary_ate(t_id, y_id);
@@ -207,9 +211,9 @@ fn analyze_ate(
         if let Some(est) = estimator {
             builder = builder.estimator(est);
         }
-        let analysis = builder.build().map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let analysis = builder.build().map_err(py_err)?;
         let ctx = ExecutionContext::for_tests(seed);
-        let result = analysis.run(&ctx).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let result = analysis.run(&ctx).map_err(py_err)?;
 
         let adjustment_set: Vec<String> = result
             .estimand
@@ -310,19 +314,19 @@ fn resolve_ci(
             "observation weights are only supported when ci='weighted_parcorr'",
         ));
     }
-    ci_from_name(ci).map_err(|e| PyValueError::new_err(e.to_string()))
+    ci_from_name(ci).map_err(py_err)
 }
 
 fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<VariableId>)> {
     let loaded =
-        tabular_from_record_batch(batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        tabular_from_record_batch(batch).map_err(py_err)?;
     let tabular = loaded.data;
     let n = tabular.row_count();
     let series = TimeSeriesData::try_new(
         tabular.storage().clone(),
         TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
-    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    .map_err(py_err)?;
     let variables: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
     Ok((series, variables))
 }
@@ -416,7 +420,7 @@ fn discover_pcmci(
         let ctx = ExecutionContext::for_tests(seed);
         let result = pcmci
             .run(&series, &variables, &mut ws, &ctx)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(py_err)?;
         Ok(discovery_result_fields(&names, &result, ci_name, 0, 0, 0))
     })
 }
@@ -458,7 +462,7 @@ fn discover_pcmci_plus(
         let ctx = ExecutionContext::for_tests(seed);
         let (result, cpdag) = plus
             .run(&series, &variables, &mut ws, &ctx)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(py_err)?;
 
         let mut directed = 0u64;
         let mut undirected = 0u64;
@@ -538,14 +542,14 @@ fn analyze(
     drop(columns);
     py.allow_threads(move || {
         let loaded =
-            tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            tabular_from_record_batch(&batch).map_err(py_err)?;
         let tabular = loaded.data;
         let n = tabular.row_count();
         let series = TimeSeriesData::try_new(
             tabular.storage().clone(),
             TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        .map_err(py_err)?;
 
         let name_to_id = |nm: &str| -> PyResult<VariableId> {
             series
@@ -559,10 +563,10 @@ fn analyze(
         let mut g = TemporalDag::empty();
         for (src, slag, tgt, tlag) in &edges {
             let s = ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag))
-                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                .map_err(py_err)?;
             let t = ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag))
-                .map_err(|e| PyValueError::new_err(e.to_string()))?;
-            g.insert_directed(s, t).map_err(|e| PyValueError::new_err(e.to_string()))?;
+                .map_err(py_err)?;
+            g.insert_directed(s, t).map_err(py_err)?;
         }
 
         let pulse_at = -i32::try_from(treatment_lag)
@@ -577,9 +581,9 @@ fn analyze(
             .temporal_query(q)
             .bootstrap_replicates(bootstrap)
             .build()
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(py_err)?;
         let ctx = ExecutionContext::for_tests(seed);
-        let result = analysis.run(&ctx).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let result = analysis.run(&ctx).map_err(py_err)?;
         Ok(AnalysisResult {
             ate: result.estimate.ate,
             se_analytic: result.estimate.se_analytic,

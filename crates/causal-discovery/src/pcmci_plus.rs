@@ -82,11 +82,7 @@ impl PcmciPlus {
         let mut result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
         let alpha = self.engine.constraints.alpha;
 
-        let scored = threshold_scored_links(
-            result.evidence.links.iter().copied().collect(),
-            self.fdr,
-            alpha,
-        );
+        let scored = threshold_scored_links(result.evidence.links.to_vec(), self.fdr, alpha);
 
         let mut cpdag = TemporalCpdag::empty();
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
@@ -110,17 +106,17 @@ impl PcmciPlus {
             else {
                 continue;
             };
-            if link.link.source_lag.is_contemporaneous()
-                && link.link.target_lag.is_contemporaneous()
-            {
-                if !cpdag.has_edge(src, tgt) {
-                    cpdag
-                        .insert_undirected(src, tgt)
-                        .map_err(|e| DiscoveryError::Data(e.to_string()))?;
-                }
-            } else if !cpdag.has_edge(src, tgt) {
-                cpdag.insert_directed(src, tgt).map_err(|e| DiscoveryError::Data(e.to_string()))?;
+            if cpdag.has_edge(src, tgt) {
+                continue;
             }
+            let contemporaneous = link.link.source_lag.is_contemporaneous()
+                && link.link.target_lag.is_contemporaneous();
+            let insert = if contemporaneous {
+                cpdag.insert_undirected(src, tgt)
+            } else {
+                cpdag.insert_directed(src, tgt)
+            };
+            insert.map_err(|e| DiscoveryError::Data(e.to_string()))?;
         }
 
         for ((s, slag, t, tlag), sep) in &result.sepsets {

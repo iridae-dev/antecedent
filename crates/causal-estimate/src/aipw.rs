@@ -149,14 +149,14 @@ impl AipwAte {
             self.backend,
             workspace,
         )?;
-        predict_row_major_design(
+        predict_colmajor(
             &problem.design_matrix,
             problem.nrows,
             problem.design_ncols,
             &beta0,
             &mut workspace.mu0,
         );
-        predict_row_major_design(
+        predict_colmajor(
             &problem.design_matrix,
             problem.nrows,
             problem.design_ncols,
@@ -237,8 +237,8 @@ impl AipwAte {
             else {
                 continue;
             };
-            predict_row_major_design(&x_boot, n, ncols, &beta0, &mut workspace.mu0);
-            predict_row_major_design(&x_boot, n, ncols, &beta1, &mut workspace.mu1);
+            predict_colmajor(&x_boot, n, ncols, &beta0, &mut workspace.mu0);
+            predict_colmajor(&x_boot, n, ncols, &beta1, &mut workspace.mu1);
             aipw_psi(&t_boot, &y_boot, &e, &workspace.mu0, &workspace.mu1, &mut workspace.psi);
             let m = workspace.psi.len() as f64;
             estimates.push(workspace.psi.iter().sum::<f64>() / m);
@@ -327,8 +327,8 @@ fn fit_outcome_models(
     Ok((beta0, beta1))
 }
 
-/// Predict `design_matrix · coef` for every row of a column-major `nrows × ncols` design.
-fn predict_row_major_design(
+/// Predict `design · coef` for every row of a column-major `nrows × ncols` design.
+fn predict_colmajor(
     design_matrix: &[f64],
     nrows: usize,
     ncols: usize,
@@ -337,12 +337,12 @@ fn predict_row_major_design(
 ) {
     out.clear();
     out.resize(nrows, 0.0);
-    for r in 0..nrows {
-        let mut pred = 0.0;
+    for (r, pred) in out.iter_mut().enumerate() {
+        let mut s = 0.0;
         for c in 0..ncols {
-            pred += design_matrix[c * nrows + r] * coef[c];
+            s += design_matrix[c * nrows + r] * coef[c];
         }
-        out[r] = pred;
+        *pred = s;
     }
 }
 
@@ -357,13 +357,13 @@ fn aipw_psi(
 ) {
     out.clear();
     out.reserve(treatment.len());
-    for i in 0..treatment.len() {
-        let t = treatment[i];
-        let e = propensity[i];
-        let m0 = mu0[i];
-        let m1 = mu1[i];
-        let augmented =
-            (m1 - m0) + (t / e) * (outcome[i] - m1) - ((1.0 - t) / (1.0 - e)) * (outcome[i] - m0);
+    for (((&t, &y), &e), (&m0, &m1)) in treatment
+        .iter()
+        .zip(outcome)
+        .zip(propensity)
+        .zip(mu0.iter().zip(mu1))
+    {
+        let augmented = (m1 - m0) + (t / e) * (y - m1) - ((1.0 - t) / (1.0 - e)) * (y - m0);
         out.push(augmented);
     }
 }

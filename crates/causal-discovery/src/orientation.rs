@@ -146,22 +146,13 @@ fn enqueue_neighbors(graph: &TemporalCpdag, id: DenseNodeId, queue: &mut Orienta
     for n in graph.children(id) {
         queue.push(n);
     }
+    for n in graph.parents(id) {
+        queue.push(n);
+    }
     for n in graph.undirected_neighbors(id) {
         queue.push(n);
     }
-    // Also parents (incoming directed).
-    for e in graph.edges() {
-        if let Some((p, c)) = e.parent_child() {
-            if c == id {
-                queue.push(p);
-            }
-        }
-    }
     u32::try_from(queue.len().saturating_sub(before)).unwrap_or(u32::MAX)
-}
-
-fn adjacent(graph: &TemporalCpdag, a: DenseNodeId, b: DenseNodeId) -> bool {
-    graph.has_edge(a, b)
 }
 
 /// Drain the orientation queue into a focus set, or scan all nodes when empty.
@@ -198,18 +189,9 @@ impl OrientationRule for MeekR1 {
         let focus = focus_nodes(graph, queue);
         let mut changed_nodes = Vec::new();
         for b in focus {
-            for a in {
-                // parents of b
-                graph
-                    .edges()
-                    .into_iter()
-                    .filter_map(|e| e.parent_child())
-                    .filter(|(_, c)| *c == b)
-                    .map(|(p, _)| p)
-                    .collect::<Vec<_>>()
-            } {
+            for a in graph.parents(b) {
                 for c in graph.undirected_neighbors(b) {
-                    if !adjacent(graph, a, c) {
+                    if !graph.has_edge(a, c) {
                         graph
                             .orient_undirected(b, c)
                             .map_err(|e| OrientationError::Graph(e.to_string()))?;
@@ -318,7 +300,7 @@ impl OrientationRule for MeekR3 {
                 let mut orient = false;
                 'pairs: for i in 0..mediators.len() {
                     for j in (i + 1)..mediators.len() {
-                        if !adjacent(graph, mediators[i], mediators[j]) {
+                        if !graph.has_edge(mediators[i], mediators[j]) {
                             orient = true;
                             break 'pairs;
                         }
@@ -376,10 +358,10 @@ impl OrientationRule for MeekR4 {
                         if !graph.children(d).contains(&b) {
                             continue;
                         }
-                        if !adjacent(graph, *a, d) {
+                        if !graph.has_edge(*a, d) {
                             continue;
                         }
-                        if adjacent(graph, c, b) {
+                        if graph.has_edge(c, b) {
                             continue;
                         }
                         orient = true;
@@ -436,7 +418,7 @@ impl OrientationRule for OrientCollider {
                 for j in (i + 1)..und.len() {
                     let a = und[i];
                     let b = und[j];
-                    if adjacent(graph, a, b) {
+                    if graph.has_edge(a, b) {
                         continue;
                     }
                     let Some(sep) = state.sepset(a, b) else {

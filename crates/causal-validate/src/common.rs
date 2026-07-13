@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use causal_core::{AverageEffectQuery, ExecutionContext, VariableId};
-use causal_data::{TableView, TabularData, ValidityBitmap};
+use causal_data::{TabularData, TableView, ValidityBitmap};
 use causal_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte};
 use causal_identify::IdentifiedEstimand;
 
@@ -67,7 +67,8 @@ pub(crate) fn with_replaced_float(
     id: VariableId,
     values: Arc<[f64]>,
 ) -> Result<TabularData, ValidationError> {
-    data.with_replaced_float(id, values).map_err(|e| ValidationError::Data(e.to_string()))
+    data.with_replaced_float(id, values)
+        .map_err(|e| ValidationError::Data(e.to_string()))
 }
 
 /// Append an independent continuous covariate; returns new data and its id.
@@ -76,7 +77,8 @@ pub(crate) fn with_extra_float(
     name: &str,
     values: Arc<[f64]>,
 ) -> Result<(TabularData, VariableId), ValidationError> {
-    data.with_appended_float(name, values).map_err(|e| ValidationError::Data(e.to_string()))
+    data.with_appended_float(name, values)
+        .map_err(|e| ValidationError::Data(e.to_string()))
 }
 
 /// Fit linear adjustment once (no nested bootstrap pools).
@@ -114,70 +116,55 @@ pub(crate) enum NoiseReplaceTarget {
 }
 
 /// Shared placebo / dummy-outcome loop: replace a column with Gaussian noise and refit.
-pub(crate) struct NoiseReplaceConfig<'a> {
-    /// Estimator used for each refit.
-    pub estimator: &'a LinearAdjustmentAte,
-    /// Number of noise replicates.
-    pub replicates: u32,
-    /// Pass if mean `|ATE|` is below this threshold.
-    pub abs_ate_threshold: f64,
-    /// Column to overwrite.
-    pub target: NoiseReplaceTarget,
-    /// RNG stream base id.
-    pub stream_base: u64,
-    /// Report refuter id.
-    pub refuter_id: &'a str,
-    /// Label used in failure messages.
-    pub failure_label: &'a str,
-}
-
-/// Shared placebo / dummy-outcome loop: replace a column with Gaussian noise and refit.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn noise_replace_refute(
     problem: &RefutationProblem<'_>,
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
-    cfg: &NoiseReplaceConfig<'_>,
+    estimator: &LinearAdjustmentAte,
+    replicates: u32,
+    abs_ate_threshold: f64,
+    target: NoiseReplaceTarget,
+    stream_base: u64,
+    refuter_id: &'static str,
+    failure_label: &'static str,
 ) -> Result<RefutationReport, ValidationError> {
-    if cfg.replicates == 0 {
+    if replicates == 0 {
         return Err(ValidationError::NotApplicable {
             message: "noise-replace refuter requires replicates > 0",
         });
     }
-    let n = problem.data.row_count();
-    let replace_id = match cfg.target {
+    let replace_id = match target {
         NoiseReplaceTarget::Treatment => problem.treatment(),
         NoiseReplaceTarget::Outcome => problem.outcome(),
     };
-    let mut noise = vec![0.0; n];
+    let n = problem.data.row_count();
     let mut sum_abs = 0.0;
     let mut sum_ate = 0.0;
-    for r in 0..cfg.replicates {
-        fill_gaussian(&mut noise, ctx, cfg.stream_base.wrapping_add(u64::from(r)));
-        let data =
-            with_replaced_float(problem.data, replace_id, Arc::<[f64]>::from(noise.clone()))?;
-        let est = fit_once(cfg.estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
+    for r in 0..replicates {
+        let mut noise = vec![0.0; n];
+        fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
+        let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
+        let est = fit_once(estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
         sum_abs += est.ate.abs();
         sum_ate += est.ate;
     }
-    let mean_abs = sum_abs / f64::from(cfg.replicates);
-    let mean_ate = sum_ate / f64::from(cfg.replicates);
-    let passed = mean_abs < cfg.abs_ate_threshold;
+    let mean_abs = sum_abs / f64::from(replicates);
+    let mean_ate = sum_ate / f64::from(replicates);
+    let passed = mean_abs < abs_ate_threshold;
     Ok(RefutationReport {
-        refuter: Arc::from(cfg.refuter_id),
+        refuter: Arc::from(refuter_id),
         original_ate: problem.original.ate,
         refuted_ate: mean_ate,
         comparison: mean_abs,
         informative: true,
         passed,
-        failure_condition: if passed {
-            None
-        } else {
-            Some(Arc::from(format!(
-                "mean |{} ATE|={mean_abs} exceeded threshold {}",
-                cfg.failure_label, cfg.abs_ate_threshold
-            )))
-        },
-        replicates: cfg.replicates,
+        failure_condition: (!passed).then(|| {
+            Arc::from(format!(
+                "mean |{failure_label} ATE|={mean_abs} exceeded threshold {abs_ate_threshold}"
+            ))
+        }),
+        replicates,
     })
 }
 
@@ -186,7 +173,8 @@ pub(crate) fn float64_full(
     data: &TabularData,
     id: VariableId,
 ) -> Result<Vec<f64>, ValidationError> {
-    data.float64_values(id).map_err(|e| ValidationError::Data(e.to_string()))
+    data.float64_values(id)
+        .map_err(|e| ValidationError::Data(e.to_string()))
 }
 
 /// Restrict analysis to a random `keep_fraction` of rows (Bernoulli per-row draw), intersected
@@ -207,7 +195,8 @@ pub(crate) fn with_row_subset(
     }
     let mask =
         ValidityBitmap::from_bytes(bytes, n).map_err(|e| ValidationError::Data(e.to_string()))?;
-    data.with_analysis_mask(mask).map_err(|e| ValidationError::Data(e.to_string()))
+    data.with_analysis_mask(mask)
+        .map_err(|e| ValidationError::Data(e.to_string()))
 }
 
 /// Rebuild tabular data with `ids` columns resampled (with replacement) per `idx`; all other
@@ -235,7 +224,11 @@ pub(crate) fn sample_sd(values: &[f64]) -> f64 {
     #[allow(clippy::cast_precision_loss)]
     let n_f = n as f64;
     let mean = values.iter().sum::<f64>() / n_f;
-    let var = values.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (n_f - 1.0);
+    let var = values.iter().map(|v| {
+        let d = v - mean;
+        d * d
+    }).sum::<f64>()
+        / (n_f - 1.0);
     var.sqrt()
 }
 
