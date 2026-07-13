@@ -68,8 +68,8 @@ phase = 2
 id = "tigramite.ci.partial_corr"
 group = "conditional_independence"
 description = "Partial correlation"
-status = "pending"
-owner = ""
+status = "in_progress"
+owner = "phase2"
 phase = 2
 
 [[capabilities]]
