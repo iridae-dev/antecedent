@@ -6,11 +6,13 @@
 #![deny(missing_docs)]
 
 pub mod backdoor;
+pub mod efficient;
 pub mod error;
 pub mod result;
 pub mod temporal_backdoor;
 
 pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};
+pub use efficient::EfficientBackdoorIdentifier;
 pub use error::IdentificationError;
 pub use result::{
     DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,

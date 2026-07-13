@@ -76,8 +76,8 @@ phase = 1
 id = "dowhy.identify.efficient_backdoor"
 group = "identification"
 description = "Efficient backdoor"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]

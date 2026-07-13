@@ -256,7 +256,7 @@ fn is_subset(small: &[DenseNodeId], big: &[DenseNodeId]) -> bool {
     small.iter().all(|s| big.contains(s))
 }
 
-fn is_backdoor_adjustment(
+pub(crate) fn is_backdoor_adjustment(
     mutilated: &Dag,
     t: DenseNodeId,
     y: DenseNodeId,
@@ -266,7 +266,7 @@ fn is_backdoor_adjustment(
     mutilated.is_d_separated(t, y, z, ws).map_err(|e| IdentificationError::Graph(e.to_string()))
 }
 
-fn remove_outgoing(dag: &Dag, t: DenseNodeId) -> Result<Dag, IdentificationError> {
+pub(crate) fn remove_outgoing(dag: &Dag, t: DenseNodeId) -> Result<Dag, IdentificationError> {
     let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::Graph("n".into()))?;
     let mut out = Dag::with_variables(n);
     for e in dag.edges() {
@@ -279,7 +279,7 @@ fn remove_outgoing(dag: &Dag, t: DenseNodeId) -> Result<Dag, IdentificationError
     Ok(out)
 }
 
-fn var_to_dense(id: VariableId, dag: &Dag) -> Result<DenseNodeId, IdentificationError> {
+pub(crate) fn var_to_dense(id: VariableId, dag: &Dag) -> Result<DenseNodeId, IdentificationError> {
     let dense = DenseNodeId::from_raw(id.raw());
     if dense.as_usize() >= dag.node_count() {
         return Err(IdentificationError::UnknownVariable { id });
@@ -287,7 +287,7 @@ fn var_to_dense(id: VariableId, dag: &Dag) -> Result<DenseNodeId, Identification
     Ok(dense)
 }
 
-fn dense_to_var(id: DenseNodeId, dag: &Dag) -> Result<VariableId, IdentificationError> {
+pub(crate) fn dense_to_var(id: DenseNodeId, dag: &Dag) -> Result<VariableId, IdentificationError> {
     match dag.nodes().get(id.as_usize()) {
         Some(causal_graph::NodeRef::Static(v)) => Ok(*v),
         _ => Err(IdentificationError::Graph("expected static node".into())),
