@@ -128,7 +128,49 @@ impl MatchingIndex {
         Ok(Some((self.donor_rows[best_i], best_d)))
     }
 
-    /// Match each query row to its nearest donor; `out_donor_row[i] = usize::MAX` if caliper rejects.
+    /// Mean distance to the `k`-th nearest donor for each query row (row-major queries).
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch or `k == 0`.
+    pub fn kth_distances(
+        &self,
+        queries_rowmajor: &[f64],
+        n_queries: usize,
+        k: usize,
+        out: &mut [f64],
+    ) -> Result<(), StatsError> {
+        if k == 0 {
+            return Err(StatsError::Shape { message: "k must be > 0" });
+        }
+        if queries_rowmajor.len() != n_queries.saturating_mul(self.dim) {
+            return Err(StatsError::Shape { message: "queries length != n_queries * dim" });
+        }
+        if out.len() < n_queries {
+            return Err(StatsError::Shape { message: "output too short" });
+        }
+        let n_donors = self.donor_rows.len();
+        if n_donors <= k {
+            return Err(StatsError::Shape { message: "not enough donors for k" });
+        }
+        let mut dists = vec![0.0; n_donors];
+        for q in 0..n_queries {
+            let query = &queries_rowmajor[q * self.dim..(q + 1) * self.dim];
+            for (i, _) in self.donor_rows.iter().enumerate() {
+                let row = &self.features[i * self.dim..(i + 1) * self.dim];
+                dists[i] = match self.distance {
+                    MatchingDistance::Euclidean => euclidean(query, row),
+                    MatchingDistance::Absolute => (query[0] - row[0]).abs(),
+                };
+            }
+            dists.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            // Skip self-match at distance 0 when query is a donor; k-th among others ≈ index k
+            // when self is present as exact 0.
+            let idx = if dists[0] < 1e-15 { k } else { k - 1 };
+            out[q] = dists.get(idx).copied().unwrap_or(dists[dists.len() - 1]);
+        }
+        Ok(())
+    }
     ///
     /// `queries_rowmajor` length = `n_queries * dim`.
     ///

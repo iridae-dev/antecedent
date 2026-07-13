@@ -118,9 +118,12 @@ mod tests {
         let ctx = ExecutionContext::for_tests(9);
         let _ = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
         let gen_after_first = ws.knn.index_generation;
+        let builds_after_first = ws.knn.index_builds;
         let perm_ptr = ws.knn.perm.as_ptr();
         let _ = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
         assert_eq!(ws.knn.index_generation, gen_after_first, "index must not rebuild per batch");
+        assert_eq!(ws.knn.index_builds, builds_after_first, "MatchingIndex builds must stay flat");
         assert_eq!(ws.knn.perm.as_ptr(), perm_ptr, "permutation plan buffer must be reused");
+        assert!(ws.knn.index.is_some());
     }
 }

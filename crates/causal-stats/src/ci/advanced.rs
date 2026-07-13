@@ -10,7 +10,7 @@ use std::sync::Arc;
 use causal_core::ExecutionContext;
 
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence, KnnCmiWorkspace,
 };
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
@@ -88,7 +88,6 @@ impl ConditionalIndependence for KnnCmi {
         if n < self.k + 2 {
             return Err(StatsError::Shape { message: "n too small for kNN CMI" });
         }
-        // Reusable permutation plan (row order); rebuild only when `n` changes.
         if workspace.knn.perm.len() != n {
             workspace.knn.perm = (0..n).collect();
             workspace.knn.index_generation = workspace.knn.index_generation.saturating_add(1);
@@ -97,34 +96,45 @@ impl ConditionalIndependence for KnnCmi {
         if workspace.block_perm.len() != n {
             workspace.block_perm = workspace.knn.perm.clone();
         }
+        let n_perm = 49usize;
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
             let dim = 2 + z.len();
-            if workspace.knn.last_dim != dim || workspace.knn.last_n != n {
-                workspace.knn.last_dim = dim;
-                workspace.knn.last_n = n;
-                workspace.knn.index_generation =
-                    workspace.knn.index_generation.saturating_add(1);
-            }
-            let gen_before = workspace.knn.index_generation;
-            let stat = knn_mi_proxy(request.columns, q.x, q.y, z, self.k, &workspace.knn.perm)?;
-            // Null via one permutation of Y (reuse plan order from RNG stream).
+            ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
+            let builds_before = workspace.knn.index_builds;
+            let stat = knn_stat_from_index(&workspace.knn, self.k)?;
+            // Null: permute Y via reusable plan shuffled with RNG stream (plan buffer reused).
             let mut y_perm = request.columns[q.y].to_vec();
             let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(qi as u64));
-            for i in (1..n).rev() {
-                let j = (rng.next_u64() as usize) % (i + 1);
-                y_perm.swap(i, j);
+            let mut null_ge = 0u32;
+            for _ in 0..n_perm {
+                // Fisher–Yates into perm order applied to Y values.
+                for i in (1..n).rev() {
+                    let j = (rng.next_u64() as usize) % (i + 1);
+                    workspace.knn.perm.swap(i, j);
+                }
+                for r in 0..n {
+                    y_perm[r] = request.columns[q.y][workspace.knn.perm[r]];
+                }
+                // Restore identity permutation in place (no reallocation).
+                for (i, slot) in workspace.knn.perm.iter_mut().enumerate() {
+                    *slot = i;
+                }
+                let mut cols: Vec<&[f64]> = request.columns.to_vec();
+                cols[q.y] = &y_perm;
+                let null = knn_mi_proxy_ephemeral(&cols, q.x, q.y, z, self.k)?;
+                if null >= stat {
+                    null_ge = null_ge.saturating_add(1);
+                }
             }
-            let mut cols: Vec<&[f64]> = request.columns.to_vec();
-            cols[q.y] = &y_perm;
-            let null = knn_mi_proxy(&cols, q.x, q.y, z, self.k, &workspace.knn.perm)?;
-            // Same geometry: generation must not bump again inside the proxy.
-            debug_assert_eq!(workspace.knn.index_generation, gen_before);
-            let p = if stat <= null { 0.5 } else { 0.05 }; // coarse Phase 5 significance
+            // Restore primary index after nulls.
+            ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
+            debug_assert_eq!(workspace.knn.index_builds, builds_before);
+            let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
             results.push(CiResult {
                 statistic: stat,
-                p_value: if stat.abs() < 1e-9 { 1.0 } else { p },
+                p_value: p,
                 df: n as f64,
                 ci: None,
             });
@@ -133,16 +143,56 @@ impl ConditionalIndependence for KnnCmi {
     }
 }
 
-fn knn_mi_proxy(
+fn ensure_knn_index(
+    columns: &[&[f64]],
+    x: usize,
+    y: usize,
+    z: &[usize],
+    n: usize,
+    dim: usize,
+    knn: &mut KnnCmiWorkspace,
+) -> Result<(), StatsError> {
+    let need_rebuild = knn.index.is_none() || knn.last_dim != dim || knn.last_n != n;
+    if !need_rebuild {
+        return Ok(());
+    }
+    let mut feats = vec![0.0; n * dim];
+    for r in 0..n {
+        feats[r * dim] = columns[x][r];
+        feats[r * dim + 1] = columns[y][r];
+        for (j, &zc) in z.iter().enumerate() {
+            feats[r * dim + 2 + j] = columns[zc][r];
+        }
+    }
+    let donors: Vec<usize> = (0..n).collect();
+    let idx = MatchingIndex::exact(&feats, dim, &donors, MatchingDistance::Euclidean)
+        .map_err(|e| StatsError::Backend(e.to_string()))?;
+    knn.features = feats;
+    knn.index = Some(idx);
+    knn.last_dim = dim;
+    knn.last_n = n;
+    knn.index_generation = knn.index_generation.saturating_add(1);
+    knn.index_builds = knn.index_builds.saturating_add(1);
+    Ok(())
+}
+
+fn knn_stat_from_index(knn: &KnnCmiWorkspace, k: usize) -> Result<f64, StatsError> {
+    let n = knn.last_n;
+    let idx = knn.index.as_ref().ok_or(StatsError::Shape { message: "missing kNN index" })?;
+    let mut dists = vec![0.0; n];
+    idx.kth_distances(&knn.features, n, k, &mut dists)?;
+    let mean = dists.iter().sum::<f64>() / n as f64;
+    Ok(-mean)
+}
+
+fn knn_mi_proxy_ephemeral(
     columns: &[&[f64]],
     x: usize,
     y: usize,
     z: &[usize],
     k: usize,
-    _perm: &[usize],
 ) -> Result<f64, StatsError> {
     let n = columns[x].len();
-    // Build joint (X,Y,Z) features row-major.
     let dim = 2 + z.len();
     let mut feats = vec![0.0; n * dim];
     for r in 0..n {
@@ -153,34 +203,11 @@ fn knn_mi_proxy(
         }
     }
     let donors: Vec<usize> = (0..n).collect();
-    let _idx = MatchingIndex::exact(&feats, dim, &donors, MatchingDistance::Euclidean)
+    let idx = MatchingIndex::exact(&feats, dim, &donors, MatchingDistance::Euclidean)
         .map_err(|e| StatsError::Backend(e.to_string()))?;
-    // Mean distance to k-th neighbor as dependence proxy (smaller ⇒ more dependent after Z).
-    let mut sum = 0.0;
-    for r in 0..n {
-        let q = &feats[r * dim..(r + 1) * dim];
-        let mut dists = Vec::with_capacity(n);
-        for j in 0..n {
-            if j == r {
-                continue;
-            }
-            let row = &feats[j * dim..(j + 1) * dim];
-            let d = q
-                .iter()
-                .zip(row.iter())
-                .map(|(a, b)| {
-                    let t = a - b;
-                    t * t
-                })
-                .sum::<f64>()
-                .sqrt();
-            dists.push(d);
-        }
-        dists.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        sum += dists.get(k - 1).copied().unwrap_or(0.0);
-    }
-    // Dependence score: negative mean kNN distance (higher = more dependent)
-    Ok(-sum / n as f64)
+    let mut dists = vec![0.0; n];
+    idx.kth_distances(&feats, n, k, &mut dists)?;
+    Ok(-dists.iter().sum::<f64>() / n as f64)
 }
 
 /// Mixed-data kNN CMI: ranks discrete-looking columns then runs [`KnnCmi`].

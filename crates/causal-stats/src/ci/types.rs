@@ -10,15 +10,21 @@ use crate::error::StatsError;
 /// Reusable kNN index + permutation plan for CMI.
 #[derive(Clone, Debug, Default)]
 pub struct KnnCmiWorkspace {
-    /// Built neighbor index (reused across queries when geometry unchanged).
+    /// Built neighbor index generation (bumps only on rebuild).
     pub index_generation: u64,
+    /// Number of times a new [`MatchingIndex`] was constructed.
+    pub index_builds: u32,
     /// Last built feature dim.
     pub last_dim: usize,
     /// Last n.
     pub last_n: usize,
-    /// Permutation plan (row indexes).
+    /// Cached joint features (row-major `n * dim`).
+    pub features: Vec<f64>,
+    /// Cached nearest-neighbor index over [`Self::features`].
+    pub index: Option<crate::matching::MatchingIndex>,
+    /// Permutation plan (row indexes) reused for null shuffles.
     pub perm: Vec<usize>,
-    /// Distance scratch.
+    /// Distance scratch (per-query kth distances).
     pub distances: Vec<f64>,
 }
 
