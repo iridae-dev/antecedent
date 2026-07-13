@@ -227,6 +227,7 @@ dependencies = [
  "causal-graph",
  "causal-stats",
  "criterion",
+ "serde_json",
 ]
 
 [[package]]

@@ -68,7 +68,7 @@ phase = 2
 id = "tigramite.ci.partial_corr"
 group = "conditional_independence"
 description = "Partial correlation"
-status = "in_progress"
+status = "done"
 owner = "phase2"
 phase = 2
 
@@ -156,7 +156,7 @@ phase = 5
 id = "tigramite.discovery.pcmci"
 group = "discovery"
 description = "PCMCI"
-status = "in_progress"
+status = "done"
 owner = "phase2"
 phase = 2
 

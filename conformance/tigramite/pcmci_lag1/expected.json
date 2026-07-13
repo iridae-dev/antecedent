@@ -1,0 +1,25 @@
+{
+  "true_parents": [
+    {
+      "source": "x",
+      "source_lag": 1,
+      "target": "y",
+      "target_lag": 0
+    }
+  ],
+  "tolerance_class": "Exact",
+  "max_lag": 2,
+  "alpha": 0.05,
+  "fdr": false,
+  "n": 500,
+  "scm": "x_t = noise; y_t = 0.8 * x_{t-1} + 0.2 * noise (deterministic streams)",
+  "tigramite": {
+    "available": false,
+    "note": "Tigramite not installed; fixture stores analytic parents only"
+  },
+  "generation": {
+    "script": "scripts/conformance/generate_tigramite_pcmci_lag1.py",
+    "baseline_pin": "parity/tigramite.toml",
+    "env": "optional: tigramite==5.2.1.25 in isolated venv"
+  }
+}
