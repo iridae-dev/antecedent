@@ -205,3 +205,31 @@ fn phase2_ci_hot_path_no_scratch_growth() {
         assert_eq!(ws.ci.parcorr.design.capacity(), design_cap);
     }
 }
+
+#[test]
+fn engine_accepts_oracle_ci() {
+    use causal_stats::OracleCi;
+
+    let (data, vars) = var_series();
+    // Local batch always uses x=0,y=1; empty deps ⇒ every pair independent.
+    let engine = PcmciEngine::new()
+        .with_constraints(constraints())
+        .with_ci(Arc::new(OracleCi::new([])));
+    let mut ws = DiscoveryWorkspace::default();
+    let ctx = ExecutionContext::for_tests(1);
+    let result = engine.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
+    assert!(
+        result.evidence.links.is_empty(),
+        "oracle with no deps should drop all links, got {:?}",
+        result.evidence.links
+    );
+
+    let engine_dep = PcmciEngine::new()
+        .with_constraints(constraints())
+        .with_ci(Arc::new(OracleCi::new([(0usize, 1usize)])));
+    let kept = engine_dep.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
+    assert!(
+        !kept.evidence.links.is_empty(),
+        "oracle marking (0,1) dependent should retain links"
+    );
+}

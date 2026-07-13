@@ -151,8 +151,8 @@ phase = 5
 id = "tigramite.ci.oracle"
 group = "conditional_independence"
 description = "Oracle CI"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]

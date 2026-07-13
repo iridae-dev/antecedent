@@ -17,7 +17,9 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::{LaggedFrame, TimeSeriesData};
 use causal_graph::TemporalGraphReview;
-use causal_stats::{CiResult, CiWorkspace, PartialCorrelation};
+use causal_stats::{
+    CiBatchRequest, CiQuery, CiResult, CiWorkspace, ConditionalIndependence, PartialCorrelation,
+};
 
 use crate::combinations::for_each_combination;
 use crate::constraints::{CompiledConstraints, DiscoveryConstraints};
@@ -56,12 +58,18 @@ pub struct DiscoveryWorkspace {
 }
 
 /// Shared PCMCI engine core.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct PcmciEngine {
     /// Constraints / alpha / lags.
     pub constraints: DiscoveryConstraints,
-    /// CI test.
-    pub ci: PartialCorrelation,
+    /// Pluggable CI test (defaults to partial correlation).
+    pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
+}
+
+impl std::fmt::Debug for PcmciEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PcmciEngine").field("constraints", &self.constraints).finish_non_exhaustive()
+    }
 }
 
 impl Default for PcmciEngine {
@@ -71,12 +79,12 @@ impl Default for PcmciEngine {
 }
 
 impl PcmciEngine {
-    /// Default engine.
+    /// Default engine (`ParCorr` CI).
     #[must_use]
     pub fn new() -> Self {
         Self {
             constraints: DiscoveryConstraints::default(),
-            ci: PartialCorrelation::new(),
+            ci: Arc::new(PartialCorrelation::new()),
         }
     }
 
@@ -84,6 +92,13 @@ impl PcmciEngine {
     #[must_use]
     pub fn with_constraints(mut self, constraints: DiscoveryConstraints) -> Self {
         self.constraints = constraints;
+        self
+    }
+
+    /// Replace the CI test (e.g. [`causal_stats::OracleCi`], GPDC, …).
+    #[must_use]
+    pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
+        self.ci = ci;
         self
     }
 
@@ -512,16 +527,27 @@ impl PcmciEngine {
         }
         let col_refs = &col_buf[..ncols];
 
-        let result: CiResult = self
-            .ci
-            .test_one(
-                col_refs,
-                &workspace.z_flat,
-                self.constraints.significance,
-                &mut workspace.ci,
-                ctx,
-            )
-            .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
+        let result: CiResult = {
+            let queries = [CiQuery {
+                x: 0,
+                y: 1,
+                z_start: 0,
+                z_len: workspace.z_flat.len(),
+            }];
+            let req = CiBatchRequest {
+                columns: col_refs,
+                queries: &queries,
+                z_flat: &workspace.z_flat,
+                significance: self.constraints.significance,
+            };
+            let out = self
+                .ci
+                .test_batch(&req, &mut workspace.ci, ctx)
+                .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
+            out.results.into_iter().next().ok_or_else(|| {
+                DiscoveryError::Stats("CI batch returned no results".into())
+            })?
+        };
         if !result.statistic.is_finite() || !result.p_value.is_finite() {
             return Err(DiscoveryError::Stats("non-finite CI statistic or p-value".into()));
         }
