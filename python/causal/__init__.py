@@ -7,7 +7,8 @@ estimator="frontdoor.two_stage"`); omitting both preserves the Phase 0–3 defau
 (`backdoor.adjustment` + `linear.adjustment.ate`).
 
 `discover_pcmci` / `discover_pcmci_plus` accept `ci=` (name string) to select the
-conditional-independence test; default is `parcorr`.
+conditional-independence test; default is `parcorr`. When `ci="weighted_parcorr"`,
+pass observation `weights=` (length = n rows).
 """
 
 from __future__ import annotations

@@ -295,7 +295,24 @@ struct PcmciDiscoveryResult {
     cpdag_undirected_edges: u64,
 }
 
-fn resolve_ci(ci: &str) -> PyResult<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>> {
+fn resolve_ci(
+    ci: &str,
+    weights: Option<Vec<f64>>,
+) -> PyResult<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>> {
+    let key = ci.trim().to_ascii_lowercase();
+    if matches!(key.as_str(), "weighted_parcorr" | "weighted_partial_corr") {
+        let Some(w) = weights else {
+            return Err(PyValueError::new_err(
+                "weights required when ci='weighted_parcorr'",
+            ));
+        };
+        return Ok(Arc::new(causal_stats::WeightedPartialCorrelation::new(w)));
+    }
+    if weights.is_some() {
+        return Err(PyValueError::new_err(
+            "observation weights are only supported when ci='weighted_parcorr'",
+        ));
+    }
     ci_from_name(ci).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
@@ -304,7 +321,7 @@ fn resolve_ci(ci: &str) -> PyResult<Arc<dyn causal_stats::ConditionalIndependenc
 /// NumPy columns in, structured link list out once. No per-query Python callbacks.
 /// `ci` selects the conditional-independence test by name (default `parcorr`).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr"))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
 fn discover_pcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -314,10 +331,11 @@ fn discover_pcmci(
     fdr: bool,
     seed: u64,
     ci: &str,
+    weights: Option<Vec<f64>>,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci)?;
+    let ci_impl = resolve_ci(ci, weights)?;
     drop(columns);
 
     py.allow_threads(move || {
@@ -397,7 +415,7 @@ fn discover_pcmci(
 
 /// Run PCMCI+ discovery returning links plus oriented temporal CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr"))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
 fn discover_pcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
@@ -407,10 +425,11 @@ fn discover_pcmci_plus(
     fdr: bool,
     seed: u64,
     ci: &str,
+    weights: Option<Vec<f64>>,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci)?;
+    let ci_impl = resolve_ci(ci, weights)?;
     drop(columns);
 
     py.allow_threads(move || {

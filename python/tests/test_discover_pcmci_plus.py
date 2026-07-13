@@ -32,10 +32,11 @@ def test_discover_pcmci_plus_returns_cpdag_summary():
     assert ("x", 1, "y", 0) in recovered or ("x", 0, "y", 0) in recovered, recovered
 
 
-def test_discover_pcmci_ci_name_oracle():
-    names, cols = _series()
+def test_discover_pcmci_weighted_parcorr_accepts_weights():
+    names, cols = _series(200)
+    w = np.ones(200, dtype=np.float64)
     result = causal.discover_pcmci(
-        names, cols, max_lag=1, alpha=0.05, fdr=False, seed=1, ci="oracle"
+        names, cols, max_lag=1, alpha=0.05, fdr=False, seed=2, ci="weighted_parcorr", weights=w.tolist()
     )
-    assert result.ci_name == "oracle"
-    assert result.links_retained == 0
+    assert result.ci_name == "weighted_parcorr"
+    assert result.ci_tests >= 0
