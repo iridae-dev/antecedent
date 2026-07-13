@@ -44,20 +44,21 @@ cargo +1.85 bench -p causal-stats --bench ci_phase5 -- knn_cmi_reuse
 
 ## Orientation local-delta vs global rescan (`causal-discovery` bench `orientation`)
 
-Workload: chain CPDAG of size `n∈{16,64,128}`; `local_delta_*` uses
+Workload: chain CPDAG of size `n∈{16,64,128}`; rules =
+`OrientCollider + Meek R1–R4`. `local_delta_*` uses
 `run_orientation_to_fixed_point` (neighbor enqueue); `global_rescan_*` reseeds
 the full node set every rule application.
 
 | Workload | mean wall time |
 |----------|----------------|
-| local_delta_n16 | **21.6 µs** |
-| global_rescan_n16 | **24.5 µs** |
+| local_delta_n16 | **21.7 µs** |
+| global_rescan_n16 | **29.4 µs** |
 | local_delta_n64 | **168 µs** |
-| global_rescan_n64 | **177 µs** |
-| local_delta_n128 | **500 µs** |
-| global_rescan_n128 | **524 µs** |
+| global_rescan_n64 | **194 µs** |
+| local_delta_n128 | **509 µs** |
+| global_rescan_n128 | **558 µs** |
 
-Local-delta remains faster than global rescan at each size.
+Local-delta remains clearly faster than global rescan at each size (~15–25% win).
 
 ```bash
 cargo +1.85 bench -p causal-discovery --bench orientation

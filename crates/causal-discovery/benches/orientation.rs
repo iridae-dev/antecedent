@@ -6,8 +6,8 @@
 
 use causal_core::{Lag, VariableId};
 use causal_discovery::{
-    MeekR1, MeekR2, OrientCollider, OrientationQueue, OrientationRule, OrientationState,
-    RuleDelta, run_orientation_to_fixed_point,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationQueue, OrientationRule,
+    OrientationState, RuleDelta, run_orientation_to_fixed_point,
 };
 use causal_graph::{DenseNodeId, TemporalCpdag};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
@@ -61,7 +61,8 @@ fn run_orientation_global_rescan(
 }
 
 fn bench_orientation(c: &mut Criterion) {
-    let rules: [&dyn OrientationRule; 3] = [&OrientCollider, &MeekR1, &MeekR2];
+    let rules: [&dyn OrientationRule; 5] =
+        [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
     let mut group = c.benchmark_group("orientation");
     for n in [16usize, 64, 128] {
         group.bench_function(format!("local_delta_n{n}"), |b| {

@@ -17,7 +17,8 @@ use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::evidence::{graph_evidence_from_scored, threshold_scored_links};
 use crate::orientation::{
-    MeekR1, MeekR2, OrientCollider, OrientationRule, OrientationState, run_orientation_to_fixed_point,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule, OrientationState,
+    run_orientation_to_fixed_point,
 };
 use crate::result::{AlgorithmRecord, DiscoveryDiagnostic, DiscoveryResult};
 
@@ -142,7 +143,8 @@ impl PcmciPlus {
             state.set_sepset(sa, tb, Arc::from(mapped));
         }
 
-        let rules: [&dyn OrientationRule; 3] = [&OrientCollider, &MeekR1, &MeekR2];
+        let rules: [&dyn OrientationRule; 5] =
+            [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
         let _delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 
         result.algorithm = AlgorithmRecord {
