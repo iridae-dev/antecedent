@@ -132,8 +132,8 @@ phase = 4
 id = "dowhy.estimate.doubly_robust"
 group = "estimation"
 description = "Doubly robust"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]

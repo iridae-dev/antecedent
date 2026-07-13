@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod adjustment;
+pub mod aipw;
 pub mod error;
 pub mod propensity;
 pub mod temporal_adjustment;
@@ -14,6 +15,7 @@ pub use adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy, OverlapReport,
     PreparedEstimationProblem,
 };
+pub use aipw::{AipwAte, AipwWorkspace};
 pub use error::EstimationError;
 pub use propensity::{
     DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,

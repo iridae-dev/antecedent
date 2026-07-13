@@ -133,7 +133,7 @@ pub const fn default_propensity_overlap() -> OverlapPolicy {
 // Shared prepare / small helpers
 // ---------------------------------------------------------------------------------------------
 
-fn prepare_propensity_problem(
+pub(crate) fn prepare_propensity_problem(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
     query: &AverageEffectQuery,
@@ -213,11 +213,11 @@ fn prepare_propensity_problem(
     })
 }
 
-fn stats_err(e: StatsError) -> EstimationError {
+pub(crate) fn stats_err(e: StatsError) -> EstimationError {
     EstimationError::Stats(e.to_string())
 }
 
-fn clip_of(overlap: OverlapPolicy) -> Option<f64> {
+pub(crate) fn clip_of(overlap: OverlapPolicy) -> Option<f64> {
     match overlap {
         OverlapPolicy::RequireDiagnostics { clip, .. } => clip,
         OverlapPolicy::ExplicitOverride => None,
@@ -231,13 +231,13 @@ fn trim_of(overlap: OverlapPolicy) -> Option<f64> {
     }
 }
 
-fn clamp_scores(scores: &mut [f64], clip: f64) {
+pub(crate) fn clamp_scores(scores: &mut [f64], clip: f64) {
     for s in scores.iter_mut() {
         *s = s.clamp(clip, 1.0 - clip);
     }
 }
 
-fn sample_std(values: &[f64]) -> f64 {
+pub(crate) fn sample_std(values: &[f64]) -> f64 {
     let n = values.len() as f64;
     if n < 2.0 {
         return f64::NAN;
@@ -737,7 +737,7 @@ impl PropensityStratification {
 // Matching (shared by PropensityMatching and DistanceMatching)
 // ---------------------------------------------------------------------------------------------
 
-fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) {
+pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) {
     let mut treated = Vec::new();
     let mut control = Vec::new();
     for (i, &t) in treatment.iter().enumerate() {

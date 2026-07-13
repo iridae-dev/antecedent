@@ -1,0 +1,20 @@
+feature_id = "estimate.aipw"
+implementation_crate = "causal-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Double/debiased machine learning for treatment and structural parameters", doi = "10.1111/ectj.12097", sections = ["AIPW / Neyman-orthogonal score"] },
+  { title = "Doubly Robust Estimation of Causal Effects", doi = "10.1093/aje/kwq439", sections = ["Doubly robust estimator"] },
+]
+
+upstream_implementations_observed = [
+  { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+  "independently generated synthetic confounded SCM with known ATE (shared with propensity estimators)",
+  "black-box comparison against pinned DoWhy baseline (parity/dowhy.toml)",
+]
