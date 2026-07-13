@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::cast_possible_truncation, clippy::large_enum_variant)]
+
 use std::sync::Arc;
 
 use causal_core::{
