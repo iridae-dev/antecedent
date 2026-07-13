@@ -26,6 +26,8 @@ pub struct PropensityWorkspace {
     pub ols: LeastSquaresWorkspace,
     /// Scratch for predicted scores.
     pub scores: Vec<f64>,
+    /// Number of times [`Self::prepare`] grew the scores buffer.
+    pub scores_grow_count: u32,
 }
 
 impl PropensityWorkspace {
@@ -33,6 +35,7 @@ impl PropensityWorkspace {
     pub fn prepare(&mut self, nrows: usize) {
         if self.scores.len() < nrows {
             self.scores.resize(nrows, 0.0);
+            self.scores_grow_count = self.scores_grow_count.saturating_add(1);
         }
     }
 }

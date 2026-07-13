@@ -43,20 +43,29 @@ pub struct LeastSquaresWorkspace {
     pub rhs: Vec<f64>,
     /// Residual buffer.
     pub residuals: Vec<f64>,
+    /// Times [`Self::prepare`] grew any buffer (reuse diagnostics).
+    pub grow_count: u32,
 }
 
 impl LeastSquaresWorkspace {
     /// Ensure capacity for a design of the given shape (grows, does not shrink).
     pub fn prepare(&mut self, nrows: usize, ncols: usize) {
         let need_scratch = ncols.saturating_mul(ncols).max(nrows.saturating_mul(ncols));
+        let mut grew = false;
         if self.scratch.len() < need_scratch {
             self.scratch.resize(need_scratch, 0.0);
+            grew = true;
         }
         if self.rhs.len() < ncols {
             self.rhs.resize(ncols, 0.0);
+            grew = true;
         }
         if self.residuals.len() < nrows {
             self.residuals.resize(nrows, 0.0);
+            grew = true;
+        }
+        if grew {
+            self.grow_count = self.grow_count.saturating_add(1);
         }
     }
 }

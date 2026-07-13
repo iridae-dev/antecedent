@@ -32,6 +32,19 @@ fn bench_matching(c: &mut Criterion) {
             assert_eq!(m, n as u32);
         });
     });
+
+    // Reuse gate: index is built once outside the timed loop; query path must not rebuild.
+    let mut reuse_builds = 0u32;
+    let idx2 = {
+        reuse_builds = reuse_builds.saturating_add(1);
+        MatchingIndex::exact(&donors, dim, &donor_rows, MatchingDistance::Euclidean).unwrap()
+    };
+    assert_eq!(reuse_builds, 1);
+    for _ in 0..8 {
+        let m = idx2.match_all(&queries, n, None, &mut out_row, &mut out_d).unwrap();
+        assert_eq!(m, n as u32);
+    }
+    assert_eq!(reuse_builds, 1, "MatchingIndex must be built once for fixed donors");
 }
 
 criterion_group!(benches, bench_matching);

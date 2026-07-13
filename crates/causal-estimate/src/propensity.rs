@@ -1454,6 +1454,24 @@ mod tests {
     }
 
     #[test]
+    fn bootstrap_reuses_propensity_workspace_buffers() {
+        let (data, estimand) = confounded_scm(400, 10);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = PropensityWeighting { bootstrap_replicates: 40, ..PropensityWeighting::new() };
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let _ = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let ols_grows = ws.propensity.ols.grow_count;
+        let score_grows = ws.propensity.scores_grow_count;
+        let scratch_ptr = ws.propensity.ols.scratch.as_ptr();
+        let _ = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert_eq!(ws.propensity.ols.grow_count, ols_grows);
+        assert_eq!(ws.propensity.scores_grow_count, score_grows);
+        assert_eq!(ws.propensity.ols.scratch.as_ptr(), scratch_ptr);
+    }
+
+    #[test]
     fn propensity_matching_rejects_explicit_override() {
         let (data, estimand) = confounded_scm(200, 7);
         let query =

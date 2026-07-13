@@ -37,6 +37,9 @@ jobs:
       - name: Test
         run: cargo test --workspace --exclude causal
 
+      - name: Phase 4 reuse gate
+        run: bash scripts/gate_phase4_reuse.sh
+
       - name: DCO check
         if: github.event_name == 'pull_request'
         run: |

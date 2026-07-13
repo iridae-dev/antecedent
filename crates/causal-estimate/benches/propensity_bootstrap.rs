@@ -98,10 +98,24 @@ fn bench_propensity_bootstrap(c: &mut Criterion) {
     let ctx = ExecutionContext::for_tests(1);
 
     c.bench_function("propensity_weighting_ipw_bootstrap50_n800", |b| {
+        // Warm once so workspace buffers are sized; then assert reuse across timed iters.
+        let mut ws = PropensityEstimationWorkspace::default();
+        let _ = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let grows_after_warm = ws.propensity.ols.grow_count;
+        let scores_grows_after_warm = ws.propensity.scores_grow_count;
+        let scratch_ptr = ws.propensity.ols.scratch.as_ptr();
         b.iter(|| {
-            let mut ws = PropensityEstimationWorkspace::default();
             let effect = est.fit(black_box(&prep), &mut ws, &ctx, AssumptionSet::new()).unwrap();
             black_box(effect.se_bootstrap);
+            assert_eq!(
+                ws.propensity.ols.grow_count, grows_after_warm,
+                "OLS scratch must not grow across bootstrap fits of fixed n"
+            );
+            assert_eq!(
+                ws.propensity.scores_grow_count, scores_grows_after_warm,
+                "propensity score buffer must not grow across bootstrap fits of fixed n"
+            );
+            assert_eq!(ws.propensity.ols.scratch.as_ptr(), scratch_ptr);
         });
     });
 }
