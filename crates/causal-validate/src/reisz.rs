@@ -290,7 +290,8 @@ mod tests {
             estimand: &estimand,
             query: &query,
             original: &original,
-        };
+            estimator: Some("linear.adjustment.ate"),
+};
         let report = ReiszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(report.refuter.as_ref(), "sensitivity.reisz");
         assert!(report.comparison > 0.0, "comparison={}", report.comparison);

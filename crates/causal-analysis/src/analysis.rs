@@ -30,7 +30,9 @@ use causal_identify::{
     IdentificationStatus, IdentifiedEstimand, InstrumentalVariableIdentifier,
     TemporalBackdoorIdentifier,
 };
-use causal_validate::{PlaceboTreatment, RandomCommonCause, RefutationProblem, RefutationReport};
+use causal_validate::{
+    RefutationProblem, RefutationReport, ValidationSuite,
+};
 
 use crate::error::AnalysisError;
 use crate::planner::{
@@ -45,8 +47,10 @@ use crate::review::{PendingGraphReview, compile_review_required, ensure_review_c
 pub enum RefuteSuite {
     /// Skip refutation.
     None,
-    /// Placebo + random common cause.
+    /// Placebo + random common cause (linear backdoor only).
     PlaceboAndRcc,
+    /// Full Phase 4 validation suite (applicable validators only; others NotApplicable).
+    Full,
 }
 
 #[derive(Clone, Debug)]
@@ -357,6 +361,7 @@ impl CausalAnalysis {
         match self.refute {
             RefuteSuite::None => None,
             RefuteSuite::PlaceboAndRcc => Some(Arc::from("placebo+rcc")),
+            RefuteSuite::Full => Some(Arc::from("validation.full")),
         }
     }
 
@@ -604,20 +609,22 @@ impl CausalAnalysis {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
 
-        // Placebo/RCC refuters hardwire `LinearAdjustmentAte` internally, which only accepts a
-        // literal `"backdoor.adjustment"` estimand; restrict them to that exact pair and skip
-        // (rather than fail) for every other identifier/estimator combination.
-        let refutations = if identifier == "backdoor.adjustment" && estimator == "linear.adjustment.ate"
-        {
-            match self.refute {
-                RefuteSuite::None => Vec::new(),
-                RefuteSuite::PlaceboAndRcc => {
-                    let mut refute_ws = EstimationWorkspace::default();
-                    run_refuters(data, &estimand, query, &estimate, &mut refute_ws, ctx)?
-                }
+        // ValidationSuite skips incompatible validators with NotApplicable rather than failing.
+        let refutations = match self.refute {
+            RefuteSuite::None => Vec::new(),
+            RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
+                let mut refute_ws = EstimationWorkspace::default();
+                run_refuters(
+                    data,
+                    &estimand,
+                    query,
+                    &estimate,
+                    &mut refute_ws,
+                    ctx,
+                    self.refute,
+                    estimator,
+                )?
             }
-        } else {
-            Vec::new()
         };
 
         let (id_artifact, id_op) = identify_provenance_step(identifier);
@@ -842,15 +849,25 @@ fn run_refuters(
     estimate: &EffectEstimate,
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
+    suite: RefuteSuite,
+    estimator: &str,
 ) -> Result<Vec<RefutationReport>, AnalysisError> {
-    let problem = RefutationProblem { data, estimand, query, original: estimate };
-    let placebo = PlaceboTreatment::new()
-        .refute(&problem, workspace, ctx)
+    let problem = RefutationProblem {
+        data,
+        estimand,
+        query,
+        original: estimate,
+        estimator: Some(estimator),
+    };
+    let validation = match suite {
+        RefuteSuite::None => return Ok(Vec::new()),
+        RefuteSuite::PlaceboAndRcc => ValidationSuite::placebo_and_rcc(),
+        RefuteSuite::Full => ValidationSuite::full_effect(),
+    };
+    let outcomes = validation
+        .run(&problem, workspace, ctx)
         .map_err(|e| AnalysisError::Validate(e.to_string()))?;
-    let rcc = RandomCommonCause::new()
-        .refute(&problem, workspace, ctx)
-        .map_err(|e| AnalysisError::Validate(e.to_string()))?;
-    Ok(vec![placebo, rcc])
+    Ok(ValidationSuite::reports_only(&outcomes))
 }
 
 // Owned-value signature keeps every `.map_err(est_err)` / `.map_err(identify_err)` call site

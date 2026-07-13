@@ -43,6 +43,8 @@ pub struct RefutationProblem<'a> {
     pub query: &'a AverageEffectQuery,
     /// Original point estimate.
     pub original: &'a EffectEstimate,
+    /// Estimator id used for the original fit (e.g. `linear.adjustment.ate`), when known.
+    pub estimator: Option<&'a str>,
 }
 
 impl RefutationProblem<'_> {
