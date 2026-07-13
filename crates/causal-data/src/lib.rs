@@ -15,6 +15,7 @@ pub mod column;
 pub mod dataset;
 pub mod error;
 pub mod materialize;
+pub mod sample;
 pub mod selection;
 pub mod storage;
 pub mod table;
@@ -33,6 +34,9 @@ pub use column::{
 pub use dataset::{TabularData, TimeSeriesData};
 pub use error::DataError;
 pub use materialize::{MaterializationReason, materialization_diagnostic};
+pub use sample::{
+    DropSummary, LagMap, LaggedColumn, PreparedSample, SamplePlan, SampleWorkspace,
+};
 pub use storage::OwnedColumnarStorage;
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
