@@ -262,6 +262,7 @@ name = "causal-identify"
 version = "0.1.0"
 dependencies = [
  "causal-core",
+ "causal-data",
  "causal-expr",
  "causal-graph",
  "criterion",
