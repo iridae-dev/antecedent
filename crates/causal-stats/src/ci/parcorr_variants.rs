@@ -24,7 +24,7 @@ use super::types::{
 use super::types::CiQuery;
 use crate::error::StatsError;
 
-fn rank_column(col: &[f64], out: &mut [f64]) {
+pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
     let n = col.len();
     let mut idx: Vec<usize> = (0..n).collect();
     idx.sort_by(|&i, &j| col[i].partial_cmp(&col[j]).unwrap_or(std::cmp::Ordering::Equal));

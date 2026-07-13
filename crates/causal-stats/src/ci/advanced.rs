@@ -231,8 +231,35 @@ impl ConditionalIndependence for MixedKnnCmi {
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        self.inner.test_batch(request, workspace, ctx)
+        let n = request.columns.first().map(|c| c.len()).unwrap_or(0);
+        let mut owned: Vec<Vec<f64>> = request.columns.iter().map(|c| c.to_vec()).collect();
+        for col in &mut owned {
+            if looks_discrete(col) {
+                let ranked = col.clone();
+                super::parcorr_variants::rank_column(&ranked, col);
+            }
+        }
+        let refs: Vec<&[f64]> = owned.iter().map(|c| c.as_slice()).collect();
+        let ranked_req = CiBatchRequest {
+            columns: &refs,
+            queries: request.queries,
+            z_flat: request.z_flat,
+            significance: request.significance,
+        };
+        let _ = n;
+        self.inner.test_batch(&ranked_req, workspace, ctx)
     }
+}
+
+fn looks_discrete(col: &[f64]) -> bool {
+    if col.is_empty() {
+        return false;
+    }
+    let mut uniq = col.iter().map(|v| v.round() as i64).collect::<Vec<_>>();
+    uniq.sort_unstable();
+    uniq.dedup();
+    let integerish = col.iter().all(|v| (v - v.round()).abs() < 1e-9);
+    integerish && uniq.len() <= col.len().saturating_div(4).max(8)
 }
 
 /// Symbolic CMI on already-binned/ordinal integer codes (G²-style on symbol pairs).
@@ -252,40 +279,104 @@ impl ConditionalIndependence for SymbolicCmi {
         &self,
         request: &CiBatchRequest<'_>,
         _workspace: &mut CiWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
         let mut results = Vec::with_capacity(request.queries.len());
-        for q in request.queries {
+        for (qi, q) in request.queries.iter().enumerate() {
             let n = request.columns[q.x].len();
-            let mut joint: HashMap<(i32, i32), f64> = HashMap::new();
-            let mut mx: HashMap<i32, f64> = HashMap::new();
-            let mut my: HashMap<i32, f64> = HashMap::new();
-            for r in 0..n {
-                let a = request.columns[q.x][r].round() as i32;
-                let b = request.columns[q.y][r].round() as i32;
-                *joint.entry((a, b)).or_default() += 1.0;
-                *mx.entry(a).or_default() += 1.0;
-                *my.entry(b).or_default() += 1.0;
-            }
-            let nf = n as f64;
-            let mut mi = 0.0;
-            for ((a, b), c) in &joint {
-                let pxy = c / nf;
-                let px = mx[a] / nf;
-                let py = my[b] / nf;
-                if pxy > 0.0 && px > 0.0 && py > 0.0 {
-                    mi += pxy * (pxy / (px * py)).ln();
+            let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
+            let mi = conditional_symbolic_mi(request.columns, q.x, q.y, z, n);
+            // Permutation p-value on Y.
+            let mut y_perm = request.columns[q.y].to_vec();
+            let mut rng = ctx.rng.stream(0x51C_u64.wrapping_add(qi as u64));
+            let n_perm = 49usize;
+            let mut null_ge = 0u32;
+            for _ in 0..n_perm {
+                for i in (1..n).rev() {
+                    let j = (rng.next_u64() as usize) % (i + 1);
+                    y_perm.swap(i, j);
+                }
+                let mut cols: Vec<&[f64]> = request.columns.to_vec();
+                cols[q.y] = &y_perm;
+                let null = conditional_symbolic_mi(&cols, q.x, q.y, z, n);
+                if null >= mi {
+                    null_ge = null_ge.saturating_add(1);
                 }
             }
+            let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
             results.push(CiResult {
                 statistic: mi,
-                p_value: if mi < 0.01 { 1.0 } else { 0.01 },
-                df: nf,
+                p_value: p,
+                df: n as f64,
                 ci: None,
             });
         }
         Ok(CiBatchResult { results })
     }
+}
+
+fn conditional_symbolic_mi(
+    columns: &[&[f64]],
+    x: usize,
+    y: usize,
+    z: &[usize],
+    n: usize,
+) -> f64 {
+    // Stratify by Z symbols; average stratum MI(X;Y|Z=z).
+    let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
+    for r in 0..n {
+        let key = if z.is_empty() {
+            0u64
+        } else {
+            let mut h = 0xcbf29ce484222325u64;
+            for &zc in z {
+                let v = columns[zc][r].round() as i32;
+                h ^= v as u64;
+                h = h.wrapping_mul(0x100000001b3);
+            }
+            h
+        };
+        strata.entry(key).or_default().push(r);
+    }
+    let mut mi = 0.0;
+    let mut weight = 0.0;
+    for rows in strata.values() {
+        if rows.len() < 2 {
+            continue;
+        }
+        let w = rows.len() as f64;
+        mi += w * symbolic_mi_on_rows(columns, x, y, rows);
+        weight += w;
+    }
+    if weight > 0.0 {
+        mi / weight
+    } else {
+        0.0
+    }
+}
+
+fn symbolic_mi_on_rows(columns: &[&[f64]], x: usize, y: usize, rows: &[usize]) -> f64 {
+    let mut joint: HashMap<(i32, i32), f64> = HashMap::new();
+    let mut mx: HashMap<i32, f64> = HashMap::new();
+    let mut my: HashMap<i32, f64> = HashMap::new();
+    let nf = rows.len() as f64;
+    for &r in rows {
+        let a = columns[x][r].round() as i32;
+        let b = columns[y][r].round() as i32;
+        *joint.entry((a, b)).or_default() += 1.0;
+        *mx.entry(a).or_default() += 1.0;
+        *my.entry(b).or_default() += 1.0;
+    }
+    let mut mi = 0.0;
+    for ((a, b), c) in &joint {
+        let pxy = c / nf;
+        let px = mx[a] / nf;
+        let py = my[b] / nf;
+        if pxy > 0.0 && px > 0.0 && py > 0.0 {
+            mi += pxy * (pxy / (px * py)).ln();
+        }
+    }
+    mi
 }
 
 /// Native GPDC: RBF-GP residualization (ridge) + distance-correlation on residuals.
