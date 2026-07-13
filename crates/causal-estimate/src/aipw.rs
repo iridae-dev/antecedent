@@ -186,6 +186,7 @@ impl AipwAte {
             assumptions,
             overlap: problem.overlap,
             overlap_report,
+            retained_memory_bytes: None,
         })
     }
 

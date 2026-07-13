@@ -234,6 +234,8 @@ pub struct EffectEstimate {
     pub overlap: OverlapPolicy,
     /// Propensity overlap diagnostics when computed.
     pub overlap_report: Option<OverlapReport>,
+    /// Estimated retained-memory cost of fitted scratch (bytes), when known.
+    pub retained_memory_bytes: Option<u64>,
 }
 
 /// Linear adjustment estimator for backdoor ATE.
@@ -387,6 +389,7 @@ impl LinearAdjustmentAte {
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
+            retained_memory_bytes: None,
         })
     }
 

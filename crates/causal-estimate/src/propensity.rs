@@ -177,6 +177,22 @@ impl PropensityEstimationWorkspace {
         }
         Ok(())
     }
+
+    /// Estimated retained bytes for propensity + matching scratch (DESIGN §14.6).
+    #[must_use]
+    pub fn retained_memory_bytes(&self) -> u64 {
+        let mut bytes = 0u64;
+        bytes += (self.propensity.scores.capacity() * std::mem::size_of::<f64>()) as u64;
+        bytes += (self.propensity.ols.scratch.capacity() * std::mem::size_of::<f64>()) as u64;
+        bytes += (self.propensity.ols.rhs.capacity() * std::mem::size_of::<f64>()) as u64;
+        bytes += (self.propensity.ols.residuals.capacity() * std::mem::size_of::<f64>()) as u64;
+        bytes += (self.matching_donor_rows.capacity() * std::mem::size_of::<usize>()) as u64;
+        bytes += (self.matching_distances.capacity() * std::mem::size_of::<f64>()) as u64;
+        if let Some(ref idx) = self.matching_index {
+            bytes += idx.retained_memory_bytes();
+        }
+        bytes
+    }
 }
 
 fn fnv1a64(bytes_as_f64: &[f64]) -> u64 {
@@ -521,6 +537,7 @@ impl PropensityWeighting {
             assumptions,
             overlap: problem.overlap,
             overlap_report,
+            retained_memory_bytes: Some(workspace.retained_memory_bytes()),
         })
     }
 
@@ -736,6 +753,7 @@ impl PropensityStratification {
             assumptions,
             overlap: problem.overlap,
             overlap_report,
+            retained_memory_bytes: Some(workspace.retained_memory_bytes()),
         })
     }
 
@@ -1046,6 +1064,7 @@ impl PropensityMatching {
             assumptions,
             overlap: problem.overlap,
             overlap_report,
+            retained_memory_bytes: Some(workspace.retained_memory_bytes()),
         })
     }
 
@@ -1210,6 +1229,7 @@ impl DistanceMatching {
             assumptions,
             overlap: problem.overlap,
             overlap_report,
+            retained_memory_bytes: Some(workspace.retained_memory_bytes()),
         })
     }
 

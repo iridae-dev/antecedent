@@ -250,6 +250,7 @@ impl WaldIv {
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
+            retained_memory_bytes: None,
         })
     }
 
@@ -428,6 +429,7 @@ impl TwoStageLeastSquares {
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
+            retained_memory_bytes: None,
         })
     }
 

@@ -80,6 +80,14 @@ impl MatchingIndex {
         self.donor_rows.is_empty()
     }
 
+    /// Estimated retained memory for this index (bytes).
+    #[must_use]
+    pub fn retained_memory_bytes(&self) -> u64 {
+        let f = self.features.capacity() * core::mem::size_of::<f64>();
+        let d = self.donor_rows.capacity() * core::mem::size_of::<usize>();
+        u64::try_from(f + d).unwrap_or(u64::MAX)
+    }
+
     /// Find the nearest donor to `query` (length `dim`).
     ///
     /// Returns `(donor_original_row, distance)`. If `caliper` is `Some(c)`, returns

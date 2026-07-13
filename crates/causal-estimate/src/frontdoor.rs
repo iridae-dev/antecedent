@@ -265,6 +265,7 @@ impl FrontDoorTwoStage {
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
+            retained_memory_bytes: None,
         })
     }
 
