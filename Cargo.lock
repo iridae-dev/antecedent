@@ -194,6 +194,7 @@ version = "0.1.0"
 dependencies = [
  "causal-core",
  "causal-data",
+ "causal-discovery",
  "causal-estimate",
  "causal-graph",
  "causal-identify",

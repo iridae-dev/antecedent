@@ -16,9 +16,8 @@ use causal_core::{
     AssumptionSet, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use causal_data::{
-    DiscoveryEstimationSplit, LaggedColumn, SampleWorkspace, TimeSeriesData,
+    DiscoveryEstimationSplit, LaggedColumn, SampleWorkspace, TemporalIndexer, TimeSeriesData,
 };
-use causal_graph::UnfoldedTemporalGraph;
 use causal_identify::IdentifiedEstimand;
 use causal_stats::{CompiledDesign, FaerBackend};
 
@@ -61,7 +60,7 @@ impl TemporalLinearAdjustment {
         data: &TimeSeriesData,
         estimand: &IdentifiedEstimand,
         query: &TemporalEffectQuery,
-        unfolded: &UnfoldedTemporalGraph,
+        indexer: &TemporalIndexer,
         split: Option<&DiscoveryEstimationSplit>,
     ) -> Result<PreparedEstimationProblem, EstimationError> {
         if self.inner.overlap != OverlapPolicy::ExplicitOverride {
@@ -88,8 +87,7 @@ impl TemporalLinearAdjustment {
 
         let mut adj_keys = Vec::new();
         for &dense_var in estimand.adjustment_set.iter() {
-            let key = unfolded
-                .indexer
+            let key = indexer
                 .key_of(dense_var.raw())
                 .map_err(|e| EstimationError::Data(e.to_string()))?;
             let lag = offset_to_lag(key.offset)?;
@@ -175,7 +173,8 @@ fn treatment_outcome_offsets(query: &TemporalEffectQuery) -> (i32, i32) {
         TemporalPolicy::Sustained { from, .. } => from,
         _ => 0,
     };
-    let y_off = t_off + (query.horizon_steps as i32 - 1).max(0);
+    // Match TemporalBackdoorIdentifier: outcome at absolute offset horizon_steps-1.
+    let y_off = (query.horizon_steps as i32 - 1).max(0);
     (t_off, y_off)
 }
 
@@ -282,18 +281,20 @@ mod tests {
         let (data, g) = series();
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_policy(TemporalPolicy::pulse(-1))
-            .with_horizon_steps(2)
+            .with_horizon_steps(1)
             .with_max_history_lag(Some(1));
-        let (id_res, unfolded) =
-            TemporalBackdoorIdentifier::new().identify(&g, &q, 2).unwrap();
-        let estimand = id_res.estimands.first().unwrap();
+        let id_res =
+            TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
         let est = TemporalLinearAdjustment::new();
-        let prep = est.prepare(&data, estimand, &q, &unfolded, None).unwrap();
+        let prep = est.prepare(&data, estimand, &q, &id_res.indexer, None).unwrap();
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let mut est2 = TemporalLinearAdjustment::new();
         est2.inner.bootstrap_replicates = 0;
-        let effect = est2.fit(&prep, &mut ws, &ctx, id_res.required_assumptions).unwrap();
+        let effect = est2
+            .fit(&prep, &mut ws, &ctx, id_res.result.required_assumptions)
+            .unwrap();
         assert!(
             (effect.ate - 0.8).abs() < 0.05,
             "ate={} expected ~0.8",

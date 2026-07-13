@@ -1,169 +1,301 @@
 //! Temporal backdoor identification over finite unfolded graphs.
 //!
+//! A stationary [`TemporalDag`] template is materialised into a static [`Dag`]
+//! over a finite window (history/horizon), the treatment and outcome are
+//! mapped to their dense unfolded nodes, and the existing [`BackdoorIdentifier`]
+//! runs unchanged on that static graph. Finiteness and stationarity of the
+//! template become declared assumptions on the result.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_sign_loss
-)]
 
 use std::sync::Arc;
 
 use causal_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    AverageEffectQuery, CausalQuery, TemporalEffectQuery, TemporalPolicy, VariableId,
+    AverageEffectQuery, CausalQuery, Intervention, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use causal_data::{TemporalIndexer, TemporalNodeKey};
-use causal_graph::{TemporalDag, UnfoldedTemporalGraph};
+use causal_graph::{NodeRef, TemporalDag};
 
 use crate::backdoor::BackdoorIdentifier;
 use crate::error::IdentificationError;
 use crate::result::IdentificationResult;
 
-/// Temporal backdoor identifier: unfold then static backdoor.
+/// Identifies [`TemporalEffectQuery`]s via backdoor adjustment over a finite
+/// unfolding of a stationary [`TemporalDag`] template.
 #[derive(Clone, Debug, Default)]
 pub struct TemporalBackdoorIdentifier {
-    /// Underlying static backdoor engine.
+    /// Static backdoor identifier applied to the unfolded graph.
     pub inner: BackdoorIdentifier,
 }
 
+/// Backdoor identification result paired with the finite-unfolding context
+/// needed to reinterpret dense adjustment-set ids as `(variable, offset)`
+/// pairs.
+#[derive(Clone, Debug)]
+pub struct TemporalIdentificationResult {
+    /// Backdoor identification result over the unfolded static DAG. Its
+    /// `treatment`/`outcome`/adjustment-set ids are dense unfolded node ids,
+    /// not the original template [`VariableId`]s.
+    pub result: IdentificationResult,
+    /// Indexer used for the finite unfolding (dense id <-> temporal key).
+    pub indexer: TemporalIndexer,
+    /// Temporal key of the treatment node used for identification.
+    pub treatment_key: TemporalNodeKey,
+    /// Temporal key of the outcome node used for identification.
+    pub outcome_key: TemporalNodeKey,
+}
+
 impl TemporalBackdoorIdentifier {
-    /// Default engine.
+    /// Create with default config.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Identify a temporal effect over a finite unfolding of `graph`.
+    /// Unfold `template` to a finite static DAG sized for `query`, then run
+    /// backdoor identification for the treatment/outcome nodes implied by the
+    /// query's temporal policy and horizon.
     ///
-    /// Treatment and outcome are mapped to unfolded dense nodes; adjustment sets
-    /// are returned as [`VariableId`]s equal to those dense ids (caller maps via
-    /// the returned indexer).
+    /// The unfolding window (history/horizon) is derived from the policy
+    /// offset, `horizon_steps`, `max_history_lag`, and the template's own
+    /// maximum lag so that in-window confounders are not truncated.
     ///
     /// # Errors
     ///
-    /// Unfold / mapping / backdoor failures.
-    pub fn identify(
+    /// Invalid query, unfolding failures, sustained policies (not yet
+    /// supported; they require sequential/g-formula identification rather
+    /// than a single-node backdoor criterion), or backdoor identification
+    /// errors.
+    pub fn identify_temporal(
         &self,
-        graph: &TemporalDag,
+        template: &TemporalDag,
         query: &TemporalEffectQuery,
-        variable_count: u32,
-    ) -> Result<(IdentificationResult, UnfoldedTemporalGraph), IdentificationError> {
+    ) -> Result<TemporalIdentificationResult, IdentificationError> {
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid temporal-effect query",
         })?;
-        let history = query.max_history_lag.unwrap_or_else(|| max_template_lag(graph)).max(1);
-        let horizon = query.horizon_steps.max(1);
-        let indexer = TemporalIndexer::new(variable_count, history, horizon).map_err(|e| {
-            IdentificationError::Graph(format!("temporal indexer: {e}"))
-        })?;
-        let unfolded = graph
-            .unfold(indexer)
+        let treatment_at = treatment_offset(query.policy)?;
+        let outcome_at = i32::try_from(query.horizon_steps.saturating_sub(1))
+            .map_err(|_| IdentificationError::Graph("horizon_steps overflow".into()))?;
+
+        let min_offset = treatment_at.min(outcome_at).min(0);
+        let max_offset = treatment_at.max(outcome_at).max(0);
+        let history = min_offset
+            .unsigned_abs()
+            .max(template_max_lag(template))
+            .max(query.max_history_lag.unwrap_or(0));
+        let horizon = u32::try_from(max_offset)
+            .map_err(|_| IdentificationError::Graph("negative horizon".into()))?
+            .saturating_add(1);
+
+        let variable_count = required_variable_count(template, query.treatment, query.outcome);
+        let indexer = TemporalIndexer::new(variable_count, history, horizon)
             .map_err(|e| IdentificationError::Graph(e.to_string()))?;
 
-        let (t_off, y_off) = intervention_outcome_offsets(query);
-        let t_key = TemporalNodeKey { variable: query.treatment, offset: t_off };
-        let y_key = TemporalNodeKey { variable: query.outcome, offset: y_off };
-        let t_dense = unfolded.indexer.dense_id(t_key).map_err(|e| {
-            IdentificationError::Graph(format!("treatment node outside window: {e}"))
-        })?;
-        let y_dense = unfolded.indexer.dense_id(y_key).map_err(|e| {
-            IdentificationError::Graph(format!("outcome node outside window: {e}"))
-        })?;
+        let unfolded =
+            template.unfold(indexer).map_err(|e| IdentificationError::Graph(e.to_string()))?;
 
-        let ate = AverageEffectQuery::with_levels(
-            VariableId::from_raw(t_dense),
-            VariableId::from_raw(y_dense),
-            intervention_f64(&query.control).unwrap_or(0.0),
-            intervention_f64(&query.active).unwrap_or(1.0),
-        );
+        let treatment_key = TemporalNodeKey { variable: query.treatment, offset: treatment_at };
+        let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
 
-        let prepared = self
-            .inner
-            .prepare(&unfolded.dag)
-            .map_err(|e| IdentificationError::Graph(e.to_string()))?;
-        let mut result = self
-            .inner
-            .identify(&prepared, &CausalQuery::AverageEffect(ate))?;
+        let treatment_dense = unfolded
+            .indexer
+            .dense_id(treatment_key)
+            .map_err(|_| IdentificationError::UnknownVariable { id: query.treatment })?;
+        let outcome_dense = unfolded
+            .indexer
+            .dense_id(outcome_key)
+            .map_err(|_| IdentificationError::UnknownVariable { id: query.outcome })?;
 
-        result.query = CausalQuery::TemporalEffect(query.clone());
-        for e in &mut result.estimands {
-            e.method = Arc::from("temporal.backdoor.unfolded");
+        let treatment_var = VariableId::from_raw(treatment_dense);
+        let outcome_var = VariableId::from_raw(outcome_dense);
+
+        let ate = AverageEffectQuery {
+            treatment: treatment_var,
+            outcome: outcome_var,
+            effect_modifiers: Arc::from([]),
+            control: retarget(&query.control, treatment_var)?,
+            active: retarget(&query.active, treatment_var)?,
+            target_population: query.target_population.clone(),
+        };
+
+        let prepared = self.inner.prepare(&unfolded.dag)?;
+        let mut result = self.inner.identify(&prepared, &CausalQuery::average_effect(ate))?;
+        annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
+
+        Ok(TemporalIdentificationResult {
+            result,
+            indexer: unfolded.indexer,
+            treatment_key,
+            outcome_key,
+        })
+    }
+}
+
+fn treatment_offset(policy: TemporalPolicy) -> Result<i32, IdentificationError> {
+    match policy {
+        TemporalPolicy::Pulse { at } => Ok(at),
+        TemporalPolicy::Sustained { .. } => Err(IdentificationError::UnsupportedQuery {
+            message: "temporal backdoor identification supports Pulse policies only; \
+                      sustained interventions require sequential (g-formula) identification",
+        }),
+        _ => Err(IdentificationError::UnsupportedQuery {
+            message: "unsupported temporal policy for Phase 3 backdoor identification",
+        }),
+    }
+}
+
+fn template_max_lag(template: &TemporalDag) -> u32 {
+    template
+        .nodes()
+        .iter()
+        .filter_map(|n| match n {
+            NodeRef::Lagged { lag, .. } => Some(lag.raw()),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn required_variable_count(
+    template: &TemporalDag,
+    treatment: VariableId,
+    outcome: VariableId,
+) -> u32 {
+    let mut max_id = treatment.raw().max(outcome.raw());
+    for node in template.nodes() {
+        if let NodeRef::Lagged { variable, .. } = node {
+            max_id = max_id.max(variable.raw());
         }
-        result.required_assumptions.push(AssumptionRecord {
-            assumption: Assumption::Stationarity,
-            source: AssumptionSource::AlgorithmDefault {
-                algorithm: Arc::from("temporal.backdoor.unfolded"),
-            },
-            scope: AssumptionScope::Identification,
-            status: AssumptionStatus::Declared,
-        });
-        result.derivation.push(
-            "temporal.unfold",
-            "finite unfolding of temporal DAG; backdoor on unfolded static graph",
-        );
+    }
+    max_id.saturating_add(1)
+}
 
-        Ok((result, unfolded))
+fn retarget(
+    intervention: &Intervention,
+    variable: VariableId,
+) -> Result<Intervention, IdentificationError> {
+    match intervention {
+        Intervention::Set { value, .. } => Ok(Intervention::set(variable, value.clone())),
+        _ => Err(IdentificationError::UnsupportedQuery {
+            message: "temporal backdoor requires Set interventions",
+        }),
     }
 }
 
-fn intervention_f64(i: &causal_core::Intervention) -> Option<f64> {
-    match i {
-        causal_core::Intervention::Set { value, .. } => value.as_f64(),
-        _ => None,
+fn annotate_temporal(
+    result: &mut IdentificationResult,
+    query: &TemporalEffectQuery,
+    treatment_key: TemporalNodeKey,
+    outcome_key: TemporalNodeKey,
+    history: u32,
+    horizon: u32,
+) {
+    result.required_assumptions.push(AssumptionRecord {
+        assumption: Assumption::Stationarity,
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("temporal.backdoor.unfolded"),
+        },
+        scope: AssumptionScope::Identification,
+        status: AssumptionStatus::Declared,
+    });
+    let treatment = query.treatment;
+    let outcome = query.outcome;
+    let t_offset = treatment_key.offset;
+    let o_offset = outcome_key.offset;
+    result.derivation.push(
+        "temporal.unfold",
+        format!(
+            "finite window history={history} horizon={horizon}; \
+             treatment={treatment}@{t_offset} outcome={outcome}@{o_offset}"
+        ),
+    );
+    for e in &mut result.estimands {
+        e.method = Arc::from("temporal.backdoor.unfolded");
     }
-}
-
-fn intervention_outcome_offsets(query: &TemporalEffectQuery) -> (i32, i32) {
-    let t_off = match query.policy {
-        TemporalPolicy::Pulse { at } => at,
-        TemporalPolicy::Sustained { from, .. } => from,
-        _ => 0,
-    };
-    let y_off = t_off + (query.horizon_steps as i32 - 1).max(0);
-    (t_off, y_off)
-}
-
-fn max_template_lag(graph: &TemporalDag) -> u32 {
-    use causal_graph::NodeRef;
-    let mut max_lag = 0u32;
-    for n in graph.nodes() {
-        if let NodeRef::Lagged { lag, .. } = n {
-            max_lag = max_lag.max(lag.raw());
-        }
-    }
-    max_lag.max(1)
 }
 
 #[cfg(test)]
 mod tests {
-    use causal_core::{Lag, TemporalEffectQuery, VariableId};
-    use causal_graph::{TemporalDag, ensure_lagged};
+    use causal_core::Lag;
 
     use super::*;
     use crate::result::IdentificationStatus;
 
     #[test]
-    fn lagged_chain_identifies() {
-        let mut g = TemporalDag::empty();
-        let x1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
-        let y0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-        g.insert_directed(x1, y0).unwrap();
+    fn chain_identifies_with_empty_adjustment() {
+        // Template: X_{t-1} -> Y_t (no confounding).
+        let mut template = TemporalDag::empty();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x, y).unwrap();
 
-        // Pulse X at t=-1 (history), outcome Y at t=0 with horizon covering [0].
-        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
-            .with_policy(causal_core::TemporalPolicy::pulse(-1))
-            .with_horizon_steps(2)
-            .with_max_history_lag(Some(1));
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1);
 
-        let id = TemporalBackdoorIdentifier::new();
-        let (res, unfolded) = id.identify(&g, &q, 2).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(!res.estimands.is_empty());
-        assert!(unfolded.dag.node_count() >= 2);
-        assert!(res.required_assumptions.entries.iter().any(|a| {
-            matches!(a.assumption, Assumption::Stationarity)
-        }));
+        let identifier = TemporalBackdoorIdentifier::new();
+        let temporal_result = identifier.identify_temporal(&template, &query).unwrap();
+        assert_eq!(
+            temporal_result.result.status,
+            IdentificationStatus::NonparametricallyIdentified
+        );
+        assert!(temporal_result.result.estimands[0].adjustment_set.is_empty());
+        assert!(
+            temporal_result
+                .result
+                .required_assumptions
+                .entries
+                .iter()
+                .any(|a| a.assumption == Assumption::Stationarity)
+        );
+    }
+
+    #[test]
+    fn confounded_chain_requires_lagged_confounder() {
+        // Template: Z_{t-1} -> X_{t-1}, Z_{t-1} -> Y_t, X_{t-1} -> Y_t.
+        let mut template = TemporalDag::empty();
+        let z = template.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(z, x).unwrap();
+        template.insert_directed(z, y).unwrap();
+        template.insert_directed(x, y).unwrap();
+
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1);
+
+        let identifier = TemporalBackdoorIdentifier::new();
+        let temporal_result = identifier.identify_temporal(&template, &query).unwrap();
+        assert_eq!(
+            temporal_result.result.status,
+            IdentificationStatus::NonparametricallyIdentified
+        );
+        let z_key = TemporalNodeKey { variable: VariableId::from_raw(2), offset: -1 };
+        let z_dense = temporal_result.indexer.dense_id(z_key).unwrap();
+        assert_eq!(
+            temporal_result.result.estimands[0].adjustment_set.as_ref(),
+            &[VariableId::from_raw(z_dense)]
+        );
+    }
+
+    #[test]
+    fn sustained_policy_is_unsupported() {
+        let template = TemporalDag::empty();
+        let query = TemporalEffectQuery::sustained(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            2,
+            1.0,
+        );
+        let identifier = TemporalBackdoorIdentifier::new();
+        assert!(matches!(
+            identifier.identify_temporal(&template, &query),
+            Err(IdentificationError::UnsupportedQuery { .. })
+        ));
     }
 }

@@ -139,4 +139,89 @@ mod tests {
         assert_eq!(round.method, trace.method);
         assert_eq!(round.derivation.len(), trace.derivation.len());
     }
+
+    #[test]
+    fn end_to_end_temporal_effect() {
+        use causal_core::{Lag, TemporalEffectQuery, TemporalPolicy};
+        use causal_data::{
+            SamplingRegularity, TimeIndex, TimeSeriesData,
+        };
+        use causal_graph::{TemporalDag, ensure_lagged};
+
+        let n = 250usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "pressure",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "defect",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for t in 1..n {
+            x[t] = ((t as f64) * 0.05).sin();
+            y[t] = 0.75 * x[t - 1];
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let series = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap();
+        let mut g = TemporalDag::empty();
+        let x1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(x1, y0).unwrap();
+        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1);
+        let analysis = CausalAnalysis::builder()
+            .series(series)
+            .temporal_graph(g)
+            .temporal_query(q)
+            .bootstrap_replicates(0)
+            .variable_count(2)
+            .build()
+            .unwrap();
+        let ctx = ExecutionContext::for_tests(7);
+        let result = analysis.run(&ctx).unwrap();
+        assert!(
+            (result.estimate.ate - 0.75).abs() < 0.08,
+            "ate={}",
+            result.estimate.ate
+        );
+        assert_eq!(&*result.logical_plan.plan_id, "phase3.temporal_effect");
+        assert!(result.physical_plan.estimated_peak_memory_bytes.is_some());
+    }
 }

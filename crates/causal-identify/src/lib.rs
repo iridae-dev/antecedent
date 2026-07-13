@@ -16,4 +16,4 @@ pub use result::{
     DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand,
 };
-pub use temporal_backdoor::TemporalBackdoorIdentifier;
+pub use temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
