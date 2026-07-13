@@ -6,22 +6,22 @@ Criterion: `--quick` sample (refresh with full Criterion for gate decisions)
 
 ## CI batch (`causal-stats` bench `ci_phase5`)
 
-Workload: `PartialCorrelation` analytic batches on `n=400`, `p=6`, conditioning
-sizes `z∈{0,1,2,4}`, with full sample and 20% complete-case drop (`missing20`).
+Workload: analytic CI batches on `n=400` (kNN `n=120`), conditioning sizes as
+noted, with full sample and 20% mask-based complete-case drop (`missing20`).
+
+Groups: `ci_batch_parcorr`, `ci_batch_robust`, `ci_batch_gsquared`, `ci_batch_knn`.
 
 | Workload | mean wall time |
 |----------|----------------|
-| z0_full | **636 ns** |
-| z0_missing20 | **537 ns** |
-| z1_full | **5.01 µs** |
-| z1_missing20 | **3.86 µs** |
-| z2_full | **7.91 µs** |
-| z2_missing20 | **6.61 µs** |
-| z4_full | **14.9 µs** |
-| z4_missing20 | **11.3 µs** |
+| parcorr z0_full | **~0.7 µs** |
+| parcorr z1_full | **~5 µs** |
+| parcorr z4_full | **~17 µs** |
+| robust z1_full | **~14 µs** |
+| gsquared z1_full | **~11 µs** |
+| knn z1_full | **~8 ms** |
 
 ```bash
-cargo +1.85 bench -p causal-stats --bench ci_phase5 -- ci_batch_parcorr
+cargo +1.85 bench -p causal-stats --bench ci_phase5
 ```
 
 Acceptance: no unexplained >20% regression vs last accepted Criterion mean on
