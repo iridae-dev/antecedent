@@ -40,6 +40,11 @@ pub enum DataError {
         /// Explanation.
         context: &'static str,
     },
+    /// Invalid argument (split policy, configuration, etc.).
+    InvalidArgument {
+        /// Explanation.
+        message: String,
+    },
     /// Underlying schema error.
     Schema(String),
 }
@@ -56,6 +61,7 @@ impl fmt::Display for DataError {
             }
             Self::InvalidValidity { message } => write!(f, "invalid validity: {message}"),
             Self::EmptySelection { context } => write!(f, "empty selection: {context}"),
+            Self::InvalidArgument { message } => write!(f, "invalid argument: {message}"),
             Self::Schema(msg) => write!(f, "schema error: {msg}"),
         }
     }

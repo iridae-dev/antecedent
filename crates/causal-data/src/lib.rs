@@ -22,6 +22,7 @@ pub mod resample;
 pub mod sample;
 pub mod selection;
 pub mod sim;
+pub mod split;
 pub mod storage;
 pub mod table;
 pub mod temporal;
@@ -50,6 +51,7 @@ pub use sample::{
     DropSummary, LagMap, LaggedColumn, PreparedSample, SamplePlan, SampleWorkspace,
 };
 pub use sim::{KnownLaggedParent, LaggedLinearPair};
+pub use split::{DiscoveryEstimationSplit, TimeRange};
 pub use storage::OwnedColumnarStorage;
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
