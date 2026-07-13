@@ -116,16 +116,16 @@ phase = 4
 id = "dowhy.estimate.propensity"
 group = "estimation"
 description = "Propensity base, matching, stratification, weighting"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]
 id = "dowhy.estimate.matching"
 group = "estimation"
 description = "Distance matching"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]

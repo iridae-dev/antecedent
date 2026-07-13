@@ -19,3 +19,10 @@ causal-expr = { path = "../causal-expr" }
 causal-graph = { path = "../causal-graph" }
 causal-identify = { path = "../causal-identify" }
 causal-stats = { path = "../causal-stats" }
+
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "propensity_bootstrap"
+harness = false

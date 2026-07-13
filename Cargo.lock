@@ -241,6 +241,7 @@ dependencies = [
  "causal-graph",
  "causal-identify",
  "causal-stats",
+ "criterion",
 ]
 
 [[package]]
