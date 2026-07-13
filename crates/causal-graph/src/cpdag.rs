@@ -1,0 +1,421 @@
+//! CPDAG and temporal CPDAG (Phase 5).
+//!
+//! Undirected contemporaneous marks use [`Endpoint::Tail`]–[`Endpoint::Tail`].
+//! [`Endpoint::Circle`] is rejected (reserved for Phase 8 PAG/LPCMCI).
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(clippy::many_single_char_names)]
+
+use causal_core::{Lag, VariableId};
+
+use crate::error::GraphError;
+use crate::temporal::TemporalDag;
+use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
+use crate::workspace::GraphWorkspace;
+
+/// Adjacency entry: neighbor plus marks at self and at neighbor.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+struct AdjEntry {
+    neighbor: DenseNodeId,
+    at_self: Endpoint,
+    at_neighbor: Endpoint,
+}
+
+/// Temporal CPDAG over lagged variable nodes (DESIGN §6.2, Phase 5).
+#[derive(Clone, Debug)]
+pub struct TemporalCpdag {
+    nodes: Vec<NodeRef>,
+    adj: Vec<Vec<AdjEntry>>,
+}
+
+impl TemporalCpdag {
+    /// Empty temporal CPDAG.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self { nodes: Vec::new(), adj: Vec::new() }
+    }
+
+    /// Node count.
+    #[must_use]
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Whether empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    /// Nodes in dense order.
+    #[must_use]
+    pub fn nodes(&self) -> &[NodeRef] {
+        &self.nodes
+    }
+
+    /// Add a lagged node.
+    ///
+    /// # Errors
+    ///
+    /// Non-lagged refs or capacity overflow.
+    pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
+        match node {
+            NodeRef::Lagged { .. } => {}
+            _ => {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "TemporalCpdag accepts only Lagged nodes",
+                });
+            }
+        }
+        let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
+        self.nodes.push(node);
+        self.adj.push(Vec::new());
+        Ok(DenseNodeId::from_raw(id))
+    }
+
+    /// Convenience: add `variable` at `lag`.
+    ///
+    /// # Errors
+    ///
+    /// Capacity overflow.
+    pub fn add_lagged(
+        &mut self,
+        variable: VariableId,
+        lag: Lag,
+    ) -> Result<DenseNodeId, GraphError> {
+        self.add_node(NodeRef::Lagged { variable, lag })
+    }
+
+    /// Insert a CPDAG-legal marked edge (directed or undirected).
+    ///
+    /// # Errors
+    ///
+    /// Unknown nodes, duplicates, Circle marks, contemporaneous self-edges, or directed cycles.
+    pub fn insert_marked(&mut self, edge: MarkedEdge) -> Result<(), GraphError> {
+        if !edge.is_cpdag_legal() {
+            return Err(GraphError::InvalidEndpoints {
+                message: "CPDAG rejects Circle marks and non Tail/Arrow combinations (Phase 8 PAG)",
+            });
+        }
+        self.validate_node(edge.a)?;
+        self.validate_node(edge.b)?;
+        if edge.a == edge.b {
+            if let NodeRef::Lagged { variable, lag } = self.nodes[edge.a.as_usize()] {
+                if lag.is_contemporaneous() {
+                    return Err(GraphError::ContemporaneousSelfEdge { variable });
+                }
+            }
+        }
+        if self.has_edge(edge.a, edge.b) {
+            return Err(GraphError::DuplicateEdge { from: edge.a.raw(), to: edge.b.raw() });
+        }
+        if let Some((from, to)) = edge.parent_child() {
+            if self.reaches_directed(to, from) {
+                return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
+            }
+        }
+        self.adj[edge.a.as_usize()].push(AdjEntry {
+            neighbor: edge.b,
+            at_self: edge.at_a,
+            at_neighbor: edge.at_b,
+        });
+        self.adj[edge.b.as_usize()].push(AdjEntry {
+            neighbor: edge.a,
+            at_self: edge.at_b,
+            at_neighbor: edge.at_a,
+        });
+        Ok(())
+    }
+
+    /// Insert directed edge `from -> to`.
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::insert_marked`].
+    pub fn insert_directed(
+        &mut self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+    ) -> Result<(), GraphError> {
+        self.insert_marked(MarkedEdge::directed(from, to))
+    }
+
+    /// Insert undirected edge `a — b`.
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::insert_marked`].
+    pub fn insert_undirected(
+        &mut self,
+        a: DenseNodeId,
+        b: DenseNodeId,
+    ) -> Result<(), GraphError> {
+        self.insert_marked(MarkedEdge::undirected(a, b))
+    }
+
+    /// Orient an existing undirected edge as `from -> to`.
+    ///
+    /// # Errors
+    ///
+    /// Missing edge, already directed, cycle, or unknown nodes.
+    pub fn orient_undirected(
+        &mut self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+    ) -> Result<(), GraphError> {
+        self.validate_node(from)?;
+        self.validate_node(to)?;
+        let Some(edge) = self.edge_between(from, to) else {
+            return Err(GraphError::UnknownNode { id: from.raw() });
+        };
+        if !edge.is_undirected() {
+            return Err(GraphError::InvalidEndpoints {
+                message: "orient_undirected requires an undirected Tail–Tail edge",
+            });
+        }
+        if self.reaches_directed(to, from) {
+            return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
+        }
+        self.set_marks(from, to, Endpoint::Tail, Endpoint::Arrow)?;
+        Ok(())
+    }
+
+    /// Whether any edge exists between `a` and `b`.
+    #[must_use]
+    pub fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
+        self.edge_between(a, b).is_some()
+    }
+
+    /// Marked edge between `a` and `b` if present (marks oriented from `a`'s perspective as `at_a`).
+    #[must_use]
+    pub fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
+        if a.as_usize() >= self.node_count() || b.as_usize() >= self.node_count() {
+            return None;
+        }
+        for e in &self.adj[a.as_usize()] {
+            if e.neighbor == b {
+                return Some(MarkedEdge {
+                    a,
+                    b,
+                    at_a: e.at_self,
+                    at_b: e.at_neighbor,
+                });
+            }
+        }
+        None
+    }
+
+    /// All marked edges (each undirected/directed pair once, with `a.raw() <= b.raw()` for undirected
+    /// and parent-first for directed).
+    #[must_use]
+    pub fn edges(&self) -> Vec<MarkedEdge> {
+        let mut out = Vec::new();
+        for (i, nbrs) in self.adj.iter().enumerate() {
+            let a = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            for e in nbrs {
+                if a.raw() < e.neighbor.raw()
+                    || (a.raw() == e.neighbor.raw()
+                        && matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)))
+                {
+                    out.push(MarkedEdge {
+                        a,
+                        b: e.neighbor,
+                        at_a: e.at_self,
+                        at_b: e.at_neighbor,
+                    });
+                } else if a.raw() > e.neighbor.raw() {
+                    // skip reverse half
+                } else if matches!((e.at_self, e.at_neighbor), (Endpoint::Arrow, Endpoint::Tail)) {
+                    // directed stored from child side only when a > neighbor — emit parent-first
+                    out.push(MarkedEdge::directed(e.neighbor, a));
+                }
+            }
+        }
+        out.sort_by_key(|e| (e.a.raw(), e.b.raw(), e.at_a as u8, e.at_b as u8));
+        out.dedup();
+        out
+    }
+
+    /// Directed children of `id` (outgoing arrows).
+    #[must_use]
+    pub fn children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+        if id.as_usize() >= self.node_count() {
+            return Vec::new();
+        }
+        self.adj[id.as_usize()]
+            .iter()
+            .filter(|e| matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)))
+            .map(|e| e.neighbor)
+            .collect()
+    }
+
+    /// Undirected neighbors of `id`.
+    #[must_use]
+    pub fn undirected_neighbors(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+        if id.as_usize() >= self.node_count() {
+            return Vec::new();
+        }
+        self.adj[id.as_usize()]
+            .iter()
+            .filter(|e| matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Tail)))
+            .map(|e| e.neighbor)
+            .collect()
+    }
+
+    /// Build from a directed [`TemporalDag`] (all edges become directed marks).
+    #[must_use]
+    pub fn from_temporal_dag(dag: &TemporalDag) -> Self {
+        let mut g = Self::empty();
+        for node in dag.nodes() {
+            let _ = g.add_node(*node);
+        }
+        for e in dag.edges() {
+            if let Some((from, to)) = e.parent_child() {
+                let _ = g.insert_directed(from, to);
+            }
+        }
+        g
+    }
+
+    /// Extract a directed [`TemporalDag`] from directed edges only (drops undirected).
+    ///
+    /// # Errors
+    ///
+    /// Propagates insert failures (should not happen for a valid CPDAG's directed subset).
+    pub fn to_directed_skeleton(&self) -> Result<TemporalDag, GraphError> {
+        let mut dag = TemporalDag::empty();
+        for node in &self.nodes {
+            dag.add_node(*node)?;
+        }
+        for e in self.edges() {
+            if let Some((from, to)) = e.parent_child() {
+                dag.insert_directed(from, to)?;
+            }
+        }
+        Ok(dag)
+    }
+
+    fn reaches_directed(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
+        if from == to {
+            return true;
+        }
+        let mut ws = GraphWorkspace::default();
+        ws.prepare(self.node_count());
+        ws.frontier.push(from);
+        ws.visited.insert(from);
+        while let Some(n) = ws.frontier.pop() {
+            for c in self.children(n) {
+                if c == to {
+                    return true;
+                }
+                if !ws.visited.contains(c) {
+                    ws.visited.insert(c);
+                    ws.frontier.push(c);
+                }
+            }
+        }
+        false
+    }
+
+    fn set_marks(
+        &mut self,
+        a: DenseNodeId,
+        b: DenseNodeId,
+        at_a: Endpoint,
+        at_b: Endpoint,
+    ) -> Result<(), GraphError> {
+        let mut found = false;
+        for e in &mut self.adj[a.as_usize()] {
+            if e.neighbor == b {
+                e.at_self = at_a;
+                e.at_neighbor = at_b;
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            return Err(GraphError::UnknownNode { id: a.raw() });
+        }
+        found = false;
+        for e in &mut self.adj[b.as_usize()] {
+            if e.neighbor == a {
+                e.at_self = at_b;
+                e.at_neighbor = at_a;
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            return Err(GraphError::UnknownNode { id: b.raw() });
+        }
+        Ok(())
+    }
+
+    fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
+        if id.as_usize() >= self.node_count() {
+            Err(GraphError::UnknownNode { id: id.raw() })
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// Alias for documentation / DESIGN naming (`Cpdag` over temporal nodes).
+pub type Cpdag = TemporalCpdag;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn undirected_then_orient() {
+        let mut g = TemporalCpdag::empty();
+        let x = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_undirected(x, y).unwrap();
+        assert!(g.edge_between(x, y).unwrap().is_undirected());
+        g.orient_undirected(x, y).unwrap();
+        let e = g.edge_between(x, y).unwrap();
+        assert_eq!(e.parent_child(), Some((x, y)));
+        assert_eq!(g.children(x), vec![y]);
+        assert!(g.undirected_neighbors(x).is_empty());
+    }
+
+    #[test]
+    fn rejects_circle_marks() {
+        let mut g = TemporalCpdag::empty();
+        let x = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let edge = MarkedEdge {
+            a: x,
+            b: y,
+            at_a: Endpoint::Circle,
+            at_b: Endpoint::Arrow,
+        };
+        assert!(matches!(g.insert_marked(edge), Err(GraphError::InvalidEndpoints { .. })));
+    }
+
+    #[test]
+    fn from_temporal_dag_preserves_directed() {
+        let mut dag = TemporalDag::empty();
+        let a = dag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let b = dag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        dag.insert_directed(a, b).unwrap();
+        let cpdag = TemporalCpdag::from_temporal_dag(&dag);
+        assert_eq!(cpdag.edge_between(a, b).unwrap().parent_child(), Some((a, b)));
+        let back = cpdag.to_directed_skeleton().unwrap();
+        assert!(back.reaches(a, b));
+    }
+
+    #[test]
+    fn marked_edge_undirected_canonical() {
+        let a = DenseNodeId::from_raw(2);
+        let b = DenseNodeId::from_raw(1);
+        let e = MarkedEdge::undirected(a, b);
+        assert!(e.is_undirected());
+        assert!(e.is_cpdag_legal());
+        assert_eq!(e.a.raw(), 1);
+        assert_eq!(e.b.raw(), 2);
+    }
+}

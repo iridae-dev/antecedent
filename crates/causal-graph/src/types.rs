@@ -81,6 +81,16 @@ impl MarkedEdge {
         Self { a: from, b: to, at_a: Endpoint::Tail, at_b: Endpoint::Arrow }
     }
 
+    /// Undirected edge `a — b` (tail–tail). Canonicalizes so `a.raw() <= b.raw()`.
+    #[must_use]
+    pub fn undirected(a: DenseNodeId, b: DenseNodeId) -> Self {
+        if a.raw() <= b.raw() {
+            Self { a, b, at_a: Endpoint::Tail, at_b: Endpoint::Tail }
+        } else {
+            Self { a: b, b: a, at_a: Endpoint::Tail, at_b: Endpoint::Tail }
+        }
+    }
+
     /// Whether this is a DAG-legal directed edge.
     #[must_use]
     pub const fn is_dag_directed(self) -> bool {
@@ -88,6 +98,19 @@ impl MarkedEdge {
             (self.at_a, self.at_b),
             (Endpoint::Tail, Endpoint::Arrow) | (Endpoint::Arrow, Endpoint::Tail)
         )
+    }
+
+    /// Whether this is an undirected CPDAG edge (tail–tail).
+    #[must_use]
+    pub const fn is_undirected(self) -> bool {
+        matches!((self.at_a, self.at_b), (Endpoint::Tail, Endpoint::Tail))
+    }
+
+    /// Whether marks are legal for a Phase 5 CPDAG (no Circle).
+    #[must_use]
+    pub const fn is_cpdag_legal(self) -> bool {
+        !matches!(self.at_a, Endpoint::Circle) && !matches!(self.at_b, Endpoint::Circle)
+            && (self.is_dag_directed() || self.is_undirected())
     }
 
     /// Oriented parent -> child for a DAG directed edge.

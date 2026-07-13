@@ -224,8 +224,8 @@ phase = 1
 id = "tigramite.graphs.endpoints"
 group = "graphs"
 description = "Endpoint / orientation semantics"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]

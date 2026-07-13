@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod ancestry;
+pub mod cpdag;
 pub mod dag;
 pub mod dsep;
 pub mod error;
@@ -14,6 +15,7 @@ pub mod types;
 pub mod unfold;
 pub mod workspace;
 
+pub use cpdag::{Cpdag, TemporalCpdag};
 pub use dag::Dag;
 pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
 pub use error::GraphError;

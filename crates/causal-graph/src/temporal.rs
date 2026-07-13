@@ -6,7 +6,7 @@ use causal_core::{Lag, VariableId};
 use causal_data::TemporalNodeKey;
 
 use crate::error::GraphError;
-use crate::types::{DenseNodeId, NodeRef};
+use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// Directed acyclic graph over lagged (`VariableId`, `Lag`) nodes.
@@ -114,6 +114,14 @@ impl TemporalDag {
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
         &self.children[id.as_usize()]
+    }
+
+    /// Iterate directed edges as marked edges.
+    pub fn edges(&self) -> impl Iterator<Item = MarkedEdge> + '_ {
+        self.children.iter().enumerate().flat_map(|(i, kids)| {
+            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            kids.iter().map(move |&to| MarkedEdge::directed(from, to))
+        })
     }
 
     /// Reachability.
