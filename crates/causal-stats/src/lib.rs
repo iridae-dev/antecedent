@@ -14,6 +14,9 @@ pub mod fdr;
 pub mod glm;
 pub mod gram;
 pub mod linalg;
+pub mod matching;
+pub mod propensity;
+pub mod twosls;
 
 pub use ci::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
@@ -27,3 +30,8 @@ pub use fdr::benjamini_hochberg;
 pub use glm::{GlmDesignRef, GlmFamily, GlmFit, GlmOptions, fit_glm};
 pub use gram::{form_xtx, invert_square};
 pub use linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
+pub use matching::{
+    EXACT_MATCHING_ROW_LIMIT, MatchingDistance, MatchingIndex, nearest_euclidean_scalar,
+};
+pub use propensity::{PropensityFit, PropensityWorkspace, fit_propensity, predict_propensity};
+pub use twosls::{TwoSlsFit, fit_2sls, fit_wls};
