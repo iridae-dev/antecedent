@@ -15,12 +15,20 @@ use causal_core::{
 use causal_data::{DiscoveryEstimationSplit, TabularData, TableView, TimeSeriesData};
 use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
 use causal_estimate::{
-    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
-    TemporalLinearAdjustment,
+    AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError,
+    EstimationWorkspace, FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte,
+    GlmAdjustmentWorkspace, LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace,
+    PropensityMatching, PropensityStratification, PropensityWeighting, RdWorkspace,
+    SharpRegressionDiscontinuity, TemporalLinearAdjustment, TwoStageLeastSquares,
+    TwoStageLeastSquaresWorkspace, WaldIv,
 };
+use causal_expr::{CausalExprArena, ExprId};
 use causal_graph::{Dag, TemporalDag, TemporalGraphReview};
 use causal_identify::{
-    BackdoorIdentifier, IdentificationStatus, IdentifiedEstimand, TemporalBackdoorIdentifier,
+    BackdoorIdentifier, DerivationTrace, EfficientBackdoorIdentifier, FrontDoorIdentifier,
+    IdentificationError, IdentificationPerformanceRecord, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, InstrumentalVariableIdentifier,
+    TemporalBackdoorIdentifier,
 };
 use causal_validate::{PlaceboTreatment, RandomCommonCause, RefutationProblem, RefutationReport};
 
@@ -47,6 +55,18 @@ enum DataInput {
     Temporal(TimeSeriesData),
 }
 
+/// Running-variable configuration for the `rd.sharp` estimator; required when `rd.sharp` is
+/// selected as the estimator (see [`CausalAnalysisBuilder::rd_config`]).
+#[derive(Clone, Copy, Debug)]
+pub struct RdConfig {
+    /// Running (assignment) variable.
+    pub running_variable: VariableId,
+    /// Discontinuity cutoff.
+    pub cutoff: f64,
+    /// Symmetric bandwidth around the cutoff (`|R − cutoff| ≤ bandwidth` is retained).
+    pub bandwidth: f64,
+}
+
 /// Builder for static or temporal analysis.
 #[derive(Clone, Debug)]
 pub struct CausalAnalysisBuilder {
@@ -56,6 +76,9 @@ pub struct CausalAnalysisBuilder {
     refute: RefuteSuite,
     bootstrap_replicates: u32,
     split: Option<DiscoveryEstimationSplit>,
+    identifier: Option<Arc<str>>,
+    estimator: Option<Arc<str>>,
+    rd: Option<RdConfig>,
 }
 
 impl Default for CausalAnalysisBuilder {
@@ -75,6 +98,9 @@ impl CausalAnalysisBuilder {
             refute: RefuteSuite::PlaceboAndRcc,
             bootstrap_replicates: 100,
             split: None,
+            identifier: None,
+            estimator: None,
+            rd: None,
         }
     }
 
@@ -160,6 +186,40 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Select the identification strategy for the static ATE path (Phase 4; DESIGN.md §21.2).
+    ///
+    /// Defaults to `backdoor.adjustment` when unset. Supported ids: `backdoor.adjustment`,
+    /// `backdoor.efficient`, `frontdoor`, `iv`, `rd.sharp`. `compile` refuses any
+    /// identifier/estimator pair outside the allowlist. Ignored on the temporal path (which
+    /// always uses `temporal.backdoor.unfolded`).
+    #[must_use]
+    pub fn identifier(mut self, id: impl Into<Arc<str>>) -> Self {
+        self.identifier = Some(id.into());
+        self
+    }
+
+    /// Select the estimator for the static ATE path (Phase 4; DESIGN.md §21.2).
+    ///
+    /// Defaults to `linear.adjustment.ate` when unset. Supported ids: `linear.adjustment.ate`,
+    /// `propensity.weighting`, `propensity.matching`, `propensity.stratification`,
+    /// `distance.matching`, `aipw`, `glm.adjustment`, `frontdoor.two_stage`, `iv.wald`,
+    /// `iv.2sls`, `rd.sharp`. `compile` refuses any identifier/estimator pair outside the
+    /// allowlist. Ignored on the temporal path (which always uses
+    /// `temporal.linear.adjustment`).
+    #[must_use]
+    pub fn estimator(mut self, id: impl Into<Arc<str>>) -> Self {
+        self.estimator = Some(id.into());
+        self
+    }
+
+    /// Configure the running variable / cutoff / bandwidth required by the `rd.sharp`
+    /// estimator. `compile` refuses `rd.sharp` without this.
+    #[must_use]
+    pub fn rd_config(mut self, running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
+        self.rd = Some(RdConfig { running_variable, cutoff, bandwidth });
+        self
+    }
+
     /// Build the analysis object.
     ///
     /// # Errors
@@ -173,6 +233,9 @@ impl CausalAnalysisBuilder {
             refute: self.refute,
             bootstrap_replicates: self.bootstrap_replicates,
             split: self.split,
+            identifier: self.identifier,
+            estimator: self.estimator,
+            rd: self.rd,
         })
     }
 }
@@ -186,6 +249,9 @@ pub struct CausalAnalysis {
     refute: RefuteSuite,
     bootstrap_replicates: u32,
     split: Option<DiscoveryEstimationSplit>,
+    identifier: Option<Arc<str>>,
+    estimator: Option<Arc<str>>,
+    rd: Option<RdConfig>,
 }
 
 impl CausalAnalysis {
@@ -204,11 +270,15 @@ impl CausalAnalysis {
         self.ensure_supported_combination()?;
         match (&self.data, &self.query, &self.graph) {
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Static(graph)) => {
+                let (identifier, estimator) = self.resolve_static_pair();
+                self.ensure_rd_config_present(&estimator)?;
                 compile_logical_static_ate(StaticAteCompileInput {
                     data,
                     graph,
                     query: q,
                     validation_suite: self.validation_suite_id(),
+                    identifier,
+                    estimator,
                 })
             }
             (
@@ -239,11 +309,15 @@ impl CausalAnalysis {
         self.ensure_supported_combination()?;
         match (&self.data, &self.query, &self.graph) {
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Static(graph)) => {
+                let (identifier, estimator) = self.resolve_static_pair();
+                self.ensure_rd_config_present(&estimator)?;
                 let logical = compile_logical_static_ate(StaticAteCompileInput {
                     data,
                     graph,
                     query: q,
                     validation_suite: self.validation_suite_id(),
+                    identifier,
+                    estimator,
                 })?;
                 let physical = logical.compile_physical(ctx)?;
                 Ok(CompiledAnalysis::Ready(physical))
@@ -289,24 +363,63 @@ impl CausalAnalysis {
     fn ensure_supported_combination(&self) -> Result<(), AnalysisError> {
         match (&self.data, &self.query, &self.graph) {
             (DataInput::Tabular(_), CausalQuery::TemporalEffect(_), _) => {
-                Err(AnalysisError::Compile {
+                return Err(AnalysisError::Compile {
                     message: "temporal effect query requires temporal data".into(),
-                })
+                });
             }
             (DataInput::Temporal(_), CausalQuery::AverageEffect(_), _) => {
-                Err(AnalysisError::Compile {
+                return Err(AnalysisError::Compile {
                     message: "static ATE on temporal data is not a Phase 3 path; use TemporalEffect"
                         .into(),
-                })
+                });
             }
             (DataInput::Tabular(_), _, GraphInput::DiscoverPcmci { .. }) => {
-                Err(AnalysisError::Compile {
+                return Err(AnalysisError::Compile {
                     message: "PCMCI discovery requires temporal data and a temporal effect query"
                         .into(),
-                })
+                });
             }
-            _ => Ok(()),
+            _ => {}
         }
+        // The temporal path is Phase 3 linear/temporal-backdoor only; refuse an explicitly
+        // selected non-temporal identifier/estimator rather than silently ignoring it.
+        if matches!(&self.query, CausalQuery::TemporalEffect(_)) {
+            if let Some(id) = &self.identifier {
+                if &**id != "temporal.backdoor.unfolded" {
+                    return Err(AnalysisError::Compile {
+                        message: format!(
+                            "temporal path only supports identifier \"temporal.backdoor.unfolded\"; got {id:?}"
+                        ),
+                    });
+                }
+            }
+            if let Some(est) = &self.estimator {
+                if &**est != "temporal.linear.adjustment" {
+                    return Err(AnalysisError::Compile {
+                        message: format!(
+                            "temporal path only supports estimator \"temporal.linear.adjustment\"; got {est:?}"
+                        ),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
+    fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
+        let identifier = self.identifier.clone().unwrap_or_else(|| Arc::from("backdoor.adjustment"));
+        let estimator = self.estimator.clone().unwrap_or_else(|| Arc::from("linear.adjustment.ate"));
+        (identifier, estimator)
+    }
+
+    fn ensure_rd_config_present(&self, estimator: &str) -> Result<(), AnalysisError> {
+        if estimator == "rd.sharp" && self.rd.is_none() {
+            return Err(AnalysisError::Compile {
+                message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
+            });
+        }
+        Ok(())
     }
 
     /// Execute a Ready physical plan.
@@ -383,6 +496,8 @@ impl CausalAnalysis {
         self.execute(&compiled, ctx)
     }
 
+    /// Dispatch identify → estimate for the static ATE path, routing on the plan's resolved
+    /// identifier/estimator (Phase 4; DESIGN.md §21.2).
     fn execute_static(
         &self,
         data: &TabularData,
@@ -391,61 +506,125 @@ impl CausalAnalysis {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, AnalysisError> {
-        let identifier = BackdoorIdentifier::new();
-        let prepared =
-            identifier.prepare(graph).map_err(|e| AnalysisError::Identify(e.to_string()))?;
-        let identification = identifier
-            .identify(&prepared, &CausalQuery::AverageEffect(query.clone()))
-            .map_err(|e| AnalysisError::Identify(e.to_string()))?;
+        let identifier =
+            physical.logical.record.identifier.as_deref().unwrap_or("backdoor.adjustment");
+        let estimator =
+            physical.logical.record.estimator.as_deref().unwrap_or("linear.adjustment.ate");
 
-        if identification.status != IdentificationStatus::NonparametricallyIdentified {
-            return Err(AnalysisError::Identify("effect not identified".into()));
+        // rd.sharp has no graph-based identification step (DESIGN.md §21.2); dispatch to its
+        // own path before touching `graph`.
+        if estimator == "rd.sharp" {
+            return self.execute_rd(data, query, physical, ctx);
         }
+
+        let identification = identify_static(identifier, graph, query)?;
         let estimand = identification
             .estimands
             .first()
             .cloned()
             .ok_or_else(|| AnalysisError::Identify("no estimand returned".into()))?;
+        let assumptions = identification.required_assumptions.clone();
 
-        let mut estimator = LinearAdjustmentAte::new();
-        estimator.bootstrap_replicates = self.bootstrap_replicates;
-        estimator.overlap = OverlapPolicy::ExplicitOverride;
-        let prep = estimator
-            .prepare(data, &estimand, query)
-            .map_err(|e| AnalysisError::Estimate(e.to_string()))?;
-        let mut workspace = EstimationWorkspace::default();
-        let estimate = estimator
-            .fit(&prep, &mut workspace, ctx, identification.required_assumptions.clone())
-            .map_err(|e| AnalysisError::Estimate(e.to_string()))?;
-
-        let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(Diagnostic::new(
-            "estimate.overlap.explicit_override",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "OLS path used ExplicitOverride for positivity",
-        ));
-
-        let refutations = match self.refute {
-            RefuteSuite::None => Vec::new(),
-            RefuteSuite::PlaceboAndRcc => {
-                run_refuters(data, &estimand, query, &estimate, &mut workspace, ctx)?
+        let estimate: EffectEstimate = match estimator {
+            "linear.adjustment.ate" => {
+                let mut est = LinearAdjustmentAte::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.overlap = OverlapPolicy::ExplicitOverride;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                let mut ws = EstimationWorkspace::default();
+                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            "propensity.weighting" => {
+                let mut est = PropensityWeighting::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                let mut ws = PropensityEstimationWorkspace::default();
+                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            "propensity.matching" => {
+                let mut est = PropensityMatching::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                let mut ws = PropensityEstimationWorkspace::default();
+                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            "propensity.stratification" => {
+                let mut est = PropensityStratification::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                let mut ws = PropensityEstimationWorkspace::default();
+                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            "distance.matching" => {
+                let mut est = DistanceMatching::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                let mut ws = PropensityEstimationWorkspace::default();
+                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            "aipw" => {
+                let mut est = AipwAte::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                let mut ws = AipwWorkspace::default();
+                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            "glm.adjustment" => {
+                let mut est = GlmAdjustmentAte::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                let mut ws = GlmAdjustmentWorkspace::default();
+                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            "frontdoor.two_stage" => {
+                let mut est = FrontDoorTwoStage::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                let mut ws = FrontDoorWorkspace::default();
+                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            "iv.wald" => {
+                let mut est = WaldIv::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                est.fit(&prep, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            "iv.2sls" => {
+                let mut est = TwoStageLeastSquares::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+                let mut ws = TwoStageLeastSquaresWorkspace::default();
+                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
+            }
+            _ => {
+                return Err(AnalysisError::Unsupported { message: "unknown static estimator" });
             }
         };
 
+        let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(overlap_diagnostic(estimate.overlap));
+
+        // Placebo/RCC refuters hardwire `LinearAdjustmentAte` internally, which only accepts a
+        // literal `"backdoor.adjustment"` estimand; restrict them to that exact pair and skip
+        // (rather than fail) for every other identifier/estimator combination.
+        let refutations = if identifier == "backdoor.adjustment" && estimator == "linear.adjustment.ate"
+        {
+            match self.refute {
+                RefuteSuite::None => Vec::new(),
+                RefuteSuite::PlaceboAndRcc => {
+                    let mut refute_ws = EstimationWorkspace::default();
+                    run_refuters(data, &estimand, query, &estimate, &mut refute_ws, ctx)?
+                }
+            }
+        } else {
+            Vec::new()
+        };
+
+        let (id_artifact, id_op) = identify_provenance_step(identifier);
+        let (est_artifact, est_op) = estimate_provenance_step(estimator);
         let provenance = provenance_pair(
-            (
-                "identify.backdoor",
-                "identify.backdoor",
-                &[],
-                &identification.required_assumptions,
-            ),
-            (
-                "estimate.linear_adjustment",
-                "estimate.linear_adjustment_ate",
-                &["identify.backdoor"],
-                &estimate.assumptions,
-            ),
+            (id_artifact, id_op, &[], &identification.required_assumptions),
+            (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
         );
 
         Ok(assemble_result(AssembleArgs {
@@ -455,6 +634,65 @@ impl CausalAnalysis {
             estimand,
             estimate,
             refutations,
+            diagnostics,
+            provenance,
+            treatment: query.treatment,
+            outcome: query.outcome,
+        }))
+    }
+
+    /// `rd.sharp` execute path: no graph-based identification, a synthesized `IdentifiedEstimand`
+    /// / `IdentificationResult`, and the configured [`RdConfig`] (DESIGN.md §21.2).
+    fn execute_rd(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalAnalysisResult, AnalysisError> {
+        let rd = self.rd.ok_or_else(|| AnalysisError::Compile {
+            message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
+        })?;
+        let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
+        let assumptions = AssumptionSet::new();
+
+        let mut est = SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
+        est.bootstrap_replicates = self.bootstrap_replicates;
+        let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+        let mut ws = RdWorkspace::default();
+        let estimate = est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?;
+
+        let mut derivation = DerivationTrace::default();
+        derivation.push(
+            "rd.sharp",
+            "sharp regression discontinuity: T = 1{running >= cutoff} deterministic assignment; \
+             no graph-based identification step",
+        );
+        let identification = IdentificationResult {
+            status: IdentificationStatus::NonparametricallyIdentified,
+            query: CausalQuery::AverageEffect(query.clone()),
+            estimands: vec![estimand.clone()],
+            arena: CausalExprArena::new(),
+            derivation,
+            required_assumptions: assumptions,
+            diagnostics: Vec::new(),
+            performance: IdentificationPerformanceRecord::default(),
+        };
+
+        let diagnostics = vec![overlap_diagnostic(estimate.overlap)];
+
+        let provenance = provenance_pair(
+            ("identify.rd_design", "identify.rd_design", &[], &identification.required_assumptions),
+            ("estimate.rd", "estimate.rd_sharp", &["identify.rd_design"], &estimate.assumptions),
+        );
+
+        Ok(assemble_result(AssembleArgs {
+            logical: &physical.logical.record,
+            physical: &physical.record,
+            identification,
+            estimand,
+            estimate,
+            refutations: Vec::new(),
             diagnostics,
             provenance,
             treatment: query.treatment,
@@ -613,4 +851,101 @@ fn run_refuters(
         .refute(&problem, workspace, ctx)
         .map_err(|e| AnalysisError::Validate(e.to_string()))?;
     Ok(vec![placebo, rcc])
+}
+
+// Owned-value signature keeps every `.map_err(est_err)` / `.map_err(identify_err)` call site
+// terse (`fn(E) -> AnalysisError` matches `map_err`'s closure signature directly).
+#[allow(clippy::needless_pass_by_value)]
+fn est_err(e: EstimationError) -> AnalysisError {
+    AnalysisError::Estimate(e.to_string())
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn identify_err(e: IdentificationError) -> AnalysisError {
+    AnalysisError::Identify(e.to_string())
+}
+
+/// Run the identifier named by `identifier` against `graph`/`query`, returning its
+/// [`IdentificationResult`] (Phase 4 static dispatch table; DESIGN.md §21.2).
+fn identify_static(
+    identifier: &str,
+    graph: &Dag,
+    query: &AverageEffectQuery,
+) -> Result<IdentificationResult, AnalysisError> {
+    let q = CausalQuery::AverageEffect(query.clone());
+    let result = match identifier {
+        "backdoor.adjustment" => {
+            let id = BackdoorIdentifier::new();
+            let prepared = id.prepare(graph).map_err(identify_err)?;
+            id.identify(&prepared, &q).map_err(identify_err)?
+        }
+        "backdoor.efficient" => {
+            let id = EfficientBackdoorIdentifier::new();
+            let prepared = id.prepare(graph).map_err(identify_err)?;
+            id.identify(&prepared, &q).map_err(identify_err)?
+        }
+        "frontdoor" => {
+            let id = FrontDoorIdentifier::new();
+            let prepared = id.prepare(graph).map_err(identify_err)?;
+            id.identify(&prepared, &q).map_err(identify_err)?
+        }
+        "iv" => {
+            let id = InstrumentalVariableIdentifier::new();
+            let prepared = id.prepare(graph).map_err(identify_err)?;
+            id.identify(&prepared, &q).map_err(identify_err)?
+        }
+        _ => {
+            return Err(AnalysisError::Unsupported { message: "unknown static identifier" });
+        }
+    };
+    if result.status != IdentificationStatus::NonparametricallyIdentified {
+        return Err(AnalysisError::Identify("effect not identified".into()));
+    }
+    Ok(result)
+}
+
+/// Provenance `(artifact_id, operation)` for an identifier id.
+fn identify_provenance_step(identifier: &str) -> (&'static str, &'static str) {
+    match identifier {
+        "backdoor.adjustment" => ("identify.backdoor", "identify.backdoor"),
+        "backdoor.efficient" => ("identify.efficient_backdoor", "identify.efficient_backdoor"),
+        "frontdoor" => ("identify.frontdoor", "identify.frontdoor"),
+        "iv" => ("identify.iv", "identify.iv"),
+        _ => ("identify.unknown", "identify.unknown"),
+    }
+}
+
+/// Provenance `(artifact_id, operation)` for an estimator id.
+fn estimate_provenance_step(estimator: &str) -> (&'static str, &'static str) {
+    match estimator {
+        "linear.adjustment.ate" => ("estimate.linear_adjustment", "estimate.linear_adjustment_ate"),
+        "propensity.weighting" => ("estimate.propensity", "estimate.propensity_weighting"),
+        "propensity.matching" => ("estimate.propensity", "estimate.propensity_matching"),
+        "propensity.stratification" => ("estimate.propensity", "estimate.propensity_stratification"),
+        "distance.matching" => ("estimate.matching", "estimate.distance_matching"),
+        "aipw" => ("estimate.aipw", "estimate.aipw"),
+        "glm.adjustment" => ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),
+        "frontdoor.two_stage" => ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
+        "iv.wald" => ("estimate.iv", "estimate.wald_iv"),
+        "iv.2sls" => ("estimate.iv", "estimate.two_stage_least_squares"),
+        _ => ("estimate.unknown", "estimate.unknown"),
+    }
+}
+
+/// Diagnostic recording which overlap policy an estimator applied.
+fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
+    match overlap {
+        OverlapPolicy::ExplicitOverride => Diagnostic::new(
+            "estimate.overlap.explicit_override",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "estimator used ExplicitOverride for positivity (not a propensity-based method)",
+        ),
+        OverlapPolicy::RequireDiagnostics { .. } => Diagnostic::new(
+            "estimate.overlap.require_diagnostics",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "estimator used RequireDiagnostics for mandatory positivity diagnostics",
+        ),
+    }
 }

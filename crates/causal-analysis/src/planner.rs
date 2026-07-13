@@ -9,7 +9,7 @@ use std::sync::Arc;
 use causal_core::{
     AverageEffectQuery, BufferMaterialization, CausalQuery, DataClassification, ExecutionContext,
     KernelSelection, LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
-    TemporalEffectQuery,
+    TargetPopulation, TemporalEffectQuery,
 };
 use causal_data::{DiscoveryEstimationSplit, TabularData, TableView, TimeSeriesData};
 use causal_graph::{Dag, TemporalDag, TemporalGraphReview};
@@ -134,9 +134,22 @@ impl LogicalAnalysisPlan {
         } else {
             Arc::from([ParallelTaskSpec {
                 dimension: Arc::from(match self.record.estimator.as_deref() {
-                    Some("temporal.linear.adjustment" | "linear.adjustment.ate") => {
-                        "bootstrap.replicate"
-                    }
+                    // Every Phase 3/4 estimator supports an optional IID bootstrap; parallelize
+                    // over replicates when threads are available.
+                    Some(
+                        "temporal.linear.adjustment"
+                            | "linear.adjustment.ate"
+                            | "propensity.weighting"
+                            | "propensity.matching"
+                            | "propensity.stratification"
+                            | "distance.matching"
+                            | "aipw"
+                            | "glm.adjustment"
+                            | "frontdoor.two_stage"
+                            | "iv.wald"
+                            | "iv.2sls"
+                            | "rd.sharp",
+                    ) => "bootstrap.replicate",
                     _ => "analysis",
                 }),
                 units: workers,
@@ -152,6 +165,15 @@ impl LogicalAnalysisPlan {
             kernels: Arc::from([(
                 Arc::from(match self.record.estimator.as_deref() {
                     Some("temporal.linear.adjustment") => "ols.faer.temporal",
+                    Some("propensity.weighting") => "ipw",
+                    Some("propensity.matching" | "distance.matching") => "matching",
+                    Some("propensity.stratification") => "propensity.stratification",
+                    Some("aipw") => "aipw",
+                    Some("glm.adjustment") => "glm.logit",
+                    Some("frontdoor.two_stage") => "frontdoor.two_stage",
+                    Some("iv.wald") => "iv.wald",
+                    Some("iv.2sls") => "2sls",
+                    Some("rd.sharp") => "rd.local_linear",
                     _ => "ols.faer",
                 }),
                 KernelSelection::DenseBackend,
@@ -212,25 +234,72 @@ pub struct StaticAteCompileInput<'a> {
     pub query: &'a AverageEffectQuery,
     /// Validation suite id.
     pub validation_suite: Option<Arc<str>>,
+    /// Identifier id selected by the builder (defaults to `backdoor.adjustment`).
+    pub identifier: Arc<str>,
+    /// Estimator id selected by the builder (defaults to `linear.adjustment.ate`).
+    pub estimator: Arc<str>,
 }
 
-/// Compile logical plan for static ATE (Phase 1 path via planner).
+/// Compile-time allowlist of identifier/estimator pairs for the static ATE path (Phase 4;
+/// DESIGN.md §21.2). Any pair not listed here — including unknown ids, an IV estimator paired
+/// with a non-IV identifier, `frontdoor.two_stage` without `frontdoor`, or a propensity/AIPW
+/// estimator without a `backdoor.*` identifier — is refused.
+fn validate_static_pair(identifier: &str, estimator: &str) -> Result<(), AnalysisError> {
+    let supported = matches!(
+        (identifier, estimator),
+        (
+            "backdoor.adjustment" | "backdoor.efficient",
+            "linear.adjustment.ate"
+                | "propensity.weighting"
+                | "propensity.matching"
+                | "propensity.stratification"
+                | "distance.matching"
+                | "aipw"
+                | "glm.adjustment"
+        ) | ("frontdoor", "frontdoor.two_stage")
+            | ("iv", "iv.wald" | "iv.2sls")
+            | ("rd.sharp", "rd.sharp")
+    );
+    if !supported {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "identifier {identifier:?} is not compatible with estimator {estimator:?}"
+            ),
+        });
+    }
+    Ok(())
+}
+
+/// Compile logical plan for static ATE (Phase 4 planner/estimator routing via DESIGN.md §21.2).
 ///
 /// # Errors
 ///
-/// Validation failures.
+/// Query validation failures, or an identifier/estimator pair not in the compile-time allowlist
+/// (see [`validate_static_pair`]).
 pub fn compile_logical_static_ate(
     input: StaticAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {
     let _ = input.graph;
     input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    validate_static_pair(&input.identifier, &input.estimator)?;
+    if &*input.estimator == "linear.adjustment.ate"
+        && input.query.target_population != TargetPopulation::AllObserved
+    {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "estimator \"linear.adjustment.ate\" only supports TargetPopulation::AllObserved \
+                 (got {:?}); use a propensity or AIPW estimator for ATT/ATC",
+                input.query.target_population
+            ),
+        });
+    }
     let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("phase3.static_ate"),
+        plan_id: Arc::from("phase4.static_ate"),
         data_classification: DataClassification::Tabular,
         discovery_algorithm: None,
         graph_review_required: false,
-        identifier: Some(Arc::from("backdoor.adjustment")),
-        estimator: Some(Arc::from("linear.adjustment.ate")),
+        identifier: Some(Arc::clone(&input.identifier)),
+        estimator: Some(Arc::clone(&input.estimator)),
         validation_suite: input.validation_suite,
         query_variables: Arc::from([input.query.treatment, input.query.outcome]),
     };
@@ -378,5 +447,145 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let physical = plan.compile_physical(&ctx).unwrap();
         assert_eq!(physical.record.batch_size, Some(40));
+    }
+
+    fn toy_static_input() -> (TabularData, Dag, AverageEffectQuery) {
+        use causal_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
+        use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
+        use causal_graph::DenseNodeId;
+        use std::sync::Arc as StdArc;
+
+        let n = 10usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let t: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+        let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i]).collect();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), StdArc::from(t), ValidityBitmap::all_valid(n))
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), StdArc::from(y), ValidityBitmap::all_valid(n))
+                    .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        (TabularData::new(storage), dag, query)
+    }
+
+    #[test]
+    fn refuses_iv_estimator_with_backdoor_identifier() {
+        let (data, graph, query) = toy_static_input();
+        let err = compile_logical_static_ate(StaticAteCompileInput {
+            data: &data,
+            graph: &graph,
+            query: &query,
+            validation_suite: None,
+            identifier: Arc::from("backdoor.adjustment"),
+            estimator: Arc::from("iv.2sls"),
+        })
+        .unwrap_err();
+        assert!(matches!(err, AnalysisError::Compile { .. }));
+    }
+
+    #[test]
+    fn refuses_propensity_estimator_with_frontdoor_identifier() {
+        let (data, graph, query) = toy_static_input();
+        let err = compile_logical_static_ate(StaticAteCompileInput {
+            data: &data,
+            graph: &graph,
+            query: &query,
+            validation_suite: None,
+            identifier: Arc::from("frontdoor"),
+            estimator: Arc::from("propensity.weighting"),
+        })
+        .unwrap_err();
+        assert!(matches!(err, AnalysisError::Compile { .. }));
+    }
+
+    #[test]
+    fn refuses_unknown_identifier_and_estimator() {
+        let (data, graph, query) = toy_static_input();
+        let err = compile_logical_static_ate(StaticAteCompileInput {
+            data: &data,
+            graph: &graph,
+            query: &query,
+            validation_suite: None,
+            identifier: Arc::from("backdoor.adjustment"),
+            estimator: Arc::from("not.a.real.estimator"),
+        })
+        .unwrap_err();
+        assert!(matches!(err, AnalysisError::Compile { .. }));
+    }
+
+    #[test]
+    fn refuses_att_target_population_with_linear_adjustment() {
+        use causal_core::TargetPopulation;
+        let (data, graph, query) = toy_static_input();
+        let att_query = query.with_target_population(TargetPopulation::Treated);
+        let err = compile_logical_static_ate(StaticAteCompileInput {
+            data: &data,
+            graph: &graph,
+            query: &att_query,
+            validation_suite: None,
+            identifier: Arc::from("backdoor.adjustment"),
+            estimator: Arc::from("linear.adjustment.ate"),
+        })
+        .unwrap_err();
+        assert!(matches!(err, AnalysisError::Compile { .. }));
+    }
+
+    #[test]
+    fn accepts_default_pair() {
+        let (data, graph, query) = toy_static_input();
+        let plan = compile_logical_static_ate(StaticAteCompileInput {
+            data: &data,
+            graph: &graph,
+            query: &query,
+            validation_suite: None,
+            identifier: Arc::from("backdoor.adjustment"),
+            estimator: Arc::from("linear.adjustment.ate"),
+        })
+        .unwrap();
+        assert_eq!(plan.record.identifier.as_deref(), Some("backdoor.adjustment"));
+        assert_eq!(plan.record.estimator.as_deref(), Some("linear.adjustment.ate"));
+    }
+
+    #[test]
+    fn accepts_propensity_weighting_with_backdoor_adjustment() {
+        let (data, graph, query) = toy_static_input();
+        let plan = compile_logical_static_ate(StaticAteCompileInput {
+            data: &data,
+            graph: &graph,
+            query: &query,
+            validation_suite: None,
+            identifier: Arc::from("backdoor.adjustment"),
+            estimator: Arc::from("propensity.weighting"),
+        })
+        .unwrap();
+        assert_eq!(plan.record.estimator.as_deref(), Some("propensity.weighting"));
     }
 }

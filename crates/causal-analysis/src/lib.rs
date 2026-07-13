@@ -28,8 +28,8 @@ mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-        SmallRoleSet, ValueType, VariableId,
+        AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
+        RoleHint, SmallRoleSet, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -37,6 +37,12 @@ mod tests {
     use causal_graph::{Dag, DenseNodeId};
 
     use super::*;
+
+    fn standard_normal(rng: &mut CausalRng) -> f64 {
+        let u1 = rng.next_f64().max(1e-12);
+        let u2 = rng.next_f64();
+        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
+    }
 
     fn scm() -> (TabularData, Dag, AverageEffectQuery) {
         let n = 200usize;
@@ -138,6 +144,190 @@ mod tests {
         let round: causal_io::AnalysisTraceWire = causal_io::from_cbor(&bytes).unwrap();
         assert_eq!(round.method, trace.method);
         assert_eq!(round.derivation.len(), trace.derivation.len());
+    }
+
+    /// Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(logit(-0.5 + Z))`, `Y = 2T + Z + noise`.
+    /// True ATE = 2; OLS-on-observables is biased here unless `Z` is adjusted for, so this
+    /// exercises the propensity path independent of the linear-adjustment default.
+    fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let zi = standard_normal(&mut rng);
+            let logit = -0.5 + zi;
+            let p = 1.0 / (1.0 + (-logit).exp());
+            let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
+            let noise = standard_normal(&mut rng) * 0.5;
+            z[i] = zi;
+            t[i] = ti;
+            y[i] = 2.0 * ti + zi + noise;
+        }
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                    .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let mut dag = Dag::with_variables(3);
+        let z_id = DenseNodeId::from_raw(2);
+        let t_id = DenseNodeId::from_raw(0);
+        let y_id = DenseNodeId::from_raw(1);
+        dag.insert_directed(z_id, t_id).unwrap();
+        dag.insert_directed(z_id, y_id).unwrap();
+        dag.insert_directed(t_id, y_id).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        (TabularData::new(storage), dag, query)
+    }
+
+    #[test]
+    fn end_to_end_propensity_weighting_recovers_confounded_effect() {
+        let (data, graph, query) = confounded_scm(800, 1);
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(graph)
+            .query(query)
+            .identifier("backdoor.adjustment")
+            .estimator("propensity.weighting")
+            .bootstrap_replicates(30)
+            .build()
+            .unwrap();
+        let ctx = ExecutionContext::for_tests(11);
+        let result = analysis.run(&ctx).unwrap();
+        assert!((result.estimate.ate - 2.0).abs() < 0.3, "ate={}", result.estimate.ate);
+        // Placebo/RCC refuters are hardwired to LinearAdjustmentAte and are skipped for
+        // every non-default estimator (see `CausalAnalysis::execute_static`).
+        assert!(result.refutations.is_empty());
+        assert_eq!(result.logical_plan.estimator.as_deref(), Some("propensity.weighting"));
+    }
+
+    /// `Z ∈ {0,1} → T → Y` with `U` confounding `T`–`Y` (unobserved, not in the graph).
+    /// True structural effect = 2.0.
+    fn iv_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E71_u64);
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let zi = (i % 2) as f64;
+            let u = standard_normal(&mut rng);
+            let ti = 0.5 * zi + u + 0.1 * standard_normal(&mut rng);
+            let yi = 2.0 * ti + u + 0.1 * standard_normal(&mut rng);
+            z[i] = zi;
+            t[i] = ti;
+            y[i] = yi;
+        }
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                    .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let mut dag = Dag::with_variables(3);
+        let z_id = DenseNodeId::from_raw(2);
+        let t_id = DenseNodeId::from_raw(0);
+        let y_id = DenseNodeId::from_raw(1);
+        dag.insert_directed(z_id, t_id).unwrap();
+        dag.insert_directed(t_id, y_id).unwrap();
+        let query =
+            AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+        (TabularData::new(storage), dag, query)
+    }
+
+    #[test]
+    fn end_to_end_iv_two_stage_least_squares() {
+        let (data, graph, query) = iv_scm(4000, 5);
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(graph)
+            .query(query)
+            .identifier("iv")
+            .estimator("iv.2sls")
+            .bootstrap_replicates(30)
+            .build()
+            .unwrap();
+        let ctx = ExecutionContext::for_tests(21);
+        let result = analysis.run(&ctx).unwrap();
+        assert!((result.estimate.ate - 2.0).abs() < 0.6, "ate={}", result.estimate.ate);
+        assert!(result.refutations.is_empty());
     }
 
     #[test]

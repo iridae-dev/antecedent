@@ -17,6 +17,7 @@ causal-core = { path = "../causal-core" }
 causal-data = { path = "../causal-data" }
 causal-discovery = { path = "../causal-discovery" }
 causal-estimate = { path = "../causal-estimate" }
+causal-expr = { path = "../causal-expr" }
 causal-graph = { path = "../causal-graph" }
 causal-identify = { path = "../causal-identify" }
 causal-io = { path = "../causal-io" }

@@ -196,6 +196,7 @@ dependencies = [
  "causal-data",
  "causal-discovery",
  "causal-estimate",
+ "causal-expr",
  "causal-graph",
  "causal-identify",
  "causal-io",
