@@ -1,0 +1,15 @@
+{
+  "scm": "defect_t = 0.9 * pressure_{t-1}",
+  "true_effect_per_unit": 0.9,
+  "pulse_active_level": 1.0,
+  "expected_ate": 0.9,
+  "tolerance_class": "StableFloat",
+  "n": 400,
+  "treatment": "pressure",
+  "outcome": "defect",
+  "treatment_lag": 1,
+  "horizon_steps": 1,
+  "edges": [["pressure", 1, "defect", 0]],
+  "sampling_interval_ns": 3600000000000,
+  "note": "Phase 3 uses discrete time steps; 2h at 1h sampling ≡ 2 steps"
+}

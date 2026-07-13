@@ -3,20 +3,24 @@
 from __future__ import annotations
 
 from causal._native import (
+    AnalysisResult,
     ArrowLoadInfo,
     AteAnalysisResult,
     DiscoveredLink,
     PcmciDiscoveryResult,
+    analyze,
     analyze_ate,
     discover_pcmci,
     load_float64_columns,
 )
 
 __all__ = [
+    "AnalysisResult",
     "ArrowLoadInfo",
     "AteAnalysisResult",
     "DiscoveredLink",
     "PcmciDiscoveryResult",
+    "analyze",
     "analyze_ate",
     "discover_pcmci",
     "load_float64_columns",

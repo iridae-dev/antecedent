@@ -1,4 +1,4 @@
-//! PyO3 bindings — Phase 0–2: Arrow load, `analyze_ate`, `discover_pcmci`.
+//! PyO3 bindings — Phase 0–3: Arrow load, `analyze_ate`, `analyze`, `discover_pcmci`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -10,14 +10,16 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal_analysis::{CausalAnalysis, RefuteSuite};
-use causal_core::{AverageEffectQuery, ExecutionContext, Lag, VariableId};
+use causal_core::{
+    AverageEffectQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
+};
 use causal_data::{
     SamplingRegularity, TableView, TimeIndex, TimeSeriesData, tabular_from_record_batch,
 };
 use causal_discovery::{
     DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints,
 };
-use causal_graph::{Dag, DenseNodeId};
+use causal_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -322,14 +324,132 @@ fn discover_pcmci(
     })
 }
 
+/// Unified analysis result (static or temporal).
+#[pyclass]
+#[derive(Clone)]
+struct AnalysisResult {
+    #[pyo3(get)]
+    ate: f64,
+    #[pyo3(get)]
+    se_analytic: f64,
+    #[pyo3(get)]
+    se_bootstrap: Option<f64>,
+    #[pyo3(get)]
+    plan_id: String,
+    #[pyo3(get)]
+    modality: String,
+    #[pyo3(get)]
+    peak_memory_bytes: Option<u64>,
+    #[pyo3(get)]
+    identification_status: String,
+    #[pyo3(get)]
+    method: String,
+}
+
+/// Run temporal effect analysis with a supplied lagged edge list.
+///
+/// `edges` are `(source, source_lag, target, target_lag)` with lags ≥ 0.
+/// `treatment_lag` is the pulse offset as a non-negative lag (pulse at `-treatment_lag`).
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    edges,
+    treatment,
+    outcome,
+    *,
+    treatment_lag=1,
+    horizon_steps=1,
+    active_level=1.0,
+    seed=1,
+    bootstrap=0
+))]
+fn analyze(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, u32, String, u32)>,
+    treatment: String,
+    outcome: String,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    seed: u64,
+    bootstrap: u32,
+) -> PyResult<AnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    py.allow_threads(move || {
+        let loaded =
+            tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let tabular = loaded.data;
+        let n = tabular.row_count();
+        let series = TimeSeriesData::try_new(
+            tabular.storage().clone(),
+            TimeIndex {
+                regularity: SamplingRegularity::Regular { interval_ns: 1 },
+                length: n,
+            },
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+        let name_to_id = |nm: &str| -> PyResult<VariableId> {
+            series
+                .schema()
+                .id_of(nm)
+                .map_err(|e| PyValueError::new_err(format!("unknown variable {nm}: {e}")))
+        };
+        let t_id = name_to_id(&treatment)?;
+        let y_id = name_to_id(&outcome)?;
+
+        let mut g = TemporalDag::empty();
+        for (src, slag, tgt, tlag) in &edges {
+            let s = ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag))
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            let t = ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag))
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            g.insert_directed(s, t).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        }
+
+        let pulse_at = -i32::try_from(treatment_lag)
+            .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
+        let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
+            .with_policy(TemporalPolicy::pulse(pulse_at))
+            .with_horizon_steps(horizon_steps);
+
+        let analysis = CausalAnalysis::builder()
+            .series(series)
+            .temporal_graph(g)
+            .temporal_query(q)
+            .bootstrap_replicates(bootstrap)
+            .variable_count(names.len() as u32)
+            .build()
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let ctx = ExecutionContext::for_tests(seed);
+        let result = analysis.run(&ctx).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(AnalysisResult {
+            ate: result.estimate.ate,
+            se_analytic: result.estimate.se_analytic,
+            se_bootstrap: result.estimate.se_bootstrap,
+            plan_id: result.logical_plan.plan_id.to_string(),
+            modality: format!("{:?}", result.logical_plan.data_classification),
+            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+            identification_status: format!("{:?}", result.identification.status),
+            method: result.estimand.method.to_string(),
+        })
+    })
+}
+
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
+    m.add_class::<AnalysisResult>()?;
     m.add_class::<DiscoveredLink>()?;
     m.add_class::<PcmciDiscoveryResult>()?;
     m.add("__version__", causal_core::VERSION)?;
