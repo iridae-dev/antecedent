@@ -207,6 +207,7 @@ description = "Overlap and overlap-rule assessment"
 status = "done"
 owner = "phase4"
 phase = 4
+notes = "OverlapRefuter + OverlapRuleRefuter (Crump-style retained support)."
 
 [[capabilities]]
 id = "dowhy.refute.data_subset"
@@ -243,10 +244,11 @@ phase = 4
 [[capabilities]]
 id = "dowhy.refute.sensitivity"
 group = "refutation_and_sensitivity"
-description = "Linear, partial-linear, and nonparametric sensitivity"
+description = "Linear, partial-linear, nonparametric, and Reisz-representer sensitivity"
 status = "done"
 owner = "phase4"
 phase = 4
+notes = "Nonparametric = NW residualization + partial-R² grid; Reisz = IPW representer L2 bounds."
 
 [[capabilities]]
 id = "dowhy.do_sampling"
