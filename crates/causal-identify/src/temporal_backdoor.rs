@@ -75,9 +75,20 @@ impl TemporalBackdoorIdentifier {
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid temporal-effect query",
         })?;
-        let treatment_at = treatment_offset(query.policy)?;
-        let outcome_at = i32::try_from(query.horizon_steps.saturating_sub(1))
-            .map_err(|_| IdentificationError::Graph("horizon_steps overflow".into()))?;
+        let treatment_at = query.treatment_offset();
+        let outcome_at = query.outcome_offset();
+        // Pulse-only for Phase 3 single-node backdoor.
+        if matches!(query.policy, TemporalPolicy::Sustained { .. }) {
+            return Err(IdentificationError::UnsupportedQuery {
+                message: "temporal backdoor identification supports Pulse policies only; \
+                          sustained interventions require sequential (g-formula) identification",
+            });
+        }
+        if !matches!(query.policy, TemporalPolicy::Pulse { .. }) {
+            return Err(IdentificationError::UnsupportedQuery {
+                message: "unsupported temporal policy for Phase 3 backdoor identification",
+            });
+        }
 
         let min_offset = treatment_at.min(outcome_at).min(0);
         let max_offset = treatment_at.max(outcome_at).max(0);
@@ -130,19 +141,6 @@ impl TemporalBackdoorIdentifier {
             treatment_key,
             outcome_key,
         })
-    }
-}
-
-fn treatment_offset(policy: TemporalPolicy) -> Result<i32, IdentificationError> {
-    match policy {
-        TemporalPolicy::Pulse { at } => Ok(at),
-        TemporalPolicy::Sustained { .. } => Err(IdentificationError::UnsupportedQuery {
-            message: "temporal backdoor identification supports Pulse policies only; \
-                      sustained interventions require sequential (g-formula) identification",
-        }),
-        _ => Err(IdentificationError::UnsupportedQuery {
-            message: "unsupported temporal policy for Phase 3 backdoor identification",
-        }),
     }
 }
 

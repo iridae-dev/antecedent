@@ -12,14 +12,12 @@
 
 use std::sync::Arc;
 
-use causal_core::{
-    AssumptionSet, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
-};
+use causal_core::{AssumptionSet, ExecutionContext, Lag, TemporalEffectQuery, VariableId};
 use causal_data::{
     DiscoveryEstimationSplit, LaggedColumn, SampleWorkspace, TemporalIndexer, TimeSeriesData,
 };
 use causal_identify::IdentifiedEstimand;
-use causal_stats::{CompiledDesign, FaerBackend};
+use causal_stats::CompiledDesign;
 
 use crate::adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
@@ -77,9 +75,8 @@ impl TemporalLinearAdjustment {
         }
         query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
 
-        let (t_off, y_off) = treatment_outcome_offsets(query);
-        let t_lag = offset_to_lag(t_off)?;
-        let y_lag = offset_to_lag(y_off)?;
+        let t_lag = offset_to_lag(query.treatment_offset())?;
+        let y_lag = offset_to_lag(query.outcome_offset())?;
 
         let mut cols = Vec::with_capacity(2 + estimand.adjustment_set.len());
         cols.push(LaggedColumn { variable: query.treatment, lag: t_lag });
@@ -162,20 +159,9 @@ impl TemporalLinearAdjustment {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let _ = FaerBackend;
+        let _ = ();
         self.inner.fit(problem, workspace, ctx, assumptions)
     }
-}
-
-fn treatment_outcome_offsets(query: &TemporalEffectQuery) -> (i32, i32) {
-    let t_off = match query.policy {
-        TemporalPolicy::Pulse { at } => at,
-        TemporalPolicy::Sustained { from, .. } => from,
-        _ => 0,
-    };
-    // Match TemporalBackdoorIdentifier: outcome at absolute offset horizon_steps-1.
-    let y_off = (query.horizon_steps as i32 - 1).max(0);
-    (t_off, y_off)
 }
 
 fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {

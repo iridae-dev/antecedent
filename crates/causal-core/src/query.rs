@@ -279,6 +279,23 @@ impl TemporalEffectQuery {
         }
         Ok(())
     }
+
+    /// Treatment time offset for the configured policy (Pulse `at` / Sustained `from`).
+    #[must_use]
+    pub fn treatment_offset(&self) -> i32 {
+        #[allow(unreachable_patterns)] // `TemporalPolicy` is `#[non_exhaustive]`
+        match self.policy {
+            TemporalPolicy::Pulse { at } => at,
+            TemporalPolicy::Sustained { from, .. } => from,
+            _ => 0,
+        }
+    }
+
+    /// Outcome evaluation offset: `horizon_steps - 1` (absolute from window origin).
+    #[must_use]
+    pub fn outcome_offset(&self) -> i32 {
+        i32::try_from(self.horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX)
+    }
 }
 
 /// Top-level causal query enum.

@@ -46,7 +46,7 @@ fn manufacturing_pressure_defect() {
     let mut defect = vec![0.0; n];
     for t in 1..n {
         pressure[t] = ((t as f64) * 0.04).sin();
-        defect[t] = -0.03f64.mul_add(0.0, 0.9 * pressure[t - 1]);
+        defect[t] = 0.9 * pressure[t - 1];
     }
     let cols = vec![
         OwnedColumn::Float64(
