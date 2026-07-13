@@ -8,7 +8,7 @@ use causal_core::{AssumptionSet, Lag, VariableId};
 use causal_graph::TemporalDag;
 
 /// Directed lagged link.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct LaggedLink {
     /// Source variable.
     pub source: VariableId,

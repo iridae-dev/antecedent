@@ -77,7 +77,7 @@ impl BlockBootstrapStability {
                 message: "stability requires positive replicates and block_size",
             });
         }
-        let mut counts: BTreeMap<(u32, u32, u32, u32), u32> = BTreeMap::new();
+        let mut counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();
         let mut rng = ctx.rng.stream(0x57AB_u64);
         for r in 0..self.replicates {
             let boot = block_bootstrap_series(data, self.block_size, &mut rng)
@@ -88,24 +88,13 @@ impl BlockBootstrapStability {
                 .run(&boot, variables, workspace, ctx)
                 .map_err(|e| ValidationError::Estimation(e.to_string()))?;
             for s in result.evidence.links.iter() {
-                let key = (
-                    s.link.source.raw(),
-                    s.link.source_lag.raw(),
-                    s.link.target.raw(),
-                    s.link.target_lag.raw(),
-                );
-                *counts.entry(key).or_insert(0) += 1;
+                *counts.entry(s.link).or_insert(0) += 1;
             }
         }
         let mut frequencies = Vec::with_capacity(counts.len());
-        for ((src, slag, tgt, tlag), c) in counts {
+        for (link, c) in counts {
             frequencies.push(LinkStability {
-                link: LaggedLink {
-                    source: VariableId::from_raw(src),
-                    source_lag: causal_core::Lag::from_raw(slag),
-                    target: VariableId::from_raw(tgt),
-                    target_lag: causal_core::Lag::from_raw(tlag),
-                },
+                link,
                 frequency: f64::from(c) / f64::from(self.replicates),
             });
         }

@@ -13,17 +13,18 @@ use std::sync::Arc;
 
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::{LaggedColumn, SampleWorkspace, TimeSeriesData};
-use causal_graph::{TemporalDag, ensure_lagged};
 use causal_stats::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, PartialCorrelation,
     SignificanceMethod,
 };
 
+use crate::combinations::combinations;
 use crate::constraints::DiscoveryConstraints;
 use crate::error::DiscoveryError;
+use crate::evidence::graph_evidence_from_scored;
 use crate::result::{
-    AlgorithmRecord, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
-    GraphEvidence, LaggedLink, ScoredLink,
+    AlgorithmRecord, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult, LaggedLink,
+    ScoredLink,
 };
 
 /// Reusable target-local discovery workspace.
@@ -100,7 +101,6 @@ impl PcmciEngine {
                 if others.len() < cond_size {
                     continue;
                 }
-                // Test against each combination of size cond_size (cap combinations).
                 let combos = combinations(&others, cond_size);
                 for cond in combos.iter().take(32) {
                     let indep = self.ci_independent(
@@ -212,18 +212,9 @@ impl PcmciEngine {
             }
         }
 
-        let mut graph = TemporalDag::empty();
-        for s in &scored {
-            let from = ensure_lagged(&mut graph, s.link.source, s.link.source_lag)
-                .map_err(|e| DiscoveryError::Data(e.to_string()))?;
-            let to = ensure_lagged(&mut graph, s.link.target, s.link.target_lag)
-                .map_err(|e| DiscoveryError::Data(e.to_string()))?;
-            let _ = graph.insert_directed(from, to);
-        }
-
         let n_links = scored.len() as u64;
         Ok(DiscoveryResult {
-            evidence: GraphEvidence { graph, links: Arc::from(scored) },
+            evidence: graph_evidence_from_scored(scored)?,
             algorithm: AlgorithmRecord {
                 id: Arc::from("pcmci.engine.pc_mci"),
                 config: Arc::from(format!(
@@ -306,130 +297,6 @@ impl PcmciEngine {
     }
 }
 
-fn combinations(items: &[(VariableId, Lag)], k: usize) -> Vec<Vec<(VariableId, Lag)>> {
-    if k == 0 {
-        return vec![Vec::new()];
-    }
-    if k > items.len() {
-        return Vec::new();
-    }
-    let mut out = Vec::new();
-    let mut idx: Vec<usize> = (0..k).collect();
-    loop {
-        out.push(idx.iter().map(|&i| items[i]).collect());
-        // next combination
-        let mut i = k;
-        while i > 0 {
-            i -= 1;
-            if idx[i] != i + items.len() - k {
-                idx[i] += 1;
-                for j in i + 1..k {
-                    idx[j] = idx[j - 1] + 1;
-                }
-                break;
-            }
-            if i == 0 {
-                return out;
-            }
-        }
-        if k == 0 {
-            break;
-        }
-    }
-    out
-}
-
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
-mod tests {
-    use causal_core::{
-        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-        VariableId,
-    };
-    use causal_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
-        TimeSeriesData, ValidityBitmap,
-    };
-
-    use super::*;
-    use crate::constraints::{DiscoveryConstraints, TemporalConstraints};
-
-    fn var_series() -> (TimeSeriesData, Vec<VariableId>) {
-        // Y_t = 0.8 X_{t-1} + noise; X_t = noise
-        let n = 400usize;
-        let mut b = CausalSchemaBuilder::new();
-        b.add_variable(
-            "x",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        b.add_variable(
-            "y",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        let schema = b.build().unwrap();
-        let mut x = vec![0.0; n];
-        let mut y = vec![0.0; n];
-        for t in 1..n {
-            x[t] = ((t as f64) * 0.01).sin();
-            y[t] = 0.8 * x[t - 1] + 0.01 * ((t as f64) * 0.03).cos();
-        }
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(0),
-                    Arc::from(x),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(1),
-                    Arc::from(y),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        let data = TimeSeriesData::try_new(
-            storage,
-            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
-        )
-        .unwrap();
-        (data, vec![VariableId::from_raw(0), VariableId::from_raw(1)])
-    }
-
-    #[test]
-    fn recovers_lagged_parent() {
-        let (data, vars) = var_series();
-        let engine = PcmciEngine::new().with_constraints(DiscoveryConstraints {
-            temporal: TemporalConstraints {
-                max_lag: Lag::from_raw(2),
-                min_lag: Lag::from_raw(1),
-            },
-            alpha: 0.05,
-            max_cond_size: 2,
-            ..DiscoveryConstraints::default()
-        });
-        let mut ws = DiscoveryWorkspace::default();
-        let ctx = ExecutionContext::for_tests(9);
-        let result = engine.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
-        let has = result.evidence.links.iter().any(|s| {
-            s.link.source == VariableId::from_raw(0)
-                && s.link.target == VariableId::from_raw(1)
-                && s.link.source_lag.raw() == 1
-        });
-        assert!(has, "links={:?}", result.evidence.links);
-    }
-}
+#[path = "engine_tests.rs"]
+mod tests;

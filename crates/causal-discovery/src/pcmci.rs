@@ -13,6 +13,7 @@ use causal_stats::benjamini_hochberg;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
+use crate::evidence::graph_evidence_from_scored;
 use crate::result::{AlgorithmRecord, DiscoveryResult};
 
 /// Lagged PCMCI discovery algorithm.
@@ -69,29 +70,14 @@ impl Pcmci {
             let adj = benjamini_hochberg(&pvals);
             let alpha = self.engine.constraints.alpha;
             let mut kept = Vec::new();
-            let mut graph = causal_graph::TemporalDag::empty();
             for (link, &p_adj) in result.evidence.links.iter().zip(adj.iter()) {
                 if p_adj < alpha {
                     let mut scored = *link;
                     scored.p_value = p_adj;
-                    let from = causal_graph::ensure_lagged(
-                        &mut graph,
-                        scored.link.source,
-                        scored.link.source_lag,
-                    )
-                    .map_err(|e| DiscoveryError::Data(e.to_string()))?;
-                    let to = causal_graph::ensure_lagged(
-                        &mut graph,
-                        scored.link.target,
-                        scored.link.target_lag,
-                    )
-                    .map_err(|e| DiscoveryError::Data(e.to_string()))?;
-                    let _ = graph.insert_directed(from, to);
                     kept.push(scored);
                 }
             }
-            result.evidence.links = Arc::from(kept);
-            result.evidence.graph = graph;
+            result.evidence = graph_evidence_from_scored(kept)?;
             result.performance.links_retained = result.evidence.links.len() as u64;
         }
         result.algorithm = AlgorithmRecord {
