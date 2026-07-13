@@ -1,9 +1,16 @@
-//! PyO3 bindings — Phase 0–3: Arrow load, `analyze_ate`, `analyze`, `discover_pcmci`.
+//! `PyO3` bindings — Phase 0–3: Arrow load, `analyze_ate`, `analyze`, `discover_pcmci`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs)]
 #![allow(unsafe_code)] // required by PyO3
+#![allow(
+    clippy::doc_markdown,
+    clippy::needless_pass_by_value,
+    clippy::too_many_arguments,
+    clippy::similar_names,
+    clippy::cast_possible_truncation
+)]
 
 use std::sync::Arc;
 
