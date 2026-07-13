@@ -24,6 +24,58 @@ pub enum TargetPopulation {
     Environment(EnvironmentId),
 }
 
+/// Temporal intervention policy over discrete time steps (DESIGN.md §8.1).
+///
+/// Horizons and offsets are **time steps** relative to the series indexer, not
+/// wall-clock durations.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum TemporalPolicy {
+    /// Instantaneous intervention at a single offset.
+    Pulse {
+        /// Time offset (steps) of the pulse relative to the analysis window origin.
+        at: i32,
+    },
+    /// Intervention held from `from` through `until` inclusive (step offsets).
+    Sustained {
+        /// First intervened step.
+        from: i32,
+        /// Last intervened step (inclusive).
+        until: i32,
+    },
+}
+
+impl TemporalPolicy {
+    /// One-step pulse at offset `at`.
+    #[must_use]
+    pub const fn pulse(at: i32) -> Self {
+        Self::Pulse { at }
+    }
+
+    /// Sustained intervention on `[from, until]`.
+    #[must_use]
+    pub const fn sustained(from: i32, until: i32) -> Self {
+        Self::Sustained { from, until }
+    }
+
+    /// Validate policy bounds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError`] when the sustained window is empty or inverted.
+    pub const fn validate(self) -> Result<(), QueryError> {
+        match self {
+            Self::Pulse { .. } => Ok(()),
+            Self::Sustained { from, until } => {
+                if until < from {
+                    return Err(QueryError::InvalidTemporalWindow { from, until });
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 /// Average treatment effect (ATE / ATT-style) query.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AverageEffectQuery {
@@ -115,15 +167,128 @@ impl AverageEffectQuery {
     }
 }
 
+/// Temporal effect query over a discrete horizon (DESIGN.md §8 / Phase 3).
+#[derive(Clone, Debug, PartialEq)]
+pub struct TemporalEffectQuery {
+    /// Treatment variable.
+    pub treatment: VariableId,
+    /// Outcome variable.
+    pub outcome: VariableId,
+    /// Temporal intervention policy.
+    pub policy: TemporalPolicy,
+    /// Control intervention level on the treatment variable.
+    pub control: Intervention,
+    /// Active intervention level on the treatment variable.
+    pub active: Intervention,
+    /// Outcome horizon in time steps after the policy origin (must be ≥ 1).
+    pub horizon_steps: u32,
+    /// Optional max history lag (steps) to retain when unfolding; `None` = planner default.
+    pub max_history_lag: Option<u32>,
+    /// Target population.
+    pub target_population: TargetPopulation,
+}
+
+impl TemporalEffectQuery {
+    /// Pulse intervention at step 0 with active float level; control is 0.0.
+    #[must_use]
+    pub fn pulse(treatment: VariableId, outcome: VariableId, active_level: f64) -> Self {
+        Self {
+            treatment,
+            outcome,
+            policy: TemporalPolicy::pulse(0),
+            control: Intervention::set(treatment, Value::f64(0.0)),
+            active: Intervention::set(treatment, Value::f64(active_level)),
+            horizon_steps: 1,
+            max_history_lag: None,
+            target_population: TargetPopulation::AllObserved,
+        }
+    }
+
+    /// Sustained intervention on `[0, until]` with active float level; control is 0.0.
+    #[must_use]
+    pub fn sustained(
+        treatment: VariableId,
+        outcome: VariableId,
+        until: i32,
+        active_level: f64,
+    ) -> Self {
+        Self {
+            treatment,
+            outcome,
+            policy: TemporalPolicy::sustained(0, until),
+            control: Intervention::set(treatment, Value::f64(0.0)),
+            active: Intervention::set(treatment, Value::f64(active_level)),
+            horizon_steps: 1,
+            max_history_lag: None,
+            target_population: TargetPopulation::AllObserved,
+        }
+    }
+
+    /// Set outcome evaluation horizon in time steps.
+    #[must_use]
+    pub const fn with_horizon_steps(mut self, horizon_steps: u32) -> Self {
+        self.horizon_steps = horizon_steps;
+        self
+    }
+
+    /// Set optional max history lag for unfolding.
+    #[must_use]
+    pub const fn with_max_history_lag(mut self, max_history_lag: Option<u32>) -> Self {
+        self.max_history_lag = max_history_lag;
+        self
+    }
+
+    /// Replace the temporal policy.
+    #[must_use]
+    pub const fn with_policy(mut self, policy: TemporalPolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+
+    /// Set target population.
+    #[must_use]
+    pub fn with_target_population(mut self, population: TargetPopulation) -> Self {
+        self.target_population = population;
+        self
+    }
+
+    /// Validate treatment/outcome, interventions, policy, and horizon.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError`] on inconsistent configuration.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.treatment == self.outcome {
+            return Err(QueryError::TreatmentEqualsOutcome { id: self.treatment });
+        }
+        if self.horizon_steps == 0 {
+            return Err(QueryError::NonPositiveHorizon);
+        }
+        self.policy.validate()?;
+        if self.control.primary_variable() != self.treatment {
+            return Err(QueryError::InterventionVariableMismatch {
+                expected: self.treatment,
+                got: self.control.primary_variable(),
+            });
+        }
+        if self.active.primary_variable() != self.treatment {
+            return Err(QueryError::InterventionVariableMismatch {
+                expected: self.treatment,
+                got: self.active.primary_variable(),
+            });
+        }
+        Ok(())
+    }
+}
+
 /// Top-level causal query enum.
-///
-/// Variants beyond [`CausalQuery::AverageEffect`] are reserved; Phase 1 facades
-/// must reject them rather than inventing behavior.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum CausalQuery {
-    /// Average / population effect.
+    /// Average / population effect (static).
     AverageEffect(AverageEffectQuery),
+    /// Temporal effect over a discrete horizon.
+    TemporalEffect(TemporalEffectQuery),
 }
 
 impl CausalQuery {
@@ -133,10 +298,34 @@ impl CausalQuery {
         Self::AverageEffect(query)
     }
 
-    /// Whether this query is supported by the Phase 1 static ATE path.
+    /// Construct a temporal-effect query.
+    #[must_use]
+    pub fn temporal_effect(query: TemporalEffectQuery) -> Self {
+        Self::TemporalEffect(query)
+    }
+
+    /// Whether this query is the Phase 1 static ATE path.
     #[must_use]
     pub const fn is_phase1_ate(&self) -> bool {
         matches!(self, Self::AverageEffect(_))
+    }
+
+    /// Whether this query is a temporal effect.
+    #[must_use]
+    pub const fn is_temporal_effect(&self) -> bool {
+        matches!(self, Self::TemporalEffect(_))
+    }
+
+    /// Validate the inner query.
+    ///
+    /// # Errors
+    ///
+    /// Propagates inner [`QueryError`].
+    pub fn validate(&self) -> Result<(), QueryError> {
+        match self {
+            Self::AverageEffect(q) => q.validate(),
+            Self::TemporalEffect(q) => q.validate(),
+        }
     }
 }
 
@@ -157,6 +346,15 @@ pub enum QueryError {
     },
     /// Effect modifier overlaps treatment or outcome.
     ModifierOverlapsTreatmentOrOutcome,
+    /// Sustained window has `until < from`.
+    InvalidTemporalWindow {
+        /// Window start.
+        from: i32,
+        /// Window end.
+        until: i32,
+    },
+    /// Horizon must be at least one time step.
+    NonPositiveHorizon,
 }
 
 impl core::fmt::Display for QueryError {
@@ -171,6 +369,10 @@ impl core::fmt::Display for QueryError {
             Self::ModifierOverlapsTreatmentOrOutcome => {
                 write!(f, "effect modifier overlaps treatment or outcome")
             }
+            Self::InvalidTemporalWindow { from, until } => {
+                write!(f, "invalid temporal window [{from}, {until}]")
+            }
+            Self::NonPositiveHorizon => write!(f, "horizon_steps must be >= 1"),
         }
     }
 }
@@ -212,5 +414,34 @@ mod tests {
             VariableId::from_raw(1),
         ));
         assert!(q.is_phase1_ate());
+        assert!(!q.is_temporal_effect());
+    }
+
+    #[test]
+    fn temporal_pulse_query() {
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let q = TemporalEffectQuery::pulse(t, y, -0.03).with_horizon_steps(2);
+        q.validate().unwrap();
+        assert_eq!(q.policy, TemporalPolicy::Pulse { at: 0 });
+        assert_eq!(q.horizon_steps, 2);
+        let cq = CausalQuery::temporal_effect(q);
+        assert!(cq.is_temporal_effect());
+        cq.validate().unwrap();
+    }
+
+    #[test]
+    fn rejects_inverted_sustained_window() {
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let q = TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::sustained(5, 1));
+        assert!(matches!(q.validate(), Err(QueryError::InvalidTemporalWindow { .. })));
+    }
+
+    #[test]
+    fn rejects_zero_horizon() {
+        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_horizon_steps(0);
+        assert!(matches!(q.validate(), Err(QueryError::NonPositiveHorizon)));
     }
 }

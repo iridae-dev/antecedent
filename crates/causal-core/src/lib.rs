@@ -39,7 +39,10 @@ pub use plan::{
     LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
 };
 pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
-pub use query::{AverageEffectQuery, CausalQuery, QueryError, TargetPopulation};
+pub use query::{
+    AverageEffectQuery, CausalQuery, QueryError, TargetPopulation, TemporalEffectQuery,
+    TemporalPolicy,
+};
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
     ValueType, VariableSchema,
