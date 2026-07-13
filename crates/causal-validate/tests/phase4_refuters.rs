@@ -39,17 +39,33 @@ fn toy() -> (TabularData, IdentifiedEstimand) {
         ("y", RoleHint::OutcomeCandidate),
         ("z", RoleHint::Context),
     ] {
-        b.add_variable(name, ValueType::Continuous, SmallRoleSet::from_hint(role), None, None, MeasurementSpec::default())
-            .unwrap();
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(role),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
     }
     let schema = b.build().unwrap();
     let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
     let z: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
     let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + z[i]).collect();
     let cols = vec![
-        OwnedColumn::Float64(Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n)).unwrap()),
-        OwnedColumn::Float64(Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n)).unwrap()),
-        OwnedColumn::Float64(Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n)).unwrap()),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let estimand = IdentifiedEstimand::backdoor(
@@ -60,7 +76,14 @@ fn toy() -> (TabularData, IdentifiedEstimand) {
     (TabularData::new(storage), estimand)
 }
 
-fn problem_setup() -> (TabularData, IdentifiedEstimand, AverageEffectQuery, causal_estimate::EffectEstimate, EstimationWorkspace, ExecutionContext) {
+fn problem_setup() -> (
+    TabularData,
+    IdentifiedEstimand,
+    AverageEffectQuery,
+    causal_estimate::EffectEstimate,
+    EstimationWorkspace,
+    ExecutionContext,
+) {
     let (data, estimand) = toy();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
@@ -76,10 +99,7 @@ fn phase4_refuters_and_sensitivity_smoke() {
     let expected = fixture_expected();
     assert_eq!(expected["tolerance_class"].as_str().unwrap(), "Exact");
     let pinned = expected["validators"].as_array().unwrap();
-    assert!(
-        pinned.len() >= 14,
-        "expected.json must pin the Phase 4 validator set"
-    );
+    assert!(pinned.len() >= 14, "expected.json must pin the Phase 4 validator set");
 
     let (data, estimand, query, original, mut ws, ctx) = problem_setup();
     let problem = RefutationProblem {

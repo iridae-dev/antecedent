@@ -46,7 +46,9 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
+};
 use causal_data::TabularData;
 use causal_identify::IdentifiedEstimand;
 use causal_stats::{
@@ -55,7 +57,7 @@ use causal_stats::{
 
 use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
 use crate::error::EstimationError;
-use crate::propensity::{sample_std, stats_err};
+use crate::util::{sample_std, stats_err};
 
 /// Stage-1 design column count: `[1, T]`.
 const STAGE1_NCOLS: usize = 2;
@@ -194,7 +196,11 @@ impl FrontDoorTwoStage {
     /// Default: 200 bootstrap replicates, explicit overlap override.
     #[must_use]
     pub fn new() -> Self {
-        Self { backend: FaerBackend, bootstrap_replicates: 200, overlap: OverlapPolicy::ExplicitOverride }
+        Self {
+            backend: FaerBackend,
+            bootstrap_replicates: 200,
+            overlap: OverlapPolicy::ExplicitOverride,
+        }
     }
 
     /// Prepare the treatment/mediator/outcome design.
@@ -224,7 +230,8 @@ impl FrontDoorTwoStage {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let stage1 = self.fit_stage1(&problem.treatment, &problem.mediator, workspace)?;
-        let stage2 = self.fit_stage2(&problem.treatment, &problem.mediator, &problem.outcome, workspace)?;
+        let stage2 =
+            self.fit_stage2(&problem.treatment, &problem.mediator, &problem.outcome, workspace)?;
 
         let beta_m_t = stage1.coefficients[STAGE1_TREATMENT_COL];
         let beta_y_m = stage2.coefficients[STAGE2_MEDIATOR_COL];
@@ -247,9 +254,9 @@ impl FrontDoorTwoStage {
         );
         // Sobel delta-method SE for the product β_{M←T}·β_{Y←M·T}, treating the two stages as
         // independent estimates (module docs).
-        let var_ate =
-            (beta_y_m * beta_y_m * var1 + beta_m_t * beta_m_t * var2) * problem.treatment_delta
-                * problem.treatment_delta;
+        let var_ate = (beta_y_m * beta_y_m * var1 + beta_m_t * beta_m_t * var2)
+            * problem.treatment_delta
+            * problem.treatment_delta;
         let se_analytic = var_ate.max(0.0).sqrt();
 
         let se_bootstrap = if self.bootstrap_replicates == 0 {
@@ -277,7 +284,9 @@ impl FrontDoorTwoStage {
     ) -> Result<causal_stats::LeastSquaresFit, EstimationError> {
         let n = treatment.len();
         let x = stage1_matrix(treatment);
-        self.backend.least_squares(&x, n, STAGE1_NCOLS, mediator, &mut workspace.ols).map_err(stats_err)
+        self.backend
+            .least_squares(&x, n, STAGE1_NCOLS, mediator, &mut workspace.ols)
+            .map_err(stats_err)
     }
 
     fn fit_stage2(
@@ -289,7 +298,9 @@ impl FrontDoorTwoStage {
     ) -> Result<causal_stats::LeastSquaresFit, EstimationError> {
         let n = treatment.len();
         let x = stage2_matrix(treatment, mediator);
-        self.backend.least_squares(&x, n, STAGE2_NCOLS, outcome, &mut workspace.ols).map_err(stats_err)
+        self.backend
+            .least_squares(&x, n, STAGE2_NCOLS, outcome, &mut workspace.ols)
+            .map_err(stats_err)
     }
 
     fn bootstrap_se(
@@ -312,7 +323,9 @@ impl FrontDoorTwoStage {
                 y_boot[r] = problem.outcome[idx];
             }
             let Ok(stage1) = self.fit_stage1(&t_boot, &m_boot, workspace) else { continue };
-            let Ok(stage2) = self.fit_stage2(&t_boot, &m_boot, &y_boot, workspace) else { continue };
+            let Ok(stage2) = self.fit_stage2(&t_boot, &m_boot, &y_boot, workspace) else {
+                continue;
+            };
             let ate = stage1.coefficients[STAGE1_TREATMENT_COL]
                 * stage2.coefficients[STAGE2_MEDIATOR_COL]
                 * problem.treatment_delta;
@@ -406,7 +419,11 @@ mod tests {
     }
 
     fn frontdoor_estimand() -> IdentifiedEstimand {
-        IdentifiedEstimand::frontdoor("frontdoor", Arc::from([VariableId::from_raw(2)]), ExprId::from_raw(0))
+        IdentifiedEstimand::frontdoor(
+            "frontdoor",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        )
     }
 
     fn build_frontdoor_data(n: usize, t: Vec<f64>, y: Vec<f64>, m: Vec<f64>) -> TabularData {
@@ -441,16 +458,28 @@ mod tests {
         let schema = b.build().unwrap();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(m), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(m),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();

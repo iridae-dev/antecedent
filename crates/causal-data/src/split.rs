@@ -63,8 +63,9 @@ impl DiscoveryEstimationSplit {
         validate_range(series_len, estimation, "estimation")?;
         if discovery.end > estimation.start {
             return Err(DataError::InvalidArgument {
-                message: "discovery window must end at or before estimation start (with optional gap)"
-                    .into(),
+                message:
+                    "discovery window must end at or before estimation start (with optional gap)"
+                        .into(),
             });
         }
         let gap = estimation.start - discovery.end;
@@ -90,19 +91,14 @@ impl DiscoveryEstimationSplit {
         let need = discovery_len
             .checked_add(gap)
             .and_then(|v| v.checked_add(estimation_len))
-            .ok_or(DataError::InvalidArgument {
-                message: "split sizes overflow".into(),
-            })?;
+            .ok_or(DataError::InvalidArgument { message: "split sizes overflow".into() })?;
         if need != series_len {
             return Err(DataError::InvalidArgument {
                 message: "discovery + gap + estimation must equal series_len".into(),
             });
         }
         let discovery = TimeRange { start: 0, end: discovery_len };
-        let estimation = TimeRange {
-            start: discovery_len + gap,
-            end: series_len,
-        };
+        let estimation = TimeRange { start: discovery_len + gap, end: series_len };
         Self::try_new(series_len, discovery, estimation)
     }
 

@@ -12,8 +12,8 @@ use causal_core::{
     RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 use causal_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex, TimeSeriesData,
-    ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+    TimeSeriesData, ValidityBitmap,
 };
 use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
@@ -58,10 +58,7 @@ fn synth(n: usize, p: usize) -> (TimeSeriesData, Vec<VariableId>) {
 
 fn pcmci_config() -> Pcmci {
     Pcmci::new().with_fdr(false).with_constraints(DiscoveryConstraints {
-        temporal: TemporalConstraints {
-            max_lag: Lag::from_raw(2),
-            min_lag: Lag::from_raw(1),
-        },
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(2), min_lag: Lag::from_raw(1) },
         max_cond_size: 1,
         alpha: 0.05,
         ..DiscoveryConstraints::default()
@@ -76,10 +73,12 @@ fn bench_pcmci(c: &mut Criterion) {
 
     c.bench_function("pcmci_n500_p4_lag2", |b| {
         b.iter(|| {
-            let _ = black_box(
-                pcmci
-                    .run(black_box(&data), black_box(&vars), black_box(&mut ws), black_box(&ctx)),
-            );
+            let _ = black_box(pcmci.run(
+                black_box(&data),
+                black_box(&vars),
+                black_box(&mut ws),
+                black_box(&ctx),
+            ));
         });
     });
 }

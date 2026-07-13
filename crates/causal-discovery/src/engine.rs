@@ -12,7 +12,6 @@
     clippy::too_many_lines
 )]
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
@@ -28,7 +27,7 @@ use crate::error::DiscoveryError;
 use crate::evidence::graph_evidence_from_scored;
 use crate::result::{
     AlgorithmRecord, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult, LaggedLink,
-    ScoredLink,
+    PcSepsets, ScoredLink,
 };
 
 /// Maximum columns in one CI query (X, Y, + conditioning). Stack-backed refs.
@@ -36,7 +35,7 @@ const MAX_CI_COLS: usize = 32;
 
 type ParentSet = Vec<(VariableId, Lag)>;
 type TargetParents = (VariableId, ParentSet);
-type ParentSelectOut = (VariableId, ParentSet, u64, HashMap<(VariableId, Lag, VariableId, Lag), Arc<[(VariableId, Lag)]>>);
+type ParentSelectOut = (VariableId, ParentSet, u64, PcSepsets);
 type MciChunkOut = (Vec<ScoredLink>, u64);
 
 /// Reusable target-local discovery workspace.
@@ -60,7 +59,7 @@ pub struct DiscoveryWorkspace {
     ///
     /// Key: `(source, source_lag, target, target_lag)` with `target_lag` contemporaneous
     /// in the PC phase. Value: conditioning set that rendered the pair independent.
-    pub sepsets: HashMap<(VariableId, Lag, VariableId, Lag), Arc<[(VariableId, Lag)]>>,
+    pub sepsets: PcSepsets,
 }
 
 /// Shared PCMCI engine core.
@@ -74,7 +73,9 @@ pub struct PcmciEngine {
 
 impl std::fmt::Debug for PcmciEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PcmciEngine").field("constraints", &self.constraints).finish_non_exhaustive()
+        f.debug_struct("PcmciEngine")
+            .field("constraints", &self.constraints)
+            .finish_non_exhaustive()
     }
 }
 
@@ -146,11 +147,8 @@ impl PcmciEngine {
                     })
                 })
                 .collect();
-            let mut optional: Vec<_> = parents
-                .iter()
-                .copied()
-                .filter(|p| !required.contains(p))
-                .collect();
+            let mut optional: Vec<_> =
+                parents.iter().copied().filter(|p| !required.contains(p)).collect();
             let room = max_p.saturating_sub(required.len());
             optional.truncate(room);
             required.extend(optional);
@@ -164,9 +162,8 @@ impl PcmciEngine {
                 let (src, slag) = parents[pi];
                 let mut others = std::mem::take(&mut workspace.others);
                 others.clear();
-                others.extend(
-                    parents.iter().enumerate().filter(|(j, _)| *j != pi).map(|(_, x)| *x),
-                );
+                others
+                    .extend(parents.iter().enumerate().filter(|(j, _)| *j != pi).map(|(_, x)| *x));
                 if others.len() < cond_size {
                     workspace.others = others;
                     continue;
@@ -218,10 +215,9 @@ impl PcmciEngine {
                     if !compiled.requires(link) {
                         workspace.removed.push((src, slag));
                         if let Some(sep) = sep_for_removal {
-                            workspace.sepsets.insert(
-                                (src, slag, target, Lag::CONTEMPORANEOUS),
-                                sep,
-                            );
+                            workspace
+                                .sepsets
+                                .insert((src, slag, target, Lag::CONTEMPORANEOUS), sep);
                         }
                     }
                 }
@@ -251,12 +247,9 @@ impl PcmciEngine {
         workspace.others.clear();
         let src_key = (link.source, link.source_lag);
         let tgt_key = (link.target, link.target_lag);
-        workspace.others.extend(
-            parents_target
-                .iter()
-                .copied()
-                .filter(|p| *p != src_key && *p != tgt_key),
-        );
+        workspace
+            .others
+            .extend(parents_target.iter().copied().filter(|p| *p != src_key && *p != tgt_key));
         for p in parents_source {
             if !workspace.others.contains(p) && *p != src_key && *p != tgt_key {
                 workspace.others.push(*p);
@@ -313,8 +306,7 @@ impl PcmciEngine {
             self.select_parents_all(&frame, variables, &compiled, workspace, ctx, threads)?;
 
         let mut scored = Vec::new();
-        let mci_tests =
-            self.mci_all(&frame, &all_parents, &mut scored, workspace, ctx, threads)?;
+        let mci_tests = self.mci_all(&frame, &all_parents, &mut scored, workspace, ctx, threads)?;
         ci_tests += mci_tests;
 
         let evidence = graph_evidence_from_scored(scored)?;
@@ -391,7 +383,12 @@ impl PcmciEngine {
                         this[i] = Some(
                             engine
                                 .select_parents(
-                                    frame, target, variables, compiled, &mut local_ws, ctx,
+                                    frame,
+                                    target,
+                                    variables,
+                                    compiled,
+                                    &mut local_ws,
+                                    ctx,
                                 )
                                 .map(|(p, tests)| {
                                     let seps = std::mem::take(&mut local_ws.sepsets);
@@ -439,7 +436,14 @@ impl PcmciEngine {
                 for &(src, slag) in parents {
                     let link = link_to_target(src, slag, *target);
                     let src_parents = parents_of(all_parents, src);
-                    scored.push(self.mci_test(frame, link, parents, src_parents, workspace, ctx)?);
+                    scored.push(self.mci_test(
+                        frame,
+                        link,
+                        parents,
+                        src_parents,
+                        workspace,
+                        ctx,
+                    )?);
                     tests += 1;
                 }
             }
@@ -553,12 +557,7 @@ impl PcmciEngine {
         let col_refs = &col_buf[..ncols];
 
         let result: CiResult = {
-            let queries = [CiQuery {
-                x: 0,
-                y: 1,
-                z_start: 0,
-                z_len: workspace.z_flat.len(),
-            }];
+            let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: workspace.z_flat.len() }];
             let req = CiBatchRequest {
                 columns: col_refs,
                 queries: &queries,
@@ -569,9 +568,10 @@ impl PcmciEngine {
                 .ci
                 .test_batch(&req, &mut workspace.ci, ctx)
                 .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
-            out.results.into_iter().next().ok_or_else(|| {
-                DiscoveryError::Stats("CI batch returned no results".into())
-            })?
+            out.results
+                .into_iter()
+                .next()
+                .ok_or_else(|| DiscoveryError::Stats("CI batch returned no results".into()))?
         };
         if !result.statistic.is_finite() || !result.p_value.is_finite() {
             return Err(DiscoveryError::Stats("non-finite CI statistic or p-value".into()));
@@ -585,12 +585,7 @@ fn parents_of(all_parents: &[TargetParents], src: VariableId) -> &[(VariableId, 
 }
 
 fn link_to_target(src: VariableId, slag: Lag, target: VariableId) -> LaggedLink {
-    LaggedLink {
-        source: src,
-        source_lag: slag,
-        target,
-        target_lag: Lag::CONTEMPORANEOUS,
-    }
+    LaggedLink { source: src, source_lag: slag, target, target_lag: Lag::CONTEMPORANEOUS }
 }
 
 /// Inclusive-exclusive index ranges for target-wise parallel work.

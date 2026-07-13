@@ -13,6 +13,7 @@
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
+    clippy::similar_names,
     clippy::float_cmp
 )]
 
@@ -23,8 +24,8 @@ use causal_data::TableView;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, fill_gaussian, fit_once, float64_full, sample_sd,
-    with_replaced_float,
+    RefutationProblem, RefutationReport, fill_gaussian, fit_once, float64_full,
+    linear_estimator_no_bootstrap, sample_sd, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -62,10 +63,8 @@ fn run_grid(
     for &r in &sorted_grid {
         let r = r.clamp(0.0, 0.999);
         let scale = (r / (1.0 - r)).sqrt();
-        let t: Vec<f64> =
-            t0.iter().zip(&u).map(|(&t, &u)| t + scale * sd_t * u).collect();
-        let y: Vec<f64> =
-            y0.iter().zip(&u).map(|(&y, &u)| y + scale * sd_y * u).collect();
+        let t: Vec<f64> = t0.iter().zip(&u).map(|(&t, &u)| t + scale * sd_t * u).collect();
+        let y: Vec<f64> = y0.iter().zip(&u).map(|(&y, &u)| y + scale * sd_y * u).collect();
         let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t))?;
         let data = with_replaced_float(&data, problem.outcome(), Arc::from(y))?;
         let est = fit_once(estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
@@ -107,9 +106,11 @@ impl LinearSensitivity {
     /// Defaults: grid `[0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5]`, pass threshold 0.1.
     #[must_use]
     pub fn new() -> Self {
-        let mut estimator = LinearAdjustmentAte::new();
-        estimator.bootstrap_replicates = 0;
-        Self { partial_r2_grid: default_grid(), pass_threshold: 0.1, estimator }
+        Self {
+            partial_r2_grid: default_grid(),
+            pass_threshold: 0.1,
+            estimator: linear_estimator_no_bootstrap(),
+        }
     }
 
     /// Run the linear sensitivity refuter.
@@ -180,9 +181,11 @@ impl PartialLinearSensitivity {
     /// Defaults: grid `[0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5]`, pass threshold 0.1.
     #[must_use]
     pub fn new() -> Self {
-        let mut estimator = LinearAdjustmentAte::new();
-        estimator.bootstrap_replicates = 0;
-        Self { partial_r2_grid: default_grid(), pass_threshold: 0.1, estimator }
+        Self {
+            partial_r2_grid: default_grid(),
+            pass_threshold: 0.1,
+            estimator: linear_estimator_no_bootstrap(),
+        }
     }
 
     /// Run the partial-linear sensitivity refuter.
@@ -270,10 +273,8 @@ fn covariate_matrix(
     let mut all = ids.clone();
     all.push(problem.treatment());
     all.push(problem.outcome());
-    let mask = problem
-        .data
-        .complete_case_mask(&all)
-        .map_err(|e| ValidationError::Data(e.to_string()))?;
+    let mask =
+        problem.data.complete_case_mask(&all).map_err(|e| ValidationError::Data(e.to_string()))?;
     let n = mask.iter().filter(|&&k| k).count();
     let dim = ids.len();
     let mut cov = vec![0.0; n * dim];
@@ -430,9 +431,5 @@ fn residual_ols_ate(t: &[f64], y: &[f64]) -> f64 {
         num += dt * (yi - mean_y);
         den += dt * dt;
     }
-    if den < 1e-15 {
-        0.0
-    } else {
-        num / den
-    }
+    if den < 1e-15 { 0.0 } else { num / den }
 }

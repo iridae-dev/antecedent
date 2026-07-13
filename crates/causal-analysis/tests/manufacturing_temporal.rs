@@ -69,7 +69,10 @@ fn manufacturing_pressure_defect() {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let series = TimeSeriesData::try_new(
         storage,
-        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 3_600_000_000_000 }, length: n },
+        TimeIndex {
+            regularity: SamplingRegularity::Regular { interval_ns: 3_600_000_000_000 },
+            length: n,
+        },
     )
     .unwrap();
 
@@ -93,11 +96,7 @@ fn manufacturing_pressure_defect() {
     let result = analysis.run(&ctx).unwrap();
 
     // Y ≈ 0.9 X_{t-1}; unit pulse ⇒ ATE ≈ 0.9
-    assert!(
-        (result.estimate.ate - 0.9).abs() < 0.05,
-        "ate={} expected ~0.9",
-        result.estimate.ate
-    );
+    assert!((result.estimate.ate - 0.9).abs() < 0.05, "ate={} expected ~0.9", result.estimate.ate);
     assert_eq!(&*result.logical_plan.plan_id, "phase3.temporal_effect");
     assert!(result.physical_plan.estimated_peak_memory_bytes.is_some());
     assert!(result.physical_plan.estimated_copy_bytes.is_some());

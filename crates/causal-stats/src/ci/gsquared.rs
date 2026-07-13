@@ -8,11 +8,9 @@ use std::collections::HashMap;
 
 use causal_core::ExecutionContext;
 
-use super::analytic::analytic_parcorr_pvalue;
+use super::analytic::normal_ppf;
 use super::parcorr::PartialCorrelation;
-use super::types::{
-    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
-};
+use super::types::{CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence};
 
 #[cfg(test)]
 use super::types::{CiQuery, SignificanceMethod};
@@ -56,60 +54,9 @@ impl ConditionalIndependence for GSquared {
 /// Asymptotic 100`level`% Wald interval for the G² statistic under a central-χ²
 /// variance proxy (`Var(G²) ≈ 2·df`). Lower bound is clipped at 0.
 fn analytic_gsquared_ci(g: f64, df: f64, level: f64) -> (f64, f64) {
-    let z = norm_quantile(0.5 + 0.5 * level.clamp(0.0, 1.0));
+    let z = normal_ppf(0.5 + 0.5 * level.clamp(0.0, 1.0));
     let se = (2.0 * df.max(1.0)).sqrt();
     ((g - z * se).max(0.0), g + z * se)
-}
-
-/// Approximate standard-normal quantile via Acklam’s rational approximation.
-fn norm_quantile(p: f64) -> f64 {
-    let p = p.clamp(1e-12, 1.0 - 1e-12);
-    // Coefficients from Peter J. Acklam’s algorithm.
-    let a = [
-        -3.969_683_028_665_376e1,
-        2.209_460_984_245_205e2,
-        -2.759_285_104_469_687e2,
-        1.383_577_459_740_707e2,
-        -3.066_479_806_614_716e1,
-        2.506_628_277_459_239,
-    ];
-    let b = [
-        -5.447_609_879_822_406e1,
-        1.615_858_368_580_409e2,
-        -1.556_989_798_598_866e2,
-        6.680_131_188_771_972e1,
-        -1.328_068_155_288_572e1,
-    ];
-    let c = [
-        -7.784_894_002_430_293e-3,
-        -3.223_964_580_411_365e-1,
-        -2.400_758_277_161_838,
-        -2.549_732_539_343_734,
-        4.374_664_141_464_968,
-        2.938_163_982_698_783,
-    ];
-    let d = [
-        7.784_695_709_041_462e-3,
-        3.224_671_290_700_398e-1,
-        2.445_134_137_142_996,
-        3.754_408_661_907_416,
-    ];
-    let plow = 0.02425;
-    let phigh = 1.0 - plow;
-    if p < plow {
-        let q = (-2.0 * p.ln()).sqrt();
-        return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
-            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0);
-    }
-    if p > phigh {
-        let q = (-2.0 * (1.0 - p).ln()).sqrt();
-        return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
-            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0);
-    }
-    let q = p - 0.5;
-    let r = q * q;
-    (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q
-        / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1.0)
 }
 
 fn g_squared_statistic(
@@ -234,9 +181,7 @@ fn erfc_approx(x: f64) -> f64 {
     let t = 1.0 / (1.0 + 0.3275911 * ax);
     let poly = t
         * (0.254829592
-            + t
-                * (-0.284496736
-                    + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+            + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
     let erf = sign * (1.0 - poly * (-ax * ax).exp());
     1.0 - erf
 }
@@ -264,12 +209,6 @@ impl ConditionalIndependence for RegressionCi {
     ) -> Result<CiBatchResult, StatsError> {
         self.inner.test_batch(request, workspace, ctx)
     }
-}
-
-/// Ensure analytic helper stays used for calibration hooks.
-#[allow(dead_code)]
-fn _touch_analytic(r: f64, df: f64) -> f64 {
-    analytic_parcorr_pvalue(r, df)
 }
 
 #[cfg(test)]

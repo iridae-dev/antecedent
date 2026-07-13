@@ -48,9 +48,9 @@ impl TemporalDag {
         // Validate all nodes are lagged up front.
         for (i, _) in self.nodes().iter().enumerate() {
             let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-            let _ = self.temporal_key(id).ok_or(GraphError::InvalidEndpoints {
-                message: "unfold requires lagged nodes",
-            })?;
+            let _ = self
+                .temporal_key(id)
+                .ok_or(GraphError::InvalidEndpoints { message: "unfold requires lagged nodes" })?;
         }
         Ok(LazyUnfoldedTemporalGraph { template: self.clone(), indexer })
     }
@@ -107,13 +107,15 @@ impl LazyUnfoldedTemporalGraph {
 
         for (from_i, _) in self.template.nodes().iter().enumerate() {
             let from = DenseNodeId::from_raw(u32::try_from(from_i).expect("fit"));
-            let from_key = self.template.temporal_key(from).ok_or(GraphError::InvalidEndpoints {
-                message: "unfold requires lagged nodes",
-            })?;
+            let from_key = self
+                .template
+                .temporal_key(from)
+                .ok_or(GraphError::InvalidEndpoints { message: "unfold requires lagged nodes" })?;
             for &to in self.template.children(from) {
-                let to_key = self.template.temporal_key(to).ok_or(GraphError::InvalidEndpoints {
-                    message: "unfold requires lagged nodes",
-                })?;
+                let to_key =
+                    self.template.temporal_key(to).ok_or(GraphError::InvalidEndpoints {
+                        message: "unfold requires lagged nodes",
+                    })?;
                 insert_replicated_edges(&mut dag, &self.indexer, from_key, to_key)?;
             }
         }

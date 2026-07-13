@@ -33,7 +33,7 @@ use causal_stats::{
 
 use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
 use crate::error::EstimationError;
-use crate::propensity::{sample_std, stats_err};
+use crate::util::{sample_std, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -116,8 +116,7 @@ impl GlmAdjustmentAte {
             self.overlap,
             "GlmAdjustmentAte requires ExplicitOverride overlap policy",
         )?;
-        if &*estimand.method != "backdoor.adjustment" && &*estimand.method != "backdoor.efficient"
-        {
+        if &*estimand.method != "backdoor.adjustment" && &*estimand.method != "backdoor.efficient" {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "GlmAdjustmentAte expects backdoor.adjustment or backdoor.efficient",
             });
@@ -231,16 +230,17 @@ impl GlmAdjustmentAte {
         )
         .map_err(stats_err)?;
 
-        let diffs = g_computation_diffs(
-            problem.family,
-            &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
+        let diffs = GCompContrast {
+            family: problem.family,
+            x_colmajor: &problem.design.matrix,
+            nrows: problem.design.nrows,
+            ncols: problem.design.ncols,
             t_col,
-            &glm_fit.coefficients,
-            problem.active,
-            problem.control,
-        );
+            coefficients: &glm_fit.coefficients,
+            active: problem.active,
+            control: problem.control,
+        }
+        .diffs();
         let n = diffs.len() as f64;
         let ate = diffs.iter().sum::<f64>() / n;
         // Naive per-unit dispersion of the g-computation contrast; ignores GLM parameter
@@ -295,16 +295,17 @@ impl GlmAdjustmentAte {
             ) else {
                 continue;
             };
-            let diffs = g_computation_diffs(
-                problem.family,
-                &x_boot,
-                n,
-                p,
+            let diffs = GCompContrast {
+                family: problem.family,
+                x_colmajor: &x_boot,
+                nrows: n,
+                ncols: p,
                 t_col,
-                &fit.coefficients,
-                problem.active,
-                problem.control,
-            );
+                coefficients: &fit.coefficients,
+                active: problem.active,
+                control: problem.control,
+            }
+            .diffs();
             let m = diffs.len() as f64;
             estimates.push(diffs.iter().sum::<f64>() / m);
         }
@@ -316,44 +317,40 @@ impl GlmAdjustmentAte {
 }
 
 /// Per-row mean-scale contrast `μ(T=active, Z) − μ(T=control, Z)`.
-fn g_computation_diffs(
+struct GCompContrast<'a> {
     family: GlmFamily,
-    x_colmajor: &[f64],
+    x_colmajor: &'a [f64],
     nrows: usize,
     ncols: usize,
     t_col: usize,
-    coefficients: &[f64],
+    coefficients: &'a [f64],
     active: f64,
     control: f64,
-) -> Vec<f64> {
-    let mut diffs = Vec::with_capacity(nrows);
-    for r in 0..nrows {
-        let mut eta_active = 0.0;
-        let mut eta_control = 0.0;
-        for c in 0..ncols {
-            let coef = coefficients[c];
-            if c == t_col {
-                eta_active += active * coef;
-                eta_control += control * coef;
-            } else {
-                let val = x_colmajor[c * nrows + r];
-                eta_active += val * coef;
-                eta_control += val * coef;
+}
+
+impl GCompContrast<'_> {
+    fn diffs(&self) -> Vec<f64> {
+        let mut diffs = Vec::with_capacity(self.nrows);
+        for r in 0..self.nrows {
+            let mut eta_active = 0.0;
+            let mut eta_control = 0.0;
+            for c in 0..self.ncols {
+                let coef = self.coefficients[c];
+                if c == self.t_col {
+                    eta_active += self.active * coef;
+                    eta_control += self.control * coef;
+                } else {
+                    let val = self.x_colmajor[c * self.nrows + r];
+                    eta_active += val * coef;
+                    eta_control += val * coef;
+                }
             }
+            diffs.push(
+                self.family.mean_from_eta(eta_active) - self.family.mean_from_eta(eta_control),
+            );
         }
-        let mu_active = match family {
-            GlmFamily::BinomialLogit => 1.0 / (1.0 + (-eta_active).exp()),
-            GlmFamily::GaussianIdentity => eta_active,
-            GlmFamily::PoissonLog => eta_active.exp(),
-        };
-        let mu_control = match family {
-            GlmFamily::BinomialLogit => 1.0 / (1.0 + (-eta_control).exp()),
-            GlmFamily::GaussianIdentity => eta_control,
-            GlmFamily::PoissonLog => eta_control.exp(),
-        };
-        diffs.push(mu_active - mu_control);
+        diffs
     }
-    diffs
 }
 
 #[cfg(test)]
@@ -422,16 +419,28 @@ mod tests {
         let schema = b.build().unwrap();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();

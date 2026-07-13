@@ -208,10 +208,14 @@ impl MatchingIndex {
 }
 
 fn euclidean(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b.iter()).map(|(x, y)| {
-        let d = x - y;
-        d * d
-    }).sum::<f64>().sqrt()
+    a.iter()
+        .zip(b.iter())
+        .map(|(x, y)| {
+            let d = x - y;
+            d * d
+        })
+        .sum::<f64>()
+        .sqrt()
 }
 
 /// Scalar reference: nearest Euclidean neighbor among `donors` (row-major).
@@ -245,8 +249,8 @@ mod tests {
     #[test]
     fn finds_nearest_euclidean() {
         let donors = [0.0, 0.0, 1.0, 1.0, 5.0, 5.0];
-        let idx = MatchingIndex::exact(&donors, 2, &[10, 20, 30], MatchingDistance::Euclidean)
-            .unwrap();
+        let idx =
+            MatchingIndex::exact(&donors, 2, &[10, 20, 30], MatchingDistance::Euclidean).unwrap();
         let (row, d) = idx.nearest(&[0.1, 0.1], None).unwrap().unwrap();
         assert_eq!(row, 10);
         assert!(d < 0.2);
@@ -255,8 +259,7 @@ mod tests {
     #[test]
     fn caliper_rejects_far_matches() {
         let donors = [0.0, 10.0];
-        let idx =
-            MatchingIndex::exact(&donors, 1, &[0, 1], MatchingDistance::Absolute).unwrap();
+        let idx = MatchingIndex::exact(&donors, 1, &[0, 1], MatchingDistance::Absolute).unwrap();
         assert!(idx.nearest(&[0.05], Some(0.1)).unwrap().is_some());
         assert!(idx.nearest(&[5.0], Some(0.1)).unwrap().is_none());
     }
@@ -265,8 +268,8 @@ mod tests {
     fn differential_vs_scalar() {
         let donors = [0.0, 0.0, 2.0, 0.0, 0.0, 3.0];
         let query = [0.1, 0.0];
-        let idx = MatchingIndex::exact(&donors, 2, &[0, 1, 2], MatchingDistance::Euclidean)
-            .unwrap();
+        let idx =
+            MatchingIndex::exact(&donors, 2, &[0, 1, 2], MatchingDistance::Euclidean).unwrap();
         let (row, d) = idx.nearest(&query, None).unwrap().unwrap();
         let (si, sd) = nearest_euclidean_scalar(&query, &donors, 3, 2).unwrap();
         assert_eq!(row, si);

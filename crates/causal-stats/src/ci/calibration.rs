@@ -144,12 +144,8 @@ pub fn calibrate_gsquared(
 
     for t in 0..trials {
         let mut rng = ctx.rng.stream(0x65_u64.wrapping_add(u64::from(t)));
-        let x: Vec<f64> = (0..n)
-            .map(|_| (rng.next_u64() % levels as u64) as f64)
-            .collect();
-        let y_null: Vec<f64> = (0..n)
-            .map(|_| (rng.next_u64() % levels as u64) as f64)
-            .collect();
+        let x: Vec<f64> = (0..n).map(|_| (rng.next_u64() % levels as u64) as f64).collect();
+        let y_null: Vec<f64> = (0..n).map(|_| (rng.next_u64() % levels as u64) as f64).collect();
         let cols_null: [&[f64]; 2] = [&x, &y_null];
         let req = CiBatchRequest {
             columns: &cols_null,
@@ -162,16 +158,16 @@ pub fn calibrate_gsquared(
             null_rej += 1;
         }
 
-        let y_alt: Vec<f64> = x
-            .iter()
-            .map(|&xi| {
-                if rng.next_u64() % 5 == 0 {
-                    (rng.next_u64() % levels as u64) as f64
-                } else {
-                    xi
-                }
-            })
-            .collect();
+        let y_alt: Vec<f64> =
+            x.iter()
+                .map(|&xi| {
+                    if rng.next_u64() % 5 == 0 {
+                        (rng.next_u64() % levels as u64) as f64
+                    } else {
+                        xi
+                    }
+                })
+                .collect();
         let cols_alt: [&[f64]; 2] = [&x, &y_alt];
         let req_alt = CiBatchRequest {
             columns: &cols_alt,
@@ -206,7 +202,7 @@ pub fn type_i_within_two_se(rate: f64, alpha: f64, trials: u32) -> bool {
 mod tests {
     use super::*;
     use crate::ci::{
-        Gpdc, GSquared, KnnCmi, MixedKnnCmi, MultivariatePartialCorrelation, PartialCorrelation,
+        GSquared, Gpdc, KnnCmi, MixedKnnCmi, MultivariatePartialCorrelation, PartialCorrelation,
         RegressionCi, RobustPartialCorrelation, SymbolicCmi, WeightedPartialCorrelation,
     };
 
@@ -223,21 +219,13 @@ mod tests {
             report.type_i_rate(),
             alpha
         );
-        assert!(
-            report.power() > 0.50,
-            "power too low: {}",
-            report.power()
-        );
+        assert!(report.power() > 0.50, "power too low: {}", report.power());
     }
 
     #[test]
     fn gsquared_calibration_type_i_and_power() {
         let report = calibrate_gsquared(&GSquared::new(), 300, 120, 0.05, 11).unwrap();
-        assert!(
-            report.type_i_rate() < 0.15,
-            "G² type I too high: {}",
-            report.type_i_rate()
-        );
+        assert!(report.type_i_rate() < 0.15, "G² type I too high: {}", report.type_i_rate());
         assert!(report.power() > 0.40, "G² power too low: {}", report.power());
     }
 
@@ -266,12 +254,9 @@ mod tests {
         let n = 80usize;
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
         let mut rng = ctx.rng.stream(0x4e4e);
-        let x: Vec<f64> = (0..n)
-            .map(|_| (rng.next_u64() as f64) / (u64::MAX as f64))
-            .collect();
-        let y_null: Vec<f64> = (0..n)
-            .map(|_| (rng.next_u64() as f64) / (u64::MAX as f64))
-            .collect();
+        let x: Vec<f64> = (0..n).map(|_| (rng.next_u64() as f64) / (u64::MAX as f64)).collect();
+        let y_null: Vec<f64> =
+            (0..n).map(|_| (rng.next_u64() as f64) / (u64::MAX as f64)).collect();
         let cols_null: [&[f64]; 2] = [&x, &y_null];
         let req = CiBatchRequest {
             columns: &cols_null,
@@ -303,8 +288,7 @@ mod tests {
         let report_mv =
             calibrate_parcorr_like(&MultivariatePartialCorrelation::new(), 200, 80, 0.05, 23)
                 .unwrap();
-        let report_reg =
-            calibrate_parcorr_like(&RegressionCi::new(), 200, 80, 0.05, 23).unwrap();
+        let report_reg = calibrate_parcorr_like(&RegressionCi::new(), 200, 80, 0.05, 23).unwrap();
         let report_pc =
             calibrate_parcorr_like(&PartialCorrelation::new(), 200, 80, 0.05, 23).unwrap();
         assert!((report_mv.type_i_rate() - report_pc.type_i_rate()).abs() < 0.08);
@@ -320,12 +304,8 @@ mod tests {
         let n = 100usize;
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
         let mut rng = ctx.rng.stream(0x51);
-        let x: Vec<f64> = (0..n)
-            .map(|_| ((rng.next_u64() % 4) as f64))
-            .collect();
-        let y_null: Vec<f64> = (0..n)
-            .map(|_| ((rng.next_u64() % 4) as f64))
-            .collect();
+        let x: Vec<f64> = (0..n).map(|_| ((rng.next_u64() % 4) as f64)).collect();
+        let y_null: Vec<f64> = (0..n).map(|_| ((rng.next_u64() % 4) as f64)).collect();
         let cols_null: [&[f64]; 2] = [&x, &y_null];
         let req = CiBatchRequest {
             columns: &cols_null,

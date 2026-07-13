@@ -222,8 +222,7 @@ fn analyze_ate(
 
         let refutation_passed =
             result.refutations.is_empty() || result.refutations.iter().all(|r| r.passed);
-        let estimator_id =
-            result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
+        let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
         let overlap_ess = result.estimate.overlap_report.as_ref().map(|r| r.ess);
         let overlap_propensity_min =
             result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
@@ -302,9 +301,7 @@ fn resolve_ci(
     let key = ci.trim().to_ascii_lowercase();
     if matches!(key.as_str(), "weighted_parcorr" | "weighted_partial_corr") {
         let Some(w) = weights else {
-            return Err(PyValueError::new_err(
-                "weights required when ci='weighted_parcorr'",
-            ));
+            return Err(PyValueError::new_err("weights required when ci='weighted_parcorr'"));
         };
         return Ok(Arc::new(causal_stats::WeightedPartialCorrelation::new(w)));
     }
@@ -314,6 +311,69 @@ fn resolve_ci(
         ));
     }
     ci_from_name(ci).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<VariableId>)> {
+    let loaded =
+        tabular_from_record_batch(batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let tabular = loaded.data;
+    let n = tabular.row_count();
+    let series = TimeSeriesData::try_new(
+        tabular.storage().clone(),
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let variables: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+    Ok((series, variables))
+}
+
+fn discovered_links(
+    names: &[String],
+    result: &causal_discovery::DiscoveryResult,
+) -> Vec<DiscoveredLink> {
+    result
+        .evidence
+        .links
+        .iter()
+        .map(|s| DiscoveredLink {
+            source: names
+                .get(s.link.source.as_usize())
+                .cloned()
+                .unwrap_or_else(|| format!("var{}", s.link.source.raw())),
+            source_lag: s.link.source_lag.raw(),
+            target: names
+                .get(s.link.target.as_usize())
+                .cloned()
+                .unwrap_or_else(|| format!("var{}", s.link.target.raw())),
+            target_lag: s.link.target_lag.raw(),
+            statistic: s.statistic,
+            p_value: s.p_value,
+        })
+        .collect()
+}
+
+fn discovery_result_fields(
+    names: &[String],
+    result: &causal_discovery::DiscoveryResult,
+    ci_name: String,
+    cpdag_nodes: u64,
+    cpdag_directed_edges: u64,
+    cpdag_undirected_edges: u64,
+) -> PcmciDiscoveryResult {
+    PcmciDiscoveryResult {
+        links: discovered_links(names, result),
+        algorithm_id: result.algorithm.id.to_string(),
+        algorithm_config: result.algorithm.config.to_string(),
+        ci_tests: result.performance.ci_tests,
+        links_retained: result.performance.links_retained,
+        pending_edge_count: result.review.pending_edges.len() as u64,
+        lagged_frame_bytes: result.performance.lagged_frame_bytes,
+        worker_threads: result.performance.worker_threads,
+        ci_name,
+        cpdag_nodes,
+        cpdag_directed_edges,
+        cpdag_undirected_edges,
+    }
 }
 
 /// Run lagged PCMCI discovery.
@@ -339,25 +399,7 @@ fn discover_pcmci(
     drop(columns);
 
     py.allow_threads(move || {
-        let loaded =
-            tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
-        let tabular = loaded.data;
-        let n = tabular.row_count();
-        let series = TimeSeriesData::try_new(
-            tabular.storage().clone(),
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: n,
-            },
-        )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-
-        let variables: Vec<VariableId> = series
-            .schema()
-            .variables()
-            .iter()
-            .map(|v| v.id)
-            .collect();
+        let (series, variables) = series_from_batch(&batch)?;
         let pcmci = Pcmci::new()
             .with_fdr(fdr)
             .with_constraints(DiscoveryConstraints {
@@ -375,41 +417,7 @@ fn discover_pcmci(
         let result = pcmci
             .run(&series, &variables, &mut ws, &ctx)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
-
-        let links: Vec<DiscoveredLink> = result
-            .evidence
-            .links
-            .iter()
-            .map(|s| DiscoveredLink {
-                source: names
-                    .get(s.link.source.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("var{}", s.link.source.raw())),
-                source_lag: s.link.source_lag.raw(),
-                target: names
-                    .get(s.link.target.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("var{}", s.link.target.raw())),
-                target_lag: s.link.target_lag.raw(),
-                statistic: s.statistic,
-                p_value: s.p_value,
-            })
-            .collect();
-
-        Ok(PcmciDiscoveryResult {
-            links,
-            algorithm_id: result.algorithm.id.to_string(),
-            algorithm_config: result.algorithm.config.to_string(),
-            ci_tests: result.performance.ci_tests,
-            links_retained: result.performance.links_retained,
-            pending_edge_count: result.review.pending_edges.len() as u64,
-            lagged_frame_bytes: result.performance.lagged_frame_bytes,
-            worker_threads: result.performance.worker_threads,
-            ci_name,
-            cpdag_nodes: 0,
-            cpdag_directed_edges: 0,
-            cpdag_undirected_edges: 0,
-        })
+        Ok(discovery_result_fields(&names, &result, ci_name, 0, 0, 0))
     })
 }
 
@@ -433,25 +441,7 @@ fn discover_pcmci_plus(
     drop(columns);
 
     py.allow_threads(move || {
-        let loaded =
-            tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
-        let tabular = loaded.data;
-        let n = tabular.row_count();
-        let series = TimeSeriesData::try_new(
-            tabular.storage().clone(),
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: n,
-            },
-        )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-
-        let variables: Vec<VariableId> = series
-            .schema()
-            .variables()
-            .iter()
-            .map(|v| v.id)
-            .collect();
+        let (series, variables) = series_from_batch(&batch)?;
         let plus = PcmciPlus::new()
             .with_fdr(fdr)
             .with_constraints(DiscoveryConstraints {
@@ -470,26 +460,6 @@ fn discover_pcmci_plus(
             .run(&series, &variables, &mut ws, &ctx)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-        let links: Vec<DiscoveredLink> = result
-            .evidence
-            .links
-            .iter()
-            .map(|s| DiscoveredLink {
-                source: names
-                    .get(s.link.source.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("var{}", s.link.source.raw())),
-                source_lag: s.link.source_lag.raw(),
-                target: names
-                    .get(s.link.target.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("var{}", s.link.target.raw())),
-                target_lag: s.link.target_lag.raw(),
-                statistic: s.statistic,
-                p_value: s.p_value,
-            })
-            .collect();
-
         let mut directed = 0u64;
         let mut undirected = 0u64;
         for e in cpdag.edges() {
@@ -500,20 +470,14 @@ fn discover_pcmci_plus(
             }
         }
 
-        Ok(PcmciDiscoveryResult {
-            links,
-            algorithm_id: result.algorithm.id.to_string(),
-            algorithm_config: result.algorithm.config.to_string(),
-            ci_tests: result.performance.ci_tests,
-            links_retained: result.performance.links_retained,
-            pending_edge_count: result.review.pending_edges.len() as u64,
-            lagged_frame_bytes: result.performance.lagged_frame_bytes,
-            worker_threads: result.performance.worker_threads,
+        Ok(discovery_result_fields(
+            &names,
+            &result,
             ci_name,
-            cpdag_nodes: cpdag.node_count() as u64,
-            cpdag_directed_edges: directed,
-            cpdag_undirected_edges: undirected,
-        })
+            cpdag.node_count() as u64,
+            directed,
+            undirected,
+        ))
     })
 }
 
@@ -579,10 +543,7 @@ fn analyze(
         let n = tabular.row_count();
         let series = TimeSeriesData::try_new(
             tabular.storage().clone(),
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: n,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
 

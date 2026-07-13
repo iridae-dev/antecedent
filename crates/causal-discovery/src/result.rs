@@ -7,6 +7,15 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, Lag, VariableId};
 use causal_graph::{TemporalDag, TemporalGraphReview};
 
+/// One lagged parent `(variable, lag)`.
+pub type LaggedParent = (VariableId, Lag);
+
+/// Key for a directed PC separation event `(source, source_lag, target, target_lag)`.
+pub type SepsetKey = (VariableId, Lag, VariableId, Lag);
+
+/// PC separating sets recorded during parent selection.
+pub type PcSepsets = std::collections::HashMap<SepsetKey, std::sync::Arc<[LaggedParent]>>;
+
 /// Directed lagged link.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct LaggedLink {
@@ -100,5 +109,5 @@ pub struct DiscoveryResult {
     /// Performance.
     pub performance: DiscoveryPerformanceRecord,
     /// PC separating sets: `(source, source_lag, target, target_lag) → conditioning set`.
-    pub sepsets: std::collections::HashMap<(VariableId, Lag, VariableId, Lag), Arc<[(VariableId, Lag)]>>,
+    pub sepsets: PcSepsets,
 }

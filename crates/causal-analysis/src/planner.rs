@@ -11,7 +11,7 @@ use causal_core::{
     KernelSelection, LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
     TargetPopulation, TemporalEffectQuery,
 };
-use causal_data::{DiscoveryEstimationSplit, TabularData, TableView, TimeSeriesData};
+use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
 use causal_graph::{Dag, TemporalDag, TemporalGraphReview};
 
 use crate::error::AnalysisError;
@@ -127,10 +127,7 @@ impl LogicalAnalysisPlan {
         };
 
         let task_schedule: Arc<[ParallelTaskSpec]> = if workers == 0 {
-            Arc::from([ParallelTaskSpec {
-                dimension: Arc::from("serial"),
-                units: 1,
-            }])
+            Arc::from([ParallelTaskSpec { dimension: Arc::from("serial"), units: 1 }])
         } else {
             Arc::from([ParallelTaskSpec {
                 dimension: Arc::from(match self.record.estimator.as_deref() {
@@ -138,17 +135,17 @@ impl LogicalAnalysisPlan {
                     // over replicates when threads are available.
                     Some(
                         "temporal.linear.adjustment"
-                            | "linear.adjustment.ate"
-                            | "propensity.weighting"
-                            | "propensity.matching"
-                            | "propensity.stratification"
-                            | "distance.matching"
-                            | "aipw"
-                            | "glm.adjustment"
-                            | "frontdoor.two_stage"
-                            | "iv.wald"
-                            | "iv.2sls"
-                            | "rd.sharp",
+                        | "linear.adjustment.ate"
+                        | "propensity.weighting"
+                        | "propensity.matching"
+                        | "propensity.stratification"
+                        | "distance.matching"
+                        | "aipw"
+                        | "glm.adjustment"
+                        | "frontdoor.two_stage"
+                        | "iv.wald"
+                        | "iv.2sls"
+                        | "rd.sharp",
                     ) => "bootstrap.replicate",
                     _ => "analysis",
                 }),
@@ -187,11 +184,7 @@ impl LogicalAnalysisPlan {
             deterministic_reductions: true,
             expected_python_crossings: 1,
         };
-        Ok(PhysicalExecutionPlan {
-            record,
-            logical: self.clone(),
-            resolved_temporal_graph,
-        })
+        Ok(PhysicalExecutionPlan { record, logical: self.clone(), resolved_temporal_graph })
     }
 }
 
@@ -326,8 +319,8 @@ pub fn compile_logical_temporal_effect(
     review_required: bool,
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {
     query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
-    let row_count_hint = split
-        .map_or_else(|| data.row_count() as u64, |s| s.estimation.len() as u64);
+    let row_count_hint =
+        split.map_or_else(|| data.row_count() as u64, |s| s.estimation.len() as u64);
     let record = LogicalAnalysisPlanRecord {
         plan_id: Arc::from("phase3.temporal_effect"),
         data_classification: DataClassification::Temporal,
@@ -450,7 +443,9 @@ mod tests {
     }
 
     fn toy_static_input() -> (TabularData, Dag, AverageEffectQuery) {
-        use causal_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
+        use causal_core::{
+            CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        };
         use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
         use causal_graph::DenseNodeId;
         use std::sync::Arc as StdArc;
@@ -480,12 +475,20 @@ mod tests {
         let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i]).collect();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), StdArc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    StdArc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), StdArc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    StdArc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();

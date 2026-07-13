@@ -146,7 +146,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.passed, "{:?}", report.failure_condition);
         assert!(report.comparison < 0.25);
@@ -170,7 +170,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.passed, "{:?}", report.failure_condition);
         assert!((report.refuted_ate - original.ate).abs() < 0.15);
@@ -194,7 +194,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.comparison >= 0.0);
         assert!(report.passed, "{:?}", report.failure_condition);
@@ -219,7 +219,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = OverlapRefuter::new().refute(&problem).unwrap();
         assert_eq!(report.replicates, 1);
         // T is a deterministic step function of Z (t = 1{z > 0.5}); the diagnostic propensity
@@ -245,7 +245,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.passed, "{:?}", report.failure_condition);
         assert!((report.refuted_ate - original.ate).abs() < 0.3);
@@ -269,7 +269,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.passed, "{:?}", report.failure_condition);
         assert!(report.comparison < 0.25);
@@ -293,7 +293,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let mut refuter = BootstrapRefute::new();
         refuter.replicates = 100;
         let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
@@ -319,7 +319,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = EValue::new().refute(&problem).unwrap();
         assert!(report.comparison > 1.0, "e_value={}", report.comparison);
         assert!(report.passed, "{:?}", report.failure_condition);
@@ -343,7 +343,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = GraphRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
         // Z is the only, essential confounder; dropping it should visibly bias the estimate.
         assert!(!report.passed, "{:?}", report.failure_condition);
@@ -368,7 +368,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let refuter = LinearSensitivity::new();
         let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.comparison > 0.0);
@@ -394,7 +394,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let refuter = PartialLinearSensitivity::new();
         let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.comparison > 0.0);
@@ -420,7 +420,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let refuter = NonparametricSensitivity::new();
         let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric");

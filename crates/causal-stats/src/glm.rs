@@ -18,6 +18,18 @@ pub enum GlmFamily {
     PoissonLog,
 }
 
+impl GlmFamily {
+    /// Mean on the response scale given linear predictor `eta`.
+    #[must_use]
+    pub fn mean_from_eta(self, eta: f64) -> f64 {
+        match self {
+            Self::BinomialLogit => 1.0 / (1.0 + (-eta).exp()),
+            Self::GaussianIdentity => eta,
+            Self::PoissonLog => eta.exp(),
+        }
+    }
+}
+
 /// Borrowed column-major design + outcome used by [`fit_glm`].
 #[derive(Clone, Copy, Debug)]
 pub struct GlmDesignRef<'a> {
@@ -99,12 +111,7 @@ fn fit_gaussian(
         return Err(StatsError::Shape { message: "X buffer too short" });
     }
     let fit = backend.least_squares(x_colmajor, nrows, ncols, y, workspace)?;
-    Ok(GlmFit {
-        coefficients: fit.coefficients,
-        iterations: 1,
-        converged: true,
-        deviance: fit.rss,
-    })
+    Ok(GlmFit { coefficients: fit.coefficients, iterations: 1, converged: true, deviance: fit.rss })
 }
 
 fn fit_poisson(
@@ -122,7 +129,9 @@ fn fit_poisson(
     }
     for &yi in y {
         if !(yi.is_finite() && yi >= 0.0) {
-            return Err(StatsError::Shape { message: "Poisson GLM requires non-negative outcomes" });
+            return Err(StatsError::Shape {
+                message: "Poisson GLM requires non-negative outcomes",
+            });
         }
     }
 

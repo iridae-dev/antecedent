@@ -5,7 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_precision_loss, clippy::many_single_char_names, clippy::unused_self)]
 
 use std::sync::Arc;
 
@@ -124,7 +124,7 @@ impl ValidationSuite {
     ///
     /// # Errors
     ///
-    /// Propagates hard failures from applicable validators (not NotApplicable skips).
+    /// Propagates hard failures from applicable validators (not `NotApplicable` skips).
     pub fn run(
         &self,
         problem: &RefutationProblem<'_>,
@@ -138,7 +138,7 @@ impl ValidationSuite {
         Ok(out)
     }
 
-    /// Collect only successful [`RefutationReport`]s (drops NotApplicable).
+    /// Collect only successful [`RefutationReport`]s (drops `NotApplicable`).
     #[must_use]
     pub fn reports_only(outcomes: &[ValidationOutcome]) -> Vec<RefutationReport> {
         outcomes
@@ -162,7 +162,10 @@ impl ValidationSuite {
         match id {
             ValidatorId::Placebo => {
                 if !linear_ok {
-                    return Ok(na(id, "PlaceboTreatment requires backdoor.adjustment + linear path"));
+                    return Ok(na(
+                        id,
+                        "PlaceboTreatment requires backdoor.adjustment + linear path",
+                    ));
                 }
                 Ok(ValidationOutcome::Report(
                     PlaceboTreatment::new().refute(problem, workspace, ctx)?,
@@ -170,7 +173,10 @@ impl ValidationSuite {
             }
             ValidatorId::RandomCommonCause => {
                 if !linear_ok {
-                    return Ok(na(id, "RandomCommonCause requires backdoor.adjustment + linear path"));
+                    return Ok(na(
+                        id,
+                        "RandomCommonCause requires backdoor.adjustment + linear path",
+                    ));
                 }
                 Ok(ValidationOutcome::Report(
                     RandomCommonCause::new().refute(problem, workspace, ctx)?,
@@ -178,7 +184,10 @@ impl ValidationSuite {
             }
             ValidatorId::Bootstrap => {
                 if !linear_ok {
-                    return Ok(na(id, "BootstrapRefute requires backdoor.adjustment + linear path"));
+                    return Ok(na(
+                        id,
+                        "BootstrapRefute requires backdoor.adjustment + linear path",
+                    ));
                 }
                 Ok(ValidationOutcome::Report(
                     BootstrapRefute::new().refute(problem, workspace, ctx)?,
@@ -192,13 +201,18 @@ impl ValidationSuite {
                     UnobservedCommonCause::new().refute(problem, workspace, ctx)?,
                 ))
             }
-            ValidatorId::Overlap => Ok(ValidationOutcome::Report(OverlapRefuter::new().refute(problem)?)),
+            ValidatorId::Overlap => {
+                Ok(ValidationOutcome::Report(OverlapRefuter::new().refute(problem)?))
+            }
             ValidatorId::OverlapRule => {
                 Ok(ValidationOutcome::Report(OverlapRuleRefuter::new().refute(problem)?))
             }
             ValidatorId::DataSubset => {
                 if !linear_ok {
-                    return Ok(na(id, "DataSubsetRefuter requires backdoor.adjustment + linear path"));
+                    return Ok(na(
+                        id,
+                        "DataSubsetRefuter requires backdoor.adjustment + linear path",
+                    ));
                 }
                 Ok(ValidationOutcome::Report(
                     DataSubsetRefuter::new().refute(problem, workspace, ctx)?,
@@ -208,9 +222,7 @@ impl ValidationSuite {
                 if !linear_ok {
                     return Ok(na(id, "DummyOutcome requires backdoor.adjustment + linear path"));
                 }
-                Ok(ValidationOutcome::Report(
-                    DummyOutcome::new().refute(problem, workspace, ctx)?,
-                ))
+                Ok(ValidationOutcome::Report(DummyOutcome::new().refute(problem, workspace, ctx)?))
             }
             ValidatorId::EValue => Ok(ValidationOutcome::Report(EValue::new().refute(problem)?)),
             ValidatorId::Graph => {
@@ -238,9 +250,9 @@ impl ValidationSuite {
             ValidatorId::NonparametricSensitivity => Ok(ValidationOutcome::Report(
                 NonparametricSensitivity::new().refute(problem, workspace, ctx)?,
             )),
-            ValidatorId::Reisz => {
-                Ok(ValidationOutcome::Report(ReiszSensitivity::new().refute(problem, workspace, ctx)?))
-            }
+            ValidatorId::Reisz => Ok(ValidationOutcome::Report(
+                ReiszSensitivity::new().refute(problem, workspace, ctx)?,
+            )),
         }
     }
 }
@@ -350,7 +362,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let outcomes = ValidationSuite::full_effect().run(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(outcomes.len(), 14);
         let reports = ValidationSuite::reports_only(&outcomes);

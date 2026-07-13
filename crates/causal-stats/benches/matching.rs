@@ -1,9 +1,5 @@
 //! Matching-index benchmark (Phase 4).
-#![allow(
-    missing_docs,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss
-)]
+#![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 
 use causal_stats::{MatchingDistance, MatchingIndex};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
@@ -26,9 +22,7 @@ fn bench_matching(c: &mut Criterion) {
     let mut out_d = vec![0.0; n];
     c.bench_function("matching_exact_n500_d4", |b| {
         b.iter(|| {
-            let m = idx
-                .match_all(black_box(&queries), n, None, &mut out_row, &mut out_d)
-                .unwrap();
+            let m = idx.match_all(black_box(&queries), n, None, &mut out_row, &mut out_d).unwrap();
             assert_eq!(m, n as u32);
         });
     });

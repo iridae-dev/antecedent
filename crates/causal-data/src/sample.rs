@@ -208,10 +208,7 @@ impl SamplePlan {
 
         for (c, col) in self.columns.iter().enumerate() {
             let ColumnView::Float64(src) = data.column(col.variable)? else {
-                return Err(DataError::TypeMismatch {
-                    id: col.variable,
-                    expected: "float64",
-                });
+                return Err(DataError::TypeMismatch { id: col.variable, expected: "float64" });
             };
             self.lag_map.fill_row_indexes(col.lag, &mut workspace.row_indexes)?;
             let dst = &mut workspace.values[c * n..(c + 1) * n];

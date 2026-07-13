@@ -25,7 +25,9 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
+};
 use causal_data::TabularData;
 use causal_identify::IdentifiedEstimand;
 use causal_stats::{
@@ -35,6 +37,7 @@ use causal_stats::{
 
 use crate::adjustment::{EffectEstimate, OverlapPolicy, OverlapReport, intervention_f64};
 use crate::error::EstimationError;
+use crate::util::{sample_std, stats_err};
 
 /// Prepared covariate design + treatment/outcome shared by every propensity estimator.
 ///
@@ -122,12 +125,7 @@ struct MatchingIndexKey {
 
 impl Default for MatchingIndexKey {
     fn default() -> Self {
-        Self {
-            dim: 0,
-            n_donors: 0,
-            distance: MatchingDistance::Euclidean,
-            features_hash: 0,
-        }
+        Self { dim: 0, n_donors: 0, distance: MatchingDistance::Euclidean, features_hash: 0 }
     }
 }
 
@@ -160,12 +158,8 @@ impl PropensityEstimationWorkspace {
         distance: MatchingDistance,
     ) -> Result<(), EstimationError> {
         let n_donors = donor_features.len() / dim.max(1);
-        let key = MatchingIndexKey {
-            dim,
-            n_donors,
-            distance,
-            features_hash: fnv1a64(donor_features),
-        };
+        let key =
+            MatchingIndexKey { dim, n_donors, distance, features_hash: fnv1a64(donor_features) };
         let needs_rebuild = self.matching_index.is_none() || self.matching_index_key != key;
         if needs_rebuild {
             let donor_ids: Vec<usize> = (0..n_donors).collect();
@@ -196,8 +190,8 @@ impl PropensityEstimationWorkspace {
 }
 
 fn fnv1a64(bytes_as_f64: &[f64]) -> u64 {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
+    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const PRIME: u64 = 0x0100_0000_01b3;
     let mut hash = OFFSET;
     for &v in bytes_as_f64 {
         for b in v.to_bits().to_le_bytes() {
@@ -274,9 +268,8 @@ pub(crate) fn prepare_propensity_problem(
     }
     let mut covariate_cols: Vec<Arc<[f64]>> = Vec::with_capacity(estimand.adjustment_set.len());
     for (i, &z) in estimand.adjustment_set.iter().enumerate() {
-        let col = data
-            .float64_masked(z, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+        let col =
+            data.float64_masked(z, &row_mask).map_err(|e| EstimationError::Data(e.to_string()))?;
         let base = (1 + i) * nrows;
         for r in 0..nrows {
             design[base + r] = col[r];
@@ -311,8 +304,6 @@ fn trim_of(overlap: OverlapPolicy) -> Option<f64> {
         OverlapPolicy::ExplicitOverride => None,
     }
 }
-
-pub(crate) use crate::util::{sample_std, stats_err};
 
 pub(crate) fn clamp_scores(scores: &mut [f64], clip: f64) {
     for s in scores.iter_mut() {
@@ -357,13 +348,25 @@ impl IpwTarget {
     fn weight(self, t: f64, e: f64) -> f64 {
         match self {
             Self::Ate => {
-                if t > 0.5 { 1.0 / e } else { 1.0 / (1.0 - e) }
+                if t > 0.5 {
+                    1.0 / e
+                } else {
+                    1.0 / (1.0 - e)
+                }
             }
             Self::Att => {
-                if t > 0.5 { 1.0 } else { e / (1.0 - e) }
+                if t > 0.5 {
+                    1.0
+                } else {
+                    e / (1.0 - e)
+                }
             }
             Self::Atc => {
-                if t > 0.5 { (1.0 - e) / e } else { 1.0 }
+                if t > 0.5 {
+                    (1.0 - e) / e
+                } else {
+                    1.0
+                }
             }
         }
     }
@@ -408,7 +411,12 @@ fn hajek_difference(treatment: &[f64], outcome: &[f64], weights: &[f64]) -> f64 
     num1 / den1 - num0 / den0
 }
 
-fn hajek_weighted_mean(treatment: &[f64], outcome: &[f64], weights: &[f64], want_treated: bool) -> f64 {
+fn hajek_weighted_mean(
+    treatment: &[f64],
+    outcome: &[f64],
+    weights: &[f64],
+    want_treated: bool,
+) -> f64 {
     let (mut num, mut den) = (0.0, 0.0);
     for i in 0..treatment.len() {
         if (treatment[i] > 0.5) == want_treated {
@@ -509,7 +517,12 @@ impl PropensityWeighting {
     ) -> Result<EffectEstimate, EstimationError> {
         let target = IpwTarget::from_population(&problem.target_population)?;
         let trim = trim_of(problem.overlap);
-        let model = PropensityModel::fit(problem, &self.backend, &mut workspace.propensity, &self.glm_options)?;
+        let model = PropensityModel::fit(
+            problem,
+            &self.backend,
+            &mut workspace.propensity,
+            &self.glm_options,
+        )?;
 
         let weights = compute_ipw_weights(
             &problem.treatment,
@@ -527,8 +540,11 @@ impl PropensityWeighting {
             Some(self.bootstrap_se(problem, target, trim, workspace, ctx)?)
         };
 
-        let overlap_report =
-            Some(OverlapReport::from_propensities(&model.fit.scores, Some(&weights), problem.overlap));
+        let overlap_report = Some(OverlapReport::from_propensities(
+            &model.fit.scores,
+            Some(&weights),
+            problem.overlap,
+        ));
 
         Ok(EffectEstimate {
             ate,
@@ -596,9 +612,7 @@ fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
     let n = scores.len();
     let k = n_strata.max(1);
     let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by(|&a, &b| {
-        scores[a].partial_cmp(&scores[b]).unwrap_or(std::cmp::Ordering::Equal)
-    });
+    order.sort_by(|&a, &b| scores[a].partial_cmp(&scores[b]).unwrap_or(std::cmp::Ordering::Equal));
     let mut stratum = vec![0usize; n];
     for (rank, &orig) in order.iter().enumerate() {
         let s = (rank * k) / n.max(1);
@@ -732,7 +746,12 @@ impl PropensityStratification {
                 "propensity stratification only supports TargetPopulation::AllObserved".into(),
             ));
         }
-        let model = PropensityModel::fit(problem, &self.backend, &mut workspace.propensity, &self.glm_options)?;
+        let model = PropensityModel::fit(
+            problem,
+            &self.backend,
+            &mut workspace.propensity,
+            &self.glm_options,
+        )?;
         let n_strata = (self.n_strata.max(1)) as usize;
         let stratum = assign_strata(&model.clipped_scores, n_strata);
         let result = stratified_ate(&problem.treatment, &problem.outcome, &stratum, n_strata)?;
@@ -815,7 +834,11 @@ pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) 
     let mut treated = Vec::new();
     let mut control = Vec::new();
     for (i, &t) in treatment.iter().enumerate() {
-        if t > 0.5 { treated.push(i); } else { control.push(i); }
+        if t > 0.5 {
+            treated.push(i);
+        } else {
+            control.push(i);
+        }
     }
     (treated, control)
 }
@@ -898,7 +921,9 @@ fn matching_contrast(
 ) -> Result<MatchedEstimate, EstimationError> {
     let (treated_idx, control_idx) = split_by_treatment(treatment);
     if treated_idx.is_empty() || control_idx.is_empty() {
-        return Err(EstimationError::Data("matching requires both treated and control rows".into()));
+        return Err(EstimationError::Data(
+            "matching requires both treated and control rows".into(),
+        ));
     }
     let treated_feat = gather_rowmajor(features, dim, &treated_idx);
     let control_feat = gather_rowmajor(features, dim, &control_idx);
@@ -1036,7 +1061,12 @@ impl PropensityMatching {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let model = PropensityModel::fit(problem, &self.backend, &mut workspace.propensity, &self.glm_options)?;
+        let model = PropensityModel::fit(
+            problem,
+            &self.backend,
+            &mut workspace.propensity,
+            &self.glm_options,
+        )?;
         let result = matching_contrast(
             &problem.treatment,
             &problem.outcome,
@@ -1211,7 +1241,12 @@ impl DistanceMatching {
 
         // Diagnostic-only propensity fit: populates the mandatory overlap report without
         // influencing the covariate-space matched contrast above.
-        let diag = PropensityModel::fit(problem, &self.backend, &mut workspace.propensity, &self.glm_options)?;
+        let diag = PropensityModel::fit(
+            problem,
+            &self.backend,
+            &mut workspace.propensity,
+            &self.glm_options,
+        )?;
 
         let se_bootstrap = if self.bootstrap_replicates == 0 {
             None
@@ -1351,16 +1386,28 @@ mod tests {
         let schema = b.build().unwrap();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -1408,7 +1455,10 @@ mod tests {
         let (data, estimand) = confounded_scm(200, 3);
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let est = PropensityWeighting { overlap: OverlapPolicy::ExplicitOverride, ..PropensityWeighting::new() };
+        let est = PropensityWeighting {
+            overlap: OverlapPolicy::ExplicitOverride,
+            ..PropensityWeighting::new()
+        };
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::Overlap { .. }));
     }
@@ -1418,8 +1468,10 @@ mod tests {
         let (data, estimand) = confounded_scm(800, 4);
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let est =
-            PropensityStratification { bootstrap_replicates: 30, ..PropensityStratification::new() };
+        let est = PropensityStratification {
+            bootstrap_replicates: 30,
+            ..PropensityStratification::new()
+        };
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -1497,8 +1549,10 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let est =
-            PropensityMatching { overlap: OverlapPolicy::ExplicitOverride, ..PropensityMatching::new() };
+        let est = PropensityMatching {
+            overlap: OverlapPolicy::ExplicitOverride,
+            ..PropensityMatching::new()
+        };
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::Overlap { .. }));
     }
@@ -1524,8 +1578,10 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let est =
-            DistanceMatching { overlap: OverlapPolicy::ExplicitOverride, ..DistanceMatching::new() };
+        let est = DistanceMatching {
+            overlap: OverlapPolicy::ExplicitOverride,
+            ..DistanceMatching::new()
+        };
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::Overlap { .. }));
     }

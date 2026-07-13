@@ -124,16 +124,8 @@ mod tests {
             }
         }
         let mut ws = PropensityWorkspace::default();
-        let fit = fit_propensity(
-            &x,
-            n,
-            2,
-            &t,
-            &FaerBackend,
-            &mut ws,
-            &GlmOptions::new(100, 1e-6),
-        )
-        .unwrap();
+        let fit = fit_propensity(&x, n, 2, &t, &FaerBackend, &mut ws, &GlmOptions::new(100, 1e-6))
+            .unwrap();
         assert!(fit.glm.converged);
         let mean_treated: f64 = fit
             .scores

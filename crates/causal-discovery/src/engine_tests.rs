@@ -7,8 +7,8 @@
 use std::sync::Arc;
 
 use causal_core::{
-    CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, NonZeroThreadCount,
-    Parallelism, RoleHint, SmallRoleSet, ValueType, VariableId,
+    CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, NonZeroThreadCount, Parallelism,
+    RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 use causal_data::{
     Float64Column, LaggedFrame, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -50,20 +50,12 @@ fn var_series() -> (TimeSeriesData, Vec<VariableId>) {
     }
     let cols = vec![
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(0),
-                Arc::from(x),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(0), Arc::from(x), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(1),
-                Arc::from(y),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -77,10 +69,7 @@ fn var_series() -> (TimeSeriesData, Vec<VariableId>) {
 
 fn constraints() -> DiscoveryConstraints {
     DiscoveryConstraints {
-        temporal: TemporalConstraints {
-            max_lag: Lag::from_raw(2),
-            min_lag: Lag::from_raw(1),
-        },
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(2), min_lag: Lag::from_raw(1) },
         alpha: 0.05,
         max_cond_size: 2,
         ..DiscoveryConstraints::default()
@@ -127,10 +116,8 @@ fn fdr_adjusts_full_mci_family() {
     let a = with_fdr.run(&data, &vars, &mut ws, &ctx).unwrap();
     let b = without.run(&data, &vars, &mut ws, &ctx).unwrap();
     // FDR is more conservative; retained set is a subset (or equal) of alpha-only.
-    let set_a: std::collections::BTreeSet<_> =
-        a.evidence.links.iter().map(|s| s.link).collect();
-    let set_b: std::collections::BTreeSet<_> =
-        b.evidence.links.iter().map(|s| s.link).collect();
+    let set_a: std::collections::BTreeSet<_> = a.evidence.links.iter().map(|s| s.link).collect();
+    let set_b: std::collections::BTreeSet<_> = b.evidence.links.iter().map(|s| s.link).collect();
     assert!(set_a.is_subset(&set_b));
 }
 
@@ -141,14 +128,21 @@ fn parallel_matches_serial_link_set() {
     let mut ws = DiscoveryWorkspace::default();
     let serial = ExecutionContext::for_tests(3);
     let mut parallel = ExecutionContext::for_tests(3);
-    parallel.parallelism =
-        Parallelism::bounded(NonZeroThreadCount::new(4).expect("threads"));
+    parallel.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).expect("threads"));
     let a = pcmci.run(&data, &vars, &mut ws, &serial).unwrap();
     let b = pcmci.run(&data, &vars, &mut ws, &parallel).unwrap();
-    let set_a: std::collections::BTreeSet<_> =
-        a.evidence.links.iter().map(|s| (s.link, s.statistic.to_bits(), s.p_value.to_bits())).collect();
-    let set_b: std::collections::BTreeSet<_> =
-        b.evidence.links.iter().map(|s| (s.link, s.statistic.to_bits(), s.p_value.to_bits())).collect();
+    let set_a: std::collections::BTreeSet<_> = a
+        .evidence
+        .links
+        .iter()
+        .map(|s| (s.link, s.statistic.to_bits(), s.p_value.to_bits()))
+        .collect();
+    let set_b: std::collections::BTreeSet<_> = b
+        .evidence
+        .links
+        .iter()
+        .map(|s| (s.link, s.statistic.to_bits(), s.p_value.to_bits()))
+        .collect();
     assert_eq!(set_a, set_b);
     assert_eq!(b.performance.worker_threads, 4);
 }
@@ -212,9 +206,8 @@ fn engine_accepts_oracle_ci() {
 
     let (data, vars) = var_series();
     // Local batch always uses x=0,y=1; empty deps ⇒ every pair independent.
-    let engine = PcmciEngine::new()
-        .with_constraints(constraints())
-        .with_ci(Arc::new(OracleCi::new([])));
+    let engine =
+        PcmciEngine::new().with_constraints(constraints()).with_ci(Arc::new(OracleCi::new([])));
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
     let result = engine.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
@@ -228,8 +221,5 @@ fn engine_accepts_oracle_ci() {
         .with_constraints(constraints())
         .with_ci(Arc::new(OracleCi::new([(0usize, 1usize)])));
     let kept = engine_dep.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
-    assert!(
-        !kept.evidence.links.is_empty(),
-        "oracle marking (0,1) dependent should retain links"
-    );
+    assert!(!kept.evidence.links.is_empty(), "oracle marking (0,1) dependent should retain links");
 }

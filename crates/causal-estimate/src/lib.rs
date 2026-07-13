@@ -24,9 +24,7 @@ pub use aipw::{AipwAte, AipwWorkspace};
 pub use error::EstimationError;
 pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
-pub use iv::{
-    PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
-};
+pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
 pub use propensity::{
     DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
     PropensityModel, PropensityStratification, PropensityWeighting, default_propensity_overlap,

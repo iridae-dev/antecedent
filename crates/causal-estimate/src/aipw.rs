@@ -37,8 +37,9 @@ use crate::adjustment::{EffectEstimate, OverlapPolicy, OverlapReport};
 use crate::error::EstimationError;
 use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
-    prepare_propensity_problem, sample_std, split_by_treatment, stats_err,
+    prepare_propensity_problem, split_by_treatment,
 };
+use crate::util::{sample_std, stats_err};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -133,8 +134,12 @@ impl AipwAte {
             ));
         }
 
-        let model =
-            PropensityModel::fit(problem, &self.backend, &mut workspace.propensity, &self.glm_options)?;
+        let model = PropensityModel::fit(
+            problem,
+            &self.backend,
+            &mut workspace.propensity,
+            &self.glm_options,
+        )?;
         let (beta0, beta1) = fit_outcome_models(
             &problem.design_matrix,
             problem.nrows,
@@ -247,7 +252,13 @@ impl AipwAte {
 
 /// Extract rows `idx` from a column-major `nrows × ncols` matrix into a fresh column-major
 /// `idx.len() × ncols` buffer.
-fn select_rows_colmajor(matrix: &[f64], nrows: usize, ncols: usize, idx: &[usize], out: &mut Vec<f64>) {
+fn select_rows_colmajor(
+    matrix: &[f64],
+    nrows: usize,
+    ncols: usize,
+    idx: &[usize],
+    out: &mut Vec<f64>,
+) {
     let m = idx.len();
     out.clear();
     out.resize(m * ncols, 0.0);
@@ -351,7 +362,8 @@ fn aipw_psi(
         let e = propensity[i];
         let m0 = mu0[i];
         let m1 = mu1[i];
-        let augmented = (m1 - m0) + (t / e) * (outcome[i] - m1) - ((1.0 - t) / (1.0 - e)) * (outcome[i] - m0);
+        let augmented =
+            (m1 - m0) + (t / e) * (outcome[i] - m1) - ((1.0 - t) / (1.0 - e)) * (outcome[i] - m0);
         out.push(augmented);
     }
 }
@@ -430,16 +442,28 @@ mod tests {
         let schema = b.build().unwrap();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();

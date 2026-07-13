@@ -86,11 +86,7 @@ impl LaggedLinearPair {
         let mut y = vec![0.0; self.n];
         for t in 0..self.n {
             x[t] = det_noise(self.seed, t as u64, 1);
-            let x_lag = if t >= self.lag as usize {
-                x[t - self.lag as usize]
-            } else {
-                0.0
-            };
+            let x_lag = if t >= self.lag as usize { x[t - self.lag as usize] } else { 0.0 };
             y[t] = self.coef * x_lag + 0.2 * det_noise(self.seed, t as u64, 2);
         }
 

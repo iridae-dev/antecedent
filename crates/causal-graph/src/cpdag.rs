@@ -146,11 +146,7 @@ impl TemporalCpdag {
     /// # Errors
     ///
     /// See [`Self::insert_marked`].
-    pub fn insert_undirected(
-        &mut self,
-        a: DenseNodeId,
-        b: DenseNodeId,
-    ) -> Result<(), GraphError> {
+    pub fn insert_undirected(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
         self.insert_marked(MarkedEdge::undirected(a, b))
     }
 
@@ -195,12 +191,7 @@ impl TemporalCpdag {
         }
         for e in &self.adj[a.as_usize()] {
             if e.neighbor == b {
-                return Some(MarkedEdge {
-                    a,
-                    b,
-                    at_a: e.at_self,
-                    at_b: e.at_neighbor,
-                });
+                return Some(MarkedEdge { a, b, at_a: e.at_self, at_b: e.at_neighbor });
             }
         }
         None
@@ -218,12 +209,7 @@ impl TemporalCpdag {
                     || (a.raw() == e.neighbor.raw()
                         && matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)))
                 {
-                    out.push(MarkedEdge {
-                        a,
-                        b: e.neighbor,
-                        at_a: e.at_self,
-                        at_b: e.at_neighbor,
-                    });
+                    out.push(MarkedEdge { a, b: e.neighbor, at_a: e.at_self, at_b: e.at_neighbor });
                 } else if a.raw() > e.neighbor.raw() {
                     // skip reverse half
                 } else if matches!((e.at_self, e.at_neighbor), (Endpoint::Arrow, Endpoint::Tail)) {
@@ -387,12 +373,7 @@ mod tests {
         let mut g = TemporalCpdag::empty();
         let x = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         let y = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-        let edge = MarkedEdge {
-            a: x,
-            b: y,
-            at_a: Endpoint::Circle,
-            at_b: Endpoint::Arrow,
-        };
+        let edge = MarkedEdge { a: x, b: y, at_a: Endpoint::Circle, at_b: Endpoint::Arrow };
         assert!(matches!(g.insert_marked(edge), Err(GraphError::InvalidEndpoints { .. })));
     }
 

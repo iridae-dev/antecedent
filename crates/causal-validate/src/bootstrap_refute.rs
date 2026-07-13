@@ -10,7 +10,10 @@ use causal_core::ExecutionContext;
 use causal_data::TableView;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
-use crate::common::{RefutationProblem, RefutationReport, fit_once, with_resampled_rows};
+use crate::common::{
+    RefutationProblem, RefutationReport, fit_once, linear_estimator_no_bootstrap,
+    with_resampled_rows,
+};
 use crate::error::ValidationError;
 
 /// IID row bootstrap of the whole `(T, Y, Z…)` design; "passes" if the original point estimate
@@ -38,9 +41,7 @@ impl BootstrapRefute {
     /// Defaults: 200 replicates, 95% CI.
     #[must_use]
     pub fn new() -> Self {
-        let mut estimator = LinearAdjustmentAte::new();
-        estimator.bootstrap_replicates = 0;
-        Self { replicates: 200, ci_level: 0.95, estimator }
+        Self { replicates: 200, ci_level: 0.95, estimator: linear_estimator_no_bootstrap() }
     }
 
     /// Run the bootstrap refuter.

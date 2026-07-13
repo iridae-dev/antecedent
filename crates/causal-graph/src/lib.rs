@@ -21,5 +21,7 @@ pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, Separation
 pub use error::GraphError;
 pub use temporal::TemporalDag;
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
-pub use unfold::{LazyUnfoldedTemporalGraph, TemporalGraphReview, UnfoldedTemporalGraph, ensure_lagged};
+pub use unfold::{
+    LazyUnfoldedTemporalGraph, TemporalGraphReview, UnfoldedTemporalGraph, ensure_lagged,
+};
 pub use workspace::{BitSet, GraphWorkspace};

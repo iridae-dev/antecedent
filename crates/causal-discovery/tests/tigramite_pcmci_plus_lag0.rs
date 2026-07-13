@@ -10,16 +10,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use causal_core::{
-    CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
-    ValueType, VariableId,
+    CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+    VariableId,
 };
 use causal_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use causal_discovery::{
-    DiscoveryConstraints, DiscoveryWorkspace, PcmciPlus, TemporalConstraints,
-};
+use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, PcmciPlus, TemporalConstraints};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {
@@ -80,10 +78,7 @@ fn load_series(expected: &JsonValue) -> (TimeSeriesData, Vec<VariableId>) {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TimeSeriesData::try_new(
         storage,
-        TimeIndex {
-            regularity: SamplingRegularity::Regular { interval_ns: 1 },
-            length: n,
-        },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap();
     (data, vec![VariableId::from_raw(0), VariableId::from_raw(1)])

@@ -95,10 +95,8 @@ impl BlockBootstrapStability {
         }
         let mut frequencies = Vec::with_capacity(counts.len());
         for (link, c) in counts {
-            frequencies.push(LinkStability {
-                link,
-                frequency: f64::from(c) / f64::from(self.replicates),
-            });
+            frequencies
+                .push(LinkStability { link, frequency: f64::from(c) / f64::from(self.replicates) });
         }
         frequencies.sort_by(|a, b| {
             b.frequency.partial_cmp(&a.frequency).unwrap_or(std::cmp::Ordering::Equal)
@@ -187,9 +185,8 @@ mod tests {
         let mut stab = BlockBootstrapStability::new();
         stab.replicates = 8;
         stab.block_size = 25;
-        stab.pcmci = causal_discovery::Pcmci::new()
-            .with_fdr(false)
-            .with_constraints(DiscoveryConstraints {
+        stab.pcmci =
+            causal_discovery::Pcmci::new().with_fdr(false).with_constraints(DiscoveryConstraints {
                 temporal: TemporalConstraints {
                     max_lag: Lag::from_raw(2),
                     min_lag: Lag::from_raw(1),
@@ -201,11 +198,15 @@ mod tests {
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(5);
         let report = stab.run(&data, &vars, &mut ws, &ctx).unwrap();
-        let freq = report.frequencies.iter().find(|f| {
-            f.link.source == VariableId::from_raw(0)
-                && f.link.target == VariableId::from_raw(1)
-                && f.link.source_lag.raw() == 1
-        }).map_or(0.0, |f| f.frequency);
+        let freq = report
+            .frequencies
+            .iter()
+            .find(|f| {
+                f.link.source == VariableId::from_raw(0)
+                    && f.link.target == VariableId::from_raw(1)
+                    && f.link.source_lag.raw() == 1
+            })
+            .map_or(0.0, |f| f.frequency);
         assert!(freq > 0.0, "expected true link to appear; report={:?}", report.frequencies);
     }
 }

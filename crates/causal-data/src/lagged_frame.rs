@@ -62,9 +62,7 @@ impl LaggedFrame {
         reference: ReferencePointPolicy,
     ) -> Result<Self, DataError> {
         if variables.is_empty() {
-            return Err(DataError::InvalidValidity {
-                message: "lagged frame needs ≥1 variable",
-            });
+            return Err(DataError::InvalidValidity { message: "lagged frame needs ≥1 variable" });
         }
         let lag_map = LagMap::with_reference(data.row_count(), max_lag, reference)?;
         let n_effective = lag_map.n_effective();
@@ -87,13 +85,7 @@ impl LaggedFrame {
             }
         }
 
-        Ok(Self {
-            variables: Arc::from(variables),
-            max_lag,
-            n_effective,
-            n_lags,
-            values,
-        })
+        Ok(Self { variables: Arc::from(variables), max_lag, n_effective, n_lags, values })
     }
 
     /// Variables in slot order.

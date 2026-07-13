@@ -12,7 +12,7 @@ use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
     RefutationProblem, RefutationReport, fill_gaussian, fit_once, float64_full,
-    with_replaced_float,
+    linear_estimator_no_bootstrap, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -47,14 +47,12 @@ impl UnobservedCommonCause {
     /// Defaults: 20 replicates, effect 0.5 on both treatment and outcome, threshold 1.0.
     #[must_use]
     pub fn new() -> Self {
-        let mut estimator = LinearAdjustmentAte::new();
-        estimator.bootstrap_replicates = 0;
         Self {
             replicates: 20,
             effect_on_treatment: 0.5,
             effect_on_outcome: 0.5,
             abs_delta_threshold: 1.0,
-            estimator,
+            estimator: linear_estimator_no_bootstrap(),
         }
     }
 

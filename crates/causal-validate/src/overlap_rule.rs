@@ -7,7 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 
 use std::sync::Arc;
 
@@ -38,11 +38,7 @@ impl OverlapRuleRefuter {
     /// Defaults: `rule_eps = 0.1` (Crump-style), `min_retained_fraction = 0.5`.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            rule_eps: 0.1,
-            min_retained_fraction: 0.5,
-            glm_options: GlmOptions::default(),
-        }
+        Self { rule_eps: 0.1, min_retained_fraction: 0.5, glm_options: GlmOptions::default() }
     }
 
     /// Run the overlap-rule diagnostic.
@@ -50,7 +46,10 @@ impl OverlapRuleRefuter {
     /// # Errors
     ///
     /// Data or GLM failures while building a diagnostic-only propensity fit.
-    pub fn refute(&self, problem: &RefutationProblem<'_>) -> Result<RefutationReport, ValidationError> {
+    pub fn refute(
+        &self,
+        problem: &RefutationProblem<'_>,
+    ) -> Result<RefutationReport, ValidationError> {
         let report = match &problem.original.overlap_report {
             Some(r) => r.clone(),
             None => self.diagnostic_report(problem)?,
@@ -129,10 +128,7 @@ impl OverlapRuleRefuter {
         Ok(OverlapReport::from_propensities(
             &fit.scores,
             None,
-            OverlapPolicy::RequireDiagnostics {
-                clip: Some(self.rule_eps),
-                trim: None,
-            },
+            OverlapPolicy::RequireDiagnostics { clip: Some(self.rule_eps), trim: None },
         ))
     }
 }
@@ -242,7 +238,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = OverlapRuleRefuter::new().refute(&problem).unwrap();
         assert_eq!(report.refuter.as_ref(), "overlap.rule");
         assert!(report.informative);

@@ -36,7 +36,7 @@ fn z_to_r(z: f64) -> f64 {
 }
 
 /// Approximate standard-normal PPF (Acklam’s rational approximation).
-fn normal_ppf(p: f64) -> f64 {
+pub(crate) fn normal_ppf(p: f64) -> f64 {
     // Coefficients for central region.
     const A: [f64; 6] = [
         -3.969_683_028_665_376e1,
@@ -71,8 +71,7 @@ fn normal_ppf(p: f64) -> f64 {
     let q = p - 0.5;
     if q.abs() <= 0.425 {
         let r = 0.180_625 - q * q;
-        return q
-            * (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5])
+        return q * (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5])
             / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0);
     }
     let r = if q > 0.0 { 1.0 - p } else { p };

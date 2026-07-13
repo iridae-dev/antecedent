@@ -43,10 +43,7 @@ impl PcmciPlus {
     pub fn new() -> Self {
         let mut constraints = DiscoveryConstraints::default();
         constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
-        Self {
-            engine: PcmciEngine::new().with_constraints(constraints),
-            fdr: true,
-        }
+        Self { engine: PcmciEngine::new().with_constraints(constraints), fdr: true }
     }
 
     /// Configure constraints (caller should keep `min_lag = 0` for contemporaneous discovery).
@@ -109,23 +106,20 @@ impl PcmciPlus {
             else {
                 continue;
             };
-            let Some(&tgt) =
-                node_ids.get(&(link.link.target.raw(), link.link.target_lag.raw()))
+            let Some(&tgt) = node_ids.get(&(link.link.target.raw(), link.link.target_lag.raw()))
             else {
                 continue;
             };
-                if link.link.source_lag.is_contemporaneous()
+            if link.link.source_lag.is_contemporaneous()
                 && link.link.target_lag.is_contemporaneous()
-                {
+            {
                 if !cpdag.has_edge(src, tgt) {
                     cpdag
                         .insert_undirected(src, tgt)
                         .map_err(|e| DiscoveryError::Data(e.to_string()))?;
                 }
             } else if !cpdag.has_edge(src, tgt) {
-                cpdag
-                    .insert_directed(src, tgt)
-                    .map_err(|e| DiscoveryError::Data(e.to_string()))?;
+                cpdag.insert_directed(src, tgt).map_err(|e| DiscoveryError::Data(e.to_string()))?;
             }
         }
 
@@ -158,8 +152,10 @@ impl PcmciPlus {
             )),
         };
         result.evidence = graph_evidence_from_scored(scored)?;
-        result.review =
-            TemporalGraphReview::from_graph(result.evidence.graph.clone(), result.algorithm.id.clone());
+        result.review = TemporalGraphReview::from_graph(
+            result.evidence.graph.clone(),
+            result.algorithm.id.clone(),
+        );
         result.performance.links_retained = result.evidence.links.len() as u64;
         result.diagnostics.push(DiscoveryDiagnostic {
             code: Arc::from("pcmci_plus.cpdag"),
@@ -235,10 +231,7 @@ mod tests {
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
         let series = TimeSeriesData::try_new(
             storage,
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: n,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap();
         (series, vec![VariableId::from_raw(0), VariableId::from_raw(1)])

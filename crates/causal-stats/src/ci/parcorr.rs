@@ -2,11 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_lossless
-)]
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_lossless)]
 
 use causal_core::{ExecutionContext, KernelPolicy};
 use causal_kernels::{ParCorrQuery, partial_correlation_batch};
@@ -75,9 +71,8 @@ impl PartialCorrelation {
             &mut workspace.parcorr,
             portable,
         );
-        let r = workspace.stats[0].ok_or(StatsError::Shape {
-            message: "partial correlation failed",
-        })?;
+        let r = workspace.stats[0]
+            .ok_or(StatsError::Shape { message: "partial correlation failed" })?;
         let ci_query = CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() };
         self.interpret(r, n, ci_query, significance, columns, z_flat, workspace, ctx, 0)
     }
@@ -147,12 +142,7 @@ impl ConditionalIndependence for PartialCorrelation {
         let queries: Vec<ParCorrQuery> = request
             .queries
             .iter()
-            .map(|q| ParCorrQuery {
-                x: q.x,
-                y: q.y,
-                z_start: q.z_start,
-                z_len: q.z_len,
-            })
+            .map(|q| ParCorrQuery { x: q.x, y: q.y, z_start: q.z_start, z_len: q.z_len })
             .collect();
         let portable = !self.policy.force_scalar;
         partial_correlation_batch(
@@ -166,9 +156,8 @@ impl ConditionalIndependence for PartialCorrelation {
 
         let mut results = Vec::with_capacity(nq);
         for (i, q) in request.queries.iter().enumerate() {
-            let r = workspace.stats[i].ok_or(StatsError::Shape {
-                message: "partial correlation failed",
-            })?;
+            let r = workspace.stats[i]
+                .ok_or(StatsError::Shape { message: "partial correlation failed" })?;
             results.push(self.interpret(
                 r,
                 n,

@@ -39,7 +39,10 @@ impl EValue {
     /// # Errors
     ///
     /// The outcome has fewer than 2 valid rows or zero variance.
-    pub fn refute(&self, problem: &RefutationProblem<'_>) -> Result<RefutationReport, ValidationError> {
+    pub fn refute(
+        &self,
+        problem: &RefutationProblem<'_>,
+    ) -> Result<RefutationReport, ValidationError> {
         let y = float64_full(problem.data, problem.outcome())?;
         let sd_y = sample_sd(&y);
         if !(sd_y.is_finite() && sd_y > 0.0) {
@@ -61,10 +64,7 @@ impl EValue {
             failure_condition: if passed {
                 None
             } else {
-                Some(Arc::from(format!(
-                    "e-value {e_value} below threshold {}",
-                    self.threshold
-                )))
+                Some(Arc::from(format!("e-value {e_value} below threshold {}", self.threshold)))
             },
             replicates: 0,
         })

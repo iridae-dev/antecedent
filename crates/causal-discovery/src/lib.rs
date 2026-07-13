@@ -29,5 +29,5 @@ pub use pcmci::Pcmci;
 pub use pcmci_plus::PcmciPlus;
 pub use result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, GraphEvidence, LaggedLink, ScoredLink,
+    DiscoveryResult, GraphEvidence, LaggedLink, LaggedParent, PcSepsets, ScoredLink, SepsetKey,
 };

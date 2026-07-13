@@ -10,16 +10,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use causal_core::{
-    CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
-    ValueType, VariableId,
+    CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+    VariableId,
 };
 use causal_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use causal_discovery::{
-    DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints,
-};
+use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {

@@ -12,7 +12,11 @@ use crate::result::{GraphEvidence, ScoredLink};
 
 /// Optionally FDR-adjust then retain links with `p_value < alpha`.
 #[must_use]
-pub fn threshold_scored_links(mut scored: Vec<ScoredLink>, fdr: bool, alpha: f64) -> Vec<ScoredLink> {
+pub fn threshold_scored_links(
+    mut scored: Vec<ScoredLink>,
+    fdr: bool,
+    alpha: f64,
+) -> Vec<ScoredLink> {
     if fdr && !scored.is_empty() {
         let pvals: Vec<f64> = scored.iter().map(|l| l.p_value).collect();
         let adj = benjamini_hochberg(&pvals);

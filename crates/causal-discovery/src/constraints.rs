@@ -195,34 +195,27 @@ pub struct CandidateCatalog {
 }
 
 impl CandidateCatalog {
-    fn build(variables: &[VariableId], temporal: &TemporalConstraints) -> Result<Self, DiscoveryError> {
+    fn build(
+        variables: &[VariableId],
+        temporal: &TemporalConstraints,
+    ) -> Result<Self, DiscoveryError> {
         let min_lag = temporal.min_lag.raw();
         let max_lag = temporal.max_lag.raw();
         if min_lag > max_lag {
-            return Err(DiscoveryError::Unsupported {
-                message: "min_lag must be ≤ max_lag",
-            });
+            return Err(DiscoveryError::Unsupported { message: "min_lag must be ≤ max_lag" });
         }
         let n_vars = variables.len();
         let n_lags = (max_lag - min_lag) as usize + 1;
         let len = n_vars
             .checked_mul(n_lags)
             .and_then(|x| x.checked_mul(n_vars))
-            .ok_or(DiscoveryError::Unsupported {
-                message: "candidate catalog overflow",
-            })?;
+            .ok_or(DiscoveryError::Unsupported { message: "candidate catalog overflow" })?;
         if len > u32::MAX as usize {
             return Err(DiscoveryError::Unsupported {
                 message: "candidate catalog exceeds u32 index space",
             });
         }
-        Ok(Self {
-            variables: Arc::from(variables),
-            min_lag,
-            max_lag,
-            n_lags,
-            len,
-        })
+        Ok(Self { variables: Arc::from(variables), min_lag, max_lag, n_lags, len })
     }
 
     /// Number of candidate slots.
@@ -318,10 +311,7 @@ mod tests {
         let c = DiscoveryConstraints {
             forbidden: Arc::from([link]),
             required: Arc::from([]),
-            temporal: TemporalConstraints {
-                max_lag: Lag::from_raw(2),
-                min_lag: Lag::from_raw(1),
-            },
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(2), min_lag: Lag::from_raw(1) },
             ..DiscoveryConstraints::default()
         };
         let compiled = c.compile(&vars).unwrap();
@@ -332,14 +322,8 @@ mod tests {
     fn tiers_forbid_backward_edges() {
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
         let c = DiscoveryConstraints {
-            tiers: Arc::from([
-                Arc::from([vars[0]]),
-                Arc::from([vars[1]]),
-            ]),
-            temporal: TemporalConstraints {
-                max_lag: Lag::from_raw(1),
-                min_lag: Lag::from_raw(1),
-            },
+            tiers: Arc::from([Arc::from([vars[0]]), Arc::from([vars[1]])]),
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
             ..DiscoveryConstraints::default()
         };
         // Edge from tier1 → tier0 forbidden.

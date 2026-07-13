@@ -15,7 +15,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::many_single_char_names,
+    clippy::float_cmp
+)]
 
 use std::sync::Arc;
 
@@ -99,11 +104,7 @@ impl ReiszSensitivity {
             let upper = ipw_ate + bias;
             // "Explained away" if the interval covers 0 or the nearer endpoint flips sign.
             let covers_zero = lower <= 0.0 && upper >= 0.0;
-            let flipped = if original_sign >= 0.0 {
-                upper < 0.0
-            } else {
-                lower > 0.0
-            };
+            let flipped = if original_sign >= 0.0 { upper < 0.0 } else { lower > 0.0 };
             last_bound_ate = if original_sign >= 0.0 { lower } else { upper };
             if covers_zero || flipped {
                 robustness = delta;
@@ -291,7 +292,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-};
+        };
         let report = ReiszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(report.refuter.as_ref(), "sensitivity.reisz");
         assert!(report.comparison > 0.0, "comparison={}", report.comparison);

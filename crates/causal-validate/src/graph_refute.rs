@@ -8,7 +8,7 @@ use causal_core::ExecutionContext;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use causal_identify::IdentifiedEstimand;
 
-use crate::common::{RefutationProblem, RefutationReport, fit_once};
+use crate::common::{RefutationProblem, RefutationReport, fit_once, linear_estimator_no_bootstrap};
 use crate::error::ValidationError;
 
 /// Drop the first adjustment covariate (a proxy for questioning whether it belongs in the
@@ -35,9 +35,7 @@ impl GraphRefuter {
     /// Default threshold: 0.5.
     #[must_use]
     pub fn new() -> Self {
-        let mut estimator = LinearAdjustmentAte::new();
-        estimator.bootstrap_replicates = 0;
-        Self { abs_delta_threshold: 0.5, estimator }
+        Self { abs_delta_threshold: 0.5, estimator: linear_estimator_no_bootstrap() }
     }
 
     /// Run the graph refuter.
@@ -69,8 +67,7 @@ impl GraphRefuter {
             });
         }
         let reduced = drop_first_adjustment(problem.estimand);
-        let est =
-            fit_once(&self.estimator, problem.data, &reduced, problem.query, workspace, ctx)?;
+        let est = fit_once(&self.estimator, problem.data, &reduced, problem.query, workspace, ctx)?;
         let delta = (est.ate - problem.original.ate).abs();
         let passed = delta < self.abs_delta_threshold;
         Ok(RefutationReport {

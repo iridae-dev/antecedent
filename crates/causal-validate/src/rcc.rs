@@ -12,7 +12,8 @@ use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use causal_identify::IdentifiedEstimand;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, fill_gaussian, fit_once, with_extra_float,
+    RefutationProblem, RefutationReport, fill_gaussian, fit_once, linear_estimator_no_bootstrap,
+    with_extra_float,
 };
 use crate::error::ValidationError;
 
@@ -37,9 +38,11 @@ impl RandomCommonCause {
     /// Default: 20 replicates, threshold 0.15.
     #[must_use]
     pub fn new() -> Self {
-        let mut estimator = LinearAdjustmentAte::new();
-        estimator.bootstrap_replicates = 0;
-        Self { replicates: 20, abs_delta_threshold: 0.15, estimator }
+        Self {
+            replicates: 20,
+            abs_delta_threshold: 0.15,
+            estimator: linear_estimator_no_bootstrap(),
+        }
     }
 
     /// Run the random-common-cause refuter.

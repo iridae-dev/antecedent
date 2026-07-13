@@ -2,11 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::needless_range_loop,
-    clippy::similar_names
-)]
+#![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::similar_names)]
 
 /// Scratch for residualization and Pearson correlation.
 #[derive(Clone, Debug, Default)]
@@ -439,7 +435,7 @@ mod tests {
     use causal_core::{KernelPolicy, ToleranceClass};
 
     use super::*;
-    use crate::dispatch::{partial_correlation, select_impl, KernelImpl};
+    use crate::dispatch::{KernelImpl, partial_correlation, select_impl};
 
     #[test]
     fn pearson_perfect() {

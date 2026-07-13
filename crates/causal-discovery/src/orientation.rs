@@ -4,10 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::many_single_char_names,
-    clippy::redundant_closure_for_method_calls
-)]
+#![allow(clippy::many_single_char_names, clippy::redundant_closure_for_method_calls)]
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -98,22 +95,14 @@ pub struct OrientationState {
 impl OrientationState {
     /// Record a separating set for undirected edge `{a,b}`.
     pub fn set_sepset(&mut self, a: DenseNodeId, b: DenseNodeId, sep: Arc<[DenseNodeId]>) {
-        let key = if a.raw() <= b.raw() {
-            (a.raw(), b.raw())
-        } else {
-            (b.raw(), a.raw())
-        };
+        let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
         self.sepsets.insert(key, sep);
     }
 
     /// Lookup sepset.
     #[must_use]
     pub fn sepset(&self, a: DenseNodeId, b: DenseNodeId) -> Option<&[DenseNodeId]> {
-        let key = if a.raw() <= b.raw() {
-            (a.raw(), b.raw())
-        } else {
-            (b.raw(), a.raw())
-        };
+        let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
         self.sepsets.get(&key).map(AsRef::as_ref)
     }
 }
@@ -175,6 +164,21 @@ fn adjacent(graph: &TemporalCpdag, a: DenseNodeId, b: DenseNodeId) -> bool {
     graph.has_edge(a, b)
 }
 
+/// Drain the orientation queue into a focus set, or scan all nodes when empty.
+fn focus_nodes(graph: &TemporalCpdag, queue: &mut OrientationQueue) -> Vec<DenseNodeId> {
+    if queue.is_empty() {
+        (0..graph.node_count())
+            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+            .collect()
+    } else {
+        let mut v = Vec::new();
+        while let Some(n) = queue.pop() {
+            v.push(n);
+        }
+        v
+    }
+}
+
 /// Meek R1: if `a → b — c` and `a` not adjacent to `c`, orient `b → c`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MeekR1;
@@ -191,17 +195,7 @@ impl OrientationRule for MeekR1 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus: Vec<DenseNodeId> = if queue.is_empty() {
-            (0..graph.node_count())
-                .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
-                .collect()
-        } else {
-            let mut v = Vec::new();
-            while let Some(n) = queue.pop() {
-                v.push(n);
-            }
-            v
-        };
+        let focus = focus_nodes(graph, queue);
         let mut changed_nodes = Vec::new();
         for b in focus {
             for a in {
@@ -216,7 +210,9 @@ impl OrientationRule for MeekR1 {
             } {
                 for c in graph.undirected_neighbors(b) {
                     if !adjacent(graph, a, c) {
-                        graph.orient_undirected(b, c).map_err(|e| OrientationError::Graph(e.to_string()))?;
+                        graph
+                            .orient_undirected(b, c)
+                            .map_err(|e| OrientationError::Graph(e.to_string()))?;
                         delta.edges_changed += 1;
                         delta.fixed_point = false;
                         delta.premises.push(Arc::from(format!(
@@ -256,25 +252,12 @@ impl OrientationRule for MeekR2 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus: Vec<DenseNodeId> = if queue.is_empty() {
-            (0..graph.node_count())
-                .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
-                .collect()
-        } else {
-            let mut v = Vec::new();
-            while let Some(n) = queue.pop() {
-                v.push(n);
-            }
-            v
-        };
+        let focus = focus_nodes(graph, queue);
         let mut changed = Vec::new();
         for a in &focus {
             for b in graph.children(*a) {
                 for c in graph.children(b) {
-                    if graph
-                        .edge_between(*a, c)
-                        .is_some_and(|e| e.is_undirected())
-                    {
+                    if graph.edge_between(*a, c).is_some_and(|e| e.is_undirected()) {
                         graph
                             .orient_undirected(*a, c)
                             .map_err(|e| OrientationError::Graph(e.to_string()))?;
@@ -317,17 +300,7 @@ impl OrientationRule for MeekR3 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus: Vec<DenseNodeId> = if queue.is_empty() {
-            (0..graph.node_count())
-                .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
-                .collect()
-        } else {
-            let mut v = Vec::new();
-            while let Some(n) = queue.pop() {
-                v.push(n);
-            }
-            v
-        };
+        let focus = focus_nodes(graph, queue);
         let mut changed = Vec::new();
         for a in &focus {
             let und_a: Vec<DenseNodeId> = graph.undirected_neighbors(*a);
@@ -390,17 +363,7 @@ impl OrientationRule for MeekR4 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus: Vec<DenseNodeId> = if queue.is_empty() {
-            (0..graph.node_count())
-                .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
-                .collect()
-        } else {
-            let mut v = Vec::new();
-            while let Some(n) = queue.pop() {
-                v.push(n);
-            }
-            v
-        };
+        let focus = focus_nodes(graph, queue);
         let mut changed = Vec::new();
         for a in &focus {
             for b in graph.undirected_neighbors(*a) {
@@ -465,17 +428,7 @@ impl OrientationRule for OrientCollider {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus: Vec<DenseNodeId> = if queue.is_empty() {
-            (0..graph.node_count())
-                .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
-                .collect()
-        } else {
-            let mut v = Vec::new();
-            while let Some(n) = queue.pop() {
-                v.push(n);
-            }
-            v
-        };
+        let focus = focus_nodes(graph, queue);
         let mut changed = Vec::new();
         for c in &focus {
             let und: Vec<DenseNodeId> = graph.undirected_neighbors(*c);

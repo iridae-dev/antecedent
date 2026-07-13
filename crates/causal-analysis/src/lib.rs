@@ -19,7 +19,8 @@ pub use planner::{
 };
 pub use result::CausalAnalysisResult;
 pub use review::{
-    PendingGraphReview, compile_review_required, compile_temporal_with_graph, ensure_review_complete,
+    PendingGraphReview, compile_review_required, compile_temporal_with_graph,
+    ensure_review_complete,
 };
 
 #[cfg(test)]
@@ -195,16 +196,28 @@ mod tests {
         let schema = b.build().unwrap();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -288,16 +301,28 @@ mod tests {
         let schema = b.build().unwrap();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -307,8 +332,12 @@ mod tests {
         let y_id = DenseNodeId::from_raw(1);
         dag.insert_directed(z_id, t_id).unwrap();
         dag.insert_directed(t_id, y_id).unwrap();
-        let query =
-            AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+        let query = AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            0.0,
+            1.0,
+        );
         (TabularData::new(storage), dag, query)
     }
 
@@ -333,9 +362,7 @@ mod tests {
     #[test]
     fn end_to_end_temporal_effect() {
         use causal_core::{Lag, TemporalEffectQuery, TemporalPolicy};
-        use causal_data::{
-            SamplingRegularity, TimeIndex, TimeSeriesData,
-        };
+        use causal_data::{SamplingRegularity, TimeIndex, TimeSeriesData};
         use causal_graph::{TemporalDag, ensure_lagged};
 
         let n = 250usize;
@@ -405,11 +432,7 @@ mod tests {
             .unwrap();
         let ctx = ExecutionContext::for_tests(7);
         let result = analysis.run(&ctx).unwrap();
-        assert!(
-            (result.estimate.ate - 0.75).abs() < 0.08,
-            "ate={}",
-            result.estimate.ate
-        );
+        assert!((result.estimate.ate - 0.75).abs() < 0.08, "ate={}", result.estimate.ate);
         assert_eq!(&*result.logical_plan.plan_id, "phase3.temporal_effect");
         assert!(result.physical_plan.estimated_peak_memory_bytes.is_some());
         assert!(result.physical_plan.estimated_copy_bytes.is_some());

@@ -23,14 +23,16 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
+};
 use causal_data::TabularData;
 use causal_identify::IdentifiedEstimand;
 use causal_stats::{FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx, invert_square};
 
 use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
 use crate::error::EstimationError;
-use crate::propensity::{sample_std, stats_err};
+use crate::util::{sample_std, stats_err};
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
 /// [`WaldIv`] and [`TwoStageLeastSquares`].
@@ -104,7 +106,8 @@ fn prepare_iv_problem(
         ));
     }
 
-    let mut ids = Vec::with_capacity(2 + estimand.instruments.len() + estimand.adjustment_set.len());
+    let mut ids =
+        Vec::with_capacity(2 + estimand.instruments.len() + estimand.adjustment_set.len());
     ids.push(treatment);
     ids.push(outcome);
     ids.extend_from_slice(&estimand.instruments);
@@ -288,8 +291,7 @@ struct WaldResult {
 /// uncertainty in the first-stage denominator (a common simplification; the bootstrap SE
 /// above captures the full picture by resampling the whole ratio).
 fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationError> {
-    let (mut sy1, mut sy0, mut sy1sq, mut sy0sq, mut st1, mut st0) =
-        (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    let (mut sy1, mut sy0, mut sy1sq, mut sy0sq, mut st1, mut st0) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
     let (mut n1, mut n0) = (0usize, 0usize);
     for i in 0..z.len() {
         if z[i] > 0.5 {
@@ -364,7 +366,11 @@ impl TwoStageLeastSquares {
     /// Default: 200 bootstrap replicates, explicit overlap override.
     #[must_use]
     pub fn new() -> Self {
-        Self { backend: FaerBackend, bootstrap_replicates: 200, overlap: OverlapPolicy::ExplicitOverride }
+        Self {
+            backend: FaerBackend,
+            bootstrap_replicates: 200,
+            overlap: OverlapPolicy::ExplicitOverride,
+        }
     }
 
     /// Prepare the instrument/exogenous/outcome/treatment design.
@@ -461,7 +467,15 @@ impl TwoStageLeastSquares {
                 }
             }
             let Ok(fit) = fit_2sls(
-                &z_boot, n, zc, &t_boot, &x_boot, xc, &y_boot, &self.backend, &mut workspace.ols,
+                &z_boot,
+                n,
+                zc,
+                &t_boot,
+                &x_boot,
+                xc,
+                &y_boot,
+                &self.backend,
+                &mut workspace.ols,
             ) else {
                 continue;
             };
@@ -560,7 +574,11 @@ mod tests {
     }
 
     fn instrumental_estimand() -> IdentifiedEstimand {
-        IdentifiedEstimand::instrumental("iv", Arc::from([VariableId::from_raw(2)]), ExprId::from_raw(0))
+        IdentifiedEstimand::instrumental(
+            "iv",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        )
     }
 
     fn build_iv_data(n: usize, t: Vec<f64>, y: Vec<f64>, z: Vec<f64>) -> TabularData {
@@ -595,16 +613,28 @@ mod tests {
         let schema = b.build().unwrap();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();

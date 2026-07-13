@@ -2,7 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#![allow(
+    missing_docs,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 
 use causal_core::ExecutionContext;
 use causal_stats::{
@@ -13,26 +18,20 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn columns(n: usize, p: usize) -> Vec<Vec<f64>> {
     (0..p)
-        .map(|j| {
-            (0..n)
-                .map(|i| ((i + j * 17) as f64 * 0.01).sin() + 0.05 * (i as f64))
-                .collect()
-        })
+        .map(|j| (0..n).map(|i| ((i + j * 17) as f64 * 0.01).sin() + 0.05 * (i as f64)).collect())
         .collect()
 }
 
-fn discrete_columns(n: usize, p: usize, levels: i32) -> Vec<Vec<f64>> {
-    (0..p)
-        .map(|j| {
-            (0..n)
-                .map(|i| ((i + j * 3) % levels as usize) as f64)
-                .collect()
-        })
-        .collect()
+fn discrete_columns(n: usize, p: usize, levels: usize) -> Vec<Vec<f64>> {
+    (0..p).map(|j| (0..n).map(|i| ((i + j * 3) % levels) as f64).collect()).collect()
 }
 
 /// Simulate missingness via a keep-mask (true = observe), then gather complete-case rows.
-fn masked_complete_case<'a>(cols: &'a [Vec<f64>], keep: &[bool], scratch: &'a mut Vec<Vec<f64>>) -> Vec<&'a [f64]> {
+fn masked_complete_case<'a>(
+    cols: &'a [Vec<f64>],
+    keep: &[bool],
+    scratch: &'a mut Vec<Vec<f64>>,
+) -> Vec<&'a [f64]> {
     scratch.clear();
     for c in cols {
         let mut out = Vec::with_capacity(keep.iter().filter(|k| **k).count());
@@ -53,7 +52,7 @@ fn keep_mask(n: usize, drop_frac: f64, seed: u64) -> Vec<bool> {
     let mut dropped = 0usize;
     let mut i = 0usize;
     while dropped < drop_n && i < n {
-        rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1);
+        rng = rng.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
         if (rng >> 33) % 5 == 0 {
             keep[i] = false;
             dropped += 1;
@@ -75,7 +74,7 @@ fn keep_mask(n: usize, drop_frac: f64, seed: u64) -> Vec<bool> {
 fn bench_one_ci<C: ConditionalIndependence>(
     group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
     name: &str,
-    ci: C,
+    ci: &C,
     raw: &[Vec<f64>],
     z_len: usize,
     keep: Option<&[bool]>,
@@ -110,55 +109,31 @@ fn bench_ci_batches(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("ci_batch_parcorr");
     for z_len in [0usize, 1, 2, 4] {
-        bench_one_ci(&mut group, &format!("z{z_len}_full"), PartialCorrelation::new(), &raw, z_len, None);
-        bench_one_ci(
-            &mut group,
-            &format!("z{z_len}_missing20"),
-            PartialCorrelation::new(),
-            &raw,
-            z_len,
-            Some(&miss),
-        );
+        let pc = PartialCorrelation::new();
+        bench_one_ci(&mut group, &format!("z{z_len}_full"), &pc, &raw, z_len, None);
+        bench_one_ci(&mut group, &format!("z{z_len}_missing20"), &pc, &raw, z_len, Some(&miss));
     }
     group.finish();
 
     let mut group = c.benchmark_group("ci_batch_robust");
-    bench_one_ci(&mut group, "z1_full", RobustPartialCorrelation::new(), &raw, 1, None);
-    bench_one_ci(
-        &mut group,
-        "z1_missing20",
-        RobustPartialCorrelation::new(),
-        &raw,
-        1,
-        Some(&miss),
-    );
+    let robust = RobustPartialCorrelation::new();
+    bench_one_ci(&mut group, "z1_full", &robust, &raw, 1, None);
+    bench_one_ci(&mut group, "z1_missing20", &robust, &raw, 1, Some(&miss));
     group.finish();
 
     let mut group = c.benchmark_group("ci_batch_gsquared");
-    bench_one_ci(&mut group, "z0_full", GSquared::new(), &disc, 0, None);
-    bench_one_ci(&mut group, "z1_full", GSquared::new(), &disc, 1, None);
-    bench_one_ci(
-        &mut group,
-        "z1_missing20",
-        GSquared::new(),
-        &disc,
-        1,
-        Some(&miss),
-    );
+    let g2 = GSquared::new();
+    bench_one_ci(&mut group, "z0_full", &g2, &disc, 0, None);
+    bench_one_ci(&mut group, "z1_full", &g2, &disc, 1, None);
+    bench_one_ci(&mut group, "z1_missing20", &g2, &disc, 1, Some(&miss));
     group.finish();
 
     let mut group = c.benchmark_group("ci_batch_knn");
     let knn_raw = columns(120, 3);
     let knn_miss = keep_mask(120, 0.20, 7);
-    bench_one_ci(&mut group, "z1_full", KnnCmi::new(3), &knn_raw, 1, None);
-    bench_one_ci(
-        &mut group,
-        "z1_missing20",
-        KnnCmi::new(3),
-        &knn_raw,
-        1,
-        Some(&knn_miss),
-    );
+    let knn = KnnCmi::new(3);
+    bench_one_ci(&mut group, "z1_full", &knn, &knn_raw, 1, None);
+    bench_one_ci(&mut group, "z1_missing20", &knn, &knn_raw, 1, Some(&knn_miss));
     group.finish();
 }
 

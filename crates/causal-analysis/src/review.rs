@@ -9,9 +9,7 @@ use causal_data::{DiscoveryEstimationSplit, TemporalNodeKey, TimeSeriesData};
 use causal_graph::{DenseNodeId, TemporalDag, TemporalGraphReview};
 
 use crate::error::AnalysisError;
-use crate::planner::{
-    CompiledAnalysis, LogicalAnalysisPlan, compile_logical_temporal_effect,
-};
+use crate::planner::{CompiledAnalysis, LogicalAnalysisPlan, compile_logical_temporal_effect};
 
 /// Pending review session that must complete before estimation.
 #[derive(Clone, Debug)]
@@ -100,8 +98,7 @@ impl PendingGraphReview {
             self.split,
             false,
         )?;
-        let physical =
-            logical.compile_physical_with_graph(ctx, Some(self.review.graph.clone()))?;
+        let physical = logical.compile_physical_with_graph(ctx, Some(self.review.graph.clone()))?;
         Ok(CompiledAnalysis::Ready(physical))
     }
 
@@ -235,14 +232,8 @@ mod tests {
             TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0),
             None,
         );
-        let missing_from = TemporalNodeKey {
-            variable: VariableId::from_raw(9),
-            offset: 0,
-        };
-        let missing_to = TemporalNodeKey {
-            variable: VariableId::from_raw(8),
-            offset: 0,
-        };
+        let missing_from = TemporalNodeKey { variable: VariableId::from_raw(9), offset: 0 };
+        let missing_to = TemporalNodeKey { variable: VariableId::from_raw(8), offset: 0 };
         assert!(pending.require_edge(missing_from, missing_to).is_err());
     }
 }

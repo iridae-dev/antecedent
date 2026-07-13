@@ -49,14 +49,18 @@ impl OverlapRefuter {
     /// # Errors
     ///
     /// Data or GLM failures while building a diagnostic-only propensity fit.
-    pub fn refute(&self, problem: &RefutationProblem<'_>) -> Result<RefutationReport, ValidationError> {
+    pub fn refute(
+        &self,
+        problem: &RefutationProblem<'_>,
+    ) -> Result<RefutationReport, ValidationError> {
         let (report, replicates) = match &problem.original.overlap_report {
             Some(r) => (r.clone(), 0),
             None => (self.diagnostic_report(problem)?, 1),
         };
         let nrows = estimation_row_count(problem)? as f64;
         let ess_fraction = if nrows > 0.0 { report.ess / nrows } else { 0.0 };
-        let bounds_ok = report.propensity_min >= self.eps && report.propensity_max <= 1.0 - self.eps;
+        let bounds_ok =
+            report.propensity_min >= self.eps && report.propensity_max <= 1.0 - self.eps;
         let ess_ok = ess_fraction >= self.min_ess_fraction;
         let passed = bounds_ok && ess_ok;
         let comparison = 1.0 - ess_fraction;
@@ -112,7 +116,11 @@ impl OverlapRefuter {
         let mut ws = PropensityWorkspace::default();
         let fit = fit_propensity(&design, nrows, ncols, &t, &backend, &mut ws, &self.glm_options)
             .map_err(|e| ValidationError::Estimation(e.to_string()))?;
-        Ok(OverlapReport::from_propensities(&fit.scores, None, OverlapPolicy::require_diagnostics()))
+        Ok(OverlapReport::from_propensities(
+            &fit.scores,
+            None,
+            OverlapPolicy::require_diagnostics(),
+        ))
     }
 }
 

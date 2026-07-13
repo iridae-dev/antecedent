@@ -109,7 +109,8 @@ impl MarkedEdge {
     /// Whether marks are legal for a Phase 5 CPDAG (no Circle).
     #[must_use]
     pub const fn is_cpdag_legal(self) -> bool {
-        !matches!(self.at_a, Endpoint::Circle) && !matches!(self.at_b, Endpoint::Circle)
+        !matches!(self.at_a, Endpoint::Circle)
+            && !matches!(self.at_b, Endpoint::Circle)
             && (self.is_dag_directed() || self.is_undirected())
     }
 

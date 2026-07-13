@@ -94,8 +94,10 @@ impl Pcmci {
                 self.fdr
             )),
         };
-        result.review =
-            TemporalGraphReview::from_graph(result.evidence.graph.clone(), result.algorithm.id.clone());
+        result.review = TemporalGraphReview::from_graph(
+            result.evidence.graph.clone(),
+            result.algorithm.id.clone(),
+        );
         result.performance.links_retained = result.evidence.links.len() as u64;
         Ok(result)
     }

@@ -44,7 +44,10 @@ impl EfficientBackdoorIdentifier {
     /// # Errors
     ///
     /// Propagates prepare failures.
-    pub fn prepare(&self, graph: &causal_graph::Dag) -> Result<PreparedIdentificationGraph, IdentificationError> {
+    pub fn prepare(
+        &self,
+        graph: &causal_graph::Dag,
+    ) -> Result<PreparedIdentificationGraph, IdentificationError> {
         BackdoorIdentifier { config: self.config.clone() }.prepare(graph)
     }
 
@@ -105,12 +108,8 @@ impl EfficientBackdoorIdentifier {
         let mut examined = 0u64;
 
         // Prefer parental adjustment set when valid.
-        let parents: Vec<DenseNodeId> = dag
-            .parents(t)
-            .iter()
-            .copied()
-            .filter(|p| !forbidden.contains(*p))
-            .collect();
+        let parents: Vec<DenseNodeId> =
+            dag.parents(t).iter().copied().filter(|p| !forbidden.contains(*p)).collect();
         examined += 1;
         if is_backdoor_adjustment(&mutilated, t, y, &parents, &mut dsep_ws)? {
             return Self::finish(ate, query, dag, &[parents], examined, "parental");
@@ -169,16 +168,13 @@ impl EfficientBackdoorIdentifier {
         valid.sort_by(|a, b| {
             let pa = a.iter().filter(|n| parent_set.contains(**n)).count();
             let pb = b.iter().filter(|n| parent_set.contains(**n)).count();
-            a.len()
-                .cmp(&b.len())
-                .then_with(|| pb.cmp(&pa))
-                .then_with(|| {
-                    let mut aa: Vec<_> = a.iter().map(|n| n.as_usize()).collect();
-                    let mut bb: Vec<_> = b.iter().map(|n| n.as_usize()).collect();
-                    aa.sort_unstable();
-                    bb.sort_unstable();
-                    aa.cmp(&bb)
-                })
+            a.len().cmp(&b.len()).then_with(|| pb.cmp(&pa)).then_with(|| {
+                let mut aa: Vec<_> = a.iter().map(|n| n.as_usize()).collect();
+                let mut bb: Vec<_> = b.iter().map(|n| n.as_usize()).collect();
+                aa.sort_unstable();
+                bb.sort_unstable();
+                aa.cmp(&bb)
+            })
         });
         let best = vec![valid.into_iter().next().expect("non-empty")];
         Self::finish(ate, query, dag, &best, examined, "min_cardinality")
@@ -209,10 +205,7 @@ impl EfficientBackdoorIdentifier {
         let mut arena = CausalExprArena::new();
         let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
         let mut derivation = DerivationTrace::default();
-        derivation.push(
-            "backdoor.efficient",
-            format!("selected via {rule}; |Z|={}", vars.len()),
-        );
+        derivation.push("backdoor.efficient", format!("selected via {rule}; |Z|={}", vars.len()));
         Ok(IdentificationResult {
             status: IdentificationStatus::NonparametricallyIdentified,
             query,
@@ -266,12 +259,7 @@ mod tests {
         assert_eq!(res.estimands.len(), 1);
         assert_eq!(&*res.estimands[0].method, "backdoor.efficient");
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
-        assert!(
-            res.derivation
-                .steps
-                .iter()
-                .any(|s| s.detail.contains("parental"))
-        );
+        assert!(res.derivation.steps.iter().any(|s| s.detail.contains("parental")));
     }
 
     #[test]

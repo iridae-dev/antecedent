@@ -22,14 +22,18 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
+};
 use causal_data::TabularData;
 use causal_identify::IdentifiedEstimand;
-use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square};
+use causal_stats::{
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
+};
 
 use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
 use crate::error::EstimationError;
-use crate::propensity::{sample_std, stats_err};
+use crate::util::{sample_std, stats_err};
 
 /// Local-linear RD design column count: `[1, T, (R-c), T·(R-c)]`.
 const RD_NCOLS: usize = 4;
@@ -212,7 +216,13 @@ impl SharpRegressionDiscontinuity {
     ) -> Result<EffectEstimate, EstimationError> {
         let fit = self
             .backend
-            .least_squares(&problem.matrix, problem.nrows, RD_NCOLS, &problem.outcome, &mut workspace.ols)
+            .least_squares(
+                &problem.matrix,
+                problem.nrows,
+                RD_NCOLS,
+                &problem.outcome,
+                &mut workspace.ols,
+            )
             .map_err(stats_err)?;
         let ate = fit.coefficients[RD_TREATMENT_COL] * problem.treatment_delta;
         let n = problem.nrows as f64;
@@ -357,21 +367,32 @@ mod tests {
         // but the query still needs a nominal treatment variable id.
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(vec![0.0; n]), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(vec![0.0; n]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(r), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(r),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        let estimand =
-            IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
+        let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
         (TabularData::new(storage), estimand)
     }
 

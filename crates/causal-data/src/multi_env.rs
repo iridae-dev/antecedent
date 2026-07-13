@@ -62,9 +62,9 @@ impl MultiEnvironmentData {
     ///
     /// Out of range.
     pub fn environment(&self, i: usize) -> Result<&TimeSeriesData, DataError> {
-        self.environments.get(i).ok_or(DataError::InvalidValidity {
-            message: "environment index out of range",
-        })
+        self.environments
+            .get(i)
+            .ok_or(DataError::InvalidValidity { message: "environment index out of range" })
     }
 
     /// All environments.

@@ -132,12 +132,7 @@ impl ConditionalIndependence for KnnCmi {
             ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
             debug_assert_eq!(workspace.knn.index_builds, builds_before);
             let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
-            results.push(CiResult {
-                statistic: stat,
-                p_value: p,
-                df: n as f64,
-                ci: None,
-            });
+            results.push(CiResult { statistic: stat, p_value: p, df: n as f64, ci: None });
         }
         Ok(CiBatchResult { results })
     }
@@ -304,24 +299,13 @@ impl ConditionalIndependence for SymbolicCmi {
                 }
             }
             let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
-            results.push(CiResult {
-                statistic: mi,
-                p_value: p,
-                df: n as f64,
-                ci: None,
-            });
+            results.push(CiResult { statistic: mi, p_value: p, df: n as f64, ci: None });
         }
         Ok(CiBatchResult { results })
     }
 }
 
-fn conditional_symbolic_mi(
-    columns: &[&[f64]],
-    x: usize,
-    y: usize,
-    z: &[usize],
-    n: usize,
-) -> f64 {
+fn conditional_symbolic_mi(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n: usize) -> f64 {
     // Stratify by Z symbols; average stratum MI(X;Y|Z=z).
     let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
     for r in 0..n {
@@ -348,11 +332,7 @@ fn conditional_symbolic_mi(
         mi += w * symbolic_mi_on_rows(columns, x, y, rows);
         weight += w;
     }
-    if weight > 0.0 {
-        mi / weight
-    } else {
-        0.0
-    }
+    if weight > 0.0 { mi / weight } else { 0.0 }
 }
 
 fn symbolic_mi_on_rows(columns: &[&[f64]], x: usize, y: usize, rows: &[usize]) -> f64 {

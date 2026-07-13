@@ -8,11 +8,11 @@ use std::sync::Arc;
 
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use causal_expr::CausalExprArena;
-use causal_graph::{Dag, DSeparationWorkspace, DenseNodeId};
+use causal_graph::{DSeparationWorkspace, Dag, DenseNodeId};
 
 use crate::backdoor::{
-    dense_to_var, remove_nodes, remove_outgoing, remove_outgoing_set, var_to_dense,
-    PreparedIdentificationGraph,
+    PreparedIdentificationGraph, dense_to_var, remove_nodes, remove_outgoing, remove_outgoing_set,
+    var_to_dense,
 };
 use crate::error::IdentificationError;
 use crate::result::{
@@ -254,10 +254,7 @@ mod tests {
         ));
         let res = id.identify(&prep, &q).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(res
-            .estimands
-            .iter()
-            .any(|e| e.mediators.as_ref() == [VariableId::from_raw(1)]));
+        assert!(res.estimands.iter().any(|e| e.mediators.as_ref() == [VariableId::from_raw(1)]));
     }
 
     #[test]
@@ -278,10 +275,7 @@ mod tests {
         ));
         let res = id.identify(&prep, &q).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(res
-            .estimands
-            .iter()
-            .any(|e| e.mediators.as_ref() == [VariableId::from_raw(1)]));
+        assert!(res.estimands.iter().any(|e| e.mediators.as_ref() == [VariableId::from_raw(1)]));
     }
 
     #[test]

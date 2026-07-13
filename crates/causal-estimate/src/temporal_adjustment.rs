@@ -97,9 +97,8 @@ impl TemporalLinearAdjustment {
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(|e| EstimationError::Data(e.to_string()))?;
         let mut sample_ws = SampleWorkspace::default();
-        let prep = plan
-            .prepare(data, &mut sample_ws)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+        let prep =
+            plan.prepare(data, &mut sample_ws).map_err(|e| EstimationError::Data(e.to_string()))?;
 
         let n = prep.n;
         let (row_start, row_end) = if let Some(s) = split {
@@ -169,9 +168,8 @@ fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
             "positive offsets (future treatment/outcome) unsupported in Phase 3 adjustment".into(),
         ));
     }
-    let lag = u32::try_from(-offset).map_err(|_| {
-        EstimationError::UnsupportedQuery("offset does not fit lag".into())
-    })?;
+    let lag = u32::try_from(-offset)
+        .map_err(|_| EstimationError::UnsupportedQuery("offset does not fit lag".into()))?;
     Ok(Lag::from_raw(lag))
 }
 
@@ -257,8 +255,7 @@ mod tests {
             .with_policy(TemporalPolicy::pulse(-1))
             .with_horizon_steps(1)
             .with_max_history_lag(Some(1));
-        let id_res =
-            TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
         let est = TemporalLinearAdjustment::new();
         let prep = est.prepare(&data, estimand, &q, &id_res.indexer, None).unwrap();
@@ -266,13 +263,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let mut est2 = TemporalLinearAdjustment::new();
         est2.inner.bootstrap_replicates = 0;
-        let effect = est2
-            .fit(&prep, &mut ws, &ctx, id_res.result.required_assumptions)
-            .unwrap();
-        assert!(
-            (effect.ate - 0.8).abs() < 0.05,
-            "ate={} expected ~0.8",
-            effect.ate
-        );
+        let effect = est2.fit(&prep, &mut ws, &ctx, id_res.result.required_assumptions).unwrap();
+        assert!((effect.ate - 0.8).abs() < 0.05, "ate={} expected ~0.8", effect.ate);
     }
 }

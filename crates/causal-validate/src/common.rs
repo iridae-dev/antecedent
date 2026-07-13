@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use causal_core::{AverageEffectQuery, ExecutionContext, VariableId};
-use causal_data::{TabularData, TableView, ValidityBitmap};
+use causal_data::{TableView, TabularData, ValidityBitmap};
 use causal_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte};
 use causal_identify::IdentifiedEstimand;
 
@@ -96,8 +96,96 @@ pub(crate) fn fit_once(
         .map_err(|e| ValidationError::Estimation(e.to_string()))
 }
 
+/// Linear adjustment with nested bootstrap disabled (refuters / sensitivity grids).
+#[must_use]
+pub(crate) fn linear_estimator_no_bootstrap() -> LinearAdjustmentAte {
+    let mut estimator = LinearAdjustmentAte::new();
+    estimator.bootstrap_replicates = 0;
+    estimator
+}
+
+/// Which column a noise-replace refuter overwrites.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum NoiseReplaceTarget {
+    /// Replace the treatment column.
+    Treatment,
+    /// Replace the outcome column.
+    Outcome,
+}
+
+/// Shared placebo / dummy-outcome loop: replace a column with Gaussian noise and refit.
+pub(crate) struct NoiseReplaceConfig<'a> {
+    /// Estimator used for each refit.
+    pub estimator: &'a LinearAdjustmentAte,
+    /// Number of noise replicates.
+    pub replicates: u32,
+    /// Pass if mean `|ATE|` is below this threshold.
+    pub abs_ate_threshold: f64,
+    /// Column to overwrite.
+    pub target: NoiseReplaceTarget,
+    /// RNG stream base id.
+    pub stream_base: u64,
+    /// Report refuter id.
+    pub refuter_id: &'a str,
+    /// Label used in failure messages.
+    pub failure_label: &'a str,
+}
+
+/// Shared placebo / dummy-outcome loop: replace a column with Gaussian noise and refit.
+pub(crate) fn noise_replace_refute(
+    problem: &RefutationProblem<'_>,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+    cfg: &NoiseReplaceConfig<'_>,
+) -> Result<RefutationReport, ValidationError> {
+    if cfg.replicates == 0 {
+        return Err(ValidationError::NotApplicable {
+            message: "noise-replace refuter requires replicates > 0",
+        });
+    }
+    let n = problem.data.row_count();
+    let replace_id = match cfg.target {
+        NoiseReplaceTarget::Treatment => problem.treatment(),
+        NoiseReplaceTarget::Outcome => problem.outcome(),
+    };
+    let mut noise = vec![0.0; n];
+    let mut sum_abs = 0.0;
+    let mut sum_ate = 0.0;
+    for r in 0..cfg.replicates {
+        fill_gaussian(&mut noise, ctx, cfg.stream_base.wrapping_add(u64::from(r)));
+        let data =
+            with_replaced_float(problem.data, replace_id, Arc::<[f64]>::from(noise.clone()))?;
+        let est = fit_once(cfg.estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
+        sum_abs += est.ate.abs();
+        sum_ate += est.ate;
+    }
+    let mean_abs = sum_abs / f64::from(cfg.replicates);
+    let mean_ate = sum_ate / f64::from(cfg.replicates);
+    let passed = mean_abs < cfg.abs_ate_threshold;
+    Ok(RefutationReport {
+        refuter: Arc::from(cfg.refuter_id),
+        original_ate: problem.original.ate,
+        refuted_ate: mean_ate,
+        comparison: mean_abs,
+        informative: true,
+        passed,
+        failure_condition: if passed {
+            None
+        } else {
+            Some(Arc::from(format!(
+                "mean |{} ATE|={mean_abs} exceeded threshold {}",
+                cfg.failure_label, cfg.abs_ate_threshold
+            )))
+        },
+        replicates: cfg.replicates,
+    })
+}
+
 /// Copy a full-length float64 column (unmasked; caller handles missingness).
-pub(crate) fn float64_full(data: &TabularData, id: VariableId) -> Result<Vec<f64>, ValidationError> {
+pub(crate) fn float64_full(
+    data: &TabularData,
+    id: VariableId,
+) -> Result<Vec<f64>, ValidationError> {
     data.float64_values(id).map_err(|e| ValidationError::Data(e.to_string()))
 }
 
@@ -117,7 +205,8 @@ pub(crate) fn with_row_subset(
             bytes[i / 8] |= 1 << (i % 8);
         }
     }
-    let mask = ValidityBitmap::from_bytes(bytes, n).map_err(|e| ValidationError::Data(e.to_string()))?;
+    let mask =
+        ValidityBitmap::from_bytes(bytes, n).map_err(|e| ValidationError::Data(e.to_string()))?;
     data.with_analysis_mask(mask).map_err(|e| ValidationError::Data(e.to_string()))
 }
 

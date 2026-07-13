@@ -11,9 +11,9 @@ use causal_core::{
     AssumptionStatus, AverageEffectQuery, CausalQuery,
 };
 use causal_expr::CausalExprArena;
-use causal_graph::{Dag, DSeparationWorkspace, DenseNodeId};
+use causal_graph::{DSeparationWorkspace, Dag, DenseNodeId};
 
-use crate::backdoor::{dense_to_var, remove_outgoing, var_to_dense, PreparedIdentificationGraph};
+use crate::backdoor::{PreparedIdentificationGraph, dense_to_var, remove_outgoing, var_to_dense};
 use crate::error::IdentificationError;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
@@ -159,13 +159,8 @@ impl InstrumentalVariableIdentifier {
                     });
                 }
             };
-            let functional =
-                arena.iv_wald(ate.treatment, ate.outcome, &[z_var], active, control);
-            estimands.push(IdentifiedEstimand::instrumental(
-                "iv",
-                Arc::from([z_var]),
-                functional,
-            ));
+            let functional = arena.iv_wald(ate.treatment, ate.outcome, &[z_var], active, control);
+            estimands.push(IdentifiedEstimand::instrumental("iv", Arc::from([z_var]), functional));
             derivation.push("iv.instrument", format!("Z={}", z_var.raw()));
         }
 
@@ -212,9 +207,7 @@ fn is_valid_instrument(
     // given ∅. Conditioning on T directly would instead open the T-collider
     // between Z and any T-Y confounder, so we mutilate rather than condition.
     let t_mutilated = remove_outgoing(dag, t)?;
-    t_mutilated
-        .is_d_separated(z, y, &[], ws)
-        .map_err(|e| IdentificationError::Graph(e.to_string()))
+    t_mutilated.is_d_separated(z, y, &[], ws).map_err(|e| IdentificationError::Graph(e.to_string()))
 }
 
 #[cfg(test)]
@@ -243,15 +236,9 @@ mod tests {
         ));
         let res = id.identify(&prep, &q).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(res
-            .estimands
-            .iter()
-            .any(|e| e.instruments.as_ref() == [VariableId::from_raw(0)]));
+        assert!(res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(0)]));
         // The confounder U itself must never be reported as a valid instrument.
-        assert!(!res
-            .estimands
-            .iter()
-            .any(|e| e.instruments.as_ref() == [VariableId::from_raw(3)]));
+        assert!(!res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(3)]));
     }
 
     #[test]

@@ -15,7 +15,7 @@ use std::sync::Arc;
 use causal_analysis::CausalAnalysis;
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
-    RoleHint, ValueType, VariableId, SmallRoleSet,
+    RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
 use causal_graph::{Dag, DenseNodeId};
@@ -227,13 +227,7 @@ fn phase4_frontdoor_two_stage_recovers_mediated_effect() {
     assert_recovers(&result, &expected);
 }
 
-fn run_static(
-    name: &str,
-    data: TabularData,
-    graph: Dag,
-    query: AverageEffectQuery,
-    seed: u64,
-) {
+fn run_static(name: &str, data: TabularData, graph: Dag, query: AverageEffectQuery, seed: u64) {
     let expected = load_expected(name);
     let analysis = CausalAnalysis::builder()
         .data(data)

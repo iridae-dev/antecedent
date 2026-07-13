@@ -92,9 +92,7 @@ pub fn partial_correlation(
     workspace: &mut crate::parcorr::ParCorrWorkspace,
 ) -> Option<f64> {
     match select_impl(policy) {
-        KernelImpl::Scalar => {
-            crate::parcorr::partial_correlation_scalar(x, y, z_cols, workspace)
-        }
+        KernelImpl::Scalar => crate::parcorr::partial_correlation_scalar(x, y, z_cols, workspace),
         KernelImpl::PortableOptimized => {
             crate::parcorr::partial_correlation_portable(x, y, z_cols, workspace)
         }

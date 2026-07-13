@@ -2,25 +2,29 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::similar_names, clippy::too_many_lines, clippy::doc_markdown)]
+#![allow(
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::doc_markdown,
+    clippy::too_many_arguments
+)]
 
 use std::sync::Arc;
 
 use causal_core::{
-    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord,
+    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    ExecutionContext, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord,
     PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode, TemporalEffectQuery, VERSION,
     VariableId,
 };
-use causal_data::{DiscoveryEstimationSplit, TabularData, TableView, TimeSeriesData};
+use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
 use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
 use causal_estimate::{
-    AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError,
-    EstimationWorkspace, FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte,
-    GlmAdjustmentWorkspace, LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace,
-    PropensityMatching, PropensityStratification, PropensityWeighting, RdWorkspace,
-    SharpRegressionDiscontinuity, TemporalLinearAdjustment, TwoStageLeastSquares,
-    TwoStageLeastSquaresWorkspace, WaldIv,
+    AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace,
+    FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
+    LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching,
+    PropensityStratification, PropensityWeighting, RdWorkspace, SharpRegressionDiscontinuity,
+    TemporalLinearAdjustment, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
 };
 use causal_expr::{CausalExprArena, ExprId};
 use causal_graph::{Dag, TemporalDag, TemporalGraphReview};
@@ -30,9 +34,7 @@ use causal_identify::{
     IdentificationStatus, IdentifiedEstimand, InstrumentalVariableIdentifier,
     TemporalBackdoorIdentifier,
 };
-use causal_validate::{
-    RefutationProblem, RefutationReport, ValidationSuite,
-};
+use causal_validate::{RefutationProblem, RefutationReport, ValidationSuite};
 
 use crate::error::AnalysisError;
 use crate::planner::{
@@ -139,12 +141,8 @@ impl CausalAnalysisBuilder {
     /// Discover with PCMCI (typically yields [`CompiledAnalysis::ReviewRequired`]).
     #[must_use]
     pub fn discover_pcmci(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
-        self.graph = Some(GraphInput::DiscoverPcmci {
-            max_lag,
-            alpha,
-            fdr,
-            accept_discovered: accept,
-        });
+        self.graph =
+            Some(GraphInput::DiscoverPcmci { max_lag, alpha, fdr, accept_discovered: accept });
         self
     }
 
@@ -273,7 +271,11 @@ impl CausalAnalysis {
     pub fn compile_logical(&self) -> Result<LogicalAnalysisPlan, AnalysisError> {
         self.ensure_supported_combination()?;
         match (&self.data, &self.query, &self.graph) {
-            (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Static(graph)) => {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(q),
+                GraphInput::Static(graph),
+            ) => {
                 let (identifier, estimator) = self.resolve_static_pair();
                 self.ensure_rd_config_present(&estimator)?;
                 compile_logical_static_ate(StaticAteCompileInput {
@@ -312,7 +314,11 @@ impl CausalAnalysis {
     pub fn compile(&self, ctx: &ExecutionContext) -> Result<CompiledAnalysis, AnalysisError> {
         self.ensure_supported_combination()?;
         match (&self.data, &self.query, &self.graph) {
-            (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Static(graph)) => {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(q),
+                GraphInput::Static(graph),
+            ) => {
                 let (identifier, estimator) = self.resolve_static_pair();
                 self.ensure_rd_config_present(&estimator)?;
                 let logical = compile_logical_static_ate(StaticAteCompileInput {
@@ -331,8 +337,7 @@ impl CausalAnalysis {
                 CausalQuery::TemporalEffect(q),
                 GraphInput::Temporal(graph),
             ) => {
-                let logical =
-                    compile_logical_temporal_effect(data, graph, q, self.split, false)?;
+                let logical = compile_logical_temporal_effect(data, graph, q, self.split, false)?;
                 ensure_review_complete(&logical)?;
                 let physical = logical.compile_physical_with_graph(ctx, Some(graph.clone()))?;
                 Ok(CompiledAnalysis::Ready(physical))
@@ -374,8 +379,9 @@ impl CausalAnalysis {
             }
             (DataInput::Temporal(_), CausalQuery::AverageEffect(_), _) => {
                 return Err(AnalysisError::Compile {
-                    message: "static ATE on temporal data is not a Phase 3 path; use TemporalEffect"
-                        .into(),
+                    message:
+                        "static ATE on temporal data is not a Phase 3 path; use TemporalEffect"
+                            .into(),
                 });
             }
             (DataInput::Tabular(_), _, GraphInput::DiscoverPcmci { .. }) => {
@@ -413,8 +419,10 @@ impl CausalAnalysis {
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
-        let identifier = self.identifier.clone().unwrap_or_else(|| Arc::from("backdoor.adjustment"));
-        let estimator = self.estimator.clone().unwrap_or_else(|| Arc::from("linear.adjustment.ate"));
+        let identifier =
+            self.identifier.clone().unwrap_or_else(|| Arc::from("backdoor.adjustment"));
+        let estimator =
+            self.estimator.clone().unwrap_or_else(|| Arc::from("linear.adjustment.ate"));
         (identifier, estimator)
     }
 
@@ -663,7 +671,8 @@ impl CausalAnalysis {
         let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
         let assumptions = AssumptionSet::new();
 
-        let mut est = SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
+        let mut est =
+            SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
         est.bootstrap_replicates = self.bootstrap_replicates;
         let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
         let mut ws = RdWorkspace::default();
@@ -852,13 +861,8 @@ fn run_refuters(
     suite: RefuteSuite,
     estimator: &str,
 ) -> Result<Vec<RefutationReport>, AnalysisError> {
-    let problem = RefutationProblem {
-        data,
-        estimand,
-        query,
-        original: estimate,
-        estimator: Some(estimator),
-    };
+    let problem =
+        RefutationProblem { data, estimand, query, original: estimate, estimator: Some(estimator) };
     let validation = match suite {
         RefuteSuite::None => return Ok(Vec::new()),
         RefuteSuite::PlaceboAndRcc => ValidationSuite::placebo_and_rcc(),
@@ -938,7 +942,9 @@ fn estimate_provenance_step(estimator: &str) -> (&'static str, &'static str) {
         "linear.adjustment.ate" => ("estimate.linear_adjustment", "estimate.linear_adjustment_ate"),
         "propensity.weighting" => ("estimate.propensity", "estimate.propensity_weighting"),
         "propensity.matching" => ("estimate.propensity", "estimate.propensity_matching"),
-        "propensity.stratification" => ("estimate.propensity", "estimate.propensity_stratification"),
+        "propensity.stratification" => {
+            ("estimate.propensity", "estimate.propensity_stratification")
+        }
         "distance.matching" => ("estimate.matching", "estimate.distance_matching"),
         "aipw" => ("estimate.aipw", "estimate.aipw"),
         "glm.adjustment" => ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),

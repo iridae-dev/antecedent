@@ -58,11 +58,8 @@ pub fn fill_resample_indexes(
                 return Err(DataError::InvalidValidity { message: "block length must be > 0" });
             }
             let circular = matches!(plan, ResamplingPlan::CircularBlock { .. });
-            let n_starts = if circular {
-                n
-            } else {
-                n.saturating_sub(length).saturating_add(1).max(1)
-            };
+            let n_starts =
+                if circular { n } else { n.saturating_sub(length).saturating_add(1).max(1) };
             while out.len() < n {
                 let start = (rng.next_u64() as usize) % n_starts;
                 for k in 0..length {

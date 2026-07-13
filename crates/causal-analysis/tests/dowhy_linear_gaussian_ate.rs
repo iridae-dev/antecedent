@@ -166,9 +166,7 @@ fn dowhy_linear_gaussian_ate_stable_float() {
         );
         assert!(
             ToleranceClass::StableFloat.close(bb, true_ate),
-            "DoWhy black-box {} diverged from analytic true_ate {}",
-            bb,
-            true_ate
+            "DoWhy black-box {bb} diverged from analytic true_ate {true_ate}"
         );
     }
     assert_eq!(result.estimand.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);

@@ -16,10 +16,7 @@ fn chain_cpdag(n: usize) -> TemporalCpdag {
     let mut g = TemporalCpdag::empty();
     let mut nodes = Vec::with_capacity(n);
     for i in 0..n {
-        nodes.push(
-            g.add_lagged(VariableId::from_raw(i as u32), Lag::CONTEMPORANEOUS)
-                .unwrap(),
-        );
+        nodes.push(g.add_lagged(VariableId::from_raw(i as u32), Lag::CONTEMPORANEOUS).unwrap());
     }
     // a → b — c — d … with first edge directed to seed Meek R1.
     if n >= 2 {
@@ -61,8 +58,7 @@ fn run_orientation_global_rescan(
 }
 
 fn bench_orientation(c: &mut Criterion) {
-    let rules: [&dyn OrientationRule; 5] =
-        [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
+    let rules: [&dyn OrientationRule; 5] = [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
     let mut group = c.benchmark_group("orientation");
     for n in [16usize, 64, 128] {
         group.bench_function(format!("local_delta_n{n}"), |b| {

@@ -9,7 +9,9 @@ use std::sync::Arc;
 use causal_core::ExecutionContext;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
-use crate::common::{RefutationProblem, RefutationReport, fit_once, with_row_subset};
+use crate::common::{
+    RefutationProblem, RefutationReport, fit_once, linear_estimator_no_bootstrap, with_row_subset,
+};
 use crate::error::ValidationError;
 
 /// Randomly subset rows and re-estimate; expect the ATE to move little.
@@ -35,9 +37,12 @@ impl DataSubsetRefuter {
     /// Defaults: 20 replicates, 80% subset fraction, threshold 0.15.
     #[must_use]
     pub fn new() -> Self {
-        let mut estimator = LinearAdjustmentAte::new();
-        estimator.bootstrap_replicates = 0;
-        Self { replicates: 20, subset_fraction: 0.8, abs_delta_threshold: 0.15, estimator }
+        Self {
+            replicates: 20,
+            subset_fraction: 0.8,
+            abs_delta_threshold: 0.15,
+            estimator: linear_estimator_no_bootstrap(),
+        }
     }
 
     /// Run the data-subset refuter.

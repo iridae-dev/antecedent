@@ -8,14 +8,12 @@ use causal_core::ExecutionContext;
 
 use super::advanced::{Gpdc, KnnCmi, MixedKnnCmi, OracleCi, SymbolicCmi};
 use super::gsquared::{GSquared, RegressionCi};
+use super::pairwise_mv::PairwiseMultivariateCi;
 use super::parcorr::PartialCorrelation;
 use super::parcorr_variants::{
     MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
 };
-use super::pairwise_mv::PairwiseMultivariateCi;
-use super::types::{
-    CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependence,
-};
+use super::types::{CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependence};
 use crate::error::StatsError;
 
 /// Resolve a CI test by stable name string.
