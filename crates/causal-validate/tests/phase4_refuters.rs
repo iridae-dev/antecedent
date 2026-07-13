@@ -4,6 +4,8 @@
 
 #![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use causal_core::{
@@ -20,6 +22,14 @@ use causal_validate::{
     PlaceboTreatment, RandomCommonCause, RefutationProblem, ReiszSensitivity,
     UnobservedCommonCause, ValidationSuite,
 };
+use serde_json::Value as JsonValue;
+
+fn fixture_expected() -> JsonValue {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../conformance/phase4/refuters/expected.json");
+    let raw = fs::read_to_string(path).expect("refuters expected.json");
+    serde_json::from_str(&raw).expect("parse expected.json")
+}
 
 fn toy() -> (TabularData, IdentifiedEstimand) {
     let n = 400usize;
@@ -63,6 +73,14 @@ fn problem_setup() -> (TabularData, IdentifiedEstimand, AverageEffectQuery, caus
 
 #[test]
 fn phase4_refuters_and_sensitivity_smoke() {
+    let expected = fixture_expected();
+    assert_eq!(expected["tolerance_class"].as_str().unwrap(), "Exact");
+    let pinned = expected["validators"].as_array().unwrap();
+    assert!(
+        pinned.len() >= 14,
+        "expected.json must pin the Phase 4 validator set"
+    );
+
     let (data, estimand, query, original, mut ws, ctx) = problem_setup();
     let problem = RefutationProblem {
         data: &data,

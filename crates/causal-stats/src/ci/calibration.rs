@@ -206,7 +206,8 @@ pub fn type_i_within_two_se(rate: f64, alpha: f64, trials: u32) -> bool {
 mod tests {
     use super::*;
     use crate::ci::{
-        GSquared, KnnCmi, PartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
+        Gpdc, GSquared, KnnCmi, MixedKnnCmi, MultivariatePartialCorrelation, PartialCorrelation,
+        RegressionCi, RobustPartialCorrelation, SymbolicCmi, WeightedPartialCorrelation,
     };
 
     #[test]
@@ -289,12 +290,67 @@ mod tests {
         };
         let out_alt = KnnCmi::new(3).test_batch(&req_alt, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out_alt.results[0].p_value));
-        // Exact dependence should not look more independent than noise.
         assert!(
             out_alt.results[0].p_value <= out.results[0].p_value + 1e-12,
             "alt p={} null p={}",
             out_alt.results[0].p_value,
             out.results[0].p_value
         );
+    }
+
+    #[test]
+    fn multivariate_and_regression_match_parcorr_on_scalars() {
+        let report_mv =
+            calibrate_parcorr_like(&MultivariatePartialCorrelation::new(), 200, 80, 0.05, 23)
+                .unwrap();
+        let report_reg =
+            calibrate_parcorr_like(&RegressionCi::new(), 200, 80, 0.05, 23).unwrap();
+        let report_pc =
+            calibrate_parcorr_like(&PartialCorrelation::new(), 200, 80, 0.05, 23).unwrap();
+        assert!((report_mv.type_i_rate() - report_pc.type_i_rate()).abs() < 0.08);
+        assert!((report_reg.type_i_rate() - report_pc.type_i_rate()).abs() < 0.08);
+        assert!(report_mv.power() > 0.40);
+        assert!(report_reg.power() > 0.40);
+    }
+
+    #[test]
+    fn mixed_symbolic_gpdc_dependence_ordering() {
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(29);
+        let n = 100usize;
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let mut rng = ctx.rng.stream(0x51);
+        let x: Vec<f64> = (0..n)
+            .map(|_| ((rng.next_u64() % 4) as f64))
+            .collect();
+        let y_null: Vec<f64> = (0..n)
+            .map(|_| ((rng.next_u64() % 4) as f64))
+            .collect();
+        let cols_null: [&[f64]; 2] = [&x, &y_null];
+        let req = CiBatchRequest {
+            columns: &cols_null,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+        };
+        let cols_alt: [&[f64]; 2] = [&x, &x];
+        let req_alt = CiBatchRequest {
+            columns: &cols_alt,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+        };
+
+        for (name, ci) in [
+            ("mixed", &MixedKnnCmi::new(3) as &dyn ConditionalIndependence),
+            ("symbolic", &SymbolicCmi::new() as &dyn ConditionalIndependence),
+            ("gpdc", &Gpdc::new() as &dyn ConditionalIndependence),
+        ] {
+            let null = ci.test_batch(&req, &mut ws, &ctx).unwrap().results[0].p_value;
+            let alt = ci.test_batch(&req_alt, &mut ws, &ctx).unwrap().results[0].p_value;
+            assert!((0.0..=1.0).contains(&null), "{name} null p={null}");
+            assert!((0.0..=1.0).contains(&alt), "{name} alt p={alt}");
+            assert!(alt <= null + 1e-12, "{name}: alt p={alt} null p={null}");
+        }
     }
 }

@@ -313,6 +313,7 @@ dependencies = [
  "causal-expr",
  "causal-identify",
  "causal-stats",
+ "serde_json",
 ]
 
 [[package]]

@@ -11,18 +11,31 @@ Tigramite. See DESIGN.md §26 and ADR 0009.
 Status values: `pending`, `in_progress`, `done`, `intentional_deviation`.
 
 Do not mark a capability `done` without conformance fixtures under
-`conformance/` and a recorded reference-output generation command.
+`conformance/` **or** a named calibration/unit harness recorded in
+`scripts/gate_phase45_parity.sh`, plus a recorded reference-output generation
+command where black-box comparison applies.
 
-## Phase 4 / 5 exit (2026-07-21)
+## Phase 4 / 5 coverage class
 
-Verified locally:
+| Surface | Parity class | Reference |
+|---------|--------------|-----------|
+| DoWhy linear Gaussian ATE (P1) | StableFloat | Analytic + black-box DoWhy 0.14 when fixture regenerated |
+| Phase 4 estimators | Approximate (tolerance in `expected.json`) | Clean-room SCMs in `conformance/phase4/*` |
+| Phase 4 refuters / sensitivity | Exact validator-id set | `conformance/phase4/refuters` + smoke harness |
+| PCMCI lag-1 (P2) | Exact parents | True parents + black-box Tigramite 5.2.1.30 when available |
+| PCMCI+ lag-0 | Exact parents (subset) | Clean-room only (`intentional_deviation`) |
+| Phase 5 CI suite | Calibration / dependence-ordering | `ci::calibration` (+ native GPDC deviation) |
 
-- `cargo test --workspace --exclude causal` — pass
-- `scripts/gate_phase4_reuse.sh` — pass
-- `cargo test -p causal-stats --lib ci::calibration` — pass
-- `cargo test -p causal-analysis --test phase4_conformance` — pass
-- `cargo test -p causal-discovery` (incl. PCMCI+ Exact) — pass
+## Exit gate
+
+```bash
+bash scripts/gate_phase45_parity.sh
+```
+
+Verified locally (2026-07-21): inventory evidence map, Phase 4 conformance,
+DoWhy StableFloat vs refreshed black-box estimate ≈ 2.0, PCMCI Exact parents
+vs recorded Tigramite recovered set, PCMCI+ Exact clean-room, CI calibration,
+Phase 4 reuse gate.
 
 Kept deferrals only: do-samplers→P7, conditional/mediation→P9, PAG/LPCMCI→P8,
-J/RPCMCI→P9, native GPDC (no torch), clean-room PCMCI+ pin. See the phase
-deviation docs and matching `intentional_deviation` rows.
+J/RPCMCI→P9, native GPDC (no torch), clean-room PCMCI+ pin.

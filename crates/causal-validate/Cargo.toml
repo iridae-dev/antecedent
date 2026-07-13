@@ -20,3 +20,6 @@ causal-expr = { path = "../causal-expr" }
 causal-identify = { path = "../causal-identify" }
 causal-discovery = { path = "../causal-discovery" }
 causal-stats = { path = "../causal-stats" }
+
+[dev-dependencies]
+serde_json = "1"

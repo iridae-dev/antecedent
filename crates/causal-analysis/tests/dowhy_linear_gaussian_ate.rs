@@ -153,6 +153,24 @@ fn dowhy_linear_gaussian_ate_stable_float() {
         result.estimate.ate,
         reference_ate
     );
+    // When the fixture was generated against pinned DoWhy, also require the
+    // black-box estimate field itself (guards generator / reference_ate drift).
+    let dw = &expected["dowhy"];
+    if dw["available"].as_bool() == Some(true) {
+        let bb = dw["estimate"].as_f64().expect("dowhy.estimate");
+        assert!(
+            ToleranceClass::StableFloat.close(result.estimate.ate, bb),
+            "ate={} vs DoWhy black-box {}",
+            result.estimate.ate,
+            bb
+        );
+        assert!(
+            ToleranceClass::StableFloat.close(bb, true_ate),
+            "DoWhy black-box {} diverged from analytic true_ate {}",
+            bb,
+            true_ate
+        );
+    }
     assert_eq!(result.estimand.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
     assert_eq!(result.refutations.len(), 2);
     assert!(result.refutations.iter().all(|r| r.passed));

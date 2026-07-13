@@ -1,7 +1,7 @@
 {
   "true_ate": 2.0,
-  "reference_ate": 2.0,
-  "reference_source": "analytic ground truth for noiseless linear SCM; DoWhy backdoor.linear_regression recovers the same value when executed black-box against the pinned baseline",
+  "reference_ate": 1.9999999999999951,
+  "reference_source": "DoWhy black-box estimate",
   "tolerance_class": "StableFloat",
   "atol": 1e-10,
   "rtol": 1e-08,
@@ -11,18 +11,28 @@
   "n": 200,
   "scm": "y = 1 + 2*t + 3*z; t = 1{z>0.5}; z = i/n",
   "dowhy": {
-    "available": false,
-    "estimate": null,
+    "available": true,
+    "estimate": 1.9999999999999951,
+    "dowhy_version": "0.14",
+    "method": "backdoor.linear_regression",
+    "note": "black-box execution only; no source translation",
     "pinned_version": "0.14",
     "pinned_commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --with dowhy==0.14 --with numpy --with pandas python scripts/conformance/generate_dowhy_linear_gaussian_ate.py",
-    "method": "backdoor.linear_regression",
-    "note": "DoWhy not required in CI; re-run generator with pinned DoWhy to refresh black-box estimate field"
+    "command": "uv run --with dowhy==0.14 --with numpy --with pandas python scripts/conformance/generate_dowhy_linear_gaussian_ate.py"
   },
   "edges": [
-    ["z", "t"],
-    ["z", "y"],
-    ["t", "y"]
+    [
+      "z",
+      "t"
+    ],
+    [
+      "z",
+      "y"
+    ],
+    [
+      "t",
+      "y"
+    ]
   ],
   "treatment": "t",
   "outcome": "y",
