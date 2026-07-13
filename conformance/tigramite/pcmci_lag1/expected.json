@@ -12,14 +12,31 @@
   "alpha": 0.05,
   "fdr": false,
   "n": 500,
-  "scm": "x_t = noise; y_t = 0.8 * x_{t-1} + 0.2 * noise (deterministic streams)",
+  "scm": "x_t ~ N(0,1); y_t = 0.8 * x_{t-1} + 0.2 * N(0,1); seed=0",
   "tigramite": {
-    "available": false,
-    "note": "Tigramite not installed; fixture stores analytic parents only"
+    "available": true,
+    "tigramite_version": "5.2.1.30",
+    "note": "black-box execution only; no source translation",
+    "graph_shape": [
+      2,
+      2,
+      3
+    ],
+    "recovered_parents": [
+      {
+        "source": "x",
+        "source_lag": 1,
+        "target": "y",
+        "target_lag": 0
+      }
+    ],
+    "alpha": 0.05,
+    "max_lag": 2,
+    "pin_note": "PyPI 5.2.1.25 unavailable; fixture generated with 5.2.1.30 (same 5.2.1 line as parity pin)"
   },
   "generation": {
     "script": "scripts/conformance/generate_tigramite_pcmci_lag1.py",
     "baseline_pin": "parity/tigramite.toml",
-    "env": "optional: tigramite==5.2.1.25 in isolated venv"
+    "env": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30"
   }
 }

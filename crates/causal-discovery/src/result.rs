@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, Lag, VariableId};
-use causal_graph::TemporalDag;
+use causal_graph::{TemporalDag, TemporalGraphReview};
 
 /// Directed lagged link.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -72,10 +72,14 @@ pub struct DiscoveryDiagnostic {
 pub struct DiscoveryPerformanceRecord {
     /// CI tests executed.
     pub ci_tests: u64,
-    /// Links retained after MCI.
+    /// Links retained after MCI (and optional FDR).
     pub links_retained: u64,
     /// Targets processed.
     pub targets: u64,
+    /// Bytes in the prepared lagged frame.
+    pub lagged_frame_bytes: u64,
+    /// Worker threads used for target-wise parallel phases.
+    pub worker_threads: u32,
 }
 
 /// Full discovery result.
@@ -83,6 +87,8 @@ pub struct DiscoveryPerformanceRecord {
 pub struct DiscoveryResult {
     /// Evidence.
     pub evidence: GraphEvidence,
+    /// Review artifact listing pending edges (Phase 3 consumes).
+    pub review: TemporalGraphReview,
     /// Algorithm.
     pub algorithm: AlgorithmRecord,
     /// Assumptions.

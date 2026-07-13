@@ -17,7 +17,7 @@ pub mod linalg;
 
 pub use ci::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
-    PartialCorrelation, SignificanceMethod,
+    PartialCorrelation, SignificanceMethod, analytic_parcorr_ci,
 };
 pub use design::{CompiledDesign, DesignColumnRole};
 pub use error::StatsError;

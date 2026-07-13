@@ -1,5 +1,8 @@
 //! Lazy finite unfolding of temporal DAGs and graph-review artifacts.
 //!
+//! Stationary algorithms query edges on demand via [`LazyUnfoldedTemporalGraph`].
+//! Full materialisation is available when a static [`Dag`] is required (Phase 3).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
@@ -14,7 +17,7 @@ use crate::error::GraphError;
 use crate::temporal::TemporalDag;
 use crate::types::{DenseNodeId, NodeRef};
 
-/// Result of unfolding a [`TemporalDag`] over a finite [`TemporalIndexer`] window.
+/// Eager materialisation of a [`TemporalDag`] over a finite indexer window.
 #[derive(Clone, Debug)]
 pub struct UnfoldedTemporalGraph {
     /// Static DAG whose dense ids match [`TemporalIndexer::dense_id`].
@@ -23,38 +26,112 @@ pub struct UnfoldedTemporalGraph {
     pub indexer: TemporalIndexer,
 }
 
+/// Lazy finite unfolding: template edges are replicated on query, not upfront.
+#[derive(Clone, Debug)]
+pub struct LazyUnfoldedTemporalGraph {
+    /// Stationary / lagged summary graph.
+    pub template: TemporalDag,
+    /// Finite window indexer.
+    pub indexer: TemporalIndexer,
+}
+
 impl TemporalDag {
-    /// Unfold lagged summary edges into a finite static DAG.
-    ///
-    /// For each directed edge `A(τ_from) → B(τ_to)` and every absolute time `t`
-    /// where both endpoints lie in the indexer window, inserts
-    /// `A@t+offset_from → B@t+offset_to` with `offset = -lag`.
+    /// Lazy unfold over a finite indexer window (Phase 2 default).
     ///
     /// # Errors
     ///
-    /// Unknown/non-lagged nodes, indexer construction issues, or cycle insertion.
-    pub fn unfold(&self, indexer: TemporalIndexer) -> Result<UnfoldedTemporalGraph, GraphError> {
-        let n = indexer.dense_len();
-        let n_u32 = u32::try_from(n).map_err(|_| GraphError::TooManyNodes)?;
-        let mut dag = Dag::with_variables(n_u32);
-        // Remap: Dag::with_variables creates Static VariableId nodes 0..n-1.
-        // Dense ids align with indexer dense ids by construction.
-
-        for (from_i, _) in self.nodes().iter().enumerate() {
-            let from = DenseNodeId::from_raw(u32::try_from(from_i).expect("fit"));
-            let from_key = self.temporal_key(from).ok_or(GraphError::InvalidEndpoints {
+    /// Unknown/non-lagged template nodes.
+    pub fn unfold_lazy(
+        &self,
+        indexer: TemporalIndexer,
+    ) -> Result<LazyUnfoldedTemporalGraph, GraphError> {
+        // Validate all nodes are lagged up front.
+        for (i, _) in self.nodes().iter().enumerate() {
+            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let _ = self.temporal_key(id).ok_or(GraphError::InvalidEndpoints {
                 message: "unfold requires lagged nodes",
             })?;
-            for &to in self.children(from) {
-                let to_key = self.temporal_key(to).ok_or(GraphError::InvalidEndpoints {
+        }
+        Ok(LazyUnfoldedTemporalGraph { template: self.clone(), indexer })
+    }
+
+    /// Eager unfold into a static [`Dag`] (materialises the full window).
+    ///
+    /// # Errors
+    ///
+    /// Unknown/non-lagged nodes, indexer issues, or cycle insertion.
+    pub fn unfold(&self, indexer: TemporalIndexer) -> Result<UnfoldedTemporalGraph, GraphError> {
+        self.unfold_lazy(indexer)?.materialize()
+    }
+}
+
+impl LazyUnfoldedTemporalGraph {
+    /// Whether a concrete directed edge exists under the template replication.
+    ///
+    /// # Errors
+    ///
+    /// Endpoints outside the indexer window.
+    pub fn has_edge(&self, from: TemporalNodeKey, to: TemporalNodeKey) -> Result<bool, GraphError> {
+        let _ = self.indexer.dense_id(from).map_err(|_| GraphError::InvalidEndpoints {
+            message: "unfold endpoint outside window",
+        })?;
+        let _ = self.indexer.dense_id(to).map_err(|_| GraphError::InvalidEndpoints {
+            message: "unfold endpoint outside window",
+        })?;
+        for (from_i, _) in self.template.nodes().iter().enumerate() {
+            let from_id = DenseNodeId::from_raw(u32::try_from(from_i).expect("fit"));
+            let Some(from_key) = self.template.temporal_key(from_id) else {
+                continue;
+            };
+            for &to_id in self.template.children(from_id) {
+                let Some(to_key) = self.template.temporal_key(to_id) else {
+                    continue;
+                };
+                if edge_matches(from_key, to_key, from, to) {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    /// Materialise all in-window replicated edges into a static DAG.
+    ///
+    /// # Errors
+    ///
+    /// Indexer / cycle insertion failures.
+    pub fn materialize(&self) -> Result<UnfoldedTemporalGraph, GraphError> {
+        let n = self.indexer.dense_len();
+        let n_u32 = u32::try_from(n).map_err(|_| GraphError::TooManyNodes)?;
+        let mut dag = Dag::with_variables(n_u32);
+
+        for (from_i, _) in self.template.nodes().iter().enumerate() {
+            let from = DenseNodeId::from_raw(u32::try_from(from_i).expect("fit"));
+            let from_key = self.template.temporal_key(from).ok_or(GraphError::InvalidEndpoints {
+                message: "unfold requires lagged nodes",
+            })?;
+            for &to in self.template.children(from) {
+                let to_key = self.template.temporal_key(to).ok_or(GraphError::InvalidEndpoints {
                     message: "unfold requires lagged nodes",
                 })?;
-                insert_replicated_edges(&mut dag, &indexer, from_key, to_key)?;
+                insert_replicated_edges(&mut dag, &self.indexer, from_key, to_key)?;
             }
         }
 
-        Ok(UnfoldedTemporalGraph { dag, indexer })
+        Ok(UnfoldedTemporalGraph { dag, indexer: self.indexer.clone() })
     }
+}
+
+fn edge_matches(
+    template_from: TemporalNodeKey,
+    template_to: TemporalNodeKey,
+    concrete_from: TemporalNodeKey,
+    concrete_to: TemporalNodeKey,
+) -> bool {
+    template_from.variable == concrete_from.variable
+        && template_to.variable == concrete_to.variable
+        && concrete_from.offset.wrapping_sub(template_from.offset)
+            == concrete_to.offset.wrapping_sub(template_to.offset)
 }
 
 fn insert_replicated_edges(
@@ -63,12 +140,8 @@ fn insert_replicated_edges(
     from_key: TemporalNodeKey,
     to_key: TemporalNodeKey,
 ) -> Result<(), GraphError> {
-    // Absolute offsets in the window are keyed as TemporalNodeKey.offset.
-    // Replicate for every shift s such that both (offset+s) stay in window.
     let min_off = -(indexer.history() as i32);
     let max_off = (indexer.horizon() as i32) - 1;
-    // We interpret summary keys as relative to a reference t; replicate by
-    // adding delta to both offsets for all delta where both remain in-range.
     for delta in min_off..=max_off {
         let a = TemporalNodeKey {
             variable: from_key.variable,
@@ -100,7 +173,7 @@ fn insert_replicated_edges(
     Ok(())
 }
 
-/// Review-required temporal graph artifact (Phase 3 consumes; Phase 2 produces).
+/// Review-required temporal graph artifact (Phase 2 produces; Phase 3 consumes).
 #[derive(Clone, Debug)]
 pub struct TemporalGraphReview {
     /// Proposed discovery graph.
@@ -172,16 +245,29 @@ mod tests {
     use crate::dsep::DSeparationWorkspace;
 
     #[test]
+    fn lazy_has_edge_matches_materialize() {
+        let mut g = TemporalDag::empty();
+        let past = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let now = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(past, now).unwrap();
+        let indexer = TemporalIndexer::new(2, 1, 2).unwrap();
+        let lazy = g.unfold_lazy(indexer.clone()).unwrap();
+        let from = TemporalNodeKey { variable: VariableId::from_raw(0), offset: -1 };
+        let to = TemporalNodeKey { variable: VariableId::from_raw(1), offset: 0 };
+        assert!(lazy.has_edge(from, to).unwrap());
+        let unfolded = lazy.materialize().unwrap();
+        assert_eq!(unfolded.dag.node_count(), 6);
+    }
+
+    #[test]
     fn unfold_replicates_lagged_edge() {
         let mut g = TemporalDag::empty();
         let past = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
         let now = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
         g.insert_directed(past, now).unwrap();
-        // history=1, horizon=2 → offsets -1,0,1
         let indexer = TemporalIndexer::new(2, 1, 2).unwrap();
         let unfolded = g.unfold(indexer).unwrap();
-        assert_eq!(unfolded.dag.node_count(), 6); // 2 vars * 3 slices
-        // At least one edge should exist
+        assert_eq!(unfolded.dag.node_count(), 6);
         let mut edge_count = 0usize;
         for i in 0..unfolded.dag.node_count() {
             edge_count += unfolded.dag.children(DenseNodeId::from_raw(i as u32)).len();
@@ -191,24 +277,27 @@ mod tests {
 
     #[test]
     fn unfold_dsep_on_chain() {
-        // X(1) -> Y(0) -> Z(0) contemporaneous Y->Z plus lag X->Y
         let mut g = TemporalDag::empty();
         let x1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
         let y0 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
         let z0 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
         g.insert_directed(x1, y0).unwrap();
         g.insert_directed(y0, z0).unwrap();
-        let indexer = TemporalIndexer::new(3, 1, 1).unwrap(); // offsets -1,0
+        let indexer = TemporalIndexer::new(3, 1, 1).unwrap();
         let unfolded = g.unfold(indexer).unwrap();
         let mut ws = DSeparationWorkspace::default();
-        // Pick dense ids for Y@0 and Z@0
         let y = DenseNodeId::from_raw(
-            unfolded.indexer.dense_id(TemporalNodeKey { variable: VariableId::from_raw(1), offset: 0 }).unwrap(),
+            unfolded
+                .indexer
+                .dense_id(TemporalNodeKey { variable: VariableId::from_raw(1), offset: 0 })
+                .unwrap(),
         );
         let z = DenseNodeId::from_raw(
-            unfolded.indexer.dense_id(TemporalNodeKey { variable: VariableId::from_raw(2), offset: 0 }).unwrap(),
+            unfolded
+                .indexer
+                .dense_id(TemporalNodeKey { variable: VariableId::from_raw(2), offset: 0 })
+                .unwrap(),
         );
-        // Without conditioning, may be connected via edge
         let _ = unfolded.dag.is_d_separated(y, z, &[], &mut ws);
     }
 

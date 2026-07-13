@@ -8,20 +8,21 @@ use std::sync::Arc;
 
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::TimeSeriesData;
+use causal_graph::TemporalGraphReview;
 use causal_stats::benjamini_hochberg;
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::evidence::graph_evidence_from_scored;
-use crate::result::{AlgorithmRecord, DiscoveryResult};
+use crate::result::{AlgorithmRecord, DiscoveryResult, ScoredLink};
 
 /// Lagged PCMCI discovery algorithm.
 #[derive(Clone, Debug)]
 pub struct Pcmci {
     /// Engine.
     pub engine: PcmciEngine,
-    /// Apply Benjamini–Hochberg FDR to MCI p-values before thresholding.
+    /// Apply Benjamini–Hochberg FDR to the full MCI family before alpha keep.
     pub fdr: bool,
 }
 
@@ -54,6 +55,9 @@ impl Pcmci {
 
     /// Run lagged PCMCI on `variables` in `data`.
     ///
+    /// MCI scores the full candidate family from PC parents. When `fdr` is set,
+    /// Benjamini–Hochberg adjusts that family, then alpha retains links.
+    ///
     /// # Errors
     ///
     /// Propagates engine / data failures.
@@ -65,30 +69,31 @@ impl Pcmci {
         ctx: &ExecutionContext,
     ) -> Result<DiscoveryResult, DiscoveryError> {
         let mut result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
-        if self.fdr && !result.evidence.links.is_empty() {
-            let pvals: Vec<f64> = result.evidence.links.iter().map(|l| l.p_value).collect();
+        let alpha = self.engine.constraints.alpha;
+
+        let mut scored: Vec<ScoredLink> = result.evidence.links.iter().copied().collect();
+        if self.fdr && !scored.is_empty() {
+            let pvals: Vec<f64> = scored.iter().map(|l| l.p_value).collect();
             let adj = benjamini_hochberg(&pvals);
-            let alpha = self.engine.constraints.alpha;
-            let mut kept = Vec::new();
-            for (link, &p_adj) in result.evidence.links.iter().zip(adj.iter()) {
-                if p_adj < alpha {
-                    let mut scored = *link;
-                    scored.p_value = p_adj;
-                    kept.push(scored);
-                }
+            for (link, &p_adj) in scored.iter_mut().zip(adj.iter()) {
+                link.p_value = p_adj;
             }
-            result.evidence = graph_evidence_from_scored(kept)?;
-            result.performance.links_retained = result.evidence.links.len() as u64;
         }
+        scored.retain(|s| s.p_value < alpha);
+
+        result.evidence = graph_evidence_from_scored(scored)?;
         result.algorithm = AlgorithmRecord {
             id: Arc::from("pcmci"),
             config: Arc::from(format!(
                 "alpha={},max_lag={},fdr={}",
-                self.engine.constraints.alpha,
+                alpha,
                 self.engine.constraints.temporal.max_lag.raw(),
                 self.fdr
             )),
         };
+        result.review =
+            TemporalGraphReview::from_graph(result.evidence.graph.clone(), result.algorithm.id.clone());
+        result.performance.links_retained = result.evidence.links.len() as u64;
         Ok(result)
     }
 }

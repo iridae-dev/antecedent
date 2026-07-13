@@ -213,6 +213,8 @@ struct DiscoveredLink {
 }
 
 /// Coarse-grained PCMCI discovery result (single boundary crossing).
+///
+/// Field set is the stable Rust↔Python temporal discovery schema for Phase 2.
 #[pyclass]
 struct PcmciDiscoveryResult {
     #[pyo3(get)]
@@ -220,9 +222,17 @@ struct PcmciDiscoveryResult {
     #[pyo3(get)]
     algorithm_id: String,
     #[pyo3(get)]
+    algorithm_config: String,
+    #[pyo3(get)]
     ci_tests: u64,
     #[pyo3(get)]
     links_retained: u64,
+    #[pyo3(get)]
+    pending_edge_count: u64,
+    #[pyo3(get)]
+    lagged_frame_bytes: u64,
+    #[pyo3(get)]
+    worker_threads: u32,
 }
 
 /// Run lagged PCMCI discovery.
@@ -302,8 +312,12 @@ fn discover_pcmci(
         Ok(PcmciDiscoveryResult {
             links,
             algorithm_id: result.algorithm.id.to_string(),
+            algorithm_config: result.algorithm.config.to_string(),
             ci_tests: result.performance.ci_tests,
             links_retained: result.performance.links_retained,
+            pending_edge_count: result.review.pending_edges.len() as u64,
+            lagged_frame_bytes: result.performance.lagged_frame_bytes,
+            worker_threads: result.performance.worker_threads,
         })
     })
 }

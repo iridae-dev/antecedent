@@ -4,20 +4,50 @@
 
 use causal_core::{Lag, VariableId};
 
-/// Lexicographic combinations of `k` items from `items`.
-pub(crate) fn combinations(items: &[(VariableId, Lag)], k: usize) -> Vec<Vec<(VariableId, Lag)>> {
+/// Lexicographic combinations of `k` items from `items` (allocating).
+///
+/// Prefer [`for_each_combination`] on hot paths.
+#[must_use]
+pub fn combinations(items: &[(VariableId, Lag)], k: usize) -> Vec<Vec<(VariableId, Lag)>> {
+    let mut out = Vec::new();
+    for_each_combination(items, k, &mut Vec::new(), |combo| {
+        out.push(combo.to_vec());
+        true
+    });
+    out
+}
+
+/// Invoke `visit` for each lexicographic `k`-combination, writing into `scratch`.
+///
+/// `visit` returns `false` to stop early. `scratch` is resized to `k` and reused.
+pub fn for_each_combination(
+    items: &[(VariableId, Lag)],
+    k: usize,
+    scratch: &mut Vec<(VariableId, Lag)>,
+    mut visit: impl FnMut(&[(VariableId, Lag)]) -> bool,
+) {
     if k == 0 {
-        return vec![Vec::new()];
+        scratch.clear();
+        let _ = visit(scratch);
+        return;
     }
     if k > items.len() {
-        return Vec::new();
+        return;
     }
-    let mut out = Vec::new();
+    scratch.resize(k, (VariableId::from_raw(0), Lag::CONTEMPORANEOUS));
     let mut idx: Vec<usize> = (0..k).collect();
     loop {
-        out.push(idx.iter().map(|&i| items[i]).collect());
+        for (slot, &i) in idx.iter().enumerate() {
+            scratch[slot] = items[i];
+        }
+        if !visit(scratch) {
+            return;
+        }
         let mut i = k;
-        while i > 0 {
+        loop {
+            if i == 0 {
+                return;
+            }
             i -= 1;
             if idx[i] != i + items.len() - k {
                 idx[i] += 1;
@@ -26,9 +56,28 @@ pub(crate) fn combinations(items: &[(VariableId, Lag)], k: usize) -> Vec<Vec<(Va
                 }
                 break;
             }
-            if i == 0 {
-                return out;
-            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn combinations_match_iterator() {
+        let items = [
+            (VariableId::from_raw(0), Lag::from_raw(1)),
+            (VariableId::from_raw(1), Lag::from_raw(1)),
+            (VariableId::from_raw(2), Lag::from_raw(2)),
+        ];
+        let alloc = combinations(&items, 2);
+        let mut via = Vec::new();
+        for_each_combination(&items, 2, &mut Vec::new(), |c| {
+            via.push(c.to_vec());
+            true
+        });
+        assert_eq!(alloc, via);
+        assert_eq!(alloc.len(), 3);
     }
 }

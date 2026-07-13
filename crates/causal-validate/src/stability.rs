@@ -8,10 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use causal_core::{ExecutionContext, VariableId};
-use causal_data::{
-    ColumnView, Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TimeSeriesData,
-    ValidityBitmap,
-};
+use causal_data::{ResamplingPlan, TimeSeriesData, resample_timeseries};
 use causal_discovery::{DiscoveryWorkspace, LaggedLink, Pcmci};
 
 use crate::error::ValidationError;
@@ -79,10 +76,15 @@ impl BlockBootstrapStability {
         }
         let mut counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();
         let mut rng = ctx.rng.stream(0x57AB_u64);
-        for r in 0..self.replicates {
-            let boot = block_bootstrap_series(data, self.block_size, &mut rng)
-                .map_err(|e| ValidationError::Data(e.to_string()))?;
-            let _ = r;
+        let mut index_scratch = Vec::new();
+        for _ in 0..self.replicates {
+            let boot = resample_timeseries(
+                data,
+                ResamplingPlan::MovingBlock { length: self.block_size },
+                &mut rng,
+                &mut index_scratch,
+            )
+            .map_err(|e| ValidationError::Data(e.to_string()))?;
             let result = self
                 .pcmci
                 .run(&boot, variables, workspace, ctx)
@@ -107,48 +109,6 @@ impl BlockBootstrapStability {
             block_size: self.block_size,
         })
     }
-}
-
-fn block_bootstrap_series(
-    data: &TimeSeriesData,
-    block_size: usize,
-    rng: &mut causal_core::CausalRng,
-) -> Result<TimeSeriesData, causal_data::DataError> {
-    let n = data.row_count();
-    let n_blocks = n.div_ceil(block_size);
-    let mut block_order: Vec<usize> = (0..n_blocks).collect();
-    for i in (1..n_blocks).rev() {
-        let j = (rng.next_u64() as usize) % (i + 1);
-        block_order.swap(i, j);
-    }
-    let mut row_map = Vec::with_capacity(n);
-    for &b in &block_order {
-        let start = b * block_size;
-        let end = (start + block_size).min(n);
-        row_map.extend(start..end);
-    }
-    row_map.truncate(n);
-
-    let schema = data.schema().clone();
-    let mut cols = Vec::with_capacity(schema.len());
-    for v in schema.variables() {
-        let ColumnView::Float64(src) = data.column(v.id)? else {
-            return Err(causal_data::DataError::TypeMismatch { id: v.id, expected: "float64" });
-        };
-        let values: Vec<f64> = row_map.iter().map(|&r| src.values[r]).collect();
-        cols.push(OwnedColumn::Float64(Float64Column::new(
-            v.id,
-            Arc::from(values),
-            ValidityBitmap::all_valid(n),
-        )?));
-    }
-    let storage = OwnedColumnarStorage::try_new(
-        schema,
-        cols,
-        None,
-        None,
-    )?;
-    TimeSeriesData::try_new(storage, data.time_index().clone())
 }
 
 #[cfg(test)]

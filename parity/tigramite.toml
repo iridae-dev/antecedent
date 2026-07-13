@@ -28,17 +28,19 @@ phase = 0
 id = "tigramite.data.multiple_datasets"
 group = "data_processing"
 description = "Multiple datasets"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase2"
 phase = 2
+notes = "MultiEnvironmentData typed container (J-PCMCI+ multi-dataset constraints remain Phase 9)."
 
 [[capabilities]]
 id = "tigramite.data.offsets"
 group = "data_processing"
 description = "Time offsets / reference points"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase2"
 phase = 2
+notes = "ReferencePointPolicy wired into LagMap / SamplePlan / LaggedFrame."
 
 [[capabilities]]
 id = "tigramite.data.vector_variables"
@@ -60,9 +62,10 @@ phase = 5
 id = "tigramite.data.bootstrap"
 group = "data_processing"
 description = "Bootstrap generation"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase2"
 phase = 2
+notes = "ResamplingPlan (IID / moving-block / circular-block) in causal-data; validate stability consumes it."
 
 [[capabilities]]
 id = "tigramite.ci.partial_corr"
@@ -196,9 +199,10 @@ phase = 9
 id = "tigramite.discovery.fdr"
 group = "discovery"
 description = "FDR and confidence intervals"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase2"
 phase = 2
+notes = "BH over full MCI family; Fisher-z analytic CIs on ParCorr results (95%)."
 
 [[capabilities]]
 id = "tigramite.graphs.ts_graph"
@@ -236,6 +240,7 @@ phase = 3
 id = "tigramite.simulation"
 group = "simulation_and_presentation"
 description = "Structural process generators and toy models"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase2"
 phase = 2
+notes = "LaggedLinearPair process generator in causal-data::sim for fixtures/toys; full SCM registry is Phase 7."

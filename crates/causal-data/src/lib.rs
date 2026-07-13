@@ -14,12 +14,20 @@ pub mod categorical;
 pub mod column;
 pub mod dataset;
 pub mod error;
+pub mod lagged_frame;
 pub mod materialize;
+pub mod multi_env;
+pub mod reference;
+pub mod resample;
 pub mod sample;
 pub mod selection;
+pub mod sim;
 pub mod storage;
 pub mod table;
 pub mod temporal;
+
+#[cfg(test)]
+mod testing;
 
 #[cfg(feature = "arrow")]
 pub use arrow_adapter::{ArrowLoadResult, tabular_from_record_batch};
@@ -33,10 +41,15 @@ pub use column::{
 };
 pub use dataset::{TabularData, TimeSeriesData};
 pub use error::DataError;
+pub use lagged_frame::LaggedFrame;
 pub use materialize::{MaterializationReason, materialization_diagnostic};
+pub use multi_env::MultiEnvironmentData;
+pub use reference::ReferencePointPolicy;
+pub use resample::{ResamplingPlan, fill_resample_indexes, resample_timeseries};
 pub use sample::{
     DropSummary, LagMap, LaggedColumn, PreparedSample, SamplePlan, SampleWorkspace,
 };
+pub use sim::{KnownLaggedParent, LaggedLinearPair};
 pub use storage::OwnedColumnarStorage;
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};

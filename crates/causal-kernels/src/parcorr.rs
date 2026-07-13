@@ -185,7 +185,7 @@ fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize) -> bool {
     true
 }
 
-fn residualize_into(
+fn residualize_into_scalar(
     y: &[f64],
     z_cols: &[&[f64]],
     design: &mut [f64],
@@ -217,7 +217,8 @@ fn residualize_into(
     true
 }
 
-fn partial_correlation_impl(
+/// Scalar reference: residualize X and Y independently (correctness path).
+fn partial_correlation_scalar_impl(
     x: &[f64],
     y: &[f64],
     z_cols: &[&[f64]],
@@ -236,18 +237,146 @@ fn partial_correlation_impl(
     let gram = &mut workspace.gram[..ncols * ncols];
     let beta = &mut workspace.beta[..ncols];
     let rx = &mut workspace.rx[..n];
-    if !residualize_into(x, z_cols, design, gram, beta, rx) {
+    if !residualize_into_scalar(x, z_cols, design, gram, beta, rx) {
         return None;
     }
-    // Rebuild design/gram for y (design unchanged structurally; re-form RHS).
     let design = &mut workspace.design[..n * ncols];
     let gram = &mut workspace.gram[..ncols * ncols];
     let beta = &mut workspace.beta[..ncols];
     let ry = &mut workspace.ry[..n];
-    if !residualize_into(y, z_cols, design, gram, beta, ry) {
+    if !residualize_into_scalar(y, z_cols, design, gram, beta, ry) {
         return None;
     }
     pearson(&workspace.rx[..n], &workspace.ry[..n])
+}
+
+/// Portable optimized path: design built once, Gram reformed once between X/Y
+/// solves, fused Pearson on residuals (chunked contiguous loops).
+fn partial_correlation_portable_impl(
+    x: &[f64],
+    y: &[f64],
+    z_cols: &[&[f64]],
+    workspace: &mut ParCorrWorkspace,
+) -> Option<f64> {
+    if x.len() != y.len() || x.len() < 3 {
+        return None;
+    }
+    let n = x.len();
+    if z_cols.is_empty() {
+        return pearson_fused(x, y);
+    }
+    for col in z_cols {
+        if col.len() != n {
+            return None;
+        }
+    }
+    workspace.prepare(n, z_cols.len());
+    let ncols = 1 + z_cols.len();
+    {
+        let design = &mut workspace.design[..n * ncols];
+        build_design(z_cols, n, design);
+        let gram = &mut workspace.gram[..ncols * ncols];
+        form_gram(design, n, ncols, gram);
+        let beta = &mut workspace.beta[..ncols];
+        form_xty(design, x, n, ncols, beta);
+        if !solve_inplace(gram, beta, ncols) {
+            return None;
+        }
+        let rx = &mut workspace.rx[..n];
+        residual_from_beta(x, design, beta, n, ncols, rx);
+    }
+    {
+        let design = &mut workspace.design[..n * ncols];
+        let gram = &mut workspace.gram[..ncols * ncols];
+        form_gram(design, n, ncols, gram);
+        let beta = &mut workspace.beta[..ncols];
+        form_xty(design, y, n, ncols, beta);
+        if !solve_inplace(gram, beta, ncols) {
+            return None;
+        }
+        let ry = &mut workspace.ry[..n];
+        residual_from_beta(y, design, beta, n, ncols, ry);
+    }
+    pearson_fused(&workspace.rx[..n], &workspace.ry[..n])
+}
+
+fn residual_from_beta(
+    y: &[f64],
+    design: &[f64],
+    beta: &[f64],
+    n: usize,
+    ncols: usize,
+    out: &mut [f64],
+) {
+    for r in 0..n {
+        let mut pred = 0.0;
+        for c in 0..ncols {
+            pred += design[c * n + r] * beta[c];
+        }
+        out[r] = y[r] - pred;
+    }
+}
+
+/// Fused two-pass Pearson favoring contiguous auto-vectorization.
+fn pearson_fused(x: &[f64], y: &[f64]) -> Option<f64> {
+    const CHUNK: usize = 8;
+    debug_assert_eq!(x.len(), y.len());
+    let n = x.len();
+    if n < 2 {
+        return None;
+    }
+    let nf = n as f64;
+    let (mut mx, mut my) = (0.0, 0.0);
+    let mut i = 0;
+    while i + CHUNK <= n {
+        let mut sx = 0.0;
+        let mut sy = 0.0;
+        for k in 0..CHUNK {
+            sx += x[i + k];
+            sy += y[i + k];
+        }
+        mx += sx;
+        my += sy;
+        i += CHUNK;
+    }
+    while i < n {
+        mx += x[i];
+        my += y[i];
+        i += 1;
+    }
+    mx /= nf;
+    my /= nf;
+    let (mut cxx, mut cyy, mut cxy) = (0.0, 0.0, 0.0);
+    i = 0;
+    while i + CHUNK <= n {
+        let mut sxx = 0.0;
+        let mut syy = 0.0;
+        let mut sxy = 0.0;
+        for k in 0..CHUNK {
+            let dx = x[i + k] - mx;
+            let dy = y[i + k] - my;
+            sxx += dx * dx;
+            syy += dy * dy;
+            sxy += dx * dy;
+        }
+        cxx += sxx;
+        cyy += syy;
+        cxy += sxy;
+        i += CHUNK;
+    }
+    while i < n {
+        let dx = x[i] - mx;
+        let dy = y[i] - my;
+        cxx += dx * dx;
+        cyy += dy * dy;
+        cxy += dx * dy;
+        i += 1;
+    }
+    let denom = (cxx * cyy).sqrt();
+    if denom <= f64::EPSILON {
+        return None;
+    }
+    Some(cxy / denom)
 }
 
 /// Scalar reference partial correlation.
@@ -258,10 +387,10 @@ pub fn partial_correlation_scalar(
     z_cols: &[&[f64]],
     workspace: &mut ParCorrWorkspace,
 ) -> Option<f64> {
-    partial_correlation_impl(x, y, z_cols, workspace)
+    partial_correlation_scalar_impl(x, y, z_cols, workspace)
 }
 
-/// Portable optimized partial correlation (contiguous-friendly residual loops).
+/// Portable optimized partial correlation (shared Gram, fused Pearson).
 #[must_use]
 pub fn partial_correlation_portable(
     x: &[f64],
@@ -269,8 +398,7 @@ pub fn partial_correlation_portable(
     z_cols: &[&[f64]],
     workspace: &mut ParCorrWorkspace,
 ) -> Option<f64> {
-    // Same math as scalar; residualization already uses contiguous column slices.
-    partial_correlation_impl(x, y, z_cols, workspace)
+    partial_correlation_portable_impl(x, y, z_cols, workspace)
 }
 
 /// Run a batch of [`ParCorrQuery`] items against shared columns (deterministic order).

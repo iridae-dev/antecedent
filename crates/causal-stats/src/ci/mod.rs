@@ -12,6 +12,7 @@ pub use types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
     SignificanceMethod,
 };
+pub use analytic::analytic_parcorr_ci;
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]

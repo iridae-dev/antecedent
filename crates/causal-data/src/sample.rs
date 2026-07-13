@@ -11,42 +11,45 @@ use causal_core::{Lag, VariableId};
 use crate::column::ColumnView;
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
+use crate::reference::ReferencePointPolicy;
 use crate::table::TableView;
 
 /// Lag-alignment cache for a regular series of length `series_len`.
 ///
-/// For `max_lag = τ_max`, effective samples are times `t = τ_max .. series_len-1`
-/// (`n = series_len - τ_max`). Sample `i` at lag `τ` reads raw row `τ_max + i - τ`.
+/// For `max_lag = τ_max` under [`ReferencePointPolicy::SeriesOrigin`], effective
+/// samples are times `t = τ_max .. series_len-1` (`n = series_len - τ_max`).
+/// Sample `i` at lag `τ` reads raw row `base_t + i - τ`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LagMap {
     series_len: usize,
     max_lag: u32,
     n_effective: usize,
     base_t: usize,
+    reference: ReferencePointPolicy,
 }
 
 impl LagMap {
-    /// Build a lag map.
+    /// Build a lag map with the default series-origin reference policy.
     ///
     /// # Errors
     ///
     /// Empty series, or `max_lag >= series_len`.
     pub fn new(series_len: usize, max_lag: u32) -> Result<Self, DataError> {
-        if series_len == 0 {
-            return Err(DataError::InvalidValidity { message: "empty time series" });
-        }
-        let max_lag_usize = max_lag as usize;
-        if max_lag_usize >= series_len {
-            return Err(DataError::InvalidValidity {
-                message: "max_lag must be strictly less than series length",
-            });
-        }
-        Ok(Self {
-            series_len,
-            max_lag,
-            n_effective: series_len - max_lag_usize,
-            base_t: max_lag_usize,
-        })
+        Self::with_reference(series_len, max_lag, ReferencePointPolicy::SeriesOrigin)
+    }
+
+    /// Build a lag map under an explicit reference-point policy.
+    ///
+    /// # Errors
+    ///
+    /// Empty series, invalid lag, or origin out of range.
+    pub fn with_reference(
+        series_len: usize,
+        max_lag: u32,
+        reference: ReferencePointPolicy,
+    ) -> Result<Self, DataError> {
+        let (base_t, n_effective) = reference.base_and_n(series_len, max_lag)?;
+        Ok(Self { series_len, max_lag, n_effective, base_t, reference })
     }
 
     /// Series length.
@@ -65,6 +68,12 @@ impl LagMap {
     #[must_use]
     pub const fn n_effective(&self) -> usize {
         self.n_effective
+    }
+
+    /// Reference-point policy used to build this map.
+    #[must_use]
+    pub const fn reference(&self) -> ReferencePointPolicy {
+        self.reference
     }
 
     /// Raw row index for sample `i` at the given lag.
@@ -119,7 +128,7 @@ pub struct SamplePlan {
 }
 
 impl SamplePlan {
-    /// Plan lagged columns for a series length / max lag.
+    /// Plan lagged columns for a series length / max lag (series-origin reference).
     ///
     /// # Errors
     ///
@@ -129,11 +138,25 @@ impl SamplePlan {
         max_lag: u32,
         columns: impl Into<Arc<[LaggedColumn]>>,
     ) -> Result<Self, DataError> {
+        Self::with_reference(series_len, max_lag, ReferencePointPolicy::SeriesOrigin, columns)
+    }
+
+    /// Plan lagged columns under an explicit reference-point policy.
+    ///
+    /// # Errors
+    ///
+    /// Invalid lag map, empty column list, or a column lag exceeding `max_lag`.
+    pub fn with_reference(
+        series_len: usize,
+        max_lag: u32,
+        reference: ReferencePointPolicy,
+        columns: impl Into<Arc<[LaggedColumn]>>,
+    ) -> Result<Self, DataError> {
         let columns = columns.into();
         if columns.is_empty() {
             return Err(DataError::InvalidValidity { message: "sample plan needs ≥1 column" });
         }
-        let lag_map = LagMap::new(series_len, max_lag)?;
+        let lag_map = LagMap::with_reference(series_len, max_lag, reference)?;
         for c in columns.iter() {
             if c.lag.raw() > max_lag {
                 return Err(DataError::InvalidValidity {
@@ -297,55 +320,15 @@ impl TimeSeriesData {
 mod tests {
     use std::sync::Arc;
 
-    use causal_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
-    };
+    use causal_core::{Lag, VariableId};
 
     use super::*;
-    use crate::column::{Float64Column, OwnedColumn, ValidityBitmap};
-    use crate::storage::OwnedColumnarStorage;
-    use crate::temporal::{SamplingRegularity, TimeIndex};
-
-    fn series(n: usize, vars: usize) -> TimeSeriesData {
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..vars {
-            b.add_variable(
-                format!("v{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let mut cols = Vec::new();
-        for v in 0..vars {
-            let values: Vec<f64> =
-                (0..n).map(|t| (t as f64) + 100.0 * v as f64).collect();
-            cols.push(OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(v as u32),
-                    Arc::from(values),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ));
-        }
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        TimeSeriesData::try_new(
-            storage,
-            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
-        )
-        .unwrap()
-    }
+    use crate::testing::float_series;
 
     #[test]
     fn lag_map_row_indexes() {
         let map = LagMap::new(10, 2).unwrap();
         assert_eq!(map.n_effective(), 8);
-        // sample 0 at lag 0 → t=2; lag 2 → t=0
         assert_eq!(map.row_index(Lag::CONTEMPORANEOUS, 0), 2);
         assert_eq!(map.row_index(Lag::from_raw(2), 0), 0);
         assert_eq!(map.row_index(Lag::from_raw(1), 3), 2 + 3 - 1);
@@ -353,7 +336,7 @@ mod tests {
 
     #[test]
     fn prepare_gathers_lagged_values() {
-        let data = series(20, 2);
+        let data = float_series(20, 2);
         let cols = Arc::from([
             LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::CONTEMPORANEOUS },
             LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::from_raw(2) },
@@ -363,17 +346,14 @@ mod tests {
         let mut ws = SampleWorkspace::default();
         let prep = plan.prepare(&data, &mut ws).unwrap();
         assert_eq!(prep.n, 18);
-        // contemporaneous v0 at sample 0 = raw[2] = 2.0
         assert!((prep.column(0)[0] - 2.0).abs() < 1e-12);
-        // v0 lag 2 at sample 0 = raw[0] = 0.0
         assert!((prep.column(1)[0] - 0.0).abs() < 1e-12);
-        // v1 lag 1 at sample 0 = raw[1] + 100 = 101.0
         assert!((prep.column(2)[0] - 101.0).abs() < 1e-12);
     }
 
     #[test]
     fn repeated_prepare_reuses_workspace_capacity() {
-        let data = series(100, 3);
+        let data = float_series(100, 3);
         let cols = Arc::from([
             LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::CONTEMPORANEOUS },
             LaggedColumn { variable: VariableId::from_raw(1), lag: Lag::from_raw(3) },

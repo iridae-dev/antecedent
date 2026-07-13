@@ -56,6 +56,8 @@ pub struct CiResult {
     pub p_value: f64,
     /// Residual degrees of freedom (analytic path).
     pub df: f64,
+    /// Optional analytic confidence interval `(lower, upper)` for the statistic.
+    pub ci: Option<(f64, f64)>,
 }
 
 /// Batch results aligned with request queries.

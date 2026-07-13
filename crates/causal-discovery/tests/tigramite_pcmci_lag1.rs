@@ -145,4 +145,23 @@ fn tigramite_pcmci_lag1_exact_parents() {
         "Exact edge-set mismatch: recovered={recovered:?} true={true_set:?}"
     );
     assert_eq!(result.algorithm.id.as_ref(), "pcmci");
+
+    // When the fixture was generated against pinned Tigramite, also require
+    // our recovered set to match the black-box comparator parents.
+    let tig = &expected["tigramite"];
+    if tig["available"].as_bool() == Some(true) {
+        let mut tig_set = BTreeSet::new();
+        for p in tig["recovered_parents"].as_array().expect("recovered_parents") {
+            tig_set.insert((
+                name_to_id(p["source"].as_str().unwrap()).raw(),
+                p["source_lag"].as_u64().unwrap() as u32,
+                name_to_id(p["target"].as_str().unwrap()).raw(),
+                p["target_lag"].as_u64().unwrap() as u32,
+            ));
+        }
+        assert_eq!(
+            recovered, tig_set,
+            "Rust PCMCI vs Tigramite black-box mismatch: rust={recovered:?} tigramite={tig_set:?}"
+        );
+    }
 }
