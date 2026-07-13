@@ -17,8 +17,8 @@ pub mod temporal_adjustment;
 mod util;
 
 pub use adjustment::{
-    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy, OverlapReport,
-    PreparedEstimationProblem,
+    ClipSensitivity, EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
+    OverlapReport, PreparedEstimationProblem, PropensityInterval,
 };
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use error::EstimationError;
