@@ -19,7 +19,9 @@ pub use advanced::{
     Gpdc, KnnCmi, MixedKnnCmi, OracleCi, SymbolicCmi,
 };
 pub use analytic::analytic_parcorr_ci;
-pub use calibration::{CalibrationReport, calibrate_parcorr_like};
+pub use calibration::{
+    CalibrationReport, calibrate_gsquared, calibrate_parcorr_like, type_i_within_two_se,
+};
 pub use factory::ci_from_name;
 pub use gsquared::{GSquared, RegressionCi};
 pub use parcorr::PartialCorrelation;

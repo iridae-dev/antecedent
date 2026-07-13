@@ -123,24 +123,178 @@ pub fn calibrate_parcorr_like(
     })
 }
 
+/// Discrete G² calibration: independent categorical null + dependent alternative.
+///
+/// # Errors
+///
+/// Propagates CI failures.
+pub fn calibrate_gsquared(
+    ci: &dyn ConditionalIndependence,
+    n: usize,
+    trials: u32,
+    alpha: f64,
+    seed: u64,
+) -> Result<CalibrationReport, StatsError> {
+    let mut ws = CiWorkspace::default();
+    let ctx = ExecutionContext::for_tests(seed);
+    let mut null_rej = 0u32;
+    let mut alt_rej = 0u32;
+    let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+    let levels = 3i32;
+
+    for t in 0..trials {
+        let mut rng = ctx.rng.stream(0x65_u64.wrapping_add(u64::from(t)));
+        let x: Vec<f64> = (0..n)
+            .map(|_| (rng.next_u64() % levels as u64) as f64)
+            .collect();
+        let y_null: Vec<f64> = (0..n)
+            .map(|_| (rng.next_u64() % levels as u64) as f64)
+            .collect();
+        let cols_null: [&[f64]; 2] = [&x, &y_null];
+        let req = CiBatchRequest {
+            columns: &cols_null,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+        };
+        let out = ci.test_batch(&req, &mut ws, &ctx)?;
+        if out.results[0].p_value < alpha {
+            null_rej += 1;
+        }
+
+        let y_alt: Vec<f64> = x
+            .iter()
+            .map(|&xi| {
+                if rng.next_u64() % 5 == 0 {
+                    (rng.next_u64() % levels as u64) as f64
+                } else {
+                    xi
+                }
+            })
+            .collect();
+        let cols_alt: [&[f64]; 2] = [&x, &y_alt];
+        let req_alt = CiBatchRequest {
+            columns: &cols_alt,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+        };
+        let out_alt = ci.test_batch(&req_alt, &mut ws, &ctx)?;
+        if out_alt.results[0].p_value < alpha {
+            alt_rej += 1;
+        }
+    }
+
+    Ok(CalibrationReport {
+        null_trials: trials,
+        null_rejections: null_rej,
+        alt_trials: trials,
+        alt_rejections: alt_rej,
+        alpha,
+    })
+}
+
+/// Within ~2 SE of α under a Bernoulli(α) null with `trials` Monte Carlo draws.
+#[must_use]
+pub fn type_i_within_two_se(rate: f64, alpha: f64, trials: u32) -> bool {
+    let n = f64::from(trials);
+    let se = (alpha * (1.0 - alpha) / n).sqrt();
+    (rate - alpha).abs() <= 2.0 * se + 1e-12
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ci::PartialCorrelation;
+    use crate::ci::{
+        GSquared, KnnCmi, PartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
+    };
 
     #[test]
     fn parcorr_calibration_type_i_near_alpha_and_power() {
-        let report = calibrate_parcorr_like(&PartialCorrelation::new(), 200, 80, 0.05, 7).unwrap();
-        // Loose bounds: Type I not wildly inflated; power clearly above alpha.
+        let trials = 200u32;
+        let alpha = 0.05;
+        let report =
+            calibrate_parcorr_like(&PartialCorrelation::new(), 250, trials, alpha, 7).unwrap();
         assert!(
-            report.type_i_rate() < 0.20,
-            "type I too high: {}",
-            report.type_i_rate()
+            type_i_within_two_se(report.type_i_rate(), alpha, trials)
+                || report.type_i_rate() < 0.12,
+            "type I off nominal: {} (2SE band around {})",
+            report.type_i_rate(),
+            alpha
         );
         assert!(
             report.power() > 0.50,
             "power too low: {}",
             report.power()
+        );
+    }
+
+    #[test]
+    fn gsquared_calibration_type_i_and_power() {
+        let report = calibrate_gsquared(&GSquared::new(), 300, 120, 0.05, 11).unwrap();
+        assert!(
+            report.type_i_rate() < 0.15,
+            "G² type I too high: {}",
+            report.type_i_rate()
+        );
+        assert!(report.power() > 0.40, "G² power too low: {}", report.power());
+    }
+
+    #[test]
+    fn robust_parcorr_calibration_smoke() {
+        let report =
+            calibrate_parcorr_like(&RobustPartialCorrelation::new(), 180, 60, 0.05, 13).unwrap();
+        assert!(report.type_i_rate() < 0.25);
+        assert!(report.power() > 0.30);
+    }
+
+    #[test]
+    fn weighted_parcorr_calibration_smoke() {
+        let n = 180usize;
+        let w = vec![1.0; n];
+        let report =
+            calibrate_parcorr_like(&WeightedPartialCorrelation::new(w), n, 60, 0.05, 17).unwrap();
+        assert!(report.type_i_rate() < 0.25);
+        assert!(report.power() > 0.30);
+    }
+
+    #[test]
+    fn knn_cmi_calibration_smoke() {
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(19);
+        let n = 80usize;
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let mut rng = ctx.rng.stream(0x4e4e);
+        let x: Vec<f64> = (0..n)
+            .map(|_| (rng.next_u64() as f64) / (u64::MAX as f64))
+            .collect();
+        let y_null: Vec<f64> = (0..n)
+            .map(|_| (rng.next_u64() as f64) / (u64::MAX as f64))
+            .collect();
+        let cols_null: [&[f64]; 2] = [&x, &y_null];
+        let req = CiBatchRequest {
+            columns: &cols_null,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+        };
+        let out = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        assert!((0.0..=1.0).contains(&out.results[0].p_value));
+        let cols_alt: [&[f64]; 2] = [&x, &x];
+        let req_alt = CiBatchRequest {
+            columns: &cols_alt,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+        };
+        let out_alt = KnnCmi::new(3).test_batch(&req_alt, &mut ws, &ctx).unwrap();
+        assert!((0.0..=1.0).contains(&out_alt.results[0].p_value));
+        // Exact dependence should not look more independent than noise.
+        assert!(
+            out_alt.results[0].p_value <= out.results[0].p_value + 1e-12,
+            "alt p={} null p={}",
+            out_alt.results[0].p_value,
+            out.results[0].p_value
         );
     }
 }
