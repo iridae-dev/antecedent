@@ -1,5 +1,5 @@
-//! `PyO3` bindings — Phase 0–4: Arrow load, `analyze_ate` (identifier/estimator selectable),
-//! `analyze`, `discover_pcmci`.
+//! `PyO3` bindings — Phase 0–5: Arrow load, `analyze_ate`, `analyze`,
+//! `discover_pcmci`, `discover_pcmci_plus`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -25,9 +25,10 @@ use causal_data::{
     SamplingRegularity, TableView, TimeIndex, TimeSeriesData, tabular_from_record_batch,
 };
 use causal_discovery::{
-    DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints,
+    DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus, TemporalConstraints,
 };
 use causal_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
+use causal_stats::ci_from_name;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -284,13 +285,26 @@ struct PcmciDiscoveryResult {
     lagged_frame_bytes: u64,
     #[pyo3(get)]
     worker_threads: u32,
+    #[pyo3(get)]
+    ci_name: String,
+    #[pyo3(get)]
+    cpdag_nodes: u64,
+    #[pyo3(get)]
+    cpdag_directed_edges: u64,
+    #[pyo3(get)]
+    cpdag_undirected_edges: u64,
+}
+
+fn resolve_ci(ci: &str) -> PyResult<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>> {
+    ci_from_name(ci).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Run lagged PCMCI discovery.
 ///
 /// NumPy columns in, structured link list out once. No per-query Python callbacks.
+/// `ci` selects the conditional-independence test by name (default `parcorr`).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr"))]
 fn discover_pcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -299,8 +313,11 @@ fn discover_pcmci(
     alpha: f64,
     fdr: bool,
     seed: u64,
+    ci: &str,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
+    let ci_name = ci.to_string();
+    let ci_impl = resolve_ci(ci)?;
     drop(columns);
 
     py.allow_threads(move || {
@@ -323,7 +340,7 @@ fn discover_pcmci(
             .iter()
             .map(|v| v.id)
             .collect();
-        let pcmci = Pcmci::new()
+        let mut pcmci = Pcmci::new()
             .with_fdr(fdr)
             .with_constraints(DiscoveryConstraints {
                 temporal: TemporalConstraints {
@@ -334,6 +351,7 @@ fn discover_pcmci(
                 max_cond_size: 2,
                 ..DiscoveryConstraints::default()
             });
+        pcmci.engine = pcmci.engine.with_ci(ci_impl);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(seed);
         let result = pcmci
@@ -369,6 +387,111 @@ fn discover_pcmci(
             pending_edge_count: result.review.pending_edges.len() as u64,
             lagged_frame_bytes: result.performance.lagged_frame_bytes,
             worker_threads: result.performance.worker_threads,
+            ci_name,
+            cpdag_nodes: 0,
+            cpdag_directed_edges: 0,
+            cpdag_undirected_edges: 0,
+        })
+    })
+}
+
+/// Run PCMCI+ discovery returning links plus oriented temporal CPDAG summary.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr"))]
+fn discover_pcmci_plus(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: &str,
+) -> PyResult<PcmciDiscoveryResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let ci_name = ci.to_string();
+    let ci_impl = resolve_ci(ci)?;
+    drop(columns);
+
+    py.allow_threads(move || {
+        let loaded =
+            tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let tabular = loaded.data;
+        let n = tabular.row_count();
+        let series = TimeSeriesData::try_new(
+            tabular.storage().clone(),
+            TimeIndex {
+                regularity: SamplingRegularity::Regular { interval_ns: 1 },
+                length: n,
+            },
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+        let variables: Vec<VariableId> = series
+            .schema()
+            .variables()
+            .iter()
+            .map(|v| v.id)
+            .collect();
+        let mut plus = PcmciPlus::new().with_fdr(fdr).with_constraints(DiscoveryConstraints {
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(max_lag),
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            alpha,
+            max_cond_size: 2,
+            ..DiscoveryConstraints::default()
+        });
+        plus.engine = plus.engine.with_ci(ci_impl);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(seed);
+        let (result, cpdag) = plus
+            .run(&series, &variables, &mut ws, &ctx)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+        let links: Vec<DiscoveredLink> = result
+            .evidence
+            .links
+            .iter()
+            .map(|s| DiscoveredLink {
+                source: names
+                    .get(s.link.source.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", s.link.source.raw())),
+                source_lag: s.link.source_lag.raw(),
+                target: names
+                    .get(s.link.target.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", s.link.target.raw())),
+                target_lag: s.link.target_lag.raw(),
+                statistic: s.statistic,
+                p_value: s.p_value,
+            })
+            .collect();
+
+        let mut directed = 0u64;
+        let mut undirected = 0u64;
+        for e in cpdag.edges() {
+            if e.is_undirected() {
+                undirected += 1;
+            } else if e.parent_child().is_some() {
+                directed += 1;
+            }
+        }
+
+        Ok(PcmciDiscoveryResult {
+            links,
+            algorithm_id: result.algorithm.id.to_string(),
+            algorithm_config: result.algorithm.config.to_string(),
+            ci_tests: result.performance.ci_tests,
+            links_retained: result.performance.links_retained,
+            pending_edge_count: result.review.pending_edges.len() as u64,
+            lagged_frame_bytes: result.performance.lagged_frame_bytes,
+            worker_threads: result.performance.worker_threads,
+            ci_name,
+            cpdag_nodes: cpdag.node_count() as u64,
+            cpdag_directed_edges: directed,
+            cpdag_undirected_edges: undirected,
         })
     })
 }
@@ -495,6 +618,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_pcmci_plus, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
     m.add_class::<AnalysisResult>()?;

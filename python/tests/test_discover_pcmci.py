@@ -17,6 +17,10 @@ SCHEMA_FIELDS = {
     "pending_edge_count",
     "lagged_frame_bytes",
     "worker_threads",
+    "ci_name",
+    "cpdag_nodes",
+    "cpdag_directed_edges",
+    "cpdag_undirected_edges",
 }
 
 LINK_FIELDS = {

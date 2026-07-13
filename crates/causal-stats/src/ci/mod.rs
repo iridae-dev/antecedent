@@ -8,6 +8,7 @@ mod advanced;
 mod analytic;
 mod block_shuffle;
 mod calibration;
+mod factory;
 mod gsquared;
 mod parcorr;
 mod parcorr_variants;
@@ -18,6 +19,7 @@ pub use advanced::{
 };
 pub use analytic::analytic_parcorr_ci;
 pub use calibration::{CalibrationReport, calibrate_parcorr_like};
+pub use factory::ci_from_name;
 pub use gsquared::{GSquared, RegressionCi};
 pub use parcorr::PartialCorrelation;
 pub use parcorr_variants::{

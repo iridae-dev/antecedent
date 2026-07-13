@@ -184,6 +184,7 @@ dependencies = [
  "causal-data",
  "causal-discovery",
  "causal-graph",
+ "causal-stats",
  "numpy",
  "pyo3",
 ]

@@ -23,7 +23,7 @@ pub use ci::{
     ConditionalIndependence, Gpdc, GSquared, KnnCmi, KnnCmiWorkspace, MixedKnnCmi,
     MultivariatePartialCorrelation, OracleCi, PartialCorrelation, RegressionCi,
     RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
-    analytic_parcorr_ci, calibrate_parcorr_like,
+    analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
 };
 pub use design::{CompiledDesign, DesignColumnRole};
 pub use error::StatsError;

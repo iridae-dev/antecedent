@@ -54,8 +54,8 @@ phase = 0
 id = "tigramite.data.transforms"
 group = "data_processing"
 description = "Transformations, smoothing, binning, ordinal patterns"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]
@@ -79,72 +79,72 @@ phase = 2
 id = "tigramite.ci.multivariate_partial_corr"
 group = "conditional_independence"
 description = "Multivariate partial correlation"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]
 id = "tigramite.ci.weighted_partial_corr"
 group = "conditional_independence"
 description = "Weighted partial correlation"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]
 id = "tigramite.ci.robust_partial_corr"
 group = "conditional_independence"
 description = "Robust partial correlation"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]
 id = "tigramite.ci.regression"
 group = "conditional_independence"
 description = "Regression CI"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]
 id = "tigramite.ci.cmi_knn"
 group = "conditional_independence"
 description = "CMI kNN"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]
 id = "tigramite.ci.mixed_cmi_knn"
 group = "conditional_independence"
 description = "Mixed CMI kNN"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]
 id = "tigramite.ci.symbolic_cmi"
 group = "conditional_independence"
 description = "Symbolic CMI"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]
 id = "tigramite.ci.gpdc"
 group = "conditional_independence"
 description = "GPDC"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]
 id = "tigramite.ci.gsquared"
 group = "conditional_independence"
 description = "G-squared"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase5"
 phase = 5
 
 [[capabilities]]

@@ -22,6 +22,7 @@ causal-data = { path = "../crates/causal-data", features = ["arrow"] }
 causal-analysis = { path = "../crates/causal-analysis" }
 causal-discovery = { path = "../crates/causal-discovery" }
 causal-graph = { path = "../crates/causal-graph" }
+causal-stats = { path = "../crates/causal-stats" }
 pyo3 = { version = "0.23", features = ["extension-module"] }
 arrow-array = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }
