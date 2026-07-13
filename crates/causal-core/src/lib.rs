@@ -36,7 +36,7 @@ pub use ids::{CategoryDomainId, EnvironmentId, Lag, RegimeId, VariableId};
 pub use intervention::Intervention;
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
-    LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
+    LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
 };
 pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
 pub use query::{

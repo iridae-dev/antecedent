@@ -1,4 +1,4 @@
-//! Static ATE identify-estimate-refute facade.
+//! Unified static/temporal `CausalAnalysis` facade (identify → estimate → refute).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -211,7 +211,6 @@ mod tests {
             .temporal_graph(g)
             .temporal_query(q)
             .bootstrap_replicates(0)
-            .variable_count(2)
             .build()
             .unwrap();
         let ctx = ExecutionContext::for_tests(7);
@@ -223,5 +222,17 @@ mod tests {
         );
         assert_eq!(&*result.logical_plan.plan_id, "phase3.temporal_effect");
         assert!(result.physical_plan.estimated_peak_memory_bytes.is_some());
+        assert!(result.physical_plan.estimated_copy_bytes.is_some());
+        assert!(!result.physical_plan.task_schedule.is_empty());
+        assert!(!result.physical_plan.materializations.is_empty());
+
+        let compiled = analysis.compile(&ctx).unwrap();
+        match compiled {
+            CompiledAnalysis::Ready(plan) => {
+                assert!(plan.temporal_graph().is_some());
+                assert_eq!(plan.record.batch_size, Some(250));
+            }
+            CompiledAnalysis::ReviewRequired(_) => panic!("expected Ready"),
+        }
     }
 }

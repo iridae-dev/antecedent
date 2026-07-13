@@ -21,7 +21,7 @@ use causal_stats::CompiledDesign;
 
 use crate::adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
-    PreparedEstimationProblem,
+    PreparedEstimationProblem, intervention_f64,
 };
 use crate::error::EstimationError;
 
@@ -129,8 +129,8 @@ impl TemporalLinearAdjustment {
         let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected)
             .map_err(|e| EstimationError::Stats(e.to_string()))?;
 
-        let active = intervention_level(&query.active)?;
-        let control = intervention_level(&query.control)?;
+        let active = intervention_f64(&query.active)?;
+        let control = intervention_f64(&query.control)?;
         let treatment_delta = active - control;
         if treatment_delta == 0.0 {
             return Err(EstimationError::UnsupportedQuery(
@@ -173,17 +173,6 @@ fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
         EstimationError::UnsupportedQuery("offset does not fit lag".into())
     })?;
     Ok(Lag::from_raw(lag))
-}
-
-fn intervention_level(i: &causal_core::Intervention) -> Result<f64, EstimationError> {
-    match i {
-        causal_core::Intervention::Set { value, .. } => value.as_f64().ok_or_else(|| {
-            EstimationError::UnsupportedQuery("intervention value is not numeric".into())
-        }),
-        _ => Err(EstimationError::UnsupportedQuery(
-            "only Set interventions supported".into(),
-        )),
-    }
 }
 
 #[cfg(test)]

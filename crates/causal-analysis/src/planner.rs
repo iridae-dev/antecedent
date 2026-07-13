@@ -8,9 +8,10 @@ use std::sync::Arc;
 
 use causal_core::{
     AverageEffectQuery, BufferMaterialization, CausalQuery, DataClassification, ExecutionContext,
-    KernelSelection, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, TemporalEffectQuery,
+    KernelSelection, LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
+    TemporalEffectQuery,
 };
-use causal_data::{DiscoveryEstimationSplit, TabularData, TimeSeriesData};
+use causal_data::{DiscoveryEstimationSplit, TabularData, TableView, TimeSeriesData};
 use causal_graph::{Dag, TemporalDag, TemporalGraphReview};
 
 use crate::error::AnalysisError;
@@ -44,6 +45,8 @@ pub struct LogicalAnalysisPlan {
     pub query: CausalQuery,
     /// Optional temporal-gap split metadata.
     pub split: Option<DiscoveryEstimationSplit>,
+    /// Row-count hint for memory / batch planning (estimation window when split).
+    pub row_count_hint: u64,
 }
 
 impl LogicalAnalysisPlan {
@@ -86,11 +89,26 @@ impl LogicalAnalysisPlan {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, AnalysisError> {
+        self.compile_physical_with_graph(ctx, None)
+    }
+
+    /// Compile a physical plan, optionally attaching a resolved temporal graph.
+    ///
+    /// # Errors
+    ///
+    /// Resource refusals or unsupported backends.
+    pub fn compile_physical_with_graph(
+        &self,
+        ctx: &ExecutionContext,
+        resolved_temporal_graph: Option<TemporalDag>,
+    ) -> Result<PhysicalExecutionPlan, AnalysisError> {
         self.validate()?;
-        let n_rows_hint = self.split.map_or(0_u64, |s| s.estimation.len() as u64).max(1);
-        let design_bytes = n_rows_hint.saturating_mul(8).saturating_mul(8); // rough
+        let n_rows = self.row_count_hint.max(1);
+        // Rough dense design: rows × ~8 f64 columns.
+        let design_bytes = n_rows.saturating_mul(8).saturating_mul(8);
         let workspace = design_bytes.saturating_mul(2);
         let peak = design_bytes.saturating_add(workspace);
+        let copy_bytes = design_bytes; // design matrix is CopiedContiguous
 
         if let Some(limit) = ctx.memory.soft_limit_bytes {
             if peak > limit {
@@ -108,6 +126,23 @@ impl LogicalAnalysisPlan {
             ctx.parallelism.max_threads.get()
         };
 
+        let task_schedule: Arc<[ParallelTaskSpec]> = if workers == 0 {
+            Arc::from([ParallelTaskSpec {
+                dimension: Arc::from("serial"),
+                units: 1,
+            }])
+        } else {
+            Arc::from([ParallelTaskSpec {
+                dimension: Arc::from(match self.record.estimator.as_deref() {
+                    Some("temporal.linear.adjustment" | "linear.adjustment.ate") => {
+                        "bootstrap.replicate"
+                    }
+                    _ => "analysis",
+                }),
+                units: workers,
+            }])
+        };
+
         let record = PhysicalExecutionPlanRecord {
             plan_id: Arc::clone(&self.record.plan_id),
             materializations: Arc::from([(
@@ -121,14 +156,20 @@ impl LogicalAnalysisPlan {
                 }),
                 KernelSelection::DenseBackend,
             )]),
-            batch_size: Some(n_rows_hint as usize),
+            batch_size: Some(n_rows as usize),
             workspace_bytes: Some(workspace),
             estimated_peak_memory_bytes: Some(peak),
+            estimated_copy_bytes: Some(copy_bytes),
+            task_schedule,
             worker_threads: workers,
             deterministic_reductions: true,
             expected_python_crossings: 1,
         };
-        Ok(PhysicalExecutionPlan { record, logical: self.clone() })
+        Ok(PhysicalExecutionPlan {
+            record,
+            logical: self.clone(),
+            resolved_temporal_graph,
+        })
     }
 }
 
@@ -139,6 +180,16 @@ pub struct PhysicalExecutionPlan {
     pub record: PhysicalExecutionPlanRecord,
     /// Logical plan this was derived from.
     pub logical: LogicalAnalysisPlan,
+    /// Temporal DAG to estimate against (supplied or post-review). Avoids re-discovery.
+    pub resolved_temporal_graph: Option<TemporalDag>,
+}
+
+impl PhysicalExecutionPlan {
+    /// Borrow the resolved temporal graph when present.
+    #[must_use]
+    pub fn temporal_graph(&self) -> Option<&TemporalDag> {
+        self.resolved_temporal_graph.as_ref()
+    }
 }
 
 /// Result of compilation: ready to run, or graph review required.
@@ -153,7 +204,7 @@ pub enum CompiledAnalysis {
 /// Inputs needed to compile a logical plan for the static ATE path.
 #[derive(Clone, Debug)]
 pub struct StaticAteCompileInput<'a> {
-    /// Tabular data (classification only).
+    /// Tabular data (classification + row count).
     pub data: &'a TabularData,
     /// Graph.
     pub graph: &'a Dag,
@@ -171,7 +222,6 @@ pub struct StaticAteCompileInput<'a> {
 pub fn compile_logical_static_ate(
     input: StaticAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {
-    let _ = input.data;
     let _ = input.graph;
     input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
     let record = LogicalAnalysisPlanRecord {
@@ -188,6 +238,7 @@ pub fn compile_logical_static_ate(
         record,
         query: CausalQuery::AverageEffect(input.query.clone()),
         split: None,
+        row_count_hint: input.data.row_count() as u64,
     };
     plan.validate()?;
     Ok(plan)
@@ -205,8 +256,9 @@ pub fn compile_logical_temporal_effect(
     split: Option<DiscoveryEstimationSplit>,
     review_required: bool,
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {
-    let _ = data;
     query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    let row_count_hint = split
+        .map_or_else(|| data.row_count() as u64, |s| s.estimation.len() as u64);
     let record = LogicalAnalysisPlanRecord {
         plan_id: Arc::from("phase3.temporal_effect"),
         data_classification: DataClassification::Temporal,
@@ -221,6 +273,7 @@ pub fn compile_logical_temporal_effect(
         record,
         query: CausalQuery::TemporalEffect(query.clone()),
         split,
+        row_count_hint,
     };
     plan.validate()?;
     Ok(plan)
@@ -234,50 +287,56 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn static_ate_compiles() {
+    fn tabular_plan(rows: u64) -> LogicalAnalysisPlan {
         let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        // Minimal fake table not needed for compile_logical_static_ate metadata path —
-        // we still need TabularData; skip full construction by using validate on plan directly.
-        let record = LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("test"),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: Some(Arc::from("backdoor.adjustment")),
-            estimator: Some(Arc::from("linear.adjustment.ate")),
-            validation_suite: None,
-            query_variables: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
-        };
-        let plan = LogicalAnalysisPlan {
-            record,
+        LogicalAnalysisPlan {
+            record: LogicalAnalysisPlanRecord {
+                plan_id: Arc::from("test"),
+                data_classification: DataClassification::Tabular,
+                discovery_algorithm: None,
+                graph_review_required: false,
+                identifier: Some(Arc::from("backdoor.adjustment")),
+                estimator: Some(Arc::from("linear.adjustment.ate")),
+                validation_suite: None,
+                query_variables: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            },
             query: CausalQuery::AverageEffect(q),
             split: None,
-        };
+            row_count_hint: rows,
+        }
+    }
+
+    #[test]
+    fn static_ate_compiles_with_schedule_and_copies() {
+        let plan = tabular_plan(200);
         plan.validate().unwrap();
         let ctx = ExecutionContext::for_tests(1);
         let physical = plan.compile_physical(&ctx).unwrap();
         assert!(physical.record.estimated_peak_memory_bytes.is_some());
         assert_eq!(physical.record.kernels.len(), 1);
+        assert_eq!(physical.record.estimated_copy_bytes, Some(200 * 8 * 8));
+        assert_eq!(physical.record.task_schedule.len(), 1);
+        assert_eq!(&*physical.record.task_schedule[0].dimension, "serial");
+        assert!(!physical.record.materializations.is_empty());
     }
 
     #[test]
     fn temporal_query_on_tabular_fails() {
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
-        let record = LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("bad"),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: None,
-            estimator: None,
-            validation_suite: None,
-            query_variables: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
-        };
         let plan = LogicalAnalysisPlan {
-            record,
+            record: LogicalAnalysisPlanRecord {
+                plan_id: Arc::from("bad"),
+                data_classification: DataClassification::Tabular,
+                discovery_algorithm: None,
+                graph_review_required: false,
+                identifier: None,
+                estimator: None,
+                validation_suite: None,
+                query_variables: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            },
             query: CausalQuery::TemporalEffect(q),
             split: None,
+            row_count_hint: 10,
         };
         assert!(matches!(plan.validate(), Err(AnalysisError::Compile { .. })));
     }
@@ -285,46 +344,39 @@ mod tests {
     #[test]
     fn pcmci_on_tabular_fails() {
         let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let record = LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("bad"),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: Some(Arc::from("pcmci")),
-            graph_review_required: true,
-            identifier: None,
-            estimator: None,
-            validation_suite: None,
-            query_variables: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
-        };
         let plan = LogicalAnalysisPlan {
-            record,
+            record: LogicalAnalysisPlanRecord {
+                plan_id: Arc::from("bad"),
+                data_classification: DataClassification::Tabular,
+                discovery_algorithm: Some(Arc::from("pcmci")),
+                graph_review_required: true,
+                identifier: None,
+                estimator: None,
+                validation_suite: None,
+                query_variables: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            },
             query: CausalQuery::AverageEffect(q),
             split: None,
+            row_count_hint: 10,
         };
         assert!(matches!(plan.validate(), Err(AnalysisError::Compile { .. })));
     }
 
     #[test]
-    fn soft_memory_limit_refuses() {
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let record = LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("mem"),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: Some(Arc::from("backdoor.adjustment")),
-            estimator: Some(Arc::from("linear.adjustment.ate")),
-            validation_suite: None,
-            query_variables: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
-        };
-        let plan = LogicalAnalysisPlan {
-            record,
-            query: CausalQuery::AverageEffect(q),
-            split: Some(
-                DiscoveryEstimationSplit::from_sizes(10_000, 5_000, 0, 5_000).unwrap(),
-            ),
-        };
+    fn soft_memory_limit_refuses_dense_plan() {
+        let plan = tabular_plan(10_000);
         let mut ctx = ExecutionContext::for_tests(1);
         ctx.memory = MemoryBudget { soft_limit_bytes: Some(64), hard_limit_bytes: None };
         assert!(matches!(plan.compile_physical(&ctx), Err(AnalysisError::Resource { .. })));
+    }
+
+    #[test]
+    fn split_row_hint_drives_batch_size() {
+        let mut plan = tabular_plan(100);
+        plan.split = Some(DiscoveryEstimationSplit::from_sizes(100, 50, 10, 40).unwrap());
+        plan.row_count_hint = 40;
+        let ctx = ExecutionContext::for_tests(1);
+        let physical = plan.compile_physical(&ctx).unwrap();
+        assert_eq!(physical.record.batch_size, Some(40));
     }
 }

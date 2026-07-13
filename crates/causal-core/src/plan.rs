@@ -71,6 +71,15 @@ pub enum KernelSelection {
     DenseBackend,
 }
 
+/// One parallel work dimension in a physical task schedule (DESIGN.md §23.4).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParallelTaskSpec {
+    /// Primary parallel dimension (e.g. `serial`, `bootstrap.replicate`).
+    pub dimension: Arc<str>,
+    /// Number of scheduled units along that dimension.
+    pub units: u32,
+}
+
 /// Record of physical execution choices derived from a logical plan.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PhysicalExecutionPlanRecord {
@@ -86,6 +95,10 @@ pub struct PhysicalExecutionPlanRecord {
     pub workspace_bytes: Option<u64>,
     /// Estimated peak memory bytes.
     pub estimated_peak_memory_bytes: Option<u64>,
+    /// Estimated bytes copied for materializations (`0` if all borrowed).
+    pub estimated_copy_bytes: Option<u64>,
+    /// Coarse parallel task schedule (one primary dimension).
+    pub task_schedule: Arc<[ParallelTaskSpec]>,
     /// Worker threads assigned (0 = serial).
     pub worker_threads: u32,
     /// Whether reductions must be deterministic.

@@ -429,7 +429,6 @@ fn analyze(
             .temporal_graph(g)
             .temporal_query(q)
             .bootstrap_replicates(bootstrap)
-            .variable_count(names.len() as u32)
             .build()
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let ctx = ExecutionContext::for_tests(seed);

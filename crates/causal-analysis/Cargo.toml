@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Static ATE identify-estimate-refute analysis facade"
+description = "Unified static/temporal CausalAnalysis facade with logical/physical planning"
 readme = "README.md"
 
 [lints]

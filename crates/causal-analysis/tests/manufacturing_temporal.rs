@@ -87,7 +87,6 @@ fn manufacturing_pressure_defect() {
         .temporal_graph(g)
         .temporal_query(q)
         .bootstrap_replicates(0)
-        .variable_count(2)
         .build()
         .unwrap();
     let ctx = ExecutionContext::for_tests(42);
@@ -101,10 +100,13 @@ fn manufacturing_pressure_defect() {
     );
     assert_eq!(&*result.logical_plan.plan_id, "phase3.temporal_effect");
     assert!(result.physical_plan.estimated_peak_memory_bytes.is_some());
+    assert!(result.physical_plan.estimated_copy_bytes.is_some());
+    assert!(!result.physical_plan.task_schedule.is_empty());
     println!(
-        "manufacturing ATE={:.4} plan={} peak_mem={:?}",
+        "manufacturing ATE={:.4} plan={} peak_mem={:?} schedule={:?}",
         result.estimate.ate,
         result.logical_plan.plan_id,
-        result.physical_plan.estimated_peak_memory_bytes
+        result.physical_plan.estimated_peak_memory_bytes,
+        result.physical_plan.task_schedule,
     );
 }

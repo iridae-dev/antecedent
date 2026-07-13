@@ -1,3 +1,5 @@
 # causal-analysis
 
-Static ATE identify → estimate → refute facade (Rust). Python package name remains `causal`.
+Unified `CausalAnalysis` facade: static ATE and temporal effect identify → estimate
+(→ refute) with logical/physical planning (DESIGN.md Phase 3). Python package name
+remains `causal`.

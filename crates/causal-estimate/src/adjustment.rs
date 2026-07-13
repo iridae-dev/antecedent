@@ -249,7 +249,7 @@ impl LinearAdjustmentAte {
     }
 }
 
-fn intervention_f64(intervention: &Intervention) -> Result<f64, EstimationError> {
+pub(crate) fn intervention_f64(intervention: &Intervention) -> Result<f64, EstimationError> {
     match intervention {
         Intervention::Set { value, .. } => value.as_f64().ok_or_else(|| {
             EstimationError::UnsupportedQuery(

@@ -7,9 +7,10 @@
 use std::sync::Arc;
 
 use causal_core::{
-    AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    ExecutionContext, ExecutionPerformanceRecord, ProvenanceGraph, ProvenanceNode,
-    TemporalEffectQuery, VERSION, VariableId,
+    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord,
+    PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode, TemporalEffectQuery, VERSION,
+    VariableId,
 };
 use causal_data::{DiscoveryEstimationSplit, TabularData, TableView, TimeSeriesData};
 use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
@@ -25,8 +26,8 @@ use causal_validate::{PlaceboTreatment, RandomCommonCause, RefutationProblem, Re
 
 use crate::error::AnalysisError;
 use crate::planner::{
-    CompiledAnalysis, GraphInput, StaticAteCompileInput, compile_logical_static_ate,
-    compile_logical_temporal_effect,
+    CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
+    StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
 };
 use crate::result::CausalAnalysisResult;
 use crate::review::{PendingGraphReview, compile_review_required, ensure_review_complete};
@@ -55,7 +56,6 @@ pub struct CausalAnalysisBuilder {
     refute: RefuteSuite,
     bootstrap_replicates: u32,
     split: Option<DiscoveryEstimationSplit>,
-    variable_count: Option<u32>,
 }
 
 impl Default for CausalAnalysisBuilder {
@@ -75,7 +75,6 @@ impl CausalAnalysisBuilder {
             refute: RefuteSuite::PlaceboAndRcc,
             bootstrap_replicates: 100,
             split: None,
-            variable_count: None,
         }
     }
 
@@ -147,13 +146,6 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Variable count for temporal unfolding (defaults to max id + 1 from query).
-    #[must_use]
-    pub fn variable_count(mut self, n: u32) -> Self {
-        self.variable_count = Some(n);
-        self
-    }
-
     /// Configure refutation suite (static path).
     #[must_use]
     pub fn refute(mut self, suite: RefuteSuite) -> Self {
@@ -181,7 +173,6 @@ impl CausalAnalysisBuilder {
             refute: self.refute,
             bootstrap_replicates: self.bootstrap_replicates,
             split: self.split,
-            variable_count: self.variable_count,
         })
     }
 }
@@ -195,7 +186,6 @@ pub struct CausalAnalysis {
     refute: RefuteSuite,
     bootstrap_replicates: u32,
     split: Option<DiscoveryEstimationSplit>,
-    variable_count: Option<u32>,
 }
 
 impl CausalAnalysis {
@@ -205,22 +195,55 @@ impl CausalAnalysis {
         CausalAnalysisBuilder::new()
     }
 
+    /// Compile logical plan only (inspectable semantics).
+    ///
+    /// # Errors
+    ///
+    /// Modality / query validation failures. Does not run discovery.
+    pub fn compile_logical(&self) -> Result<LogicalAnalysisPlan, AnalysisError> {
+        self.ensure_supported_combination()?;
+        match (&self.data, &self.query, &self.graph) {
+            (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Static(graph)) => {
+                compile_logical_static_ate(StaticAteCompileInput {
+                    data,
+                    graph,
+                    query: q,
+                    validation_suite: self.validation_suite_id(),
+                })
+            }
+            (
+                DataInput::Temporal(data),
+                CausalQuery::TemporalEffect(q),
+                GraphInput::Temporal(graph),
+            ) => compile_logical_temporal_effect(data, graph, q, self.split, false),
+            (
+                DataInput::Temporal(data),
+                CausalQuery::TemporalEffect(q),
+                GraphInput::DiscoverPcmci { .. },
+            ) => {
+                // Review usually required; logical metadata still inspectable.
+                compile_logical_temporal_effect(data, &TemporalDag::empty(), q, self.split, true)
+            }
+            _ => Err(AnalysisError::Unsupported {
+                message: "unsupported data/graph/query combination in Phase 3",
+            }),
+        }
+    }
+
     /// Compile logical → physical plan (or review-required).
     ///
     /// # Errors
     ///
     /// Modality / resource / discovery failures.
     pub fn compile(&self, ctx: &ExecutionContext) -> Result<CompiledAnalysis, AnalysisError> {
+        self.ensure_supported_combination()?;
         match (&self.data, &self.query, &self.graph) {
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Static(graph)) => {
                 let logical = compile_logical_static_ate(StaticAteCompileInput {
                     data,
                     graph,
                     query: q,
-                    validation_suite: match self.refute {
-                        RefuteSuite::None => None,
-                        RefuteSuite::PlaceboAndRcc => Some(Arc::from("placebo+rcc")),
-                    },
+                    validation_suite: self.validation_suite_id(),
                 })?;
                 let physical = logical.compile_physical(ctx)?;
                 Ok(CompiledAnalysis::Ready(physical))
@@ -233,7 +256,7 @@ impl CausalAnalysis {
                 let logical =
                     compile_logical_temporal_effect(data, graph, q, self.split, false)?;
                 ensure_review_complete(&logical)?;
-                let physical = logical.compile_physical(ctx)?;
+                let physical = logical.compile_physical_with_graph(ctx, Some(graph.clone()))?;
                 Ok(CompiledAnalysis::Ready(physical))
             }
             (
@@ -243,18 +266,28 @@ impl CausalAnalysis {
             ) => {
                 let review = run_pcmci_review(data, *max_lag, *alpha, *fdr, ctx)?;
                 if *accept_discovered {
-                    let pending = PendingGraphReview::new(
-                        review,
-                        data.row_count(),
-                        q.clone(),
-                        self.split,
-                    )
-                    .accept_all();
-                    pending.finish(data, ctx)
+                    PendingGraphReview::new(review, data.row_count(), q.clone(), self.split)
+                        .accept_all()
+                        .finish(data, ctx)
                 } else {
                     Ok(compile_review_required(review))
                 }
             }
+            _ => Err(AnalysisError::Unsupported {
+                message: "unsupported data/graph/query combination in Phase 3",
+            }),
+        }
+    }
+
+    fn validation_suite_id(&self) -> Option<Arc<str>> {
+        match self.refute {
+            RefuteSuite::None => None,
+            RefuteSuite::PlaceboAndRcc => Some(Arc::from("placebo+rcc")),
+        }
+    }
+
+    fn ensure_supported_combination(&self) -> Result<(), AnalysisError> {
+        match (&self.data, &self.query, &self.graph) {
             (DataInput::Tabular(_), CausalQuery::TemporalEffect(_), _) => {
                 Err(AnalysisError::Compile {
                     message: "temporal effect query requires temporal data".into(),
@@ -266,13 +299,13 @@ impl CausalAnalysis {
                         .into(),
                 })
             }
-            (_, _, GraphInput::DiscoverPcmci { .. }) => Err(AnalysisError::Compile {
-                message: "PCMCI discovery requires temporal data and a temporal effect query"
-                    .into(),
-            }),
-            _ => Err(AnalysisError::Unsupported {
-                message: "unsupported data/graph/query combination in Phase 3",
-            }),
+            (DataInput::Tabular(_), _, GraphInput::DiscoverPcmci { .. }) => {
+                Err(AnalysisError::Compile {
+                    message: "PCMCI discovery requires temporal data and a temporal effect query"
+                        .into(),
+                })
+            }
+            _ => Ok(()),
         }
     }
 
@@ -292,54 +325,21 @@ impl CausalAnalysis {
             });
         };
         ensure_review_complete(&physical.logical)?;
-        match (&self.data, &self.query, &self.graph) {
-            (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Static(graph)) => {
-                self.execute_static(data, graph, q, &physical.logical.record, &physical.record, ctx)
+        match (&self.data, &self.query) {
+            (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => {
+                let GraphInput::Static(graph) = &self.graph else {
+                    return Err(AnalysisError::Unsupported {
+                        message: "static ATE execute requires a supplied static DAG",
+                    });
+                };
+                self.execute_static(data, graph, q, physical, ctx)
             }
-            (
-                DataInput::Temporal(data),
-                CausalQuery::TemporalEffect(q),
-                GraphInput::Temporal(graph),
-            ) => self.execute_temporal(
-                data,
-                graph,
-                q,
-                &physical.logical.record,
-                &physical.record,
-                ctx,
-            ),
-            (
-                DataInput::Temporal(data),
-                CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmci { accept_discovered: true, .. },
-            ) => {
-                // Graph already accepted into Ready; recover TemporalDag from a fresh discovery
-                // with accept_all semantics — re-run PCMCI for the accepted graph.
-                let review = run_pcmci_review(
-                    data,
-                    match &self.graph {
-                        GraphInput::DiscoverPcmci { max_lag, .. } => *max_lag,
-                        _ => 1,
-                    },
-                    match &self.graph {
-                        GraphInput::DiscoverPcmci { alpha, .. } => *alpha,
-                        _ => 0.05,
-                    },
-                    match &self.graph {
-                        GraphInput::DiscoverPcmci { fdr, .. } => *fdr,
-                        _ => true,
-                    },
-                    ctx,
-                )?;
-                let graph = review.graph;
-                self.execute_temporal(
-                    data,
-                    &graph,
-                    q,
-                    &physical.logical.record,
-                    &physical.record,
-                    ctx,
-                )
+            (DataInput::Temporal(data), CausalQuery::TemporalEffect(q)) => {
+                let graph = physical.temporal_graph().ok_or(AnalysisError::Compile {
+                    message: "Ready temporal plan missing resolved graph (complete review first)"
+                        .into(),
+                })?;
+                self.execute_temporal(data, graph, q, physical, ctx)
             }
             _ => Err(AnalysisError::Unsupported {
                 message: "execute path unsupported for this configuration",
@@ -377,23 +377,10 @@ impl CausalAnalysis {
                 message: "finish_review_and_run requires temporal effect query".into(),
             });
         };
-        let pending =
-            PendingGraphReview::new(review, data.row_count(), q.clone(), self.split).accept_all();
-        let graph = pending.graph().clone();
-        let compiled = pending.finish(data, ctx)?;
-        let CompiledAnalysis::Ready(physical) = &compiled else {
-            return Err(AnalysisError::ReviewRequired {
-                message: "review finish did not produce Ready".into(),
-            });
-        };
-        self.execute_temporal(
-            data,
-            &graph,
-            q,
-            &physical.logical.record,
-            &physical.record,
-            ctx,
-        )
+        let compiled = PendingGraphReview::new(review, data.row_count(), q.clone(), self.split)
+            .accept_all()
+            .finish(data, ctx)?;
+        self.execute(&compiled, ctx)
     }
 
     fn execute_static(
@@ -401,8 +388,7 @@ impl CausalAnalysis {
         data: &TabularData,
         graph: &Dag,
         query: &AverageEffectQuery,
-        logical: &causal_core::LogicalAnalysisPlanRecord,
-        physical: &causal_core::PhysicalExecutionPlanRecord,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, AnalysisError> {
         let identifier = BackdoorIdentifier::new();
@@ -447,37 +433,33 @@ impl CausalAnalysis {
             }
         };
 
-        let mut provenance = ProvenanceGraph::new();
-        provenance.push(ProvenanceNode {
-            artifact_id: Arc::from("identify.backdoor"),
-            operation: Arc::from("identify.backdoor"),
-            parents: Arc::from([]),
-            assumptions: identification.required_assumptions.clone(),
-            library_version: Arc::from(VERSION),
-            config_digest: Some(Arc::from("phase3")),
-        });
-        provenance.push(ProvenanceNode {
-            artifact_id: Arc::from("estimate.linear_adjustment"),
-            operation: Arc::from("estimate.linear_adjustment_ate"),
-            parents: Arc::from([Arc::from("identify.backdoor")]),
-            assumptions: estimate.assumptions.clone(),
-            library_version: Arc::from(VERSION),
-            config_digest: Some(Arc::from("phase3")),
-        });
+        let provenance = provenance_pair(
+            (
+                "identify.backdoor",
+                "identify.backdoor",
+                &[],
+                &identification.required_assumptions,
+            ),
+            (
+                "estimate.linear_adjustment",
+                "estimate.linear_adjustment_ate",
+                &["identify.backdoor"],
+                &estimate.assumptions,
+            ),
+        );
 
-        Ok(CausalAnalysisResult {
-            logical_plan: logical.clone(),
-            physical_plan: physical.clone(),
+        Ok(assemble_result(AssembleArgs {
+            logical: &physical.logical.record,
+            physical: &physical.record,
             identification,
             estimand,
             estimate,
             refutations,
             diagnostics,
             provenance,
-            performance: ExecutionPerformanceRecord::default(),
             treatment: query.treatment,
             outcome: query.outcome,
-        })
+        }))
     }
 
     fn execute_temporal(
@@ -485,14 +467,9 @@ impl CausalAnalysis {
         data: &TimeSeriesData,
         graph: &TemporalDag,
         query: &TemporalEffectQuery,
-        logical: &causal_core::LogicalAnalysisPlanRecord,
-        physical: &causal_core::PhysicalExecutionPlanRecord,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, AnalysisError> {
-        let n_vars = self.variable_count.unwrap_or_else(|| {
-            query.treatment.raw().max(query.outcome.raw()).saturating_add(1)
-        });
-        let _ = n_vars;
         let id_res = TemporalBackdoorIdentifier::new()
             .identify_temporal(graph, query)
             .map_err(|e| AnalysisError::Identify(e.to_string()))?;
@@ -517,38 +494,82 @@ impl CausalAnalysis {
             .fit(&prep, &mut workspace, ctx, identification.required_assumptions.clone())
             .map_err(|e| AnalysisError::Estimate(e.to_string()))?;
 
-        let mut provenance = ProvenanceGraph::new();
-        provenance.push(ProvenanceNode {
-            artifact_id: Arc::from("identify.temporal_backdoor"),
-            operation: Arc::from("identify.temporal.backdoor.unfolded"),
-            parents: Arc::from([]),
-            assumptions: identification.required_assumptions.clone(),
-            library_version: Arc::from(VERSION),
-            config_digest: Some(Arc::from("phase3")),
-        });
-        provenance.push(ProvenanceNode {
-            artifact_id: Arc::from("estimate.temporal_linear_adjustment"),
-            operation: Arc::from("estimate.temporal.linear.adjustment"),
-            parents: Arc::from([Arc::from("identify.temporal_backdoor")]),
-            assumptions: estimate.assumptions.clone(),
-            library_version: Arc::from(VERSION),
-            config_digest: Some(Arc::from("phase3")),
-        });
+        let provenance = provenance_pair(
+            (
+                "identify.temporal_backdoor",
+                "identify.temporal.backdoor.unfolded",
+                &[],
+                &identification.required_assumptions,
+            ),
+            (
+                "estimate.temporal_linear_adjustment",
+                "estimate.temporal.linear.adjustment",
+                &["identify.temporal_backdoor"],
+                &estimate.assumptions,
+            ),
+        );
 
-        Ok(CausalAnalysisResult {
-            logical_plan: logical.clone(),
-            physical_plan: physical.clone(),
+        Ok(assemble_result(AssembleArgs {
+            logical: &physical.logical.record,
+            physical: &physical.record,
             identification,
             estimand,
             estimate,
             refutations: Vec::new(),
             diagnostics: Vec::new(),
             provenance,
-            performance: ExecutionPerformanceRecord::default(),
             treatment: query.treatment,
             outcome: query.outcome,
-        })
+        }))
     }
+}
+
+struct AssembleArgs<'a> {
+    logical: &'a LogicalAnalysisPlanRecord,
+    physical: &'a PhysicalExecutionPlanRecord,
+    identification: causal_identify::IdentificationResult,
+    estimand: IdentifiedEstimand,
+    estimate: EffectEstimate,
+    refutations: Vec<RefutationReport>,
+    diagnostics: Vec<Diagnostic>,
+    provenance: ProvenanceGraph,
+    treatment: VariableId,
+    outcome: VariableId,
+}
+
+fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
+    CausalAnalysisResult {
+        logical_plan: args.logical.clone(),
+        physical_plan: args.physical.clone(),
+        identification: args.identification,
+        estimand: args.estimand,
+        estimate: args.estimate,
+        refutations: args.refutations,
+        diagnostics: args.diagnostics,
+        provenance: args.provenance,
+        performance: ExecutionPerformanceRecord::default(),
+        treatment: args.treatment,
+        outcome: args.outcome,
+    }
+}
+
+type ProvStep<'a> = (&'a str, &'a str, &'a [&'a str], &'a AssumptionSet);
+
+fn provenance_pair(first: ProvStep<'_>, second: ProvStep<'_>) -> ProvenanceGraph {
+    let mut provenance = ProvenanceGraph::new();
+    for (artifact_id, operation, parents, assumptions) in [first, second] {
+        let parent_arcs: Arc<[Arc<str>]> =
+            parents.iter().map(|p| Arc::<str>::from(*p)).collect::<Vec<_>>().into();
+        provenance.push(ProvenanceNode {
+            artifact_id: Arc::from(artifact_id),
+            operation: Arc::from(operation),
+            parents: parent_arcs,
+            assumptions: assumptions.clone(),
+            library_version: Arc::from(VERSION),
+            config_digest: Some(Arc::from("phase3")),
+        });
+    }
+    provenance
 }
 
 fn run_pcmci_review(

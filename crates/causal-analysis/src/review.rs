@@ -74,7 +74,7 @@ impl PendingGraphReview {
         self
     }
 
-    /// Finish review into a compiled Ready plan.
+    /// Finish review into a compiled Ready plan carrying the accepted graph.
     ///
     /// # Errors
     ///
@@ -100,7 +100,8 @@ impl PendingGraphReview {
             self.split,
             false,
         )?;
-        let physical = logical.compile_physical(ctx)?;
+        let physical =
+            logical.compile_physical_with_graph(ctx, Some(self.review.graph.clone()))?;
         Ok(CompiledAnalysis::Ready(physical))
     }
 
@@ -144,7 +145,7 @@ pub fn compile_temporal_with_graph(
     ctx: &ExecutionContext,
 ) -> Result<CompiledAnalysis, AnalysisError> {
     let logical = compile_logical_temporal_effect(data, graph, query, split, false)?;
-    let physical = logical.compile_physical(ctx)?;
+    let physical = logical.compile_physical_with_graph(ctx, Some(graph.clone()))?;
     Ok(CompiledAnalysis::Ready(physical))
 }
 
@@ -203,6 +204,7 @@ mod tests {
                     1.0,
                 )),
                 split: None,
+                row_count_hint: 100,
             }),
             Err(AnalysisError::ReviewRequired { .. })
         ));
