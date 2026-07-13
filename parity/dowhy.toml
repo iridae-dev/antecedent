@@ -156,8 +156,8 @@ phase = 4
 id = "dowhy.estimate.two_stage"
 group = "estimation"
 description = "Two-stage regression"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase4"
 phase = 4
 
 [[capabilities]]

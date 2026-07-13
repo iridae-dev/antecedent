@@ -8,6 +8,7 @@
 pub mod adjustment;
 pub mod aipw;
 pub mod error;
+pub mod frontdoor;
 pub mod glm_adjustment;
 pub mod iv;
 pub mod propensity;
@@ -20,6 +21,7 @@ pub use adjustment::{
 };
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use error::EstimationError;
+pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use iv::{
     PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
