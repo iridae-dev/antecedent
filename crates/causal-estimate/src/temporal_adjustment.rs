@@ -159,7 +159,6 @@ impl TemporalLinearAdjustment {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let _ = ();
         self.inner.fit(problem, workspace, ctx, assumptions)
     }
 }
