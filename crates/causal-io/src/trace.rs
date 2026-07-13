@@ -108,7 +108,8 @@ fn scope_label(s: &AssumptionScope) -> String {
         AssumptionScope::Estimation => "estimation".into(),
         AssumptionScope::Discovery => "discovery".into(),
         AssumptionScope::Variables { variables } => {
-            format!("variables:{}", variables.len())
+            let ids: Vec<String> = variables.iter().map(|v| v.raw().to_string()).collect();
+            format!("variables:[{}]", ids.join(","))
         }
     }
 }

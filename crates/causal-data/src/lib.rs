@@ -15,6 +15,7 @@ pub mod column;
 pub mod dataset;
 pub mod error;
 pub mod materialize;
+pub mod selection;
 pub mod storage;
 pub mod table;
 pub mod temporal;

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use causal_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
 };
-use causal_data::{ColumnView, TableView, TabularData};
+use causal_data::TabularData;
 use causal_identify::IdentifiedEstimand;
 use causal_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
@@ -132,12 +132,25 @@ impl LinearAdjustmentAte {
             ));
         }
 
-        let row_mask = complete_case_mask(data, treatment, outcome, &estimand.adjustment_set)?;
-        let t = float_column_masked(data, treatment, &row_mask)?;
-        let y = float_column_masked(data, outcome, &row_mask)?;
+        let mut ids = Vec::with_capacity(2 + estimand.adjustment_set.len());
+        ids.push(treatment);
+        ids.push(outcome);
+        ids.extend_from_slice(&estimand.adjustment_set);
+        let row_mask =
+            data.complete_case_mask(&ids).map_err(|e| EstimationError::Data(e.to_string()))?;
+        let t = data
+            .float64_masked(treatment, &row_mask)
+            .map_err(|e| EstimationError::Data(e.to_string()))?;
+        let y = data
+            .float64_masked(outcome, &row_mask)
+            .map_err(|e| EstimationError::Data(e.to_string()))?;
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
-            covs.push((z, float_column_masked(data, z, &row_mask)?));
+            covs.push((
+                z,
+                data.float64_masked(z, &row_mask)
+                    .map_err(|e| EstimationError::Data(e.to_string()))?,
+            ));
         }
         let cov_refs: Vec<(VariableId, &[f64])> =
             covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
@@ -247,65 +260,6 @@ fn intervention_f64(intervention: &Intervention) -> Result<f64, EstimationError>
             "Phase 1 linear adjustment requires Set interventions".into(),
         )),
     }
-}
-
-fn complete_case_mask(
-    data: &TabularData,
-    treatment: VariableId,
-    outcome: VariableId,
-    adjustment: &[VariableId],
-) -> Result<Vec<bool>, EstimationError> {
-    let n = data.row_count();
-    let mut keep = vec![true; n];
-    if let Some(mask) = data.storage().analysis_mask() {
-        for (i, slot) in keep.iter_mut().enumerate() {
-            *slot = mask.is_valid(i);
-        }
-    }
-    let mut ids = Vec::with_capacity(2 + adjustment.len());
-    ids.push(treatment);
-    ids.push(outcome);
-    ids.extend_from_slice(adjustment);
-    for id in ids {
-        let col = data.column(id).map_err(|e| EstimationError::Data(e.to_string()))?;
-        let validity = match col {
-            ColumnView::Float64(c) => &c.validity,
-            ColumnView::Int64(c) => &c.validity,
-            ColumnView::Boolean(c) => &c.validity,
-            ColumnView::Categorical(c) => &c.validity,
-            ColumnView::Timestamp(c) => &c.validity,
-            ColumnView::FixedVector(c) => &c.validity,
-        };
-        for (i, slot) in keep.iter_mut().enumerate() {
-            if *slot && !validity.is_valid(i) {
-                *slot = false;
-            }
-        }
-    }
-    if !keep.iter().any(|k| *k) {
-        return Err(EstimationError::Data(
-            "no complete cases after validity/mask filtering".into(),
-        ));
-    }
-    Ok(keep)
-}
-
-fn float_column_masked(
-    data: &TabularData,
-    id: VariableId,
-    keep: &[bool],
-) -> Result<Vec<f64>, EstimationError> {
-    let col = data.column(id).map_err(|e| EstimationError::Data(e.to_string()))?;
-    let ColumnView::Float64(c) = col else {
-        return Err(EstimationError::Data(format!("variable {id} is not float64")));
-    };
-    let mut out = Vec::with_capacity(keep.iter().filter(|k| **k).count());
-    for (i, &k) in keep.iter().enumerate() {
-        if k {
-            out.push(c.values[i]);
-        }
-    }
-    Ok(out)
 }
 
 fn analytic_se_treatment(

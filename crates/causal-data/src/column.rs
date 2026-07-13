@@ -330,7 +330,7 @@ pub enum ColumnView<'a> {
     FixedVector(&'a FixedVectorColumn),
 }
 
-impl ColumnView<'_> {
+impl<'a> ColumnView<'a> {
     /// Variable id.
     #[must_use]
     pub fn id(self) -> VariableId {
@@ -361,6 +361,19 @@ impl ColumnView<'_> {
     #[must_use]
     pub fn is_empty(self) -> bool {
         self.len() == 0
+    }
+
+    /// Borrow the column validity bitmap.
+    #[must_use]
+    pub fn validity(self) -> &'a ValidityBitmap {
+        match self {
+            Self::Float64(c) => &c.validity,
+            Self::Int64(c) => &c.validity,
+            Self::Boolean(c) => &c.validity,
+            Self::Categorical(c) => &c.validity,
+            Self::Timestamp(c) => &c.validity,
+            Self::FixedVector(c) => &c.validity,
+        }
     }
 }
 

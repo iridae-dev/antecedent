@@ -120,8 +120,6 @@ mod tests {
             data: &data,
             estimand: &estimand,
             query: &query,
-            treatment: VariableId::from_raw(0),
-            outcome: VariableId::from_raw(1),
             original: &original,
         };
         let report = PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap();
@@ -145,8 +143,6 @@ mod tests {
             data: &data,
             estimand: &estimand,
             query: &query,
-            treatment: VariableId::from_raw(0),
-            outcome: VariableId::from_raw(1),
             original: &original,
         };
         let report = RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();

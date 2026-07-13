@@ -65,7 +65,7 @@ impl PlaceboTreatment {
             fill_gaussian(&mut placebo, ctx, 0xA7E0_0001_u64.wrapping_add(u64::from(r)));
             let data = with_replaced_float(
                 problem.data,
-                problem.treatment,
+                problem.treatment(),
                 Arc::<[f64]>::from(placebo.clone()),
             )?;
             let est =

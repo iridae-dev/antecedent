@@ -35,6 +35,11 @@ pub enum DataError {
         /// Explanation.
         message: &'static str,
     },
+    /// Row selection produced an empty sample.
+    EmptySelection {
+        /// Explanation.
+        context: &'static str,
+    },
     /// Underlying schema error.
     Schema(String),
 }
@@ -50,6 +55,7 @@ impl fmt::Display for DataError {
                 write!(f, "variable {id} is not of type {expected}")
             }
             Self::InvalidValidity { message } => write!(f, "invalid validity: {message}"),
+            Self::EmptySelection { context } => write!(f, "empty selection: {context}"),
             Self::Schema(msg) => write!(f, "schema error: {msg}"),
         }
     }

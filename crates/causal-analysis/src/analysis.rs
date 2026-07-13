@@ -245,14 +245,7 @@ fn run_refuters(
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<Vec<RefutationReport>, AnalysisError> {
-    let problem = RefutationProblem {
-        data,
-        estimand,
-        query,
-        treatment: query.treatment,
-        outcome: query.outcome,
-        original: estimate,
-    };
+    let problem = RefutationProblem { data, estimand, query, original: estimate };
     let placebo = PlaceboTreatment::new()
         .refute(&problem, workspace, ctx)
         .map_err(|e| AnalysisError::Validate(e.to_string()))?;

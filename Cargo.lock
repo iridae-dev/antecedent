@@ -214,6 +214,7 @@ dependencies = [
  "arrow-schema",
  "causal-core",
  "causal-kernels",
+ "serde_json",
 ]
 
 [[package]]

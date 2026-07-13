@@ -1,9 +1,12 @@
-"""Phase 0 gate: Python loads the same Arrow/float fixture with measured copy.
+"""Phase 0 gate: Python loads the shared Arrow/float fixture with measured copy.
 
-Values match crates/causal-data/tests/arrow_copy_gate.rs.
+Fixture: conformance/gates/arrow_copy_fixture.json (shared with Rust).
 """
 
 from __future__ import annotations
+
+import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -11,16 +14,17 @@ import pytest
 pytest.importorskip("causal")
 import causal
 
+FIXTURE = (
+    Path(__file__).resolve().parents[2] / "conformance" / "gates" / "arrow_copy_fixture.json"
+)
+
 
 def test_arrow_load_reports_measured_copy():
-    names = ["t", "y", "z"]
-    columns = [
-        np.array([0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0], dtype=np.float64),
-        np.array([1.0, 3.0, 1.5, 3.5, 2.0, 4.0, 2.5, 4.5], dtype=np.float64),
-        np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8], dtype=np.float64),
-    ]
+    payload = json.loads(FIXTURE.read_text())
+    names = list(payload["column_names"])
+    columns = [np.asarray(payload["columns"][name], dtype=np.float64) for name in names]
     info = causal.load_float64_columns(names, columns)
-    assert info.row_count == 8
-    assert info.column_count == 3
+    assert info.row_count == payload["row_count"]
+    assert info.column_count == len(names)
     assert info.bytes_copied > 0
     assert info.diagnostic_count > 0

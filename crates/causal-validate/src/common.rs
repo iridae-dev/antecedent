@@ -4,13 +4,8 @@
 
 use std::sync::Arc;
 
-use causal_core::{
-    AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-    SmallRoleSet, ValueType, VariableId,
-};
-use causal_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
-};
+use causal_core::{AverageEffectQuery, ExecutionContext, VariableId};
+use causal_data::TabularData;
 use causal_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte};
 use causal_identify::IdentifiedEstimand;
 
@@ -46,106 +41,40 @@ pub struct RefutationProblem<'a> {
     pub estimand: &'a IdentifiedEstimand,
     /// Average-effect query (levels / population).
     pub query: &'a AverageEffectQuery,
-    /// Treatment.
-    pub treatment: VariableId,
-    /// Outcome.
-    pub outcome: VariableId,
     /// Original point estimate.
     pub original: &'a EffectEstimate,
 }
 
-/// Extract a float64 column as owned values.
-pub(crate) fn float_col(data: &TabularData, id: VariableId) -> Result<Vec<f64>, ValidationError> {
-    data.float64_values(id).map_err(|e| ValidationError::Data(e.to_string()))
+impl RefutationProblem<'_> {
+    /// Treatment variable from the query.
+    #[must_use]
+    pub fn treatment(&self) -> VariableId {
+        self.query.treatment
+    }
+
+    /// Outcome variable from the query.
+    #[must_use]
+    pub fn outcome(&self) -> VariableId {
+        self.query.outcome
+    }
 }
 
-/// Rebuild tabular data replacing one float column.
-#[allow(clippy::needless_pass_by_value)]
+/// Rebuild tabular data replacing one float column (preserves mask/weights/other columns).
 pub(crate) fn with_replaced_float(
     data: &TabularData,
     id: VariableId,
     values: Arc<[f64]>,
 ) -> Result<TabularData, ValidationError> {
-    let schema = data.schema().clone();
-    let n = data.row_count();
-    if values.len() != n {
-        return Err(ValidationError::Data("replacement length mismatch".into()));
-    }
-    let mut cols = Vec::with_capacity(schema.len());
-    for v in schema.variables() {
-        if v.id == id {
-            cols.push(OwnedColumn::Float64(
-                Float64Column::new(v.id, Arc::clone(&values), ValidityBitmap::all_valid(n))
-                    .map_err(|e| ValidationError::Data(e.to_string()))?,
-            ));
-        } else {
-            let existing = float_col(data, v.id)?;
-            cols.push(OwnedColumn::Float64(
-                Float64Column::new(
-                    v.id,
-                    Arc::<[f64]>::from(existing),
-                    ValidityBitmap::all_valid(n),
-                )
-                .map_err(|e| ValidationError::Data(e.to_string()))?,
-            ));
-        }
-    }
-    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None)
-        .map_err(|e| ValidationError::Data(e.to_string()))?;
-    Ok(TabularData::new(storage))
+    data.with_replaced_float(id, values).map_err(|e| ValidationError::Data(e.to_string()))
 }
 
 /// Append an independent continuous covariate; returns new data and its id.
-#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn with_extra_float(
     data: &TabularData,
     name: &str,
     values: Arc<[f64]>,
 ) -> Result<(TabularData, VariableId), ValidationError> {
-    let n = data.row_count();
-    if values.len() != n {
-        return Err(ValidationError::Data("extra column length mismatch".into()));
-    }
-    let mut builder = CausalSchemaBuilder::new();
-    for v in data.schema().variables() {
-        builder
-            .add_variable(
-                Arc::clone(&v.name),
-                v.value_type.clone(),
-                v.role_hints,
-                v.unit.clone(),
-                v.category_domain,
-                v.measurement.clone(),
-            )
-            .map_err(|e| ValidationError::Data(e.to_string()))?;
-    }
-    builder
-        .add_variable(
-            name,
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .map_err(|e| ValidationError::Data(e.to_string()))?;
-    let schema = builder.build().map_err(|e| ValidationError::Data(e.to_string()))?;
-    let new_id = VariableId::from_raw(u32::try_from(schema.len() - 1).expect("schema sized"));
-    let mut cols = Vec::with_capacity(schema.len());
-    for v in data.schema().variables() {
-        let existing = float_col(data, v.id)?;
-        cols.push(OwnedColumn::Float64(
-            Float64Column::new(v.id, Arc::<[f64]>::from(existing), ValidityBitmap::all_valid(n))
-                .map_err(|e| ValidationError::Data(e.to_string()))?,
-        ));
-    }
-    cols.push(OwnedColumn::Float64(
-        Float64Column::new(new_id, values, ValidityBitmap::all_valid(n))
-            .map_err(|e| ValidationError::Data(e.to_string()))?,
-    ));
-    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None)
-        .map_err(|e| ValidationError::Data(e.to_string()))?;
-    Ok((TabularData::new(storage), new_id))
+    data.with_appended_float(name, values).map_err(|e| ValidationError::Data(e.to_string()))
 }
 
 /// Fit linear adjustment once (no nested bootstrap pools).

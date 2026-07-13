@@ -87,6 +87,12 @@ impl OwnedColumnarStorage {
     pub fn weights(&self) -> Option<&[f64]> {
         self.weights.as_deref()
     }
+
+    /// Borrow owned columns in dense id order.
+    #[must_use]
+    pub fn columns(&self) -> &[OwnedColumn] {
+        &self.columns
+    }
 }
 
 impl TableView for OwnedColumnarStorage {

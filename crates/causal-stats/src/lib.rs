@@ -17,6 +17,6 @@ pub use design::{CompiledDesign, DesignColumnRole};
 pub use error::StatsError;
 #[cfg(feature = "faer")]
 pub use faer_backend::FaerBackend;
-pub use glm::{GlmFamily, GlmFit, fit_glm};
+pub use glm::{GlmDesignRef, GlmFamily, GlmFit, GlmOptions, fit_glm};
 pub use gram::{form_xtx, invert_square};
 pub use linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
