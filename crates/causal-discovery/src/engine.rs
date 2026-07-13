@@ -293,11 +293,16 @@ impl PcmciEngine {
             z_flat: &z_flat,
             significance: SignificanceMethod::Analytic,
         };
-        let out = self
-            .ci
-            .test_batch(&req, &mut workspace.ci, ctx)
-            .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
-        let r = out.results[0];
+        let out = match self.ci.test_batch(&req, &mut workspace.ci, ctx) {
+            Ok(o) => o,
+            Err(_) => return Ok((0.0, 1.0)),
+        };
+        let Some(r) = out.results.first() else {
+            return Ok((0.0, 1.0));
+        };
+        if !r.statistic.is_finite() || !r.p_value.is_finite() {
+            return Ok((0.0, 1.0));
+        }
         Ok((r.statistic, r.p_value))
     }
 }

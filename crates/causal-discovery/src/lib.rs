@@ -8,11 +8,13 @@
 pub mod constraints;
 pub mod engine;
 pub mod error;
+pub mod pcmci;
 pub mod result;
 
 pub use constraints::{DiscoveryConstraints, TemporalConstraints};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
+pub use pcmci::Pcmci;
 pub use result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
     DiscoveryResult, GraphEvidence, LaggedLink, ScoredLink,
