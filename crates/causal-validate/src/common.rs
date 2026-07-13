@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use causal_core::{
-    CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    VariableId,
+    AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
+    SmallRoleSet, ValueType, VariableId,
 };
 use causal_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
@@ -44,6 +44,8 @@ pub struct RefutationProblem<'a> {
     pub data: &'a TabularData,
     /// Identified estimand (backdoor adjustment).
     pub estimand: &'a IdentifiedEstimand,
+    /// Average-effect query (levels / population).
+    pub query: &'a AverageEffectQuery,
     /// Treatment.
     pub treatment: VariableId,
     /// Outcome.
@@ -151,13 +153,12 @@ pub(crate) fn fit_once(
     estimator: &LinearAdjustmentAte,
     data: &TabularData,
     estimand: &IdentifiedEstimand,
-    treatment: VariableId,
-    outcome: VariableId,
+    query: &AverageEffectQuery,
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
     let prep = estimator
-        .prepare(data, estimand, treatment, outcome)
+        .prepare(data, estimand, query)
         .map_err(|e| ValidationError::Estimation(e.to_string()))?;
     estimator
         .fit(&prep, workspace, ctx, causal_core::AssumptionSet::new())

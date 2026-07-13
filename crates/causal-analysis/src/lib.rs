@@ -98,7 +98,8 @@ mod tests {
         dag.insert_directed(z_id, t_id).unwrap();
         dag.insert_directed(z_id, y_id).unwrap();
         dag.insert_directed(t_id, y_id).unwrap();
-        let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         (TabularData::new(storage), dag, query)
     }
 

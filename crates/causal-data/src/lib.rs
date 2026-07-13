@@ -26,7 +26,8 @@ pub use categorical::{
     ContrastMatrix, UnknownCategoryPolicy, compile_contrast_matrix,
 };
 pub use column::{
-    BooleanColumn, ColumnView, Float64Column, Int64Column, OwnedColumn, ValidityBitmap,
+    BooleanColumn, ColumnView, FixedVectorColumn, Float64Column, Int64Column, OwnedColumn,
+    TimestampColumn, ValidityBitmap,
 };
 pub use dataset::{TabularData, TimeSeriesData};
 pub use error::DataError;

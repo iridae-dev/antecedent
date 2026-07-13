@@ -69,13 +69,15 @@ fn columns_to_batch(
             return Err(PyValueError::new_err("column length mismatch"));
         }
     }
-    let fields: Vec<Field> = names.iter().map(|nm| Field::new(nm, DataType::Float64, true)).collect();
+    let fields: Vec<Field> =
+        names.iter().map(|nm| Field::new(nm, DataType::Float64, true)).collect();
     let schema = Schema::new(fields);
+    // Contiguous copy from NumPy buffers (no Option-per-element intermediate).
     let arrays: Vec<Arc<dyn arrow_array::Array>> = columns
         .iter()
         .map(|c| {
             let slice = c.as_array();
-            let values: Vec<Option<f64>> = slice.iter().copied().map(Some).collect();
+            let values: Vec<f64> = slice.iter().copied().collect();
             Arc::new(Float64Array::from(values)) as Arc<dyn arrow_array::Array>
         })
         .collect();
@@ -102,10 +104,11 @@ fn load_float64_columns(
 /// Run static ATE: identify (backdoor) → linear estimate → optional refute.
 ///
 /// Crosses the Python boundary once: NumPy columns + edge list in, structured
-/// summary out. No per-row callbacks.
+/// summary out. No per-row callbacks. Releases the GIL during native work.
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, treatment, outcome, *, refute=true, seed=1, bootstrap=50))]
 fn analyze_ate(
+    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
     edges: Vec<(String, String)>,
@@ -116,79 +119,73 @@ fn analyze_ate(
     bootstrap: u32,
 ) -> PyResult<AteAnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
-    let loaded =
-        tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let data = loaded.data;
-    let t_id = data
-        .schema()
-        .id_of(&treatment)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let y_id = data
-        .schema()
-        .id_of(&outcome)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    // Drop NumPy borrows before releasing the GIL.
+    drop(columns);
 
-    let n_vars = u32::try_from(data.schema().len())
-        .map_err(|_| PyValueError::new_err("too many variables"))?;
-    let mut dag = Dag::with_variables(n_vars);
-    for (from, to) in &edges {
-        let from_id = data
-            .schema()
-            .id_of(from)
-            .map_err(|e| PyValueError::new_err(format!("edge from: {e}")))?;
-        let to_id = data
-            .schema()
-            .id_of(to)
-            .map_err(|e| PyValueError::new_err(format!("edge to: {e}")))?;
-        dag.insert_directed(
-            DenseNodeId::from_raw(from_id.raw()),
-            DenseNodeId::from_raw(to_id.raw()),
-        )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    }
+    py.allow_threads(move || {
+        let loaded =
+            tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let data = loaded.data;
+        let t_id =
+            data.schema().id_of(&treatment).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let y_id =
+            data.schema().id_of(&outcome).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-    let query = AverageEffectQuery::binary_ate(t_id, y_id);
-    let suite = if refute {
-        RefuteSuite::PlaceboAndRcc
-    } else {
-        RefuteSuite::None
-    };
-    let analysis = CausalAnalysis::builder()
-        .data(data)
-        .graph(dag)
-        .query(query)
-        .refute(suite)
-        .bootstrap_replicates(bootstrap)
-        .build()
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let ctx = ExecutionContext::for_tests(seed);
-    let result = analysis.run(&ctx).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut dag = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data
+                .schema()
+                .id_of(from)
+                .map_err(|e| PyValueError::new_err(format!("edge from: {e}")))?;
+            let to_id = data
+                .schema()
+                .id_of(to)
+                .map_err(|e| PyValueError::new_err(format!("edge to: {e}")))?;
+            dag.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        }
 
-    let adjustment_set: Vec<String> = result
-        .estimand
-        .adjustment_set
-        .iter()
-        .map(|id| {
-            names
-                .get(id.as_usize())
-                .cloned()
-                .unwrap_or_else(|| format!("var{}", id.raw()))
+        let query = AverageEffectQuery::binary_ate(t_id, y_id);
+        let suite = if refute { RefuteSuite::PlaceboAndRcc } else { RefuteSuite::None };
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(dag)
+            .query(query)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let ctx = ExecutionContext::for_tests(seed);
+        let result = analysis.run(&ctx).map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+        let adjustment_set: Vec<String> = result
+            .estimand
+            .adjustment_set
+            .iter()
+            .map(|id| {
+                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
+            })
+            .collect();
+
+        let refutation_passed =
+            result.refutations.is_empty() || result.refutations.iter().all(|r| r.passed);
+
+        Ok(AteAnalysisResult {
+            ate: result.estimate.ate,
+            se_analytic: result.estimate.se_analytic,
+            se_bootstrap: result.estimate.se_bootstrap,
+            adjustment_set,
+            identification_status: format!("{:?}", result.identification.status),
+            refutation_passed,
+            refutation_count: result.refutations.len(),
+            assumption_count: result.estimate.assumptions.len(),
+            derivation_step_count: result.identification.derivation.steps.len(),
         })
-        .collect();
-
-    let refutation_passed =
-        result.refutations.is_empty() || result.refutations.iter().all(|r| r.passed);
-
-    Ok(AteAnalysisResult {
-        ate: result.estimate.ate,
-        se_analytic: result.estimate.se_analytic,
-        se_bootstrap: result.estimate.se_bootstrap,
-        adjustment_set,
-        identification_status: format!("{:?}", result.identification.status),
-        refutation_passed,
-        refutation_count: result.refutations.len(),
-        assumption_count: result.estimate.assumptions.len(),
-        derivation_step_count: result.identification.derivation.steps.len(),
     })
 }
 

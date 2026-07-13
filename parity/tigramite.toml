@@ -13,7 +13,7 @@ id = "tigramite.data.dataframe"
 group = "data_processing"
 description = "Dataframe-equivalent temporal data abstraction"
 status = "pending"
-owner = ""
+owner = "data-kernel-stats"
 phase = 0
 
 [[capabilities]]
@@ -21,7 +21,7 @@ id = "tigramite.data.masks"
 group = "data_processing"
 description = "Masks and missing flags"
 status = "pending"
-owner = ""
+owner = "data-kernel-stats"
 phase = 0
 
 [[capabilities]]
@@ -45,7 +45,7 @@ id = "tigramite.data.vector_variables"
 group = "data_processing"
 description = "Vector variables"
 status = "pending"
-owner = ""
+owner = "data-kernel-stats"
 phase = 0
 
 [[capabilities]]
@@ -205,7 +205,7 @@ id = "tigramite.graphs.ts_graph"
 group = "graphs"
 description = "Time-series graph representations and stationarity"
 status = "pending"
-owner = ""
+owner = "data-kernel-stats"
 phase = 0
 
 [[capabilities]]

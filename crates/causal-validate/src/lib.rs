@@ -21,8 +21,8 @@ mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        AssumptionSet, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-        SmallRoleSet, ValueType, VariableId,
+        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
+        RoleHint, SmallRoleSet, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -108,9 +108,9 @@ mod tests {
         let (data, estimand, _) = toy_confounded();
         let mut est = LinearAdjustmentAte::new();
         est.bootstrap_replicates = 0;
-        let prep = est
-            .prepare(&data, &estimand, VariableId::from_raw(0), VariableId::from_raw(1))
-            .unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(7);
         let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
@@ -119,6 +119,7 @@ mod tests {
         let problem = RefutationProblem {
             data: &data,
             estimand: &estimand,
+            query: &query,
             treatment: VariableId::from_raw(0),
             outcome: VariableId::from_raw(1),
             original: &original,
@@ -133,9 +134,9 @@ mod tests {
         let (data, estimand, _) = toy_confounded();
         let mut est = LinearAdjustmentAte::new();
         est.bootstrap_replicates = 0;
-        let prep = est
-            .prepare(&data, &estimand, VariableId::from_raw(0), VariableId::from_raw(1))
-            .unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(11);
         let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
@@ -143,6 +144,7 @@ mod tests {
         let problem = RefutationProblem {
             data: &data,
             estimand: &estimand,
+            query: &query,
             treatment: VariableId::from_raw(0),
             outcome: VariableId::from_raw(1),
             original: &original,

@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::cast_precision_loss)]
+
 use std::sync::Arc;
 
 use causal_core::CategoryDomainId;
@@ -249,14 +251,15 @@ impl ContrastMatrix {
     }
 }
 
-/// Compile a contrast into a design matrix for valid rows (Phase 0 helper).
+/// Compile a contrast into a design matrix for valid rows.
 ///
-/// Full design-matrix compilation for estimators is Phase 1; this builds the
-/// contrast matrix itself for `Treatment` / `FullRankIndicator` / `Custom`.
+/// Builds the contrast matrix for all contrast variants used by Phase 0/1 design
+/// compilation (`Treatment`, `SumToZero`, `Helmert`, `Polynomial`,
+/// `FullRankIndicator`, `Custom`).
 ///
 /// # Errors
 ///
-/// Unsupported contrast variant or invalid reference.
+/// Unsupported domain/contrast combination or invalid reference.
 pub fn compile_contrast_matrix(
     domain: &CategoryDomain,
     contrast: &Contrast,
@@ -298,12 +301,71 @@ pub fn compile_contrast_matrix(
             }
             Ok(m.clone())
         }
-        Contrast::SumToZero | Contrast::Helmert | Contrast::Polynomial => {
-            Err(DataError::InvalidValidity {
-                message: "contrast variant deferred to Phase 1 design compilation",
-            })
+        Contrast::SumToZero => {
+            // k levels → k-1 columns; last level is -1 on every column.
+            let cols = k - 1;
+            let mut values = vec![0.0; k * cols];
+            for c in 0..cols {
+                values[c + c * k] = 1.0;
+                values[(k - 1) + c * k] = -1.0;
+            }
+            ContrastMatrix::try_new(k, cols, values)
+        }
+        Contrast::Helmert => {
+            // Forward Helmert: each column contrasts a level with the mean of subsequent levels.
+            let cols = k - 1;
+            let mut values = vec![0.0; k * cols];
+            for c in 0..cols {
+                let remaining = k - c;
+                let weight = 1.0 / remaining as f64;
+                values[c + c * k] = 1.0 - weight;
+                for r in (c + 1)..k {
+                    values[r + c * k] = -weight;
+                }
+            }
+            ContrastMatrix::try_new(k, cols, values)
+        }
+        Contrast::Polynomial => {
+            if !domain.ordered {
+                return Err(DataError::InvalidValidity {
+                    message: "polynomial contrasts require an ordered domain",
+                });
+            }
+            // Orthogonal polynomial contrasts on equally spaced scores 1..=k.
+            let cols = k - 1;
+            let mut raw = vec![0.0; k * cols];
+            for c in 0..cols {
+                let degree = c + 1;
+                for r in 0..k {
+                    let x = (r + 1) as f64;
+                    raw[r + c * k] = poly_score(x, degree, k);
+                }
+                // Center and normalize for numerical stability.
+                let mean: f64 = (0..k).map(|r| raw[r + c * k]).sum::<f64>() / k as f64;
+                for r in 0..k {
+                    raw[r + c * k] -= mean;
+                }
+                let norm: f64 = (0..k).map(|r| raw[r + c * k].powi(2)).sum::<f64>().sqrt();
+                if norm > 0.0 {
+                    for r in 0..k {
+                        raw[r + c * k] /= norm;
+                    }
+                }
+            }
+            ContrastMatrix::try_new(k, cols, raw)
         }
     }
+}
+
+/// Monomial score for polynomial contrast construction (degree ≥ 1).
+fn poly_score(x: f64, degree: usize, k: usize) -> f64 {
+    let center = (k as f64 + 1.0) / 2.0;
+    let z = x - center;
+    let mut v = 1.0;
+    for _ in 0..degree {
+        v *= z;
+    }
+    v
 }
 
 #[cfg(test)]
@@ -337,6 +399,38 @@ mod tests {
         )
         .unwrap();
         assert_eq!(m.n_levels, 3);
+        assert_eq!(m.n_columns, 2);
+    }
+
+    #[test]
+    fn sum_to_zero_and_helmert_shapes() {
+        let d = domain();
+        let s = compile_contrast_matrix(&d, &Contrast::SumToZero).unwrap();
+        assert_eq!((s.n_levels, s.n_columns), (3, 2));
+        let h = compile_contrast_matrix(&d, &Contrast::Helmert).unwrap();
+        assert_eq!((h.n_levels, h.n_columns), (3, 2));
+    }
+
+    #[test]
+    fn polynomial_requires_ordered_domain() {
+        let d = domain();
+        let err = compile_contrast_matrix(&d, &Contrast::Polynomial).unwrap_err();
+        assert!(matches!(err, DataError::InvalidValidity { .. }));
+        let ordered = Arc::new(
+            CategoryDomain::try_new(
+                CategoryDomainId::from_raw(0),
+                Arc::<[CategoryLevel]>::from(vec![
+                    CategoryLevel { label: Arc::from("a") },
+                    CategoryLevel { label: Arc::from("b") },
+                    CategoryLevel { label: Arc::from("c") },
+                ]),
+                true,
+                Some(CategoryCode::from_raw(0)),
+                UnknownCategoryPolicy::Fail,
+            )
+            .unwrap(),
+        );
+        let m = compile_contrast_matrix(&ordered, &Contrast::Polynomial).unwrap();
         assert_eq!(m.n_columns, 2);
     }
 

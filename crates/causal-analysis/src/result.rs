@@ -3,8 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal_core::{
-    Diagnostic, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord,
-    PhysicalExecutionPlanRecord, ProvenanceGraph, VariableId,
+    Diagnostic, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
+    ProvenanceGraph, VariableId,
 };
 use causal_estimate::EffectEstimate;
 use causal_identify::{IdentificationResult, IdentifiedEstimand};

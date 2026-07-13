@@ -18,12 +18,14 @@ pub enum EstimationError {
         /// Message.
         message: &'static str,
     },
+    /// Query options unsupported by this estimator.
+    UnsupportedQuery(String),
 }
 
 impl fmt::Display for EstimationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Data(m) | Self::Stats(m) => write!(f, "{m}"),
+            Self::Data(m) | Self::Stats(m) | Self::UnsupportedQuery(m) => write!(f, "{m}"),
             Self::Overlap { message } | Self::IncompatibleEstimand { message } => {
                 write!(f, "{message}")
             }

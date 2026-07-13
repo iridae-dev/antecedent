@@ -13,14 +13,10 @@ use causal_core::{
     ProvenanceNode, VERSION,
 };
 use causal_data::TabularData;
-use causal_estimate::{
-    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
-};
+use causal_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy};
 use causal_graph::Dag;
 use causal_identify::{BackdoorIdentifier, IdentificationStatus, IdentifiedEstimand};
-use causal_validate::{
-    PlaceboTreatment, RandomCommonCause, RefutationProblem, RefutationReport,
-};
+use causal_validate::{PlaceboTreatment, RandomCommonCause, RefutationProblem, RefutationReport};
 
 use crate::error::AnalysisError;
 use crate::result::CausalAnalysisResult;
@@ -166,9 +162,8 @@ impl CausalAnalysis {
         };
 
         let identifier = BackdoorIdentifier::new();
-        let prepared = identifier
-            .prepare(&self.graph)
-            .map_err(|e| AnalysisError::Identify(e.to_string()))?;
+        let prepared =
+            identifier.prepare(&self.graph).map_err(|e| AnalysisError::Identify(e.to_string()))?;
         let identification = identifier
             .identify(&prepared, &CausalQuery::AverageEffect(self.query.clone()))
             .map_err(|e| AnalysisError::Identify(e.to_string()))?;
@@ -186,16 +181,11 @@ impl CausalAnalysis {
         estimator.bootstrap_replicates = self.bootstrap_replicates;
         estimator.overlap = OverlapPolicy::ExplicitOverride;
         let prep = estimator
-            .prepare(&self.data, &estimand, self.query.treatment, self.query.outcome)
+            .prepare(&self.data, &estimand, &self.query)
             .map_err(|e| AnalysisError::Estimate(e.to_string()))?;
         let mut workspace = EstimationWorkspace::default();
         let estimate = estimator
-            .fit(
-                &prep,
-                &mut workspace,
-                ctx,
-                identification.required_assumptions.clone(),
-            )
+            .fit(&prep, &mut workspace, ctx, identification.required_assumptions.clone())
             .map_err(|e| AnalysisError::Estimate(e.to_string()))?;
 
         let mut diagnostics = identification.diagnostics.clone();
@@ -258,6 +248,7 @@ fn run_refuters(
     let problem = RefutationProblem {
         data,
         estimand,
+        query,
         treatment: query.treatment,
         outcome: query.outcome,
         original: estimate,

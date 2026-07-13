@@ -216,7 +216,18 @@ impl BackdoorIdentifier {
         for z in &valid {
             let vars: Vec<VariableId> =
                 z.iter().map(|d| dense_to_var(*d, dag)).collect::<Result<_, _>>()?;
-            let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &vars);
+            let (active, control) = match (&ate.active, &ate.control) {
+                (
+                    causal_core::Intervention::Set { value: active, .. },
+                    causal_core::Intervention::Set { value: control, .. },
+                ) => (active.clone(), control.clone()),
+                _ => {
+                    return Err(IdentificationError::UnsupportedQuery {
+                        message: "Phase 1 backdoor ATE requires Set interventions",
+                    });
+                }
+            };
+            let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
             estimands.push(IdentifiedEstimand {
                 method: Arc::from("backdoor.adjustment"),
                 adjustment_set: Arc::from(vars),

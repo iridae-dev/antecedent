@@ -35,10 +35,14 @@ pub struct CompiledDesign {
     pub columns: Arc<[DesignColumnRole]>,
     /// Outcome vector aligned with rows.
     pub outcome: Arc<[f64]>,
+    /// Original row indices retained after validity / analysis-mask filtering.
+    pub row_selection: Arc<[usize]>,
 }
 
 impl CompiledDesign {
     /// Build `[1 | T | Z…]` design from contiguous float columns (same length).
+    ///
+    /// `row_selection` records provenance of retained rows (empty → `0..nrows`).
     ///
     /// # Errors
     ///
@@ -47,6 +51,7 @@ impl CompiledDesign {
         treatment: &[f64],
         covariates: &[(VariableId, &[f64])],
         outcome: &[f64],
+        row_selection: &[usize],
     ) -> Result<Self, StatsError> {
         let nrows = outcome.len();
         if nrows == 0 {
@@ -60,6 +65,13 @@ impl CompiledDesign {
                 return Err(StatsError::Shape { message: "covariate length mismatch" });
             }
         }
+        let selection: Arc<[usize]> = if row_selection.is_empty() {
+            Arc::from((0..nrows).collect::<Vec<_>>())
+        } else if row_selection.len() == nrows {
+            Arc::from(row_selection.to_vec())
+        } else {
+            return Err(StatsError::Shape { message: "row_selection length mismatch" });
+        };
         let ncols = 2 + covariates.len();
         let mut matrix = vec![0.0; nrows * ncols];
         // col 0: intercept
@@ -84,6 +96,7 @@ impl CompiledDesign {
             matrix: Arc::from(matrix),
             columns: Arc::from(roles),
             outcome: Arc::from(outcome.to_vec()),
+            row_selection: selection,
         })
     }
 
@@ -122,9 +135,13 @@ mod tests {
         let t: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
         let z: Vec<f64> = (0..n).map(|i| ((i * 3) % 7) as f64).collect();
         let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + 3.0 * z[i]).collect();
-        let design =
-            CompiledDesign::linear_adjustment(&t, &[(VariableId::from_raw(2), z.as_slice())], &y)
-                .unwrap();
+        let design = CompiledDesign::linear_adjustment(
+            &t,
+            &[(VariableId::from_raw(2), z.as_slice())],
+            &y,
+            &[],
+        )
+        .unwrap();
         let backend = FaerBackend;
         let mut ws = LeastSquaresWorkspace::default();
         let fit = design.fit_ols(&backend, &mut ws).unwrap();
@@ -138,7 +155,7 @@ mod tests {
     fn repeated_fits_reuse_workspace_capacity() {
         let t = vec![0.0, 1.0, 0.0, 1.0];
         let y = vec![1.0, 3.0, 1.5, 2.5];
-        let design = CompiledDesign::linear_adjustment(&t, &[], &y).unwrap();
+        let design = CompiledDesign::linear_adjustment(&t, &[], &y, &[]).unwrap();
         let backend = FaerBackend;
         let mut ws = LeastSquaresWorkspace::default();
         let _ = design.fit_ols(&backend, &mut ws).unwrap();

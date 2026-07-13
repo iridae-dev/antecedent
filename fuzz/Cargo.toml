@@ -10,10 +10,26 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 causal-core = { path = "../crates/causal-core" }
+causal-graph = { path = "../crates/causal-graph" }
+causal-kernels = { path = "../crates/causal-kernels" }
 
 [[bin]]
 name = "schema_names"
 path = "fuzz_targets/schema_names.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dag_ops"
+path = "fuzz_targets/dag_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "kernel_reductions"
+path = "fuzz_targets/kernel_reductions.rs"
 test = false
 doc = false
 bench = false

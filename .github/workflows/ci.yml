@@ -50,3 +50,35 @@ jobs:
               exit 1
             fi
           done < <(git rev-list "$RANGE")
+
+  # Phase 0 wheel-build skeleton (maturin). Full matrix lands in Phase 12.
+  python-wheel:
+    name: Python wheel skeleton
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@1.85
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: python -> ../target
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build wheel (abi3 / manylinux not required yet)
+        working-directory: python
+        run: maturin build --release --out dist
+
+      - name: Install wheel and smoke-import
+        working-directory: python
+        run: |
+          pip install dist/*.whl
+          python -c "import causal; print(causal.__version__)"

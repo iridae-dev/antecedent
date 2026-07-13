@@ -68,15 +68,8 @@ impl PlaceboTreatment {
                 problem.treatment,
                 Arc::<[f64]>::from(placebo.clone()),
             )?;
-            let est = fit_once(
-                &self.estimator,
-                &data,
-                problem.estimand,
-                problem.treatment,
-                problem.outcome,
-                workspace,
-                ctx,
-            )?;
+            let est =
+                fit_once(&self.estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
             sum_abs += est.ate.abs();
             sum_ate += est.ate;
         }

@@ -2,20 +2,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::similar_names
-)]
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::similar_names)]
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, ExecutionContext, VariableId};
-use causal_data::{TableView, TabularData};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
+};
+use causal_data::{ColumnView, TableView, TabularData};
 use causal_identify::IdentifiedEstimand;
 use causal_stats::{
-    CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx,
-    invert_square,
+    CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
 };
 
 use crate::error::EstimationError;
@@ -38,6 +35,8 @@ pub struct PreparedEstimationProblem {
     pub adjustment_set: Arc<[VariableId]>,
     /// Overlap policy applied.
     pub overlap: OverlapPolicy,
+    /// Active − control treatment contrast used for the ATE scaling.
+    pub treatment_delta: f64,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -50,7 +49,7 @@ pub struct EstimationWorkspace {
 /// Point estimate with uncertainty.
 #[derive(Clone, Debug)]
 pub struct EffectEstimate {
-    /// ATE point estimate (treatment coefficient).
+    /// ATE point estimate `β_T * (active − control)`.
     pub ate: f64,
     /// Analytic IID standard error (homoskedastic).
     pub se_analytic: f64,
@@ -90,17 +89,16 @@ impl LinearAdjustmentAte {
         }
     }
 
-    /// Prepare design from tabular data and an identified backdoor estimand.
+    /// Prepare design from tabular data, identified estimand, and query levels.
     ///
     /// # Errors
     ///
-    /// Missing columns, type errors, or overlap policy not set.
+    /// Missing columns, unsupported query options, type errors, or overlap policy not set.
     pub fn prepare(
         &self,
         data: &TabularData,
         estimand: &IdentifiedEstimand,
-        treatment: VariableId,
-        outcome: VariableId,
+        query: &AverageEffectQuery,
     ) -> Result<PreparedEstimationProblem, EstimationError> {
         if self.overlap != OverlapPolicy::ExplicitOverride {
             return Err(EstimationError::Overlap {
@@ -112,28 +110,47 @@ impl LinearAdjustmentAte {
                 message: "LinearAdjustmentAte expects backdoor.adjustment",
             });
         }
-        let t = data
-            .float64_values(treatment)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
-        let y = data
-            .float64_values(outcome)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+        query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+        if !query.effect_modifiers.is_empty() {
+            return Err(EstimationError::UnsupportedQuery(
+                "Phase 1 linear adjustment does not support effect modifiers".into(),
+            ));
+        }
+        if query.target_population != TargetPopulation::AllObserved {
+            return Err(EstimationError::UnsupportedQuery(
+                "Phase 1 linear adjustment only supports TargetPopulation::AllObserved".into(),
+            ));
+        }
+        let treatment = query.treatment;
+        let outcome = query.outcome;
+        let active = intervention_f64(&query.active)?;
+        let control = intervention_f64(&query.control)?;
+        let treatment_delta = active - control;
+        if treatment_delta == 0.0 {
+            return Err(EstimationError::UnsupportedQuery(
+                "active and control treatment levels must differ".into(),
+            ));
+        }
+
+        let row_mask = complete_case_mask(data, treatment, outcome, &estimand.adjustment_set)?;
+        let t = float_column_masked(data, treatment, &row_mask)?;
+        let y = float_column_masked(data, outcome, &row_mask)?;
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
-            covs.push((
-                z,
-                data.float64_values(z).map_err(|e| EstimationError::Data(e.to_string()))?,
-            ));
+            covs.push((z, float_column_masked(data, z, &row_mask)?));
         }
         let cov_refs: Vec<(VariableId, &[f64])> =
             covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
-        let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y)
+        let selected_rows: Vec<usize> =
+            row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
+        let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
             .map_err(|e| EstimationError::Stats(e.to_string()))?;
         Ok(PreparedEstimationProblem {
             design,
             method: Arc::clone(&estimand.method),
             adjustment_set: Arc::clone(&estimand.adjustment_set),
             overlap: self.overlap,
+            treatment_delta,
         })
     }
 
@@ -157,17 +174,18 @@ impl LinearAdjustmentAte {
             .design
             .treatment_column()
             .ok_or_else(|| EstimationError::Stats("missing treatment column".into()))?;
-        let ate = fit.coefficients[t_col];
+        let ate = fit.coefficients[t_col] * problem.treatment_delta;
         let n = problem.design.nrows as f64;
         let p = problem.design.ncols as f64;
         let sigma2 = fit.rss / (n - p).max(1.0);
-        let se_analytic = analytic_se_treatment(
+        let se_coef = analytic_se_treatment(
             &problem.design.matrix,
             problem.design.nrows,
             problem.design.ncols,
             t_col,
             sigma2,
         );
+        let se_analytic = se_coef * problem.treatment_delta.abs();
 
         let se_bootstrap = if self.bootstrap_replicates == 0 {
             None
@@ -175,13 +193,7 @@ impl LinearAdjustmentAte {
             Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
         };
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap,
-            assumptions,
-            overlap: problem.overlap,
-        })
+        Ok(EffectEstimate { ate, se_analytic, se_bootstrap, assumptions, overlap: problem.overlap })
     }
 
     fn bootstrap_se(
@@ -209,7 +221,7 @@ impl LinearAdjustmentAte {
                 .backend
                 .least_squares(&x_boot, n, p, &y_boot, &mut workspace.ols)
                 .map_err(|e| EstimationError::Stats(e.to_string()))?;
-            ates.push(fit.coefficients[t_col]);
+            ates.push(fit.coefficients[t_col] * problem.treatment_delta);
         }
         let mean = ates.iter().sum::<f64>() / ates.len() as f64;
         let var = ates
@@ -222,6 +234,78 @@ impl LinearAdjustmentAte {
             / (ates.len() as f64 - 1.0).max(1.0);
         Ok(var.sqrt())
     }
+}
+
+fn intervention_f64(intervention: &Intervention) -> Result<f64, EstimationError> {
+    match intervention {
+        Intervention::Set { value, .. } => value.as_f64().ok_or_else(|| {
+            EstimationError::UnsupportedQuery(
+                "Phase 1 linear adjustment requires numeric treatment levels".into(),
+            )
+        }),
+        _ => Err(EstimationError::UnsupportedQuery(
+            "Phase 1 linear adjustment requires Set interventions".into(),
+        )),
+    }
+}
+
+fn complete_case_mask(
+    data: &TabularData,
+    treatment: VariableId,
+    outcome: VariableId,
+    adjustment: &[VariableId],
+) -> Result<Vec<bool>, EstimationError> {
+    let n = data.row_count();
+    let mut keep = vec![true; n];
+    if let Some(mask) = data.storage().analysis_mask() {
+        for (i, slot) in keep.iter_mut().enumerate() {
+            *slot = mask.is_valid(i);
+        }
+    }
+    let mut ids = Vec::with_capacity(2 + adjustment.len());
+    ids.push(treatment);
+    ids.push(outcome);
+    ids.extend_from_slice(adjustment);
+    for id in ids {
+        let col = data.column(id).map_err(|e| EstimationError::Data(e.to_string()))?;
+        let validity = match col {
+            ColumnView::Float64(c) => &c.validity,
+            ColumnView::Int64(c) => &c.validity,
+            ColumnView::Boolean(c) => &c.validity,
+            ColumnView::Categorical(c) => &c.validity,
+            ColumnView::Timestamp(c) => &c.validity,
+            ColumnView::FixedVector(c) => &c.validity,
+        };
+        for (i, slot) in keep.iter_mut().enumerate() {
+            if *slot && !validity.is_valid(i) {
+                *slot = false;
+            }
+        }
+    }
+    if !keep.iter().any(|k| *k) {
+        return Err(EstimationError::Data(
+            "no complete cases after validity/mask filtering".into(),
+        ));
+    }
+    Ok(keep)
+}
+
+fn float_column_masked(
+    data: &TabularData,
+    id: VariableId,
+    keep: &[bool],
+) -> Result<Vec<f64>, EstimationError> {
+    let col = data.column(id).map_err(|e| EstimationError::Data(e.to_string()))?;
+    let ColumnView::Float64(c) = col else {
+        return Err(EstimationError::Data(format!("variable {id} is not float64")));
+    };
+    let mut out = Vec::with_capacity(keep.iter().filter(|k| **k).count());
+    for (i, &k) in keep.iter().enumerate() {
+        if k {
+            out.push(c.values[i]);
+        }
+    }
+    Ok(out)
 }
 
 fn analytic_se_treatment(
@@ -245,8 +329,8 @@ mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        AssumptionSet, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-        SmallRoleSet, ValueType, VariableId,
+        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
+        RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -328,24 +412,43 @@ mod tests {
     #[test]
     fn recovers_ate_two() {
         let (data, estimand) = toy();
-        let est = LinearAdjustmentAte {
-            bootstrap_replicates: 50,
-            ..LinearAdjustmentAte::new()
-        };
-        let prep = est
-            .prepare(
-                &data,
-                &estimand,
-                VariableId::from_raw(0),
-                VariableId::from_raw(1),
-            )
-            .unwrap();
+        let est = LinearAdjustmentAte { bootstrap_replicates: 50, ..LinearAdjustmentAte::new() };
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let effect = est
-            .fit(&prep, &mut ws, &ctx, AssumptionSet::new())
-            .unwrap();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 1e-8);
         assert!(effect.se_bootstrap.is_some());
+    }
+
+    #[test]
+    fn scales_ate_by_level_delta() {
+        let (data, estimand) = toy();
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let query = AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            0.0,
+            2.0,
+        );
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        // β_T ≈ 2, delta = 2 → ATE ≈ 4
+        assert!((effect.ate - 4.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn rejects_unsupported_target_population() {
+        let (data, estimand) = toy();
+        let est = LinearAdjustmentAte::new();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Treated);
+        let err = est.prepare(&data, &estimand, &query).unwrap_err();
+        assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
     }
 }

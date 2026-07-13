@@ -13,9 +13,7 @@ use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ToleranceClass, ValueType, VariableId,
 };
-use causal_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-};
+use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
 use causal_graph::{Dag, DenseNodeId};
 
 fn fixture_dir() -> PathBuf {

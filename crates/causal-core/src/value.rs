@@ -25,6 +25,19 @@ impl Value {
     pub const fn f64(v: f64) -> Self {
         Self::Float64(v)
     }
+
+    /// Interpret as an `f64` level when possible.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Self::Float64(v) => Some(*v),
+            Self::Int64(v) => Some(*v as f64),
+            Self::Bool(v) => Some(if *v { 1.0 } else { 0.0 }),
+            Self::Category(v) => Some(f64::from(*v)),
+            Self::Label(_) => None,
+        }
+    }
 }
 
 impl Eq for Value {}

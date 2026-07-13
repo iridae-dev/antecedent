@@ -7,6 +7,7 @@ use std::sync::Arc;
 use causal_core::VariableId;
 use causal_kernels::{BitMaskView, F64VectorView};
 
+use crate::categorical::CategoricalColumn;
 use crate::error::DataError;
 
 /// Packed validity bitmap (`1` = valid). Missingness is never a sentinel value.
@@ -210,6 +211,108 @@ impl BooleanColumn {
     }
 }
 
+/// Owned timestamp column (nanoseconds since epoch; timezone metadata lives in schema).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TimestampColumn {
+    /// Variable id.
+    pub id: VariableId,
+    /// Values in nanoseconds.
+    pub values_ns: Arc<[i64]>,
+    /// Validity.
+    pub validity: ValidityBitmap,
+}
+
+impl TimestampColumn {
+    /// Construct with matching lengths.
+    ///
+    /// # Errors
+    ///
+    /// Length mismatch.
+    pub fn new(
+        id: VariableId,
+        values_ns: impl Into<Arc<[i64]>>,
+        validity: ValidityBitmap,
+    ) -> Result<Self, DataError> {
+        let values_ns = values_ns.into();
+        if validity.len() != values_ns.len() {
+            return Err(DataError::LengthMismatch {
+                expected: values_ns.len(),
+                actual: validity.len(),
+                context: "timestamp validity",
+            });
+        }
+        Ok(Self { id, values_ns, validity })
+    }
+
+    /// Row count.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.values_ns.len()
+    }
+
+    /// Whether empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.values_ns.is_empty()
+    }
+}
+
+/// Owned fixed-size vector column (row-major: `values[row * dim + component]`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct FixedVectorColumn {
+    /// Variable id.
+    pub id: VariableId,
+    /// Vector dimensionality.
+    pub dim: usize,
+    /// Flattened values.
+    pub values: Arc<[f64]>,
+    /// Per-row validity.
+    pub validity: ValidityBitmap,
+}
+
+impl FixedVectorColumn {
+    /// Construct a fixed-vector column.
+    ///
+    /// # Errors
+    ///
+    /// Length / shape mismatch.
+    pub fn new(
+        id: VariableId,
+        dim: usize,
+        values: impl Into<Arc<[f64]>>,
+        validity: ValidityBitmap,
+    ) -> Result<Self, DataError> {
+        if dim == 0 {
+            return Err(DataError::InvalidValidity { message: "fixed vector dim must be > 0" });
+        }
+        let values = values.into();
+        let expected = validity
+            .len()
+            .checked_mul(dim)
+            .ok_or(DataError::InvalidValidity { message: "fixed vector shape overflow" })?;
+        if values.len() != expected {
+            return Err(DataError::LengthMismatch {
+                expected,
+                actual: values.len(),
+                context: "fixed vector values",
+            });
+        }
+        Ok(Self { id, dim, values, validity })
+    }
+
+    /// Row count.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.validity.len()
+    }
+
+    /// Whether empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 /// Borrowed typed column view (library-owned; not Arrow types).
 #[derive(Clone, Copy, Debug)]
 pub enum ColumnView<'a> {
@@ -219,6 +322,12 @@ pub enum ColumnView<'a> {
     Int64(&'a Int64Column),
     /// Boolean column.
     Boolean(&'a BooleanColumn),
+    /// Dictionary categorical column.
+    Categorical(&'a CategoricalColumn),
+    /// Timestamp column.
+    Timestamp(&'a TimestampColumn),
+    /// Fixed-size vector column.
+    FixedVector(&'a FixedVectorColumn),
 }
 
 impl ColumnView<'_> {
@@ -229,6 +338,9 @@ impl ColumnView<'_> {
             Self::Float64(c) => c.id,
             Self::Int64(c) => c.id,
             Self::Boolean(c) => c.id,
+            Self::Categorical(c) => c.id,
+            Self::Timestamp(c) => c.id,
+            Self::FixedVector(c) => c.id,
         }
     }
 
@@ -239,6 +351,9 @@ impl ColumnView<'_> {
             Self::Float64(c) => c.len(),
             Self::Int64(c) => c.len(),
             Self::Boolean(c) => c.len(),
+            Self::Categorical(c) => c.len(),
+            Self::Timestamp(c) => c.len(),
+            Self::FixedVector(c) => c.len(),
         }
     }
 
@@ -258,6 +373,12 @@ pub enum OwnedColumn {
     Int64(Int64Column),
     /// Boolean.
     Boolean(BooleanColumn),
+    /// Categorical.
+    Categorical(CategoricalColumn),
+    /// Timestamp.
+    Timestamp(TimestampColumn),
+    /// Fixed-size vector.
+    FixedVector(FixedVectorColumn),
 }
 
 impl OwnedColumn {
@@ -268,6 +389,9 @@ impl OwnedColumn {
             Self::Float64(c) => c.id,
             Self::Int64(c) => c.id,
             Self::Boolean(c) => c.id,
+            Self::Categorical(c) => c.id,
+            Self::Timestamp(c) => c.id,
+            Self::FixedVector(c) => c.id,
         }
     }
 
@@ -278,6 +402,9 @@ impl OwnedColumn {
             Self::Float64(c) => c.len(),
             Self::Int64(c) => c.len(),
             Self::Boolean(c) => c.len(),
+            Self::Categorical(c) => c.len(),
+            Self::Timestamp(c) => c.len(),
+            Self::FixedVector(c) => c.len(),
         }
     }
 
@@ -294,6 +421,9 @@ impl OwnedColumn {
             Self::Float64(c) => ColumnView::Float64(c),
             Self::Int64(c) => ColumnView::Int64(c),
             Self::Boolean(c) => ColumnView::Boolean(c),
+            Self::Categorical(c) => ColumnView::Categorical(c),
+            Self::Timestamp(c) => ColumnView::Timestamp(c),
+            Self::FixedVector(c) => ColumnView::FixedVector(c),
         }
     }
 }

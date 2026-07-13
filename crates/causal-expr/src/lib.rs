@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use causal_core::VariableId;
+use causal_core::{Value, VariableId};
 
 /// Opaque expression node id.
 #[repr(transparent)]
@@ -47,10 +47,19 @@ impl VarSetId {
     }
 }
 
-/// Interned intervention-set id (Phase 1: ordered variable list being intervened).
+/// Interned intervention-set id (hard assignments `do(V := value)`).
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct InterventionSetId(u32);
+
+/// One hard intervention assignment in an interned set.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct InterventionAssignment {
+    /// Target variable.
+    pub variable: VariableId,
+    /// Assigned value under `do(·)`.
+    pub value: Value,
+}
 
 /// Contrast operator between two expressions.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -162,8 +171,8 @@ pub struct CausalExprArena {
     nodes: Vec<ExprNode>,
     var_sets: Vec<Arc<[VariableId]>>,
     var_set_index: HashMap<Arc<[VariableId]>, VarSetId>,
-    interventions: Vec<Arc<[VariableId]>>,
-    intervention_index: HashMap<Arc<[VariableId]>, InterventionSetId>,
+    interventions: Vec<Arc<[InterventionAssignment]>>,
+    intervention_index: HashMap<Arc<[InterventionAssignment]>, InterventionSetId>,
     lists: Vec<Arc<[ExprId]>>,
     list_index: HashMap<Arc<[ExprId]>, ExprListId>,
     /// Hash-cons map from node → id.
@@ -194,15 +203,15 @@ impl CausalExprArena {
         id
     }
 
-    /// Intern an intervention variable set.
-    pub fn intern_intervention_set(
+    /// Intern a hard-intervention assignment set (sorted by variable id).
+    pub fn intern_intervention_assignments(
         &mut self,
-        vars: impl IntoIterator<Item = VariableId>,
+        assignments: impl IntoIterator<Item = InterventionAssignment>,
     ) -> InterventionSetId {
-        let mut v: Vec<VariableId> = vars.into_iter().collect();
-        v.sort_unstable();
-        v.dedup();
-        let key: Arc<[VariableId]> = Arc::from(v);
+        let mut v: Vec<InterventionAssignment> = assignments.into_iter().collect();
+        v.sort_by_key(|a| a.variable.raw());
+        v.dedup_by_key(|a| a.variable.raw());
+        let key: Arc<[InterventionAssignment]> = Arc::from(v);
         if let Some(id) = self.intervention_index.get(&key) {
             return *id;
         }
@@ -212,6 +221,17 @@ impl CausalExprArena {
         id
     }
 
+    /// Intern an intervention over variables only (value unspecified / placeholder).
+    pub fn intern_intervention_set(
+        &mut self,
+        vars: impl IntoIterator<Item = VariableId>,
+    ) -> InterventionSetId {
+        self.intern_intervention_assignments(
+            vars.into_iter()
+                .map(|variable| InterventionAssignment { variable, value: Value::f64(f64::NAN) }),
+        )
+    }
+
     /// Empty var set.
     pub fn empty_var_set(&mut self) -> VarSetId {
         self.intern_var_set([])
@@ -219,7 +239,7 @@ impl CausalExprArena {
 
     /// Empty intervention set.
     pub fn empty_intervention_set(&mut self) -> InterventionSetId {
-        self.intern_intervention_set([])
+        self.intern_intervention_assignments([])
     }
 
     /// Look up a var set.
@@ -228,10 +248,16 @@ impl CausalExprArena {
         &self.var_sets[id.0 as usize]
     }
 
-    /// Look up intervention variables.
+    /// Look up intervention assignments.
     #[must_use]
-    pub fn intervention_set(&self, id: InterventionSetId) -> &[VariableId] {
+    pub fn intervention_assignments(&self, id: InterventionSetId) -> &[InterventionAssignment] {
         &self.interventions[id.0 as usize]
+    }
+
+    /// Variables appearing in an intervention set (legacy helper).
+    #[must_use]
+    pub fn intervention_set(&self, id: InterventionSetId) -> Vec<VariableId> {
+        self.intervention_assignments(id).iter().map(|a| a.variable).collect()
     }
 
     /// Intern an expression list.
@@ -287,28 +313,50 @@ impl CausalExprArena {
     }
 
     /// Build the backdoor adjustment functional for ATE:
-    /// `E[E[Y|T=1,Z] − E[Y|T=0,Z]]` represented as a contrast of expectations
-    /// under interventional adjustment distributions (Phase 1 encoding).
+    /// `E[Y | do(T=active)] − E[Y | do(T=control)]` under adjustment by Z.
     pub fn backdoor_ate(
         &mut self,
         treatment: VariableId,
         outcome: VariableId,
         adjustment: &[VariableId],
+        active: Value,
+        control: Value,
+    ) -> ExprId {
+        let left = self.backdoor_potential_outcome(treatment, outcome, adjustment, active);
+        let right = self.backdoor_potential_outcome(treatment, outcome, adjustment, control);
+        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
+        self.set_derivation(
+            contrast,
+            DerivationMeta {
+                rule: Arc::from("backdoor.adjustment"),
+                note: Some(Arc::from(format!("ATE adjustment set size {}", adjustment.len()))),
+            },
+        );
+        contrast
+    }
+
+    fn backdoor_potential_outcome(
+        &mut self,
+        treatment: VariableId,
+        outcome: VariableId,
+        adjustment: &[VariableId],
+        level: Value,
     ) -> ExprId {
         let z = self.intern_var_set(adjustment.iter().copied());
         let y = self.intern_var_set([outcome]);
         let empty = self.empty_var_set();
         let empty_i = self.empty_intervention_set();
-        let do_t = self.intern_intervention_set([treatment]);
+        let do_t = self.intern_intervention_assignments([InterventionAssignment {
+            variable: treatment,
+            value: level,
+        }]);
 
-        // P(Y | Z, do(T)) as Distribution with interventional domain.
         let dist_body = self.intern(ExprNode::Distribution {
             variables: y,
             conditioned_on: z,
             intervention: do_t,
             domain: DomainRef::Interventional,
         });
-        // Marginalize / weight by P(Z) observationally.
         let z_marg = self.intern(ExprNode::Distribution {
             variables: z,
             conditioned_on: empty,
@@ -320,22 +368,10 @@ impl CausalExprArena {
             self.intern(ExprNode::Product(list))
         };
         let summed = self.intern(ExprNode::SumOut { variables: z, expr: product });
-        let left = self.intern(ExprNode::Expectation {
+        self.intern(ExprNode::Expectation {
             function: OutcomeExprId::identity(outcome),
             distribution: summed,
-        });
-        // Phase 1: encode contrast as left − right with the same structure;
-        // active vs control is recorded in derivation metadata for the estimator.
-        let right = left; // structural placeholder; estimator uses query levels
-        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
-        self.set_derivation(
-            contrast,
-            DerivationMeta {
-                rule: Arc::from("backdoor.adjustment"),
-                note: Some(Arc::from(format!("ATE adjustment set size {}", adjustment.len()))),
-            },
-        );
-        contrast
+        })
     }
 
     /// Pretty-print an expression (diagnostics only; not an equality key).
@@ -386,15 +422,21 @@ mod tests {
     }
 
     #[test]
-    fn backdoor_ate_has_derivation() {
+    fn backdoor_ate_contrasts_distinct_levels() {
         let mut a = CausalExprArena::new();
         let id = a.backdoor_ate(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
             &[VariableId::from_raw(2)],
+            Value::f64(1.0),
+            Value::f64(0.0),
         );
         let meta = a.derivation(id).unwrap();
         assert_eq!(&*meta.rule, "backdoor.adjustment");
+        let ExprNode::Contrast { left, right, .. } = a.node(id) else {
+            panic!("expected contrast");
+        };
+        assert_ne!(left, right);
         let pretty = a.pretty(id);
         assert!(pretty.contains('−') || pretty.contains("E["));
     }

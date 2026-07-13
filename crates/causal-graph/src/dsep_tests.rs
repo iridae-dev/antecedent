@@ -57,9 +57,8 @@ fn fork_blocked_by_common_cause() {
 fn witness_returns_path_when_connected() {
     let g = chain3();
     let mut ws = DSeparationWorkspace::default();
-    let res = g
-        .d_separation(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2), &[], &mut ws)
-        .unwrap();
+    let res =
+        g.d_separation(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2), &[], &mut ws).unwrap();
     match res {
         SeparationResult::Connected { active_path } => {
             assert!(active_path.len() >= 2);
@@ -115,17 +114,14 @@ fn exists_active_path_dfs(
         }
         let active = match prev {
             None => true, // leaving start
-            Some((_prev_node, kind_in)) => {
-                is_triple_active(kind_in, kind_leaving_cur, cur, z, g)
-            }
+            Some((_prev_node, kind_in)) => is_triple_active(kind_in, kind_leaving_cur, cur, z, g),
         };
         // Edge kind relative to `next` is the reverse of the leave label at `cur`.
         let kind_at_next = match kind_leaving_cur {
             EdgeKind::ToChild => EdgeKind::FromParent,
             EdgeKind::FromParent => EdgeKind::ToChild,
         };
-        if active
-            && exists_active_path_dfs(g, next, target, z, visited, Some((cur, kind_at_next)))
+        if active && exists_active_path_dfs(g, next, target, z, visited, Some((cur, kind_at_next)))
         {
             visited[cur.as_usize()] = false;
             return true;

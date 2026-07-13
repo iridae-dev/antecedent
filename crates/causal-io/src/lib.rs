@@ -5,11 +5,13 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod arrow_section;
 pub mod container;
 pub mod convert;
 pub mod error;
 pub mod wire;
 
+pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section};
 pub use container::{
     ArtifactManifest, CONTAINER_VERSION, EncodedArtifact, MAGIC, SectionBytes, section_descriptor,
 };

@@ -75,15 +75,7 @@ impl RandomCommonCause {
                 Arc::<[f64]>::from(noise.clone()),
             )?;
             let estimand = extend_adjustment(problem.estimand, new_id);
-            let est = fit_once(
-                &self.estimator,
-                &data,
-                &estimand,
-                problem.treatment,
-                problem.outcome,
-                workspace,
-                ctx,
-            )?;
+            let est = fit_once(&self.estimator, &data, &estimand, problem.query, workspace, ctx)?;
             sum_delta += (est.ate - problem.original.ate).abs();
             sum_ate += est.ate;
         }
