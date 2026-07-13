@@ -12,6 +12,7 @@ mod factory;
 mod gsquared;
 mod parcorr;
 mod parcorr_variants;
+mod pairwise_mv;
 mod types;
 
 pub use advanced::{
@@ -25,6 +26,7 @@ pub use parcorr::PartialCorrelation;
 pub use parcorr_variants::{
     MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
 };
+pub use pairwise_mv::{PairwiseMultivariateCi, pairwise_multivariate_test};
 pub use types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
     KnnCmiWorkspace, SignificanceMethod,

@@ -12,6 +12,7 @@ use super::parcorr::PartialCorrelation;
 use super::parcorr_variants::{
     MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
 };
+use super::pairwise_mv::PairwiseMultivariateCi;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependence,
 };
@@ -24,6 +25,7 @@ use crate::error::StatsError;
 /// - `robust_parcorr` / `robust_partial_corr`
 /// - `weighted_parcorr` / `weighted_partial_corr` (unit weights at query time)
 /// - `multivariate_parcorr` / `multivariate_partial_corr`
+/// - `pairwise_multivariate` / `pairwise_mv`
 /// - `gsquared` / `g_squared`
 /// - `regression`
 /// - `cmi_knn` / `knn_cmi`
@@ -46,6 +48,7 @@ pub fn ci_from_name(
         "multivariate_parcorr" | "multivariate_partial_corr" => {
             Arc::new(MultivariatePartialCorrelation::new())
         }
+        "pairwise_multivariate" | "pairwise_mv" => Arc::new(PairwiseMultivariateCi::new()),
         "gsquared" | "g_squared" => Arc::new(GSquared::new()),
         "regression" => Arc::new(RegressionCi::new()),
         "cmi_knn" | "knn_cmi" => Arc::new(KnnCmi::new(5)),
