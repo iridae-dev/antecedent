@@ -94,11 +94,10 @@ fn prepare_frontdoor_problem(
     query: &AverageEffectQuery,
     overlap: OverlapPolicy,
 ) -> Result<PreparedFrontDoorProblem, EstimationError> {
-    if overlap != OverlapPolicy::ExplicitOverride {
-        return Err(EstimationError::Overlap {
-            message: "FrontDoorTwoStage requires ExplicitOverride overlap policy (not propensity-based)",
-        });
-    }
+    crate::util::require_explicit_override(
+        overlap,
+        "FrontDoorTwoStage requires ExplicitOverride overlap policy (not propensity-based)",
+    )?;
     if &*estimand.method != "frontdoor" {
         return Err(EstimationError::IncompatibleEstimand {
             message: "FrontDoorTwoStage expects a \"frontdoor\" estimand",

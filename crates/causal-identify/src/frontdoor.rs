@@ -6,10 +6,7 @@
 
 use std::sync::Arc;
 
-use causal_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, AverageEffectQuery, CausalQuery, VariableId,
-};
+use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use causal_expr::CausalExprArena;
 use causal_graph::{Dag, DSeparationWorkspace, DenseNodeId};
 
@@ -122,12 +119,7 @@ impl FrontDoorIdentifier {
         }
 
         let mut assumptions = AssumptionSet::new();
-        assumptions.push(AssumptionRecord {
-            assumption: Assumption::CausalMarkov,
-            source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("frontdoor") },
-            scope: AssumptionScope::Identification,
-            status: AssumptionStatus::Declared,
-        });
+        assumptions.push(crate::assumptions::causal_markov("frontdoor"));
 
         let mut derivation = DerivationTrace::default();
         derivation.push(

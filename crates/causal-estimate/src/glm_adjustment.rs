@@ -107,11 +107,10 @@ impl GlmAdjustmentAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedGlmProblem, EstimationError> {
-        if self.overlap != OverlapPolicy::ExplicitOverride {
-            return Err(EstimationError::Overlap {
-                message: "GlmAdjustmentAte requires ExplicitOverride overlap policy",
-            });
-        }
+        crate::util::require_explicit_override(
+            self.overlap,
+            "GlmAdjustmentAte requires ExplicitOverride overlap policy",
+        )?;
         if &*estimand.method != "backdoor.adjustment" && &*estimand.method != "backdoor.efficient"
         {
             return Err(EstimationError::IncompatibleEstimand {

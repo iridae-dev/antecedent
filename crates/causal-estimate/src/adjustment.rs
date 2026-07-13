@@ -188,11 +188,10 @@ impl LinearAdjustmentAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedEstimationProblem, EstimationError> {
-        if self.overlap != OverlapPolicy::ExplicitOverride {
-            return Err(EstimationError::Overlap {
-                message: "LinearAdjustmentAte requires ExplicitOverride overlap policy",
-            });
-        }
+        crate::util::require_explicit_override(
+            self.overlap,
+            "LinearAdjustmentAte requires ExplicitOverride overlap policy",
+        )?;
         if &*estimand.method != "backdoor.adjustment" {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "LinearAdjustmentAte expects backdoor.adjustment",

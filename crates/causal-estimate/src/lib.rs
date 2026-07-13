@@ -14,6 +14,7 @@ pub mod iv;
 pub mod propensity;
 pub mod rd;
 pub mod temporal_adjustment;
+mod util;
 
 pub use adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy, OverlapReport,

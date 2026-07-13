@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod assumptions;
 pub mod backdoor;
 pub mod efficient;
 pub mod error;

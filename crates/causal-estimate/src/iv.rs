@@ -68,11 +68,10 @@ fn prepare_iv_problem(
     query: &AverageEffectQuery,
     overlap: OverlapPolicy,
 ) -> Result<PreparedIvProblem, EstimationError> {
-    if overlap != OverlapPolicy::ExplicitOverride {
-        return Err(EstimationError::Overlap {
-            message: "IV estimators require ExplicitOverride overlap policy (not propensity-based)",
-        });
-    }
+    crate::util::require_explicit_override(
+        overlap,
+        "IV estimators require ExplicitOverride overlap policy (not propensity-based)",
+    )?;
     if &*estimand.method != "iv" {
         return Err(EstimationError::IncompatibleEstimand {
             message: "IV estimators expect an \"iv\" estimand",

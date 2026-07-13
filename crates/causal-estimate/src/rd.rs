@@ -117,11 +117,10 @@ impl SharpRegressionDiscontinuity {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedRdProblem, EstimationError> {
-        if self.overlap != OverlapPolicy::ExplicitOverride {
-            return Err(EstimationError::Overlap {
-                message: "SharpRegressionDiscontinuity requires ExplicitOverride overlap policy",
-            });
-        }
+        crate::util::require_explicit_override(
+            self.overlap,
+            "SharpRegressionDiscontinuity requires ExplicitOverride overlap policy",
+        )?;
         if &*estimand.method != "rd.sharp" {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "SharpRegressionDiscontinuity expects an \"rd.sharp\" estimand",

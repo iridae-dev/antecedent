@@ -30,7 +30,7 @@ use causal_data::TabularData;
 use causal_identify::IdentifiedEstimand;
 use causal_stats::{
     FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityFit, PropensityWorkspace,
-    StatsError, fit_propensity,
+    fit_propensity,
 };
 
 use crate::adjustment::{EffectEstimate, OverlapPolicy, OverlapReport, intervention_f64};
@@ -139,11 +139,10 @@ pub(crate) fn prepare_propensity_problem(
     query: &AverageEffectQuery,
     overlap: OverlapPolicy,
 ) -> Result<PreparedPropensityProblem, EstimationError> {
-    if matches!(overlap, OverlapPolicy::ExplicitOverride) {
-        return Err(EstimationError::Overlap {
-            message: "propensity estimators require RequireDiagnostics overlap policy; positivity is mandatory",
-        });
-    }
+    crate::util::refuse_explicit_override(
+        overlap,
+        "propensity estimators require RequireDiagnostics overlap policy; positivity is mandatory",
+    )?;
     if &*estimand.method != "backdoor.adjustment" && &*estimand.method != "backdoor.efficient" {
         return Err(EstimationError::IncompatibleEstimand {
             message: "propensity estimators expect backdoor.adjustment or backdoor.efficient",
@@ -213,10 +212,6 @@ pub(crate) fn prepare_propensity_problem(
     })
 }
 
-pub(crate) fn stats_err(e: StatsError) -> EstimationError {
-    EstimationError::Stats(e.to_string())
-}
-
 pub(crate) fn clip_of(overlap: OverlapPolicy) -> Option<f64> {
     match overlap {
         OverlapPolicy::RequireDiagnostics { clip, .. } => clip,
@@ -231,21 +226,12 @@ fn trim_of(overlap: OverlapPolicy) -> Option<f64> {
     }
 }
 
+pub(crate) use crate::util::{sample_std, stats_err};
+
 pub(crate) fn clamp_scores(scores: &mut [f64], clip: f64) {
     for s in scores.iter_mut() {
         *s = s.clamp(clip, 1.0 - clip);
     }
-}
-
-pub(crate) fn sample_std(values: &[f64]) -> f64 {
-    let n = values.len() as f64;
-    if n < 2.0 {
-        return f64::NAN;
-    }
-    let mean = values.iter().sum::<f64>() / n;
-    let var =
-        values.iter().map(|v| { let d = v - mean; d * d }).sum::<f64>() / (n - 1.0);
-    var.sqrt()
 }
 
 fn to_row_major(cols: &[Arc<[f64]>], nrows: usize) -> Vec<f64> {

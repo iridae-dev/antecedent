@@ -114,12 +114,7 @@ impl InstrumentalVariableIdentifier {
         }
 
         let mut assumptions = AssumptionSet::new();
-        assumptions.push(AssumptionRecord {
-            assumption: Assumption::CausalMarkov,
-            source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("iv") },
-            scope: AssumptionScope::Identification,
-            status: AssumptionStatus::Declared,
-        });
+        assumptions.push(crate::assumptions::causal_markov("iv"));
 
         let mut derivation = DerivationTrace::default();
         derivation.push(

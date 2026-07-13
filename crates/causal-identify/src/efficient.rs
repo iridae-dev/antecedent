@@ -11,10 +11,7 @@
 
 use std::sync::Arc;
 
-use causal_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, AverageEffectQuery, CausalQuery, VariableId,
-};
+use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use causal_expr::CausalExprArena;
 use causal_graph::{BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace};
 
@@ -238,14 +235,7 @@ impl EfficientBackdoorIdentifier {
 
 fn default_assumptions() -> AssumptionSet {
     let mut assumptions = AssumptionSet::new();
-    assumptions.push(AssumptionRecord {
-        assumption: Assumption::CausalMarkov,
-        source: AssumptionSource::AlgorithmDefault {
-            algorithm: Arc::from("backdoor.efficient"),
-        },
-        scope: AssumptionScope::Identification,
-        status: AssumptionStatus::Declared,
-    });
+    assumptions.push(crate::assumptions::causal_markov("backdoor.efficient"));
     assumptions
 }
 
