@@ -50,6 +50,8 @@ pub struct PreparedGlmProblem {
     pub active: f64,
     /// Control treatment level used for the g-computation contrast.
     pub control: f64,
+    /// GLM family used for this problem.
+    pub family: GlmFamily,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -73,6 +75,8 @@ pub struct GlmAdjustmentAte {
     pub overlap: OverlapPolicy,
     /// GLM fitting options (max iterations, convergence tolerance).
     pub glm_options: GlmOptions,
+    /// Outcome family / link.
+    pub family: GlmFamily,
 }
 
 impl Default for GlmAdjustmentAte {
@@ -90,6 +94,7 @@ impl GlmAdjustmentAte {
             bootstrap_replicates: 200,
             overlap: OverlapPolicy::ExplicitOverride,
             glm_options: GlmOptions::default(),
+            family: GlmFamily::BinomialLogit,
         }
     }
 
@@ -150,12 +155,26 @@ impl GlmAdjustmentAte {
         let y = data
             .float64_masked(outcome, &row_mask)
             .map_err(|e| EstimationError::Data(e.to_string()))?;
-        for &yi in &y {
-            if !(yi == 0.0 || yi == 1.0) {
-                return Err(EstimationError::UnsupportedQuery(
-                    "GlmAdjustmentAte requires a binary (0/1) outcome".into(),
-                ));
+        match self.family {
+            GlmFamily::BinomialLogit => {
+                for &yi in &y {
+                    if !(yi == 0.0 || yi == 1.0) {
+                        return Err(EstimationError::UnsupportedQuery(
+                            "BinomialLogit GlmAdjustmentAte requires a binary (0/1) outcome".into(),
+                        ));
+                    }
+                }
             }
+            GlmFamily::PoissonLog => {
+                for &yi in &y {
+                    if !(yi.is_finite() && yi >= 0.0) {
+                        return Err(EstimationError::UnsupportedQuery(
+                            "PoissonLog GlmAdjustmentAte requires non-negative outcomes".into(),
+                        ));
+                    }
+                }
+            }
+            GlmFamily::GaussianIdentity => {}
         }
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
@@ -178,6 +197,7 @@ impl GlmAdjustmentAte {
             overlap: self.overlap,
             active,
             control,
+            family: self.family,
         })
     }
 
@@ -198,7 +218,7 @@ impl GlmAdjustmentAte {
             .treatment_column()
             .ok_or_else(|| EstimationError::Stats("missing treatment column".into()))?;
         let glm_fit = fit_glm(
-            GlmFamily::BinomialLogit,
+            problem.family,
             GlmDesignRef {
                 x_colmajor: &problem.design.matrix,
                 nrows: problem.design.nrows,
@@ -212,6 +232,7 @@ impl GlmAdjustmentAte {
         .map_err(stats_err)?;
 
         let diffs = g_computation_diffs(
+            problem.family,
             &problem.design.matrix,
             problem.design.nrows,
             problem.design.ncols,
@@ -265,7 +286,7 @@ impl GlmAdjustmentAte {
                 }
             }
             let Ok(fit) = fit_glm(
-                GlmFamily::BinomialLogit,
+                problem.family,
                 GlmDesignRef { x_colmajor: &x_boot, nrows: n, ncols: p, y: &y_boot },
                 &self.backend,
                 &mut workspace.ols,
@@ -274,6 +295,7 @@ impl GlmAdjustmentAte {
                 continue;
             };
             let diffs = g_computation_diffs(
+                problem.family,
                 &x_boot,
                 n,
                 p,
@@ -292,9 +314,9 @@ impl GlmAdjustmentAte {
     }
 }
 
-/// Per-row predicted-probability contrast `μ(T=active, Z) − μ(T=control, Z)` from fitted
-/// logistic coefficients, holding every non-treatment column fixed at its observed value.
+/// Per-row mean-scale contrast `μ(T=active, Z) − μ(T=control, Z)`.
 fn g_computation_diffs(
+    family: GlmFamily,
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
@@ -318,8 +340,16 @@ fn g_computation_diffs(
                 eta_control += val * coef;
             }
         }
-        let mu_active = 1.0 / (1.0 + (-eta_active).exp());
-        let mu_control = 1.0 / (1.0 + (-eta_control).exp());
+        let mu_active = match family {
+            GlmFamily::BinomialLogit => 1.0 / (1.0 + (-eta_active).exp()),
+            GlmFamily::GaussianIdentity => eta_active,
+            GlmFamily::PoissonLog => eta_active.exp(),
+        };
+        let mu_control = match family {
+            GlmFamily::BinomialLogit => 1.0 / (1.0 + (-eta_control).exp()),
+            GlmFamily::GaussianIdentity => eta_control,
+            GlmFamily::PoissonLog => eta_control.exp(),
+        };
         diffs.push(mu_active - mu_control);
     }
     diffs

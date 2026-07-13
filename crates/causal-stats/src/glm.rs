@@ -1,4 +1,4 @@
-//! Initial GLM fitting (Phase 1: logistic IRLS).
+//! GLM fitting: logistic, Gaussian/identity, and Poisson/log IRLS.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -7,11 +7,15 @@
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresWorkspace};
 
-/// Family for the initial GLM path.
+/// Family for the GLM path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum GlmFamily {
     /// Binomial / Bernoulli with logit link.
     BinomialLogit,
+    /// Gaussian with identity link (OLS).
+    GaussianIdentity,
+    /// Poisson with log link.
+    PoissonLog,
 }
 
 /// Borrowed column-major design + outcome used by [`fit_glm`].
@@ -65,11 +69,9 @@ pub struct GlmFit {
 
 /// Fit a GLM on a compiled column-major design via IRLS + least squares.
 ///
-/// Phase 1 covers logistic regression. Poisson / negative-binomial follow later.
-///
 /// # Errors
 ///
-/// Shape mismatch, non-binary outcomes for binomial, or linear-algebra failure.
+/// Shape mismatch, invalid outcomes for the family, or linear-algebra failure.
 pub fn fit_glm(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -79,7 +81,92 @@ pub fn fit_glm(
 ) -> Result<GlmFit, StatsError> {
     match family {
         GlmFamily::BinomialLogit => fit_logistic(design, backend, workspace, options),
+        GlmFamily::GaussianIdentity => fit_gaussian(design, backend, workspace),
+        GlmFamily::PoissonLog => fit_poisson(design, backend, workspace, options),
     }
+}
+
+fn fit_gaussian(
+    design: GlmDesignRef<'_>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<GlmFit, StatsError> {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    if y.len() != nrows {
+        return Err(StatsError::Shape { message: "y length != nrows" });
+    }
+    if x_colmajor.len() < nrows.saturating_mul(ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    let fit = backend.least_squares(x_colmajor, nrows, ncols, y, workspace)?;
+    Ok(GlmFit {
+        coefficients: fit.coefficients,
+        iterations: 1,
+        converged: true,
+        deviance: fit.rss,
+    })
+}
+
+fn fit_poisson(
+    design: GlmDesignRef<'_>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    if y.len() != nrows {
+        return Err(StatsError::Shape { message: "y length != nrows" });
+    }
+    if x_colmajor.len() < nrows.saturating_mul(ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    for &yi in y {
+        if !(yi.is_finite() && yi >= 0.0) {
+            return Err(StatsError::Shape { message: "Poisson GLM requires non-negative outcomes" });
+        }
+    }
+
+    let mut beta = vec![0.0; ncols];
+    let mut x_w = vec![0.0; nrows * ncols];
+    let mut z = vec![0.0; nrows];
+    let mut converged = false;
+    let mut iterations = 0u32;
+    let mut deviance = f64::INFINITY;
+
+    for iter in 1..=options.max_iter {
+        iterations = iter;
+        let mut max_delta = 0.0_f64;
+        deviance = 0.0;
+        for r in 0..nrows {
+            let mut eta = 0.0;
+            for c in 0..ncols {
+                eta += x_colmajor[c * nrows + r] * beta[c];
+            }
+            let mu = eta.exp().max(1e-12);
+            let w = mu.sqrt();
+            let yi = y[r];
+            z[r] = (eta + (yi - mu) / mu) * w;
+            for c in 0..ncols {
+                x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
+            }
+            if yi > 0.0 {
+                deviance += 2.0 * (yi * (yi / mu).ln() - (yi - mu));
+            } else {
+                deviance += 2.0 * mu;
+            }
+        }
+        let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
+        for c in 0..ncols {
+            max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
+            beta[c] = fit.coefficients[c];
+        }
+        if max_delta < options.tol {
+            converged = true;
+            break;
+        }
+    }
+
+    Ok(GlmFit { coefficients: beta, iterations, converged, deviance })
 }
 
 fn fit_logistic(
@@ -175,5 +262,52 @@ mod tests {
         .unwrap();
         assert!(fit.converged, "iters={} deviance={}", fit.iterations, fit.deviance);
         assert!(fit.coefficients[1] > 0.5);
+    }
+
+    #[test]
+    fn gaussian_recovers_linear_slope() {
+        let n = 100usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = (i % 2) as f64;
+            x[i] = 1.0;
+            x[n + i] = t;
+            y[i] = 1.0 + 2.0 * t;
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = fit_glm(
+            GlmFamily::GaussianIdentity,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::default(),
+        )
+        .unwrap();
+        assert!((fit.coefficients[1] - 2.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn poisson_recovers_positive_association() {
+        let n = 120usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            y[i] = if t < 0.5 { 2.0 } else { 4.0 };
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = fit_glm(
+            GlmFamily::PoissonLog,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(100, 1e-8),
+        )
+        .unwrap();
+        assert!(fit.converged);
+        assert!(fit.coefficients[1] > 0.3);
     }
 }
