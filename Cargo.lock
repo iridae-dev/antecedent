@@ -182,6 +182,7 @@ dependencies = [
  "causal-analysis",
  "causal-core",
  "causal-data",
+ "causal-discovery",
  "causal-graph",
  "numpy",
  "pyo3",

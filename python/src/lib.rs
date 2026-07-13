@@ -1,4 +1,4 @@
-//! PyO3 bindings — Phase 0/1: Arrow load + coarse-grained `analyze_ate`.
+//! PyO3 bindings — Phase 0–2: Arrow load, `analyze_ate`, `discover_pcmci`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -10,8 +10,13 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal_analysis::{CausalAnalysis, RefuteSuite};
-use causal_core::{AverageEffectQuery, ExecutionContext};
-use causal_data::{TableView, tabular_from_record_batch};
+use causal_core::{AverageEffectQuery, ExecutionContext, Lag, VariableId};
+use causal_data::{
+    SamplingRegularity, TableView, TimeIndex, TimeSeriesData, tabular_from_record_batch,
+};
+use causal_discovery::{
+    DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints,
+};
 use causal_graph::{Dag, DenseNodeId};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
@@ -189,13 +194,130 @@ fn analyze_ate(
     })
 }
 
+/// One discovered lagged link for Python.
+#[pyclass]
+#[derive(Clone)]
+struct DiscoveredLink {
+    #[pyo3(get)]
+    source: String,
+    #[pyo3(get)]
+    source_lag: u32,
+    #[pyo3(get)]
+    target: String,
+    #[pyo3(get)]
+    target_lag: u32,
+    #[pyo3(get)]
+    statistic: f64,
+    #[pyo3(get)]
+    p_value: f64,
+}
+
+/// Coarse-grained PCMCI discovery result (single boundary crossing).
+#[pyclass]
+struct PcmciDiscoveryResult {
+    #[pyo3(get)]
+    links: Vec<DiscoveredLink>,
+    #[pyo3(get)]
+    algorithm_id: String,
+    #[pyo3(get)]
+    ci_tests: u64,
+    #[pyo3(get)]
+    links_retained: u64,
+}
+
+/// Run lagged PCMCI discovery.
+///
+/// NumPy columns in, structured link list out once. No per-query Python callbacks.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1))]
+fn discover_pcmci(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+) -> PyResult<PcmciDiscoveryResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+
+    py.allow_threads(move || {
+        let loaded =
+            tabular_from_record_batch(&batch).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let tabular = loaded.data;
+        let n = tabular.row_count();
+        let series = TimeSeriesData::try_new(
+            tabular.storage().clone(),
+            TimeIndex {
+                regularity: SamplingRegularity::Regular { interval_ns: 1 },
+                length: n,
+            },
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+        let variables: Vec<VariableId> = series
+            .schema()
+            .variables()
+            .iter()
+            .map(|v| v.id)
+            .collect();
+        let pcmci = Pcmci::new()
+            .with_fdr(fdr)
+            .with_constraints(DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(max_lag),
+                    min_lag: Lag::from_raw(1),
+                },
+                alpha,
+                max_cond_size: 2,
+                ..DiscoveryConstraints::default()
+            });
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(seed);
+        let result = pcmci
+            .run(&series, &variables, &mut ws, &ctx)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+        let links: Vec<DiscoveredLink> = result
+            .evidence
+            .links
+            .iter()
+            .map(|s| DiscoveredLink {
+                source: names
+                    .get(s.link.source.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", s.link.source.raw())),
+                source_lag: s.link.source_lag.raw(),
+                target: names
+                    .get(s.link.target.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", s.link.target.raw())),
+                target_lag: s.link.target_lag.raw(),
+                statistic: s.statistic,
+                p_value: s.p_value,
+            })
+            .collect();
+
+        Ok(PcmciDiscoveryResult {
+            links,
+            algorithm_id: result.algorithm.id.to_string(),
+            ci_tests: result.performance.ci_tests,
+            links_retained: result.performance.links_retained,
+        })
+    })
+}
+
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
+    m.add_class::<DiscoveredLink>()?;
+    m.add_class::<PcmciDiscoveryResult>()?;
     m.add("__version__", causal_core::VERSION)?;
     Ok(())
 }
