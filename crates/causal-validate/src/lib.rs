@@ -9,11 +9,13 @@ pub mod common;
 pub mod error;
 pub mod placebo;
 pub mod rcc;
+pub mod stability;
 
 pub use common::{RefutationProblem, RefutationReport};
 pub use error::ValidationError;
 pub use placebo::PlaceboTreatment;
 pub use rcc::RandomCommonCause;
+pub use stability::{BlockBootstrapStability, DiscoveryStabilityReport, LinkStability};
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]

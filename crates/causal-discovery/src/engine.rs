@@ -293,9 +293,8 @@ impl PcmciEngine {
             z_flat: &z_flat,
             significance: SignificanceMethod::Analytic,
         };
-        let out = match self.ci.test_batch(&req, &mut workspace.ci, ctx) {
-            Ok(o) => o,
-            Err(_) => return Ok((0.0, 1.0)),
+        let Ok(out) = self.ci.test_batch(&req, &mut workspace.ci, ctx) else {
+            return Ok((0.0, 1.0));
         };
         let Some(r) = out.results.first() else {
             return Ok((0.0, 1.0));

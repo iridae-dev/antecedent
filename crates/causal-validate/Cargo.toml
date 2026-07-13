@@ -18,3 +18,4 @@ causal-data = { path = "../causal-data" }
 causal-estimate = { path = "../causal-estimate" }
 causal-expr = { path = "../causal-expr" }
 causal-identify = { path = "../causal-identify" }
+causal-discovery = { path = "../causal-discovery" }
