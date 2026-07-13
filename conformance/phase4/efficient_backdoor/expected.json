@@ -1,0 +1,7 @@
+{
+  "true_effect": 2.0,
+  "tolerance": 0.35,
+  "identifier": "backdoor.efficient",
+  "estimator": "propensity.weighting",
+  "notes": "efficient backdoor + IPW"
+}

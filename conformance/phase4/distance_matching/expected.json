@@ -1,0 +1,7 @@
+{
+  "true_effect": 2.0,
+  "tolerance": 0.5,
+  "identifier": "backdoor.adjustment",
+  "estimator": "distance.matching",
+  "notes": "covariate NN matching ATT"
+}

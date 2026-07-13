@@ -226,3 +226,163 @@ fn phase4_frontdoor_two_stage_recovers_mediated_effect() {
     let result = analysis.run(&ctx).unwrap();
     assert_recovers(&result, &expected);
 }
+
+fn run_static(
+    name: &str,
+    data: TabularData,
+    graph: Dag,
+    query: AverageEffectQuery,
+    seed: u64,
+) {
+    let expected = load_expected(name);
+    let analysis = CausalAnalysis::builder()
+        .data(data)
+        .graph(graph)
+        .query(query)
+        .identifier(expected["identifier"].as_str().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap())
+        .bootstrap_replicates(20)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(seed);
+    let result = analysis.run(&ctx).unwrap();
+    assert_recovers(&result, &expected);
+}
+
+#[test]
+fn phase4_propensity_matching_recovers_att() {
+    let (data, graph, mut query) = propensity_ipw_scm(1500, 11);
+    query = query.with_target_population(causal_core::TargetPopulation::Treated);
+    run_static("propensity_matching", data, graph, query, 12);
+}
+
+#[test]
+fn phase4_propensity_stratification_recovers_ate() {
+    let (data, graph, query) = propensity_ipw_scm(1500, 13);
+    run_static("propensity_stratification", data, graph, query, 14);
+}
+
+#[test]
+fn phase4_distance_matching_recovers_att() {
+    let (data, graph, mut query) = propensity_ipw_scm(1500, 15);
+    query = query.with_target_population(causal_core::TargetPopulation::Treated);
+    run_static("distance_matching", data, graph, query, 16);
+}
+
+#[test]
+fn phase4_aipw_recovers_ate() {
+    let (data, graph, query) = propensity_ipw_scm(1500, 17);
+    run_static("aipw", data, graph, query, 18);
+}
+
+#[test]
+fn phase4_efficient_backdoor_ipw_recovers_ate() {
+    let (data, graph, query) = propensity_ipw_scm(1500, 19);
+    run_static("efficient_backdoor", data, graph, query, 20);
+}
+
+#[test]
+fn phase4_iv_wald_recovers_structural_effect() {
+    let (data, graph, query) = iv_2sls_scm(4000, 21);
+    run_static("iv_wald", data, graph, query, 22);
+}
+
+/// Binary outcome logistic SCM: `Y ~ Bern(sigmoid(-0.5 + 1.2 T + 0.8 Z))` with confounded T.
+fn glm_binary_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5054_u64);
+    let mut z = vec![0.0; n];
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        let zi = standard_normal(&mut rng);
+        let logit_t = -0.3 + 0.8 * zi;
+        let pt = 1.0 / (1.0 + (-logit_t).exp());
+        let ti = if rng.next_f64() < pt { 1.0 } else { 0.0 };
+        let logit_y = -0.5 + 1.2 * ti + 0.8 * zi;
+        let py = 1.0 / (1.0 + (-logit_y).exp());
+        let yi = if rng.next_f64() < py { 1.0 } else { 0.0 };
+        z[i] = zi;
+        t[i] = ti;
+        y[i] = yi;
+    }
+    let data = tabular_data(&[
+        ("t", RoleHint::TreatmentCandidate, t),
+        ("y", RoleHint::OutcomeCandidate, y),
+        ("z", RoleHint::Context, z),
+    ]);
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    (data, dag, query)
+}
+
+#[test]
+fn phase4_glm_adjustment_recovers_positive_ate() {
+    // Monte Carlo: logistic g-comp ATE is positive and typically ~0.2–0.3 under this SCM.
+    let expected = load_expected("glm_adjustment");
+    let (data, graph, query) = glm_binary_scm(2000, 23);
+    let analysis = CausalAnalysis::builder()
+        .data(data)
+        .graph(graph)
+        .query(query)
+        .identifier(expected["identifier"].as_str().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap())
+        .bootstrap_replicates(20)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(24);
+    let result = analysis.run(&ctx).unwrap();
+    assert!(result.estimate.ate > 0.05, "ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.ate - expected["true_effect"].as_f64().unwrap()).abs()
+            < expected["tolerance"].as_f64().unwrap(),
+        "ate={}",
+        result.estimate.ate
+    );
+}
+
+/// Sharp RD: running variable R, T = 1{R >= 0}, Y = 3T + 0.5 R + noise.
+fn rd_scm(n: usize, seed: u64) -> (TabularData, AverageEffectQuery) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5055_u64);
+    let mut r = vec![0.0; n];
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        let ri = standard_normal(&mut rng);
+        let ti = if ri >= 0.0 { 1.0 } else { 0.0 };
+        let yi = 3.0 * ti + 0.5 * ri + 0.2 * standard_normal(&mut rng);
+        r[i] = ri;
+        t[i] = ti;
+        y[i] = yi;
+    }
+    let data = tabular_data(&[
+        ("t", RoleHint::TreatmentCandidate, t),
+        ("y", RoleHint::OutcomeCandidate, y),
+        ("r", RoleHint::Context, r),
+    ]);
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    (data, query)
+}
+
+#[test]
+fn phase4_rd_sharp_recovers_jump() {
+    let expected = load_expected("rd_sharp");
+    let (data, query) = rd_scm(3000, 25);
+    // Synthetic empty DAG; RD path does not use graph identification.
+    let graph = Dag::with_variables(3);
+    let analysis = CausalAnalysis::builder()
+        .data(data)
+        .graph(graph)
+        .query(query)
+        .identifier("rd.sharp")
+        .estimator("rd.sharp")
+        .rd_config(VariableId::from_raw(2), 0.0, 1.5)
+        .bootstrap_replicates(20)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(26);
+    let result = analysis.run(&ctx).unwrap();
+    assert_recovers(&result, &expected);
+}
