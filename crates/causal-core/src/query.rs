@@ -10,6 +10,8 @@ use crate::ids::{EnvironmentId, VariableId};
 use crate::intervention::Intervention;
 use crate::value::Value;
 
+pub use crate::intervention::TemporalPolicy;
+
 /// Target population for an effect query (DESIGN.md §8.2).
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -22,58 +24,6 @@ pub enum TargetPopulation {
     Untreated,
     /// Environment-restricted population.
     Environment(EnvironmentId),
-}
-
-/// Temporal intervention policy over discrete time steps (DESIGN.md §8.1).
-///
-/// Horizons and offsets are **time steps** relative to the series indexer, not
-/// wall-clock durations.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-#[non_exhaustive]
-pub enum TemporalPolicy {
-    /// Instantaneous intervention at a single offset.
-    Pulse {
-        /// Time offset (steps) of the pulse relative to the analysis window origin.
-        at: i32,
-    },
-    /// Intervention held from `from` through `until` inclusive (step offsets).
-    Sustained {
-        /// First intervened step.
-        from: i32,
-        /// Last intervened step (inclusive).
-        until: i32,
-    },
-}
-
-impl TemporalPolicy {
-    /// One-step pulse at offset `at`.
-    #[must_use]
-    pub const fn pulse(at: i32) -> Self {
-        Self::Pulse { at }
-    }
-
-    /// Sustained intervention on `[from, until]`.
-    #[must_use]
-    pub const fn sustained(from: i32, until: i32) -> Self {
-        Self::Sustained { from, until }
-    }
-
-    /// Validate policy bounds.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`QueryError`] when the sustained window is empty or inverted.
-    pub const fn validate(self) -> Result<(), QueryError> {
-        match self {
-            Self::Pulse { .. } => Ok(()),
-            Self::Sustained { from, until } => {
-                if until < from {
-                    return Err(QueryError::InvalidTemporalWindow { from, until });
-                }
-                Ok(())
-            }
-        }
-    }
 }
 
 /// Average treatment effect (ATE / ATT-style) query.
@@ -148,16 +98,23 @@ impl AverageEffectQuery {
         if self.treatment == self.outcome {
             return Err(QueryError::TreatmentEqualsOutcome { id: self.treatment });
         }
-        if self.control.primary_variable() != self.treatment {
+        let control_var = self.control.primary_variable().ok_or(
+            QueryError::AmbiguousInterventionTarget,
+        )?;
+        if control_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
-                got: self.control.primary_variable(),
+                got: control_var,
             });
         }
-        if self.active.primary_variable() != self.treatment {
+        let active_var = self
+            .active
+            .primary_variable()
+            .ok_or(QueryError::AmbiguousInterventionTarget)?;
+        if active_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
-                got: self.active.primary_variable(),
+                got: active_var,
             });
         }
         if self.effect_modifiers.iter().any(|m| *m == self.treatment || *m == self.outcome) {
@@ -264,17 +221,30 @@ impl TemporalEffectQuery {
         if self.horizon_steps == 0 {
             return Err(QueryError::NonPositiveHorizon);
         }
-        self.policy.validate()?;
-        if self.control.primary_variable() != self.treatment {
+        self.policy.validate().map_err(|e| match e {
+            crate::intervention::InterventionError::InvalidTemporalWindow { from, until } => {
+                QueryError::InvalidTemporalWindow { from, until }
+            }
+            other => QueryError::InvalidIntervention(other.to_string()),
+        })?;
+        let control_var = self
+            .control
+            .primary_variable()
+            .ok_or(QueryError::AmbiguousInterventionTarget)?;
+        if control_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
-                got: self.control.primary_variable(),
+                got: control_var,
             });
         }
-        if self.active.primary_variable() != self.treatment {
+        let active_var = self
+            .active
+            .primary_variable()
+            .ok_or(QueryError::AmbiguousInterventionTarget)?;
+        if active_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
-                got: self.active.primary_variable(),
+                got: active_var,
             });
         }
         Ok(())
@@ -306,6 +276,96 @@ pub enum CausalQuery {
     AverageEffect(AverageEffectQuery),
     /// Temporal effect over a discrete horizon.
     TemporalEffect(TemporalEffectQuery),
+    /// Counterfactual / unit-level what-if query (Phase 7).
+    Counterfactual(CounterfactualQuery),
+    /// Anomaly attribution for one or more units (Phase 7).
+    AnomalyAttribution(AnomalyAttributionQuery),
+}
+
+/// Counterfactual query over factual observations and interventions (DESIGN.md §16).
+#[derive(Clone, Debug, PartialEq)]
+pub struct CounterfactualQuery {
+    /// Outcome variable(s) to predict under the counterfactual world.
+    pub outcomes: Arc<[VariableId]>,
+    /// Interventions defining the counterfactual world (applied after abduction).
+    pub interventions: Arc<[Intervention]>,
+    /// When true, allow nested counterfactual interventions under invertible SCMs.
+    pub allow_nested: bool,
+}
+
+impl CounterfactualQuery {
+    /// Construct a single-outcome counterfactual query.
+    #[must_use]
+    pub fn new(outcome: VariableId, interventions: impl Into<Arc<[Intervention]>>) -> Self {
+        Self {
+            outcomes: Arc::from([outcome]),
+            interventions: interventions.into(),
+            allow_nested: false,
+        }
+    }
+
+    /// Enable nested interventions where the model supports them.
+    #[must_use]
+    pub const fn with_nested(mut self, allow_nested: bool) -> Self {
+        self.allow_nested = allow_nested;
+        self
+    }
+
+    /// Validate interventions.
+    ///
+    /// # Errors
+    ///
+    /// Empty outcomes or invalid interventions.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.outcomes.is_empty() {
+            return Err(QueryError::EmptyCounterfactualOutcomes);
+        }
+        for iv in self.interventions.iter() {
+            iv.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+        }
+        Ok(())
+    }
+}
+
+/// Anomaly attribution query for observed units (DESIGN.md §17 / Phase 7 basic).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct AnomalyAttributionQuery {
+    /// Variables whose anomaly scores are requested.
+    pub targets: Arc<[VariableId]>,
+    /// Optional row indices into the factual table (`None` = all complete rows).
+    pub unit_rows: Option<Arc<[usize]>>,
+    /// Maximum number of units to score (hard size limit).
+    pub max_units: usize,
+}
+
+impl AnomalyAttributionQuery {
+    /// Score all complete rows for `targets`, capped at `max_units`.
+    #[must_use]
+    pub fn new(targets: impl Into<Arc<[VariableId]>>, max_units: usize) -> Self {
+        Self { targets: targets.into(), unit_rows: None, max_units }
+    }
+
+    /// Restrict to explicit row indices.
+    #[must_use]
+    pub fn with_unit_rows(mut self, rows: impl Into<Arc<[usize]>>) -> Self {
+        self.unit_rows = Some(rows.into());
+        self
+    }
+
+    /// Validate targets and limits.
+    ///
+    /// # Errors
+    ///
+    /// Empty targets or zero max_units.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.targets.is_empty() {
+            return Err(QueryError::EmptyAnomalyTargets);
+        }
+        if self.max_units == 0 {
+            return Err(QueryError::NonPositiveAnomalyLimit);
+        }
+        Ok(())
+    }
 }
 
 impl CausalQuery {
@@ -321,6 +381,18 @@ impl CausalQuery {
         Self::TemporalEffect(query)
     }
 
+    /// Construct a counterfactual query.
+    #[must_use]
+    pub fn counterfactual(query: CounterfactualQuery) -> Self {
+        Self::Counterfactual(query)
+    }
+
+    /// Construct an anomaly attribution query.
+    #[must_use]
+    pub fn anomaly_attribution(query: AnomalyAttributionQuery) -> Self {
+        Self::AnomalyAttribution(query)
+    }
+
     /// Whether this query is the Phase 1 static ATE path.
     #[must_use]
     pub const fn is_phase1_ate(&self) -> bool {
@@ -333,6 +405,12 @@ impl CausalQuery {
         matches!(self, Self::TemporalEffect(_))
     }
 
+    /// Whether this query is counterfactual.
+    #[must_use]
+    pub const fn is_counterfactual(&self) -> bool {
+        matches!(self, Self::Counterfactual(_))
+    }
+
     /// Validate the inner query.
     ///
     /// # Errors
@@ -342,6 +420,8 @@ impl CausalQuery {
         match self {
             Self::AverageEffect(q) => q.validate(),
             Self::TemporalEffect(q) => q.validate(),
+            Self::Counterfactual(q) => q.validate(),
+            Self::AnomalyAttribution(q) => q.validate(),
         }
     }
 }
@@ -361,6 +441,8 @@ pub enum QueryError {
         /// Actual intervention target.
         got: VariableId,
     },
+    /// Intervention sequence has no unique target variable.
+    AmbiguousInterventionTarget,
     /// Effect modifier overlaps treatment or outcome.
     ModifierOverlapsTreatmentOrOutcome,
     /// Sustained window has `until < from`.
@@ -372,6 +454,14 @@ pub enum QueryError {
     },
     /// Horizon must be at least one time step.
     NonPositiveHorizon,
+    /// Nested intervention failed validation.
+    InvalidIntervention(String),
+    /// Counterfactual query has no outcomes.
+    EmptyCounterfactualOutcomes,
+    /// Anomaly query has no targets.
+    EmptyAnomalyTargets,
+    /// Anomaly max_units must be ≥ 1.
+    NonPositiveAnomalyLimit,
 }
 
 impl core::fmt::Display for QueryError {
@@ -383,6 +473,9 @@ impl core::fmt::Display for QueryError {
             Self::InterventionVariableMismatch { expected, got } => {
                 write!(f, "intervention targets {got}, expected treatment {expected}")
             }
+            Self::AmbiguousInterventionTarget => {
+                write!(f, "intervention does not have a unique target variable")
+            }
             Self::ModifierOverlapsTreatmentOrOutcome => {
                 write!(f, "effect modifier overlaps treatment or outcome")
             }
@@ -390,6 +483,12 @@ impl core::fmt::Display for QueryError {
                 write!(f, "invalid temporal window [{from}, {until}]")
             }
             Self::NonPositiveHorizon => write!(f, "horizon_steps must be >= 1"),
+            Self::InvalidIntervention(msg) => write!(f, "invalid intervention: {msg}"),
+            Self::EmptyCounterfactualOutcomes => {
+                write!(f, "counterfactual query requires at least one outcome")
+            }
+            Self::EmptyAnomalyTargets => write!(f, "anomaly attribution requires targets"),
+            Self::NonPositiveAnomalyLimit => write!(f, "anomaly max_units must be >= 1"),
         }
     }
 }
@@ -414,6 +513,7 @@ mod tests {
                 assert_eq!(*variable, t);
                 assert_eq!(*value, Value::f64(0.0));
             }
+            other => panic!("expected Set, got {other:?}"),
         }
     }
 
@@ -460,5 +560,17 @@ mod tests {
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_horizon_steps(0);
         assert!(matches!(q.validate(), Err(QueryError::NonPositiveHorizon)));
+    }
+
+    #[test]
+    fn counterfactual_and_anomaly_queries() {
+        let y = VariableId::from_raw(1);
+        let t = VariableId::from_raw(0);
+        let cf = CounterfactualQuery::new(y, [Intervention::set(t, Value::f64(1.0))]);
+        cf.validate().unwrap();
+        assert!(CausalQuery::counterfactual(cf).is_counterfactual());
+        let an = AnomalyAttributionQuery::new([y], 100);
+        an.validate().unwrap();
+        CausalQuery::anomaly_attribution(an).validate().unwrap();
     }
 }
