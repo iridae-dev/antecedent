@@ -12,7 +12,9 @@ pub mod dag;
 pub mod dsep;
 pub mod error;
 pub mod msep;
+pub mod pag;
 pub mod temporal;
+pub mod temporal_pag;
 pub mod types;
 pub mod unfold;
 pub mod workspace;
@@ -22,7 +24,9 @@ pub use cpdag::{Cpdag, TemporalCpdag};
 pub use dag::Dag;
 pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
 pub use error::GraphError;
+pub use pag::{DefiniteStatusPath, Pag};
 pub use temporal::TemporalDag;
+pub use temporal_pag::TemporalPag;
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 pub use unfold::{
     LazyUnfoldedTemporalGraph, TemporalCpdagReview, TemporalGraphReview, UnfoldedTemporalGraph,
