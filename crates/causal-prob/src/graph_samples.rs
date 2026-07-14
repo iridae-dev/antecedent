@@ -55,9 +55,7 @@ impl WeightedGraphSamples {
             return Err(ProbError::Shape { message: "empty graph ensemble" });
         }
         if identified.len() != n || graph_keys.len() != n {
-            return Err(ProbError::Shape {
-                message: "weights/identified/keys length mismatch",
-            });
+            return Err(ProbError::Shape { message: "weights/identified/keys length mismatch" });
         }
         Ok(Self {
             n_samples: n,
@@ -102,9 +100,8 @@ impl WeightedGraphSamples {
         if !(total > 0.0) {
             return Err(ProbError::Shape { message: "non-positive total weight" });
         }
-        let weights: Arc<[f64]> = Arc::from(
-            self.weights.iter().map(|w| w / total).collect::<Vec<_>>(),
-        );
+        let weights: Arc<[f64]> =
+            Arc::from(self.weights.iter().map(|w| w / total).collect::<Vec<_>>());
         Ok(Self {
             n_samples: self.n_samples,
             weights,

@@ -23,9 +23,7 @@ use crate::backend::{
 };
 use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
-use crate::linalg::{
-    cholesky_spd, condition_from_chol, invert_spd, ldlt_decompose, solve_spd,
-};
+use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd, ldlt_decompose, solve_spd};
 use crate::posterior::{PosteriorDraws, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, PriorSet};
 
@@ -70,9 +68,7 @@ pub fn fit_laplace_glm(
         None => GaussianCoefficientPrior::isotropic(ncols, 10.0),
     };
     if coef_prior.len() != ncols {
-        return Err(ProbError::InvalidPrior {
-            message: "coefficient prior length != ncols",
-        });
+        return Err(ProbError::InvalidPrior { message: "coefficient prior length != ncols" });
     }
     coef_prior.validate()?;
     let prec = coef_prior.precision();
@@ -422,25 +418,24 @@ fn log_posterior_value(
         eta[r] = e;
         let w = design.weights.map_or(1.0, |ww| ww[r]);
         let y = design.y[r];
-        ll += w
-            * match likelihood {
-                BayesLikelihood::GaussianIdentity => {
-                    let r = y - e;
-                    -0.5 * r * r
-                }
-                BayesLikelihood::BernoulliLogit => {
-                    // y*η - softplus(η)
-                    y * e - softplus(e)
-                }
-                BayesLikelihood::BernoulliProbit => {
-                    let p = norm_cdf(e).clamp(1e-12, 1.0 - 1e-12);
-                    y * p.ln() + (1.0 - y) * (1.0 - p).ln()
-                }
-                BayesLikelihood::PoissonLog => {
-                    let mu = e.exp();
-                    y * e - mu
-                }
-            };
+        ll += w * match likelihood {
+            BayesLikelihood::GaussianIdentity => {
+                let r = y - e;
+                -0.5 * r * r
+            }
+            BayesLikelihood::BernoulliLogit => {
+                // y*η - softplus(η)
+                y * e - softplus(e)
+            }
+            BayesLikelihood::BernoulliProbit => {
+                let p = norm_cdf(e).clamp(1e-12, 1.0 - 1e-12);
+                y * p.ln() + (1.0 - y) * (1.0 - p).ln()
+            }
+            BayesLikelihood::PoissonLog => {
+                let mu = e.exp();
+                y * e - mu
+            }
+        };
     }
     let mut lp = 0.0;
     for i in 0..ncols {
@@ -451,11 +446,7 @@ fn log_posterior_value(
 }
 
 fn softplus(x: f64) -> f64 {
-    if x > 20.0 {
-        x
-    } else {
-        (1.0 + x.exp()).ln()
-    }
+    if x > 20.0 { x } else { (1.0 + x.exp()).ln() }
 }
 
 fn norm_pdf(x: f64) -> f64 {
@@ -528,9 +519,9 @@ mod tests {
             y[r] = 0.5 + 1.5 * xi;
         }
         let prior = PriorSet {
-            specs: vec![PriorSpec::GaussianCoefficients(
-                GaussianCoefficientPrior::isotropic(2, 100.0),
-            )],
+            specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
+                2, 100.0,
+            ))],
             contrast: None,
             categorical: Vec::new(),
         };
@@ -543,33 +534,16 @@ mod tests {
             weights: None,
             offsets: None,
         };
-        let opts = BayesFitOptions {
-            n_draws: 200,
-            seed: 3,
-            max_iter: 50,
-            grad_tol: 1e-8,
-        };
-        let fit = fit_laplace_glm(
-            BayesLikelihood::GaussianIdentity,
-            design,
-            &prior,
-            &opts,
-            &mut ws,
-        )
-        .unwrap();
+        let opts = BayesFitOptions { n_draws: 200, seed: 3, max_iter: 50, grad_tol: 1e-8 };
+        let fit =
+            fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws)
+                .unwrap();
         assert!(fit.diagnostics.converged);
         assert!(fit.diagnostics.allows_posterior());
         assert!((fit.map[0] - 0.5).abs() < 1e-3);
         assert!((fit.map[1] - 1.5).abs() < 1e-3);
         let g0 = ws.grow_count;
-        fit_laplace_glm(
-            BayesLikelihood::GaussianIdentity,
-            design,
-            &prior,
-            &opts,
-            &mut ws,
-        )
-        .unwrap();
+        fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws).unwrap();
         assert_eq!(ws.grow_count, g0, "workspace must be reused");
     }
 
@@ -595,19 +569,9 @@ mod tests {
             weights: None,
             offsets: None,
         };
-        let opts = BayesFitOptions {
-            n_draws: 100,
-            seed: 11,
-            ..BayesFitOptions::default()
-        };
-        let fit = fit_laplace_glm(
-            BayesLikelihood::BernoulliLogit,
-            design,
-            &prior,
-            &opts,
-            &mut ws,
-        )
-        .unwrap();
+        let opts = BayesFitOptions { n_draws: 100, seed: 11, ..BayesFitOptions::default() };
+        let fit = fit_laplace_glm(BayesLikelihood::BernoulliLogit, design, &prior, &opts, &mut ws)
+            .unwrap();
         assert!(fit.diagnostics.converged);
         assert!(fit.map[1] > 0.0);
     }

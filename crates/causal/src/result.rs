@@ -6,8 +6,8 @@ use causal_core::{
     Diagnostic, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
     ProvenanceGraph, VariableId,
 };
-use causal_estimate::EffectEstimate;
 use causal_estimate::CausalPosterior;
+use causal_estimate::EffectEstimate;
 use causal_identify::{IdentificationResult, IdentifiedEstimand};
 use causal_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
 use causal_validate::RefutationReport;

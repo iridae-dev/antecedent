@@ -54,12 +54,7 @@ pub struct BayesFitOptions {
 
 impl Default for BayesFitOptions {
     fn default() -> Self {
-        Self {
-            n_draws: 1000,
-            max_iter: 50,
-            grad_tol: 1e-8,
-            seed: 0,
-        }
+        Self { n_draws: 1000, max_iter: 50, grad_tol: 1e-8, seed: 0 }
     }
 }
 

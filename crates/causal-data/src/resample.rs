@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::neg_cmp_op_on_partial_ord
+)]
 
 use std::sync::Arc;
 
@@ -191,13 +195,9 @@ fn apply_weight_plan(data: &TimeSeriesData, weights: &[f64]) -> Result<TimeSerie
     }
     let analysis_mask = data.storage().analysis_mask().cloned();
     let combined: Arc<[f64]> = match data.storage().weights() {
-        Some(existing) => Arc::from(
-            existing
-                .iter()
-                .zip(weights.iter())
-                .map(|(a, b)| a * b)
-                .collect::<Vec<_>>(),
-        ),
+        Some(existing) => {
+            Arc::from(existing.iter().zip(weights.iter()).map(|(a, b)| a * b).collect::<Vec<_>>())
+        }
         None => Arc::from(weights.to_vec()),
     };
     let storage = OwnedColumnarStorage::try_new(schema, cols, analysis_mask, Some(combined))?;
@@ -328,8 +328,10 @@ mod tests {
     fn bayesian_bootstrap_rejects_index_fill() {
         let mut rng = CausalRng::from_seed(1);
         let mut idx = Vec::new();
-        assert!(fill_resample_indexes(ResamplingPlan::BayesianBootstrap, 10, &mut rng, &mut idx)
-            .is_err());
+        assert!(
+            fill_resample_indexes(ResamplingPlan::BayesianBootstrap, 10, &mut rng, &mut idx)
+                .is_err()
+        );
     }
 
     #[test]

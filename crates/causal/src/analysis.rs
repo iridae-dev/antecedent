@@ -6,7 +6,8 @@
     clippy::similar_names,
     clippy::too_many_lines,
     clippy::doc_markdown,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::cast_precision_loss
 )]
 
 use std::sync::Arc;
@@ -779,9 +780,7 @@ impl CausalAnalysis {
         };
         let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
         let mut ws = BayesianGCompWorkspace::default();
-        let posterior = est
-            .fit(&prep, identification.status, &mut ws, ctx)
-            .map_err(est_err)?;
+        let posterior = est.fit(&prep, identification.status, &mut ws, ctx).map_err(est_err)?;
         let estimate = effect_from_posterior(&posterior)?;
 
         let mut diagnostics = identification.diagnostics.clone();
@@ -1084,8 +1083,7 @@ fn effect_from_posterior(posterior: &CausalPosterior) -> Result<EffectEstimate, 
         AnalysisError::Estimate("Bayesian posterior missing effect column".into())
     })?;
     let ate = posterior.summaries.mean[eq];
-    let se = posterior.summaries.sd[eq]
-        / (posterior.draws.n_draws as f64).sqrt().max(1.0);
+    let se = posterior.summaries.sd[eq] / (posterior.draws.n_draws as f64).sqrt().max(1.0);
     Ok(EffectEstimate {
         ate,
         se_analytic: se,

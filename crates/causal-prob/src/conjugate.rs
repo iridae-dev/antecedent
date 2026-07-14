@@ -90,9 +90,7 @@ pub fn fit_conjugate_gaussian(
         None => GaussianCoefficientPrior::isotropic(ncols, 10.0),
     };
     if coef_prior.len() != ncols {
-        return Err(ProbError::InvalidPrior {
-            message: "coefficient prior length != ncols",
-        });
+        return Err(ProbError::InvalidPrior { message: "coefficient prior length != ncols" });
     }
     coef_prior.validate()?;
 
@@ -129,14 +127,8 @@ pub fn fit_conjugate_gaussian(
 
     let (map, draws, include_sigma2) = if let Some(sigma2) = known_sigma2 {
         let (mean, cov) = posterior_known_sigma2(ncols, &coef_prior, xtx, xty, sigma2)?;
-        let draws = draw_mvn_known_sigma(
-            &mean,
-            &cov,
-            sigma2,
-            options.n_draws,
-            options.seed,
-            workspace,
-        )?;
+        let draws =
+            draw_mvn_known_sigma(&mean, &cov, sigma2, options.n_draws, options.seed, workspace)?;
         (mean, draws, false)
     } else {
         let (mean, scale_chol, alpha_n, beta_n) =
@@ -411,11 +403,7 @@ mod tests {
             weights: None,
             offsets: None,
         };
-        let opts = BayesFitOptions {
-            n_draws: 500,
-            seed: 42,
-            ..BayesFitOptions::default()
-        };
+        let opts = BayesFitOptions { n_draws: 500, seed: 42, ..BayesFitOptions::default() };
         let fit = ConjugateGaussianBackend
             .fit(
                 BayesLikelihood::GaussianIdentity,

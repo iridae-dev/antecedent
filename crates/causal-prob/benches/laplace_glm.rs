@@ -24,26 +24,13 @@ fn bench_laplace(c: &mut Criterion) {
     let n = 500usize;
     let (x, y) = make_design(n);
     let prior = PriorSet {
-        specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
-            3, 10.0,
-        ))],
+        specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(3, 10.0))],
         contrast: None,
         categorical: Vec::new(),
     };
-    let design = BayesDesignRef {
-        x_colmajor: &x,
-        nrows: n,
-        ncols: 3,
-        y: &y,
-        weights: None,
-        offsets: None,
-    };
-    let opts = BayesFitOptions {
-        n_draws: 256,
-        seed: 1,
-        max_iter: 40,
-        grad_tol: 1e-8,
-    };
+    let design =
+        BayesDesignRef { x_colmajor: &x, nrows: n, ncols: 3, y: &y, weights: None, offsets: None };
+    let opts = BayesFitOptions { n_draws: 256, seed: 1, max_iter: 40, grad_tol: 1e-8 };
 
     let mut ws = LaplaceWorkspace::default();
     // Warm-up prepare so timed loop measures reuse, not first allocation.
@@ -64,10 +51,7 @@ fn bench_laplace(c: &mut Criterion) {
         });
     });
 
-    assert_eq!(
-        ws.grow_count, grow_before,
-        "Laplace workspace must not grow across repeated fits"
-    );
+    assert_eq!(ws.grow_count, grow_before, "Laplace workspace must not grow across repeated fits");
 }
 
 criterion_group!(benches, bench_laplace);

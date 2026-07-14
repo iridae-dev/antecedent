@@ -5,7 +5,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::neg_cmp_op_on_partial_ord,
+    clippy::needless_range_loop,
+    clippy::float_cmp,
+    clippy::doc_markdown
+)]
 
 use std::sync::Arc;
 
@@ -19,17 +25,11 @@ use crate::bayesian::CausalPosterior;
 use crate::error::EstimationError;
 
 /// Options for envelope aggregation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EnvelopeOptions {
     /// When true, renormalize weights over identified graphs only (explicit opt-in).
     /// Default false: unidentified mass is retained on the result.
     pub renormalize_identified_only: bool,
-}
-
-impl Default for EnvelopeOptions {
-    fn default() -> Self {
-        Self { renormalize_identified_only: false }
-    }
 }
 
 /// One graph's scalar effect posterior (columnar draws of a single effect).
@@ -70,9 +70,7 @@ pub fn aggregate_effect_envelope(
         match n_draws {
             None => n_draws = Some(g.effect_draws.len()),
             Some(n) if n != g.effect_draws.len() => {
-                return Err(EstimationError::Stats(
-                    "per-graph effect draw counts differ".into(),
-                ));
+                return Err(EstimationError::Stats("per-graph effect draw counts differ".into()));
             }
             _ => {}
         }
@@ -85,9 +83,7 @@ pub fn aggregate_effect_envelope(
 
     let weight_scale = if options.renormalize_identified_only {
         if !(identified_mass > 0.0) {
-            return Err(EstimationError::Stats(
-                "no identified mass to renormalize".into(),
-            ));
+            return Err(EstimationError::Stats("no identified mass to renormalize".into()));
         }
         1.0 / identified_mass
     } else {
@@ -130,9 +126,7 @@ pub fn aggregate_effect_envelope(
     };
 
     let schema = PosteriorSchema {
-        quantities: Arc::from([PosteriorQuantityKind::Effect {
-            name: Arc::from("ate_envelope"),
-        }]),
+        quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("ate_envelope") }]),
     };
     let draws = PosteriorDraws::from_column_major(schema, n_draws, mixture)
         .map_err(|e| EstimationError::Stats(e.to_string()))?;
@@ -217,10 +211,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(env.unidentified_mass, 0.0);
-        assert_eq!(
-            env.identification,
-            IdentificationStatus::NonparametricallyIdentified
-        );
+        assert_eq!(env.identification, IdentificationStatus::NonparametricallyIdentified);
         // (0.5*1 + 0.2*3) / 0.7 = 1.1/0.7
         assert!((env.summaries.mean[0] - 1.1 / 0.7).abs() < 1e-12);
     }
