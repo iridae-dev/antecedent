@@ -1,0 +1,5 @@
+{
+  "identifier": "backdoor.adjustment",
+  "expect_compile_error": true,
+  "tolerance_class": "Exact"
+}

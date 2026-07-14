@@ -1,0 +1,4 @@
+{
+  "require_mass_accounted": true,
+  "tolerance_class": "Exact"
+}
