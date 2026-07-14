@@ -65,6 +65,28 @@ pub enum GraphInput {
         /// Auto-accept when no circle marks remain.
         accept_discovered: bool,
     },
+    /// Discover with J-PCMCI+ (multi-environment / context; review usually required).
+    DiscoverJpcmciPlus {
+        /// Max lag.
+        max_lag: u32,
+        /// Significance level.
+        alpha: f64,
+        /// Apply FDR.
+        fdr: bool,
+        /// Auto-accept when no undirected marks remain.
+        accept_discovered: bool,
+    },
+    /// Discover with RPCMCI (regime assignments + per-regime graphs).
+    DiscoverRpcmci {
+        /// Max lag.
+        max_lag: u32,
+        /// Significance level.
+        alpha: f64,
+        /// Apply FDR.
+        fdr: bool,
+        /// Auto-accept when each regime graph is fully oriented.
+        accept_discovered: bool,
+    },
 }
 
 /// Logical plan after compile (semantics only).
@@ -100,11 +122,13 @@ impl LogicalAnalysisPlan {
             }
             _ => {}
         }
-        if matches!(self.record.discovery_algorithm.as_deref(), Some("pcmci" | "pcmci_plus"))
-            && self.record.data_classification != DataClassification::Temporal
+        if matches!(
+            self.record.discovery_algorithm.as_deref(),
+            Some("pcmci" | "pcmci_plus" | "jpcmci_plus" | "rpcmci")
+        ) && self.record.data_classification != DataClassification::Temporal
         {
             return Err(AnalysisError::Compile {
-                message: "PCMCI / PCMCI+ requires temporal data metadata".into(),
+                message: "PCMCI-family discovery requires temporal data metadata".into(),
             });
         }
         self.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;

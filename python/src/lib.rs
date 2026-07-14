@@ -18,19 +18,22 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
-    BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite, counterfactual_ite, fit_gcm,
-    sample_do,
+    BayesianConfig, CausalAnalysis, InferenceMode, JpcmciPlus, RefuteSuite, Rpcmci,
+    TemporalLinearPredictor, TemporalMediationEstimator, counterfactual_ite, fit_gcm, sample_do,
+    two_regime_half_split,
 };
 use causal_core::{
-    AverageEffectQuery, CausalRng, ExecutionContext, Intervention, Lag, TemporalEffectQuery,
-    TemporalPolicy, Value, VariableId,
+    AverageEffectQuery, CausalRng, ExecutionContext, Intervention, Lag, MediationContrast,
+    MediationQuery, TemporalEffectQuery, TemporalPolicy, Value, VariableId,
 };
 use causal_data::{
-    SamplingRegularity, TableView, TimeIndex, TimeSeriesData, tabular_from_record_batch,
+    MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
+    tabular_from_record_batch,
 };
 use causal_discovery::{
     DiscoveryConstraints, DiscoveryWorkspace, Lpcmci, Pcmci, PcmciPlus, TemporalConstraints,
 };
+use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
 use causal_stats::ci_from_name;
 use numpy::PyReadonlyArray1;
@@ -657,6 +660,251 @@ fn discover_lpcmci(
     })
 }
 
+/// J-PCMCI+ over multiple environments (one GIL crossing).
+///
+/// `env_columns` is a list of column batches (each env: same `names` order).
+#[pyfunction]
+#[pyo3(signature = (names, env_columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
+fn discover_jpcmci_plus(
+    py: Python<'_>,
+    names: Vec<String>,
+    env_columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: &str,
+    weights: Option<Vec<f64>>,
+) -> PyResult<PcmciDiscoveryResult> {
+    if env_columns.is_empty() {
+        return Err(PyValueError::new_err("discover_jpcmci_plus needs ≥1 environment"));
+    }
+    let mut batches = Vec::with_capacity(env_columns.len());
+    for cols in &env_columns {
+        batches.push(columns_to_batch(&names, cols)?);
+    }
+    let ci_name = ci.to_string();
+    let ci_impl = resolve_ci(ci, weights)?;
+    drop(env_columns);
+
+    py.allow_threads(move || {
+        let mut series_list = Vec::with_capacity(batches.len());
+        let mut variables = Vec::new();
+        for (i, batch) in batches.iter().enumerate() {
+            let (series, vars) = series_from_batch(batch)?;
+            if i == 0 {
+                variables = vars;
+            }
+            series_list.push(series);
+        }
+        let multi = MultiEnvironmentData::try_new(Arc::from(series_list)).map_err(py_err)?;
+        let alg = JpcmciPlus::new()
+            .with_fdr(fdr)
+            .with_constraints(DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(max_lag),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                alpha,
+                max_cond_size: 2,
+                ..DiscoveryConstraints::default()
+            })
+            .with_ci(ci_impl);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(seed);
+        let result = alg.run(&multi, &variables, &mut ws, &ctx).map_err(py_err)?;
+        let cpdag = &result.evidence.graph;
+        Ok(discovery_result_fields(
+            &names,
+            &result.evidence.links,
+            result.algorithm.id.as_ref(),
+            result.algorithm.config.as_ref(),
+            &result.performance,
+            result.review.pending_undirected.len() as u64,
+            ci_name,
+            cpdag.node_count() as u64,
+            cpdag.directed_edge_count() as u64,
+            cpdag.undirected_edge_count() as u64,
+        ))
+    })
+}
+
+/// RPCMCI with half-split regimes (one GIL crossing).
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
+fn discover_rpcmci(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: &str,
+    weights: Option<Vec<f64>>,
+) -> PyResult<RpcmciDiscoverySummary> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let ci_impl = resolve_ci(ci, weights)?;
+    drop(columns);
+    py.allow_threads(move || {
+        let (series, variables) = series_from_batch(&batch)?;
+        let assign = two_regime_half_split(series.row_count());
+        let plus = PcmciPlus::new()
+            .with_fdr(fdr)
+            .with_constraints(DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(max_lag),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                alpha,
+                max_cond_size: 2,
+                ..DiscoveryConstraints::default()
+            })
+            .with_ci(ci_impl);
+        let alg = Rpcmci::new().with_min_regime_len(40).with_pcmci_plus(plus);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(seed);
+        let result = alg.run(&series, &variables, &assign, &mut ws, &ctx).map_err(py_err)?;
+        let mut regime_ids = Vec::new();
+        let mut directed = Vec::new();
+        let mut undirected = Vec::new();
+        for (rid, g) in result.graphs.graphs.iter() {
+            regime_ids.push(rid.raw());
+            directed.push(g.directed_edge_count() as u64);
+            undirected.push(g.undirected_edge_count() as u64);
+        }
+        Ok(RpcmciDiscoverySummary {
+            algorithm: result.algorithm.id.to_string(),
+            n_regimes: regime_ids.len() as u64,
+            regime_ids,
+            directed_edges: directed,
+            undirected_edges: undirected,
+        })
+    })
+}
+
+/// Mediation effect surface summary (total / direct / mediated).
+#[pyfunction]
+#[pyo3(signature = (names, columns, treatment, mediator, outcome, *, seed=1))]
+fn mediation_effects_summary(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    treatment: String,
+    mediator: String,
+    outcome: String,
+    seed: u64,
+) -> PyResult<MediationEffectsSummary> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    py.allow_threads(move || {
+        let (series, _) = series_from_batch(&batch)?;
+        let id = |nm: &str| {
+            series
+                .schema()
+                .id_of(nm)
+                .map_err(|e| PyValueError::new_err(format!("unknown variable {nm}: {e}")))
+        };
+        let t = id(&treatment)?;
+        let m = id(&mediator)?;
+        let y = id(&outcome)?;
+        let q = MediationQuery::binary(t, y, [m], MediationContrast::Total);
+        let mut arena = CausalExprArena::new();
+        let functional = arena.frontdoor_ate(
+            t,
+            y,
+            &[m],
+            Value::f64(1.0),
+            Value::f64(0.0),
+        );
+        let estimand = IdentifiedEstimand::frontdoor(
+            "temporal_mediation.total",
+            Arc::from([m]),
+            functional,
+        );
+        let ctx = ExecutionContext::for_tests(seed);
+        let surface = TemporalMediationEstimator::new()
+            .effect_surface(&series, &estimand, &q, &ctx)
+            .map_err(py_err)?;
+        Ok(MediationEffectsSummary {
+            total: surface.total,
+            direct: surface.direct,
+            mediated: surface.mediated,
+        })
+    })
+}
+
+/// Intervene+predict summary (mean predicted outcome under do(parent=level)).
+#[pyfunction]
+#[pyo3(signature = (names, columns, target, parent, *, parent_lag=1, level=1.0))]
+fn predict_intervened_summary(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    target: String,
+    parent: String,
+    parent_lag: u32,
+    level: f64,
+) -> PyResult<PredictSummary> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    py.allow_threads(move || {
+        let (series, _) = series_from_batch(&batch)?;
+        let id = |nm: &str| {
+            series
+                .schema()
+                .id_of(nm)
+                .map_err(|e| PyValueError::new_err(format!("unknown variable {nm}: {e}")))
+        };
+        let y = id(&target)?;
+        let x = id(&parent)?;
+        let pred = TemporalLinearPredictor::fit(
+            &series,
+            y,
+            [causal_data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
+        )
+        .map_err(py_err)?;
+        let yhat = pred.predict_intervened(&series, x, level).map_err(py_err)?;
+        let mean = yhat.iter().sum::<f64>() / yhat.len().max(1) as f64;
+        Ok(PredictSummary { mean_prediction: mean, n: yhat.len() as u64 })
+    })
+}
+
+/// RPCMCI summary (typed regimes, no single-graph collapse).
+#[pyclass]
+struct RpcmciDiscoverySummary {
+    #[pyo3(get)]
+    algorithm: String,
+    #[pyo3(get)]
+    n_regimes: u64,
+    #[pyo3(get)]
+    regime_ids: Vec<u32>,
+    #[pyo3(get)]
+    directed_edges: Vec<u64>,
+    #[pyo3(get)]
+    undirected_edges: Vec<u64>,
+}
+
+/// Mediation effects summary.
+#[pyclass]
+struct MediationEffectsSummary {
+    #[pyo3(get)]
+    total: f64,
+    #[pyo3(get)]
+    direct: f64,
+    #[pyo3(get)]
+    mediated: f64,
+}
+
+/// Prediction summary under intervention.
+#[pyclass]
+struct PredictSummary {
+    #[pyo3(get)]
+    mean_prediction: f64,
+    #[pyo3(get)]
+    n: u64,
+}
+
 /// Unified analysis result (static or temporal).
 #[pyclass]
 #[derive(Clone)]
@@ -900,6 +1148,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci_plus, m)?)?;
     m.add_function(wrap_pyfunction!(discover_lpcmci, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_jpcmci_plus, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_rpcmci, m)?)?;
+    m.add_function(wrap_pyfunction!(mediation_effects_summary, m)?)?;
+    m.add_function(wrap_pyfunction!(predict_intervened_summary, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_counterfactual_ite, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_sample_do, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;
@@ -907,6 +1159,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AnalysisResult>()?;
     m.add_class::<DiscoveredLink>()?;
     m.add_class::<PcmciDiscoveryResult>()?;
+    m.add_class::<RpcmciDiscoverySummary>()?;
+    m.add_class::<MediationEffectsSummary>()?;
+    m.add_class::<PredictSummary>()?;
     m.add_class::<GcmIteResult>()?;
     m.add_class::<GcmSampleResult>()?;
     m.add("__version__", causal_core::VERSION)?;
