@@ -14,11 +14,13 @@ use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
-/// Resampling plan producing row-index replicates.
+/// Resampling plan producing row-index or weight replicates.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ResamplingPlan {
     /// IID with-replacement row bootstrap.
     IidBootstrap,
+    /// Bayesian bootstrap: Dirichlet(1,…,1) observation weights (Rubin).
+    BayesianBootstrap,
     /// Moving-block bootstrap (contiguous blocks).
     MovingBlock {
         /// Block length in rows.
@@ -31,11 +33,20 @@ pub enum ResamplingPlan {
     },
 }
 
+impl ResamplingPlan {
+    /// Whether this plan yields observation weights rather than row indexes.
+    #[must_use]
+    pub const fn is_weight_plan(self) -> bool {
+        matches!(self, Self::BayesianBootstrap)
+    }
+}
+
 /// Fill `out` with a length-`n` row-index plan under `plan`.
 ///
 /// # Errors
 ///
-/// Zero series length or zero block length.
+/// Zero series length, zero block length, or a weight-only plan
+/// ([`ResamplingPlan::BayesianBootstrap`]).
 pub fn fill_resample_indexes(
     plan: ResamplingPlan,
     n: usize,
@@ -45,6 +56,11 @@ pub fn fill_resample_indexes(
     if n == 0 {
         return Err(DataError::InvalidValidity { message: "resample needs n > 0" });
     }
+    if plan.is_weight_plan() {
+        return Err(DataError::InvalidValidity {
+            message: "BayesianBootstrap yields weights; use fill_resample_weights",
+        });
+    }
     out.clear();
     out.reserve(n);
     match plan {
@@ -53,6 +69,7 @@ pub fn fill_resample_indexes(
                 out.push((rng.next_u64() as usize % n) as u32);
             }
         }
+        ResamplingPlan::BayesianBootstrap => unreachable!("checked above"),
         ResamplingPlan::MovingBlock { length } | ResamplingPlan::CircularBlock { length } => {
             if length == 0 {
                 return Err(DataError::InvalidValidity { message: "block length must be > 0" });
@@ -82,7 +99,55 @@ pub fn fill_resample_indexes(
     Ok(())
 }
 
+/// Fill `out` with length-`n` Bayesian-bootstrap weights (normalized Exp(1) draws).
+///
+/// Weights sum to `n` (mean weight 1) so weighted estimators match unweighted
+/// scale on the original sample size.
+///
+/// # Errors
+///
+/// Zero length, or a non-weight plan.
+pub fn fill_resample_weights(
+    plan: ResamplingPlan,
+    n: usize,
+    rng: &mut CausalRng,
+    out: &mut Vec<f64>,
+) -> Result<(), DataError> {
+    if n == 0 {
+        return Err(DataError::InvalidValidity { message: "resample needs n > 0" });
+    }
+    if !matches!(plan, ResamplingPlan::BayesianBootstrap) {
+        return Err(DataError::InvalidValidity {
+            message: "fill_resample_weights requires BayesianBootstrap",
+        });
+    }
+    out.clear();
+    out.reserve(n);
+    let mut sum = 0.0;
+    for _ in 0..n {
+        // Exp(1) via -ln(U); Dirichlet(1..1) = normalized exponentials.
+        let u = rng.next_f64().max(f64::EPSILON);
+        let e = -u.ln();
+        out.push(e);
+        sum += e;
+    }
+    if !(sum > 0.0) {
+        return Err(DataError::InvalidValidity {
+            message: "BayesianBootstrap weight sum non-positive",
+        });
+    }
+    let scale = n as f64 / sum;
+    for w in out.iter_mut() {
+        *w *= scale;
+    }
+    Ok(())
+}
+
 /// Apply a resampling plan to produce a new float64 time series.
+///
+/// Index plans gather rows. [`ResamplingPlan::BayesianBootstrap`] keeps row
+/// order and replaces storage weights with a fresh weight plan (multiplied by
+/// any existing weights).
 ///
 /// # Errors
 ///
@@ -94,8 +159,49 @@ pub fn resample_timeseries(
     index_scratch: &mut Vec<u32>,
 ) -> Result<TimeSeriesData, DataError> {
     let n = data.row_count();
+    if plan.is_weight_plan() {
+        let mut weights = Vec::new();
+        fill_resample_weights(plan, n, rng, &mut weights)?;
+        return apply_weight_plan(data, &weights);
+    }
     fill_resample_indexes(plan, n, rng, index_scratch)?;
     apply_row_map(data, index_scratch)
+}
+
+fn apply_weight_plan(data: &TimeSeriesData, weights: &[f64]) -> Result<TimeSeriesData, DataError> {
+    let n = data.row_count();
+    if weights.len() != n {
+        return Err(DataError::LengthMismatch {
+            expected: n,
+            actual: weights.len(),
+            context: "BayesianBootstrap weights",
+        });
+    }
+    let schema = data.schema().clone();
+    let mut cols = Vec::with_capacity(schema.len());
+    for v in schema.variables() {
+        let ColumnView::Float64(src) = data.column(v.id)? else {
+            return Err(DataError::TypeMismatch { id: v.id, expected: "float64" });
+        };
+        cols.push(OwnedColumn::Float64(Float64Column::new(
+            v.id,
+            Arc::clone(&src.values),
+            src.validity.clone(),
+        )?));
+    }
+    let analysis_mask = data.storage().analysis_mask().cloned();
+    let combined: Arc<[f64]> = match data.storage().weights() {
+        Some(existing) => Arc::from(
+            existing
+                .iter()
+                .zip(weights.iter())
+                .map(|(a, b)| a * b)
+                .collect::<Vec<_>>(),
+        ),
+        None => Arc::from(weights.to_vec()),
+    };
+    let storage = OwnedColumnarStorage::try_new(schema, cols, analysis_mask, Some(combined))?;
+    TimeSeriesData::try_new(storage, data.time_index().clone())
 }
 
 fn apply_row_map(data: &TimeSeriesData, row_map: &[u32]) -> Result<TimeSeriesData, DataError> {
@@ -205,6 +311,25 @@ mod tests {
         assert!(!mask.is_valid(3));
         // Weights follow the row map.
         assert_eq!(out.storage().weights().unwrap(), &[3.0, 1.0, 3.0, 2.0]);
+    }
+
+    #[test]
+    fn bayesian_bootstrap_weights_sum_to_n() {
+        let mut rng = CausalRng::from_seed(99);
+        let mut w = Vec::new();
+        fill_resample_weights(ResamplingPlan::BayesianBootstrap, 50, &mut rng, &mut w).unwrap();
+        assert_eq!(w.len(), 50);
+        let sum: f64 = w.iter().sum();
+        assert!((sum - 50.0).abs() < 1e-9);
+        assert!(w.iter().all(|&x| x > 0.0));
+    }
+
+    #[test]
+    fn bayesian_bootstrap_rejects_index_fill() {
+        let mut rng = CausalRng::from_seed(1);
+        let mut idx = Vec::new();
+        assert!(fill_resample_indexes(ResamplingPlan::BayesianBootstrap, 10, &mut rng, &mut idx)
+            .is_err());
     }
 
     #[test]

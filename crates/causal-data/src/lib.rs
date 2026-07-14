@@ -47,7 +47,9 @@ pub use lagged_frame::LaggedFrame;
 pub use materialize::{MaterializationReason, materialization_diagnostic};
 pub use multi_env::MultiEnvironmentData;
 pub use reference::ReferencePointPolicy;
-pub use resample::{ResamplingPlan, fill_resample_indexes, resample_timeseries};
+pub use resample::{
+    ResamplingPlan, fill_resample_indexes, fill_resample_weights, resample_timeseries,
+};
 pub use sample::{DropSummary, LagMap, LaggedColumn, PreparedSample, SamplePlan, SampleWorkspace};
 pub use sim::{KnownLaggedParent, LaggedLinearPair};
 pub use split::{DiscoveryEstimationSplit, TimeRange};
