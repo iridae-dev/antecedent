@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use causal_core::{ExecutionContext, Lag, MediationContrast, MediationQuery, VariableId};
+use causal_core::{ExecutionContext, Lag, MediationContrast, MediationQuery};
 use causal_data::{LaggedColumn, SampleWorkspace, TimeSeriesData};
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{FaerBackend, form_xtx, invert_square};
