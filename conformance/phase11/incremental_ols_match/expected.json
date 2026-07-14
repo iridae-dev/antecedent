@@ -1,0 +1,7 @@
+{
+  "beta0": 1.0,
+  "beta1": 2.0,
+  "stable_float_tol": 1e-8,
+  "expected_version_after_two_appends": 2,
+  "notes": "Incremental OLS XtX/Xty after two AppendData batches matches full-batch recompute; y = 1 + 2x."
+}

@@ -18,3 +18,6 @@ and migration or compatibility analysis where applicable.
 | [0011](0011-performance-posture.md) | Performance posture |
 | [0012](0012-gcm-model.md) | Native compiled SCM + overlay sampling |
 | [0013](0013-pag-lpcmci.md) | PAG / LPCMCI typed graph classes |
+| [0014](0014-phase9-context-effects.md) | Phase 9 context / regime effects |
+| [0015](0015-phase10-attribution.md) | Phase 10 attribution |
+| [0016](0016-phase11-design-state.md) | Phase 11 design and incremental state |

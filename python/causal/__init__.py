@@ -47,6 +47,8 @@ from ._native import (
     load_float64_columns,
     mediation_effects_summary,
     predict_intervened_summary,
+    rank_design_eig,
+    causal_state_append_demo,
 )
 
 __all__ = [
@@ -64,6 +66,7 @@ __all__ = [
     "analyze",
     "analyze_ate",
     "attribution",
+    "causal_state_append_demo",
     "counterfactual",
     "data",
     "decode_posterior_artifact",
@@ -85,6 +88,7 @@ __all__ = [
     "model",
     "predict_intervened_summary",
     "query",
+    "rank_design_eig",
     "state",
     "validation",
     "__version__",

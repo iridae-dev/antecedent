@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod analysis;
+pub mod design;
 pub mod discovery;
 pub mod discovery_defaults;
 pub mod error;
@@ -14,9 +15,11 @@ pub mod inference;
 pub mod planner;
 pub mod result;
 pub mod review;
+pub mod state;
 pub mod strategy_table;
 
 pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RefuteSuite};
+pub use design::rank_designs;
 pub use discovery::{
     DiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pcmci, discover_pcmci_plus,
     discover_rpcmci, pag_definite_directed_edge_count,
@@ -65,6 +68,7 @@ pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
     compile_temporal_with_graph, ensure_review_complete,
 };
+pub use state::{apply_state_event, new_causal_state};
 
 /// Encode a [`causal_estimate::CausalPosterior`] to durable bytes.
 ///
@@ -122,13 +126,30 @@ pub use causal_model::{
     sample_observational,
 };
 
+// Phase 11 design / incremental state surfaces.
+pub use causal_design::{
+    CandidateDesign, ConstraintViolation, DecisionConstraint, DecisionEvaluation, DecisionProblem,
+    DecisionProblemId, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
+    DesignObjective, DesignRankConfig, DesignRanker, DesignRanking, EffectWidthContext,
+    EnvironmentPlan, ExperimentPlan, MeasurementPlan, ModelLoglikDraws, RankedCandidate,
+    SamplingPlan, Utility, evaluate_decision,
+};
+pub use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
+pub use causal_state::{
+    CachedResult, CausalState, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
+    GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, InterventionRecord,
+    InvalidationEntry, InvalidationLog, InvalidationTarget, LagIndexCacheEntry, LagIndexCacheKey,
+    LinearOlsSuffStats, ModelRecord, ModelStore, QueryRecord, QueryStore, ResultStore,
+    RetentionPolicy, StateError, StateEvent, StreamingCovariance, SuffStatStore,
+};
+
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
+        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
         RoleHint, SmallRoleSet, ValueType, VariableId,
     };
     use causal_data::{

@@ -27,6 +27,8 @@ causal-validate = { path = "../causal-validate" }
 causal-model = { path = "../causal-model" }
 causal-counterfactual = { path = "../causal-counterfactual" }
 causal-attribution = { path = "../causal-attribution" }
+causal-design = { path = "../causal-design" }
+causal-state = { path = "../causal-state" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

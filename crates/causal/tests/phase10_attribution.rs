@@ -2,6 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::many_single_char_names
+)]
+
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -107,8 +113,7 @@ fn distribution_change_y_shift_conformance() {
         .contributions
         .iter()
         .find(|c| c.component.variable() == VariableId::from_raw(0))
-        .map(|c| c.contribution.abs())
-        .unwrap_or(0.0);
+        .map_or(0.0, |c| c.contribution.abs());
     assert!(y.contribution.abs() > x, "y={} x={}", y.contribution, x);
     let ranks = rank_root_causes(&result, &ctx).unwrap();
     assert_eq!(ranks[0].component.variable(), VariableId::from_raw(1));

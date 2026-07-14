@@ -19,20 +19,23 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
-    BayesianConfig, CausalAnalysis, DifferenceMeasure, DiscoverParams, DiscoveryPerformanceRecord,
-    DistributionChangeOptions, InferenceMode, RefuteSuite, ScoredLink, TemporalLinearPredictor,
-    TemporalMediationEstimator, attribute_distribution_change, counterfactual_ite,
-    decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    BayesianConfig, CandidateDesign, CausalAnalysis, DataBatchRef, DifferenceMeasure,
+    DiscoverParams, DiscoveryPerformanceRecord, DistributionChangeOptions, DesignCost,
+    DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, GraphIdentFlag,
+    InferenceMode, MeasurementPlan, RefuteSuite, SamplingPlan, ScoredLink, StateEvent,
+    TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples, apply_state_event,
+    attribute_distribution_change, counterfactual_ite, decode_causal_posterior_bytes,
+    discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
-    encode_causal_posterior_bytes, fit_gcm, pag_definite_directed_edge_count, resolve_ci,
-    sample_do, two_regime_half_split,
+    encode_causal_posterior_bytes, fit_gcm, new_causal_state, pag_definite_directed_edge_count,
+    rank_designs, resolve_ci, sample_do, two_regime_half_split,
 };
 use causal_core::{
-    AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalRng,
-    ChangeAttributionQuery, ExecutionContext, Intervention, Lag, MediationContrast, MediationQuery,
-    PopulationSelector, ShapleyConfig, TemporalEffectQuery, TemporalPolicy, VERSION, Value,
-    VariableId,
+    AllocationMethod, AttributionComponents, AverageEffectQuery, CacheBudget, CachePolicy,
+    CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention, Lag, MediationContrast,
+    MediationQuery, PopulationSelector, ShapleyConfig, TemporalEffectQuery, TemporalPolicy, VERSION,
+    Value, VariableId,
 };
 use causal_data::{
     MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
@@ -1149,6 +1152,99 @@ fn gcm_distribution_change(
     })
 }
 
+/// Rank measurement vs sampling candidates under graph-entropy EIG.
+///
+/// `graph_weights`, `identified` (0/1), and `graph_keys` form the discrete posterior.
+/// Returns `(best_index, scores, mc_samples)`.
+#[pyfunction]
+#[pyo3(signature = (graph_weights, identified, graph_keys, measure_var_ids, sampling_increments, seed=0))]
+fn rank_design_eig(
+    graph_weights: Vec<f64>,
+    identified: Vec<u8>,
+    graph_keys: Vec<u64>,
+    measure_var_ids: Vec<u32>,
+    sampling_increments: Vec<u64>,
+    seed: u64,
+) -> PyResult<(usize, Vec<f64>, u64)> {
+    let flags: Vec<GraphIdentFlag> = identified
+        .into_iter()
+        .map(|v| {
+            if v == 0 {
+                GraphIdentFlag::Unidentified
+            } else {
+                GraphIdentFlag::Identified
+            }
+        })
+        .collect();
+    let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_err)?;
+    let mut candidates = Vec::new();
+    for (i, vid) in measure_var_ids.into_iter().enumerate() {
+        candidates.push(CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(vid)]),
+            cost: DesignCost::zero(),
+            tag: u64::try_from(i).unwrap_or(0),
+        }));
+    }
+    for (i, n) in sampling_increments.into_iter().enumerate() {
+        candidates.push(CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+            additional_samples: n,
+            cost: DesignCost::zero(),
+            tag: 1000 + u64::try_from(i).unwrap_or(0),
+        }));
+    }
+    if candidates.is_empty() {
+        return Err(PyValueError::new_err("no candidates"));
+    }
+    let ranker = DesignRanker::new().with_config(DesignRankConfig {
+        min_batches: 2,
+        max_batches: 8,
+        batch_size: 4,
+        rank_uncertainty_threshold: 0.5,
+    });
+    let ctx = ExecutionContext::for_tests(seed);
+    let eval = DesignEvaluationContext::<(), ()> {
+        graphs: &graphs,
+        effect_width: None,
+        model_loglik: None,
+        decisions: None,
+        query_id_unlock: None,
+    };
+    let ranking = rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
+        .map_err(py_err)?;
+    let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
+    let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
+    Ok((best, scores, ranking.budget.samples))
+}
+
+/// Apply `AppendData` events to a fresh state; returns `(version, stale_query_count)`.
+///
+/// Demonstrates invalidation without a service runtime.
+#[pyfunction]
+#[pyo3(signature = (n_appends=2, cache_bytes=1_048_576))]
+fn causal_state_append_demo(n_appends: u64, cache_bytes: u64) -> PyResult<(u64, usize)> {
+    use causal_core::{AverageEffectQuery, CausalQuery};
+    let mut state = new_causal_state(CacheBudget::new(cache_bytes));
+    let q = state
+        .queries
+        .register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        )));
+    let _ = state.refresh_results(&[(q, 1, 16)]);
+    for i in 0..n_appends {
+        apply_state_event(
+            &mut state,
+            StateEvent::AppendData(DataBatchRef {
+                id: Arc::from(format!("b{i}")),
+                nrows: 8,
+                bytes: 64,
+            }),
+        )
+        .map_err(py_err)?;
+    }
+    Ok((state.version.raw(), state.stale_queries().len()))
+}
+
 /// Decode a serialized posterior artifact into summaries + column-major draws.
 #[pyfunction]
 fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
@@ -1225,6 +1321,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(gcm_counterfactual_ite, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_sample_do, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_distribution_change, m)?)?;
+    m.add_function(wrap_pyfunction!(rank_design_eig, m)?)?;
+    m.add_function(wrap_pyfunction!(causal_state_append_demo, m)?)?;
     m.add_function(wrap_pyfunction!(decode_posterior_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(encode_posterior_artifact, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;

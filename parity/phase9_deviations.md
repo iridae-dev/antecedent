@@ -6,7 +6,9 @@ Intentional deferrals from DESIGN.md §32 (Phase 9).
 
 Completed in Phase 10. See `parity/phase10.toml` and ADR 0015.
 
-## 2. Experiment design / CausalState → Phase 11
+## 2. Experiment design / CausalState → Phase 11 — RESOLVED
+
+Completed in Phase 11. See `parity/phase11.toml` and ADR 0016.
 
 ## 3. FCI / RFCI
 

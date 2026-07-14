@@ -1,0 +1,6 @@
+{
+  "min_mc_samples": 32,
+  "acceptable_best_kinds": ["measure", "sampling"],
+  "objective": "ReduceGraphEntropy",
+  "notes": "CRN MC ranking reports budget; measure with informative tag should not lose to tiny sampling on average."
+}

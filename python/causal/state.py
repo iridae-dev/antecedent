@@ -1,5 +1,7 @@
-"""Analysis state / session helpers (DESIGN.md §25.1)."""
+"""Incremental causal-state helpers (DESIGN.md §25.1 / Phase 11)."""
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from ._native import causal_state_append_demo
+
+__all__ = ["causal_state_append_demo"]

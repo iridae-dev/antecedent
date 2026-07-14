@@ -1,0 +1,72 @@
+# Phase 11 design and incremental-state capability inventory
+# Authoritative status for DESIGN.md §32 Phase 11 deliverables.
+# Status: pending | in_progress | done | intentional_deviation
+
+library = "causal"
+phase = 11
+
+[[capabilities]]
+id = "phase11.candidate_types"
+status = "done"
+phase = 11
+notes = "Measure / Intervene / ObserveEnvironment / IncreaseSamplingRate plans"
+
+[[capabilities]]
+id = "phase11.eig"
+status = "done"
+phase = 11
+notes = "Discrete graph-posterior expected information gain"
+
+[[capabilities]]
+id = "phase11.id_probability"
+status = "done"
+phase = 11
+notes = "IncreaseIdentificationProbability over WeightedGraphSamples"
+
+[[capabilities]]
+id = "phase11.effect_width"
+status = "done"
+phase = 11
+notes = "ReduceEffectPosteriorWidth via OLS Gram / n scaling"
+
+[[capabilities]]
+id = "phase11.decision_utility"
+status = "done"
+phase = 11
+notes = "Batch Utility + DecisionConstraint; EU / regret / chance probs"
+
+[[capabilities]]
+id = "phase11.design_ranker"
+status = "done"
+phase = 11
+notes = "Batched MC with CRN, adaptive stop, constraint violations recorded"
+
+[[capabilities]]
+id = "phase11.causal_state"
+status = "done"
+phase = 11
+notes = "CausalState event/apply/invalidation without auto-rerun"
+
+[[capabilities]]
+id = "phase11.incremental_ols"
+status = "done"
+phase = 11
+notes = "LinearOlsSuffStats append matches full recompute"
+
+[[capabilities]]
+id = "phase11.streaming_cov"
+status = "done"
+phase = 11
+notes = "StreamingCovariance Welford updates"
+
+[[capabilities]]
+id = "phase11.cache_budget"
+status = "done"
+phase = 11
+notes = "ResultStore refuses over-budget inserts"
+
+[[capabilities]]
+id = "phase11.facade"
+status = "done"
+phase = 11
+notes = "rank_designs / new_causal_state / apply_state_event + Python surfaces"
