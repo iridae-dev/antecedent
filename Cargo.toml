@@ -13,6 +13,7 @@ members = [
     "crates/causal-estimate",
     "crates/causal-validate",
     "crates/causal-model",
+    "crates/causal-counterfactual",
     "crates/causal",
     "crates/causal-discovery",
     "python",
@@ -30,6 +31,7 @@ default-members = [
     "crates/causal-estimate",
     "crates/causal-validate",
     "crates/causal-model",
+    "crates/causal-counterfactual",
     "crates/causal",
     "crates/causal-discovery",
 ]

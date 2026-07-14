@@ -195,6 +195,18 @@ name = "causal-core"
 version = "0.1.0"
 
 [[package]]
+name = "causal-counterfactual"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+ "causal-data",
+ "causal-graph",
+ "causal-model",
+ "causal-prob",
+ "criterion",
+]
+
+[[package]]
 name = "causal-data"
 version = "0.1.0"
 dependencies = [
