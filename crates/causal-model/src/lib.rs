@@ -13,6 +13,7 @@ pub mod compile;
 pub mod error;
 pub mod mechanism;
 pub mod overlay;
+pub mod registry;
 
 pub use batch::{
     MechanismWorkspace, NoiseBatch, NoiseBatchMut, ParentBatch, ValueBatch, ValueBatchMut,
@@ -27,6 +28,10 @@ pub use mechanism::{
     sample_noise_batch, sample_noise_column,
 };
 pub use overlay::{InterventionOverlay, ModelView};
+pub use registry::{
+    MechanismAssignment, MechanismCandidate, MechanismFamily, MechanismRegistry, ModelCollection,
+    SelectionPolicy,
+};
 
 /// Crate version.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
