@@ -74,7 +74,18 @@ impl PartialCorrelation {
         let r = workspace.stats[0]
             .ok_or(StatsError::Shape { message: "partial correlation failed" })?;
         let ci_query = CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() };
-        self.interpret(r, n, ci_query, significance, ConfidenceMethod::default(), columns, z_flat, workspace, ctx, 0)
+        self.interpret(
+            r,
+            n,
+            ci_query,
+            significance,
+            ConfidenceMethod::default(),
+            columns,
+            z_flat,
+            workspace,
+            ctx,
+            0,
+        )
     }
 
     /// Map a partial-correlation statistic to a [`CiResult`] under `significance`.
@@ -101,16 +112,9 @@ impl PartialCorrelation {
                 let p = analytic_parcorr_pvalue(r, df);
                 let ci = match confidence {
                     ConfidenceMethod::None => None,
-                    ConfidenceMethod::Analytic { level } => {
-                        Some(analytic_parcorr_ci(r, df, level))
-                    }
+                    ConfidenceMethod::Analytic { level } => Some(analytic_parcorr_ci(r, df, level)),
                 };
-                Ok(CiResult {
-                    statistic: r,
-                    p_value: p,
-                    df,
-                    ci,
-                })
+                Ok(CiResult { statistic: r, p_value: p, df, ci })
             }
             SignificanceMethod::BlockShuffle { replicates, block_size } => {
                 if block_size == 0 || replicates == 0 {

@@ -18,17 +18,16 @@ use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::{LaggedFrame, TimeSeriesData};
 use causal_graph::TemporalGraphReview;
 use causal_stats::{
-    CiBatchRequest, CiQuery, CiResult, CiWorkspace, ConditionalIndependence, ConfidenceMethod, PartialCorrelation,
+    CiBatchRequest, CiQuery, CiResult, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
+    PartialCorrelation,
 };
 
-use crate::combinations::for_each_combination;
 use crate::constraints::{CompiledConstraints, DiscoveryConstraints};
 use crate::error::DiscoveryError;
 use crate::evidence::graph_evidence_from_scored_with_sepsets;
 use crate::result::{
-        AlgorithmRecord, DagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord,
-        LaggedLink,
-    PcSepsets, ScoredLink,
+    AlgorithmRecord, DagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord,
+    LaggedLink, PcSepsets, ScoredLink,
 };
 
 /// Maximum columns in one CI query (X, Y, + conditioning). Stack-backed refs.
@@ -47,6 +46,7 @@ struct ParentSelectOut {
 struct MciChunkOut {
     scored: Vec<ScoredLink>,
     tests: u64,
+    truncated: u64,
 }
 
 /// Reusable target-local discovery workspace.
@@ -120,7 +120,11 @@ impl PcmciEngine {
         self
     }
 
-    /// PC-style parent selection for one target.
+    /// PC1 parent selection for one target (tigramite `run_pc_stable`, `max_combinations=1`).
+    ///
+    /// Candidates are tested unconditionally, then at each conditioning size `q` against the
+    /// single strongest-`q` set of the *other* surviving candidates, ranked by the minimum
+    /// absolute test statistic seen so far. Returned parents are sorted strongest-first.
     ///
     /// # Errors
     ///
@@ -167,56 +171,48 @@ impl PcmciEngine {
         }
         let mut ci_tests = 0u64;
         let max_cond = self.constraints.max_cond_size;
+        // PC1 strength ranking: minimum |statistic| across the levels a candidate survived.
+        let mut min_stat = vec![f64::INFINITY; parents.len()];
         for cond_size in 0..=max_cond {
+            // A level-q test needs q other candidates to condition on.
+            if parents.is_empty() || parents.len() <= cond_size {
+                break;
+            }
             workspace.removed.clear();
             for pi in 0..parents.len() {
                 let (src, slag) = parents[pi];
-                let mut others = std::mem::take(&mut workspace.others);
-                others.clear();
-                others
-                    .extend(parents.iter().enumerate().filter(|(j, _)| *j != pi).map(|(_, x)| *x));
-                if others.len() < cond_size {
-                    workspace.others = others;
-                    continue;
-                }
-
+                // Single strongest-q conditioning set: candidates are kept sorted by
+                // descending min |stat|, so the top q others are the strongest.
                 let mut combo = std::mem::take(&mut workspace.combo);
-                let mut indep = false;
-                let mut sep_for_removal: Option<Arc<[(VariableId, Lag)]>> = None;
-                let mut err: Option<DiscoveryError> = None;
-                for_each_combination(&others, cond_size, &mut combo, |cond| {
-                    match self.ci_independent(
-                        frame,
-                        src,
-                        slag,
-                        target,
-                        Lag::CONTEMPORANEOUS,
-                        cond,
-                        workspace,
-                        ctx,
-                    ) {
-                        Ok(true) => {
-                            ci_tests += 1;
-                            indep = true;
-                            sep_for_removal = Some(Arc::from(cond.to_vec().into_boxed_slice()));
-                            false
-                        }
-                        Ok(false) => {
-                            ci_tests += 1;
-                            true
-                        }
-                        Err(e) => {
-                            err = Some(e);
-                            false
-                        }
+                combo.clear();
+                combo.extend(
+                    parents
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != pi)
+                        .map(|(_, x)| *x)
+                        .take(cond_size),
+                );
+                let result = self.ci_statistic(
+                    frame,
+                    src,
+                    slag,
+                    target,
+                    Lag::CONTEMPORANEOUS,
+                    &combo,
+                    workspace,
+                    ctx,
+                );
+                let outcome = match result {
+                    Ok(pair) => pair,
+                    Err(e) => {
+                        workspace.combo = combo;
+                        return Err(e);
                     }
-                });
-                workspace.combo = combo;
-                workspace.others = others;
-                if let Some(e) = err {
-                    return Err(e);
-                }
-                if indep {
+                };
+                ci_tests += 1;
+                let (stat, p) = outcome;
+                if p >= self.constraints.alpha {
                     let link = LaggedLink {
                         source: src,
                         source_lag: slag,
@@ -225,23 +221,40 @@ impl PcmciEngine {
                     };
                     if !compiled.requires(link) {
                         workspace.removed.push((src, slag));
-                        if let Some(sep) = sep_for_removal {
-                            workspace
-                                .sepsets
-                                .insert((src, slag, target, Lag::CONTEMPORANEOUS), sep);
-                        }
+                        workspace.sepsets.insert(
+                            (src, slag, target, Lag::CONTEMPORANEOUS),
+                            Arc::from(combo.clone().into_boxed_slice()),
+                        );
+                    }
+                } else {
+                    min_stat[pi] = min_stat[pi].min(stat.abs());
+                }
+                workspace.combo = combo;
+            }
+            if !workspace.removed.is_empty() {
+                let removed = std::mem::take(&mut workspace.removed);
+                let mut keep_stats = Vec::with_capacity(parents.len());
+                let mut keep_parents = Vec::with_capacity(parents.len());
+                for (p, s) in parents.iter().copied().zip(min_stat.iter().copied()) {
+                    if !removed.contains(&p) {
+                        keep_parents.push(p);
+                        keep_stats.push(s);
                     }
                 }
+                parents = keep_parents;
+                min_stat = keep_stats;
+                workspace.removed = removed;
             }
-            parents.retain(|p| !workspace.removed.contains(p));
-            if parents.is_empty() {
-                break;
-            }
+            sort_by_strength(&mut parents, &mut min_stat);
         }
         Ok((parents, ci_tests))
     }
 
     /// MCI test for a candidate link given parent sets.
+    ///
+    /// `parents_source` is keyed to the source at lag 0 and is shifted by the link's source
+    /// lag τ so the conditioning set is `pa(X_{t−τ})`, matching tigramite's MCI phase. The
+    /// frame must therefore materialize lags up to `2 · max_lag`.
     ///
     /// # Errors
     ///
@@ -255,20 +268,8 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<ScoredLink, DiscoveryError> {
-        workspace.others.clear();
-        let src_key = (link.source, link.source_lag);
-        let tgt_key = (link.target, link.target_lag);
-        workspace
-            .others
-            .extend(parents_target.iter().copied().filter(|p| *p != src_key && *p != tgt_key));
-        for p in parents_source {
-            if !workspace.others.contains(p) && *p != src_key && *p != tgt_key {
-                workspace.others.push(*p);
-            }
-        }
-        if workspace.others.len() > MAX_CI_COLS - 2 {
-            workspace.others.truncate(MAX_CI_COLS - 2);
-        }
+        let _truncated =
+            mci_conditioning(link, parents_target, parents_source, &mut workspace.others);
         let cond = std::mem::take(&mut workspace.others);
         let result = self.ci_statistic(
             frame,
@@ -282,7 +283,7 @@ impl PcmciEngine {
         );
         workspace.others = cond;
         let (stat, p) = result?;
-        Ok(ScoredLink { link, statistic: stat, p_value: p })
+        Ok(ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None })
     }
 
     /// Run PC parents for all targets then MCI on surviving links.
@@ -301,12 +302,16 @@ impl PcmciEngine {
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
         let max_lag = self.constraints.temporal.max_lag.raw();
+        // PC phase frame at max_lag; MCI conditions on pa(X_{t−τ}) with lags up to 2·max_lag
+        // (tigramite's `2xtau_max` cut-off), so it needs a deeper frame.
         let frame = LaggedFrame::from_series(data, variables, max_lag)
             .map_err(|e| DiscoveryError::Data(e.to_string()))?;
+        let mci_frame = LaggedFrame::from_series(data, variables, 2 * max_lag)
+            .map_err(|e| DiscoveryError::Data(e.to_string()))?;
         if let Some(hard) = ctx.memory.hard_limit_bytes {
-            if frame.values_bytes() > hard {
+            if frame.values_bytes() + mci_frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
-                    message: "lagged frame exceeds ExecutionContext memory hard limit",
+                    message: "lagged frames exceed ExecutionContext memory hard limit",
                 });
             }
         }
@@ -331,7 +336,8 @@ impl PcmciEngine {
             self.select_parents_all(&frame, variables, &compiled, workspace, ctx, threads)?;
 
         let mut scored = Vec::new();
-        let mci_tests = self.mci_all(&frame, &all_parents, &mut scored, workspace, ctx, threads)?;
+        let (mci_tests, truncated) =
+            self.mci_all(&mci_frame, &all_parents, &mut scored, workspace, ctx, threads)?;
         ci_tests += mci_tests;
 
         let sepsets = std::mem::take(&mut workspace.sepsets);
@@ -346,18 +352,29 @@ impl PcmciEngine {
         };
         let review = TemporalGraphReview::from_graph(evidence.graph.clone(), algorithm.id.clone());
         let n_links = evidence.links.len() as u64;
+        let mut diagnostics = Vec::new();
+        if truncated > 0 {
+            diagnostics.push(crate::result::DiscoveryDiagnostic {
+                code: Arc::from("mci.conditioning_truncated"),
+                message: Arc::from(format!(
+                    "MCI conditioning sets dropped {truncated} weakest condition(s) at the \
+                     {MAX_CI_COLS}-column cap; statistics for the affected links use a \
+                     reduced conditioning set"
+                )),
+            });
+        }
         Ok(DagDiscoveryResult {
             evidence,
             review,
             algorithm,
             assumptions: AssumptionSet::new(),
             iterations,
-            diagnostics: Vec::new(),
+            diagnostics,
             performance: DiscoveryPerformanceRecord {
                 ci_tests,
                 links_retained: n_links,
                 targets: variables.len() as u64,
-                lagged_frame_bytes: frame.values_bytes(),
+                lagged_frame_bytes: frame.values_bytes() + mci_frame.values_bytes(),
                 worker_threads: threads,
             },
             sepsets,
@@ -456,11 +473,12 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
         threads: u32,
-    ) -> Result<u64, DiscoveryError> {
+    ) -> Result<(u64, u64), DiscoveryError> {
         if threads <= 1 || all_parents.len() <= 1 {
             let mut tests = 0u64;
+            let mut truncated = 0u64;
             for (target, parents) in all_parents {
-                let batch = self.mci_batch_for_target(
+                let (batch, trunc) = self.mci_batch_for_target(
                     frame,
                     *target,
                     parents,
@@ -469,9 +487,10 @@ impl PcmciEngine {
                     ctx,
                 )?;
                 tests += batch.len() as u64;
+                truncated += trunc;
                 scored.extend(batch);
             }
-            return Ok(tests);
+            return Ok((tests, truncated));
         }
 
         let n = all_parents.len();
@@ -488,8 +507,9 @@ impl PcmciEngine {
                     let mut local_ws = DiscoveryWorkspace::default();
                     let mut local_scored = Vec::new();
                     let mut tests = 0u64;
+                    let mut truncated = 0u64;
                     for (target, parents) in chunk_parents {
-                        let batch = engine.mci_batch_for_target(
+                        let (batch, trunc) = engine.mci_batch_for_target(
                             frame,
                             *target,
                             parents,
@@ -498,12 +518,10 @@ impl PcmciEngine {
                             ctx,
                         )?;
                         tests += batch.len() as u64;
+                        truncated += trunc;
                         local_scored.extend(batch);
                     }
-                    Ok(MciChunkOut {
-                        scored: local_scored,
-                        tests,
-                    })
+                    Ok(MciChunkOut { scored: local_scored, tests, truncated })
                 }));
             }
             for h in handles {
@@ -512,17 +530,22 @@ impl PcmciEngine {
         });
 
         let mut tests = 0u64;
+        let mut truncated = 0u64;
         for slot in partials {
             let chunk = slot.ok_or(DiscoveryError::Unsupported {
                 message: "parallel MCI worker left empty slot",
             })??;
             tests += chunk.tests;
+            truncated += chunk.truncated;
             scored.extend(chunk.scored);
         }
-        Ok(tests)
+        Ok((tests, truncated))
     }
 
     /// MCI-test all parents of one target in a single CI batch (DESIGN.md §12.1).
+    ///
+    /// Returns the scored links and the number of conditioning columns dropped by the
+    /// `MAX_CI_COLS` cap (0 in the common case).
     fn mci_batch_for_target(
         &self,
         frame: &LaggedFrame,
@@ -531,32 +554,20 @@ impl PcmciEngine {
         all_parents: &[TargetParents],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<Vec<ScoredLink>, DiscoveryError> {
+    ) -> Result<(Vec<ScoredLink>, u64), DiscoveryError> {
         if parents.is_empty() {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), 0));
         }
         let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
         let mut queries = Vec::with_capacity(parents.len());
         let mut z_flat = Vec::new();
         let mut links = Vec::with_capacity(parents.len());
 
+        let mut truncated = 0u64;
         for &(src, slag) in parents {
             let link = link_to_target(src, slag, target);
             let src_parents = parents_of(all_parents, src);
-            workspace.others.clear();
-            let src_key = (link.source, link.source_lag);
-            let tgt_key = (link.target, link.target_lag);
-            workspace
-                .others
-                .extend(parents.iter().copied().filter(|p| *p != src_key && *p != tgt_key));
-            for p in src_parents {
-                if !workspace.others.contains(p) && *p != src_key && *p != tgt_key {
-                    workspace.others.push(*p);
-                }
-            }
-            if workspace.others.len() > MAX_CI_COLS - 2 {
-                workspace.others.truncate(MAX_CI_COLS - 2);
-            }
+            truncated += mci_conditioning(link, parents, src_parents, &mut workspace.others);
 
             let xi = frame.column_index(link.source, link.source_lag).ok_or_else(|| {
                 DiscoveryError::Data(format!("missing lagged column for {:?}", link.source))
@@ -571,12 +582,7 @@ impl PcmciEngine {
                 })?;
                 z_flat.push(zi);
             }
-            queries.push(CiQuery {
-                x: xi,
-                y: yi,
-                z_start,
-                z_len: workspace.others.len(),
-            });
+            queries.push(CiQuery { x: xi, y: yi, z_start, z_len: workspace.others.len() });
             links.push(link);
         }
 
@@ -603,25 +609,10 @@ impl PcmciEngine {
                 link,
                 statistic: result.statistic,
                 p_value: result.p_value,
+                adjusted_p_value: None,
             });
         }
-        Ok(scored)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn ci_independent(
-        &self,
-        frame: &LaggedFrame,
-        x: VariableId,
-        x_lag: Lag,
-        y: VariableId,
-        y_lag: Lag,
-        cond: &[(VariableId, Lag)],
-        workspace: &mut DiscoveryWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<bool, DiscoveryError> {
-        let (_, p) = self.ci_statistic(frame, x, x_lag, y, y_lag, cond, workspace, ctx)?;
-        Ok(p >= self.constraints.alpha)
+        Ok((scored, truncated))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -695,8 +686,52 @@ fn parents_of(all_parents: &[TargetParents], src: VariableId) -> &[(VariableId, 
     all_parents.iter().find(|(t, _)| *t == src).map_or(&[][..], |(_, p)| p.as_slice())
 }
 
+/// Sort candidates by descending min |statistic|, tie-broken by (variable, lag) for
+/// determinism across runs and thread counts.
+fn sort_by_strength(parents: &mut Vec<(VariableId, Lag)>, min_stat: &mut Vec<f64>) {
+    let mut order: Vec<usize> = (0..parents.len()).collect();
+    order.sort_by(|&i, &j| {
+        min_stat[j].partial_cmp(&min_stat[i]).unwrap_or(std::cmp::Ordering::Equal).then_with(|| {
+            let (vi, li) = parents[i];
+            let (vj, lj) = parents[j];
+            (vi.raw(), li.raw()).cmp(&(vj.raw(), lj.raw()))
+        })
+    });
+    *parents = order.iter().map(|&i| parents[i]).collect();
+    *min_stat = order.iter().map(|&i| min_stat[i]).collect();
+}
+
 fn link_to_target(src: VariableId, slag: Lag, target: VariableId) -> LaggedLink {
     LaggedLink { source: src, source_lag: slag, target, target_lag: Lag::CONTEMPORANEOUS }
+}
+
+/// Build the MCI conditioning set for `link` into `out`: parents of the target minus the
+/// link endpoints, then parents of the source *time-shifted by the source lag* (a parent
+/// `(v, l)` of `X_t` is `(v, l+τ)` for `X_{t−τ}`). Both inputs are strongest-first, so the
+/// `MAX_CI_COLS` truncation keeps the strongest conditions; returns how many were dropped.
+fn mci_conditioning(
+    link: LaggedLink,
+    parents_target: &[(VariableId, Lag)],
+    parents_source: &[(VariableId, Lag)],
+    out: &mut Vec<(VariableId, Lag)>,
+) -> u64 {
+    out.clear();
+    let src_key = (link.source, link.source_lag);
+    let tgt_key = (link.target, link.target_lag);
+    out.extend(parents_target.iter().copied().filter(|p| *p != src_key && *p != tgt_key));
+    for &(v, l) in parents_source {
+        let shifted = (v, Lag::from_raw(l.raw() + link.source_lag.raw()));
+        if !out.contains(&shifted) && shifted != src_key && shifted != tgt_key {
+            out.push(shifted);
+        }
+    }
+    if out.len() > MAX_CI_COLS - 2 {
+        let dropped = out.len() - (MAX_CI_COLS - 2);
+        out.truncate(MAX_CI_COLS - 2);
+        dropped as u64
+    } else {
+        0
+    }
 }
 
 /// Inclusive-exclusive index ranges for target-wise parallel work.

@@ -16,13 +16,20 @@ pub struct Dag {
     children: Vec<Vec<DenseNodeId>>,
     /// Incoming parents per node.
     parents: Vec<Vec<DenseNodeId>>,
+    /// Reused by insertion-time acyclicity checks to avoid per-insert allocation.
+    insert_ws: GraphWorkspace,
 }
 
 impl Dag {
     /// Empty DAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), children: Vec::new(), parents: Vec::new() }
+        Self {
+            nodes: Vec::new(),
+            children: Vec::new(),
+            parents: Vec::new(),
+            insert_ws: GraphWorkspace::default(),
+        }
     }
 
     /// Build a DAG with one static node per variable `0..n`.
@@ -84,12 +91,22 @@ impl Dag {
         if self.children[from.as_usize()].contains(&to) {
             return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
         }
-        if self.reaches(to, from) {
+        let mut ws = core::mem::take(&mut self.insert_ws);
+        let cycle = self.reaches_with(to, from, &mut ws);
+        self.insert_ws = ws;
+        if cycle {
             return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
         }
         self.children[from.as_usize()].push(to);
         self.parents[to.as_usize()].push(from);
         Ok(())
+    }
+
+    /// Push an edge without duplicate/acyclicity checks; the caller guarantees
+    /// both nodes exist and the edge preserves invariants.
+    pub(crate) fn insert_directed_unchecked(&mut self, from: DenseNodeId, to: DenseNodeId) {
+        self.children[from.as_usize()].push(to);
+        self.parents[to.as_usize()].push(from);
     }
 
     /// Remove a directed edge if present.
@@ -155,11 +172,6 @@ impl Dag {
     pub fn topological_order(&self) -> Option<Vec<DenseNodeId>> {
         let n = self.node_count();
         let mut indeg = vec![0u32; n];
-        for parents in &self.parents {
-            for &p in parents {
-                let _ = p;
-            }
-        }
         for (i, parents) in self.parents.iter().enumerate() {
             indeg[i] = u32::try_from(parents.len()).ok()?;
         }

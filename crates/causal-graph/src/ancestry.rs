@@ -77,17 +77,20 @@ impl Dag {
         let mut out = Dag::with_variables(
             u32::try_from(self.node_count()).map_err(|_| GraphError::TooManyNodes)?,
         );
-        // Copy only non-incoming-to-intervened edges.
+        // Copy only non-incoming-to-intervened edges. The source is a valid DAG
+        // and removing edges cannot create cycles, so skip per-edge validation.
         let mut blocked = BitSet::with_len(self.node_count());
         for &v in intervened {
             blocked.insert(v);
         }
-        for e in self.edges() {
-            let (from, to) = e.parent_child().expect("dag edge");
-            if blocked.contains(to) {
-                continue;
+        for i in 0..self.node_count() {
+            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            for &to in self.children(from) {
+                if blocked.contains(to) {
+                    continue;
+                }
+                out.insert_directed_unchecked(from, to);
             }
-            out.insert_directed(from, to)?;
         }
         Ok(out)
     }

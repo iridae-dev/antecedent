@@ -113,7 +113,7 @@ impl DiscoveryEstimationSplit {
         discovery_frac: f64,
         gap: usize,
     ) -> Result<Self, DataError> {
-        if !(0.0..1.0).contains(&discovery_frac) {
+        if !(discovery_frac > 0.0 && discovery_frac < 1.0) {
             return Err(DataError::InvalidArgument {
                 message: "discovery_frac must be in (0, 1)".into(),
             });
@@ -169,6 +169,13 @@ mod tests {
         assert_eq!(s.discovery.len() + s.gap + s.estimation.len(), 100);
         assert!(!s.discovery.is_empty());
         assert!(!s.estimation.is_empty());
+    }
+
+    #[test]
+    fn from_fraction_rejects_boundary_fractions() {
+        assert!(DiscoveryEstimationSplit::from_fraction(100, 0.0, 10).is_err());
+        assert!(DiscoveryEstimationSplit::from_fraction(100, 1.0, 10).is_err());
+        assert!(DiscoveryEstimationSplit::from_fraction(100, f64::NAN, 10).is_err());
     }
 
     #[test]

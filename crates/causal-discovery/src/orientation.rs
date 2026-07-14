@@ -394,7 +394,14 @@ impl OrientationRule for MeekR4 {
     }
 }
 
-/// Collider orientation when sepset is known: `a — c — b`, `a` not adj `b`, `c ∉ Sep(a,b)` → `a→c←b`.
+/// Collider orientation when sepset is known: for an unshielded triple `a * c * b` with both
+/// legs *into or undirected at* `c` (undirected legs, or legs already directed into `c`, e.g.
+/// lagged edges auto-oriented by time), `a` not adj `b`, `c ∉ Sep(a,b)` → orient the
+/// undirected leg(s) toward `c`.
+///
+/// Considering already-directed legs matters: Meek R1's premise is that every collider is
+/// oriented first, so skipping `X_{t−τ} → c — b` triples here would let R1 orient `c → b`
+/// on triples the data mark as colliders at `c`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct OrientCollider;
 
@@ -413,11 +420,17 @@ impl OrientationRule for OrientCollider {
         let focus = focus_nodes(graph, queue);
         let mut changed = Vec::new();
         for c in &focus {
-            let und: Vec<DenseNodeId> = graph.undirected_neighbors(*c);
-            for i in 0..und.len() {
-                for j in (i + 1)..und.len() {
-                    let a = und[i];
-                    let b = und[j];
+            // Legs eligible to point into c: undirected neighbors and existing parents.
+            let mut legs: Vec<(DenseNodeId, bool)> =
+                graph.undirected_neighbors(*c).into_iter().map(|n| (n, true)).collect();
+            legs.extend(graph.parents(*c).into_iter().map(|n| (n, false)));
+            for i in 0..legs.len() {
+                for j in (i + 1)..legs.len() {
+                    let (a, a_undirected) = legs[i];
+                    let (b, b_undirected) = legs[j];
+                    if !a_undirected && !b_undirected {
+                        continue;
+                    }
                     if graph.has_edge(a, b) {
                         continue;
                     }
@@ -427,30 +440,36 @@ impl OrientationRule for OrientCollider {
                     if sep.iter().any(|x| *x == *c) {
                         continue;
                     }
-                    // Orient a→c←b
-                    if graph.edge_between(a, *c).is_some_and(|e| e.is_undirected()) {
+                    // Orient a→c←b (only undirected legs need work).
+                    let mut oriented = 0u32;
+                    if a_undirected && graph.edge_between(a, *c).is_some_and(|e| e.is_undirected())
+                    {
                         graph
                             .orient_undirected(a, *c)
                             .map_err(|e| OrientationError::Graph(e.to_string()))?;
-                        delta.edges_changed += 1;
+                        oriented += 1;
                         changed.push(a);
                         changed.push(*c);
                     }
-                    if graph.edge_between(b, *c).is_some_and(|e| e.is_undirected()) {
+                    if b_undirected && graph.edge_between(b, *c).is_some_and(|e| e.is_undirected())
+                    {
                         graph
                             .orient_undirected(b, *c)
                             .map_err(|e| OrientationError::Graph(e.to_string()))?;
-                        delta.edges_changed += 1;
+                        oriented += 1;
                         changed.push(b);
                         changed.push(*c);
                     }
-                    delta.fixed_point = false;
-                    delta.premises.push(Arc::from(format!(
-                        "collider: {}→{}←{} (c not in sepset)",
-                        a.raw(),
-                        c.raw(),
-                        b.raw()
-                    )));
+                    if oriented > 0 {
+                        delta.edges_changed += oriented;
+                        delta.fixed_point = false;
+                        delta.premises.push(Arc::from(format!(
+                            "collider: {}→{}←{} (c not in sepset)",
+                            a.raw(),
+                            c.raw(),
+                            b.raw()
+                        )));
+                    }
                 }
             }
         }
@@ -551,6 +570,25 @@ mod tests {
         assert!(d.edges_changed >= 2);
         assert_eq!(g.edge_between(a, c).unwrap().parent_child(), Some((a, c)));
         assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
+    }
+
+    #[test]
+    fn collider_fires_on_triple_with_directed_lagged_leg() {
+        // X@1 → K (auto-oriented by time), K — J undirected, X@1 ⟂ J with sepset ∅
+        // excluding K ⇒ collider at K: orient J → K. Meek R1 must not run first and
+        // orient K → J.
+        let mut g = TemporalCpdag::empty();
+        let x1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let k = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let j = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(x1, k).unwrap();
+        g.insert_undirected(k, j).unwrap();
+        let mut state = OrientationState::default();
+        state.set_sepset(x1, j, Arc::from([]));
+        let rules: [&dyn OrientationRule; 5] =
+            [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
+        run_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
+        assert_eq!(g.edge_between(j, k).unwrap().parent_child(), Some((j, k)));
     }
 
     #[test]

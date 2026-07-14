@@ -7,8 +7,8 @@
 use causal_core::ExecutionContext;
 
 use crate::ci::types::{
-    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest,
-    ConfidenceMethod, SignificanceMethod,
+    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
+    SignificanceMethod,
 };
 use crate::error::StatsError;
 

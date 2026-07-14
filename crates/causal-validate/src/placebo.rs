@@ -18,8 +18,9 @@ use crate::error::ValidationError;
 pub struct PlaceboTreatment {
     /// Replicate count (each draw a fresh placebo treatment).
     pub replicates: u32,
-    /// Pass if mean `|refuted_ate|` is below this threshold.
-    pub abs_ate_threshold: f64,
+    /// Pass if the placebo ATE distribution is consistent with zero at this significance
+    /// level (two-sided normal test on the replicates, `p >= alpha`).
+    pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled to avoid nested pools).
     pub estimator: LinearAdjustmentAte,
 }
@@ -31,14 +32,10 @@ impl Default for PlaceboTreatment {
 }
 
 impl PlaceboTreatment {
-    /// Default: 20 replicates, threshold 0.25.
+    /// Default: 20 replicates, significance level 0.05.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            replicates: 20,
-            abs_ate_threshold: 0.25,
-            estimator: linear_estimator_no_bootstrap(),
-        }
+        Self { replicates: 20, alpha: 0.05, estimator: linear_estimator_no_bootstrap() }
     }
 
     /// Run the placebo refuter.
@@ -58,9 +55,9 @@ impl PlaceboTreatment {
             ctx,
             &self.estimator,
             self.replicates,
-            self.abs_ate_threshold,
+            self.alpha,
             NoiseReplaceTarget::Treatment,
-            0xA7E0_0001,
+            0xA7E0_0001_0000,
             "placebo.treatment",
             "placebo",
         )

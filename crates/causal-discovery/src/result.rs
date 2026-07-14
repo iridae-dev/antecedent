@@ -102,8 +102,10 @@ pub struct ScoredLink {
     pub link: LaggedLink,
     /// Partial correlation (MCI).
     pub statistic: f64,
-    /// P-value (possibly FDR-adjusted later).
+    /// Raw (unadjusted) p-value.
     pub p_value: f64,
+    /// Benjamini–Hochberg adjusted p-value when FDR ran over the MCI family.
+    pub adjusted_p_value: Option<f64>,
 }
 
 /// Algorithm metadata.

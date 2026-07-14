@@ -65,6 +65,33 @@ impl ValidityBitmap {
     pub fn is_valid(&self, i: usize) -> bool {
         self.as_mask_view().is_ok_and(|m| m.get(i))
     }
+
+    /// Whether every bit is valid.
+    #[must_use]
+    pub fn is_all_valid(&self) -> bool {
+        self.as_mask_view().is_ok_and(|m| (0..self.len).all(|i| m.get(i)))
+    }
+
+    /// Gather bits through a row map (`out[i] = self[row_map[i]]`).
+    ///
+    /// # Errors
+    ///
+    /// When a mapped row is out of range.
+    pub fn gather(&self, row_map: &[u32]) -> Result<Self, DataError> {
+        let mask = self.as_mask_view()?;
+        let n = row_map.len();
+        let mut bytes = vec![0u8; n.div_ceil(8)];
+        for (i, &r) in row_map.iter().enumerate() {
+            let r = r as usize;
+            if r >= self.len {
+                return Err(DataError::InvalidValidity { message: "row map exceeds bitmap" });
+            }
+            if mask.get(r) {
+                bytes[i / 8] |= 1 << (i % 8);
+            }
+        }
+        Self::from_bytes(bytes, n)
+    }
 }
 
 /// Owned float64 column.

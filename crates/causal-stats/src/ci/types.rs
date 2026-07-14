@@ -18,6 +18,9 @@ pub struct KnnCmiWorkspace {
     pub last_dim: usize,
     /// Last n.
     pub last_n: usize,
+    /// Fingerprint of the (x, y, z) inputs behind the cached index (pointer, length,
+    /// and sampled-content hash), so different pairs in one batch rebuild correctly.
+    pub last_fingerprint: u64,
     /// Cached joint features (row-major `n * dim`).
     pub features: Vec<f64>,
     /// Cached nearest-neighbor index over [`Self::features`].
@@ -71,10 +74,7 @@ pub struct CiPreparationPlan {
 
 impl Default for CiPreparationPlan {
     fn default() -> Self {
-        Self {
-            significance: SignificanceMethod::Analytic,
-            confidence: ConfidenceMethod::default(),
-        }
+        Self { significance: SignificanceMethod::Analytic, confidence: ConfidenceMethod::default() }
     }
 }
 

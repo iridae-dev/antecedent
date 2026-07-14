@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::common::{RefutationProblem, RefutationReport, float64_full, sample_sd};
+use crate::common::{RefutationProblem, RefutationReport, complete_case_rows, masked_sample_sd};
 use crate::error::ValidationError;
 
 /// E-value for the point estimate: the minimum strength of association, on the risk-ratio
@@ -43,8 +43,10 @@ impl EValue {
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<RefutationReport, ValidationError> {
-        let y = float64_full(problem.data, problem.outcome())?;
-        let sd_y = sample_sd(&y);
+        let mut ids = vec![problem.treatment(), problem.outcome()];
+        ids.extend_from_slice(&problem.estimand.adjustment_set);
+        let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
+        let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?;
         if !(sd_y.is_finite() && sd_y > 0.0) {
             return Err(ValidationError::NotApplicable {
                 message: "e-value requires a finite, positive outcome standard deviation",

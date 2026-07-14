@@ -77,18 +77,22 @@ impl TemporalIndexer {
     /// # Errors
     ///
     /// When counts are zero or products overflow.
-    pub fn new(variable_count: u32, history: u32, horizon: u32) -> Result<Self, TemporalIndexError> {
+    pub fn new(
+        variable_count: u32,
+        history: u32,
+        horizon: u32,
+    ) -> Result<Self, TemporalIndexError> {
         if variable_count == 0 || horizon == 0 {
             return Err(TemporalIndexError::Invalid {
                 message: "variable_count and horizon must be non-zero",
             });
         }
-        let slices = history.checked_add(horizon).ok_or(TemporalIndexError::Invalid {
-            message: "history+horizon overflow",
-        })?;
-        let _ = variable_count.checked_mul(slices).ok_or(TemporalIndexError::Invalid {
-            message: "dense index space overflow",
-        })?;
+        let slices = history
+            .checked_add(horizon)
+            .ok_or(TemporalIndexError::Invalid { message: "history+horizon overflow" })?;
+        let _ = variable_count
+            .checked_mul(slices)
+            .ok_or(TemporalIndexError::Invalid { message: "dense index space overflow" })?;
         Ok(Self { variable_count, history, horizon })
     }
 
@@ -135,9 +139,8 @@ impl TemporalIndexer {
         }
         let dense = u64::try_from(slice).expect("non-negative") * u64::from(self.variable_count)
             + u64::from(v);
-        u32::try_from(dense).map_err(|_| TemporalIndexError::Invalid {
-            message: "dense id exceeds u32",
-        })
+        u32::try_from(dense)
+            .map_err(|_| TemporalIndexError::Invalid { message: "dense id exceeds u32" })
     }
 
     /// Invert a dense index to a stable key.

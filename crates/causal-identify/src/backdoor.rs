@@ -78,9 +78,14 @@ impl BackdoorIdentifier {
 
     /// Identify an average-effect query via backdoor adjustment.
     ///
+    /// At most `config.max_results` adjustment sets are returned; when more
+    /// qualifying sets exist the result is truncated (noted in the derivation
+    /// trace) rather than treated as an error.
+    ///
     /// # Errors
     ///
-    /// Unsupported query, unknown variables, or enumeration limits.
+    /// Unsupported query, unknown variables, or a candidate pool too large
+    /// for exact enumeration.
     pub fn identify(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -136,8 +141,12 @@ impl BackdoorIdentifier {
         let mut dsep_ws = DSeparationWorkspace::default();
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
         let mut examined = 0u64;
+        let mut truncated = false;
 
-        // Enumerate subsets by increasing size for minimal-first.
+        // Enumerate subsets by increasing size for minimal-first. When more
+        // than `max_results` qualifying sets exist, the first `max_results`
+        // (in size-then-mask order) are returned and the truncation is noted
+        // in the derivation trace.
         let m = candidates.len();
         if m > 20 {
             return Err(IdentificationError::NotIdentified {
@@ -145,7 +154,7 @@ impl BackdoorIdentifier {
             });
         }
         let total_masks = 1usize << m;
-        for size in 0..=m {
+        'sizes: for size in 0..=m {
             for mask in 0..total_masks {
                 if mask.count_ones() as usize != size {
                     continue;
@@ -167,9 +176,8 @@ impl BackdoorIdentifier {
                 }
                 valid.push(z);
                 if valid.len() >= self.config.max_results {
-                    return Err(IdentificationError::ResultLimitExceeded {
-                        limit: self.config.max_results,
-                    });
+                    truncated = true;
+                    break 'sizes;
                 }
             }
             // After finishing a size class, if we have minimal sets, stop growing.
@@ -186,6 +194,15 @@ impl BackdoorIdentifier {
             "backdoor.criterion",
             "Z blocks all backdoor paths and contains no descendants of T",
         );
+        if truncated {
+            derivation.push(
+                "backdoor.enumeration",
+                format!(
+                    "result limit reached; returning first {} adjustment sets (more exist)",
+                    valid.len()
+                ),
+            );
+        }
 
         if valid.is_empty() {
             return Ok(IdentificationResult {
@@ -335,6 +352,35 @@ mod tests {
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands.len(), 1);
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+    }
+
+    #[test]
+    fn result_limit_truncates_instead_of_erroring() {
+        // T <- A -> B -> C -> Y, T -> Y: minimal singletons {A}, {B}, {C}.
+        // With max_results = 2 the first two are returned, not an error.
+        let mut g = Dag::with_variables(5);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let a = DenseNodeId::from_raw(2);
+        let b = DenseNodeId::from_raw(3);
+        let c = DenseNodeId::from_raw(4);
+        g.insert_directed(a, t).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_directed(b, c).unwrap();
+        g.insert_directed(c, y).unwrap();
+        g.insert_directed(t, y).unwrap();
+
+        let mut id = BackdoorIdentifier::new();
+        id.config.max_results = 2;
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let res = id.identify(&prep, &q).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.estimands.len(), 2);
+        assert!(res.derivation.steps.iter().any(|s| s.rule.as_ref() == "backdoor.enumeration"));
     }
 
     #[test]

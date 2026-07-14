@@ -15,7 +15,9 @@ use causal_stats::ConditionalIndependence;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
-use crate::evidence::{cpdag_evidence_from_oriented, cpdag_from_scored_links, threshold_scored_links};
+use crate::evidence::{
+    cpdag_evidence_from_oriented, cpdag_from_scored_links, threshold_scored_links,
+};
 use crate::orientation::{
     MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule, OrientationState,
     run_orientation_to_fixed_point,
@@ -98,7 +100,13 @@ impl PcmciPlus {
         }
 
         let mut state = OrientationState::default();
-        for ((s, slag, t, tlag), sep) in &engine_result.sepsets {
+        // Sepset keys are directional; the orientation state is unordered. Insert in sorted
+        // key order so the winning entry for a pair recorded in both directions is
+        // deterministic (HashMap iteration order is not).
+        let mut sepset_entries: Vec<_> = engine_result.sepsets.iter().collect();
+        sepset_entries
+            .sort_by_key(|((s, slag, t, tlag), _)| (s.raw(), slag.raw(), t.raw(), tlag.raw()));
+        for ((s, slag, t, tlag), sep) in sepset_entries {
             let Some(&sa) = node_ids.get(&(s.raw(), slag.raw())) else {
                 continue;
             };

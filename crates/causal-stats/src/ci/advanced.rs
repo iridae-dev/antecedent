@@ -11,7 +11,7 @@ use causal_core::ExecutionContext;
 
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod, KnnCmiWorkspace,
+    KnnCmiWorkspace,
 };
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
@@ -105,22 +105,19 @@ impl ConditionalIndependenceTest for KnnCmi {
             ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
             let builds_before = workspace.knn.index_builds;
             let stat = knn_stat_from_index(&workspace.knn, self.k)?;
-            // Null: permute Y via reusable plan shuffled with RNG stream (plan buffer reused).
+            // Null: permute Y within coarse Z strata so the Y–Z link is preserved under
+            // H0 (a full unconditional shuffle would inflate type-I error when Y depends
+            // on Z). See `coarse_z_strata`.
+            let strata = coarse_z_strata(request.columns, z, n);
             let mut y_perm = request.columns[q.y].to_vec();
             let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(qi as u64));
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
-                // Fisher–Yates into perm order applied to Y values.
-                for i in (1..n).rev() {
-                    let j = (rng.next_u64() as usize) % (i + 1);
-                    workspace.knn.perm.swap(i, j);
-                }
-                for r in 0..n {
-                    y_perm[r] = request.columns[q.y][workspace.knn.perm[r]];
-                }
-                // Restore identity permutation in place (no reallocation).
-                for (i, slot) in workspace.knn.perm.iter_mut().enumerate() {
-                    *slot = i;
+                for rows in &strata {
+                    for i in (1..rows.len()).rev() {
+                        let j = (rng.next_u64() as usize) % (i + 1);
+                        y_perm.swap(rows[i], rows[j]);
+                    }
                 }
                 let mut cols: Vec<&[f64]> = request.columns.to_vec();
                 cols[q.y] = &y_perm;
@@ -139,6 +136,34 @@ impl ConditionalIndependenceTest for KnnCmi {
     }
 }
 
+/// Fingerprint of the columns feeding a kNN index: query indexes plus pointer, length,
+/// and sampled contents of each involved column. Content samples guard against pointer
+/// reuse after frees between batches.
+fn knn_input_fingerprint(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n: usize) -> u64 {
+    let mut h = 0xcbf29ce484222325u64;
+    let mut mix = |v: u64| {
+        h ^= v;
+        h = h.wrapping_mul(0x100000001b3);
+    };
+    mix(x as u64);
+    mix(y as u64);
+    mix(z.len() as u64);
+    for &zc in z {
+        mix(zc as u64);
+    }
+    for &c in [x, y].iter().chain(z.iter()) {
+        let col = columns[c];
+        mix(col.as_ptr() as u64);
+        mix(col.len() as u64);
+        if n > 0 {
+            mix(col[0].to_bits());
+            mix(col[n / 2].to_bits());
+            mix(col[n - 1].to_bits());
+        }
+    }
+    h
+}
+
 fn ensure_knn_index(
     columns: &[&[f64]],
     x: usize,
@@ -148,7 +173,11 @@ fn ensure_knn_index(
     dim: usize,
     knn: &mut KnnCmiWorkspace,
 ) -> Result<(), StatsError> {
-    let need_rebuild = knn.index.is_none() || knn.last_dim != dim || knn.last_n != n;
+    let fingerprint = knn_input_fingerprint(columns, x, y, z, n);
+    let need_rebuild = knn.index.is_none()
+        || knn.last_dim != dim
+        || knn.last_n != n
+        || knn.last_fingerprint != fingerprint;
     if !need_rebuild {
         return Ok(());
     }
@@ -167,6 +196,7 @@ fn ensure_knn_index(
     knn.index = Some(idx);
     knn.last_dim = dim;
     knn.last_n = n;
+    knn.last_fingerprint = fingerprint;
     knn.index_generation = knn.index_generation.saturating_add(1);
     knn.index_builds = knn.index_builds.saturating_add(1);
     Ok(())
@@ -204,6 +234,35 @@ fn knn_mi_proxy_ephemeral(
     let mut dists = vec![0.0; n];
     idx.kth_distances(&feats, n, k, &mut dists)?;
     Ok(-dists.iter().sum::<f64>() / n as f64)
+}
+
+/// Coarse Z strata for permutation nulls: each Z column is binned into terciles
+/// (rank-based) and rows are grouped by the joint bin key. Permuting Y within these
+/// strata approximately preserves the Y–Z dependence under H0 — a documented coarse
+/// approximation to a full within-neighborhood conditional permutation scheme.
+/// Deterministic order (sorted keys) keeps the seeded RNG stream reproducible.
+fn coarse_z_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
+    if z.is_empty() {
+        return vec![(0..n).collect()];
+    }
+    const BINS: usize = 3;
+    let mut keys = vec![0u64; n];
+    for &zc in z {
+        let col = columns[zc];
+        let mut idx: Vec<usize> = (0..n).collect();
+        idx.sort_by(|&a, &b| col[a].partial_cmp(&col[b]).unwrap_or(std::cmp::Ordering::Equal));
+        for (rank, &r) in idx.iter().enumerate() {
+            let bin = rank * BINS / n;
+            keys[r] = keys[r].wrapping_mul(31).wrapping_add(bin as u64 + 1);
+        }
+    }
+    let mut map: HashMap<u64, Vec<usize>> = HashMap::new();
+    for r in 0..n {
+        map.entry(keys[r]).or_default().push(r);
+    }
+    let mut sorted_keys: Vec<u64> = map.keys().copied().collect();
+    sorted_keys.sort_unstable();
+    sorted_keys.into_iter().filter_map(|k| map.remove(&k)).collect()
 }
 
 /// Mixed-data kNN CMI: ranks discrete-looking columns then runs [`KnnCmi`].
@@ -283,15 +342,20 @@ impl ConditionalIndependenceTest for SymbolicCmi {
             let n = request.columns[q.x].len();
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
             let mi = conditional_symbolic_mi(request.columns, q.x, q.y, z, n);
-            // Permutation p-value on Y.
+            // Permutation p-value on Y, shuffled within Z strata so the Y–Z link is
+            // preserved under H0 (an unconditional shuffle inflates type-I error when
+            // Y depends on Z).
+            let strata = symbol_strata_sorted(request.columns, z, n);
             let mut y_perm = request.columns[q.y].to_vec();
             let mut rng = ctx.rng.stream(0x51C_u64.wrapping_add(qi as u64));
             let n_perm = 49usize;
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
-                for i in (1..n).rev() {
-                    let j = (rng.next_u64() as usize) % (i + 1);
-                    y_perm.swap(i, j);
+                for rows in &strata {
+                    for i in (1..rows.len()).rev() {
+                        let j = (rng.next_u64() as usize) % (i + 1);
+                        y_perm.swap(rows[i], rows[j]);
+                    }
                 }
                 let mut cols: Vec<&[f64]> = request.columns.to_vec();
                 cols[q.y] = &y_perm;
@@ -307,8 +371,9 @@ impl ConditionalIndependenceTest for SymbolicCmi {
     }
 }
 
-fn conditional_symbolic_mi(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n: usize) -> f64 {
-    // Stratify by Z symbols; average stratum MI(X;Y|Z=z).
+/// Rows grouped by exact Z symbol key. Deterministic order (sorted keys) so the seeded
+/// RNG stream used by permutation nulls stays reproducible.
+fn symbol_strata_sorted(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
     let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
     for r in 0..n {
         let key = if z.is_empty() {
@@ -324,9 +389,17 @@ fn conditional_symbolic_mi(columns: &[&[f64]], x: usize, y: usize, z: &[usize], 
         };
         strata.entry(key).or_default().push(r);
     }
+    let mut keys: Vec<u64> = strata.keys().copied().collect();
+    keys.sort_unstable();
+    keys.into_iter().filter_map(|k| strata.remove(&k)).collect()
+}
+
+fn conditional_symbolic_mi(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n: usize) -> f64 {
+    // Stratify by Z symbols; average stratum MI(X;Y|Z=z).
+    let strata = symbol_strata_sorted(columns, z, n);
     let mut mi = 0.0;
     let mut weight = 0.0;
-    for rows in strata.values() {
+    for rows in &strata {
         if rows.len() < 2 {
             continue;
         }
@@ -389,24 +462,35 @@ impl ConditionalIndependenceTest for Gpdc {
         &self,
         request: &CiBatchRequest<'_>,
         _workspace: &mut CiWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
         let n = request.columns.first().map(|c| c.len()).unwrap_or(0);
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
+        let n_perm = 49usize;
         let mut results = Vec::with_capacity(request.queries.len());
-        for q in request.queries {
+        for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
             let rx = gp_residual(request.columns[q.x], request.columns, z, self)?;
             let ry = gp_residual(request.columns[q.y], request.columns, z, self)?;
             let dcor = distance_correlation(&rx, &ry);
-            results.push(CiResult {
-                statistic: dcor,
-                p_value: if dcor < 0.1 { 0.5 } else { 0.01 },
-                df: n as f64,
-                ci: None,
-            });
+            // Permutation null: shuffle the Y residuals (Z influence already removed)
+            // and recompute dCor; add-one p-value keeps it in (0, 1].
+            let mut ry_perm = ry.clone();
+            let mut rng = ctx.rng.stream(0x69DC_u64.wrapping_add(qi as u64));
+            let mut null_ge = 0u32;
+            for _ in 0..n_perm {
+                for i in (1..n).rev() {
+                    let j = (rng.next_u64() as usize) % (i + 1);
+                    ry_perm.swap(i, j);
+                }
+                if distance_correlation(&rx, &ry_perm) >= dcor {
+                    null_ge = null_ge.saturating_add(1);
+                }
+            }
+            let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
+            results.push(CiResult { statistic: dcor, p_value: p, df: n as f64, ci: None });
         }
         Ok(CiBatchResult { results })
     }
@@ -492,7 +576,8 @@ fn distance_correlation(x: &[f64], y: &[f64]) -> f64 {
     if dvarx <= 0.0 || dvary <= 0.0 {
         return 0.0;
     }
-    dcov2.max(0.0).sqrt() / (dvarx.sqrt() * dvary.sqrt())
+    // Székely dCor: sqrt(dCov² / sqrt(dVarX · dVarY)).
+    (dcov2.max(0.0) / (dvarx * dvary).sqrt()).sqrt()
 }
 
 fn double_center_inplace(a: &mut [f64], n: usize) {
@@ -584,5 +669,143 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let out = Gpdc::new().test_batch(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].statistic.is_finite());
+        assert!((0.0..=1.0).contains(&out.results[0].p_value));
+    }
+
+    fn lcg_noise(n: usize, seed: u64) -> Vec<f64> {
+        let mut s = seed;
+        (0..n)
+            .map(|_| {
+                s = s
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                ((s >> 33) as f64) / ((1u64 << 31) as f64) - 0.5
+            })
+            .collect()
+    }
+
+    #[test]
+    fn dcor_self_is_one_and_scale_invariant() {
+        let x: Vec<f64> = (0..50).map(|i| (i as f64 * 0.7).sin() + 0.1 * i as f64).collect();
+        let d = distance_correlation(&x, &x);
+        assert!((d - 1.0).abs() < 1e-9, "dcor(x,x)={d}");
+        let y: Vec<f64> = (0..50).map(|i| ((i * 13 + 5) % 17) as f64).collect();
+        let d1 = distance_correlation(&x, &y);
+        let xs: Vec<f64> = x.iter().map(|v| 3.5 * v).collect();
+        let ys: Vec<f64> = y.iter().map(|v| 3.5 * v).collect();
+        let d2 = distance_correlation(&xs, &ys);
+        assert!((d1 - d2).abs() < 1e-9, "scale dependence: {d1} vs {d2}");
+    }
+
+    #[test]
+    fn dcor_independent_small() {
+        let x = lcg_noise(200, 1);
+        let y = lcg_noise(200, 2);
+        let d = distance_correlation(&x, &y);
+        assert!(d < 0.3, "dcor of independent noise = {d}");
+    }
+
+    #[test]
+    fn gpdc_permutation_pvalue_separates_dependence() {
+        let n = 60usize;
+        let x = lcg_noise(n, 3);
+        let y_dep = x.clone();
+        let y_ind = lcg_noise(n, 4);
+        let cols: [&[f64]; 3] = [&x, &y_dep, &y_ind];
+        let queries = [
+            CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 },
+            CiQuery { x: 0, y: 2, z_start: 0, z_len: 0 },
+        ];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(11);
+        let out = Gpdc::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        assert!(out.results[0].p_value < 0.05, "dependent p={}", out.results[0].p_value);
+        assert!(out.results[1].p_value > 0.1, "independent p={}", out.results[1].p_value);
+    }
+
+    #[test]
+    fn knn_rebuilds_index_for_different_pairs_in_one_batch() {
+        let n = 60usize;
+        let x: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let y_tight: Vec<f64> = x.iter().map(|v| v + 0.001).collect();
+        let y_spread: Vec<f64> = (0..n).map(|i| ((i * 37 + 11) % 60) as f64).collect();
+        let cols: [&[f64]; 3] = [&x, &y_tight, &y_spread];
+        let queries = [
+            CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 },
+            CiQuery { x: 0, y: 2, z_start: 0, z_len: 0 },
+        ];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(12);
+        let out = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        let s1 = out.results[0].statistic;
+        let s2 = out.results[1].statistic;
+        assert!(
+            (s1 - s2).abs() > 1e-6,
+            "same n/dim pairs must not share a cached index: {s1} vs {s2}"
+        );
+        assert!(s1 > s2, "tight pair should have smaller kth distances: {s1} vs {s2}");
+    }
+
+    #[test]
+    fn symbolic_null_preserves_yz_dependence() {
+        // X ⊥ Y | Z with Y = Z (maximal Y–Z dependence): within-stratum permutation
+        // leaves Y unchanged, so the p-value must be large, not systematically tiny.
+        let n = 200usize;
+        let z: Vec<f64> = (0..n).map(|i| (i % 4) as f64).collect();
+        let y = z.clone();
+        let x: Vec<f64> = (0..n).map(|i| ((i * 7 + 3) % 5) as f64).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(13);
+        let out = SymbolicCmi::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        assert!(out.results[0].p_value > 0.5, "p={}", out.results[0].p_value);
+    }
+
+    #[test]
+    fn knn_null_preserves_yz_dependence() {
+        // X ⊥ Y | Z with Y strongly driven by Z (three well-separated Z levels): the
+        // within-strata null must not report systematically tiny p-values.
+        let n = 90usize;
+        let z: Vec<f64> = (0..n).map(|i| (i % 3) as f64 * 5.0).collect();
+        let noise = lcg_noise(n, 6);
+        let y: Vec<f64> = z.iter().zip(&noise).map(|(v, e)| v + 0.1 * e).collect();
+        let x = lcg_noise(n, 5);
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(14);
+        let out = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        assert!(out.results[0].p_value > 0.05, "p={}", out.results[0].p_value);
     }
 }

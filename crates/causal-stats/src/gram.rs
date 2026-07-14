@@ -31,22 +31,23 @@ pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
         inv[i * ncols + i] = 1.0;
     }
     for col in 0..ncols {
-        let mut pivot = a[col * ncols + col];
-        if pivot.abs() < 1e-14 {
-            let mut swap = None;
-            for row in (col + 1)..ncols {
-                if a[row * ncols + col].abs() > 1e-14 {
-                    swap = Some(row);
-                    break;
-                }
+        // Partial pivoting: pick the largest |pivot| in the remaining rows.
+        let mut best = col;
+        for row in (col + 1)..ncols {
+            if a[row * ncols + col].abs() > a[best * ncols + col].abs() {
+                best = row;
             }
-            let row = swap?;
-            for j in 0..ncols {
-                a.swap(col * ncols + j, row * ncols + j);
-                inv.swap(col * ncols + j, row * ncols + j);
-            }
-            pivot = a[col * ncols + col];
         }
+        if a[best * ncols + col].abs() < 1e-14 {
+            return None;
+        }
+        if best != col {
+            for j in 0..ncols {
+                a.swap(col * ncols + j, best * ncols + j);
+                inv.swap(col * ncols + j, best * ncols + j);
+            }
+        }
+        let pivot = a[col * ncols + col];
         for j in 0..ncols {
             a[col * ncols + j] /= pivot;
             inv[col * ncols + j] /= pivot;

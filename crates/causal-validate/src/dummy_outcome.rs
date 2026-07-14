@@ -18,8 +18,9 @@ use crate::error::ValidationError;
 pub struct DummyOutcome {
     /// Replicate count (each draw a fresh dummy outcome).
     pub replicates: u32,
-    /// Pass if mean `|refuted_ate|` is below this threshold.
-    pub abs_ate_threshold: f64,
+    /// Pass if the dummy-outcome ATE distribution is consistent with zero at this
+    /// significance level (two-sided normal test on the replicates, `p >= alpha`).
+    pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled to avoid nested pools).
     pub estimator: LinearAdjustmentAte,
 }
@@ -31,14 +32,10 @@ impl Default for DummyOutcome {
 }
 
 impl DummyOutcome {
-    /// Default: 20 replicates, threshold 0.25.
+    /// Default: 20 replicates, significance level 0.05.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            replicates: 20,
-            abs_ate_threshold: 0.25,
-            estimator: linear_estimator_no_bootstrap(),
-        }
+        Self { replicates: 20, alpha: 0.05, estimator: linear_estimator_no_bootstrap() }
     }
 
     /// Run the dummy-outcome refuter.
@@ -58,9 +55,9 @@ impl DummyOutcome {
             ctx,
             &self.estimator,
             self.replicates,
-            self.abs_ate_threshold,
+            self.alpha,
             NoiseReplaceTarget::Outcome,
-            0xA7E0_0008,
+            0xA7E0_0008_0000,
             "dummy.outcome",
             "dummy-outcome",
         )

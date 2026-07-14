@@ -8,15 +8,14 @@ use std::collections::HashMap;
 
 use causal_core::ExecutionContext;
 
-use super::analytic::normal_ppf;
+use super::analytic::{ln_gamma, normal_ppf};
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod,
 };
 
 #[cfg(test)]
-use super::types::{CiQuery, SignificanceMethod};
+use super::types::{CiQuery, ConfidenceMethod, SignificanceMethod};
 use crate::error::StatsError;
 
 /// G-squared conditional independence for discrete (integer-coded) columns.
@@ -89,6 +88,7 @@ fn g_squared_statistic(
     }
     let mut g_total = 0.0;
     let mut df_total = 0.0;
+    let mut any = false;
     for rows in strata.values() {
         if rows.len() < 2 {
             continue;
@@ -96,11 +96,15 @@ fn g_squared_statistic(
         let (g, df) = g_squared_on_rows(&xi, &yi, rows, workspace)?;
         g_total += g;
         df_total += df;
+        any = true;
     }
-    if df_total <= 0.0 {
+    if !any {
         return Err(StatsError::Shape { message: "empty stratified contingency" });
     }
-    Ok((g_total, df_total))
+    // Per-stratum dof sums (rows-1)(cols-1) over nonempty strata (pgmpy/DoWhy-style);
+    // a stratum with constant X or Y contributes 0. Floor the TOTAL at 1 to avoid a
+    // df=0 chi-square.
+    Ok((g_total, df_total.max(1.0)))
 }
 
 fn g_squared_on_rows(
@@ -154,10 +158,11 @@ fn g_squared_on_rows(
         }
     }
     let df = ((lx - 1) * (ly - 1)) as f64;
-    Ok((g, df.max(1.0)))
+    Ok((g, df))
 }
 
-/// Upper survival function approximation for chi-squared via Wilson–Hilferty + normal SF.
+/// Exact chi-squared survival function via the regularized upper incomplete gamma
+/// `Q(df/2, x/2)`.
 fn chi2_sf(x: f64, df: f64) -> f64 {
     if x <= 0.0 {
         return 1.0;
@@ -165,28 +170,64 @@ fn chi2_sf(x: f64, df: f64) -> f64 {
     if df <= 0.0 {
         return 0.0;
     }
-    let h = 2.0 / (9.0 * df);
-    let z = (x / df).powf(1.0 / 3.0) - (1.0 - h);
-    let z = z / h.sqrt();
-    norm_sf(z)
+    gamma_q(df * 0.5, x * 0.5)
 }
 
-/// Standard normal survival function Φ̄(z).
-fn norm_sf(z: f64) -> f64 {
-    // Abramowitz–Stegun 7.1.26 via erf approximation on |z|/√2
-    0.5 * erfc_approx(z / std::f64::consts::SQRT_2)
+/// Regularized upper incomplete gamma `Q(a, x)`: series for `x < a + 1`, continued
+/// fraction otherwise (Numerical Recipes `gammq` style).
+fn gamma_q(a: f64, x: f64) -> f64 {
+    if x < a + 1.0 {
+        (1.0 - gamma_p_series(a, x)).clamp(0.0, 1.0)
+    } else {
+        gamma_q_cf(a, x).clamp(0.0, 1.0)
+    }
 }
 
-fn erfc_approx(x: f64) -> f64 {
-    // erfc(x) = 1 - erf(x); erf via A&S 7.1.26
-    let sign = if x < 0.0 { -1.0 } else { 1.0 };
-    let ax = x.abs();
-    let t = 1.0 / (1.0 + 0.3275911 * ax);
-    let poly = t
-        * (0.254829592
-            + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
-    let erf = sign * (1.0 - poly * (-ax * ax).exp());
-    1.0 - erf
+/// Lower regularized incomplete gamma `P(a, x)` by series expansion.
+fn gamma_p_series(a: f64, x: f64) -> f64 {
+    if x <= 0.0 {
+        return 0.0;
+    }
+    let mut ap = a;
+    let mut sum = 1.0 / a;
+    let mut del = sum;
+    for _ in 0..500 {
+        ap += 1.0;
+        del *= x / ap;
+        sum += del;
+        if del.abs() < sum.abs() * 1e-15 {
+            break;
+        }
+    }
+    sum * (-x + a * x.ln() - ln_gamma(a)).exp()
+}
+
+/// Upper regularized incomplete gamma `Q(a, x)` by Lentz continued fraction.
+fn gamma_q_cf(a: f64, x: f64) -> f64 {
+    const TINY: f64 = 1e-300;
+    let mut b = x + 1.0 - a;
+    let mut c = 1.0 / TINY;
+    let mut d = 1.0 / b;
+    let mut h = d;
+    for i in 1..500 {
+        let an = -(i as f64) * (i as f64 - a);
+        b += 2.0;
+        d = an * d + b;
+        if d.abs() < TINY {
+            d = TINY;
+        }
+        c = b + an / c;
+        if c.abs() < TINY {
+            c = TINY;
+        }
+        d = 1.0 / d;
+        let del = d * c;
+        h *= del;
+        if (del - 1.0).abs() < 1e-15 {
+            break;
+        }
+    }
+    (-x + a * x.ln() - ln_gamma(a)).exp() * h
 }
 
 /// Regression CI: residualize X,Y on Z via OLS then correlate residuals (same as ParCorr).
@@ -259,5 +300,37 @@ mod tests {
         let ci = out.results[0].ci.expect("G² analytic CI");
         assert!(ci.0 <= out.results[0].statistic && out.results[0].statistic <= ci.1);
         assert!(ci.0 >= 0.0);
+    }
+
+    #[test]
+    fn chi2_sf_pins_known_values() {
+        assert!((chi2_sf(3.841_459, 1.0) - 0.05).abs() < 1e-5);
+        assert!((chi2_sf(5.991_465, 2.0) - 0.05).abs() < 1e-5);
+        assert!((chi2_sf(10.0, 1.0) - 0.001_565).abs() < 1e-5);
+    }
+
+    #[test]
+    fn constant_strata_contribute_zero_dof() {
+        // Z has two strata; in each stratum X is constant, so per-stratum dof is 0 and
+        // the total floors at 1 (not the old per-stratum max which summed to 2).
+        let n = 80usize;
+        let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let x = z.clone(); // constant within each Z stratum
+        let y: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(3);
+        let out = GSquared::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        assert!((out.results[0].df - 1.0).abs() < 1e-12, "df={}", out.results[0].df);
+        assert!((out.results[0].p_value - 1.0).abs() < 1e-9);
     }
 }

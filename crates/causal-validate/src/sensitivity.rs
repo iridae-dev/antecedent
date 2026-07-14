@@ -24,8 +24,8 @@ use causal_data::TableView;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, fill_gaussian, fit_once, float64_full,
-    linear_estimator_no_bootstrap, sample_sd, with_replaced_float,
+    RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, fit_once, float64_full,
+    linear_estimator_no_bootstrap, masked_sample_sd, sample_sd, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -46,8 +46,11 @@ fn run_grid(
     let n = problem.data.row_count();
     let t0 = float64_full(problem.data, problem.treatment())?;
     let y0 = float64_full(problem.data, problem.outcome())?;
-    let sd_t = sample_sd(&t0).max(1e-12);
-    let sd_y = sample_sd(&y0).max(1e-12);
+    let mut ids = vec![problem.treatment(), problem.outcome()];
+    ids.extend_from_slice(&problem.estimand.adjustment_set);
+    let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
+    let sd_t = masked_sample_sd(problem.data, problem.treatment(), &mask)?.max(1e-12);
+    let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?.max(1e-12);
     let mut u = vec![0.0; n];
     if nonparametric {
         fill_bounded(&mut u, ctx, noise_stream);
@@ -59,12 +62,16 @@ fn run_grid(
     sorted_grid.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     let original_sign = problem.original.ate.signum();
+    // Worst-case orientation: load the confounder on Y against the observed effect so the
+    // induced omitted-variable bias works to explain the effect away; a same-sign loading
+    // could never flip a positive estimate and would spuriously kill a negative one.
+    let dir = if problem.original.ate >= 0.0 { -1.0 } else { 1.0 };
     let mut last_ate = problem.original.ate;
     for &r in &sorted_grid {
         let r = r.clamp(0.0, 0.999);
         let scale = (r / (1.0 - r)).sqrt();
         let t: Vec<f64> = t0.iter().zip(&u).map(|(&t, &u)| t + scale * sd_t * u).collect();
-        let y: Vec<f64> = y0.iter().zip(&u).map(|(&y, &u)| y + scale * sd_y * u).collect();
+        let y: Vec<f64> = y0.iter().zip(&u).map(|(&y, &u)| y + dir * scale * sd_y * u).collect();
         let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t))?;
         let data = with_replaced_float(&data, problem.outcome(), Arc::from(y))?;
         let est = fit_once(estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
@@ -79,9 +86,12 @@ fn run_grid(
 }
 
 fn fill_bounded(out: &mut [f64], ctx: &ExecutionContext, stream_id: u64) {
+    // Uniform on [-√3, √3): unit variance, so the partial-R² grid calibration derived for
+    // a standardized confounder holds for the bounded shape too.
     let mut rng = ctx.rng.stream(stream_id);
+    let sqrt3 = 3.0_f64.sqrt();
     for slot in out.iter_mut() {
-        *slot = rng.next_f64().mul_add(2.0, -1.0);
+        *slot = rng.next_f64().mul_add(2.0, -1.0) * sqrt3;
     }
 }
 
@@ -135,7 +145,7 @@ impl LinearSensitivity {
             ctx,
             &self.estimator,
             &self.partial_r2_grid,
-            0xA7E0_000A_u64,
+            0xA7E0_000A_0000_u64,
             false,
         )?;
         let passed = robustness_value >= self.pass_threshold;
@@ -210,7 +220,7 @@ impl PartialLinearSensitivity {
             ctx,
             &self.estimator,
             &self.partial_r2_grid,
-            0xA7E0_000B_u64,
+            0xA7E0_000B_0000_u64,
             true,
         )?;
         let passed = robustness_value >= self.pass_threshold;
@@ -266,16 +276,15 @@ fn covariate_matrix(
     problem: &RefutationProblem<'_>,
 ) -> Result<(Vec<f64>, usize, usize), ValidationError> {
     let ids = problem.estimand.adjustment_set.to_vec();
-    if ids.is_empty() {
-        let n = problem.data.row_count();
-        return Ok((vec![1.0; n], n, 1));
-    }
     let mut all = ids.clone();
     all.push(problem.treatment());
     all.push(problem.outcome());
     let mask =
         problem.data.complete_case_mask(&all).map_err(|e| ValidationError::Data(e.to_string()))?;
     let n = mask.iter().filter(|&&k| k).count();
+    if ids.is_empty() {
+        return Ok((vec![1.0; n], n, 1));
+    }
     let dim = ids.len();
     let mut cov = vec![0.0; n * dim];
     for (c, &z) in ids.iter().enumerate() {
@@ -375,11 +384,13 @@ impl NonparametricSensitivity {
         let sd_t = sample_sd(&t_res).max(1e-12);
         let sd_y = sample_sd(&y_res).max(1e-12);
         let mut u = vec![0.0; n];
-        fill_gaussian(&mut u, ctx, 0xA7E0_000C_u64);
+        fill_gaussian(&mut u, ctx, 0xA7E0_000C_0000_u64);
 
         let mut sorted_grid = self.partial_r2_grid.clone();
         sorted_grid.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let original_sign = residual_ate.signum();
+        // Worst-case orientation, as in `run_grid`: load U on Y against the observed sign.
+        let dir = if residual_ate >= 0.0 { -1.0 } else { 1.0 };
         let mut last_ate = residual_ate;
         let mut robustness_value = sorted_grid.last().copied().unwrap_or(1.0);
         for &r in &sorted_grid {
@@ -388,7 +399,7 @@ impl NonparametricSensitivity {
             let t_pert: Vec<f64> =
                 t_res.iter().zip(&u).map(|(&tv, &uu)| tv + scale * sd_t * uu).collect();
             let y_pert: Vec<f64> =
-                y_res.iter().zip(&u).map(|(&yv, &uu)| yv + scale * sd_y * uu).collect();
+                y_res.iter().zip(&u).map(|(&yv, &uu)| yv + dir * scale * sd_y * uu).collect();
             last_ate = residual_ols_ate(&t_pert, &y_pert);
             if last_ate.abs() < 1e-9 || last_ate.signum() != original_sign {
                 robustness_value = r;

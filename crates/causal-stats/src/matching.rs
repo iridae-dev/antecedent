@@ -163,11 +163,14 @@ impl MatchingIndex {
                     MatchingDistance::Absolute => (query[0] - row[0]).abs(),
                 };
             }
-            dists.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             // Skip self-match at distance 0 when query is a donor; k-th among others ≈ index k
             // when self is present as exact 0.
-            let idx = if dists[0] < 1e-15 { k } else { k - 1 };
-            out[q] = dists.get(idx).copied().unwrap_or(dists[dists.len() - 1]);
+            let min = dists.iter().copied().fold(f64::INFINITY, f64::min);
+            let idx = (if min < 1e-15 { k } else { k - 1 }).min(dists.len() - 1);
+            let (_, kth, _) = dists.select_nth_unstable_by(idx, |a, b| {
+                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            out[q] = *kth;
         }
         Ok(())
     }

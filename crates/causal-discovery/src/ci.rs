@@ -7,8 +7,8 @@
 
 pub use causal_stats::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
-    ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, GSquared, Gpdc,
-    KnnCmi, MixedKnnCmi, MultivariatePartialCorrelation, OracleCi, PartialCorrelation,
-    PreparedCiTest, RegressionCi, RobustPartialCorrelation, SignificanceMethod, SymbolicCmi,
+    ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, GSquared, Gpdc, KnnCmi,
+    MixedKnnCmi, MultivariatePartialCorrelation, OracleCi, PartialCorrelation, PreparedCiTest,
+    RegressionCi, RobustPartialCorrelation, SignificanceMethod, SymbolicCmi,
     WeightedPartialCorrelation, ci_from_name,
 };

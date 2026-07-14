@@ -223,3 +223,43 @@ fn engine_accepts_oracle_ci() {
     let kept = engine_dep.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
     assert!(!kept.evidence.links.is_empty(), "oracle marking (0,1) dependent should retain links");
 }
+
+#[test]
+fn mci_conditioning_shifts_source_parents_by_link_lag() {
+    // Link X_{t-2} → Y_t: pa(X) = {(X,1)} keyed at lag 0 must condition as X_{t-3},
+    // and pa(Y) entries pass through minus the link endpoints.
+    let x = VariableId::from_raw(0);
+    let y = VariableId::from_raw(1);
+    let link = LaggedLink {
+        source: x,
+        source_lag: Lag::from_raw(2),
+        target: y,
+        target_lag: Lag::CONTEMPORANEOUS,
+    };
+    let parents_target = [(x, Lag::from_raw(2)), (y, Lag::from_raw(1))];
+    let parents_source = [(x, Lag::from_raw(1))];
+    let mut out = Vec::new();
+    let dropped = mci_conditioning(link, &parents_target, &parents_source, &mut out);
+    assert_eq!(dropped, 0);
+    assert_eq!(out, vec![(y, Lag::from_raw(1)), (x, Lag::from_raw(3))]);
+}
+
+#[test]
+fn mci_conditioning_keeps_shifted_autocorrelation_parent() {
+    // Link X_{t-1} → Y_t with pa(X) = {(X,1)}: the unshifted parent would collide with
+    // the link source and be dropped; the shifted parent X_{t-2} must be conditioned on.
+    let x = VariableId::from_raw(0);
+    let y = VariableId::from_raw(1);
+    let link = LaggedLink {
+        source: x,
+        source_lag: Lag::from_raw(1),
+        target: y,
+        target_lag: Lag::CONTEMPORANEOUS,
+    };
+    let parents_target = [(x, Lag::from_raw(1))];
+    let parents_source = [(x, Lag::from_raw(1))];
+    let mut out = Vec::new();
+    let dropped = mci_conditioning(link, &parents_target, &parents_source, &mut out);
+    assert_eq!(dropped, 0);
+    assert_eq!(out, vec![(x, Lag::from_raw(2))]);
+}

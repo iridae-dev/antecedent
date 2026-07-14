@@ -144,7 +144,11 @@ fn insert_replicated_edges(
 ) -> Result<(), GraphError> {
     let min_off = -(indexer.history() as i32);
     let max_off = (indexer.horizon() as i32) - 1;
-    for delta in min_off..=max_off {
+    // Template offsets are <= 0; shift far enough that even a fully lagged edge
+    // (both endpoints negative) lands in the newest window slices.
+    let lo = min_off - from_key.offset.min(to_key.offset);
+    let hi = max_off - from_key.offset.max(to_key.offset);
+    for delta in lo..=hi {
         let a = TemporalNodeKey {
             variable: from_key.variable,
             offset: from_key.offset.saturating_add(delta),
@@ -354,8 +358,8 @@ pub fn ensure_lagged(
 #[cfg(test)]
 #[allow(clippy::many_single_char_names)]
 mod tests {
-    use causal_core::{Lag, VariableId};
     use causal_core::TemporalIndexer;
+    use causal_core::{Lag, VariableId};
 
     use super::*;
     use crate::dsep::DSeparationWorkspace;
@@ -415,6 +419,43 @@ mod tests {
                 .unwrap(),
         );
         let _ = unfolded.dag.is_d_separated(y, z, &[], &mut ws);
+    }
+
+    #[test]
+    fn unfold_replicates_edge_with_both_endpoints_lagged() {
+        let mut g = TemporalDag::empty();
+        let x2 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let y1 = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        g.insert_directed(x2, y1).unwrap();
+        // Window offsets are {-1, 0}: the template edge only fits shifted by +1.
+        let indexer = TemporalIndexer::new(2, 1, 1).unwrap();
+        let lazy = g.unfold_lazy(indexer.clone()).unwrap();
+        let from = TemporalNodeKey { variable: VariableId::from_raw(0), offset: -1 };
+        let to = TemporalNodeKey { variable: VariableId::from_raw(1), offset: 0 };
+        assert!(lazy.has_edge(from, to).unwrap());
+
+        let unfolded = lazy.materialize().unwrap();
+        let edges: Vec<_> = unfolded.dag.edges().collect();
+        assert_eq!(edges.len(), 1);
+        let (f, t) = edges[0].parent_child().unwrap();
+        assert_eq!(f.raw(), indexer.dense_id(from).unwrap());
+        assert_eq!(t.raw(), indexer.dense_id(to).unwrap());
+
+        // Lazy and eager views agree on every in-window pair.
+        for &va in &[0u32, 1] {
+            for oa in -1..=0 {
+                for &vb in &[0u32, 1] {
+                    for ob in -1..=0 {
+                        let a = TemporalNodeKey { variable: VariableId::from_raw(va), offset: oa };
+                        let b = TemporalNodeKey { variable: VariableId::from_raw(vb), offset: ob };
+                        let dense_a = DenseNodeId::from_raw(indexer.dense_id(a).unwrap());
+                        let dense_b = DenseNodeId::from_raw(indexer.dense_id(b).unwrap());
+                        let eager = unfolded.dag.children(dense_a).contains(&dense_b);
+                        assert_eq!(lazy.has_edge(a, b).unwrap(), eager, "{a:?} -> {b:?}");
+                    }
+                }
+            }
+        }
     }
 
     #[test]

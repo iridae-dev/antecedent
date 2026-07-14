@@ -99,11 +99,17 @@ pub fn pearson(x: &[f64], y: &[f64]) -> Option<f64> {
         cyy += dy * dy;
         cxy += dx * dy;
     }
-    let denom = (cxx * cyy).sqrt();
-    if denom <= f64::EPSILON {
+    if constant_column(cxx, mx, nf) || constant_column(cyy, my, nf) {
         return None;
     }
-    Some(cxy / denom)
+    Some(cxy / (cxx * cyy).sqrt())
+}
+
+/// Effectively-constant test on a centered sum of squares, relative to the column's
+/// magnitude so the verdict does not depend on the data's units.
+fn constant_column(css: f64, mean: f64, nf: f64) -> bool {
+    let tol = nf * (f64::EPSILON * (1.0 + mean.abs())).powi(2);
+    !(css.is_finite() && css > tol)
 }
 
 fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) {
@@ -143,26 +149,37 @@ fn form_xty(design: &[f64], y: &[f64], n: usize, ncols: usize, out: &mut [f64]) 
     }
 }
 
+/// Gauss–Jordan with partial pivoting; singularity is judged relative to the Gram's
+/// largest diagonal so the verdict does not depend on the data's units.
 fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize) -> bool {
+    let mut scale = 0.0_f64;
+    for d in 0..ncols {
+        scale = scale.max(gram[d * ncols + d].abs());
+    }
+    if !(scale.is_finite() && scale > 0.0) {
+        return false;
+    }
+    let tol = 1e-12 * scale;
     for col in 0..ncols {
-        let mut pivot = gram[col * ncols + col];
-        if pivot.abs() < 1e-14 {
-            let mut swap = None;
-            for row in (col + 1)..ncols {
-                if gram[row * ncols + col].abs() > 1e-14 {
-                    swap = Some(row);
-                    break;
-                }
+        let mut best_row = col;
+        let mut best = gram[col * ncols + col].abs();
+        for row in (col + 1)..ncols {
+            let v = gram[row * ncols + col].abs();
+            if v > best {
+                best = v;
+                best_row = row;
             }
-            let Some(row) = swap else {
-                return false;
-            };
-            for j in 0..ncols {
-                gram.swap(col * ncols + j, row * ncols + j);
-            }
-            rhs.swap(col, row);
-            pivot = gram[col * ncols + col];
         }
+        if best <= tol {
+            return false;
+        }
+        if best_row != col {
+            for j in 0..ncols {
+                gram.swap(col * ncols + j, best_row * ncols + j);
+            }
+            rhs.swap(col, best_row);
+        }
+        let pivot = gram[col * ncols + col];
         for j in 0..ncols {
             gram[col * ncols + j] /= pivot;
         }
@@ -179,6 +196,42 @@ fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize) -> bool {
         }
     }
     true
+}
+
+/// Relative ridge added to the Gram diagonal when the plain solve reports a singular
+/// system (exactly collinear conditioning columns). The regularized projection keeps
+/// residualization well defined — matching least-squares-based reference stacks — with
+/// an O(1e-8) relative perturbation.
+const SINGULAR_RIDGE: f64 = 1e-8;
+
+/// Solve the normal equations for `y` on `design`, retrying once with a scaled ridge
+/// when the Gram is singular. Reforms `gram`/`rhs` internally.
+fn solve_normal_equations(
+    design: &[f64],
+    y: &[f64],
+    n: usize,
+    ncols: usize,
+    gram: &mut [f64],
+    beta: &mut [f64],
+) -> bool {
+    form_gram(design, n, ncols, gram);
+    form_xty(design, y, n, ncols, beta);
+    if solve_inplace(gram, beta, ncols) {
+        return true;
+    }
+    form_gram(design, n, ncols, gram);
+    form_xty(design, y, n, ncols, beta);
+    let mut scale = 0.0_f64;
+    for d in 0..ncols {
+        scale = scale.max(gram[d * ncols + d].abs());
+    }
+    if !(scale.is_finite() && scale > 0.0) {
+        return false;
+    }
+    for d in 0..ncols {
+        gram[d * ncols + d] += SINGULAR_RIDGE * scale;
+    }
+    solve_inplace(gram, beta, ncols)
 }
 
 fn residualize_into_scalar(
@@ -198,9 +251,7 @@ fn residualize_into_scalar(
     }
     let ncols = 1 + p;
     build_design(z_cols, n, design);
-    form_gram(design, n, ncols, gram);
-    form_xty(design, y, n, ncols, beta);
-    if !solve_inplace(gram, beta, ncols) {
+    if !solve_normal_equations(design, y, n, ncols, gram, beta) {
         return false;
     }
     for r in 0..n {
@@ -243,7 +294,10 @@ fn partial_correlation_scalar_impl(
     if !residualize_into_scalar(y, z_cols, design, gram, beta, ry) {
         return None;
     }
-    pearson(&workspace.rx[..n], &workspace.ry[..n])
+    // A zero-variance residual means Z explains that variable exactly: nothing is left
+    // to correlate, so conditional independence holds trivially (r = 0) rather than the
+    // statistic being an error.
+    pearson(&workspace.rx[..n], &workspace.ry[..n]).or(Some(0.0))
 }
 
 /// Portable optimized path: design built once, Gram reformed once between X/Y
@@ -272,10 +326,8 @@ fn partial_correlation_portable_impl(
         let design = &mut workspace.design[..n * ncols];
         build_design(z_cols, n, design);
         let gram = &mut workspace.gram[..ncols * ncols];
-        form_gram(design, n, ncols, gram);
         let beta = &mut workspace.beta[..ncols];
-        form_xty(design, x, n, ncols, beta);
-        if !solve_inplace(gram, beta, ncols) {
+        if !solve_normal_equations(design, x, n, ncols, gram, beta) {
             return None;
         }
         let rx = &mut workspace.rx[..n];
@@ -284,16 +336,15 @@ fn partial_correlation_portable_impl(
     {
         let design = &mut workspace.design[..n * ncols];
         let gram = &mut workspace.gram[..ncols * ncols];
-        form_gram(design, n, ncols, gram);
         let beta = &mut workspace.beta[..ncols];
-        form_xty(design, y, n, ncols, beta);
-        if !solve_inplace(gram, beta, ncols) {
+        if !solve_normal_equations(design, y, n, ncols, gram, beta) {
             return None;
         }
         let ry = &mut workspace.ry[..n];
         residual_from_beta(y, design, beta, n, ncols, ry);
     }
-    pearson_fused(&workspace.rx[..n], &workspace.ry[..n])
+    // See the scalar path: zero-variance residual ⇒ trivial conditional independence.
+    pearson_fused(&workspace.rx[..n], &workspace.ry[..n]).or(Some(0.0))
 }
 
 fn residual_from_beta(
@@ -368,11 +419,10 @@ fn pearson_fused(x: &[f64], y: &[f64]) -> Option<f64> {
         cxy += dx * dy;
         i += 1;
     }
-    let denom = (cxx * cyy).sqrt();
-    if denom <= f64::EPSILON {
+    if constant_column(cxx, mx, nf) || constant_column(cyy, my, nf) {
         return None;
     }
-    Some(cxy / denom)
+    Some(cxy / (cxx * cyy).sqrt())
 }
 
 /// Scalar reference partial correlation.

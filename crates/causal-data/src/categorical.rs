@@ -127,6 +127,10 @@ pub struct CategoricalColumn {
 impl CategoricalColumn {
     /// Construct a categorical column.
     ///
+    /// Out-of-range codes fail under [`UnknownCategoryPolicy::Fail`] and are
+    /// remapped to the domain's `Other` level under
+    /// [`UnknownCategoryPolicy::MapToOther`].
+    ///
     /// # Errors
     ///
     /// Length mismatch or out-of-range codes under Fail policy.
@@ -145,6 +149,7 @@ impl CategoricalColumn {
             });
         }
         let n_levels = u32::try_from(domain.len()).expect("checked");
+        let mut remapped: Option<Vec<CategoryCode>> = None;
         for (i, code) in codes.iter().enumerate() {
             if !validity.is_valid(i) {
                 continue;
@@ -156,10 +161,14 @@ impl CategoricalColumn {
                             message: "unknown category code under Fail policy",
                         });
                     }
-                    UnknownCategoryPolicy::MapToOther { .. } => {}
+                    UnknownCategoryPolicy::MapToOther { other } => {
+                        // `other` is validated in-range at domain construction.
+                        remapped.get_or_insert_with(|| codes.to_vec())[i] = other;
+                    }
                 }
             }
         }
+        let codes = remapped.map_or(codes, Arc::from);
         Ok(Self { id, codes, validity, domain })
     }
 
@@ -331,41 +340,37 @@ pub fn compile_contrast_matrix(
                     message: "polynomial contrasts require an ordered domain",
                 });
             }
-            // Orthogonal polynomial contrasts on equally spaced scores 1..=k.
+            // Orthogonal polynomial contrasts on equally spaced scores 1..=k
+            // (R's `contr.poly`): Vandermonde basis, then modified Gram-Schmidt
+            // of each degree against all lower degrees (including the constant),
+            // then unit-length normalization.
             let cols = k - 1;
-            let mut raw = vec![0.0; k * cols];
-            for c in 0..cols {
-                let degree = c + 1;
+            let mut basis = vec![0.0; k * k];
+            for d in 0..k {
                 for r in 0..k {
-                    let x = (r + 1) as f64;
-                    raw[r + c * k] = poly_score(x, degree, k);
+                    basis[r + d * k] = ((r + 1) as f64).powi(i32::try_from(d).expect("small k"));
                 }
-                // Center and normalize for numerical stability.
-                let mean: f64 = (0..k).map(|r| raw[r + c * k]).sum::<f64>() / k as f64;
-                for r in 0..k {
-                    raw[r + c * k] -= mean;
+            }
+            for d in 0..k {
+                for p in 0..d {
+                    // Lower columns are already unit-norm, so the projection
+                    // coefficient is a plain dot product.
+                    let dot: f64 = (0..k).map(|r| basis[r + d * k] * basis[r + p * k]).sum();
+                    for r in 0..k {
+                        basis[r + d * k] -= dot * basis[r + p * k];
+                    }
                 }
-                let norm: f64 = (0..k).map(|r| raw[r + c * k].powi(2)).sum::<f64>().sqrt();
+                let norm: f64 = (0..k).map(|r| basis[r + d * k].powi(2)).sum::<f64>().sqrt();
                 if norm > 0.0 {
                     for r in 0..k {
-                        raw[r + c * k] /= norm;
+                        basis[r + d * k] /= norm;
                     }
                 }
             }
-            ContrastMatrix::try_new(k, cols, raw)
+            // Drop the constant column: degrees 1..k-1.
+            ContrastMatrix::try_new(k, cols, basis[k..].to_vec())
         }
     }
-}
-
-/// Monomial score for polynomial contrast construction (degree ≥ 1).
-fn poly_score(x: f64, degree: usize, k: usize) -> f64 {
-    let center = (k as f64 + 1.0) / 2.0;
-    let z = x - center;
-    let mut v = 1.0;
-    for _ in 0..degree {
-        v *= z;
-    }
-    v
 }
 
 #[cfg(test)]
@@ -432,6 +437,90 @@ mod tests {
         );
         let m = compile_contrast_matrix(&ordered, &Contrast::Polynomial).unwrap();
         assert_eq!(m.n_columns, 2);
+    }
+
+    fn ordered_domain(k: usize) -> Arc<CategoryDomain> {
+        let levels: Vec<CategoryLevel> =
+            (0..k).map(|i| CategoryLevel { label: Arc::from(format!("l{i}")) }).collect();
+        Arc::new(
+            CategoryDomain::try_new(
+                CategoryDomainId::from_raw(0),
+                Arc::<[CategoryLevel]>::from(levels),
+                true,
+                None,
+                UnknownCategoryPolicy::Fail,
+            )
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn polynomial_matches_contr_poly_for_k3() {
+        let m = compile_contrast_matrix(&ordered_domain(3), &Contrast::Polynomial).unwrap();
+        let expected = [
+            -std::f64::consts::FRAC_1_SQRT_2,
+            0.0,
+            std::f64::consts::FRAC_1_SQRT_2,
+            0.408_248_290_463_863,
+            -0.816_496_580_927_726,
+            0.408_248_290_463_863,
+        ];
+        for (got, want) in m.values.iter().zip(expected) {
+            assert!((got - want).abs() < 1e-12, "got {got}, want {want}");
+        }
+    }
+
+    #[test]
+    fn polynomial_columns_orthonormal_for_k4_and_k5() {
+        for k in [4usize, 5] {
+            let m = compile_contrast_matrix(&ordered_domain(k), &Contrast::Polynomial).unwrap();
+            assert_eq!((m.n_levels, m.n_columns), (k, k - 1));
+            for a in 0..m.n_columns {
+                let norm: f64 = (0..k).map(|r| m.values[r + a * k].powi(2)).sum();
+                assert!((norm - 1.0).abs() < 1e-12, "k={k} column {a} norm {norm}");
+                // Orthogonal to the constant (columns sum to zero).
+                let sum: f64 = (0..k).map(|r| m.values[r + a * k]).sum();
+                assert!(sum.abs() < 1e-12, "k={k} column {a} sum {sum}");
+                for b in (a + 1)..m.n_columns {
+                    let dot: f64 = (0..k).map(|r| m.values[r + a * k] * m.values[r + b * k]).sum();
+                    assert!(dot.abs() < 1e-12, "k={k} columns {a},{b} dot {dot}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn map_to_other_remaps_out_of_range_codes() {
+        let d = Arc::new(
+            CategoryDomain::try_new(
+                CategoryDomainId::from_raw(0),
+                Arc::<[CategoryLevel]>::from(vec![
+                    CategoryLevel { label: Arc::from("a") },
+                    CategoryLevel { label: Arc::from("b") },
+                    CategoryLevel { label: Arc::from("other") },
+                ]),
+                false,
+                None,
+                UnknownCategoryPolicy::MapToOther { other: CategoryCode::from_raw(2) },
+            )
+            .unwrap(),
+        );
+        let col = CategoricalColumn::try_new(
+            VariableId::from_raw(0),
+            Arc::<[CategoryCode]>::from(vec![
+                CategoryCode::from_raw(1),
+                CategoryCode::from_raw(9),
+                CategoryCode::from_raw(0),
+            ]),
+            ValidityBitmap::all_valid(3),
+            d,
+        )
+        .unwrap();
+        assert_eq!(col.codes[0], CategoryCode::from_raw(1));
+        assert_eq!(col.codes[1], CategoryCode::from_raw(2));
+        assert_eq!(col.codes[2], CategoryCode::from_raw(0));
+        // Every stored code now indexes the domain safely.
+        assert!(col.codes.iter().all(|c| (c.raw() as usize) < col.domain.len()));
     }
 
     #[test]

@@ -149,7 +149,9 @@ mod tests {
         };
         let report = PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.passed, "{:?}", report.failure_condition);
-        assert!(report.comparison < 0.25);
+        // comparison is the two-sided p-value of zero under the placebo distribution.
+        assert!(report.comparison >= 0.05, "p={}", report.comparison);
+        assert!(report.refuted_ate.abs() < 0.25, "mean placebo ate={}", report.refuted_ate);
     }
 
     #[test]
@@ -272,7 +274,9 @@ mod tests {
         };
         let report = DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert!(report.passed, "{:?}", report.failure_condition);
-        assert!(report.comparison < 0.25);
+        // comparison is the two-sided p-value of zero under the dummy-outcome distribution.
+        assert!(report.comparison >= 0.05, "p={}", report.comparison);
+        assert!(report.refuted_ate.abs() < 0.25, "mean dummy ate={}", report.refuted_ate);
     }
 
     #[test]
@@ -345,9 +349,10 @@ mod tests {
             estimator: Some("linear.adjustment.ate"),
         };
         let report = GraphRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
-        // Z is the only, essential confounder; dropping it should visibly bias the estimate.
+        // Z is the only, essential confounder; dropping it biases the estimate by 1.5 of
+        // a true ATE of 2 — a 75% relative change.
         assert!(!report.passed, "{:?}", report.failure_condition);
-        assert!(report.comparison > 0.5);
+        assert!(report.comparison > 0.5, "relative delta={}", report.comparison);
     }
 
     #[test]

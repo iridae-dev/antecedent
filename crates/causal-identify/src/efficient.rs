@@ -1,9 +1,22 @@
 //! Efficient backdoor adjustment-set selection.
 //!
-//! Selects a single adjustment set among valid backdoors: prefer the parental
-//! set `Pa(T)` when it satisfies the backdoor criterion; otherwise choose the
-//! valid set of minimum cardinality, breaking ties by maximizing `|Z ∩ Pa(T)|`
-//! then lexicographic variable ids.
+//! Selects the *optimal* adjustment set `O` (Henckel, Perković & Maathuis;
+//! the construction `DoWhy`'s efficient backdoor implements): with
+//! `cn = de(T) ∩ an(Y) \ {T}` (the nodes on proper causal paths from `T` to
+//! `Y`, including `Y`), `forb = de(cn) ∪ {T}`, the O-set is
+//! `O = pa(cn) \ forb`. Among all valid backdoor sets in a fully observed
+//! DAG, `O` yields the smallest asymptotic variance for the adjusted effect
+//! estimate. The candidate `O` is still validated against the backdoor
+//! criterion (d-separation in the treatment-outgoing-mutilated graph, no
+//! descendants of `T`, no configured forbidden variables) before being
+//! returned.
+//!
+//! When `O` fails validation (e.g. a member is configured as forbidden), the
+//! identifier falls back to a minimum-cardinality search: subsets are
+//! enumerated by increasing size, stopping at the first size class with a
+//! valid set, with ties broken by maximizing `|Z ∩ Pa(T)|` then lexicographic
+//! variable ids. The fallback keeps at most `max_results` valid sets; hitting
+//! that limit truncates collection rather than erroring.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -13,7 +26,7 @@ use std::sync::Arc;
 
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use causal_expr::CausalExprArena;
-use causal_graph::{BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace};
+use causal_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::backdoor::{
     AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph, dense_to_var,
@@ -51,11 +64,14 @@ impl EfficientBackdoorIdentifier {
         BackdoorIdentifier { config: self.config.clone() }.prepare(graph)
     }
 
-    /// Identify via efficient backdoor; at most one estimand is returned.
+    /// Identify via efficient backdoor; at most one estimand is returned,
+    /// preferring the O-set (optimal adjustment set) and falling back to a
+    /// minimum-cardinality search when the O-set fails validation.
     ///
     /// # Errors
     ///
-    /// Unsupported query, unknown variables, or enumeration limits.
+    /// Unsupported query, unknown variables, or a candidate pool too large
+    /// for the exact fallback enumeration.
     pub fn identify(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -107,14 +123,18 @@ impl EfficientBackdoorIdentifier {
         let mut dsep_ws = DSeparationWorkspace::default();
         let mut examined = 0u64;
 
-        // Prefer parental adjustment set when valid.
-        let parents: Vec<DenseNodeId> =
-            dag.parents(t).iter().copied().filter(|p| !forbidden.contains(*p)).collect();
+        // Primary rule: the O-set (optimal adjustment set, Henckel et al.).
+        let o_set = optimal_adjustment_set(dag, t, y);
         examined += 1;
-        if is_backdoor_adjustment(&mutilated, t, y, &parents, &mut dsep_ws)? {
-            return Self::finish(ate, query, dag, &[parents], examined, "parental");
+        if o_set.iter().all(|v| !forbidden.contains(*v))
+            && is_backdoor_adjustment(&mutilated, t, y, &o_set, &mut dsep_ws)?
+        {
+            return Self::finish(ate, query, dag, &[o_set], examined, "optimal (O-set)");
         }
 
+        // Fallback: minimum-cardinality search, sizes ascending, stopping at
+        // the first size class that yields a valid set. Collection is capped
+        // at `max_results`; hitting the cap truncates rather than errors.
         let m = candidates.len();
         if m > 20 {
             return Err(IdentificationError::NotIdentified {
@@ -124,17 +144,23 @@ impl EfficientBackdoorIdentifier {
 
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
         let total_masks = 1usize << m;
-        for mask in 0..total_masks {
-            examined += 1;
-            let z: Vec<DenseNodeId> =
-                (0..m).filter(|i| (mask & (1 << i)) != 0).map(|i| candidates[i]).collect();
-            if is_backdoor_adjustment(&mutilated, t, y, &z, &mut dsep_ws)? {
-                valid.push(z);
+        'sizes: for size in 0..=m {
+            for mask in 0..total_masks {
+                if mask.count_ones() as usize != size {
+                    continue;
+                }
+                examined += 1;
+                let z: Vec<DenseNodeId> =
+                    (0..m).filter(|i| (mask & (1 << i)) != 0).map(|i| candidates[i]).collect();
+                if is_backdoor_adjustment(&mutilated, t, y, &z, &mut dsep_ws)? {
+                    valid.push(z);
+                    if valid.len() >= self.config.max_results {
+                        break 'sizes;
+                    }
+                }
             }
-            if valid.len() >= self.config.max_results {
-                return Err(IdentificationError::ResultLimitExceeded {
-                    limit: self.config.max_results,
-                });
+            if !valid.is_empty() {
+                break;
             }
         }
 
@@ -226,6 +252,41 @@ impl EfficientBackdoorIdentifier {
     }
 }
 
+/// The O-set of Henckel, Perković & Maathuis: `pa(cn) \ (de(cn) ∪ {T})`,
+/// where `cn = de(T) ∩ an(Y) \ {T}` are the nodes on proper causal paths from
+/// `T` to `Y` (including `Y` itself). In a fully observed DAG this is the
+/// valid backdoor set with the smallest asymptotic variance.
+fn optimal_adjustment_set(dag: &Dag, t: DenseNodeId, y: DenseNodeId) -> Vec<DenseNodeId> {
+    let n = dag.node_count();
+    let mut gws = GraphWorkspace::default();
+    let mut de_t = BitSet::with_len(n);
+    dag.descendants_of(&[t], &mut de_t, &mut gws);
+    let mut an_y = BitSet::with_len(n);
+    dag.ancestors_of(&[y], &mut an_y, &mut gws);
+
+    let cn: Vec<DenseNodeId> = (0..n)
+        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+        .filter(|&v| v != t && de_t.contains(v) && an_y.contains(v))
+        .collect();
+
+    let mut forb = BitSet::with_len(n);
+    dag.descendants_of(&cn, &mut forb, &mut gws);
+    forb.insert(t);
+
+    let mut seen = BitSet::with_len(n);
+    let mut o_set = Vec::new();
+    for &c in &cn {
+        for &p in dag.parents(c) {
+            if !forb.contains(p) && !seen.contains(p) {
+                seen.insert(p);
+                o_set.push(p);
+            }
+        }
+    }
+    o_set.sort_unstable_by_key(|d| d.as_usize());
+    o_set
+}
+
 fn default_assumptions() -> AssumptionSet {
     let mut assumptions = AssumptionSet::new();
     assumptions.push(crate::assumptions::causal_markov("backdoor.efficient"));
@@ -238,8 +299,8 @@ mod tests {
     use causal_graph::Dag;
 
     #[test]
-    fn prefers_parental_when_valid() {
-        // T <- Z -> Y, T -> Y  (Pa(T)={Z} is valid and efficient)
+    fn o_set_selects_confounder() {
+        // T <- Z -> Y, T -> Y  (O = pa(Y) \ {T, Y} = {Z})
         let mut g = Dag::with_variables(3);
         let t = DenseNodeId::from_raw(0);
         let y = DenseNodeId::from_raw(1);
@@ -259,7 +320,79 @@ mod tests {
         assert_eq!(res.estimands.len(), 1);
         assert_eq!(&*res.estimands[0].method, "backdoor.efficient");
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
-        assert!(res.derivation.steps.iter().any(|s| s.detail.contains("parental")));
+        assert!(res.derivation.steps.iter().any(|s| s.detail.contains("optimal")));
+    }
+
+    #[test]
+    fn o_set_prefers_outcome_parent_over_treatment_parent() {
+        // W -> T -> Y, Q -> Y: Pa(T) = {W} is valid but anti-efficient; the
+        // O-set is {Q} (the outcome's other parent).
+        let mut g = Dag::with_variables(4);
+        let w = DenseNodeId::from_raw(0);
+        let t = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        let q_node = DenseNodeId::from_raw(3);
+        g.insert_directed(w, t).unwrap();
+        g.insert_directed(t, y).unwrap();
+        g.insert_directed(q_node, y).unwrap();
+
+        let id = EfficientBackdoorIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        ));
+        let res = id.identify(&prep, &q).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(3)]);
+        assert!(res.derivation.steps.iter().any(|s| s.detail.contains("optimal")));
+    }
+
+    #[test]
+    fn many_disconnected_covariates_no_longer_hit_result_limit() {
+        // T -> Y plus 8 disconnected covariates: every one of the 2^8 = 256
+        // covariate subsets is a valid backdoor set, which previously tripped
+        // the 64-set ResultLimitExceeded error during full enumeration.
+        let mut g = Dag::with_variables(10);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+
+        let id = EfficientBackdoorIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let res = id.identify(&prep, &q).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(res.estimands[0].adjustment_set.is_empty());
+    }
+
+    #[test]
+    fn fallback_search_when_o_set_forbidden() {
+        // A -> T -> Y, A -> B -> Y plus disconnected covariates. O = {B}, but
+        // B is forbidden, so the fallback must find the minimal valid set {A}
+        // without erroring on the many valid supersets.
+        let mut g = Dag::with_variables(10);
+        let a = DenseNodeId::from_raw(0);
+        let t = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        let b = DenseNodeId::from_raw(3);
+        g.insert_directed(a, t).unwrap();
+        g.insert_directed(t, y).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_directed(b, y).unwrap();
+
+        let mut id = EfficientBackdoorIdentifier::new();
+        id.config.forbidden = Arc::from([VariableId::from_raw(3)]);
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        ));
+        let res = id.identify(&prep, &q).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(0)]);
+        assert!(res.derivation.steps.iter().any(|s| s.detail.contains("min_cardinality")));
     }
 
     #[test]

@@ -9,6 +9,10 @@
 //! ATE = mean(ψ)
 //! ```
 //!
+//! When the overlap policy sets a trim threshold, units whose raw propensity falls outside
+//! `[trim, 1 − trim]` are excluded from the outcome-model fits and the ψ average (the estimand
+//! becomes the common-support population, matching the overlap report).
+//!
 //! Positivity is mandatory — [`OverlapPolicy::ExplicitOverride`] is refused, matching the other
 //! propensity-based estimators in [`crate::propensity`] (DESIGN.md §14.3).
 //!
@@ -37,7 +41,7 @@ use crate::adjustment::{EffectEstimate, OverlapPolicy, OverlapReport};
 use crate::error::EstimationError;
 use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
-    prepare_propensity_problem, split_by_treatment,
+    gather, prepare_propensity_problem, split_by_treatment, trim_of, trim_retained_rows,
 };
 use crate::util::{sample_std, stats_err};
 
@@ -140,37 +144,49 @@ impl AipwAte {
             &mut workspace.propensity,
             &self.glm_options,
         )?;
+        // Trim on RAW scores (mirrors PropensityWeighting): units outside the common-support
+        // band are excluded from the outcome-model fits and the ψ average — exactly the units
+        // whose T/e and (1−T)/(1−e) terms explode. The estimand becomes the common-support
+        // population, matching what the overlap report below claims.
+        let retained = trim_retained_rows(&model.fit.scores, trim_of(problem.overlap))?;
+        let ncols = problem.design_ncols;
+        let (design_used, t_used, y_used, e_used) = match &retained {
+            Some(idx) => {
+                let mut design = Vec::new();
+                select_rows_colmajor(
+                    &problem.design_matrix,
+                    problem.nrows,
+                    ncols,
+                    idx,
+                    &mut design,
+                );
+                (
+                    design,
+                    gather(&problem.treatment, idx),
+                    gather(&problem.outcome, idx),
+                    gather(&model.clipped_scores, idx),
+                )
+            }
+            None => (
+                problem.design_matrix.to_vec(),
+                problem.treatment.to_vec(),
+                problem.outcome.to_vec(),
+                model.clipped_scores.clone(),
+            ),
+        };
+        let nrows = t_used.len();
         let (beta0, beta1) = fit_outcome_models(
-            &problem.design_matrix,
-            problem.nrows,
-            problem.design_ncols,
-            &problem.treatment,
-            &problem.outcome,
+            &design_used,
+            nrows,
+            ncols,
+            &t_used,
+            &y_used,
             self.backend,
             workspace,
         )?;
-        predict_colmajor(
-            &problem.design_matrix,
-            problem.nrows,
-            problem.design_ncols,
-            &beta0,
-            &mut workspace.mu0,
-        );
-        predict_colmajor(
-            &problem.design_matrix,
-            problem.nrows,
-            problem.design_ncols,
-            &beta1,
-            &mut workspace.mu1,
-        );
-        aipw_psi(
-            &problem.treatment,
-            &problem.outcome,
-            &model.clipped_scores,
-            &workspace.mu0,
-            &workspace.mu1,
-            &mut workspace.psi,
-        );
+        predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
+        predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
+        aipw_psi(&t_used, &y_used, &e_used, &workspace.mu0, &workspace.mu1, &mut workspace.psi);
         let n = workspace.psi.len() as f64;
         let ate = workspace.psi.iter().sum::<f64>() / n;
         let se_analytic = sample_std(&workspace.psi) / n.sqrt();
@@ -202,6 +218,7 @@ impl AipwAte {
         ctx: &ExecutionContext,
     ) -> Result<f64, EstimationError> {
         let clip = clip_of(problem.overlap);
+        let trim = trim_of(problem.overlap);
         let mut rng = ctx.rng.stream(0xA1D0_u64);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
@@ -228,18 +245,37 @@ impl AipwAte {
                 &self.glm_options,
             )
             .map_err(stats_err)?;
-            let mut e = fit.scores;
+            let raw = fit.scores;
+            let mut e = raw.clone();
             if let Some(c) = clip {
                 clamp_scores(&mut e, c);
             }
-            let Ok((beta0, beta1)) =
-                fit_outcome_models(&x_boot, n, ncols, &t_boot, &y_boot, self.backend, workspace)
-            else {
+            let Ok(retained) = trim_retained_rows(&raw, trim) else {
                 continue;
             };
-            predict_colmajor(&x_boot, n, ncols, &beta0, &mut workspace.mu0);
-            predict_colmajor(&x_boot, n, ncols, &beta1, &mut workspace.mu1);
-            aipw_psi(&t_boot, &y_boot, &e, &workspace.mu0, &workspace.mu1, &mut workspace.psi);
+            let (design_used, t_used, y_used, e_used) = match &retained {
+                Some(idx) => {
+                    let mut design = Vec::new();
+                    select_rows_colmajor(&x_boot, n, ncols, idx, &mut design);
+                    (design, gather(&t_boot, idx), gather(&y_boot, idx), gather(&e, idx))
+                }
+                None => (x_boot.clone(), t_boot.clone(), y_boot.clone(), e),
+            };
+            let nrows = t_used.len();
+            let Ok((beta0, beta1)) = fit_outcome_models(
+                &design_used,
+                nrows,
+                ncols,
+                &t_used,
+                &y_used,
+                self.backend,
+                workspace,
+            ) else {
+                continue;
+            };
+            predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
+            predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
+            aipw_psi(&t_used, &y_used, &e_used, &workspace.mu0, &workspace.mu1, &mut workspace.psi);
             let m = workspace.psi.len() as f64;
             estimates.push(workspace.psi.iter().sum::<f64>() / m);
         }
@@ -357,11 +393,8 @@ fn aipw_psi(
 ) {
     out.clear();
     out.reserve(treatment.len());
-    for (((&t, &y), &e), (&m0, &m1)) in treatment
-        .iter()
-        .zip(outcome)
-        .zip(propensity)
-        .zip(mu0.iter().zip(mu1))
+    for (((&t, &y), &e), (&m0, &m1)) in
+        treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
     {
         let augmented = (m1 - m0) + (t / e) * (y - m1) - ((1.0 - t) / (1.0 - e)) * (y - m0);
         out.push(augmented);
@@ -395,6 +428,11 @@ mod tests {
     }
 
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+        let (t, y, z) = confounded_columns(n, seed);
+        build_dataset(t, y, z)
+    }
+
+    fn confounded_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
 
         let mut z = vec![0.0; n];
@@ -410,7 +448,11 @@ mod tests {
             t[i] = ti;
             y[i] = 2.0 * ti + zi + noise;
         }
+        (t, y, z)
+    }
 
+    fn build_dataset(t: Vec<f64>, y: Vec<f64>, z: Vec<f64>) -> (TabularData, IdentifiedEstimand) {
+        let n = t.len();
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
             "t",
@@ -514,6 +556,36 @@ mod tests {
         let mut ws = AipwWorkspace::default();
         let err = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap_err();
         assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+    }
+
+    #[test]
+    fn aipw_trim_excludes_extreme_propensity_unit() {
+        // One treated outlier with z = -8 (raw propensity ≈ 2e-4) and y = 1000: its clipped
+        // T/e term is ~100 · (1000 − μ1), which wrecks the untrimmed ψ average. Trimming on
+        // the raw score must exclude it.
+        let (mut t, mut y, mut z) = confounded_columns(800, 5);
+        t.push(1.0);
+        y.push(1000.0);
+        z.push(-8.0);
+        let (data, estimand) = build_dataset(t, y, z);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+
+        let untrimmed = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+        let trimmed = AipwAte {
+            overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.02) },
+            ..untrimmed.clone()
+        };
+        let mut ws = AipwWorkspace::default();
+        let prep = untrimmed.prepare(&data, &estimand, &query).unwrap();
+        let raw = untrimmed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let prep = trimmed.prepare(&data, &estimand, &query).unwrap();
+        let clean = trimmed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+
+        assert!((raw.ate - 2.0).abs() > 1.0, "outlier should distort untrimmed ate={}", raw.ate);
+        assert!((clean.ate - 2.0).abs() < 0.35, "trimmed ate={}", clean.ate);
+        let report = clean.overlap_report.as_ref().unwrap();
+        assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
     }
 
     #[test]

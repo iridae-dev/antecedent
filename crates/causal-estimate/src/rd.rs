@@ -57,8 +57,6 @@ pub struct PreparedRdProblem {
     pub bandwidth: f64,
     /// Overlap policy applied.
     pub overlap: OverlapPolicy,
-    /// Active − control contrast used for the jump-size scaling (typically `1.0`).
-    pub treatment_delta: f64,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -144,12 +142,19 @@ impl SharpRegressionDiscontinuity {
                 "sharp RD (Phase 4) only supports TargetPopulation::AllObserved".into(),
             ));
         }
+        // The sharp-RD estimand is the outcome jump at the cutoff for the 0/1 crossing
+        // indicator `T = 1{R ≥ c}` — a local ATE, not a per-unit-of-treatment slope. Scaling
+        // the jump by arbitrary query levels (e.g. levels 0/2 doubling the reported effect)
+        // would be semantically wrong, so require the canonical binary coding and report the
+        // raw jump.
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
-        let treatment_delta = active - control;
-        if treatment_delta == 0.0 {
+        if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
             return Err(EstimationError::UnsupportedQuery(
-                "active and control treatment levels must differ".into(),
+                "sharp RD requires binary treatment levels coded active=1.0, control=0.0; the \
+                 RD estimand is the raw outcome jump at the cutoff for the 0/1 crossing \
+                 indicator and does not scale with query levels"
+                    .into(),
             ));
         }
 
@@ -198,11 +203,12 @@ impl SharpRegressionDiscontinuity {
             cutoff: self.cutoff,
             bandwidth: self.bandwidth,
             overlap: self.overlap,
-            treatment_delta,
         })
     }
 
-    /// Fit the local-linear OLS and return the jump-size ATE, with optional bootstrap.
+    /// Fit the local-linear OLS and return the raw jump at the cutoff, with optional
+    /// bootstrap. The query levels are constrained to 0/1 in `prepare`, so no level scaling
+    /// is applied.
     ///
     /// # Errors
     ///
@@ -224,12 +230,11 @@ impl SharpRegressionDiscontinuity {
                 &mut workspace.ols,
             )
             .map_err(stats_err)?;
-        let ate = fit.coefficients[RD_TREATMENT_COL] * problem.treatment_delta;
+        let ate = fit.coefficients[RD_TREATMENT_COL];
         let n = problem.nrows as f64;
         let p = RD_NCOLS as f64;
         let sigma2 = fit.rss / (n - p).max(1.0);
-        let se_coef = analytic_se_treatment(&problem.matrix, problem.nrows, sigma2);
-        let se_analytic = se_coef * problem.treatment_delta.abs();
+        let se_analytic = analytic_se_treatment(&problem.matrix, problem.nrows, sigma2);
 
         let se_bootstrap = if self.bootstrap_replicates == 0 {
             None
@@ -272,7 +277,7 @@ impl SharpRegressionDiscontinuity {
             else {
                 continue;
             };
-            estimates.push(fit.coefficients[RD_TREATMENT_COL] * problem.treatment_delta);
+            estimates.push(fit.coefficients[RD_TREATMENT_COL]);
         }
         if estimates.len() < 2 {
             return f64::NAN;
@@ -438,6 +443,22 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::Overlap { .. }));
+    }
+
+    #[test]
+    fn rejects_non_binary_treatment_levels() {
+        // Levels 0/2 must be refused rather than doubling the reported jump: the sharp-RD
+        // estimand is the raw outcome jump at the cutoff for the 0/1 crossing indicator.
+        let (data, estimand) = sharp_rd_scm(200, 6);
+        let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0);
+        let query = AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            0.0,
+            2.0,
+        );
+        let err = est.prepare(&data, &estimand, &query).unwrap_err();
+        assert!(matches!(err, EstimationError::UnsupportedQuery(_)), "err={err:?}");
     }
 
     #[test]

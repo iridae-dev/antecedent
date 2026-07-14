@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use causal_core::{Lag, VariableId};
 
-use crate::column::ColumnView;
+use crate::column::{ColumnView, Float64Column};
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
 use crate::reference::ReferencePointPolicy;
@@ -111,6 +111,32 @@ impl LagMap {
     }
 }
 
+/// Reject datasets whose analysis mask hides rows: lag gathers index raw rows,
+/// so temporal discovery requires the full contiguous series.
+pub(crate) fn ensure_unmasked(data: &TimeSeriesData) -> Result<(), DataError> {
+    if let Some(mask) = data.storage().analysis_mask() {
+        if !mask.is_all_valid() {
+            return Err(DataError::IncompleteSeries {
+                id: None,
+                message: "analysis mask hides rows; temporal discovery requires complete series",
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Reject float columns with missing values before a lag gather (values under
+/// null slots are sentinels and must never be consumed).
+pub(crate) fn ensure_complete_float(src: &Float64Column) -> Result<(), DataError> {
+    if !src.validity.is_all_valid() {
+        return Err(DataError::IncompleteSeries {
+            id: Some(src.id),
+            message: "missing values in series; temporal discovery requires complete series",
+        });
+    }
+    Ok(())
+}
+
 /// One planned lagged column.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct LaggedColumn {
@@ -189,7 +215,8 @@ impl SamplePlan {
     ///
     /// # Errors
     ///
-    /// Missing / non-float64 columns, or series length mismatch.
+    /// Missing / non-float64 columns, series length mismatch, or incomplete
+    /// series (missing values or a row-hiding analysis mask).
     pub fn prepare<'a>(
         &'a self,
         data: &TimeSeriesData,
@@ -202,6 +229,7 @@ impl SamplePlan {
                 context: "time series length vs sample plan",
             });
         }
+        ensure_unmasked(data)?;
         let n = self.lag_map.n_effective;
         let ncols = self.columns.len();
         workspace.prepare(n, ncols);
@@ -210,6 +238,7 @@ impl SamplePlan {
             let ColumnView::Float64(src) = data.column(col.variable)? else {
                 return Err(DataError::TypeMismatch { id: col.variable, expected: "float64" });
             };
+            ensure_complete_float(src)?;
             self.lag_map.fill_row_indexes(col.lag, &mut workspace.row_indexes)?;
             let dst = &mut workspace.values[c * n..(c + 1) * n];
             for (j, &row) in workspace.row_indexes.iter().enumerate() {
@@ -320,7 +349,36 @@ mod tests {
     use causal_core::{Lag, VariableId};
 
     use super::*;
-    use crate::testing::float_series;
+    use crate::testing::{float_series, float_series_with_gap, float_series_with_mask};
+
+    #[test]
+    fn prepare_rejects_missing_values() {
+        let data = float_series_with_gap(20, 1, 3);
+        let cols = Arc::from([LaggedColumn {
+            variable: VariableId::from_raw(0),
+            lag: Lag::CONTEMPORANEOUS,
+        }]);
+        let plan = data.plan_lagged_sample(2, cols).unwrap();
+        let mut ws = SampleWorkspace::default();
+        let err = plan.prepare(&data, &mut ws).unwrap_err();
+        assert!(matches!(
+            err,
+            DataError::IncompleteSeries { id: Some(v), .. } if v == VariableId::from_raw(0)
+        ));
+    }
+
+    #[test]
+    fn prepare_rejects_row_hiding_analysis_mask() {
+        let data = float_series_with_mask(20, 1, 3);
+        let cols = Arc::from([LaggedColumn {
+            variable: VariableId::from_raw(0),
+            lag: Lag::CONTEMPORANEOUS,
+        }]);
+        let plan = data.plan_lagged_sample(2, cols).unwrap();
+        let mut ws = SampleWorkspace::default();
+        let err = plan.prepare(&data, &mut ws).unwrap_err();
+        assert!(matches!(err, DataError::IncompleteSeries { id: None, .. }));
+    }
 
     #[test]
     fn lag_map_row_indexes() {

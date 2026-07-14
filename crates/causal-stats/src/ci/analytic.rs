@@ -37,13 +37,13 @@ fn z_to_r(z: f64) -> f64 {
 
 /// Approximate standard-normal PPF (Acklam’s rational approximation).
 pub(crate) fn normal_ppf(p: f64) -> f64 {
-    // Coefficients for central region.
+    // Acklam central-region coefficients (|p - 0.5| region).
     const A: [f64; 6] = [
         -3.969_683_028_665_376e1,
         2.209_460_984_245_205e2,
         -2.759_285_104_469_687e2,
-        1.383_577_459_740_757e2,
-        -3.066_479_806_614_736e1,
+        1.383_577_518_672_690e2,
+        -3.066_479_806_614_716e1,
         2.506_628_277_459_239,
     ];
     const B: [f64; 5] = [
@@ -53,6 +53,7 @@ pub(crate) fn normal_ppf(p: f64) -> f64 {
         6.680_131_188_771_972e1,
         -1.328_068_155_288_572e1,
     ];
+    // Acklam tail coefficients.
     const C: [f64; 6] = [
         -7.784_894_002_430_293e-3,
         -3.223_964_580_411_365e-1,
@@ -67,24 +68,25 @@ pub(crate) fn normal_ppf(p: f64) -> f64 {
         2.445_134_137_142_996,
         3.754_408_661_907_416,
     ];
-    let p = p.clamp(1e-12, 1.0 - 1e-12);
-    let q = p - 0.5;
-    if q.abs() <= 0.425 {
-        let r = 0.180_625 - q * q;
-        return q * (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5])
-            / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0);
+    const P_LOW: f64 = 0.024_25;
+    let p = p.clamp(1e-300, 1.0 - 1e-16);
+    if p < P_LOW {
+        // Lower tail.
+        let q = (-2.0 * p.ln()).sqrt();
+        return (((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
+            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0);
     }
-    let r = if q > 0.0 { 1.0 - p } else { p };
-    let r = (-r.ln()).sqrt();
-    let x = if r <= 5.0 {
-        let r = r - 1.6;
-        (((((C[0] * r + C[1]) * r + C[2]) * r + C[3]) * r + C[4]) * r + C[5])
-            / ((((D[0] * r + D[1]) * r + D[2]) * r + D[3]) * r + 1.0)
-    } else {
-        // Extreme tail: asymptotic.
-        r
-    };
-    if q < 0.0 { -x } else { x }
+    if p > 1.0 - P_LOW {
+        // Upper tail.
+        let q = (-2.0 * (1.0 - p).ln()).sqrt();
+        return -(((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
+            / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0);
+    }
+    // Central region.
+    let q = p - 0.5;
+    let r = q * q;
+    q * (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5])
+        / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0)
 }
 
 /// Survival function P(T > t) for Student-t with `df` degrees of freedom.
@@ -99,6 +101,11 @@ fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
     }
     if x >= 1.0 {
         return 1.0;
+    }
+    // Use the symmetry I_x(a,b) = 1 - I_{1-x}(b,a) where the continued fraction
+    // converges fastest (Numerical Recipes criterion).
+    if x > (a + 1.0) / (a + b + 2.0) {
+        return 1.0 - regularized_incomplete_beta(1.0 - x, b, a);
     }
     let ln_beta = ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b);
     let front = (x.ln() * a + (1.0 - x).ln() * b - ln_beta).exp() / a;
@@ -141,7 +148,7 @@ fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
     (front * f).clamp(0.0, 1.0)
 }
 
-fn ln_gamma(z: f64) -> f64 {
+pub(crate) fn ln_gamma(z: f64) -> f64 {
     const G: f64 = 7.0;
     const C: [f64; 9] = [
         0.999_999_999_999_809_9,
@@ -166,4 +173,53 @@ fn ln_gamma(z: f64) -> f64 {
     }
     let t = z + G + 0.5;
     (2.0 * std::f64::consts::PI).sqrt().ln() + (z + 0.5) * t.ln() - t + x.ln()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normal_ppf_pins_common_quantiles() {
+        assert!((normal_ppf(0.975) - 1.959_964).abs() < 1e-4);
+        assert!((normal_ppf(0.995) - 2.575_829).abs() < 1e-4);
+        assert!((normal_ppf(0.95) - 1.644_854).abs() < 1e-4);
+        assert!((normal_ppf(0.99) - 2.326_348).abs() < 1e-4);
+        assert!(normal_ppf(0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn normal_ppf_monotone_over_grid() {
+        let mut prev = f64::NEG_INFINITY;
+        for i in 1..1000 {
+            let p = f64::from(i) / 1000.0;
+            let x = normal_ppf(p);
+            assert!(x > prev, "not monotone at p={p}: {x} <= {prev}");
+            prev = x;
+        }
+    }
+
+    #[test]
+    fn normal_ppf_symmetric() {
+        for &p in &[0.001, 0.01, 0.05, 0.1, 0.25, 0.4, 0.49] {
+            let lo = normal_ppf(p);
+            let hi = normal_ppf(1.0 - p);
+            assert!((lo + hi).abs() < 1e-9, "asymmetry at p={p}: {lo} vs {hi}");
+        }
+    }
+
+    #[test]
+    fn fisher_z_ci_covers_r_and_uses_correct_zcrit() {
+        // r = 0.5, df = 100 → z = 0.5493, se = 1/sqrt(99), zcrit(95%) = 1.959964.
+        let (lo, hi) = analytic_parcorr_ci(0.5, 100.0, 0.95);
+        let z = 0.5 * (1.5_f64 / 0.5).ln();
+        let se = 1.0 / 99.0_f64.sqrt();
+        let expect_lo =
+            ((2.0 * (z - 1.959_964 * se)).exp() - 1.0) / ((2.0 * (z - 1.959_964 * se)).exp() + 1.0);
+        let expect_hi =
+            ((2.0 * (z + 1.959_964 * se)).exp() - 1.0) / ((2.0 * (z + 1.959_964 * se)).exp() + 1.0);
+        assert!((lo - expect_lo).abs() < 1e-4);
+        assert!((hi - expect_hi).abs() < 1e-4);
+        assert!(lo < 0.5 && 0.5 < hi);
+    }
 }

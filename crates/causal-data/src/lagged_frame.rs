@@ -15,7 +15,7 @@ use crate::column::ColumnView;
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
 use crate::reference::ReferencePointPolicy;
-use crate::sample::LagMap;
+use crate::sample::{LagMap, ensure_complete_float, ensure_unmasked};
 use crate::table::TableView;
 
 /// Pre-materialized lagged frame: one contiguous column per `(variable, lag)`.
@@ -36,7 +36,8 @@ impl LaggedFrame {
     ///
     /// # Errors
     ///
-    /// Empty variable list, invalid lag map, missing/non-float64 columns.
+    /// Empty variable list, invalid lag map, missing/non-float64 columns, or
+    /// incomplete series (missing values or a row-hiding analysis mask).
     pub fn from_series(
         data: &TimeSeriesData,
         variables: &[VariableId],
@@ -54,7 +55,8 @@ impl LaggedFrame {
     ///
     /// # Errors
     ///
-    /// Empty variable list, invalid lag map, missing/non-float64 columns.
+    /// Empty variable list, invalid lag map, missing/non-float64 columns, or
+    /// incomplete series (missing values or a row-hiding analysis mask).
     pub fn from_series_with_reference(
         data: &TimeSeriesData,
         variables: &[VariableId],
@@ -64,22 +66,28 @@ impl LaggedFrame {
         if variables.is_empty() {
             return Err(DataError::InvalidValidity { message: "lagged frame needs ≥1 variable" });
         }
+        ensure_unmasked(data)?;
         let lag_map = LagMap::with_reference(data.row_count(), max_lag, reference)?;
         let n_effective = lag_map.n_effective();
         let n_lags = max_lag as usize + 1;
         let n_cols = variables.len().saturating_mul(n_lags);
         let mut values = vec![0.0; n_cols.saturating_mul(n_effective)];
-        let mut row_indexes = vec![0u32; n_effective];
+
+        // Row indexes depend only on the lag: compute each lag's gather once.
+        let mut lag_rows = vec![vec![0u32; n_effective]; n_lags];
+        for (lag, rows) in lag_rows.iter_mut().enumerate() {
+            lag_map.fill_row_indexes(Lag::from_raw(lag as u32), rows)?;
+        }
 
         for (slot, &var) in variables.iter().enumerate() {
             let ColumnView::Float64(src) = data.column(var)? else {
                 return Err(DataError::TypeMismatch { id: var, expected: "float64" });
             };
-            for lag in 0..=max_lag {
-                lag_map.fill_row_indexes(Lag::from_raw(lag), &mut row_indexes)?;
-                let col = slot * n_lags + lag as usize;
+            ensure_complete_float(src)?;
+            for (lag, rows) in lag_rows.iter().enumerate() {
+                let col = slot * n_lags + lag;
                 let dst = &mut values[col * n_effective..(col + 1) * n_effective];
-                for (j, &row) in row_indexes.iter().enumerate() {
+                for (j, &row) in rows.iter().enumerate() {
                     dst[j] = src.values[row as usize];
                 }
             }
@@ -147,7 +155,26 @@ mod tests {
     use causal_core::{Lag, VariableId};
 
     use super::*;
-    use crate::testing::float_series;
+    use crate::testing::{float_series, float_series_with_gap, float_series_with_mask};
+
+    #[test]
+    fn rejects_missing_values() {
+        let data = float_series_with_gap(20, 2, 5);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let err = LaggedFrame::from_series(&data, &vars, 2).unwrap_err();
+        assert!(matches!(
+            err,
+            DataError::IncompleteSeries { id: Some(v), .. } if v == VariableId::from_raw(0)
+        ));
+    }
+
+    #[test]
+    fn rejects_row_hiding_analysis_mask() {
+        let data = float_series_with_mask(20, 2, 5);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let err = LaggedFrame::from_series(&data, &vars, 2).unwrap_err();
+        assert!(matches!(err, DataError::IncompleteSeries { id: None, .. }));
+    }
 
     #[test]
     fn frame_matches_lag_map_gather() {

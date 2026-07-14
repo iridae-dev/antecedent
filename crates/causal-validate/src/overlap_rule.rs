@@ -50,28 +50,23 @@ impl OverlapRuleRefuter {
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<RefutationReport, ValidationError> {
+        let eps = self.rule_eps.clamp(1e-6, 0.49);
         let report = match &problem.original.overlap_report {
             Some(r) => r.clone(),
-            None => self.diagnostic_report(problem)?,
+            None => self.diagnostic_report(problem, eps)?,
         };
-        let eps = self.rule_eps.clamp(1e-6, 0.49);
-        // Prefer the §14.3 support field when the band matches clip/trim; else recompute
-        // from propensity range alone when scores are unavailable (report-only path).
-        let retained = if let Some(clip) = report.clip {
-            if (clip - eps).abs() < 1e-12 {
-                report.target_population_support
-            } else {
-                // Approximate from range: if the observed range is inside the band, treat as 1.
-                if report.propensity_min >= eps && report.propensity_max <= 1.0 - eps {
-                    1.0
-                } else {
-                    report.target_population_support
-                }
-            }
+        // Prefer the §14.3 support field when the report's band matches the declared rule;
+        // if the observed range sits fully inside the band, retention is exactly 1. A reused
+        // report evaluated at a *different* clip must not stand in for the rule's band — its
+        // support figure answers a different question — so refit a diagnostic propensity at
+        // the rule's band instead.
+        let band_matches = report.clip.is_some_and(|clip| (clip - eps).abs() < 1e-12);
+        let retained = if band_matches {
+            report.target_population_support
         } else if report.propensity_min >= eps && report.propensity_max <= 1.0 - eps {
             1.0
         } else {
-            report.target_population_support
+            self.diagnostic_report(problem, eps)?.target_population_support
         };
         let passed = retained >= self.min_retained_fraction;
         Ok(RefutationReport {
@@ -96,6 +91,7 @@ impl OverlapRuleRefuter {
     fn diagnostic_report(
         &self,
         problem: &RefutationProblem<'_>,
+        eps: f64,
     ) -> Result<OverlapReport, ValidationError> {
         let mut ids = vec![problem.treatment()];
         ids.extend_from_slice(&problem.estimand.adjustment_set);
@@ -128,7 +124,7 @@ impl OverlapRuleRefuter {
         Ok(OverlapReport::from_propensities(
             &fit.scores,
             None,
-            OverlapPolicy::RequireDiagnostics { clip: Some(self.rule_eps), trim: None },
+            OverlapPolicy::RequireDiagnostics { clip: Some(eps), trim: None },
         ))
     }
 }

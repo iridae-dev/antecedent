@@ -260,6 +260,17 @@ pub(crate) fn prepare_propensity_problem(
     if nrows == 0 {
         return Err(EstimationError::Data("no complete-case rows for propensity design".into()));
     }
+    // The query levels are already validated to be exactly 0.0/1.0 above; the treatment
+    // column must match them, otherwise a {1,2}-coded or continuous treatment would be
+    // silently dichotomized at t > 0.5 and fed to the logistic fit as-is.
+    for &ti in &t {
+        if ti.abs() > 1e-12 && (ti - 1.0).abs() > 1e-12 {
+            return Err(EstimationError::Data(format!(
+                "propensity estimators require a binary treatment column matching the query \
+                 levels (0.0/1.0); found treatment value {ti}"
+            )));
+        }
+    }
 
     let ncols = 1 + estimand.adjustment_set.len();
     let mut design = vec![0.0; nrows * ncols];
@@ -295,8 +306,53 @@ pub(crate) fn clip_of(overlap: OverlapPolicy) -> Option<f64> {
     overlap_clip_trim(overlap).0
 }
 
-fn trim_of(overlap: OverlapPolicy) -> Option<f64> {
+pub(crate) fn trim_of(overlap: OverlapPolicy) -> Option<f64> {
     overlap_clip_trim(overlap).1
+}
+
+/// Indices of rows whose **raw** (pre-clip) propensity lies inside the `[trim, 1 - trim]`
+/// common-support band. Returns `None` when no trim is configured (all rows retained).
+///
+/// Trimming redefines the estimand to the common-support population — exactly what the
+/// [`OverlapReport`] built from the same raw scores claims via `excluded_fraction` /
+/// `excluded_regions`.
+///
+/// # Errors
+///
+/// Every row falls outside the band.
+pub(crate) fn trim_retained_rows(
+    raw_scores: &[f64],
+    trim: Option<f64>,
+) -> Result<Option<Vec<usize>>, EstimationError> {
+    let Some(t) = trim else { return Ok(None) };
+    let retained: Vec<usize> = raw_scores
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &p)| (p >= t && p <= 1.0 - t).then_some(i))
+        .collect();
+    if retained.is_empty() {
+        return Err(EstimationError::Data(
+            "overlap trim removed every row; no common-support units remain".into(),
+        ));
+    }
+    Ok(Some(retained))
+}
+
+/// Restrict `(treatment, outcome, features)` to `retained` rows (`features` row-major with
+/// `dim` columns); clones the full slices when `retained` is `None` (no trim configured).
+fn restrict_to_rows(
+    treatment: &[f64],
+    outcome: &[f64],
+    features: &[f64],
+    dim: usize,
+    retained: Option<&[usize]>,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    match retained {
+        Some(idx) => {
+            (gather(treatment, idx), gather(outcome, idx), gather_rowmajor(features, dim, idx))
+        }
+        None => (treatment.to_vec(), outcome.to_vec(), features.to_vec()),
+    }
 }
 
 fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<f64>) {
@@ -397,7 +453,11 @@ fn compute_ipw_weights(
         .collect()
 }
 
-fn hajek_difference(treatment: &[f64], outcome: &[f64], weights: &[f64]) -> f64 {
+fn hajek_difference(
+    treatment: &[f64],
+    outcome: &[f64],
+    weights: &[f64],
+) -> Result<f64, EstimationError> {
     let (mut num1, mut den1, mut num0, mut den0) = (0.0, 0.0, 0.0, 0.0);
     for ((&t, &y), &w) in treatment.iter().zip(outcome).zip(weights) {
         if t > 0.5 {
@@ -408,7 +468,14 @@ fn hajek_difference(treatment: &[f64], outcome: &[f64], weights: &[f64]) -> f64 
             den0 += w;
         }
     }
-    num1 / den1 - num0 / den0
+    if den1 <= 0.0 || den0 <= 0.0 {
+        return Err(EstimationError::Data(
+            "IPW weighting left an arm with zero total weight (trimming/clipping removed all \
+             treated or all control units)"
+                .into(),
+        ));
+    }
+    Ok(num1 / den1 - num0 / den0)
 }
 
 fn hajek_weighted_mean(
@@ -531,7 +598,7 @@ impl PropensityWeighting {
             target,
             trim,
         );
-        let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights);
+        let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
         let se_analytic = hajek_analytic_se(&problem.treatment, &problem.outcome, &weights);
 
         let se_bootstrap = if self.bootstrap_replicates == 0 {
@@ -598,7 +665,12 @@ impl PropensityWeighting {
                 clamp_scores(&mut clipped, c);
             }
             let w = compute_ipw_weights(&t_boot, &clipped, &raw, target, trim);
-            estimates.push(hajek_difference(&t_boot, &y_boot, &w));
+            if let Ok(a) = hajek_difference(&t_boot, &y_boot, &w) {
+                estimates.push(a);
+            }
+        }
+        if estimates.len() < 2 {
+            return Ok(f64::NAN);
         }
         Ok(sample_std(&estimates))
     }
@@ -624,6 +696,10 @@ fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
 struct StratifiedResult {
     ate: f64,
     se_analytic: f64,
+    /// Fraction of input rows that landed in a stratum with both arms represented. Strata
+    /// missing an arm are dropped from the pooled contrast, which redefines the target
+    /// population; callers surface this via the overlap report's support figure.
+    retained_fraction: f64,
 }
 
 fn stratified_ate(
@@ -661,8 +737,10 @@ fn stratified_ate(
         let n0 = cnt0[s] as f64;
         let mean1 = sum1[s] / n1;
         let mean0 = sum0[s] / n0;
-        let var1 = (sq1[s] / n1 - mean1 * mean1).max(0.0);
-        let var0 = (sq0[s] / n0 - mean0 * mean0).max(0.0);
+        // Unbiased sample variances (÷(n−1)); undefined (NaN) for a single-unit arm, which
+        // honestly propagates into `se_analytic` rather than understating it.
+        let var1 = sample_variance_from_moments(sq1[s], mean1, cnt1[s]);
+        let var0 = sample_variance_from_moments(sq0[s], mean0, cnt0[s]);
         diffs.push(mean1 - mean0);
         ns.push(n1 + n0);
         vars.push(var1 / n1 + var0 / n0);
@@ -675,7 +753,17 @@ fn stratified_ate(
     }
     let ate = diffs.iter().zip(&ns).map(|(d, n)| d * n).sum::<f64>() / total_n;
     let se_var = vars.iter().zip(&ns).map(|(v, n)| v * (n / total_n).powi(2)).sum::<f64>();
-    Ok(StratifiedResult { ate, se_analytic: se_var.sqrt() })
+    let retained_fraction = total_n / (treatment.len().max(1) as f64);
+    Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction })
+}
+
+/// Unbiased sample variance from `Σy²`, the mean, and the count (`NaN` when `count < 2`).
+fn sample_variance_from_moments(sum_sq: f64, mean: f64, count: usize) -> f64 {
+    if count < 2 {
+        return f64::NAN;
+    }
+    let n = count as f64;
+    ((sum_sq - n * mean * mean) / (n - 1.0)).max(0.0)
 }
 
 /// Propensity stratification estimator: within-stratum difference of means pooled by size.
@@ -746,6 +834,7 @@ impl PropensityStratification {
                 "propensity stratification only supports TargetPopulation::AllObserved".into(),
             ));
         }
+        let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
             problem,
             &self.backend,
@@ -753,17 +842,30 @@ impl PropensityStratification {
             &self.glm_options,
         )?;
         let n_strata = (self.n_strata.max(1)) as usize;
-        let stratum = assign_strata(&model.clipped_scores, n_strata);
-        let result = stratified_ate(&problem.treatment, &problem.outcome, &stratum, n_strata)?;
+        // Trim on RAW scores (mirrors PropensityWeighting): stratify only common-support rows.
+        let retained = trim_retained_rows(&model.fit.scores, trim)?;
+        let (t_used, y_used, s_used) = restrict_to_rows(
+            &problem.treatment,
+            &problem.outcome,
+            &model.clipped_scores,
+            1,
+            retained.as_deref(),
+        );
+        let stratum = assign_strata(&s_used, n_strata);
+        let result = stratified_ate(&t_used, &y_used, &stratum, n_strata)?;
 
         let se_bootstrap = if self.bootstrap_replicates == 0 {
             None
         } else {
-            Some(self.bootstrap_se(problem, n_strata, workspace, ctx)?)
+            Some(self.bootstrap_se(problem, n_strata, trim, workspace, ctx)?)
         };
 
-        let overlap_report =
-            Some(OverlapReport::from_propensities(&model.fit.scores, None, problem.overlap));
+        let mut report = OverlapReport::from_propensities(&model.fit.scores, None, problem.overlap);
+        // Strata missing a treatment arm are dropped from the pooled contrast; fold the
+        // retained fraction into the support figure so the artifact reflects the population
+        // the estimate actually targets.
+        report.target_population_support *= result.retained_fraction;
+        let overlap_report = Some(report);
 
         Ok(EffectEstimate {
             ate: result.ate,
@@ -780,6 +882,7 @@ impl PropensityStratification {
         &self,
         problem: &PreparedPropensityProblem,
         n_strata: usize,
+        trim: Option<f64>,
         workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<f64, EstimationError> {
@@ -810,12 +913,18 @@ impl PropensityStratification {
                 &self.glm_options,
             )
             .map_err(stats_err)?;
-            let mut scores = fit.scores;
+            let raw = fit.scores;
+            let mut scores = raw.clone();
             if let Some(c) = clip {
                 clamp_scores(&mut scores, c);
             }
-            let stratum = assign_strata(&scores, n_strata);
-            if let Ok(r) = stratified_ate(&t_boot, &y_boot, &stratum, n_strata) {
+            let Ok(retained) = trim_retained_rows(&raw, trim) else {
+                continue;
+            };
+            let (t_used, y_used, s_used) =
+                restrict_to_rows(&t_boot, &y_boot, &scores, 1, retained.as_deref());
+            let stratum = assign_strata(&s_used, n_strata);
+            if let Ok(r) = stratified_ate(&t_used, &y_used, &stratum, n_strata) {
                 estimates.push(r.ate);
             }
         }
@@ -843,7 +952,7 @@ pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) 
     (treated, control)
 }
 
-fn gather(values: &[f64], idx: &[usize]) -> Vec<f64> {
+pub(crate) fn gather(values: &[f64], idx: &[usize]) -> Vec<f64> {
     idx.iter().map(|&i| values[i]).collect()
 }
 
@@ -1061,16 +1170,27 @@ impl PropensityMatching {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
             problem,
             &self.backend,
             &mut workspace.propensity,
             &self.glm_options,
         )?;
-        let result = matching_contrast(
+        // Trim on RAW scores (mirrors PropensityWeighting): both query and donor sets are
+        // restricted to common-support rows before matching.
+        let retained = trim_retained_rows(&model.fit.scores, trim)?;
+        let (t_used, y_used, s_used) = restrict_to_rows(
             &problem.treatment,
             &problem.outcome,
             &model.clipped_scores,
+            1,
+            retained.as_deref(),
+        );
+        let result = matching_contrast(
+            &t_used,
+            &y_used,
+            &s_used,
             1,
             MatchingDistance::Absolute,
             &problem.target_population,
@@ -1081,7 +1201,7 @@ impl PropensityMatching {
         let se_bootstrap = if self.bootstrap_replicates == 0 {
             None
         } else {
-            Some(self.bootstrap_se(problem, workspace, ctx)?)
+            Some(self.bootstrap_se(problem, trim, workspace, ctx)?)
         };
 
         let overlap_report =
@@ -1101,6 +1221,7 @@ impl PropensityMatching {
     fn bootstrap_se(
         &self,
         problem: &PreparedPropensityProblem,
+        trim: Option<f64>,
         workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<f64, EstimationError> {
@@ -1131,14 +1252,20 @@ impl PropensityMatching {
                 &self.glm_options,
             )
             .map_err(stats_err)?;
-            let mut scores = fit.scores;
+            let raw = fit.scores;
+            let mut scores = raw.clone();
             if let Some(c) = clip {
                 clamp_scores(&mut scores, c);
             }
+            let Ok(retained) = trim_retained_rows(&raw, trim) else {
+                continue;
+            };
+            let (t_used, y_used, s_used) =
+                restrict_to_rows(&t_boot, &y_boot, &scores, 1, retained.as_deref());
             if let Ok(m) = matching_contrast(
-                &t_boot,
-                &y_boot,
-                &scores,
+                &t_used,
+                &y_used,
+                &s_used,
                 1,
                 MatchingDistance::Absolute,
                 &problem.target_population,
@@ -1157,9 +1284,11 @@ impl PropensityMatching {
 
 /// Distance matching on raw adjustment covariates (Euclidean), not the propensity score.
 ///
-/// A propensity model is still fit — purely to populate mandatory positivity diagnostics
-/// ([`EffectEstimate::overlap_report`]) — but it does not influence the matched contrast.
-/// Positivity is mandatory: [`OverlapPolicy::ExplicitOverride`] is refused.
+/// A propensity model is still fit to populate mandatory positivity diagnostics
+/// ([`EffectEstimate::overlap_report`]) and — when the overlap policy sets a trim threshold —
+/// to restrict matching to common-support rows; it does not otherwise influence the
+/// covariate-space matched contrast. Positivity is mandatory:
+/// [`OverlapPolicy::ExplicitOverride`] is refused.
 #[derive(Clone, Debug)]
 pub struct DistanceMatching {
     /// Dense linear-algebra backend used for the diagnostic logistic fit.
@@ -1226,12 +1355,31 @@ impl DistanceMatching {
                 "distance matching requires a non-empty adjustment set".into(),
             ));
         }
+        let trim = trim_of(problem.overlap);
         let dim = problem.covariates.len();
         let features = to_row_major(&problem.covariates, problem.nrows);
-        let result = matching_contrast(
+
+        // Diagnostic propensity fit: populates the mandatory overlap report and, when a trim
+        // threshold is configured, restricts both query and donor sets to the common-support
+        // rows (raw scores) — it does not otherwise influence the covariate-space contrast.
+        let diag = PropensityModel::fit(
+            problem,
+            &self.backend,
+            &mut workspace.propensity,
+            &self.glm_options,
+        )?;
+        let retained = trim_retained_rows(&diag.fit.scores, trim)?;
+        let (t_used, y_used, f_used) = restrict_to_rows(
             &problem.treatment,
             &problem.outcome,
             &features,
+            dim,
+            retained.as_deref(),
+        );
+        let result = matching_contrast(
+            &t_used,
+            &y_used,
+            &f_used,
             dim,
             MatchingDistance::Euclidean,
             &problem.target_population,
@@ -1239,19 +1387,10 @@ impl DistanceMatching {
             workspace,
         )?;
 
-        // Diagnostic-only propensity fit: populates the mandatory overlap report without
-        // influencing the covariate-space matched contrast above.
-        let diag = PropensityModel::fit(
-            problem,
-            &self.backend,
-            &mut workspace.propensity,
-            &self.glm_options,
-        )?;
-
         let se_bootstrap = if self.bootstrap_replicates == 0 {
             None
         } else {
-            Some(self.bootstrap_se(problem, dim, &features, workspace, ctx))
+            Some(self.bootstrap_se(problem, dim, &features, trim, workspace, ctx))
         };
 
         let overlap_report =
@@ -1273,12 +1412,16 @@ impl DistanceMatching {
         problem: &PreparedPropensityProblem,
         dim: usize,
         features: &[f64],
+        trim: Option<f64>,
         workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> f64 {
         let mut rng = ctx.rng.stream(0x7C11_u64);
         let n = problem.nrows;
+        let ncols = problem.design_ncols;
         let mut feat_boot = vec![0.0; n * dim];
+        // Diagnostic design resample, needed only to recompute the trim per replicate.
+        let mut x_boot = if trim.is_some() { vec![0.0; n * ncols] } else { Vec::new() };
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
         let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
@@ -1290,11 +1433,37 @@ impl DistanceMatching {
                 for d in 0..dim {
                     feat_boot[r * dim + d] = features[idx * dim + d];
                 }
+                if trim.is_some() {
+                    for c in 0..ncols {
+                        x_boot[c * n + r] = problem.design_matrix[c * n + idx];
+                    }
+                }
             }
+            let retained = if trim.is_some() {
+                let Ok(fit) = fit_propensity(
+                    &x_boot,
+                    n,
+                    ncols,
+                    &t_boot,
+                    &self.backend,
+                    &mut workspace.propensity,
+                    &self.glm_options,
+                ) else {
+                    continue;
+                };
+                match trim_retained_rows(&fit.scores, trim) {
+                    Ok(r) => r,
+                    Err(_) => continue,
+                }
+            } else {
+                None
+            };
+            let (t_used, y_used, f_used) =
+                restrict_to_rows(&t_boot, &y_boot, &feat_boot, dim, retained.as_deref());
             if let Ok(m) = matching_contrast(
-                &t_boot,
-                &y_boot,
-                &feat_boot,
+                &t_used,
+                &y_used,
+                &f_used,
                 dim,
                 MatchingDistance::Euclidean,
                 &problem.target_population,
@@ -1339,6 +1508,11 @@ mod tests {
     }
 
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+        let (t, y, z) = confounded_columns(n, seed);
+        build_dataset(t, y, z)
+    }
+
+    fn confounded_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
 
         let mut z = vec![0.0; n];
@@ -1354,7 +1528,22 @@ mod tests {
             t[i] = ti;
             y[i] = 2.0 * ti + zi + noise;
         }
+        (t, y, z)
+    }
 
+    /// `confounded_scm` plus one extreme-propensity treated outlier: `z = -8` puts its raw
+    /// propensity near 2e-4 (outside any reasonable trim band) while `y = 1000` wrecks any
+    /// estimator that fails to exclude it.
+    fn confounded_scm_with_outlier(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+        let (mut t, mut y, mut z) = confounded_columns(n, seed);
+        t.push(1.0);
+        y.push(1000.0);
+        z.push(-8.0);
+        build_dataset(t, y, z)
+    }
+
+    fn build_dataset(t: Vec<f64>, y: Vec<f64>, z: Vec<f64>) -> (TabularData, IdentifiedEstimand) {
+        let n = t.len();
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
             "t",
@@ -1421,6 +1610,11 @@ mod tests {
 
     fn ctx() -> ExecutionContext {
         ExecutionContext::for_tests(7)
+    }
+
+    /// Diagnostics-mandatory policy with an explicit trim band for the outlier tests.
+    fn trim_overlap() -> OverlapPolicy {
+        OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.02) }
     }
 
     #[test]
@@ -1584,5 +1778,92 @@ mod tests {
         };
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::Overlap { .. }));
+    }
+
+    #[test]
+    fn prepare_rejects_non_binary_treatment_column() {
+        // {1,2}-coded treatment must be refused, not silently dichotomized at t > 0.5.
+        let (t, y, z) = confounded_columns(100, 11);
+        let t: Vec<f64> = t.iter().map(|&ti| ti + 1.0).collect();
+        let (data, estimand) = build_dataset(t, y, z);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = PropensityWeighting::new();
+        let err = est.prepare(&data, &estimand, &query).unwrap_err();
+        assert!(matches!(err, EstimationError::Data(_)), "err={err:?}");
+        assert!(err.to_string().contains("binary treatment column"), "err={err}");
+    }
+
+    #[test]
+    fn hajek_difference_errors_on_zero_weight_arm() {
+        // All treated weight trimmed away: must surface an error, not a silent NaN.
+        let treatment = [1.0, 1.0, 0.0, 0.0];
+        let outcome = [3.0, 4.0, 1.0, 2.0];
+        let weights = [0.0, 0.0, 1.0, 1.0];
+        let err = hajek_difference(&treatment, &outcome, &weights).unwrap_err();
+        assert!(matches!(err, EstimationError::Data(_)), "err={err:?}");
+    }
+
+    #[test]
+    fn stratification_trim_excludes_extreme_propensity_unit() {
+        let (data, estimand) = confounded_scm_with_outlier(800, 12);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let untrimmed =
+            PropensityStratification { bootstrap_replicates: 0, ..PropensityStratification::new() };
+        let trimmed = PropensityStratification { overlap: trim_overlap(), ..untrimmed.clone() };
+
+        let mut ws = PropensityEstimationWorkspace::default();
+        let prep = untrimmed.prepare(&data, &estimand, &query).unwrap();
+        let raw = untrimmed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let prep = trimmed.prepare(&data, &estimand, &query).unwrap();
+        let clean = trimmed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+
+        assert!((raw.ate - 2.0).abs() > 1.0, "outlier should distort untrimmed ate={}", raw.ate);
+        assert!((clean.ate - 2.0).abs() < 0.35, "trimmed ate={}", clean.ate);
+        let report = clean.overlap_report.as_ref().unwrap();
+        assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
+    }
+
+    #[test]
+    fn propensity_matching_trim_excludes_extreme_propensity_unit() {
+        let (data, estimand) = confounded_scm_with_outlier(800, 13);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Treated);
+        let untrimmed = PropensityMatching { bootstrap_replicates: 0, ..PropensityMatching::new() };
+        let trimmed = PropensityMatching { overlap: trim_overlap(), ..untrimmed.clone() };
+
+        let mut ws = PropensityEstimationWorkspace::default();
+        let prep = untrimmed.prepare(&data, &estimand, &query).unwrap();
+        let raw = untrimmed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let prep = trimmed.prepare(&data, &estimand, &query).unwrap();
+        let clean = trimmed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+
+        assert!((raw.ate - 2.0).abs() > 1.0, "outlier should distort untrimmed att={}", raw.ate);
+        assert!((clean.ate - 2.0).abs() < 0.35, "trimmed att={}", clean.ate);
+        let report = clean.overlap_report.as_ref().unwrap();
+        assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
+    }
+
+    #[test]
+    fn distance_matching_trim_excludes_extreme_propensity_unit() {
+        let (data, estimand) = confounded_scm_with_outlier(800, 14);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Treated);
+        let untrimmed = DistanceMatching { bootstrap_replicates: 0, ..DistanceMatching::new() };
+        let trimmed = DistanceMatching { overlap: trim_overlap(), ..untrimmed.clone() };
+
+        let mut ws = PropensityEstimationWorkspace::default();
+        let prep = untrimmed.prepare(&data, &estimand, &query).unwrap();
+        let raw = untrimmed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let prep = trimmed.prepare(&data, &estimand, &query).unwrap();
+        let clean = trimmed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+
+        assert!((raw.ate - 2.0).abs() > 1.0, "outlier should distort untrimmed att={}", raw.ate);
+        assert!((clean.ate - 2.0).abs() < 0.35, "trimmed att={}", clean.ate);
+        let report = clean.overlap_report.as_ref().unwrap();
+        assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
     }
 }

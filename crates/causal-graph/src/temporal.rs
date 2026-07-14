@@ -2,8 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_core::{Lag, VariableId};
 use causal_core::TemporalNodeKey;
+use causal_core::{Lag, VariableId};
 
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
@@ -78,7 +78,9 @@ impl TemporalDag {
 
     /// Insert directed edge with temporal rules.
     ///
-    /// Contemporaneous self-edges are rejected. Lagged self-edges are allowed.
+    /// Contemporaneous self-edges are rejected. A self-loop on a single dense
+    /// node is always a [`GraphError::Cycle`]; lagged self-influence is modeled
+    /// as an edge between two distinct nodes (e.g. `X@t-1 -> X@t`).
     ///
     /// # Errors
     ///

@@ -83,10 +83,8 @@ impl LogicalAnalysisPlan {
             }
             _ => {}
         }
-        if matches!(
-            self.record.discovery_algorithm.as_deref(),
-            Some("pcmci" | "pcmci_plus")
-        ) && self.record.data_classification != DataClassification::Temporal
+        if matches!(self.record.discovery_algorithm.as_deref(), Some("pcmci" | "pcmci_plus"))
+            && self.record.data_classification != DataClassification::Temporal
         {
             return Err(AnalysisError::Compile {
                 message: "PCMCI / PCMCI+ requires temporal data metadata".into(),

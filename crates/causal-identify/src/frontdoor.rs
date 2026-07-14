@@ -1,5 +1,20 @@
 //! Front-door criterion identification for DAGs.
 //!
+//! # Search completeness
+//!
+//! The mediator search is deliberately not exhaustive. Only two families of
+//! candidate sets are tested against the front-door criterion:
+//!
+//! 1. every singleton `{v}` with `v ∉ {T, Y}`, and
+//! 2. the full set `children(T) \ {Y}` (when it has more than one member).
+//!
+//! Valid mediator sets outside these families are missed: in particular,
+//! multi-node sets that are proper subsets of `children(T) \ {Y}`, sets mixing
+//! children of `T` with downstream intermediates, and sets of non-child
+//! intermediates that jointly intercept all directed `T -> Y` paths where no
+//! single node does. A `NotIdentified` result therefore means "no candidate in
+//! the searched families qualifies", not that no front-door set exists.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::many_single_char_names)]
@@ -58,6 +73,10 @@ impl FrontDoorIdentifier {
 
     /// Identify an average-effect query via the front-door criterion.
     ///
+    /// Only singleton mediator sets and the full `children(T) \ {Y}` set are
+    /// searched (see the module docs for what this can miss); a
+    /// `NotIdentified` status is relative to those candidate families.
+    ///
     /// # Errors
     ///
     /// Unsupported query or unknown variables.
@@ -89,7 +108,9 @@ impl FrontDoorIdentifier {
 
         // Candidate mediator sets: every singleton excluding T,Y, plus the
         // full set of T's children (excluding Y) when it has more than one
-        // member (covers cases where no single mediator suffices).
+        // member. This is intentionally not a full subset search; valid
+        // intermediate multi-node sets outside these families are missed
+        // (see module docs).
         let mut candidates: Vec<Vec<DenseNodeId>> = Vec::new();
         for i in 0..dag.node_count() {
             let v = DenseNodeId::from_raw(u32::try_from(i).expect("node id fits u32"));

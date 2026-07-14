@@ -119,8 +119,7 @@ fn load_float64_columns(
     columns: Vec<PyReadonlyArray1<'_, f64>>,
 ) -> PyResult<ArrowLoadInfo> {
     let batch = columns_to_batch(&names, &columns)?;
-    let loaded =
-        tabular_from_record_batch(&batch).map_err(py_err)?;
+    let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
     Ok(ArrowLoadInfo {
         row_count: loaded.data.row_count(),
         column_count: loaded.data.schema().len(),
@@ -170,13 +169,10 @@ fn analyze_ate(
     drop(columns);
 
     py.allow_threads(move || {
-        let loaded =
-            tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
-        let t_id =
-            data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id =
-            data.schema().id_of(&outcome).map_err(py_err)?;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
 
         let n_vars = u32::try_from(data.schema().len())
             .map_err(|_| PyValueError::new_err("too many variables"))?;
@@ -318,8 +314,7 @@ fn resolve_ci(
 }
 
 fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<VariableId>)> {
-    let loaded =
-        tabular_from_record_batch(batch).map_err(py_err)?;
+    let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
     let tabular = loaded.data;
     let n = tabular.row_count();
     let series = TimeSeriesData::try_new(
@@ -420,9 +415,7 @@ fn discover_pcmci(
             .with_ci(ci_impl);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(seed);
-        let result = pcmci
-            .run(&series, &variables, &mut ws, &ctx)
-            .map_err(py_err)?;
+        let result = pcmci.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
@@ -473,9 +466,7 @@ fn discover_pcmci_plus(
             .with_ci(ci_impl);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(seed);
-        let result = plus
-            .run(&series, &variables, &mut ws, &ctx)
-            .map_err(py_err)?;
+        let result = plus.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
 
         let cpdag = &result.evidence.graph;
         let directed = cpdag.directed_edge_count() as u64;
@@ -554,8 +545,7 @@ fn analyze(
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     py.allow_threads(move || {
-        let loaded =
-            tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let tabular = loaded.data;
         let n = tabular.row_count();
         let series = TimeSeriesData::try_new(
@@ -575,10 +565,10 @@ fn analyze(
 
         let mut g = TemporalDag::empty();
         for (src, slag, tgt, tlag) in &edges {
-            let s = ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag))
-                .map_err(py_err)?;
-            let t = ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag))
-                .map_err(py_err)?;
+            let s =
+                ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
+            let t =
+                ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
             g.insert_directed(s, t).map_err(py_err)?;
         }
 

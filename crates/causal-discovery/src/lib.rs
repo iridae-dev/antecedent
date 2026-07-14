@@ -38,8 +38,8 @@ pub use orientation::{
 pub use pcmci::Pcmci;
 pub use pcmci_plus::PcmciPlus;
 pub use result::{
-    AlgorithmRecord, CpdagDiscoveryResult, CpdagGraphEvidence, DagDiscoveryResult, DagGraphEvidence,
-    DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
-    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, LaggedParent, PcSepsets, ScoredLink,
-    SepsetKey,
+    AlgorithmRecord, CpdagDiscoveryResult, CpdagGraphEvidence, DagDiscoveryResult,
+    DagGraphEvidence, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
+    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, LaggedParent,
+    PcSepsets, ScoredLink, SepsetKey,
 };

@@ -343,9 +343,11 @@ pub struct TwoStageLeastSquaresWorkspace {
 
 /// Two-stage least squares IV estimator.
 ///
-/// Stage 1 regresses the endogenous treatment on `[1 | instruments…]`; stage 2 regresses the
-/// outcome on `[fitted_T | 1 | adjustment_set…]`. Supports one or more instruments (continuous
-/// or binary) and optional exogenous covariates.
+/// Stage 1 regresses the endogenous treatment on the FULL instrument set
+/// `[instruments… | 1 | adjustment_set…]` (included exogenous regressors instrument
+/// themselves); stage 2 regresses the outcome on `[fitted_T | 1 | adjustment_set…]`.
+/// Supports one or more instruments (continuous or binary) and optional exogenous
+/// covariates.
 #[derive(Clone, Debug)]
 pub struct TwoStageLeastSquares {
     /// Dense linear-algebra backend used by both least-squares stages.
@@ -399,10 +401,13 @@ impl TwoStageLeastSquares {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        // The exogenous block carries the intercept, so pass the excluded instruments
+        // without their leading intercept column (fit_2sls appends the exogenous block
+        // to form the full first-stage instrument set).
         let fit = fit_2sls(
-            &problem.instruments_matrix,
+            &problem.instruments_matrix[problem.nrows..],
             problem.nrows,
-            problem.z_ncols,
+            problem.z_ncols - 1,
             &problem.treatment,
             &problem.exogenous_matrix,
             problem.x_ncols,
@@ -418,7 +423,7 @@ impl TwoStageLeastSquares {
             &problem.exogenous_matrix,
             problem.nrows,
             problem.x_ncols,
-            fit.second_stage.rss,
+            fit.structural_rss,
         );
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
@@ -467,9 +472,9 @@ impl TwoStageLeastSquares {
                 }
             }
             let Ok(fit) = fit_2sls(
-                &z_boot,
+                &z_boot[n..],
                 n,
-                zc,
+                zc - 1,
                 &t_boot,
                 &x_boot,
                 xc,
@@ -488,16 +493,16 @@ impl TwoStageLeastSquares {
     }
 }
 
-/// Analytic SE for the treatment coefficient (column 0) of the 2SLS second stage, treating
-/// `[fitted_T | exogenous]` as the effective design (the conventional simplification used by
-/// most textbook 2SLS implementations; slightly understates uncertainty relative to a full
-/// sandwich correction — the bootstrap SE is the recommended uncertainty estimate).
+/// Analytic SE for the treatment coefficient (column 0) of the 2SLS second stage:
+/// `sqrt(σ̂² · [(X̂'X̂)⁻¹]₀₀)` with `X̂ = [fitted_T | exogenous]` and
+/// `σ̂² = ‖y − Tβ̂ − Xγ̂‖² / (n − k)` from the STRUCTURAL residuals (actual `T`, not
+/// fitted). It assumes homoskedasticity; the bootstrap SE remains the robust choice.
 fn analytic_se_2sls(
     fitted_endogenous: &[f64],
     exogenous_colmajor: &[f64],
     nrows: usize,
     x_ncols: usize,
-    rss: f64,
+    structural_rss: f64,
 ) -> f64 {
     let ncols = 1 + x_ncols;
     let mut x2 = vec![0.0; nrows * ncols];
@@ -508,7 +513,7 @@ fn analytic_se_2sls(
     let Some(inv) = invert_square(&xtx, ncols) else {
         return f64::NAN;
     };
-    let sigma2 = rss / (nrows as f64 - ncols as f64).max(1.0);
+    let sigma2 = structural_rss / (nrows as f64 - ncols as f64).max(1.0);
     (sigma2 * inv[0].max(0.0)).sqrt()
 }
 
@@ -658,6 +663,26 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
         assert!(effect.se_bootstrap.is_some());
+    }
+
+    #[test]
+    fn two_sls_analytic_se_tracks_bootstrap() {
+        // Strong instrument: the structural-residual analytic SE should sit near the
+        // bootstrap SE (the naive fitted-T RSS variant is systematically larger when
+        // beta != 0 because it treats T-hat prediction error as regression noise).
+        let (data, estimand) = continuous_iv_scm(2000, 7);
+        let est = TwoStageLeastSquares { bootstrap_replicates: 60, ..TwoStageLeastSquares::new() };
+        let prep = est.prepare(&data, &estimand, &query()).unwrap();
+        let mut ws = TwoStageLeastSquaresWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let se_boot = effect.se_bootstrap.unwrap();
+        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
+        let ratio = effect.se_analytic / se_boot;
+        assert!(
+            (0.4..=2.5).contains(&ratio),
+            "analytic={} bootstrap={se_boot}",
+            effect.se_analytic
+        );
     }
 
     #[test]

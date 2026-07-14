@@ -11,8 +11,8 @@ use causal_data::TableView;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, fit_once, linear_estimator_no_bootstrap,
-    with_resampled_rows,
+    RefutationProblem, RefutationReport, complete_case_rows, fit_once,
+    linear_estimator_no_bootstrap, with_resampled_rows,
 };
 use crate::error::ValidationError;
 
@@ -60,7 +60,7 @@ impl BootstrapRefute {
                 message: "bootstrap refutation requires replicates >= 2",
             });
         }
-        if !(0.0..1.0).contains(&self.ci_level) {
+        if !(self.ci_level > 0.0 && self.ci_level < 1.0) {
             return Err(ValidationError::NotApplicable {
                 message: "bootstrap refutation requires ci_level in (0, 1)",
             });
@@ -68,14 +68,22 @@ impl BootstrapRefute {
         let n = problem.data.row_count();
         let mut resample_ids = vec![problem.treatment(), problem.outcome()];
         resample_ids.extend_from_slice(&problem.estimand.adjustment_set);
-        let mut rng = ctx.rng.stream(0xA7E0_0009_u64);
+        // Resample only complete-case rows so slots that are invalid in the source (whose
+        // stored values are sentinels) never enter a replicate as real observations.
+        let (keep, valid) = complete_case_rows(problem.data, &resample_ids)?;
+        if valid.len() < 2 {
+            return Err(ValidationError::NotApplicable {
+                message: "bootstrap refutation requires at least 2 complete-case rows",
+            });
+        }
+        let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
         let mut row_idx = vec![0usize; n];
         let mut ates = Vec::with_capacity(self.replicates as usize);
         for _ in 0..self.replicates {
             for slot in &mut row_idx {
-                *slot = (rng.next_u64() as usize) % n;
+                *slot = valid[(rng.next_u64() as usize) % valid.len()];
             }
-            let data = with_resampled_rows(problem.data, &resample_ids, &row_idx)?;
+            let data = with_resampled_rows(problem.data, &resample_ids, &row_idx, &keep)?;
             let est =
                 fit_once(&self.estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
             ates.push(est.ate);

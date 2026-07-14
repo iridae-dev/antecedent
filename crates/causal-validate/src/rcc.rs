@@ -13,7 +13,7 @@ use causal_identify::IdentifiedEstimand;
 
 use crate::common::{
     RefutationProblem, RefutationReport, fill_gaussian, fit_once, linear_estimator_no_bootstrap,
-    with_extra_float,
+    replicate_p_value, with_extra_float,
 };
 use crate::error::ValidationError;
 
@@ -22,8 +22,9 @@ use crate::error::ValidationError;
 pub struct RandomCommonCause {
     /// Replicate count.
     pub replicates: u32,
-    /// Pass if mean `|refuted_ate - original_ate|` is below this threshold.
-    pub abs_delta_threshold: f64,
+    /// Pass if the refit ATE distribution is consistent with the original estimate at
+    /// this significance level (two-sided normal test on the replicates, `p >= alpha`).
+    pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
 }
@@ -35,14 +36,10 @@ impl Default for RandomCommonCause {
 }
 
 impl RandomCommonCause {
-    /// Default: 20 replicates, threshold 0.15.
+    /// Default: 20 replicates, significance level 0.05.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            replicates: 20,
-            abs_delta_threshold: 0.15,
-            estimator: linear_estimator_no_bootstrap(),
-        }
+        Self { replicates: 20, alpha: 0.05, estimator: linear_estimator_no_bootstrap() }
     }
 
     /// Run the random-common-cause refuter.
@@ -56,9 +53,9 @@ impl RandomCommonCause {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
-        if self.replicates == 0 {
+        if self.replicates < 2 {
             return Err(ValidationError::NotApplicable {
-                message: "random common cause requires replicates > 0",
+                message: "random common cause requires replicates >= 2",
             });
         }
         if &*problem.estimand.method != "backdoor.adjustment" {
@@ -68,10 +65,9 @@ impl RandomCommonCause {
         }
         let n = problem.data.row_count();
         let mut noise = vec![0.0; n];
-        let mut sum_delta = 0.0;
-        let mut sum_ate = 0.0;
+        let mut ates = Vec::with_capacity(self.replicates as usize);
         for r in 0..self.replicates {
-            fill_gaussian(&mut noise, ctx, 0xA7E0_0002_u64.wrapping_add(u64::from(r)));
+            fill_gaussian(&mut noise, ctx, 0xA7E0_0002_0000_u64.wrapping_add(u64::from(r)));
             let (data, new_id) = with_extra_float(
                 problem.data,
                 &format!("__rcc_{r}"),
@@ -79,25 +75,25 @@ impl RandomCommonCause {
             )?;
             let estimand = extend_adjustment(problem.estimand, new_id);
             let est = fit_once(&self.estimator, &data, &estimand, problem.query, workspace, ctx)?;
-            sum_delta += (est.ate - problem.original.ate).abs();
-            sum_ate += est.ate;
+            ates.push(est.ate);
         }
-        let mean_delta = sum_delta / f64::from(self.replicates);
-        let mean_ate = sum_ate / f64::from(self.replicates);
-        let passed = mean_delta < self.abs_delta_threshold;
+        let mean_ate = ates.iter().sum::<f64>() / f64::from(self.replicates);
+        let p_value = replicate_p_value(&ates, problem.original.ate);
+        let passed = p_value >= self.alpha;
         Ok(RefutationReport {
             refuter: Arc::from("random.common_cause"),
             original_ate: problem.original.ate,
             refuted_ate: mean_ate,
-            comparison: mean_delta,
+            comparison: p_value,
             informative: true,
             passed,
             failure_condition: if passed {
                 None
             } else {
                 Some(Arc::from(format!(
-                    "mean |ΔATE|={mean_delta} exceeded threshold {}",
-                    self.abs_delta_threshold
+                    "refit ATE distribution (mean {mean_ate}) is inconsistent with the \
+                     original estimate (p={p_value} < alpha={})",
+                    self.alpha
                 )))
             },
             replicates: self.replicates,

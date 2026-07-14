@@ -91,7 +91,8 @@ impl TemporalCpdag {
     ///
     /// # Errors
     ///
-    /// Unknown nodes, duplicates, Circle marks, contemporaneous self-edges, or directed cycles.
+    /// Unknown nodes, duplicates, Circle marks, contemporaneous self-edges,
+    /// lagged self-loops (reported as [`GraphError::Cycle`]), or directed cycles.
     pub fn insert_marked(&mut self, edge: MarkedEdge) -> Result<(), GraphError> {
         if !edge.is_cpdag_legal() {
             return Err(GraphError::InvalidEndpoints {
@@ -100,12 +101,21 @@ impl TemporalCpdag {
         }
         self.validate_node(edge.a)?;
         self.validate_node(edge.b)?;
-        if edge.a == edge.b {
-            if let NodeRef::Lagged { variable, lag } = self.nodes[edge.a.as_usize()] {
-                if lag.is_contemporaneous() {
-                    return Err(GraphError::ContemporaneousSelfEdge { variable });
-                }
+        // Match TemporalDag::insert_directed: compare NodeRefs, not dense ids,
+        // so duplicate nodes at the same (variable, lag) are also self-edges.
+        if let (
+            NodeRef::Lagged { variable: v1, lag: l1 },
+            NodeRef::Lagged { variable: v2, lag: l2 },
+        ) = (self.nodes[edge.a.as_usize()], self.nodes[edge.b.as_usize()])
+        {
+            if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
+                return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
             }
+        }
+        if edge.a == edge.b {
+            // A lagged self-loop on a single node is a cycle once oriented,
+            // matching TemporalDag which reports Cycle for dense self-loops.
+            return Err(GraphError::Cycle { from: edge.a.raw(), to: edge.b.raw() });
         }
         if self.has_edge(edge.a, edge.b) {
             return Err(GraphError::DuplicateEdge { from: edge.a.raw(), to: edge.b.raw() });
@@ -344,7 +354,11 @@ impl TemporalCpdag {
         ws.frontier.push(from);
         ws.visited.insert(from);
         while let Some(n) = ws.frontier.pop() {
-            for c in self.children(n) {
+            for e in &self.adj[n.as_usize()] {
+                if !matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)) {
+                    continue;
+                }
+                let c = e.neighbor;
                 if c == to {
                     return true;
                 }
@@ -440,6 +454,34 @@ mod tests {
         assert_eq!(cpdag.edge_between(a, b).unwrap().parent_child(), Some((a, b)));
         let back = cpdag.to_directed_skeleton().unwrap();
         assert!(back.reaches(a, b));
+    }
+
+    #[test]
+    fn rejects_contemporaneous_self_edges() {
+        let mut g = TemporalCpdag::empty();
+        let x = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        assert!(matches!(
+            g.insert_undirected(x, x),
+            Err(GraphError::ContemporaneousSelfEdge { .. })
+        ));
+        assert!(matches!(g.insert_directed(x, x), Err(GraphError::ContemporaneousSelfEdge { .. })));
+        // Duplicate node at the same (variable, lag) is still a self-edge.
+        let x2 = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        assert!(matches!(
+            g.insert_directed(x, x2),
+            Err(GraphError::ContemporaneousSelfEdge { .. })
+        ));
+        assert!(g.edges().is_empty());
+    }
+
+    #[test]
+    fn rejects_lagged_self_loops() {
+        let mut g = TemporalCpdag::empty();
+        let x1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        assert!(matches!(g.insert_undirected(x1, x1), Err(GraphError::Cycle { .. })));
+        assert!(matches!(g.insert_directed(x1, x1), Err(GraphError::Cycle { .. })));
+        assert_eq!(g.undirected_edge_count(), 0);
+        assert!(g.edges().is_empty());
     }
 
     #[test]

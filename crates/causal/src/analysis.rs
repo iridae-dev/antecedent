@@ -19,7 +19,9 @@ use causal_core::{
     TemporalEffectQuery, VERSION, VariableId,
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus, TemporalConstraints};
+use causal_discovery::{
+    DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus, TemporalConstraints,
+};
 use causal_estimate::{
     AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace,
     FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
@@ -154,13 +156,15 @@ impl CausalAnalysisBuilder {
     /// `accept` only auto-completes when the oriented CPDAG has no undirected marks;
     /// otherwise compile still returns review-required (no silent coercion).
     #[must_use]
-    pub fn discover_pcmci_plus(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
-        self.graph = Some(GraphInput::DiscoverPcmciPlus {
-            max_lag,
-            alpha,
-            fdr,
-            accept_discovered: accept,
-        });
+    pub fn discover_pcmci_plus(
+        mut self,
+        max_lag: u32,
+        alpha: f64,
+        fdr: bool,
+        accept: bool,
+    ) -> Self {
+        self.graph =
+            Some(GraphInput::DiscoverPcmciPlus { max_lag, alpha, fdr, accept_discovered: accept });
         self
     }
 
@@ -313,12 +317,7 @@ impl CausalAnalysis {
             (
                 DataInput::Temporal(data),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmci { .. },
-            )
-            | (
-                DataInput::Temporal(data),
-                CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmciPlus { .. },
+                GraphInput::DiscoverPcmci { .. } | GraphInput::DiscoverPcmciPlus { .. },
             ) => {
                 // Review usually required; logical metadata still inspectable.
                 compile_logical_temporal_effect(data, &TemporalDag::empty(), q, self.split, true)
@@ -421,8 +420,11 @@ impl CausalAnalysis {
                             .into(),
                 });
             }
-            (DataInput::Tabular(_), _, GraphInput::DiscoverPcmci { .. })
-            | (DataInput::Tabular(_), _, GraphInput::DiscoverPcmciPlus { .. }) => {
+            (
+                DataInput::Tabular(_),
+                _,
+                GraphInput::DiscoverPcmci { .. } | GraphInput::DiscoverPcmciPlus { .. },
+            ) => {
                 return Err(AnalysisError::Compile {
                     message:
                         "PCMCI / PCMCI+ discovery requires temporal data and a temporal effect query"
@@ -718,7 +720,7 @@ impl CausalAnalysis {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
-            wall_time_ns: started.elapsed().as_nanos() as u64,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
         }))
     }
 
@@ -774,7 +776,7 @@ impl CausalAnalysis {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
-            wall_time_ns: started.elapsed().as_nanos() as u64,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
         }))
     }
 
@@ -837,7 +839,7 @@ impl CausalAnalysis {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
-            wall_time_ns: started.elapsed().as_nanos() as u64,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
         }))
     }
 }

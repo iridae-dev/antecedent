@@ -40,6 +40,13 @@ pub enum DataError {
         /// Explanation.
         context: &'static str,
     },
+    /// Temporal gather requires a complete series (no missing values or masked rows).
+    IncompleteSeries {
+        /// Offending variable, when the gap is column-specific.
+        id: Option<VariableId>,
+        /// Explanation.
+        message: &'static str,
+    },
     /// Invalid argument (split policy, configuration, etc.).
     InvalidArgument {
         /// Explanation.
@@ -61,6 +68,10 @@ impl fmt::Display for DataError {
             }
             Self::InvalidValidity { message } => write!(f, "invalid validity: {message}"),
             Self::EmptySelection { context } => write!(f, "empty selection: {context}"),
+            Self::IncompleteSeries { id, message } => match id {
+                Some(id) => write!(f, "incomplete series (variable {id}): {message}"),
+                None => write!(f, "incomplete series: {message}"),
+            },
             Self::InvalidArgument { message } => write!(f, "invalid argument: {message}"),
             Self::Schema(msg) => write!(f, "schema error: {msg}"),
         }

@@ -10,7 +10,7 @@ use causal_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalQuery, VariableId,
 };
-use causal_expr::{CausalExprArena, ExprId, IdentifiedEstimand};
+use causal_expr::{CausalExprArena, IdentifiedEstimand};
 
 use crate::error::IdentificationError;
 use crate::result::{
@@ -50,12 +50,16 @@ impl SharpRdIdentifier {
     /// # Errors
     ///
     /// Query is not an average-effect query, or design config is invalid.
-    pub fn identify(&self, query: CausalQuery) -> Result<IdentificationResult, IdentificationError> {
-        let CausalQuery::AverageEffect(_) = &query else {
+    pub fn identify(
+        &self,
+        query: CausalQuery,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        let CausalQuery::AverageEffect(ate) = &query else {
             return Err(IdentificationError::UnsupportedQuery {
                 message: "sharp RD identifier requires an average-effect query",
             });
         };
+        let ate = ate.clone();
         if !self.config.bandwidth.is_finite() || self.config.bandwidth <= 0.0 {
             return Err(IdentificationError::UnsupportedQuery {
                 message: "sharp RD bandwidth must be finite and positive",
@@ -67,9 +71,24 @@ impl SharpRdIdentifier {
             });
         }
 
-        let arena = CausalExprArena::new();
-        let estimand =
-            IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
+        // Build the functional in a real arena (same convention as the
+        // backdoor/frontdoor/IV identifiers): the sharp-RD estimand is the
+        // do-contrast at the cutoff, expressed as a backdoor ATE with an
+        // empty adjustment set.
+        let (active, control) = match (&ate.active, &ate.control) {
+            (
+                causal_core::Intervention::Set { value: active, .. },
+                causal_core::Intervention::Set { value: control, .. },
+            ) => (active.clone(), control.clone()),
+            _ => {
+                return Err(IdentificationError::UnsupportedQuery {
+                    message: "sharp RD ATE requires Set interventions",
+                });
+            }
+        };
+        let mut arena = CausalExprArena::new();
+        let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &[], active, control);
+        let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), functional);
 
         let mut assumptions = AssumptionSet::new();
         assumptions.push(AssumptionRecord {
@@ -141,5 +160,8 @@ mod tests {
         assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(result.estimands.len(), 1);
         assert_eq!(result.required_assumptions.len(), 2);
+        // The functional must resolve to a real node in the result's arena.
+        assert!(!result.arena.is_empty());
+        let _ = result.arena.node(result.estimands[0].functional);
     }
 }

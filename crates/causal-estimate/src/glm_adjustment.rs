@@ -28,7 +28,7 @@ use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
     CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    fit_glm,
+    fit_glm, form_xtx, invert_square,
 };
 
 use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
@@ -242,10 +242,21 @@ impl GlmAdjustmentAte {
         );
         let n = diffs.len() as f64;
         let ate = diffs.iter().sum::<f64>() / n;
-        // Naive per-unit dispersion of the g-computation contrast; ignores GLM parameter
-        // estimation uncertainty (ok as a rough spread indicator — the bootstrap SE below
-        // refits the GLM on every resample and is the recommended uncertainty estimate).
-        let se_analytic = sample_std(&diffs) / n.sqrt();
+        // Conditional-on-covariates delta-method SE (standard g-computation practice):
+        // propagates GLM coefficient uncertainty through the mean contrast, treating the
+        // observed covariate rows as fixed. The bootstrap SE below additionally resamples
+        // rows and refits the GLM.
+        let se_analytic = gcomp_delta_method_se(
+            problem.family,
+            &problem.design.matrix,
+            problem.design.nrows,
+            problem.design.ncols,
+            t_col,
+            &glm_fit.coefficients,
+            problem.active,
+            problem.control,
+            glm_fit.deviance,
+        );
 
         let se_bootstrap = if self.bootstrap_replicates == 0 {
             None
@@ -344,6 +355,104 @@ fn gcomp_diffs(
         diffs.push(family.mean_from_eta(eta_active) - family.mean_from_eta(eta_control));
     }
     diffs
+}
+
+/// Response-scale derivative `dμ/dη` at `eta` (equal to the variance function for these
+/// canonical links, up to the dispersion).
+fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
+    match family {
+        GlmFamily::BinomialLogit => {
+            let mu = 1.0 / (1.0 + (-eta).exp());
+            mu * (1.0 - mu)
+        }
+        GlmFamily::GaussianIdentity => 1.0,
+        GlmFamily::PoissonLog => eta.exp(),
+    }
+}
+
+/// Delta-method standard error for the g-computation ATE, **conditional on the observed
+/// covariate rows** (standard g-computation practice).
+///
+/// With gradient `g = (1/n) Σ_i [μ'(η_i1)·x_i1 − μ'(η_i0)·x_i0]` over the coefficient vector
+/// (where `x_i1`/`x_i0` are row `i` with the treatment column set to `active`/`control`) and
+/// `Cov(β̂) = φ·(XᵀWX)⁻¹` — the inverse Fisher information at the fit, `W = diag(μ'(η_i))`
+/// for these canonical links, dispersion `φ = RSS/(n−p)` for Gaussian and `1` otherwise —
+/// the SE is `sqrt(gᵀ Cov(β̂) g)`. Returns `NaN` when the information matrix is singular.
+#[allow(clippy::too_many_arguments)]
+fn gcomp_delta_method_se(
+    family: GlmFamily,
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    t_col: usize,
+    coefficients: &[f64],
+    active: f64,
+    control: f64,
+    deviance: f64,
+) -> f64 {
+    // Fisher information XᵀWX at the fitted coefficients, via a √W-scaled design copy.
+    let mut x_w = vec![0.0; nrows * ncols];
+    for r in 0..nrows {
+        let mut eta = 0.0;
+        for c in 0..ncols {
+            eta += x_colmajor[c * nrows + r] * coefficients[c];
+        }
+        let sqrt_w = mean_derivative(family, eta).max(0.0).sqrt();
+        for c in 0..ncols {
+            x_w[c * nrows + r] = x_colmajor[c * nrows + r] * sqrt_w;
+        }
+    }
+    let mut info = vec![0.0; ncols * ncols];
+    form_xtx(&x_w, nrows, ncols, &mut info);
+    let Some(cov_unscaled) = invert_square(&info, ncols) else {
+        return f64::NAN;
+    };
+    let n = nrows as f64;
+    let dispersion = match family {
+        // For Gaussian/identity the fit's deviance is the RSS.
+        GlmFamily::GaussianIdentity => deviance / (n - ncols as f64).max(1.0),
+        GlmFamily::BinomialLogit | GlmFamily::PoissonLog => 1.0,
+    };
+
+    // Gradient of the mean g-computation contrast w.r.t. the coefficient vector.
+    let mut grad = vec![0.0; ncols];
+    for r in 0..nrows {
+        let mut eta_active = 0.0;
+        let mut eta_control = 0.0;
+        for c in 0..ncols {
+            let coef = coefficients[c];
+            if c == t_col {
+                eta_active += active * coef;
+                eta_control += control * coef;
+            } else {
+                let val = x_colmajor[c * nrows + r];
+                eta_active += val * coef;
+                eta_control += val * coef;
+            }
+        }
+        let d1 = mean_derivative(family, eta_active);
+        let d0 = mean_derivative(family, eta_control);
+        for c in 0..ncols {
+            let (x1, x0) = if c == t_col {
+                (active, control)
+            } else {
+                let val = x_colmajor[c * nrows + r];
+                (val, val)
+            };
+            grad[c] += d1 * x1 - d0 * x0;
+        }
+    }
+    for g in &mut grad {
+        *g /= n;
+    }
+
+    let mut quad = 0.0;
+    for i in 0..ncols {
+        for j in 0..ncols {
+            quad += grad[i] * cov_unscaled[i * ncols + j] * grad[j];
+        }
+    }
+    (dispersion * quad.max(0.0)).sqrt()
 }
 
 #[cfg(test)]
@@ -487,6 +596,110 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::Overlap { .. }));
+    }
+
+    /// Gaussian SCM with homogeneous contrasts: `Y = 1 + 2T + Z + noise` (no interactions).
+    fn gaussian_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xFEED_u64);
+        let mut t = vec![0.0; n];
+        let mut z = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let ti = (i % 2) as f64;
+            let zi = (i as f64) / (n as f64) - 0.5;
+            let noise = rng.next_f64() - 0.5;
+            t[i] = ti;
+            z[i] = zi;
+            y[i] = 1.0 + 2.0 * ti + zi + noise;
+        }
+
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        (TabularData::new(storage), estimand)
+    }
+
+    #[test]
+    fn gaussian_delta_method_se_positive_and_near_bootstrap() {
+        // Homogeneous contrasts: every per-row contrast equals β_T exactly, so the old
+        // spread-based formula (sample_std(diffs)/√n) returned ≈0 regardless of coefficient
+        // noise. The delta-method SE must be positive and on the bootstrap's scale.
+        let (data, estimand) = gaussian_scm(400, 6);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = GlmAdjustmentAte {
+            bootstrap_replicates: 200,
+            family: GlmFamily::GaussianIdentity,
+            ..GlmAdjustmentAte::new()
+        };
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = GlmAdjustmentWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(effect.se_analytic > 0.0, "se_analytic={}", effect.se_analytic);
+        let boot = effect.se_bootstrap.unwrap();
+        assert!(
+            effect.se_analytic < 3.0 * boot && effect.se_analytic > boot / 3.0,
+            "se_analytic={} se_bootstrap={boot}",
+            effect.se_analytic
+        );
     }
 
     #[test]

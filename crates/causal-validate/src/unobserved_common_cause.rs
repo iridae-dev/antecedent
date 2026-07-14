@@ -11,8 +11,8 @@ use causal_data::TableView;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, fill_gaussian, fit_once, float64_full,
-    linear_estimator_no_bootstrap, with_replaced_float,
+    RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, fit_once, float64_full,
+    linear_estimator_no_bootstrap, masked_sample_sd, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -27,12 +27,15 @@ use crate::error::ValidationError;
 pub struct UnobservedCommonCause {
     /// Replicate count (fresh `U` draw per replicate).
     pub replicates: u32,
-    /// Simulated confounder's linear effect on treatment.
+    /// Simulated confounder's linear effect on treatment, in treatment-sd units per unit
+    /// of the standard-normal confounder.
     pub effect_on_treatment: f64,
-    /// Simulated confounder's linear effect on outcome.
+    /// Simulated confounder's linear effect on outcome, in outcome-sd units per unit of
+    /// the standard-normal confounder.
     pub effect_on_outcome: f64,
-    /// Pass if mean `|refuted_ate - original_ate|` is below this threshold.
-    pub abs_delta_threshold: f64,
+    /// Pass if the mean `|refuted_ate - original_ate|`, standardized by `sd(Y)/sd(T)`
+    /// (the natural scale of an ATE), is below this threshold.
+    pub std_delta_threshold: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
 }
@@ -44,14 +47,14 @@ impl Default for UnobservedCommonCause {
 }
 
 impl UnobservedCommonCause {
-    /// Defaults: 20 replicates, effect 0.5 on both treatment and outcome, threshold 1.0.
+    /// Defaults: 20 replicates, effect 0.5 sd on both treatment and outcome, threshold 1.0.
     #[must_use]
     pub fn new() -> Self {
         Self {
             replicates: 20,
             effect_on_treatment: 0.5,
             effect_on_outcome: 0.5,
-            abs_delta_threshold: 1.0,
+            std_delta_threshold: 1.0,
             estimator: linear_estimator_no_bootstrap(),
         }
     }
@@ -80,15 +83,19 @@ impl UnobservedCommonCause {
         let n = problem.data.row_count();
         let t0 = float64_full(problem.data, problem.treatment())?;
         let y0 = float64_full(problem.data, problem.outcome())?;
+        let mut ids = vec![problem.treatment(), problem.outcome()];
+        ids.extend_from_slice(&problem.estimand.adjustment_set);
+        let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
+        let sd_t = masked_sample_sd(problem.data, problem.treatment(), &mask)?.max(1e-12);
+        let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?.max(1e-12);
+        let (kt, ky) = (self.effect_on_treatment * sd_t, self.effect_on_outcome * sd_y);
         let mut u = vec![0.0; n];
         let mut sum_delta = 0.0;
         let mut sum_ate = 0.0;
         for r in 0..self.replicates {
-            fill_gaussian(&mut u, ctx, 0xA7E0_0006_u64.wrapping_add(u64::from(r)));
-            let t: Vec<f64> =
-                t0.iter().zip(&u).map(|(&t, &u)| t + self.effect_on_treatment * u).collect();
-            let y: Vec<f64> =
-                y0.iter().zip(&u).map(|(&y, &u)| y + self.effect_on_outcome * u).collect();
+            fill_gaussian(&mut u, ctx, 0xA7E0_0006_0000_u64.wrapping_add(u64::from(r)));
+            let t: Vec<f64> = t0.iter().zip(&u).map(|(&t, &u)| t + kt * u).collect();
+            let y: Vec<f64> = y0.iter().zip(&u).map(|(&y, &u)| y + ky * u).collect();
             let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t))?;
             let data = with_replaced_float(&data, problem.outcome(), Arc::from(y))?;
             let est =
@@ -98,21 +105,22 @@ impl UnobservedCommonCause {
         }
         let mean_delta = sum_delta / f64::from(self.replicates);
         let mean_ate = sum_ate / f64::from(self.replicates);
-        let passed = mean_delta < self.abs_delta_threshold;
+        let std_delta = mean_delta / (sd_y / sd_t);
+        let passed = std_delta < self.std_delta_threshold;
         Ok(RefutationReport {
             refuter: Arc::from("unobserved.common_cause"),
             original_ate: problem.original.ate,
             refuted_ate: mean_ate,
-            comparison: mean_delta,
+            comparison: std_delta,
             informative: true,
             passed,
             failure_condition: if passed {
                 None
             } else {
                 Some(Arc::from(format!(
-                    "mean |ΔATE|={mean_delta} exceeded threshold {} under simulated confounding \
-                     (effect_on_treatment={}, effect_on_outcome={})",
-                    self.abs_delta_threshold, self.effect_on_treatment, self.effect_on_outcome
+                    "standardized mean |ΔATE|={std_delta} exceeded threshold {} under simulated \
+                     confounding (effect_on_treatment={} sd, effect_on_outcome={} sd)",
+                    self.std_delta_threshold, self.effect_on_treatment, self.effect_on_outcome
                 )))
             },
             replicates: self.replicates,

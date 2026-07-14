@@ -28,9 +28,9 @@ pub use parcorr_variants::{
     MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
 };
 pub use types::{
-    CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependence,
-    ConditionalIndependenceTest, ConfidenceMethod, CiPreparationPlan, PreparedCiTest,
-    KnnCmiWorkspace, SignificanceMethod,
+    CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
+    ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, KnnCmiWorkspace,
+    PreparedCiTest, SignificanceMethod,
 };
 
 #[cfg(test)]

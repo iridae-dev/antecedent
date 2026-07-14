@@ -147,10 +147,17 @@ fn fit_poisson(
         let mut max_delta = 0.0_f64;
         deviance = 0.0;
         for r in 0..nrows {
-            let mut eta = 0.0;
-            for c in 0..ncols {
-                eta += x_colmajor[c * nrows + r] * beta[c];
-            }
+            // Standard IRLS initialization: start from the data (eta0 = ln(y + 0.5))
+            // rather than beta = 0, which diverges for ordinary count magnitudes.
+            let eta = if iter == 1 {
+                (y[r] + 0.5).ln()
+            } else {
+                let mut acc = 0.0;
+                for c in 0..ncols {
+                    acc += x_colmajor[c * nrows + r] * beta[c];
+                }
+                acc
+            };
             let mu = eta.exp().max(1e-12);
             let w = mu.sqrt();
             let yi = y[r];
@@ -318,5 +325,23 @@ mod tests {
         .unwrap();
         assert!(fit.converged);
         assert!(fit.coefficients[1] > 0.3);
+    }
+
+    #[test]
+    fn poisson_intercept_only_converges_to_log_mean() {
+        let n = 40usize;
+        let x = vec![1.0; n];
+        let y = vec![100.0; n];
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = fit_glm(
+            GlmFamily::PoissonLog,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 1, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::default(),
+        )
+        .unwrap();
+        assert!(fit.converged, "iters={} deviance={}", fit.iterations, fit.deviance);
+        assert!((fit.coefficients[0] - 100.0_f64.ln()).abs() < 1e-6, "b0={}", fit.coefficients[0]);
     }
 }

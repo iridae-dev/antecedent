@@ -13,7 +13,10 @@ use super::parcorr::PartialCorrelation;
 use super::parcorr_variants::{
     MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
 };
-use super::types::{CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest};
+use super::types::{
+    CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependence,
+    ConditionalIndependenceTest,
+};
 use crate::error::StatsError;
 
 /// Resolve a CI test by stable name string.

@@ -16,12 +16,9 @@ use causal_core::ExecutionContext;
 
 use super::parcorr::PartialCorrelation;
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
     ConfidenceMethod, SignificanceMethod,
 };
-
-#[cfg(test)]
-use super::types::CiQuery;
 use crate::error::StatsError;
 
 pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
@@ -82,11 +79,17 @@ impl ConditionalIndependenceTest for RobustPartialCorrelation {
     }
 }
 
-/// Weighted partial correlation via row reweighting (sqrt-weight scaling).
+/// Weighted partial correlation: weighted least-squares residualization on `[1 | Z]`
+/// followed by weighted Pearson correlation of the residuals.
+///
+/// Row scaling by `sqrt(w)` alone is *not* used because the downstream kernel regresses
+/// on an unscaled intercept and centers with unweighted means, which is invalid for
+/// heterogeneous weights.
 #[derive(Clone, Debug)]
 pub struct WeightedPartialCorrelation {
-    inner: PartialCorrelation,
-    /// Per-row weights (length = n).
+    /// Per-row weights. May be longer than a batch's row count: lagged discovery frames
+    /// drop leading rows, so the *last* `nrows` weights are used (frame row `i` observes
+    /// series time `offset + i`, which suffix alignment matches).
     pub weights: Vec<f64>,
 }
 
@@ -94,7 +97,7 @@ impl WeightedPartialCorrelation {
     /// Construct with positive weights.
     #[must_use]
     pub fn new(weights: Vec<f64>) -> Self {
-        Self { inner: PartialCorrelation::new(), weights }
+        Self { weights }
     }
 }
 
@@ -102,30 +105,195 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
     fn test_batch(
         &self,
         request: &CiBatchRequest<'_>,
-        workspace: &mut CiWorkspace,
+        _workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
         let n = request.nrows()?;
-        if self.weights.len() != n {
-            return Err(StatsError::Shape { message: "weights length != nrows" });
+        if self.weights.len() < n {
+            return Err(StatsError::Shape { message: "weights length < nrows" });
         }
-        let mut scaled: Vec<Vec<f64>> = request.columns.iter().map(|_| vec![0.0; n]).collect();
-        for r in 0..n {
-            let w = self.weights[r].max(0.0).sqrt();
-            for c in 0..request.columns.len() {
-                scaled[c][r] = request.columns[c][r] * w;
+        let weights = &self.weights[self.weights.len() - n..];
+        let mut results = Vec::with_capacity(request.queries.len());
+        for (qi, q) in request.queries.iter().enumerate() {
+            let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
+            let r = weighted_parcorr_stat(request.columns, q.x, q.y, z, weights, n)?;
+            let df = (n as f64) - 2.0 - (q.z_len as f64);
+            let result = match request.significance {
+                SignificanceMethod::Analytic => {
+                    if df <= 0.0 {
+                        return Err(StatsError::Shape { message: "non-positive residual df" });
+                    }
+                    let p = crate::ci::analytic::analytic_parcorr_pvalue(r, df);
+                    let ci = match request.confidence {
+                        ConfidenceMethod::None => None,
+                        ConfidenceMethod::Analytic { level } => {
+                            Some(crate::ci::analytic::analytic_parcorr_ci(r, df, level))
+                        }
+                    };
+                    CiResult { statistic: r, p_value: p, df, ci }
+                }
+                SignificanceMethod::BlockShuffle { replicates, block_size } => {
+                    if block_size == 0 || replicates == 0 {
+                        return Err(StatsError::Shape {
+                            message: "block shuffle needs positive block_size and replicates",
+                        });
+                    }
+                    let p = weighted_block_shuffle_pvalue(
+                        request.columns,
+                        *q,
+                        z,
+                        weights,
+                        r,
+                        replicates,
+                        block_size,
+                        ctx,
+                        qi as u64,
+                    )?;
+                    CiResult { statistic: r, p_value: p, df, ci: None }
+                }
+            };
+            results.push(result);
+        }
+        Ok(CiBatchResult { results })
+    }
+}
+
+/// Weighted partial correlation of `columns[x]` and `columns[y]` given `z`.
+fn weighted_parcorr_stat(
+    columns: &[&[f64]],
+    x: usize,
+    y: usize,
+    z: &[usize],
+    weights: &[f64],
+    n: usize,
+) -> Result<f64, StatsError> {
+    let ex = weighted_residuals(columns[x], columns, z, weights, n)?;
+    let ey = weighted_residuals(columns[y], columns, z, weights, n)?;
+    weighted_pearson(&ex, &ey, weights)
+        .ok_or(StatsError::Shape { message: "degenerate weighted correlation" })
+}
+
+/// Residuals of `target` after weighted least squares on `[1 | Z]`.
+fn weighted_residuals(
+    target: &[f64],
+    columns: &[&[f64]],
+    z: &[usize],
+    weights: &[f64],
+    n: usize,
+) -> Result<Vec<f64>, StatsError> {
+    let q = 1 + z.len();
+    let mut g = vec![0.0; q * q];
+    let mut rhs = vec![0.0; q];
+    let mut d = vec![0.0; q];
+    for r in 0..n {
+        let w = weights[r].max(0.0);
+        d[0] = 1.0;
+        for (j, &zc) in z.iter().enumerate() {
+            d[j + 1] = columns[zc][r];
+        }
+        for i in 0..q {
+            rhs[i] += w * d[i] * target[r];
+            for j in 0..q {
+                g[i * q + j] += w * d[i] * d[j];
             }
         }
-        let refs: Vec<&[f64]> = scaled.iter().map(Vec::as_slice).collect();
-        let req = CiBatchRequest {
-            columns: &refs,
-            queries: request.queries,
-            z_flat: request.z_flat,
-            significance: request.significance,
-            confidence: request.confidence,
-        };
-        self.inner.test_batch(&req, workspace, ctx)
     }
+    let g_inv = invert_symmetric(&g, q)?;
+    let mut beta = vec![0.0; q];
+    for i in 0..q {
+        for j in 0..q {
+            beta[i] += g_inv[i * q + j] * rhs[j];
+        }
+    }
+    let mut out = vec![0.0; n];
+    for r in 0..n {
+        let mut pred = beta[0];
+        for (j, &zc) in z.iter().enumerate() {
+            pred += beta[j + 1] * columns[zc][r];
+        }
+        out[r] = target[r] - pred;
+    }
+    Ok(out)
+}
+
+/// Weighted Pearson correlation with weighted centering.
+fn weighted_pearson(x: &[f64], y: &[f64], weights: &[f64]) -> Option<f64> {
+    let n = x.len();
+    let mut sw = 0.0;
+    let mut mx = 0.0;
+    let mut my = 0.0;
+    for i in 0..n {
+        let w = weights[i].max(0.0);
+        sw += w;
+        mx += w * x[i];
+        my += w * y[i];
+    }
+    if sw <= 0.0 {
+        return None;
+    }
+    mx /= sw;
+    my /= sw;
+    let mut cxx = 0.0;
+    let mut cyy = 0.0;
+    let mut cxy = 0.0;
+    for i in 0..n {
+        let w = weights[i].max(0.0);
+        let dx = x[i] - mx;
+        let dy = y[i] - my;
+        cxx += w * dx * dx;
+        cyy += w * dy * dy;
+        cxy += w * dx * dy;
+    }
+    let denom = (cxx * cyy).sqrt();
+    if denom <= f64::EPSILON {
+        return None;
+    }
+    Some((cxy / denom).clamp(-1.0, 1.0))
+}
+
+/// Block-shuffle null for the weighted statistic (X shuffled by blocks; weights stay
+/// aligned with rows).
+#[allow(clippy::too_many_arguments)]
+fn weighted_block_shuffle_pvalue(
+    columns: &[&[f64]],
+    q: CiQuery,
+    z: &[usize],
+    weights: &[f64],
+    observed: f64,
+    replicates: u32,
+    block_size: usize,
+    ctx: &ExecutionContext,
+    stream_salt: u64,
+) -> Result<f64, StatsError> {
+    let n = columns[q.x].len();
+    let x = columns[q.x];
+    let n_blocks = n.div_ceil(block_size);
+    let mut block_perm: Vec<usize> = (0..n_blocks).collect();
+    let mut shuffled = vec![0.0; n];
+    let mut rng = ctx.rng.stream(0x77C1_u64.wrapping_add(stream_salt));
+    let mut extreme = 0u32;
+    let abs_obs = observed.abs();
+    for _ in 0..replicates {
+        for i in (1..n_blocks).rev() {
+            let j = (rng.next_u64() as usize) % (i + 1);
+            block_perm.swap(i, j);
+        }
+        let mut dst = 0usize;
+        for &b in &block_perm {
+            let start = b * block_size;
+            let end = (start + block_size).min(n);
+            let len = end - start;
+            shuffled[dst..dst + len].copy_from_slice(&x[start..end]);
+            dst += len;
+        }
+        let mut cols: Vec<&[f64]> = columns.to_vec();
+        cols[q.x] = &shuffled;
+        let r = weighted_parcorr_stat(&cols, q.x, q.y, z, weights, n)?;
+        if r.abs() >= abs_obs {
+            extreme += 1;
+        }
+    }
+    Ok((f64::from(extreme) + 1.0) / (f64::from(replicates) + 1.0))
 }
 
 /// Multivariate partial correlation via block residualization and first canonical
@@ -546,6 +714,34 @@ mod tests {
         let a = PartialCorrelation::new().test_batch(&req, &mut ws, &ctx).unwrap();
         let b = WeightedPartialCorrelation::new(w).test_batch(&req, &mut ws, &ctx).unwrap();
         assert!((a.results[0].statistic - b.results[0].statistic).abs() < 1e-9);
+    }
+
+    #[test]
+    fn weighted_independent_nonzero_means_near_zero() {
+        // Independent columns with large common offsets and heterogeneous weights must
+        // not produce spurious correlation (regression test for the sqrt-w scaling bug).
+        let n = 200usize;
+        let x: Vec<f64> = (0..n).map(|i| 10.0 + ((i * 37 + 11) % 17) as f64 * 0.01).collect();
+        let y: Vec<f64> = (0..n).map(|i| 10.0 + ((i * 53 + 5) % 19) as f64 * 0.01).collect();
+        let w: Vec<f64> = (0..n).map(|i| 0.1 + ((i * 29 + 3) % 23) as f64 * 0.5).collect();
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(7);
+        let out = WeightedPartialCorrelation::new(w).test_batch(&req, &mut ws, &ctx).unwrap();
+        assert!(
+            out.results[0].statistic.abs() < 0.2,
+            "spurious weighted correlation: {}",
+            out.results[0].statistic
+        );
+        assert!(out.results[0].p_value > 0.01, "p={}", out.results[0].p_value);
     }
 
     #[test]

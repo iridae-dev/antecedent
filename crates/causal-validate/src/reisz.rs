@@ -31,7 +31,7 @@ use causal_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity}
 use crate::common::{RefutationProblem, RefutationReport};
 use crate::error::ValidationError;
 
-/// Default confounding-strength grid (L2 residual shift scale).
+/// Default confounding-strength grid (L2 residual shift, in units of `sd(Y)`).
 fn default_delta_grid() -> Vec<f64> {
     vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0]
 }
@@ -39,7 +39,8 @@ fn default_delta_grid() -> Vec<f64> {
 /// Reisz-representer robustness diagnostics for binary ATE.
 #[derive(Clone, Debug)]
 pub struct ReiszSensitivity {
-    /// Ascending grid of residual confounding strengths `δ`.
+    /// Ascending grid of residual confounding strengths `δ`, in units of `sd(Y)` so the
+    /// verdict is invariant to outcome units.
     pub delta_grid: Vec<f64>,
     /// Pass if the robustness `δ` exceeds this threshold.
     pub pass_threshold: f64,
@@ -84,6 +85,7 @@ impl ReiszSensitivity {
             });
         }
         let (alpha, y, ipw_ate) = self.representer_and_ipw(problem)?;
+        let sd_y = crate::common::sample_sd(&y).max(1e-12);
         let n = alpha.len() as f64;
         let alpha_l2 = (alpha.iter().map(|a| a * a).sum::<f64>() / n.max(1.0)).sqrt();
         if alpha_l2 < 1e-15 {
@@ -98,8 +100,9 @@ impl ReiszSensitivity {
         let mut last_bound_ate = ipw_ate;
         let mut robustness = sorted.last().copied().unwrap_or(1.0);
         for &delta in &sorted {
-            // Worst-case shift: |bias| ≤ δ · ||α||_2 (population L2 product bound).
-            let bias = delta * alpha_l2;
+            // Worst-case shift: |bias| ≤ δ·sd(Y) · ||α||_2 (population L2 product bound;
+            // δ expressed in sd(Y) units keeps the grid scale-free).
+            let bias = delta * sd_y * alpha_l2;
             let lower = ipw_ate - bias;
             let upper = ipw_ate + bias;
             // "Explained away" if the interval covers 0 or the nearer endpoint flips sign.

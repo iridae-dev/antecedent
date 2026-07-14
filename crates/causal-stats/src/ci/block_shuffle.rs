@@ -44,6 +44,7 @@ pub(crate) fn block_shuffle_pvalue(
     let mut rng = ctx.rng.stream(0xC1_u64.wrapping_add(stream_salt));
     let mut extreme = 0u32;
     let abs_obs = observed.abs();
+    let z_refs: Vec<&[f64]> = z_idxs.iter().map(|&i| columns[i]).collect();
     for _ in 0..replicates {
         for i in (1..n_blocks).rev() {
             let j = (rng.next_u64() as usize) % (i + 1);
@@ -57,7 +58,6 @@ pub(crate) fn block_shuffle_pvalue(
             workspace.shuffled[dst..dst + len].copy_from_slice(&x[start..end]);
             dst += len;
         }
-        let z_refs: Vec<&[f64]> = z_idxs.iter().map(|&i| columns[i]).collect();
         let r = partial_correlation(
             policy,
             &workspace.shuffled[..n],
