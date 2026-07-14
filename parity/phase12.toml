@@ -31,13 +31,13 @@ notes = "CPython 3.11–3.14 × Linux/macOS/Windows wheels in CI"
 
 [[capabilities]]
 id = "phase12.conformance_docs"
-status = "in_progress"
+status = "done"
 phase = 12
 notes = "docs/conformance generated from conformance/"
 
 [[capabilities]]
 id = "phase12.hot_path_baselines"
-status = "in_progress"
+status = "done"
 phase = 12
 notes = "docs/hot_paths.md + benches/baselines owners/contracts"
 
