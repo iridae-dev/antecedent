@@ -321,6 +321,7 @@ dependencies = [
  "causal-estimate",
  "causal-expr",
  "causal-identify",
+ "causal-prob",
  "causal-stats",
  "serde_json",
 ]
