@@ -56,6 +56,8 @@ pub fn encode_causal_posterior(
             IdentificationStatus::NonparametricallyIdentified => {
                 "NonparametricallyIdentified".into()
             }
+            IdentificationStatus::PartiallyIdentified => "PartiallyIdentified".into(),
+            IdentificationStatus::GraphDependent => "GraphDependent".into(),
             IdentificationStatus::NotIdentified => "NotIdentified".into(),
         },
         unidentified_mass: posterior.unidentified_mass,

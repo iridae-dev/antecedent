@@ -12,7 +12,9 @@ use causal_core::{
     TargetPopulation, TemporalEffectQuery,
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use causal_graph::{Dag, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
+use causal_graph::{
+    Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
+};
 
 use crate::error::AnalysisError;
 
@@ -46,6 +48,21 @@ pub enum GraphInput {
         ///
         /// If undirected contemporaneous edges remain after orientation, compile still
         /// returns [`CompiledAnalysis::ReviewRequiredCpdag`] (never silently coerces).
+        accept_discovered: bool,
+    },
+    /// Supplied static PAG (class-aware identification required).
+    Pag(Pag),
+    /// Supplied temporal PAG.
+    TemporalPag(TemporalPag),
+    /// Discover with LPCMCI (temporal PAG).
+    DiscoverLpcmci {
+        /// Max lag.
+        max_lag: u32,
+        /// Significance level.
+        alpha: f64,
+        /// Apply FDR.
+        fdr: bool,
+        /// Auto-accept when no circle marks remain.
         accept_discovered: bool,
     },
 }
@@ -230,6 +247,49 @@ pub enum CompiledAnalysis {
     ReviewRequired(TemporalGraphReview),
     /// PCMCI+ CPDAG needs acceptance of directed edges and orientation of undirected marks.
     ReviewRequiredCpdag(TemporalCpdagReview),
+    /// LPCMCI / PAG needs circle resolution or class-aware identification.
+    ReviewRequiredPag {
+        /// Message.
+        message: String,
+    },
+}
+
+/// Whether an identifier is DAG-only (cannot accept a PAG without completion / class-aware ID).
+#[must_use]
+pub fn is_dag_only_identifier(identifier: &str) -> bool {
+    matches!(
+        identifier,
+        "backdoor.adjustment"
+            | "backdoor.efficient"
+            | "frontdoor"
+            | "iv"
+            | "rd.sharp"
+            | "temporal.backdoor.unfolded"
+    )
+}
+
+/// Refuse DAG-only identification on a PAG input (DESIGN.md §21.2 / Phase 8 exit).
+///
+/// # Errors
+///
+/// [`AnalysisError::Compile`] when a DAG-only identifier is paired with PAG graph input.
+pub fn reject_dag_only_on_pag(
+    graph: &GraphInput,
+    identifier: &str,
+) -> Result<(), AnalysisError> {
+    let is_pag = matches!(
+        graph,
+        GraphInput::Pag(_) | GraphInput::TemporalPag(_) | GraphInput::DiscoverLpcmci { .. }
+    );
+    if is_pag && is_dag_only_identifier(identifier) {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "DAG-only identification {identifier:?} cannot accept a PAG without a completion \
+                 or class-aware identifier (use generalized.adjustment)"
+            ),
+        });
+    }
+    Ok(())
 }
 
 /// Inputs needed to compile a logical plan for the static ATE path.
@@ -607,5 +667,16 @@ mod tests {
         })
         .unwrap();
         assert_eq!(plan.record.estimator.as_deref(), Some("propensity.weighting"));
+    }
+
+    #[test]
+    fn refuses_dag_only_identifier_on_pag() {
+        use causal_graph::Pag;
+        let pag = Pag::with_variables(2);
+        let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), "backdoor.adjustment").unwrap_err();
+        assert!(matches!(err, AnalysisError::Compile { .. }));
+        // Class-aware identifier is allowed through this gate.
+        let pag = Pag::with_variables(2);
+        reject_dag_only_on_pag(&GraphInput::Pag(pag), "generalized.adjustment").unwrap();
     }
 }

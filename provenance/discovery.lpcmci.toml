@@ -1,0 +1,17 @@
+feature_id = "discovery.lpcmci"
+implementation_crate = "causal-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "High-recall causal discovery for autocorrelated time series with latent confounders", doi = "10.48550/arXiv.2007.01884", sections = ["LPCMCI"] },
+]
+
+upstream_implementations_observed = ["Tigramite LPCMCI"]
+
+test_sources = [
+  "lpcmci returns TemporalPag",
+  "discriminating_paths and rule_scheduling modules",
+]

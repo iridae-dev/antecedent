@@ -21,6 +21,17 @@ pub use inference::{BayesianConfig, InferenceMode};
 pub use planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
     StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
+    is_dag_only_identifier, reject_dag_only_on_pag,
+};
+
+// Phase 8 PAG / LPCMCI surfaces.
+pub use causal_discovery::Lpcmci;
+pub use causal_graph::{
+    Admg, CompletionSampler, Pag, PagCompletion, TemporalPag, TemporalPagReview, latent_project,
+};
+pub use causal_identify::{
+    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
+    IdentificationEnvelope, ProbabilityMass,
 };
 pub use posterior_io::{decode_causal_posterior_bytes, encode_causal_posterior};
 pub use result::CausalAnalysisResult;
@@ -469,7 +480,9 @@ mod tests {
                 assert!(plan.temporal_graph().is_some());
                 assert_eq!(plan.record.batch_size, Some(250));
             }
-            CompiledAnalysis::ReviewRequired(_) | CompiledAnalysis::ReviewRequiredCpdag(_) => {
+            CompiledAnalysis::ReviewRequired(_)
+            | CompiledAnalysis::ReviewRequiredCpdag(_)
+            | CompiledAnalysis::ReviewRequiredPag { .. } => {
                 panic!("expected Ready")
             }
         }
