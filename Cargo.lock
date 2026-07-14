@@ -185,6 +185,7 @@ dependencies = [
  "causal-graph",
  "causal-identify",
  "causal-io",
+ "causal-prob",
  "causal-validate",
  "serde_json",
 ]

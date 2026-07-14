@@ -21,6 +21,7 @@ causal-expr = { path = "../causal-expr" }
 causal-graph = { path = "../causal-graph" }
 causal-identify = { path = "../causal-identify" }
 causal-io = { path = "../causal-io" }
+causal-prob = { path = "../causal-prob" }
 causal-validate = { path = "../causal-validate" }
 
 [dev-dependencies]

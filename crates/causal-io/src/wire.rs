@@ -44,6 +44,8 @@ pub enum ArtifactKind {
     SchemaGraph,
     /// Identification/estimation analysis trace (Phase 1).
     AnalysisTrace,
+    /// Columnar causal posterior (Phase 6).
+    CausalPosterior,
     /// Other / future.
     Other(String),
 }
