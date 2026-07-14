@@ -2,9 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use causal_core::{CausalSchema, VariableId};
 
-use crate::column::ColumnView;
+use crate::column::{ColumnView, OwnedColumn};
 use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
@@ -81,6 +83,12 @@ impl TimeSeriesData {
     #[must_use]
     pub fn storage(&self) -> &OwnedColumnarStorage {
         &self.storage
+    }
+
+    /// Pointer identity of the columnar Arc (tests: planning must not clone payloads).
+    #[must_use]
+    pub fn columnar_ptr(&self) -> *const [OwnedColumn] {
+        Arc::as_ptr(self.storage.columns_arc())
     }
 }
 

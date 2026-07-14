@@ -17,6 +17,8 @@ pub mod error;
 pub mod lagged_frame;
 pub mod materialize;
 pub mod multi_env;
+pub mod multi_env_plan;
+pub mod panel;
 pub mod reference;
 pub mod resample;
 pub mod sample;
@@ -46,13 +48,15 @@ pub use error::DataError;
 pub use lagged_frame::LaggedFrame;
 pub use materialize::{MaterializationReason, materialization_diagnostic};
 pub use multi_env::MultiEnvironmentData;
+pub use multi_env_plan::{MultiEnvSamplePlan, PanelSamplePlan, series_columnar_ptr};
+pub use panel::{PanelData, PanelUnit, PanelUnitView};
 pub use reference::ReferencePointPolicy;
 pub use resample::{
     ResamplingPlan, fill_resample_indexes, fill_resample_weights, resample_timeseries,
 };
 pub use sample::{DropSummary, LagMap, LaggedColumn, PreparedSample, SamplePlan, SampleWorkspace};
 pub use sim::{KnownLaggedParent, LaggedLinearPair};
-pub use split::{DiscoveryEstimationSplit, TimeRange};
+pub use split::{DiscoveryEstimationSplit, EnvHoldoutSplit, RegimeHoldoutSplit, TimeRange};
 pub use storage::OwnedColumnarStorage;
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};

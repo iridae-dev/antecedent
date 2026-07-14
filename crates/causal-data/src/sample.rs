@@ -150,7 +150,7 @@ pub struct LaggedColumn {
 #[derive(Clone, Debug)]
 pub struct SamplePlan {
     columns: Arc<[LaggedColumn]>,
-    lag_map: LagMap,
+    lag_map: Arc<LagMap>,
 }
 
 impl SamplePlan {
@@ -182,15 +182,36 @@ impl SamplePlan {
         if columns.is_empty() {
             return Err(DataError::InvalidValidity { message: "sample plan needs ≥1 column" });
         }
-        let lag_map = LagMap::with_reference(series_len, max_lag, reference)?;
-        for c in columns.iter() {
+        let lag_map = Arc::new(LagMap::with_reference(series_len, max_lag, reference)?);
+        Self::validate_columns(lag_map.max_lag(), &columns)?;
+        Ok(Self { columns, lag_map })
+    }
+
+    /// Build a plan that reuses a shared lag map and column list (multi-env / panel).
+    ///
+    /// # Errors
+    ///
+    /// Empty column list, or a column lag exceeding the shared map's `max_lag`.
+    pub fn with_shared(
+        lag_map: Arc<LagMap>,
+        columns: Arc<[LaggedColumn]>,
+    ) -> Result<Self, DataError> {
+        if columns.is_empty() {
+            return Err(DataError::InvalidValidity { message: "sample plan needs ≥1 column" });
+        }
+        Self::validate_columns(lag_map.max_lag(), &columns)?;
+        Ok(Self { columns, lag_map })
+    }
+
+    fn validate_columns(max_lag: u32, columns: &[LaggedColumn]) -> Result<(), DataError> {
+        for c in columns {
             if c.lag.raw() > max_lag {
                 return Err(DataError::InvalidValidity {
                     message: "planned column lag exceeds max_lag",
                 });
             }
         }
-        Ok(Self { columns, lag_map })
+        Ok(())
     }
 
     /// Planned columns.
@@ -199,9 +220,21 @@ impl SamplePlan {
         &self.columns
     }
 
+    /// Shared column Arc (for multi-env plan reuse).
+    #[must_use]
+    pub fn columns_arc(&self) -> &Arc<[LaggedColumn]> {
+        &self.columns
+    }
+
     /// Lag map.
     #[must_use]
     pub fn lag_map(&self) -> &LagMap {
+        &self.lag_map
+    }
+
+    /// Shared lag-map Arc (identical lengths can share one map).
+    #[must_use]
+    pub fn lag_map_arc(&self) -> &Arc<LagMap> {
         &self.lag_map
     }
 

@@ -4,6 +4,8 @@
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_sign_loss)]
 
+use std::sync::Arc;
+
 use crate::error::DataError;
 
 /// Half-open index range `[start, end)`.
@@ -136,6 +138,73 @@ impl DiscoveryEstimationSplit {
     }
 }
 
+/// Environment holdout: discovery vs estimation environment index sets (no data copy).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnvHoldoutSplit {
+    /// Environment indices used for discovery / CI.
+    pub discovery_envs: Arc<[usize]>,
+    /// Environment indices held out for estimation / evaluation.
+    pub estimation_envs: Arc<[usize]>,
+}
+
+impl EnvHoldoutSplit {
+    /// Split environments: first `n_discovery` indices for discovery, rest for estimation.
+    ///
+    /// # Errors
+    ///
+    /// Empty total, or `n_discovery` not in `1..n_env`.
+    pub fn try_prefix(n_env: usize, n_discovery: usize) -> Result<Self, DataError> {
+        if n_env == 0 {
+            return Err(DataError::InvalidArgument {
+                message: "env holdout needs ≥1 environment".into(),
+            });
+        }
+        if n_discovery == 0 || n_discovery >= n_env {
+            return Err(DataError::InvalidArgument {
+                message: "n_discovery must be in 1..n_env".into(),
+            });
+        }
+        Ok(Self {
+            discovery_envs: Arc::from((0..n_discovery).collect::<Vec<_>>()),
+            estimation_envs: Arc::from((n_discovery..n_env).collect::<Vec<_>>()),
+        })
+    }
+}
+
+/// Regime holdout: discovery vs estimation regime id sets (no data copy).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RegimeHoldoutSplit {
+    /// Regime ids used for discovery.
+    pub discovery_regimes: Arc<[u32]>,
+    /// Regime ids held out for estimation.
+    pub estimation_regimes: Arc<[u32]>,
+}
+
+impl RegimeHoldoutSplit {
+    /// Partition a list of regime ids into discovery / estimation by prefix count.
+    ///
+    /// # Errors
+    ///
+    /// Empty list, or `n_discovery` not in `1..n_regimes`.
+    pub fn try_prefix(regime_ids: &[u32], n_discovery: usize) -> Result<Self, DataError> {
+        let n = regime_ids.len();
+        if n == 0 {
+            return Err(DataError::InvalidArgument {
+                message: "regime holdout needs ≥1 regime".into(),
+            });
+        }
+        if n_discovery == 0 || n_discovery >= n {
+            return Err(DataError::InvalidArgument {
+                message: "n_discovery must be in 1..n_regimes".into(),
+            });
+        }
+        Ok(Self {
+            discovery_regimes: Arc::from(regime_ids[..n_discovery].to_vec()),
+            estimation_regimes: Arc::from(regime_ids[n_discovery..].to_vec()),
+        })
+    }
+}
+
 fn validate_range(series_len: usize, range: TimeRange, label: &str) -> Result<(), DataError> {
     if range.is_empty() {
         return Err(DataError::InvalidArgument {
@@ -191,5 +260,19 @@ mod tests {
     #[test]
     fn rejects_bad_sum() {
         assert!(DiscoveryEstimationSplit::from_sizes(100, 40, 10, 40).is_err());
+    }
+
+    #[test]
+    fn env_holdout_prefix() {
+        let s = EnvHoldoutSplit::try_prefix(4, 2).unwrap();
+        assert_eq!(s.discovery_envs.as_ref(), &[0, 1]);
+        assert_eq!(s.estimation_envs.as_ref(), &[2, 3]);
+    }
+
+    #[test]
+    fn regime_holdout_prefix() {
+        let s = RegimeHoldoutSplit::try_prefix(&[10, 20, 30], 1).unwrap();
+        assert_eq!(s.discovery_regimes.as_ref(), &[10]);
+        assert_eq!(s.estimation_regimes.as_ref(), &[20, 30]);
     }
 }
