@@ -179,9 +179,10 @@ notes = "Clean-room Exact parents pin; black-box Tigramite graph compare not req
 id = "tigramite.discovery.lpcmci"
 group = "discovery"
 description = "LPCMCI"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase8"
 phase = 8
+notes = "causal-discovery Lpcmci → TemporalPag; conformance/phase8/lpcmci_chain"
 
 [[capabilities]]
 id = "tigramite.discovery.jpcmci_plus"
@@ -220,10 +221,10 @@ phase = 0
 id = "tigramite.graphs.separation"
 group = "graphs"
 description = "Path and separation functions"
-status = "pending"
-owner = ""
-phase = 1
-
+status = "done"
+owner = "phase8"
+phase = 8
+notes = "d-separation (P1) + ADMG/PAG m-separation (P8); gate_phase8.sh"
 [[capabilities]]
 id = "tigramite.graphs.endpoints"
 group = "graphs"

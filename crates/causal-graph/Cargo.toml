@@ -25,3 +25,7 @@ harness = false
 [[bench]]
 name = "dseparation"
 harness = false
+
+[[bench]]
+name = "mseparation"
+harness = false

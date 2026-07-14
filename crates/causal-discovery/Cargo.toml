@@ -29,3 +29,7 @@ harness = false
 [[bench]]
 name = "orientation"
 harness = false
+
+[[bench]]
+name = "pag_orientation"
+harness = false

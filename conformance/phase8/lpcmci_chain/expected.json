@@ -1,0 +1,5 @@
+{
+  "algorithm_id": "lpcmci",
+  "min_nodes": 2,
+  "tolerance_class": "Exact"
+}
