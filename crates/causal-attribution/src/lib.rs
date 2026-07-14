@@ -12,13 +12,24 @@
 )]
 
 mod anomaly;
+mod coalition;
 mod error;
 mod population;
+mod result;
+mod shapley;
 
 pub use anomaly::{
     AnomalyScores, ArrowStrength, arrow_strengths, intrinsic_influence, score_anomalies,
 };
+pub use coalition::{CoalitionCache, CoalitionKey};
 pub use error::AttributionError;
 pub use population::{
     multi_env_series, resolve_multi_env_rows, resolve_rows, subset_table,
+};
+pub use result::{
+    CacheStats, ChangeAttributionResult, ComponentContribution, ComputeBudget, FeatureRelevance,
+    InteractionTerm, MechanismChangeDetection, PathContribution, RootCauseRank, UnitChangeResult,
+};
+pub use shapley::{
+    CoalitionPayoff, ShapleyEstimate, check_shapley_size, estimate_shapley, sequential_allocate,
 };
