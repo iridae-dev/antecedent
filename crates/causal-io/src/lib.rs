@@ -20,7 +20,8 @@ pub use container::{
 pub use convert::{dag_from_wire, dag_to_wire, from_cbor, schema_to_wire, to_cbor};
 pub use error::IoError;
 pub use posterior::{
-    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact, encode_posterior_artifact,
+    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,
+    encode_posterior_artifact,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,

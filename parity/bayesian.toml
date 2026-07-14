@@ -1,0 +1,102 @@
+# Bayesian core capability inventory (Phase 6)
+# Authoritative status for DESIGN.md §32 Phase 6 deliverables.
+# Status: pending | in_progress | done | intentional_deviation
+
+library = "causal"
+phase = 6
+
+[[capabilities]]
+id = "bayes.prob.columnar_posteriors"
+status = "done"
+phase = 6
+notes = "causal-prob PosteriorDraws SoA; no object-per-draw"
+
+[[capabilities]]
+id = "bayes.prob.priors"
+status = "done"
+phase = 6
+notes = "PriorSet / GaussianCoefficientPrior / InvGamma; contrasts required for categoricals"
+
+[[capabilities]]
+id = "bayes.backend.conjugate_gaussian"
+status = "done"
+phase = 6
+notes = "Analytic Normal–Inv-Gamma / known-σ²"
+
+[[capabilities]]
+id = "bayes.backend.laplace_glm"
+status = "done"
+phase = 6
+notes = "Native Laplace MAP + Cholesky/LDLT + diagnostics gate (ADR 0006)"
+
+[[capabilities]]
+id = "bayes.estimate.gcomp"
+status = "done"
+phase = 6
+notes = "BayesianGComputationAte shares backdoor IR with frequentist path"
+
+[[capabilities]]
+id = "bayes.estimate.graph_envelopes"
+status = "done"
+phase = 6
+notes = "WeightedGraphSamples effect envelopes; unidentified mass preserved by default"
+
+[[capabilities]]
+id = "bayes.validate.ppc"
+status = "done"
+phase = 6
+notes = "Prior and posterior predictive checks"
+
+[[capabilities]]
+id = "bayes.validate.prior_sensitivity"
+status = "done"
+phase = 6
+notes = "Isotropic prior-scale grid"
+
+[[capabilities]]
+id = "bayes.data.bayesian_bootstrap"
+status = "done"
+phase = 6
+notes = "ResamplingPlan::BayesianBootstrap weight plans"
+
+[[capabilities]]
+id = "bayes.io.posterior_artifact"
+status = "done"
+phase = 6
+notes = "CBOR meta + f64 LE draws section"
+
+[[capabilities]]
+id = "bayes.facade.inference_mode"
+status = "done"
+phase = 6
+notes = "InferenceMode::Bayesian + Python posterior_* summaries"
+
+[[capabilities]]
+id = "bayes.model.pcm_scm_registry"
+status = "intentional_deviation"
+phase = 7
+notes = "Full causal-model / PCM/SCM registry deferred to Phase 7"
+
+[[capabilities]]
+id = "bayes.discovery.dag_posterior"
+status = "intentional_deviation"
+phase = 8
+notes = "Bayesian DAG/DBN posterior search (§13.7) not in Phase 6 deliverables"
+
+[[capabilities]]
+id = "bayes.backend.stan_pymc"
+status = "intentional_deviation"
+phase = 6
+notes = "External adapters deferred per ADR 0006"
+
+[[capabilities]]
+id = "bayes.backend.hierarchical_bvar_gp"
+status = "intentional_deviation"
+phase = 6
+notes = "After base Laplace/conjugate backend is stable (DESIGN §14.4)"
+
+[[capabilities]]
+id = "bayes.validate.mcmc_diagnostics"
+status = "intentional_deviation"
+phase = 6
+notes = "Chain ESS / divergences / SBC wait for HMC/SMC"

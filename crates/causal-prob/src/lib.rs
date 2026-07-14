@@ -4,6 +4,24 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::float_cmp,
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::neg_cmp_op_on_partial_ord,
+    clippy::unnecessary_wraps,
+    clippy::manual_memcpy,
+    clippy::single_match_else,
+    clippy::match_same_arms,
+    clippy::manual_range_contains,
+    clippy::doc_markdown,
+    clippy::needless_range_loop,
+    clippy::too_many_lines,
+    clippy::too_many_arguments
+)]
 
 pub mod backend;
 pub mod conjugate;
@@ -20,9 +38,7 @@ pub use backend::{
     LaplaceWorkspace, coefficient_schema,
 };
 pub use conjugate::{ConjugateGaussianBackend, fit_conjugate_gaussian};
-pub use diagnostics::{
-    HessianFactorization, InferenceDiagnostics, PriorSensitivitySummary,
-};
+pub use diagnostics::{HessianFactorization, InferenceDiagnostics, PriorSensitivitySummary};
 pub use error::ProbError;
 pub use graph_samples::{GraphIdentFlag, WeightedGraphSamples};
 pub use laplace::{LaplaceGlmBackend, fit_laplace_glm};
@@ -30,6 +46,4 @@ pub use posterior::{
     EffectBatch, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,
     PosteriorSchema, PosteriorSummary,
 };
-pub use prior::{
-    ContrastCoding, GaussianCoefficientPrior, InvGammaPrior, PriorSet, PriorSpec,
-};
+pub use prior::{ContrastCoding, GaussianCoefficientPrior, InvGammaPrior, PriorSet, PriorSpec};

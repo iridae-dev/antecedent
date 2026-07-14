@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::needless_range_loop,
+    clippy::too_many_lines,
+    clippy::many_single_char_names
+)]
 
 use std::sync::Arc;
 
@@ -160,12 +166,7 @@ impl PosteriorPredictiveCheck {
             }
             summaries.push(mean_y / n as f64);
         }
-        Ok(summarize_check(
-            PredictiveCheckKind::Posterior,
-            observed,
-            &summaries,
-            n_draws as u32,
-        ))
+        Ok(summarize_check(PredictiveCheckKind::Posterior, observed, &summaries, n_draws as u32))
     }
 }
 
@@ -236,9 +237,13 @@ impl PriorSensitivity {
 
     /// Convert sensitivity range into a refutation-style report.
     #[must_use]
-    pub fn to_report(&self, summary: &PriorSensitivitySummary, original_ate: f64) -> RefutationReport {
-        let min = summary.effect_means.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max = summary.effect_means.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    pub fn to_report(
+        &self,
+        summary: &PriorSensitivitySummary,
+        original_ate: f64,
+    ) -> RefutationReport {
+        let min = summary.effect_means.iter().copied().fold(f64::INFINITY, f64::min);
+        let max = summary.effect_means.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let range = max - min;
         RefutationReport {
             refuter: Arc::from("prior_sensitivity"),
@@ -345,16 +350,28 @@ mod tests {
         let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + 0.3 * z[i]).collect();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -386,12 +403,7 @@ mod tests {
 
         let mut ws = BayesianGCompWorkspace::default();
         let post = bayes
-            .fit(
-                &prep,
-                IdentificationStatus::NonparametricallyIdentified,
-                &mut ws,
-                &ctx,
-            )
+            .fit(&prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
             .unwrap();
         let post_rep = PosteriorPredictiveCheck { n_sims: 50 }.check(&prep, &post).unwrap();
         assert_eq!(post_rep.kind, PredictiveCheckKind::Posterior);
@@ -409,9 +421,7 @@ mod tests {
         let prep = bayes.prepare(&data, &estimand, &query).unwrap();
         let mut ws = BayesianGCompWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let sens = PriorSensitivity {
-            scales: Arc::from(vec![1.0, 10.0, 50.0]),
-        };
+        let sens = PriorSensitivity { scales: Arc::from(vec![1.0, 10.0, 50.0]) };
         let (summary, posts) = sens
             .evaluate(
                 &bayes,
@@ -423,7 +433,8 @@ mod tests {
             .unwrap();
         assert_eq!(summary.prior_scales.len(), 3);
         assert_eq!(posts.len(), 3);
-        let rep = sens.to_report(&summary, posts[0].summaries.mean[posts[0].effect_column().unwrap()]);
+        let rep =
+            sens.to_report(&summary, posts[0].summaries.mean[posts[0].effect_column().unwrap()]);
         assert!(rep.passed);
     }
 }

@@ -6,14 +6,18 @@
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::needless_range_loop,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::needless_pass_by_value,
+    clippy::doc_markdown,
+    clippy::many_single_char_names
 )]
 
 use std::sync::Arc;
 
 use causal_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
@@ -66,9 +70,9 @@ impl CausalPosterior {
     ///
     /// Missing effect column.
     pub fn probability_below(&self, threshold: f64) -> Result<f64, EstimationError> {
-        let q = self.effect_column().ok_or_else(|| {
-            EstimationError::Stats("CausalPosterior has no effect column".into())
-        })?;
+        let q = self
+            .effect_column()
+            .ok_or_else(|| EstimationError::Stats("CausalPosterior has no effect column".into()))?;
         self.draws
             .probability_below(q, threshold)
             .map_err(|e| EstimationError::Stats(e.to_string()))
@@ -304,9 +308,7 @@ impl BayesianGComputationAte {
         .map_err(prob_err)?;
 
         if !fit.diagnostics.allows_posterior() {
-            return Err(EstimationError::Stats(
-                "Bayesian fit refused without diagnostics".into(),
-            ));
+            return Err(EstimationError::Stats("Bayesian fit refused without diagnostics".into()));
         }
 
         let t_col = problem
@@ -357,10 +359,7 @@ impl BayesianGComputationAte {
             if matches!(q, PosteriorQuantityKind::ResidualVariance) {
                 continue;
             }
-            let dest = quantities
-                .iter()
-                .position(|qq| qq == q)
-                .expect("quantity present");
+            let dest = quantities.iter().position(|qq| qq == q).expect("quantity present");
             let col = mechanism
                 .coefficient_draws
                 .column(qi)
@@ -492,9 +491,7 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
         // Coefficient columns 0..ncols from the batch (ignore extra quantities).
         let mut coef_cols: Vec<&[f64]> = Vec::with_capacity(self.ncols);
         for c in 0..self.ncols {
-            let col = posterior
-                .column(c)
-                .map_err(|e| EstimationError::Stats(e.to_string()))?;
+            let col = posterior.column(c).map_err(|e| EstimationError::Stats(e.to_string()))?;
             coef_cols.push(col);
         }
 
@@ -585,9 +582,8 @@ pub fn nonidentified_with_prior(
     let schema = PosteriorSchema {
         quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("ate") }]),
     };
-    let draws =
-        PosteriorDraws::from_column_major(schema, 0, Arc::<[f64]>::from(Vec::<f64>::new()))
-            .expect("empty draws");
+    let draws = PosteriorDraws::from_column_major(schema, 0, Arc::<[f64]>::from(Vec::<f64>::new()))
+        .expect("empty draws");
     let summaries = draws.summarize();
     CausalPosterior {
         draws,
@@ -702,23 +698,15 @@ mod tests {
             .unwrap();
         let eq = post.effect_column().unwrap();
         let mean = post.summaries.mean[eq];
-        assert!(
-            (freq_est.ate - 2.0).abs() < 1e-6,
-            "frequentist ate={}",
-            freq_est.ate
-        );
+        assert!((freq_est.ate - 2.0).abs() < 1e-6, "frequentist ate={}", freq_est.ate);
         assert!((mean - freq_est.ate).abs() < 0.05, "bayes={mean} freq={}", freq_est.ate);
-        assert_eq!(
-            post.identification,
-            IdentificationStatus::NonparametricallyIdentified
-        );
+        assert_eq!(post.identification, IdentificationStatus::NonparametricallyIdentified);
     }
 
     #[test]
     fn prior_does_not_create_identification() {
         let prior = PriorSet::weakly_informative(3);
-        let post =
-            nonidentified_with_prior(&prior, InferenceDiagnostics::analytic("none"));
+        let post = nonidentified_with_prior(&prior, InferenceDiagnostics::analytic("none"));
         assert_eq!(post.identification, IdentificationStatus::NotIdentified);
         assert!(!post.assumptions.is_empty());
         assert!((post.unidentified_mass - 1.0).abs() < 1e-12);

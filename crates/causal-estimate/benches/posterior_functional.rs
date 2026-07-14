@@ -49,13 +49,7 @@ fn bench_gcomp_eval(c: &mut Criterion) {
     c.bench_function("posterior_gcomp_eval_n400_d512", |b| {
         b.iter(|| {
             evaluator
-                .evaluate_batch(
-                    black_box(&compiled),
-                    black_box(batch),
-                    &mut out,
-                    &mut ws,
-                    &ctx,
-                )
+                .evaluate_batch(black_box(&compiled), black_box(batch), &mut out, &mut ws, &ctx)
                 .unwrap();
             black_box(out.values[0]);
         });

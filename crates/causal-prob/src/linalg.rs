@@ -106,9 +106,7 @@ pub fn ldlt_decompose(a: &[f64], n: usize) -> Result<(Vec<f64>, Vec<f64>), ProbE
             di -= l[i * n + k] * l[i * n + k] * d[k];
         }
         if di.abs() < 1e-14 {
-            return Err(ProbError::Numerical {
-                message: format!("LDLT zero pivot at {i}"),
-            });
+            return Err(ProbError::Numerical { message: format!("LDLT zero pivot at {i}") });
         }
         d[i] = di;
         for j in (i + 1)..n {

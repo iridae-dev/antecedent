@@ -272,17 +272,14 @@ fn ate_result_from_analysis(
         .estimand
         .adjustment_set
         .iter()
-        .map(|id| {
-            names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
-        })
+        .map(|id| names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw())))
         .collect();
 
     let refutation_passed =
         result.refutations.is_empty() || result.refutations.iter().all(|r| r.passed);
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
     let overlap_ess = result.estimate.overlap_report.as_ref().map(|r| r.ess);
-    let overlap_propensity_min =
-        result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
+    let overlap_propensity_min = result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
 
     let (
         posterior_effect_mean,

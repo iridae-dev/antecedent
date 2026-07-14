@@ -34,10 +34,7 @@ impl GaussianCoefficientPrior {
     #[must_use]
     pub fn isotropic(n_coef: usize, scale: f64) -> Self {
         let var = scale * scale;
-        Self {
-            mean: Arc::from(vec![0.0; n_coef]),
-            variance: Arc::from(vec![var; n_coef]),
-        }
+        Self { mean: Arc::from(vec![0.0; n_coef]), variance: Arc::from(vec![var; n_coef]) }
     }
 
     /// Shared mean/variance broadcast to `n_coef` coefficients.
@@ -83,9 +80,7 @@ impl GaussianCoefficientPrior {
     /// Length mismatch or non-positive variance.
     pub fn validate(&self) -> Result<(), ProbError> {
         if self.mean.len() != self.variance.len() {
-            return Err(ProbError::InvalidPrior {
-                message: "mean and variance length mismatch",
-            });
+            return Err(ProbError::InvalidPrior { message: "mean and variance length mismatch" });
         }
         if self.mean.is_empty() {
             return Err(ProbError::InvalidPrior { message: "empty coefficient prior" });
@@ -208,9 +203,7 @@ impl PriorSet {
     pub fn weakly_informative(n_coef: usize) -> Self {
         Self {
             specs: vec![
-                PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
-                    n_coef, 10.0,
-                )),
+                PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(n_coef, 10.0)),
                 PriorSpec::ResidualInvGamma(InvGammaPrior::weakly_informative()),
             ],
             contrast: None,

@@ -7,14 +7,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
+use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
-use crate::wire::{
-    ArtifactKind, FormatVersion, ProvenanceWire, SemanticVersion,
-};
+use crate::wire::{ArtifactKind, FormatVersion, ProvenanceWire, SemanticVersion};
 
 /// Quantity kind on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -95,8 +91,7 @@ pub fn encode_posterior_artifact(
         draw_bytes.extend_from_slice(&v.to_le_bytes());
     }
     let meta_desc = section_descriptor("posterior.meta", "application/cbor", &meta_bytes);
-    let draw_desc =
-        section_descriptor("posterior.draws", "application/octet-stream", &draw_bytes);
+    let draw_desc = section_descriptor("posterior.draws", "application/octet-stream", &draw_bytes);
     Ok(EncodedArtifact {
         manifest: ArtifactManifest {
             format_version: FormatVersion { major: 0, minor: 1 },

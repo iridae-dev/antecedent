@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::cast_possible_truncation, clippy::redundant_closure_for_method_calls)]
+
 use causal_core::VERSION;
 use causal_estimate::CausalPosterior;
 use causal_identify::IdentificationStatus;

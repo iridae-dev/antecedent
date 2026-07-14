@@ -40,6 +40,9 @@ jobs:
       - name: Phase 4/5 parity gate
         run: bash scripts/gate_phase45_parity.sh
 
+      - name: Phase 6 Bayesian gate
+        run: bash scripts/gate_phase6.sh
+
       - name: DCO check
         if: github.event_name == 'pull_request'
         run: |

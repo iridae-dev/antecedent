@@ -336,9 +336,8 @@ fn pc1_ranks_required_independent_edge_by_statistic_not_infinity() {
     let frame = LaggedFrame::from_series(&data, &vars, 1).unwrap();
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(21);
-    let (parents, _) = engine
-        .select_parents(&frame, y_id, &vars, &compiled, &mut ws, &ctx)
-        .unwrap();
+    let (parents, _) =
+        engine.select_parents(&frame, y_id, &vars, &compiled, &mut ws, &ctx).unwrap();
 
     let strong = (x_id, Lag::from_raw(1));
     let forced = (z_id, Lag::from_raw(1));
