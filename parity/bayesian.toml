@@ -73,9 +73,9 @@ notes = "InferenceMode::Bayesian + Python posterior_* summaries"
 
 [[capabilities]]
 id = "bayes.model.pcm_scm_registry"
-status = "intentional_deviation"
+status = "done"
 phase = 7
-notes = "Full causal-model / PCM/SCM registry deferred to Phase 7"
+notes = "causal-model MechanismRegistry + CompiledCausalModel (Phase 7)"
 
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"

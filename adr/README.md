@@ -16,3 +16,4 @@ and migration or compatibility analysis where applicable.
 | [0009](0009-parity-baselines.md) | Parity baselines |
 | [0010](0010-tolerance-policy.md) | Numeric tolerance policy |
 | [0011](0011-performance-posture.md) | Performance posture |
+| [0012](0012-gcm-model.md) | Native compiled SCM + overlay sampling |

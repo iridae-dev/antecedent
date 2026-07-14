@@ -254,17 +254,19 @@ notes = "Nonparametric = NW residualization + partial-R² grid; Reisz = IPW repr
 id = "dowhy.do_sampling"
 group = "do_sampling"
 description = "Do-sampling (weighting, KDE, MCMC)"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase7"
 phase = 7
+notes = "causal-model WeightingDoSampler / KdeDoSampler / McmcDoSampler"
 
 [[capabilities]]
 id = "dowhy.gcm"
 group = "gcm"
 description = "GCM mechanisms, attribution, falsification, Shapley utilities"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase7"
 phase = 7
+notes = "Core GCM+CF+basic anomaly/arrow strength done; Shapley → Phase 10 (parity/gcm.toml)"
 
 [[capabilities]]
 id = "dowhy.secondary"

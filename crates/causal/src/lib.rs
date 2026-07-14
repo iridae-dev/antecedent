@@ -7,6 +7,7 @@
 
 pub mod analysis;
 pub mod error;
+pub mod gcm;
 pub mod inference;
 pub mod planner;
 pub mod posterior_io;
@@ -15,6 +16,7 @@ pub mod review;
 
 pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RefuteSuite};
 pub use error::AnalysisError;
+pub use gcm::{FittedGcm, IteResult, anomaly_attribution, counterfactual_ite, fit_gcm, sample_do};
 pub use inference::{BayesianConfig, InferenceMode};
 pub use planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
@@ -25,6 +27,24 @@ pub use result::CausalAnalysisResult;
 pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
     compile_temporal_with_graph, ensure_review_complete,
+};
+
+// Phase 7 GCM / counterfactual / basic attribution surfaces.
+pub use causal_attribution::{
+    AnomalyScores, ArrowStrength, AttributionError, arrow_strengths, intrinsic_influence,
+    score_anomalies,
+};
+pub use causal_counterfactual::{
+    CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError, CounterfactualResult,
+    CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind, nested_hard_counterfactual,
+    streaming_matches_retained,
+};
+pub use causal_model::{
+    CompiledCausalModel, DoSampleResult, InvertibleStructuralCausalModel, KdeDoSampler,
+    MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismWorkspace, McmcDoSampler,
+    ModelCollection, ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy,
+    StructuralCausalModel, WeightingDoSampler, interventional_mean, sample_interventional,
+    sample_observational,
 };
 
 #[cfg(test)]

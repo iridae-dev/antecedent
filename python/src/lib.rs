@@ -1,5 +1,5 @@
-//! `PyO3` bindings — Phase 0–6: Arrow load, `analyze_ate` (incl. Bayesian),
-//! `analyze`, `discover_pcmci`, `discover_pcmci_plus`.
+//! `PyO3` bindings — Phase 0–7: Arrow load, `analyze_ate` (incl. Bayesian),
+//! `analyze`, `discover_pcmci`, `discover_pcmci_plus`, GCM fit/sample/CF.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,9 +17,13 @@ use std::sync::Arc;
 
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
-use causal::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
+use causal::{
+    BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite, counterfactual_ite, fit_gcm,
+    sample_do,
+};
 use causal_core::{
-    AverageEffectQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
+    AverageEffectQuery, CausalRng, ExecutionContext, Intervention, Lag, TemporalEffectQuery,
+    TemporalPolicy, Value, VariableId,
 };
 use causal_data::{
     SamplingRegularity, TableView, TimeIndex, TimeSeriesData, tabular_from_record_batch,
@@ -687,6 +691,129 @@ fn analyze(
     })
 }
 
+/// Result of a GCM counterfactual ITE (single boundary crossing).
+#[pyclass]
+struct GcmIteResult {
+    #[pyo3(get)]
+    mean_ite: f64,
+    #[pyo3(get)]
+    n_units: usize,
+    #[pyo3(get)]
+    noise_inference: String,
+    #[pyo3(get)]
+    n_assignments: usize,
+}
+
+/// Interventional sample summary under hard `do` (means only; no per-draw GIL).
+#[pyclass]
+struct GcmSampleResult {
+    #[pyo3(get)]
+    column_means: Vec<f64>,
+    #[pyo3(get)]
+    n_draws: usize,
+    #[pyo3(get)]
+    n_nodes: usize,
+}
+
+/// Fit a linear-Gaussian GCM and return mean ITE under hard interventions.
+///
+/// Crosses the Python boundary once: NumPy columns + edges in, summary out.
+#[pyfunction]
+fn gcm_counterfactual_ite(
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    active: f64,
+    control: f64,
+    seed: u64,
+) -> PyResult<GcmIteResult> {
+    Python::with_gil(|_py| {
+        let batch = columns_to_batch(&names, &columns)?;
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let n_assignments = fitted.assignments.len();
+        let ctx = ExecutionContext::for_tests(seed);
+        let ite = counterfactual_ite(fitted.model, &data, t_id, y_id, active, control, &ctx)
+            .map_err(py_err)?;
+        Ok(GcmIteResult {
+            mean_ite: ite.mean_ite,
+            n_units: ite.unit_effects.len(),
+            noise_inference: format!("{:?}", ite.noise_inference),
+            n_assignments,
+        })
+    })
+}
+
+/// Fit GCM and return interventional column means under hard `do(treatment=value)`.
+#[pyfunction]
+fn gcm_sample_do(
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    do_value: f64,
+    n_draws: usize,
+    seed: u64,
+) -> PyResult<GcmSampleResult> {
+    Python::with_gil(|_py| {
+        let batch = columns_to_batch(&names, &columns)?;
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let ctx = ExecutionContext::for_tests(seed);
+        let mut rng = CausalRng::from_seed(seed);
+        let samples = sample_do(
+            &fitted.model,
+            &[Intervention::set(t_id, Value::f64(do_value))],
+            n_draws,
+            &mut rng,
+            &ctx,
+        )
+        .map_err(py_err)?;
+        let mut means = Vec::with_capacity(samples.n_nodes);
+        for i in 0..samples.n_nodes {
+            let col = samples.column(i).map_err(py_err)?;
+            let m = col.iter().sum::<f64>() / col.len().max(1) as f64;
+            means.push(m);
+        }
+        Ok(GcmSampleResult {
+            column_means: means,
+            n_draws: samples.n_rows,
+            n_nodes: samples.n_nodes,
+        })
+    })
+}
+
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -695,11 +822,15 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci_plus, m)?)?;
+    m.add_function(wrap_pyfunction!(gcm_counterfactual_ite, m)?)?;
+    m.add_function(wrap_pyfunction!(gcm_sample_do, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
     m.add_class::<AnalysisResult>()?;
     m.add_class::<DiscoveredLink>()?;
     m.add_class::<PcmciDiscoveryResult>()?;
+    m.add_class::<GcmIteResult>()?;
+    m.add_class::<GcmSampleResult>()?;
     m.add("__version__", causal_core::VERSION)?;
     Ok(())
 }

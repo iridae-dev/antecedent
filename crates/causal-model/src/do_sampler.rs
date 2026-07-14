@@ -13,7 +13,6 @@ use std::sync::Arc;
 
 use causal_core::{CausalRng, ExecutionContext, Intervention, VariableId};
 use causal_data::{TableView, TabularData};
-use causal_graph::DenseNodeId;
 
 use crate::batch::MechanismWorkspace;
 use crate::compile::CompiledCausalModel;
@@ -396,7 +395,7 @@ mod tests {
     };
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};
-    use causal_graph::Dag;
+    use causal_graph::{Dag, DenseNodeId};
 
     fn binary_treatment_scm() -> (CompiledCausalModel, TabularData) {
         let n = 80usize;

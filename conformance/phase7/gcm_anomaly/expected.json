@@ -1,0 +1,5 @@
+{
+  "planted_outlier_index": 29,
+  "require_outlier_gt_baseline": true,
+  "tolerance_class": "Ordering"
+}

@@ -1,0 +1,66 @@
+# GCM / counterfactual capability inventory (Phase 7)
+# Authoritative status for DESIGN.md §32 Phase 7 deliverables.
+# Status: pending | in_progress | done | intentional_deviation
+
+library = "causal"
+phase = 7
+
+[[capabilities]]
+id = "gcm.model.compiled_plans"
+status = "done"
+phase = 7
+notes = "CompiledCausalModel topo + ParentGatherPlan"
+
+[[capabilities]]
+id = "gcm.model.mechanisms"
+status = "done"
+phase = 7
+notes = "Linear Gaussian, discrete, constant batch kernels"
+
+[[capabilities]]
+id = "gcm.model.registry_fit"
+status = "done"
+phase = 7
+notes = "MechanismRegistry auto-assignment; no silent default"
+
+[[capabilities]]
+id = "gcm.model.sampling"
+status = "done"
+phase = 7
+notes = "Observational/interventional overlays; soft/stochastic/sequence"
+
+[[capabilities]]
+id = "gcm.do_sampling"
+status = "done"
+phase = 7
+notes = "Weighting, KDE, MCMC do-samplers"
+
+[[capabilities]]
+id = "gcm.model.falsification"
+status = "done"
+phase = 7
+notes = "Residual CI, local Markov, predictive checks"
+
+[[capabilities]]
+id = "gcm.counterfactual.aap"
+status = "done"
+phase = 7
+notes = "Abduction-action-prediction; visible noise inference"
+
+[[capabilities]]
+id = "gcm.attribution.basic"
+status = "done"
+phase = 7
+notes = "Anomaly scores + arrow strength + intrinsic influence"
+
+[[capabilities]]
+id = "gcm.attribution.shapley"
+status = "intentional_deviation"
+phase = 10
+notes = "Shapley / coalition attribution deferred to Phase 10"
+
+[[capabilities]]
+id = "gcm.attribution.distribution_change"
+status = "intentional_deviation"
+phase = 10
+notes = "Distribution/mechanism-change attribution deferred to Phase 10"

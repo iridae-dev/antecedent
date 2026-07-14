@@ -7,15 +7,18 @@ separately (not a DoWhy/Tigramite surface).
 - [dowhy.toml](dowhy.toml) — DoWhy v0.14 pin and inventory
 - [tigramite.toml](tigramite.toml) — Tigramite 5.2.1.25 pin and inventory
 - [bayesian.toml](bayesian.toml) — Phase 6 Bayesian core inventory
+- [gcm.toml](gcm.toml) — Phase 7 GCM / counterfactual inventory
 - [phase4_deviations.md](phase4_deviations.md) — Phase 4 kept deferrals
 - [phase5_deviations.md](phase5_deviations.md) — Phase 5 kept deferrals
 - [phase6_deviations.md](phase6_deviations.md) — Phase 6 kept deferrals
+- [phase7_deviations.md](phase7_deviations.md) — Phase 7 kept deferrals (Shapley → P10)
 
 Status values: `pending`, `in_progress`, `done`, `intentional_deviation`.
 
 Do not mark a capability `done` without conformance fixtures under
 `conformance/` **or** a named calibration/unit harness recorded in
-`scripts/gate_phase45_parity.sh` / `scripts/gate_phase6.sh`, plus a recorded
+`scripts/gate_phase45_parity.sh` / `scripts/gate_phase6.sh` /
+`scripts/gate_phase7.sh`, plus a recorded
 reference-output generation command where black-box comparison applies.
 
 ## Phase 4 / 5 coverage class
@@ -34,6 +37,7 @@ reference-output generation command where black-box comparison applies.
 ```bash
 bash scripts/gate_phase45_parity.sh
 bash scripts/gate_phase6.sh
+bash scripts/gate_phase7.sh
 ```
 
 Verified locally (2026-07-21): inventory evidence map, Phase 4 conformance,
@@ -44,6 +48,11 @@ Phase 4 reuse gate.
 Phase 6: Bayesian inventory evidence map, conjugate/Laplace/g-comp/envelope/PPC
 fixtures, Laplace + posterior-functional criterion benches.
 
-Kept deferrals only: do-samplers→P7, conditional/mediation→P9, PAG/LPCMCI→P8,
-J/RPCMCI→P9, native GPDC (no torch), clean-room PCMCI+ pin; Phase 6: PCM/SCM
-registry→P7, Bayesian discovery, Stan/PyMC, hierarchical/BVAR/GP, MCMC diagnostics.
+Phase 7: GCM inventory (`gcm.toml`), fit/intervene/anomaly/CF ITE conformance,
+do-samplers, overlay + CF batch criterion benches; Shapley / distribution-change
+attribution deferred to Phase 10 (`phase7_deviations.md`).
+
+Kept deferrals only: conditional/mediation→P9, PAG/LPCMCI→P8,
+J/RPCMCI→P9, native GPDC (no torch), clean-room PCMCI+ pin; Phase 6: Bayesian
+discovery, Stan/PyMC, hierarchical/BVAR/GP, MCMC diagnostics; Phase 7→10:
+Shapley and distribution/mechanism-change attribution.
