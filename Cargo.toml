@@ -15,6 +15,7 @@ members = [
     "crates/causal-model",
     "crates/causal-counterfactual",
     "crates/causal-attribution",
+    "crates/causal-design",
     "crates/causal",
     "crates/causal-discovery",
     "python",
@@ -34,6 +35,7 @@ default-members = [
     "crates/causal-model",
     "crates/causal-counterfactual",
     "crates/causal-attribution",
+    "crates/causal-design",
     "crates/causal",
     "crates/causal-discovery",
 ]

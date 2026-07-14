@@ -33,6 +33,7 @@ pub fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut 
 }
 
 /// Accumulate one design row into `XtX` and `Xty` (row-major Gram).
+#[allow(clippy::similar_names)] // xtx / xty are standard OLS Gram notation
 pub fn accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f64]) {
     let ncols = row.len();
     debug_assert!(xtx.len() >= ncols * ncols);

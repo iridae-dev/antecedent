@@ -1,0 +1,26 @@
+[package]
+name = "causal-design"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Experiment/measurement design, EIG ranking, and decision utilities (DESIGN.md §19)"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+causal-core = { path = "../causal-core" }
+causal-prob = { path = "../causal-prob" }
+causal-stats = { path = "../causal-stats" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "design_rank"
+harness = false
