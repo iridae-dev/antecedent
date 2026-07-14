@@ -34,15 +34,18 @@ pub use execution::{
     MemoryBudget, NonZeroThreadCount, Parallelism, ProgressSink, RngFactory,
 };
 pub use ids::{CategoryDomainId, EnvironmentId, Lag, RegimeId, VariableId};
-pub use intervention::Intervention;
+pub use intervention::{
+    Intervention, InterventionError, InterventionSequence, MechanismOverride, SequencedIntervention,
+    StochasticPolicy, TemporalPolicy,
+};
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
     LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
 };
 pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
 pub use query::{
-    AverageEffectQuery, CausalQuery, QueryError, TargetPopulation, TemporalEffectQuery,
-    TemporalPolicy,
+    AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CounterfactualQuery, QueryError,
+    TargetPopulation, TemporalEffectQuery,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
