@@ -11,6 +11,7 @@
 pub mod batch;
 pub mod compile;
 pub mod error;
+pub mod mechanism;
 pub mod overlay;
 
 pub use batch::{
@@ -21,6 +22,10 @@ pub use compile::{
     ModelOutputLayout, ParentGatherPlan, ProbabilisticCausalModel, StructuralCausalModel,
 };
 pub use error::ModelError;
+pub use mechanism::{
+    evaluate_batch_topo, evaluate_column, infer_noise_column, log_prob_column, sample_column,
+    sample_noise_batch, sample_noise_column,
+};
 pub use overlay::{InterventionOverlay, ModelView};
 
 /// Crate version.
