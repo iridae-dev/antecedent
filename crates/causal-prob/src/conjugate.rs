@@ -170,18 +170,19 @@ fn posterior_known_sigma2(
     xty: &[f64],
     sigma2: f64,
 ) -> Result<(Vec<f64>, Vec<f64>), ProbError> {
-    // Λn = Λ0 + XtX/σ² ; mn = Λn^{-1}(Λ0 μ0 + XtY/σ²)
+    // Classic conjugate: prior Cov(β|σ²) = σ² V0 with Λ0 = V0^{-1} = prec.
+    // Λn = (Λ0 + X'X) / σ² ; mn = Λn^{-1} (Λ0 μ0 + X'y) / σ²
     let mut lam = vec![0.0; ncols * ncols];
     let prec = prior.precision();
     for i in 0..ncols {
         for j in 0..ncols {
             lam[i * ncols + j] = xtx[i * ncols + j] / sigma2;
         }
-        lam[i * ncols + i] += prec[i];
+        lam[i * ncols + i] += prec[i] / sigma2;
     }
     let mut rhs = vec![0.0; ncols];
     for i in 0..ncols {
-        rhs[i] = prec[i] * prior.mean[i] + xty[i] / sigma2;
+        rhs[i] = (prec[i] * prior.mean[i] + xty[i]) / sigma2;
     }
     let cov = invert_spd(&lam, ncols)?;
     let mut mean = vec![0.0; ncols];
@@ -230,8 +231,10 @@ fn posterior_nig(
     }
 
     let mut yty = 0.0;
+    let mut n_eff = 0.0;
     for r in 0..nrows {
         let w = design.weights.map_or(1.0, |ww| ww[r]);
+        n_eff += w;
         let offset = design.offsets.map_or(0.0, |oo| oo[r]);
         let yr = design.y[r] - offset;
         yty += w * yr * yr;
@@ -246,7 +249,7 @@ fn posterior_nig(
             mn_term += mean[i] * vn_inv[i * ncols + j] * mean[j];
         }
     }
-    let alpha_n = ig.shape + 0.5 * nrows as f64;
+    let alpha_n = ig.shape + 0.5 * n_eff;
     let beta_n = ig.scale + 0.5 * (m0_term + yty - mn_term);
     if !(beta_n > 0.0) || !(alpha_n > 0.0) {
         return Err(ProbError::Numerical {

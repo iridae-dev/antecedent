@@ -155,11 +155,11 @@ impl GlmAdjustmentAte {
             .float64_masked(outcome, &row_mask)
             .map_err(|e| EstimationError::Data(e.to_string()))?;
         match self.family {
-            GlmFamily::BinomialLogit => {
+            GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
                 for &yi in &y {
                     if !(yi == 0.0 || yi == 1.0) {
                         return Err(EstimationError::UnsupportedQuery(
-                            "BinomialLogit GlmAdjustmentAte requires a binary (0/1) outcome".into(),
+                            "Binomial GlmAdjustmentAte requires a binary (0/1) outcome".into(),
                         ));
                     }
                 }
@@ -365,6 +365,11 @@ fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
             let mu = 1.0 / (1.0 + (-eta).exp());
             mu * (1.0 - mu)
         }
+        GlmFamily::BinomialProbit => {
+            // φ(η) for probit (dμ/dη); Fisher weight uses φ²/(μ(1-μ)) elsewhere.
+            const INV_SQRT_2PI: f64 = 0.398_942_280_401_432_7;
+            INV_SQRT_2PI * (-0.5 * eta * eta).exp()
+        }
         GlmFamily::GaussianIdentity => 1.0,
         GlmFamily::PoissonLog => eta.exp(),
     }
@@ -411,7 +416,7 @@ fn gcomp_delta_method_se(
     let dispersion = match family {
         // For Gaussian/identity the fit's deviance is the RSS.
         GlmFamily::GaussianIdentity => deviance / (n - ncols as f64).max(1.0),
-        GlmFamily::BinomialLogit | GlmFamily::PoissonLog => 1.0,
+        GlmFamily::BinomialLogit | GlmFamily::BinomialProbit | GlmFamily::PoissonLog => 1.0,
     };
 
     // Gradient of the mean g-computation contrast w.r.t. the coefficient vector.

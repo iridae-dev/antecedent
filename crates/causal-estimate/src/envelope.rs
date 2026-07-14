@@ -27,7 +27,8 @@ use crate::error::EstimationError;
 /// Options for envelope aggregation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EnvelopeOptions {
-    /// When true, renormalize weights over identified graphs only (explicit opt-in).
+    /// When true, drop unidentified mass from the artifact (identification may
+    /// become fully identified). Draws always use E[τ | identified] either way.
     /// Default false: unidentified mass is retained on the result.
     pub renormalize_identified_only: bool,
 }
@@ -81,42 +82,27 @@ pub fn aggregate_effect_envelope(
     let identified_mass = graphs.identified_mass();
     let total = graphs.total_weight();
 
-    let weight_scale = if options.renormalize_identified_only {
-        if !(identified_mass > 0.0) {
-            return Err(EstimationError::Stats("no identified mass to renormalize".into()));
-        }
-        1.0 / identified_mass
-    } else {
-        if !(total > 0.0) {
-            return Err(EstimationError::Stats("non-positive total weight".into()));
-        }
-        1.0 / total
-    };
+    // Draws always report E[τ | identified]: normalize over identified mass.
+    // Unidentified mass is retained on the artifact unless explicitly dropped.
+    if !(identified_mass > 0.0) {
+        return Err(EstimationError::Stats("no identified mass for effect envelope".into()));
+    }
+    if !(total > 0.0) {
+        return Err(EstimationError::Stats("non-positive total weight".into()));
+    }
+    let weight_scale = 1.0 / identified_mass;
 
-    // Mixture: for each draw index d, sample from the discrete mixture of graph
-    // effect draws weighted by (normalized) identified weights. Represent as a
-    // weighted average of draws at matching indices (common random numbers),
-    // which is the standard envelope summary for aligned draw sets.
+    // Mixture: weighted average of aligned per-graph draws (common random numbers).
     let mut mixture = vec![0.0; n_draws];
-    let mut used_mass = 0.0;
     for i in 0..graphs.n_samples {
         if graphs.identified[i] != GraphIdentFlag::Identified {
             continue;
         }
         let w = graphs.weights[i] * weight_scale;
-        used_mass += w;
         let g = by_key[&graphs.graph_keys[i]];
         for d in 0..n_draws {
             mixture[d] += w * g.effect_draws[d];
         }
-    }
-    // If not renormalizing, mixture is a sub-probability weighted mean; scale
-    // identified contribution so the reported mean is over identified mass only
-    // while retaining unidentified_mass on the artifact.
-    if !options.renormalize_identified_only && used_mass > 0.0 && identified_mass > 0.0 {
-        let renorm = (identified_mass / total) / used_mass;
-        // used_mass already equals identified_mass/total, so renorm == 1.
-        let _ = renorm;
     }
 
     let retained_unidentified = if options.renormalize_identified_only {
@@ -181,10 +167,9 @@ mod tests {
         .unwrap();
         assert!((env.unidentified_mass - 0.3).abs() < 1e-12);
         assert_eq!(env.identification, IdentificationStatus::NotIdentified);
-        // Weighted mean of identified: (0.5*1 + 0.2*3)/1.0 = 1.1, but draws are
-        // mixture with weights scaled by 1/total: 0.5*1 + 0.2*3 = 1.1
+        // E[τ | identified] = (0.5*1 + 0.2*3) / 0.7
         let mean = env.summaries.mean[0];
-        assert!((mean - 1.1).abs() < 1e-12);
+        assert!((mean - 1.1 / 0.7).abs() < 1e-12);
     }
 
     #[test]

@@ -18,6 +18,7 @@ use causal_estimate::{
 };
 use causal_identify::IdentificationStatus;
 use causal_prob::{PriorSensitivitySummary, PriorSet};
+use causal_stats::GlmFamily;
 
 use crate::common::RefutationReport;
 use crate::error::ValidationError;
@@ -56,6 +57,8 @@ pub struct PriorPredictiveCheck {
     pub n_sims: u32,
     /// RNG seed.
     pub seed: u64,
+    /// Mean family (inverse link applied to η before summarizing).
+    pub family: GlmFamily,
 }
 
 impl Default for PriorPredictiveCheck {
@@ -65,10 +68,10 @@ impl Default for PriorPredictiveCheck {
 }
 
 impl PriorPredictiveCheck {
-    /// Default 200 sims.
+    /// Default 200 sims, Gaussian identity.
     #[must_use]
     pub fn new() -> Self {
-        Self { n_sims: 200, seed: 0 }
+        Self { n_sims: 200, seed: 0, family: GlmFamily::GaussianIdentity }
     }
 
     /// Run against a prepared Bayesian design (uses prior draws only).
@@ -93,18 +96,20 @@ impl PriorPredictiveCheck {
             ValidationError::Estimation("weakly informative prior missing coefficients".into())
         })?;
         let mut summaries = Vec::with_capacity(self.n_sims as usize);
+        let mut beta = vec![0.0; p];
         for _ in 0..self.n_sims {
-            // Draw β ~ prior, then ŷ_i = x_i'β, summarize by mean.
+            // Draw β ~ prior once per simulation, then μ_i = g^{-1}(x_i'β).
+            for c in 0..p {
+                beta[c] = coef_prior.mean[c]
+                    + coef_prior.variance[c].sqrt() * standard_normal(&mut rng);
+            }
             let mut mean_y = 0.0;
             for r in 0..n {
                 let mut eta = 0.0;
                 for c in 0..p {
-                    let x = problem.design.matrix[c * n + r];
-                    let b = coef_prior.mean[c]
-                        + coef_prior.variance[c].sqrt() * standard_normal(&mut rng);
-                    eta += x * b;
+                    eta += problem.design.matrix[c * n + r] * beta[c];
                 }
-                mean_y += eta;
+                mean_y += self.family.mean_from_eta(eta);
             }
             summaries.push(mean_y / n as f64);
         }
@@ -117,6 +122,8 @@ impl PriorPredictiveCheck {
 pub struct PosteriorPredictiveCheck {
     /// Number of posterior draws to use (capped by available).
     pub n_sims: u32,
+    /// Mean family (inverse link applied to η before summarizing).
+    pub family: GlmFamily,
 }
 
 impl Default for PosteriorPredictiveCheck {
@@ -126,10 +133,10 @@ impl Default for PosteriorPredictiveCheck {
 }
 
 impl PosteriorPredictiveCheck {
-    /// Default.
+    /// Default Gaussian identity.
     #[must_use]
     pub fn new() -> Self {
-        Self { n_sims: 200 }
+        Self { n_sims: 200, family: GlmFamily::GaussianIdentity }
     }
 
     /// Check using a fitted [`CausalPosterior`] that includes coefficient columns.
@@ -162,7 +169,7 @@ impl PosteriorPredictiveCheck {
                         .map_err(|e| ValidationError::Estimation(e.to_string()))?;
                     eta += x * b;
                 }
-                mean_y += eta;
+                mean_y += self.family.mean_from_eta(eta);
             }
             summaries.push(mean_y / n as f64);
         }
@@ -397,7 +404,9 @@ mod tests {
         };
         let prep = bayes.prepare(&data, &estimand, &query).unwrap();
         let ctx = ExecutionContext::for_tests(1);
-        let prior_rep = PriorPredictiveCheck { n_sims: 50, seed: 3 }.check(&prep, &ctx).unwrap();
+        let prior_rep = PriorPredictiveCheck { n_sims: 50, seed: 3, ..PriorPredictiveCheck::new() }
+            .check(&prep, &ctx)
+            .unwrap();
         assert_eq!(prior_rep.kind, PredictiveCheckKind::Prior);
         assert!(prior_rep.p_value.is_finite());
 
@@ -405,7 +414,10 @@ mod tests {
         let post = bayes
             .fit(&prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
             .unwrap();
-        let post_rep = PosteriorPredictiveCheck { n_sims: 50 }.check(&prep, &post).unwrap();
+        let post_rep =
+            PosteriorPredictiveCheck { n_sims: 50, ..PosteriorPredictiveCheck::new() }
+                .check(&prep, &post)
+                .unwrap();
         assert_eq!(post_rep.kind, PredictiveCheckKind::Posterior);
     }
 

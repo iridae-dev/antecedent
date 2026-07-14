@@ -551,9 +551,8 @@ fn predict_row(
 fn likelihood_to_glm_family(l: BayesLikelihood) -> GlmFamily {
     match l {
         BayesLikelihood::GaussianIdentity => GlmFamily::GaussianIdentity,
-        BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit => {
-            GlmFamily::BinomialLogit
-        }
+        BayesLikelihood::BernoulliLogit => GlmFamily::BinomialLogit,
+        BayesLikelihood::BernoulliProbit => GlmFamily::BinomialProbit,
         BayesLikelihood::PoissonLog => GlmFamily::PoissonLog,
     }
 }
