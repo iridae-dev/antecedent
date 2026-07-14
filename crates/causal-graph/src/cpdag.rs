@@ -54,17 +54,20 @@ impl TemporalCpdag {
         &self.nodes
     }
 
-    /// Add a lagged node.
+    /// Add a lagged or context node.
+    ///
+    /// Context nodes are allowed for J-PCMCI+ / multi-dataset graphs (Phase 9).
+    /// Static nodes remain rejected (use a static CPDAG / DAG).
     ///
     /// # Errors
     ///
-    /// Non-lagged refs or capacity overflow.
+    /// Static refs or capacity overflow.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         match node {
-            NodeRef::Lagged { .. } => {}
-            _ => {
+            NodeRef::Lagged { .. } | NodeRef::Context { .. } => {}
+            NodeRef::Static(_) => {
                 return Err(GraphError::InvalidEndpoints {
-                    message: "TemporalCpdag accepts only Lagged nodes",
+                    message: "TemporalCpdag accepts Lagged or Context nodes (not Static)",
                 });
             }
         }
@@ -85,6 +88,19 @@ impl TemporalCpdag {
         lag: Lag,
     ) -> Result<DenseNodeId, GraphError> {
         self.add_node(NodeRef::Lagged { variable, lag })
+    }
+
+    /// Convenience: add a context node (optional environment tag).
+    ///
+    /// # Errors
+    ///
+    /// Capacity overflow.
+    pub fn add_context(
+        &mut self,
+        variable: VariableId,
+        environment: Option<causal_core::EnvironmentId>,
+    ) -> Result<DenseNodeId, GraphError> {
+        self.add_node(NodeRef::Context { variable, environment })
     }
 
     /// Insert a CPDAG-legal marked edge (directed or undirected).
@@ -482,6 +498,26 @@ mod tests {
         assert!(matches!(g.insert_directed(x1, x1), Err(GraphError::Cycle { .. })));
         assert_eq!(g.undirected_edge_count(), 0);
         assert!(g.edges().is_empty());
+    }
+
+    #[test]
+    fn accepts_context_nodes_without_coercing() {
+        use causal_core::EnvironmentId;
+        let mut g = TemporalCpdag::empty();
+        let c = g
+            .add_context(VariableId::from_raw(0), Some(EnvironmentId::from_raw(1)))
+            .unwrap();
+        let y = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        match g.nodes()[c.as_usize()] {
+            NodeRef::Context { variable, environment } => {
+                assert_eq!(variable, VariableId::from_raw(0));
+                assert_eq!(environment, Some(EnvironmentId::from_raw(1)));
+            }
+            _ => panic!("expected Context node"),
+        }
+        g.insert_directed(c, y).unwrap();
+        assert_eq!(g.edge_between(c, y).unwrap().parent_child(), Some((c, y)));
+        assert!(g.add_node(NodeRef::Static(VariableId::from_raw(2))).is_err());
     }
 
     #[test]
