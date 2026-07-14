@@ -5,7 +5,7 @@
 use causal_core::VariableId;
 
 use crate::error::GraphError;
-use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
+use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// ADMG: directed edges and bidirected (latent-confounder) edges; no directed cycles.
