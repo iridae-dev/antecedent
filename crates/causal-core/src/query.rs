@@ -268,6 +268,132 @@ impl TemporalEffectQuery {
     }
 }
 
+/// Which mediation contrast to identify / estimate (linear SEM path).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum MediationContrast {
+    /// Total effect (direct + mediated).
+    Total,
+    /// Controlled / path-product direct effect (holding mediators fixed).
+    Direct,
+    /// Mediated / indirect effect (path through mediators).
+    Mediated,
+    /// Natural direct effect (linear SEM: coincides with controlled direct under linearity).
+    NaturalDirect,
+    /// Natural indirect effect (linear SEM: coincides with mediated under linearity).
+    NaturalIndirect,
+}
+
+/// Mediation query: treatment → mediators → outcome (DESIGN.md §8 / Phase 9).
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct MediationQuery {
+    /// Treatment variable.
+    pub treatment: VariableId,
+    /// Outcome variable.
+    pub outcome: VariableId,
+    /// Mediator set (non-empty).
+    pub mediators: Arc<[VariableId]>,
+    /// Contrast of interest.
+    pub contrast: MediationContrast,
+    /// Control intervention level.
+    pub control: Intervention,
+    /// Active intervention level.
+    pub active: Intervention,
+    /// Target population.
+    pub target_population: TargetPopulation,
+}
+
+impl MediationQuery {
+    /// Linear mediation with binary 0/1 treatment levels.
+    #[must_use]
+    pub fn binary(
+        treatment: VariableId,
+        outcome: VariableId,
+        mediators: impl Into<Arc<[VariableId]>>,
+        contrast: MediationContrast,
+    ) -> Self {
+        Self {
+            treatment,
+            outcome,
+            mediators: mediators.into(),
+            contrast,
+            control: Intervention::set(treatment, Value::f64(0.0)),
+            active: Intervention::set(treatment, Value::f64(1.0)),
+            target_population: TargetPopulation::AllObserved,
+        }
+    }
+
+    /// Validate ids and interventions.
+    ///
+    /// # Errors
+    ///
+    /// Empty mediators, overlaps, or inconsistent interventions.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.treatment == self.outcome {
+            return Err(QueryError::TreatmentEqualsOutcome { id: self.treatment });
+        }
+        if self.mediators.is_empty() {
+            return Err(QueryError::EmptyMediators);
+        }
+        if self.mediators.iter().any(|&m| m == self.treatment || m == self.outcome) {
+            return Err(QueryError::MediatorOverlapsTreatmentOrOutcome);
+        }
+        let control_var = self.control.primary_variable().ok_or(
+            QueryError::AmbiguousInterventionTarget,
+        )?;
+        if control_var != self.treatment {
+            return Err(QueryError::InterventionVariableMismatch {
+                expected: self.treatment,
+                got: control_var,
+            });
+        }
+        let active_var = self
+            .active
+            .primary_variable()
+            .ok_or(QueryError::AmbiguousInterventionTarget)?;
+        if active_var != self.treatment {
+            return Err(QueryError::InterventionVariableMismatch {
+                expected: self.treatment,
+                got: active_var,
+            });
+        }
+        Ok(())
+    }
+}
+
+/// Conditional average effect given effect modifiers (DESIGN.md §8 / Phase 9).
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ConditionalEffectQuery {
+    /// Inner ATE-style query; `effect_modifiers` must be non-empty.
+    pub inner: AverageEffectQuery,
+}
+
+impl ConditionalEffectQuery {
+    /// Wrap an ATE query that already carries modifiers.
+    ///
+    /// # Errors
+    ///
+    /// Empty effect modifiers.
+    pub fn try_new(inner: AverageEffectQuery) -> Result<Self, QueryError> {
+        if inner.effect_modifiers.is_empty() {
+            return Err(QueryError::EmptyEffectModifiers);
+        }
+        inner.validate()?;
+        Ok(Self { inner })
+    }
+
+    /// Validate.
+    ///
+    /// # Errors
+    ///
+    /// Empty modifiers or invalid inner query.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.inner.effect_modifiers.is_empty() {
+            return Err(QueryError::EmptyEffectModifiers);
+        }
+        self.inner.validate()
+    }
+}
+
 /// Top-level causal query enum.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -280,6 +406,10 @@ pub enum CausalQuery {
     Counterfactual(CounterfactualQuery),
     /// Anomaly attribution for one or more units (Phase 7).
     AnomalyAttribution(AnomalyAttributionQuery),
+    /// Mediation (direct / mediated / natural effects).
+    Mediation(MediationQuery),
+    /// Conditional average effect given modifiers.
+    ConditionalEffect(ConditionalEffectQuery),
 }
 
 /// Counterfactual query over factual observations and interventions (DESIGN.md §16).
@@ -393,6 +523,18 @@ impl CausalQuery {
         Self::AnomalyAttribution(query)
     }
 
+    /// Construct a mediation query.
+    #[must_use]
+    pub fn mediation(query: MediationQuery) -> Self {
+        Self::Mediation(query)
+    }
+
+    /// Construct a conditional-effect query.
+    #[must_use]
+    pub fn conditional_effect(query: ConditionalEffectQuery) -> Self {
+        Self::ConditionalEffect(query)
+    }
+
     /// Whether this query is the Phase 1 static ATE path.
     #[must_use]
     pub const fn is_phase1_ate(&self) -> bool {
@@ -411,6 +553,18 @@ impl CausalQuery {
         matches!(self, Self::Counterfactual(_))
     }
 
+    /// Whether this query is mediation.
+    #[must_use]
+    pub const fn is_mediation(&self) -> bool {
+        matches!(self, Self::Mediation(_))
+    }
+
+    /// Whether this query is a conditional effect.
+    #[must_use]
+    pub const fn is_conditional_effect(&self) -> bool {
+        matches!(self, Self::ConditionalEffect(_))
+    }
+
     /// Validate the inner query.
     ///
     /// # Errors
@@ -422,6 +576,8 @@ impl CausalQuery {
             Self::TemporalEffect(q) => q.validate(),
             Self::Counterfactual(q) => q.validate(),
             Self::AnomalyAttribution(q) => q.validate(),
+            Self::Mediation(q) => q.validate(),
+            Self::ConditionalEffect(q) => q.validate(),
         }
     }
 }
@@ -462,6 +618,12 @@ pub enum QueryError {
     EmptyAnomalyTargets,
     /// Anomaly max_units must be ≥ 1.
     NonPositiveAnomalyLimit,
+    /// Mediation query has no mediators.
+    EmptyMediators,
+    /// Mediator overlaps treatment or outcome.
+    MediatorOverlapsTreatmentOrOutcome,
+    /// Conditional effect requires non-empty modifiers.
+    EmptyEffectModifiers,
 }
 
 impl core::fmt::Display for QueryError {
@@ -489,6 +651,13 @@ impl core::fmt::Display for QueryError {
             }
             Self::EmptyAnomalyTargets => write!(f, "anomaly attribution requires targets"),
             Self::NonPositiveAnomalyLimit => write!(f, "anomaly max_units must be >= 1"),
+            Self::EmptyMediators => write!(f, "mediation query requires mediators"),
+            Self::MediatorOverlapsTreatmentOrOutcome => {
+                write!(f, "mediator overlaps treatment or outcome")
+            }
+            Self::EmptyEffectModifiers => {
+                write!(f, "conditional effect requires non-empty effect modifiers")
+            }
         }
     }
 }
