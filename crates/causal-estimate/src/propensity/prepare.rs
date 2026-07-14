@@ -191,7 +191,7 @@ pub(crate) fn prepare_propensity_problem(
     query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
     if !query.effect_modifiers.is_empty() {
         return Err(EstimationError::UnsupportedQuery(
-            "Phase 4 propensity estimators do not support effect modifiers".into(),
+            "propensity estimators do not support effect modifiers".into(),
         ));
     }
     let active = intervention_f64(&query.active)?;

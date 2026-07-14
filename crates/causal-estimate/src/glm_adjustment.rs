@@ -132,12 +132,12 @@ impl GlmAdjustmentAte {
         query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
         if !query.effect_modifiers.is_empty() {
             return Err(EstimationError::UnsupportedQuery(
-                "GLM adjustment (Phase 4) does not support effect modifiers".into(),
+                "GLM adjustment does not support effect modifiers".into(),
             ));
         }
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::UnsupportedQuery(
-                "GLM adjustment (Phase 4) only supports TargetPopulation::AllObserved".into(),
+                "GLM adjustment only supports TargetPopulation::AllObserved".into(),
             ));
         }
         let treatment = query.treatment;

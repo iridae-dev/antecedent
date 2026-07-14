@@ -11,6 +11,11 @@ use crate::error::EstimationError;
 
 /// Estimator preparation + fit (DESIGN §14.1).
 ///
+/// Extension / dispatch surface. Most concrete estimators expose inherent
+/// `prepare` / `fit` with estimator-specific prepared types, workspaces, and
+/// assumption threading; implement this trait only when those signatures align
+/// with [`PreparedEstimationProblem`] / [`EstimationWorkspace`].
+///
 /// `query` is required to bind intervention levels; DESIGN omits it in the sketch
 /// but every ATE estimator needs it at prepare time.
 pub trait Estimator<D, Q = AverageEffectQuery> {
@@ -44,6 +49,9 @@ pub trait Estimator<D, Q = AverageEffectQuery> {
 }
 
 /// Batch estimation against a fitted estimator (DESIGN §14.1).
+///
+/// Reserved extension point. No concrete estimator implements this yet; use
+/// inherent `fit` / bootstrap paths instead of fabricating batch wrappers.
 pub trait FittedEstimator<Q> {
     /// Estimate one or more queries into `output`.
     ///

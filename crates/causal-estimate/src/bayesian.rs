@@ -15,13 +15,13 @@
 
 use std::sync::Arc;
 
+use causal_core::IdentificationStatus;
 use causal_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
-use causal_identify::IdentificationStatus;
 use causal_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, ConjugateGaussianBackend, EffectBatch,
     InferenceBackend, InferenceDiagnostics, LaplaceGlmBackend, LaplaceWorkspace, PosteriorBatch,

@@ -64,7 +64,7 @@ pub fn ci_from_name(
     Ok(ci)
 }
 
-/// Weighted ParCorr with implicit unit weights sized to each batch.
+/// Weighted `ParCorr` with implicit unit weights sized to each batch.
 #[derive(Clone, Copy, Debug, Default)]
 struct UnitWeightedParCorr;
 
@@ -75,7 +75,7 @@ impl ConditionalIndependenceTest for UnitWeightedParCorr {
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        let n = request.columns.first().map(|c| c.len()).unwrap_or(0);
+        let n = request.columns.first().map_or(0, |c| c.len());
         WeightedPartialCorrelation::new(vec![1.0; n]).test_batch(request, workspace, ctx)
     }
 }

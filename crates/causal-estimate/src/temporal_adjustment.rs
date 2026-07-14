@@ -169,7 +169,8 @@ impl TemporalLinearAdjustment {
 fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
     if offset > 0 {
         return Err(EstimationError::UnsupportedQuery(
-            "positive offsets (future treatment/outcome) unsupported in Phase 3 adjustment".into(),
+            "positive offsets (future treatment/outcome) unsupported for temporal adjustment"
+                .into(),
         ));
     }
     let lag = u32::try_from(-offset)

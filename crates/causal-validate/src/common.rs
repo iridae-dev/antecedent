@@ -6,8 +6,11 @@ use std::sync::Arc;
 
 use causal_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use causal_data::{TableView, TabularData, ValidityBitmap};
-use causal_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte};
+use causal_estimate::{
+    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy, OverlapReport,
+};
 use causal_identify::IdentifiedEstimand;
+use causal_stats::{FaerBackend, GlmOptions, PropensityFit, PropensityWorkspace, fit_propensity};
 
 use crate::error::ValidationError;
 
@@ -94,6 +97,73 @@ pub(crate) fn fit_once(
     estimator
         .fit(&prep, workspace, ctx, causal_core::AssumptionSet::new())
         .map_err(ValidationError::from)
+}
+
+/// Scores / treatment / optional outcome from a diagnostic propensity fit.
+pub(crate) struct DiagnosticPropensityColumns {
+    /// Fitted propensity scores.
+    pub scores: Vec<f64>,
+    /// Treatment column (complete cases).
+    pub treatment: Vec<f64>,
+    /// Outcome column when requested.
+    pub outcome: Option<Vec<f64>>,
+}
+
+/// Diagnostic-only logistic propensity on treatment + adjustment covariates.
+///
+/// Used by overlap / Reisz validators when the original estimate has no propensity report.
+pub(crate) fn fit_diagnostic_propensity(
+    problem: &RefutationProblem<'_>,
+    glm_options: &GlmOptions,
+    include_outcome_in_mask: bool,
+) -> Result<DiagnosticPropensityColumns, ValidationError> {
+    let mut ids = vec![problem.treatment()];
+    if include_outcome_in_mask {
+        ids.push(problem.outcome());
+    }
+    ids.extend_from_slice(&problem.estimand.adjustment_set);
+    let row_mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
+    let treatment = problem
+        .data
+        .float64_masked(problem.treatment(), &row_mask)
+        .map_err(ValidationError::from)?;
+    let outcome = if include_outcome_in_mask {
+        Some(
+            problem
+                .data
+                .float64_masked(problem.outcome(), &row_mask)
+                .map_err(ValidationError::from)?,
+        )
+    } else {
+        None
+    };
+    let nrows = treatment.len();
+    let ncols = 1 + problem.estimand.adjustment_set.len();
+    let mut design = vec![0.0; nrows * ncols];
+    for r in design.iter_mut().take(nrows) {
+        *r = 1.0;
+    }
+    for (i, &z) in problem.estimand.adjustment_set.iter().enumerate() {
+        let col = problem.data.float64_masked(z, &row_mask).map_err(ValidationError::from)?;
+        let base = (1 + i) * nrows;
+        design[base..base + nrows].copy_from_slice(&col);
+    }
+    let backend = FaerBackend;
+    let mut ws = PropensityWorkspace::default();
+    let fit: PropensityFit =
+        fit_propensity(&design, nrows, ncols, &treatment, &backend, &mut ws, glm_options)
+            .map_err(ValidationError::from)?;
+    Ok(DiagnosticPropensityColumns { scores: fit.scores, treatment, outcome })
+}
+
+/// Build an [`OverlapReport`] from a diagnostic propensity fit.
+pub(crate) fn diagnostic_overlap_report(
+    problem: &RefutationProblem<'_>,
+    glm_options: &GlmOptions,
+    policy: OverlapPolicy,
+) -> Result<OverlapReport, ValidationError> {
+    let cols = fit_diagnostic_propensity(problem, glm_options, false)?;
+    Ok(OverlapReport::from_propensities(&cols.scores, None, policy))
 }
 
 /// Linear adjustment with nested bootstrap disabled (refuters / sensitivity grids).

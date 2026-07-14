@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use causal_identify::IdentificationStatus;
+use causal_core::IdentificationStatus;
 use causal_prob::{
     GraphIdentFlag, InferenceDiagnostics, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema,
     WeightedGraphSamples,
@@ -118,8 +118,8 @@ pub fn aggregate_effect_envelope(
         .map_err(EstimationError::from)?;
     let summaries = draws.summarize();
 
-    let identification = if retained_unidentified > 0.0 {
-        IdentificationStatus::NotIdentified
+    let identification = if identified_mass > 0.0 && retained_unidentified > 0.0 {
+        IdentificationStatus::GraphDependent
     } else if identified_mass > 0.0 {
         IdentificationStatus::NonparametricallyIdentified
     } else {
@@ -166,7 +166,7 @@ mod tests {
         )
         .unwrap();
         assert!((env.unidentified_mass - 0.3).abs() < 1e-12);
-        assert_eq!(env.identification, IdentificationStatus::NotIdentified);
+        assert_eq!(env.identification, IdentificationStatus::GraphDependent);
         // E[τ | identified] = (0.5*1 + 0.2*3) / 0.7
         let mean = env.summaries.mean[0];
         assert!((mean - 1.1 / 0.7).abs() < 1e-12);

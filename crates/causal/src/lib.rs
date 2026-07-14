@@ -53,7 +53,7 @@ pub use causal_discovery::{
     ScoredLink, two_regime_half_split,
 };
 pub use causal_estimate::{
-    ConditionalLinearAdjustment, TemporalEffectSurface, TemporalLinearPredictor,
+    ConditionalLinearAdjustment, OverlapPolicy, TemporalEffectSurface, TemporalLinearPredictor,
     TemporalMediationEstimator,
 };
 pub use causal_graph::{

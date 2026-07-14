@@ -2,7 +2,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::all)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::needless_range_loop,
+    clippy::too_many_arguments,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::doc_markdown
+)]
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -85,7 +95,7 @@ impl ConditionalIndependenceTest for KnnCmi {
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        let n = request.columns.first().map(|c| c.len()).unwrap_or(0);
+        let n = request.columns.first().map_or(0, |c| c.len());
         if n < self.k + 2 {
             return Err(StatsError::Shape { message: "n too small for kNN CMI" });
         }
@@ -140,10 +150,10 @@ impl ConditionalIndependenceTest for KnnCmi {
 /// and sampled contents of each involved column. Content samples guard against pointer
 /// reuse after frees between batches.
 fn knn_input_fingerprint(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n: usize) -> u64 {
-    let mut h = 0xcbf29ce484222325u64;
+    let mut h = 0xcbf2_9ce4_8422_2325_u64;
     let mut mix = |v: u64| {
         h ^= v;
-        h = h.wrapping_mul(0x100000001b3);
+        h = h.wrapping_mul(0x0100_0000_01b3);
     };
     mix(x as u64);
     mix(y as u64);
@@ -242,10 +252,10 @@ fn knn_mi_proxy_ephemeral(
 /// approximation to a full within-neighborhood conditional permutation scheme.
 /// Deterministic order (sorted keys) keeps the seeded RNG stream reproducible.
 fn coarse_z_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
+    const BINS: usize = 3;
     if z.is_empty() {
         return vec![(0..n).collect()];
     }
-    const BINS: usize = 3;
     let mut keys = vec![0u64; n];
     for &zc in z {
         let col = columns[zc];
@@ -286,7 +296,7 @@ impl ConditionalIndependenceTest for MixedKnnCmi {
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        let n = request.columns.first().map(|c| c.len()).unwrap_or(0);
+        let n = request.columns.first().map_or(0, |c| c.len());
         let mut owned: Vec<Vec<f64>> = request.columns.iter().map(|c| c.to_vec()).collect();
         for col in &mut owned {
             if looks_discrete(col) {
@@ -294,7 +304,7 @@ impl ConditionalIndependenceTest for MixedKnnCmi {
                 super::parcorr_variants::rank_column(&ranked, col);
             }
         }
-        let refs: Vec<&[f64]> = owned.iter().map(|c| c.as_slice()).collect();
+        let refs: Vec<&[f64]> = owned.iter().map(std::vec::Vec::as_slice).collect();
         let ranked_req = CiBatchRequest {
             columns: &refs,
             queries: request.queries,
@@ -379,11 +389,11 @@ fn symbol_strata_sorted(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<us
         let key = if z.is_empty() {
             0u64
         } else {
-            let mut h = 0xcbf29ce484222325u64;
+            let mut h = 0xcbf2_9ce4_8422_2325_u64;
             for &zc in z {
                 let v = columns[zc][r].round() as i32;
-                h ^= v as u64;
-                h = h.wrapping_mul(0x100000001b3);
+                h ^= u64::from(v as u32);
+                h = h.wrapping_mul(0x0100_0000_01b3);
             }
             h
         };
@@ -464,7 +474,7 @@ impl ConditionalIndependenceTest for Gpdc {
         _workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        let n = request.columns.first().map(|c| c.len()).unwrap_or(0);
+        let n = request.columns.first().map_or(0, |c| c.len());
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
@@ -472,8 +482,8 @@ impl ConditionalIndependenceTest for Gpdc {
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
-            let rx = gp_residual(request.columns[q.x], request.columns, z, self)?;
-            let ry = gp_residual(request.columns[q.y], request.columns, z, self)?;
+            let rx = gp_residual(request.columns[q.x], request.columns, z, self);
+            let ry = gp_residual(request.columns[q.y], request.columns, z, self);
             let dcor = distance_correlation(&rx, &ry);
             // Permutation null: shuffle the Y residuals (Z influence already removed)
             // and recompute dCor; add-one p-value keeps it in (0, 1].
@@ -496,16 +506,11 @@ impl ConditionalIndependenceTest for Gpdc {
     }
 }
 
-fn gp_residual(
-    y: &[f64],
-    columns: &[&[f64]],
-    z: &[usize],
-    gp: &Gpdc,
-) -> Result<Vec<f64>, StatsError> {
+fn gp_residual(y: &[f64], columns: &[&[f64]], z: &[usize], gp: &Gpdc) -> Vec<f64> {
     let n = y.len();
     if z.is_empty() {
         let mean = y.iter().sum::<f64>() / n as f64;
-        return Ok(y.iter().map(|v| v - mean).collect());
+        return y.iter().map(|v| v - mean).collect();
     }
     // Build Gram on Z (sum of RBF over Z dims) and solve (K+λI)α = y.
     let mut k = vec![0.0; n * n];
@@ -544,7 +549,7 @@ fn gp_residual(
         // residual = y - K_unreg α; use y - pred + ridge*α as correction
         pred[i] -= gp.ridge * alpha[i];
     }
-    Ok((0..n).map(|i| y[i] - pred[i]).collect())
+    (0..n).map(|i| y[i] - pred[i]).collect()
 }
 
 fn distance_correlation(x: &[f64], y: &[f64]) -> f64 {
@@ -627,12 +632,12 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let out = oracle.test_batch(&req, &mut ws, &ctx).unwrap();
-        assert_eq!(out.results[0].p_value, 0.0);
+        assert!((out.results[0].p_value - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn symbolic_mi_positive_on_copy() {
-        let x: Vec<f64> = (0..100).map(|i| (i % 4) as f64).collect();
+        let x: Vec<f64> = (0..100).map(|i| f64::from(u32::try_from(i % 4).unwrap_or(0))).collect();
         let y = x.clone();
         let cols: [&[f64]; 2] = [&x, &y];
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
@@ -689,7 +694,7 @@ mod tests {
         let x: Vec<f64> = (0..50).map(|i| (i as f64 * 0.7).sin() + 0.1 * i as f64).collect();
         let d = distance_correlation(&x, &x);
         assert!((d - 1.0).abs() < 1e-9, "dcor(x,x)={d}");
-        let y: Vec<f64> = (0..50).map(|i| ((i * 13 + 5) % 17) as f64).collect();
+        let y: Vec<f64> = (0..50).map(|i| f64::from(((i * 13 + 5) % 17) as u32)).collect();
         let d1 = distance_correlation(&x, &y);
         let xs: Vec<f64> = x.iter().map(|v| 3.5 * v).collect();
         let ys: Vec<f64> = y.iter().map(|v| 3.5 * v).collect();

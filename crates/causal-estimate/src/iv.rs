@@ -88,12 +88,12 @@ fn prepare_iv_problem(
     query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
     if !query.effect_modifiers.is_empty() {
         return Err(EstimationError::UnsupportedQuery(
-            "IV estimators (Phase 4) do not support effect modifiers".into(),
+            "IV estimators do not support effect modifiers".into(),
         ));
     }
     if query.target_population != TargetPopulation::AllObserved {
         return Err(EstimationError::UnsupportedQuery(
-            "IV estimators (Phase 4) only support TargetPopulation::AllObserved".into(),
+            "IV estimators only support TargetPopulation::AllObserved".into(),
         ));
     }
     let treatment = query.treatment;

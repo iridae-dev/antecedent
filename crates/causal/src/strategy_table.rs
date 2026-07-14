@@ -4,7 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
 
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext};
 use causal_data::TabularData;
@@ -149,6 +149,7 @@ pub fn estimate_static_effect(
     query: &AverageEffectQuery,
     assumptions: AssumptionSet,
     bootstrap_replicates: u32,
+    overlap_policy: Option<OverlapPolicy>,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, AnalysisError> {
     match estimator {
@@ -163,6 +164,9 @@ pub fn estimate_static_effect(
         "propensity.weighting" => {
             let mut est = PropensityWeighting::new();
             est.bootstrap_replicates = bootstrap_replicates;
+            if let Some(policy) = overlap_policy {
+                est.overlap = policy;
+            }
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
@@ -170,6 +174,9 @@ pub fn estimate_static_effect(
         "propensity.matching" => {
             let mut est = PropensityMatching::new();
             est.bootstrap_replicates = bootstrap_replicates;
+            if let Some(policy) = overlap_policy {
+                est.overlap = policy;
+            }
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
@@ -177,6 +184,9 @@ pub fn estimate_static_effect(
         "propensity.stratification" => {
             let mut est = PropensityStratification::new();
             est.bootstrap_replicates = bootstrap_replicates;
+            if let Some(policy) = overlap_policy {
+                est.overlap = policy;
+            }
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
@@ -184,6 +194,9 @@ pub fn estimate_static_effect(
         "distance.matching" => {
             let mut est = DistanceMatching::new();
             est.bootstrap_replicates = bootstrap_replicates;
+            if let Some(policy) = overlap_policy {
+                est.overlap = policy;
+            }
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
@@ -191,6 +204,9 @@ pub fn estimate_static_effect(
         "aipw" => {
             let mut est = AipwAte::new();
             est.bootstrap_replicates = bootstrap_replicates;
+            if let Some(policy) = overlap_policy {
+                est.overlap = policy;
+            }
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = AipwWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)

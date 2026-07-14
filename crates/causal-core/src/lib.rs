@@ -13,6 +13,7 @@ pub mod assumption;
 pub mod diagnostic;
 pub mod error;
 pub mod execution;
+pub mod identification;
 pub mod ids;
 pub mod intervention;
 pub mod plan;
@@ -34,6 +35,7 @@ pub use execution::{
     KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount, Parallelism,
     ProgressSink, RngFactory,
 };
+pub use identification::IdentificationStatus;
 pub use ids::{
     CategoryDomainId, ComponentId, EnvironmentId, Lag, ModelId, QueryId, RegimeId, StateVersion,
     VariableId,

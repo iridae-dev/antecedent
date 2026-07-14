@@ -2,14 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::all)]
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::needless_range_loop,
     clippy::doc_markdown,
     clippy::too_many_arguments,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::many_single_char_names
 )]
 
 use causal_core::ExecutionContext;
@@ -546,6 +546,7 @@ fn leading_cca_scores(
 
 /// Return (ρ, a_x, a_y) for the leading canonical pair via power iteration on
 /// Cxx^{-1} Cxy Cyy^{-1} Cyx.
+#[allow(clippy::too_many_lines)]
 fn cca_leading(
     rx: &[f64],
     ry: &[f64],

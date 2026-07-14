@@ -7,20 +7,8 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic};
 use causal_expr::CausalExprArena;
 
+pub use causal_core::IdentificationStatus;
 pub use causal_expr::IdentifiedEstimand;
-
-/// Status of an identification attempt.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum IdentificationStatus {
-    /// Nonparametrically identified.
-    NonparametricallyIdentified,
-    /// Identified only under a proper subset of the model class (partial ID).
-    PartiallyIdentified,
-    /// Identification depends on which graph in an equivalence class / ensemble.
-    GraphDependent,
-    /// Not identified.
-    NotIdentified,
-}
 
 /// Step in a derivation trace.
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -2,7 +2,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::all)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::needless_range_loop,
+    clippy::too_many_arguments,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::doc_markdown
+)]
 
 use std::collections::HashMap;
 
@@ -37,7 +47,7 @@ impl ConditionalIndependenceTest for GSquared {
         workspace: &mut CiWorkspace,
         _ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        let n = request.columns.first().map(|c| c.len()).unwrap_or(0);
+        let n = request.columns.first().map_or(0, |c| c.len());
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
@@ -76,11 +86,11 @@ fn g_squared_statistic(
         let key = if z.is_empty() {
             0u64
         } else {
-            let mut h = 0xcbf29ce484222325u64;
+            let mut h = 0xcbf2_9ce4_8422_2325_u64;
             for &zc in z {
                 let v = columns[zc][r].round() as i32;
-                h ^= v as u64;
-                h = h.wrapping_mul(0x100000001b3);
+                h ^= u64::from(v as u32);
+                h = h.wrapping_mul(0x0100_0000_01b3);
             }
             h
         };
@@ -93,7 +103,7 @@ fn g_squared_statistic(
         if rows.len() < 2 {
             continue;
         }
-        let (g, df) = g_squared_on_rows(&xi, &yi, rows, workspace)?;
+        let (g, df) = g_squared_on_rows(&xi, &yi, rows, workspace);
         g_total += g;
         df_total += df;
         any = true;
@@ -112,7 +122,7 @@ fn g_squared_on_rows(
     yi: &[i32],
     rows: &[usize],
     workspace: &mut CiWorkspace,
-) -> Result<(f64, f64), StatsError> {
+) -> (f64, f64) {
     let mut levels_x: Vec<i32> = rows.iter().map(|&r| xi[r]).collect();
     levels_x.sort_unstable();
     levels_x.dedup();
@@ -145,7 +155,7 @@ fn g_squared_on_rows(
         }
     }
     if total < 1.0 {
-        return Ok((0.0, 0.0));
+        return (0.0, 0.0);
     }
     let mut g = 0.0;
     for i in 0..lx {
@@ -158,7 +168,7 @@ fn g_squared_on_rows(
         }
     }
     let df = ((lx - 1) * (ly - 1)) as f64;
-    Ok((g, df))
+    (g, df)
 }
 
 /// Exact chi-squared survival function via the regularized upper incomplete gamma
@@ -210,7 +220,7 @@ fn gamma_q_cf(a: f64, x: f64) -> f64 {
     let mut d = 1.0 / b;
     let mut h = d;
     for i in 1..500 {
-        let an = -(i as f64) * (i as f64 - a);
+        let an = -f64::from(i) * (f64::from(i) - a);
         b += 2.0;
         d = an * d + b;
         if d.abs() < TINY {

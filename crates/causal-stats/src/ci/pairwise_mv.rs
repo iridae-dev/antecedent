@@ -33,7 +33,7 @@ impl Default for PairwiseMultivariateCi {
 }
 
 impl PairwiseMultivariateCi {
-    /// Singleton-block wrapper (equivalent to scalar ParCorr).
+    /// Singleton-block wrapper (equivalent to scalar `ParCorr`).
     #[must_use]
     pub fn new() -> Self {
         Self {

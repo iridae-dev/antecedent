@@ -1314,9 +1314,12 @@ fn format_dag_dot(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
     dag_to_dot(&dag, None).map_err(py_err)
 }
 
+/// Parsed JSON DAG: `(node_count, edges, variable_names)`.
+type ParsedDagJson = (usize, Vec<(u32, u32)>, Option<Vec<String>>);
+
 /// Parse JSON DAG document; return `(node_count, edges, variable_names|None)`.
 #[pyfunction]
-fn parse_dag_json(json: &str) -> PyResult<(usize, Vec<(u32, u32)>, Option<Vec<String>>)> {
+fn parse_dag_json(json: &str) -> PyResult<ParsedDagJson> {
     let doc = causal_io::dag_json_from_str(json).map_err(py_err)?;
     let dag = causal_io::dag_from_wire(&doc.to_wire()).map_err(py_err)?;
     let _ = dag;

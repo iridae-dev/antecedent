@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 
 use causal_core::ExecutionContext;
 
@@ -52,6 +52,7 @@ impl CalibrationReport {
 /// # Errors
 ///
 /// Propagates CI failures.
+#[allow(clippy::many_single_char_names)]
 pub fn calibrate_parcorr_like(
     ci: &dyn ConditionalIndependence,
     n: usize,
@@ -147,8 +148,10 @@ pub fn calibrate_gsquared(
 
     for t in 0..trials {
         let mut rng = ctx.rng.stream(0x65_u64.wrapping_add(u64::from(t)));
-        let x: Vec<f64> = (0..n).map(|_| (rng.next_u64() % levels as u64) as f64).collect();
-        let y_null: Vec<f64> = (0..n).map(|_| (rng.next_u64() % levels as u64) as f64).collect();
+        let x: Vec<f64> =
+            (0..n).map(|_| (rng.next_u64() % u64::try_from(levels).unwrap_or(1)) as f64).collect();
+        let y_null: Vec<f64> =
+            (0..n).map(|_| (rng.next_u64() % u64::try_from(levels).unwrap_or(1)) as f64).collect();
         let cols_null: [&[f64]; 2] = [&x, &y_null];
         let req = CiBatchRequest {
             columns: &cols_null,
@@ -162,16 +165,16 @@ pub fn calibrate_gsquared(
             null_rej += 1;
         }
 
-        let y_alt: Vec<f64> =
-            x.iter()
-                .map(|&xi| {
-                    if rng.next_u64() % 5 == 0 {
-                        (rng.next_u64() % levels as u64) as f64
-                    } else {
-                        xi
-                    }
-                })
-                .collect();
+        let y_alt: Vec<f64> = x
+            .iter()
+            .map(|&xi| {
+                if rng.next_u64() % 5 == 0 {
+                    (rng.next_u64() % u64::try_from(levels).unwrap_or(1)) as f64
+                } else {
+                    xi
+                }
+            })
+            .collect();
         let cols_alt: [&[f64]; 2] = [&x, &y_alt];
         let req_alt = CiBatchRequest {
             columns: &cols_alt,

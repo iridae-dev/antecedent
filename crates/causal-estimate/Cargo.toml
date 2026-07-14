@@ -16,13 +16,13 @@ workspace = true
 causal-core = { path = "../causal-core" }
 causal-data = { path = "../causal-data" }
 causal-expr = { path = "../causal-expr" }
-causal-graph = { path = "../causal-graph" }
-causal-identify = { path = "../causal-identify" }
 causal-prob = { path = "../causal-prob" }
 causal-stats = { path = "../causal-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+causal-graph = { path = "../causal-graph" }
+causal-identify = { path = "../causal-identify" }
 criterion = { workspace = true }
 
 [[bench]]

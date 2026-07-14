@@ -14,8 +14,8 @@ use crate::result::IdentificationResult;
 
 /// Scratch buffers for identification algorithms (DESIGN §10.3).
 ///
-/// Phase-1 identifiers do not yet reuse this; it exists so the trait matches
-/// DESIGN and callers can thread a workspace through polymorphic dispatch.
+/// Reserved for polymorphic dispatch. Current identifiers do not allocate into
+/// this workspace; callers may still pass a default instance.
 #[derive(Clone, Debug, Default)]
 pub struct IdentificationWorkspace {
     _private: (),
@@ -23,10 +23,9 @@ pub struct IdentificationWorkspace {
 
 /// Identification algorithm over graph type `G` (DESIGN §10.3).
 ///
-/// Concrete identifiers keep inherent `prepare` / `identify` methods for
-/// ergonomic use; this trait is the extension / dispatch surface. `assumptions`
-/// and `workspace` are accepted for DESIGN parity even when a given algorithm
-/// does not yet consume them.
+/// Concrete identifiers keep inherent `prepare` / `identify` methods as the
+/// primary API. This trait is the extension / dispatch surface. Algorithms that
+/// do not consume `assumptions` or `workspace` ignore those parameters.
 pub trait Identifier<G> {
     /// Compile `graph` (+ declared assumptions) into a reusable prepared form.
     ///

@@ -7,9 +7,9 @@
 use std::sync::Arc;
 
 use causal_estimate::{OverlapPolicy, OverlapReport};
-use causal_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
+use causal_stats::GlmOptions;
 
-use crate::common::{RefutationProblem, RefutationReport};
+use crate::common::{RefutationProblem, RefutationReport, diagnostic_overlap_report};
 use crate::error::ValidationError;
 
 /// Overlap / positivity assessment (DESIGN.md §18.2).
@@ -88,33 +88,7 @@ impl OverlapRefuter {
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<OverlapReport, ValidationError> {
-        let mut ids = vec![problem.treatment()];
-        ids.extend_from_slice(&problem.estimand.adjustment_set);
-        let row_mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
-        let t = problem
-            .data
-            .float64_masked(problem.treatment(), &row_mask)
-            .map_err(ValidationError::from)?;
-        let nrows = t.len();
-        let ncols = 1 + problem.estimand.adjustment_set.len();
-        let mut design = vec![0.0; nrows * ncols];
-        for r in design.iter_mut().take(nrows) {
-            *r = 1.0;
-        }
-        for (i, &z) in problem.estimand.adjustment_set.iter().enumerate() {
-            let col = problem.data.float64_masked(z, &row_mask).map_err(ValidationError::from)?;
-            let base = (1 + i) * nrows;
-            design[base..base + nrows].copy_from_slice(&col);
-        }
-        let backend = FaerBackend;
-        let mut ws = PropensityWorkspace::default();
-        let fit = fit_propensity(&design, nrows, ncols, &t, &backend, &mut ws, &self.glm_options)
-            .map_err(ValidationError::from)?;
-        Ok(OverlapReport::from_propensities(
-            &fit.scores,
-            None,
-            OverlapPolicy::require_diagnostics(),
-        ))
+        diagnostic_overlap_report(problem, &self.glm_options, OverlapPolicy::require_diagnostics())
     }
 }
 

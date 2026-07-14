@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::all, clippy::pedantic, clippy::nursery, clippy::restriction)]
-
 mod advanced;
 mod analytic;
 mod block_shuffle;

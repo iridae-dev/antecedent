@@ -92,6 +92,8 @@ pub struct CausalAnalysisBuilder {
     estimator: Option<Arc<str>>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
+    /// Optional override for propensity / AIPW overlap (clip/trim). `None` keeps estimator defaults.
+    overlap_policy: Option<OverlapPolicy>,
 }
 
 impl Default for CausalAnalysisBuilder {
@@ -115,6 +117,7 @@ impl CausalAnalysisBuilder {
             estimator: None,
             rd: None,
             inference: InferenceMode::Frequentist,
+            overlap_policy: None,
         }
     }
 
@@ -273,6 +276,17 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Overlap / positivity policy for propensity and AIPW estimators (DESIGN.md §14.3).
+    ///
+    /// When unset, those estimators keep their built-in defaults (clip = 0.01, no trim).
+    /// Ignored by estimators that require [`OverlapPolicy::ExplicitOverride`] (linear, GLM, IV,
+    /// front-door, RD).
+    #[must_use]
+    pub fn overlap_policy(mut self, policy: OverlapPolicy) -> Self {
+        self.overlap_policy = Some(policy);
+        self
+    }
+
     /// Configure the running variable / cutoff / bandwidth required by the `rd.sharp`
     /// estimator. `compile` refuses `rd.sharp` without this.
     #[must_use]
@@ -298,6 +312,7 @@ impl CausalAnalysisBuilder {
             estimator: self.estimator,
             rd: self.rd,
             inference: self.inference,
+            overlap_policy: self.overlap_policy,
         })
     }
 }
@@ -315,6 +330,7 @@ pub struct CausalAnalysis {
     estimator: Option<Arc<str>>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
+    overlap_policy: Option<OverlapPolicy>,
 }
 
 impl CausalAnalysis {
@@ -362,7 +378,7 @@ impl CausalAnalysis {
                 compile_logical_temporal_effect(data, &TemporalDag::empty(), q, self.split, true)
             }
             _ => Err(AnalysisError::Unsupported {
-                message: "unsupported data/graph/query combination in Phase 3",
+                message: "unsupported data/graph/query combination",
             }),
         }
     }
@@ -432,7 +448,7 @@ impl CausalAnalysis {
                 }
             }
             _ => Err(AnalysisError::Unsupported {
-                message: "unsupported data/graph/query combination in Phase 3",
+                message: "unsupported data/graph/query combination",
             }),
         }
     }
@@ -454,9 +470,8 @@ impl CausalAnalysis {
             }
             (DataInput::Temporal(_), CausalQuery::AverageEffect(_), _) => {
                 return Err(AnalysisError::Compile {
-                    message:
-                        "static ATE on temporal data is not a Phase 3 path; use TemporalEffect"
-                            .into(),
+                    message: "static ATE on temporal data is unsupported; use TemporalEffect"
+                        .into(),
                 });
             }
             (
@@ -651,6 +666,7 @@ impl CausalAnalysis {
             query,
             assumptions,
             self.bootstrap_replicates,
+            self.overlap_policy,
             ctx,
         )?;
 

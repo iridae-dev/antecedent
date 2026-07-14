@@ -135,12 +135,12 @@ impl SharpRegressionDiscontinuity {
         query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
         if !query.effect_modifiers.is_empty() {
             return Err(EstimationError::UnsupportedQuery(
-                "sharp RD (Phase 4) does not support effect modifiers".into(),
+                "sharp RD does not support effect modifiers".into(),
             ));
         }
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::UnsupportedQuery(
-                "sharp RD (Phase 4) only supports TargetPopulation::AllObserved".into(),
+                "sharp RD only supports TargetPopulation::AllObserved".into(),
             ));
         }
         // The sharp-RD estimand is the outcome jump at the cutoff for the 0/1 crossing

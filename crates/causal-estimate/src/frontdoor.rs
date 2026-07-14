@@ -113,20 +113,20 @@ fn prepare_frontdoor_problem(
     }
     if estimand.mediators.len() != 1 {
         return Err(EstimationError::UnsupportedQuery(
-            "FrontDoorTwoStage (Phase 4) supports exactly one mediator; multi-mediator front-door \
-             sets are not yet implemented"
+            "FrontDoorTwoStage supports exactly one mediator; multi-mediator front-door \
+             sets are unsupported"
                 .into(),
         ));
     }
     query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
     if !query.effect_modifiers.is_empty() {
         return Err(EstimationError::UnsupportedQuery(
-            "FrontDoorTwoStage (Phase 4) does not support effect modifiers".into(),
+            "FrontDoorTwoStage does not support effect modifiers".into(),
         ));
     }
     if query.target_population != TargetPopulation::AllObserved {
         return Err(EstimationError::UnsupportedQuery(
-            "FrontDoorTwoStage (Phase 4) only supports TargetPopulation::AllObserved".into(),
+            "FrontDoorTwoStage only supports TargetPopulation::AllObserved".into(),
         ));
     }
     let treatment = query.treatment;

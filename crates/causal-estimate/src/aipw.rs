@@ -133,8 +133,8 @@ impl AipwAte {
     ) -> Result<EffectEstimate, EstimationError> {
         if !matches!(problem.target_population, TargetPopulation::AllObserved) {
             return Err(EstimationError::UnsupportedQuery(
-                "AIPW (Phase 4) only supports TargetPopulation::AllObserved; ATT/ATC doubly \
-                 robust estimators are not yet implemented"
+                "AIPW only supports TargetPopulation::AllObserved; ATT/ATC doubly \
+                 robust estimation is unsupported"
                     .into(),
             ));
         }

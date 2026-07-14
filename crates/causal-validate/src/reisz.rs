@@ -26,9 +26,9 @@ use std::sync::Arc;
 
 use causal_core::ExecutionContext;
 use causal_estimate::EstimationWorkspace;
-use causal_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
+use causal_stats::GlmOptions;
 
-use crate::common::{RefutationProblem, RefutationReport};
+use crate::common::{RefutationProblem, RefutationReport, fit_diagnostic_propensity};
 use crate::error::ValidationError;
 
 /// Default confounding-strength grid (L2 residual shift, in units of `sd(Y)`).
@@ -140,46 +140,25 @@ impl ReiszSensitivity {
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<(Vec<f64>, Vec<f64>, f64), ValidationError> {
-        let mut ids = vec![problem.treatment(), problem.outcome()];
-        ids.extend_from_slice(&problem.estimand.adjustment_set);
-        let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
-        let t = problem
-            .data
-            .float64_masked(problem.treatment(), &mask)
-            .map_err(ValidationError::from)?;
-        let y =
-            problem.data.float64_masked(problem.outcome(), &mask).map_err(ValidationError::from)?;
-        let nrows = t.len();
-        for &ti in &t {
+        let cols = fit_diagnostic_propensity(problem, &self.glm_options, true)?;
+        let y = cols.outcome.expect("outcome requested");
+        let nrows = cols.treatment.len();
+        for &ti in &cols.treatment {
             if !(ti == 0.0 || ti == 1.0) {
                 return Err(ValidationError::NotApplicable {
                     message: "ReiszSensitivity requires binary 0/1 treatment",
                 });
             }
         }
-        let ncols = 1 + problem.estimand.adjustment_set.len();
-        let mut design = vec![0.0; nrows * ncols];
-        for r in design.iter_mut().take(nrows) {
-            *r = 1.0;
-        }
-        for (i, &z) in problem.estimand.adjustment_set.iter().enumerate() {
-            let col = problem.data.float64_masked(z, &mask).map_err(ValidationError::from)?;
-            let base = (1 + i) * nrows;
-            design[base..base + nrows].copy_from_slice(&col);
-        }
-        let backend = FaerBackend;
-        let mut ws = PropensityWorkspace::default();
-        let fit = fit_propensity(&design, nrows, ncols, &t, &backend, &mut ws, &self.glm_options)
-            .map_err(ValidationError::from)?;
         let lo = self.clip.clamp(1e-6, 0.49);
         let hi = 1.0 - lo;
         let mut alpha = Vec::with_capacity(nrows);
         let mut weighted = 0.0;
-        for r in 0..nrows {
-            let p = fit.scores[r].clamp(lo, hi);
-            let a = if t[r] >= 0.5 { 1.0 / p } else { -1.0 / (1.0 - p) };
+        for (score, (&ti, &yi)) in cols.scores.iter().zip(cols.treatment.iter().zip(y.iter())) {
+            let p = score.clamp(lo, hi);
+            let a = if ti >= 0.5 { 1.0 / p } else { -1.0 / (1.0 - p) };
             alpha.push(a);
-            weighted += a * y[r];
+            weighted += a * yi;
         }
         let ipw_ate = weighted / nrows as f64;
         Ok((alpha, y, ipw_ate))
