@@ -276,6 +276,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "causal-prob"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+ "causal-kernels",
+]
+
+[[package]]
 name = "causal-py"
 version = "0.1.0"
 dependencies = [
