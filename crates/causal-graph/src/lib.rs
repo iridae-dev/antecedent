@@ -12,6 +12,7 @@ pub mod cpdag;
 pub mod dag;
 pub mod dsep;
 pub mod error;
+pub(crate) mod marked_storage;
 pub mod msep;
 pub mod pag;
 pub mod projection;

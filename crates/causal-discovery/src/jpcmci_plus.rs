@@ -19,12 +19,14 @@ use crate::evidence::{
     cpdag_evidence_from_oriented, cpdag_from_scored_links, threshold_scored_links,
 };
 use crate::orientation::{
-    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule, OrientationState,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule,
     run_orientation_to_fixed_point,
 };
+use crate::pipeline::{
+    algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
+};
 use crate::result::{
-    AlgorithmRecord, CpdagDiscoveryResult, DiscoveryDiagnostic, DiscoveryPerformanceRecord,
-    LaggedLink, ScoredLink,
+    CpdagDiscoveryResult, DiscoveryPerformanceRecord, LaggedLink, ScoredLink,
 };
 
 /// Alias for J-PCMCI+ discovery output (context-augmented temporal CPDAG).
@@ -112,7 +114,7 @@ impl JpcmciPlus {
             }
         }
         let plan = MultiEnvSamplePlan::try_from_multi_env(data, max_lag, Arc::from(plan_cols))
-            .map_err(|e| DiscoveryError::Data(format!("multi-env sample plan failed: {e}")))?;
+            .map_err(|e| DiscoveryError::data_msg(format!("multi-env sample plan failed: {e}")))?;
 
         let mut per_env_scored: Vec<Vec<ScoredLink>> = Vec::with_capacity(data.env_count());
         let mut last_sepsets = Default::default();
@@ -129,12 +131,12 @@ impl JpcmciPlus {
         for i in 0..data.env_count() {
             let env_plan = plan
                 .plan(i)
-                .map_err(|e| DiscoveryError::Data(format!("multi-env plan {i}: {e}")))?;
+                .map_err(|e| DiscoveryError::data_msg(format!("multi-env plan {i}: {e}")))?;
             let series = data
                 .environment(i)
-                .map_err(|e| DiscoveryError::Data(format!("environment {i}: {e}")))?;
+                .map_err(|e| DiscoveryError::data_msg(format!("environment {i}: {e}")))?;
             if env_plan.lag_map().series_len() != series.row_count() {
-                return Err(DiscoveryError::Data(format!(
+                return Err(DiscoveryError::data_msg(format!(
                     "sample plan length {} != environment {i} rows {}",
                     env_plan.lag_map().series_len(),
                     series.row_count()
@@ -155,7 +157,7 @@ impl JpcmciPlus {
                 .max(engine_result.performance.lagged_frame_bytes);
         }
 
-        diagnostics.push(DiscoveryDiagnostic {
+        diagnostics.push(crate::result::DiscoveryDiagnostic {
             code: Arc::from("jpcmci_plus.multi_env_plan"),
             message: Arc::from(format!(
                 "MultiEnvSamplePlan: {} envs, {} shared lagged columns (no sibling series clone)",
@@ -175,38 +177,16 @@ impl JpcmciPlus {
             &scored,
         )?;
 
-        let mut node_ids = HashMap::<(u32, u32), DenseNodeId>::new();
-        for (i, node) in cpdag.nodes().iter().enumerate() {
-            if let NodeRef::Lagged { variable, lag } = node {
-                node_ids.insert((variable.raw(), lag.raw()), DenseNodeId::from_raw(i as u32));
-            }
-        }
-
-        let mut state = OrientationState::default();
-        let mut sepset_entries: Vec<_> = last_sepsets.iter().collect();
-        sepset_entries
-            .sort_by_key(|((s, slag, t, tlag), _)| (s.raw(), slag.raw(), t.raw(), tlag.raw()));
-        for ((s, slag, t, tlag), sep) in sepset_entries {
-            let Some(&sa) = node_ids.get(&(s.raw(), slag.raw())) else {
-                continue;
-            };
-            let Some(&tb) = node_ids.get(&(t.raw(), tlag.raw())) else {
-                continue;
-            };
-            let mapped: Vec<DenseNodeId> = sep
-                .iter()
-                .filter_map(|(v, l)| node_ids.get(&(v.raw(), l.raw())).copied())
-                .collect();
-            state.set_sepset(sa, tb, Arc::from(mapped));
-        }
+        let node_ids = lagged_node_index(cpdag.nodes());
+        let mut state = orientation_state_from_sepsets(&node_ids, &last_sepsets);
 
         let rules: [&dyn OrientationRule; 5] =
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
         let _delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 
-        let algorithm = AlgorithmRecord {
-            id: Arc::from("jpcmci_plus"),
-            config: Arc::from(format!(
+        let algorithm = algorithm_record(
+            "jpcmci_plus",
+            format!(
                 "alpha={},max_lag={},fdr={},envs={},pool={},context={}",
                 alpha,
                 max_lag,
@@ -214,19 +194,20 @@ impl JpcmciPlus {
                 data.env_count(),
                 self.engine.constraints.multi_dataset.pool_lagged_ci,
                 self.engine.constraints.multi_dataset.context_variables.len()
-            )),
-        };
+            ),
+        );
         let evidence = cpdag_evidence_from_oriented(cpdag.clone(), scored, &last_sepsets);
         let review = TemporalCpdagReview::from_cpdag(cpdag, algorithm.id.clone());
         let links_retained = evidence.links.len() as u64;
-        diagnostics.push(DiscoveryDiagnostic {
-            code: Arc::from("jpcmci_plus.cpdag"),
-            message: Arc::from(format!(
+        push_diagnostic(
+            &mut diagnostics,
+            "jpcmci_plus.cpdag",
+            format!(
                 "pooled {} envs into context-aware temporal CPDAG ({} nodes)",
                 data.env_count(),
                 evidence.graph.node_count()
-            )),
-        });
+            ),
+        );
         performance.links_retained = links_retained;
 
         Ok(CpdagDiscoveryResult {
@@ -297,7 +278,7 @@ fn attach_context_nodes(
     for &cv in context_vars {
         let ctx_id = cpdag
             .add_context(cv, None)
-            .map_err(|e| DiscoveryError::Data(format!("add context node: {e}")))?;
+            .map_err(|e| DiscoveryError::data_msg(format!("add context node: {e}")))?;
         // Direct context → contemporaneous system target when a lag-0 link was retained.
         for s in scored {
             if s.link.source == cv

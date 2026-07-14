@@ -14,9 +14,10 @@ workspace = true
 
 [dependencies]
 causal-core = { path = "../causal-core" }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+criterion = { workspace = true }
 
 [[bench]]
 name = "traversal"

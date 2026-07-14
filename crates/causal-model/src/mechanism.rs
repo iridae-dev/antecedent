@@ -11,6 +11,7 @@
 )]
 
 use causal_core::CausalRng;
+use causal_kernels::standard_normal;
 
 use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatchMut};
 use crate::compile::MechanismSlot;
@@ -359,12 +360,6 @@ fn categorical_draw(support: &[f64], probs: &[f64], u: f64) -> f64 {
         }
     }
     *support.last().unwrap_or(&0.0)
-}
-
-fn standard_normal(rng: &mut CausalRng) -> f64 {
-    let u1 = rng.next_f64().max(f64::EPSILON);
-    let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
 }
 
 /// Fill an entire noise batch for all nodes (structural path).

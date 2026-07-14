@@ -2,49 +2,49 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::fmt;
-
 use causal_core::VariableId;
+use causal_graph::GraphError;
+use thiserror::Error;
 
 /// Identification failures.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum IdentificationError {
     /// Treatment/outcome missing from graph.
+    #[error("unknown variable {id}")]
     UnknownVariable {
         /// Variable.
         id: VariableId,
     },
     /// Query type not supported.
+    #[error("unsupported query: {message}")]
     UnsupportedQuery {
         /// Explanation.
         message: &'static str,
     },
     /// No adjustment set exists / not identified.
+    #[error("not identified: {message}")]
     NotIdentified {
         /// Explanation.
         message: &'static str,
     },
     /// Result limit exceeded during enumeration.
+    #[error("adjustment enumeration exceeded limit {limit}")]
     ResultLimitExceeded {
         /// Configured limit.
         limit: usize,
     },
     /// Graph error.
-    Graph(String),
+    #[error(transparent)]
+    Graph(#[from] GraphError),
+    /// Index / configuration message that is not a raw [`GraphError`].
+    #[error("{0}")]
+    Message(String),
 }
 
-impl fmt::Display for IdentificationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnknownVariable { id } => write!(f, "unknown variable {id}"),
-            Self::UnsupportedQuery { message } => write!(f, "unsupported query: {message}"),
-            Self::NotIdentified { message } => write!(f, "not identified: {message}"),
-            Self::ResultLimitExceeded { limit } => {
-                write!(f, "adjustment enumeration exceeded limit {limit}")
-            }
-            Self::Graph(msg) => write!(f, "graph error: {msg}"),
-        }
+impl IdentificationError {
+    /// Ad-hoc message helper.
+    #[must_use]
+    pub fn msg(message: impl Into<String>) -> Self {
+        Self::Message(message.into())
     }
 }
-
-impl std::error::Error for IdentificationError {}

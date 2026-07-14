@@ -58,11 +58,13 @@ pub fn fill_resample_indexes(
     out: &mut Vec<u32>,
 ) -> Result<(), DataError> {
     if n == 0 {
-        return Err(DataError::InvalidValidity { message: "resample needs n > 0" });
+        return Err(DataError::InvalidArgument {
+            message: "resample needs n > 0".into(),
+        });
     }
     if plan.is_weight_plan() {
-        return Err(DataError::InvalidValidity {
-            message: "BayesianBootstrap yields weights; use fill_resample_weights",
+        return Err(DataError::InvalidArgument {
+            message: "BayesianBootstrap yields weights; use fill_resample_weights".into(),
         });
     }
     out.clear();
@@ -76,7 +78,9 @@ pub fn fill_resample_indexes(
         ResamplingPlan::BayesianBootstrap => unreachable!("checked above"),
         ResamplingPlan::MovingBlock { length } | ResamplingPlan::CircularBlock { length } => {
             if length == 0 {
-                return Err(DataError::InvalidValidity { message: "block length must be > 0" });
+                return Err(DataError::InvalidArgument {
+                    message: "block length must be > 0".into(),
+                });
             }
             let circular = matches!(plan, ResamplingPlan::CircularBlock { .. });
             let n_starts =
@@ -118,11 +122,13 @@ pub fn fill_resample_weights(
     out: &mut Vec<f64>,
 ) -> Result<(), DataError> {
     if n == 0 {
-        return Err(DataError::InvalidValidity { message: "resample needs n > 0" });
+        return Err(DataError::InvalidArgument {
+            message: "resample needs n > 0".into(),
+        });
     }
     if !matches!(plan, ResamplingPlan::BayesianBootstrap) {
-        return Err(DataError::InvalidValidity {
-            message: "fill_resample_weights requires BayesianBootstrap",
+        return Err(DataError::InvalidArgument {
+            message: "fill_resample_weights requires BayesianBootstrap".into(),
         });
     }
     out.clear();
@@ -136,8 +142,8 @@ pub fn fill_resample_weights(
         sum += e;
     }
     if !(sum > 0.0) {
-        return Err(DataError::InvalidValidity {
-            message: "BayesianBootstrap weight sum non-positive",
+        return Err(DataError::InvalidArgument {
+            message: "BayesianBootstrap weight sum non-positive".into(),
         });
     }
     let scale = n as f64 / sum;

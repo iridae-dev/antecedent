@@ -130,13 +130,13 @@ pub fn anomaly_attribution(
 }
 
 fn map_model(e: ModelError) -> AnalysisError {
-    AnalysisError::Estimate(format!("gcm model: {e}"))
+    AnalysisError::Compile { message: format!("gcm model: {e}") }
 }
 
 fn map_cf(e: CounterfactualError) -> AnalysisError {
-    AnalysisError::Estimate(format!("gcm counterfactual: {e}"))
+    AnalysisError::Compile { message: format!("gcm counterfactual: {e}") }
 }
 
 fn map_attr(e: AttributionError) -> AnalysisError {
-    AnalysisError::Estimate(format!("gcm attribution: {e}"))
+    AnalysisError::Compile { message: format!("gcm attribution: {e}") }
 }

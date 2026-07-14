@@ -30,12 +30,14 @@ impl ReferencePointPolicy {
     ) -> Result<(usize, usize), crate::error::DataError> {
         use crate::error::DataError;
         if series_len == 0 {
-            return Err(DataError::InvalidValidity { message: "empty time series" });
+            return Err(DataError::InvalidArgument {
+                message: "empty time series".into(),
+            });
         }
         let max_lag_usize = max_lag as usize;
         if max_lag_usize >= series_len {
-            return Err(DataError::InvalidValidity {
-                message: "max_lag must be strictly less than series length",
+            return Err(DataError::InvalidArgument {
+                message: "max_lag must be strictly less than series length".into(),
             });
         }
         match self {
@@ -45,8 +47,9 @@ impl ReferencePointPolicy {
             }
             Self::AbsoluteOrigin { origin_row } => {
                 if origin_row < max_lag_usize || origin_row >= series_len {
-                    return Err(DataError::InvalidValidity {
-                        message: "absolute origin must satisfy max_lag <= origin < series_len",
+                    return Err(DataError::InvalidArgument {
+                        message: "absolute origin must satisfy max_lag <= origin < series_len"
+                            .into(),
                     });
                 }
                 Ok((origin_row, series_len - origin_row))

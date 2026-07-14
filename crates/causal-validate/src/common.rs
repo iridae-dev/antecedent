@@ -35,7 +35,7 @@ pub struct RefutationReport {
 }
 
 /// Inputs shared by Phase 1 effect refuters.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct RefutationProblem<'a> {
     /// Tabular data.
     pub data: &'a TabularData,
@@ -69,7 +69,7 @@ pub(crate) fn with_replaced_float(
     id: VariableId,
     values: Arc<[f64]>,
 ) -> Result<TabularData, ValidationError> {
-    data.with_replaced_float(id, values).map_err(|e| ValidationError::Data(e.to_string()))
+    data.with_replaced_float(id, values).map_err(ValidationError::from)
 }
 
 /// Append an independent continuous covariate; returns new data and its id.
@@ -78,7 +78,7 @@ pub(crate) fn with_extra_float(
     name: &str,
     values: Arc<[f64]>,
 ) -> Result<(TabularData, VariableId), ValidationError> {
-    data.with_appended_float(name, values).map_err(|e| ValidationError::Data(e.to_string()))
+    data.with_appended_float(name, values).map_err(ValidationError::from)
 }
 
 /// Fit linear adjustment once (no nested bootstrap pools).
@@ -92,10 +92,10 @@ pub(crate) fn fit_once(
 ) -> Result<EffectEstimate, ValidationError> {
     let prep = estimator
         .prepare(data, estimand, query)
-        .map_err(|e| ValidationError::Estimation(e.to_string()))?;
+        .map_err(ValidationError::from)?;
     estimator
         .fit(&prep, workspace, ctx, causal_core::AssumptionSet::new())
-        .map_err(|e| ValidationError::Estimation(e.to_string()))
+        .map_err(ValidationError::from)
 }
 
 /// Linear adjustment with nested bootstrap disabled (refuters / sensitivity grids).
@@ -208,7 +208,7 @@ pub(crate) fn float64_full(
     data: &TabularData,
     id: VariableId,
 ) -> Result<Vec<f64>, ValidationError> {
-    data.float64_values(id).map_err(|e| ValidationError::Data(e.to_string()))
+    data.float64_values(id).map_err(ValidationError::from)
 }
 
 /// Restrict analysis to a random `keep_fraction` of rows (Bernoulli per-row draw), intersected
@@ -228,8 +228,8 @@ pub(crate) fn with_row_subset(
         }
     }
     let mask =
-        ValidityBitmap::from_bytes(bytes, n).map_err(|e| ValidationError::Data(e.to_string()))?;
-    data.with_analysis_mask(mask).map_err(|e| ValidationError::Data(e.to_string()))
+        ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)?;
+    data.with_analysis_mask(mask).map_err(ValidationError::from)
 }
 
 /// Rebuild tabular data with `ids` columns resampled (with replacement) per `idx`; all other
@@ -260,8 +260,8 @@ pub(crate) fn with_resampled_rows(
         }
     }
     let mask =
-        ValidityBitmap::from_bytes(bytes, n).map_err(|e| ValidationError::Data(e.to_string()))?;
-    out.with_analysis_mask(mask).map_err(|e| ValidationError::Data(e.to_string()))
+        ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)?;
+    out.with_analysis_mask(mask).map_err(ValidationError::from)
 }
 
 /// Complete-case mask and the list of valid row indexes for `ids` (analysis mask included).
@@ -269,7 +269,7 @@ pub(crate) fn complete_case_rows(
     data: &TabularData,
     ids: &[VariableId],
 ) -> Result<(Vec<bool>, Vec<usize>), ValidationError> {
-    let mask = data.complete_case_mask(ids).map_err(|e| ValidationError::Data(e.to_string()))?;
+    let mask = data.complete_case_mask(ids).map_err(ValidationError::from)?;
     let valid: Vec<usize> = mask.iter().enumerate().filter_map(|(i, &k)| k.then_some(i)).collect();
     Ok((mask, valid))
 }
@@ -280,7 +280,7 @@ pub(crate) fn masked_sample_sd(
     id: VariableId,
     mask: &[bool],
 ) -> Result<f64, ValidationError> {
-    let vals = data.float64_masked(id, mask).map_err(|e| ValidationError::Data(e.to_string()))?;
+    let vals = data.float64_masked(id, mask).map_err(ValidationError::from)?;
     Ok(sample_sd(&vals))
 }
 

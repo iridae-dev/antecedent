@@ -17,6 +17,7 @@ use causal_graph::{
 };
 
 use crate::error::AnalysisError;
+use crate::strategy_table::validate_static_pair;
 
 /// How the causal graph is supplied to the planner.
 #[derive(Clone, Debug)]
@@ -333,43 +334,12 @@ pub struct StaticAteCompileInput<'a> {
     pub estimator: Arc<str>,
 }
 
-/// Compile-time allowlist of identifier/estimator pairs for the static ATE path (Phase 4;
-/// DESIGN.md §21.2). Any pair not listed here — including unknown ids, an IV estimator paired
-/// with a non-IV identifier, `frontdoor.two_stage` without `frontdoor`, or a propensity/AIPW
-/// estimator without a `backdoor.*` identifier — is refused.
-fn validate_static_pair(identifier: &str, estimator: &str) -> Result<(), AnalysisError> {
-    let supported = matches!(
-        (identifier, estimator),
-        (
-            "backdoor.adjustment" | "backdoor.efficient",
-            "linear.adjustment.ate"
-                | "propensity.weighting"
-                | "propensity.matching"
-                | "propensity.stratification"
-                | "distance.matching"
-                | "aipw"
-                | "glm.adjustment"
-                | "bayesian.gcomp"
-        ) | ("frontdoor", "frontdoor.two_stage")
-            | ("iv", "iv.wald" | "iv.2sls")
-            | ("rd.sharp", "rd.sharp")
-    );
-    if !supported {
-        return Err(AnalysisError::Compile {
-            message: format!(
-                "identifier {identifier:?} is not compatible with estimator {estimator:?}"
-            ),
-        });
-    }
-    Ok(())
-}
-
 /// Compile logical plan for static ATE (Phase 4 planner/estimator routing via DESIGN.md §21.2).
 ///
 /// # Errors
 ///
 /// Query validation failures, or an identifier/estimator pair not in the compile-time allowlist
-/// (see [`validate_static_pair`]).
+/// (see [`crate::strategy_table::validate_static_pair`]).
 pub fn compile_logical_static_ate(
     input: StaticAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {

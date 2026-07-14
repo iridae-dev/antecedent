@@ -37,7 +37,8 @@ use causal_stats::{
     fit_propensity,
 };
 
-use crate::adjustment::{EffectEstimate, OverlapPolicy, OverlapReport};
+use crate::adjustment::EffectEstimate;
+use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::error::EstimationError;
 use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
@@ -329,9 +330,7 @@ fn fit_outcome_models(
 ) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
     let (treated_idx, control_idx) = split_by_treatment(treatment);
     if treated_idx.is_empty() || control_idx.is_empty() {
-        return Err(EstimationError::Data(
-            "AIPW outcome regression requires both treated and control rows".into(),
-        ));
+        return Err(EstimationError::data_msg("AIPW outcome regression requires both treated and control rows"));
     }
 
     select_rows_colmajor(design_matrix, nrows, ncols, &control_idx, &mut workspace.control_design);
@@ -417,7 +416,7 @@ mod tests {
     use causal_expr::IdentifiedEstimand;
 
     use super::*;
-    use crate::adjustment::OverlapPolicy;
+    use crate::overlap::OverlapPolicy;
 
     /// Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(logit(-0.5 + Z))`, `Y = 2T + Z + noise`.
     /// True ATE = 2. Matches the propensity-estimator test fixture (`crate::propensity`).

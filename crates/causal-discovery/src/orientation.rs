@@ -14,31 +14,39 @@ use causal_graph::{DenseNodeId, TemporalCpdag};
 use crate::error::DiscoveryError;
 
 /// Orientation-layer errors.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum OrientationError {
     /// Graph mutation failed.
-    Graph(String),
+    #[error(transparent)]
+    Graph(#[from] causal_graph::GraphError),
     /// Rule precondition failed.
+    #[error("orientation precondition: {message}")]
     Precondition {
         /// Detail.
         message: &'static str,
     },
+    /// Non-graph orientation failure message.
+    #[error("{0}")]
+    Message(String),
 }
 
-impl core::fmt::Display for OrientationError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Graph(m) => write!(f, "orientation graph error: {m}"),
-            Self::Precondition { message } => write!(f, "orientation precondition: {message}"),
-        }
+impl OrientationError {
+    /// Ad-hoc message helper.
+    #[must_use]
+    pub fn msg(message: impl Into<String>) -> Self {
+        Self::Message(message.into())
     }
 }
 
-impl std::error::Error for OrientationError {}
-
 impl From<OrientationError> for DiscoveryError {
     fn from(e: OrientationError) -> Self {
-        DiscoveryError::Stats(e.to_string())
+        match e {
+            OrientationError::Graph(g) => DiscoveryError::Graph(g),
+            OrientationError::Precondition { message } => {
+                DiscoveryError::Unsupported { message }
+            }
+            OrientationError::Message(m) => DiscoveryError::stats_msg(m),
+        }
     }
 }
 
@@ -194,7 +202,7 @@ impl OrientationRule for MeekR1 {
                     if !graph.has_edge(a, c) {
                         graph
                             .orient_undirected(b, c)
-                            .map_err(|e| OrientationError::Graph(e.to_string()))?;
+                            .map_err(OrientationError::from)?;
                         delta.edges_changed += 1;
                         delta.fixed_point = false;
                         delta.premises.push(Arc::from(format!(
@@ -242,7 +250,7 @@ impl OrientationRule for MeekR2 {
                     if graph.edge_between(*a, c).is_some_and(|e| e.is_undirected()) {
                         graph
                             .orient_undirected(*a, c)
-                            .map_err(|e| OrientationError::Graph(e.to_string()))?;
+                            .map_err(OrientationError::from)?;
                         delta.edges_changed += 1;
                         delta.fixed_point = false;
                         delta.premises.push(Arc::from(format!(
@@ -309,7 +317,7 @@ impl OrientationRule for MeekR3 {
                 if orient {
                     graph
                         .orient_undirected(*a, b)
-                        .map_err(|e| OrientationError::Graph(e.to_string()))?;
+                        .map_err(OrientationError::from)?;
                     delta.edges_changed += 1;
                     delta.fixed_point = false;
                     delta.premises.push(Arc::from(format!(
@@ -374,7 +382,7 @@ impl OrientationRule for MeekR4 {
                 if orient {
                     graph
                         .orient_undirected(*a, b)
-                        .map_err(|e| OrientationError::Graph(e.to_string()))?;
+                        .map_err(OrientationError::from)?;
                     delta.edges_changed += 1;
                     delta.fixed_point = false;
                     delta.premises.push(Arc::from(format!(
@@ -446,7 +454,7 @@ impl OrientationRule for OrientCollider {
                     {
                         graph
                             .orient_undirected(a, *c)
-                            .map_err(|e| OrientationError::Graph(e.to_string()))?;
+                            .map_err(OrientationError::from)?;
                         oriented += 1;
                         changed.push(a);
                         changed.push(*c);
@@ -455,7 +463,7 @@ impl OrientationRule for OrientCollider {
                     {
                         graph
                             .orient_undirected(b, *c)
-                            .map_err(|e| OrientationError::Graph(e.to_string()))?;
+                            .map_err(OrientationError::from)?;
                         oriented += 1;
                         changed.push(b);
                         changed.push(*c);

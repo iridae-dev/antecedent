@@ -10,17 +10,10 @@
 use causal_core::{Lag, TemporalNodeKey, VariableId};
 
 use crate::error::GraphError;
+use crate::marked_storage::{self, AdjEntry};
 use crate::temporal::TemporalDag;
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
-
-/// Adjacency entry: neighbor plus marks at self and at neighbor.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-struct AdjEntry {
-    neighbor: DenseNodeId,
-    at_self: Endpoint,
-    at_neighbor: Endpoint,
-}
 
 /// Temporal CPDAG over lagged variable nodes (DESIGN §6.2, Phase 5).
 #[derive(Clone, Debug)]
@@ -141,16 +134,7 @@ impl TemporalCpdag {
                 return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
             }
         }
-        self.adj[edge.a.as_usize()].push(AdjEntry {
-            neighbor: edge.b,
-            at_self: edge.at_a,
-            at_neighbor: edge.at_b,
-        });
-        self.adj[edge.b.as_usize()].push(AdjEntry {
-            neighbor: edge.a,
-            at_self: edge.at_b,
-            at_neighbor: edge.at_a,
-        });
+        marked_storage::push_marked_pair(&mut self.adj, edge);
         Ok(())
     }
 
@@ -212,15 +196,7 @@ impl TemporalCpdag {
     /// Marked edge between `a` and `b` if present (marks oriented from `a`'s perspective as `at_a`).
     #[must_use]
     pub fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
-        if a.as_usize() >= self.node_count() || b.as_usize() >= self.node_count() {
-            return None;
-        }
-        for e in &self.adj[a.as_usize()] {
-            if e.neighbor == b {
-                return Some(MarkedEdge { a, b, at_a: e.at_self, at_b: e.at_neighbor });
-            }
-        }
-        None
+        marked_storage::edge_between(&self.adj, a, b)
     }
 
     /// All marked edges (each undirected/directed pair once, with `a.raw() <= b.raw()` for undirected
@@ -252,14 +228,7 @@ impl TemporalCpdag {
     /// Directed children of `id` (outgoing arrows).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
-        if id.as_usize() >= self.node_count() {
-            return Vec::new();
-        }
-        self.adj[id.as_usize()]
-            .iter()
-            .filter(|e| matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)))
-            .map(|e| e.neighbor)
-            .collect()
+        marked_storage::directed_children(&self.adj, id).collect()
     }
 
     /// Directed parents of `id` (incoming arrows).
@@ -286,6 +255,15 @@ impl TemporalCpdag {
             .filter(|e| matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Tail)))
             .map(|e| e.neighbor)
             .collect()
+    }
+
+    /// Borrowed directed-child iterator (orientation hot path).
+    #[must_use]
+    pub fn children_iter(
+        &self,
+        id: DenseNodeId,
+    ) -> impl Iterator<Item = DenseNodeId> + '_ {
+        marked_storage::directed_children(&self.adj, id)
     }
 
     /// Build from a directed [`TemporalDag`] (all edges become directed marks).
@@ -362,29 +340,19 @@ impl TemporalCpdag {
     }
 
     fn reaches_directed(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
-        if from == to {
-            return true;
-        }
         let mut ws = GraphWorkspace::default();
-        ws.prepare(self.node_count());
-        ws.frontier.push(from);
-        ws.visited.insert(from);
-        while let Some(n) = ws.frontier.pop() {
-            for e in &self.adj[n.as_usize()] {
-                if !matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)) {
-                    continue;
-                }
-                let c = e.neighbor;
-                if c == to {
-                    return true;
-                }
-                if !ws.visited.contains(c) {
-                    ws.visited.insert(c);
-                    ws.frontier.push(c);
-                }
-            }
-        }
-        false
+        marked_storage::reaches_directed(&self.adj, &mut ws, from, to)
+    }
+
+    /// Directed reachability reusing a caller-owned workspace.
+    #[must_use]
+    pub fn reaches_directed_with(
+        &self,
+        ws: &mut GraphWorkspace,
+        from: DenseNodeId,
+        to: DenseNodeId,
+    ) -> bool {
+        marked_storage::reaches_directed(&self.adj, ws, from, to)
     }
 
     fn set_marks(
@@ -394,31 +362,7 @@ impl TemporalCpdag {
         at_a: Endpoint,
         at_b: Endpoint,
     ) -> Result<(), GraphError> {
-        let mut found = false;
-        for e in &mut self.adj[a.as_usize()] {
-            if e.neighbor == b {
-                e.at_self = at_a;
-                e.at_neighbor = at_b;
-                found = true;
-                break;
-            }
-        }
-        if !found {
-            return Err(GraphError::UnknownNode { id: a.raw() });
-        }
-        found = false;
-        for e in &mut self.adj[b.as_usize()] {
-            if e.neighbor == a {
-                e.at_self = at_b;
-                e.at_neighbor = at_a;
-                found = true;
-                break;
-            }
-        }
-        if !found {
-            return Err(GraphError::UnknownNode { id: b.raw() });
-        }
-        Ok(())
+        marked_storage::set_marks(&mut self.adj, a, b, at_a, at_b)
     }
 
     fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {

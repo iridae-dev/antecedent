@@ -7,195 +7,17 @@
 use std::sync::Arc;
 
 use causal_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
+    AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, VariableId,
 };
 use causal_data::TabularData;
-use causal_expr::IdentifiedEstimand;
+use causal_expr::{EstimandMethod, IdentifiedEstimand};
 use causal_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
 };
 
 use crate::error::EstimationError;
-
-/// Overlap / positivity handling (DESIGN §14.3).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum OverlapPolicy {
-    /// Explicitly skip propensity-based overlap (linear adjustment path).
-    ExplicitOverride,
-    /// Require propensity diagnostics; optional clip/trim thresholds in `(0, 0.5)`.
-    RequireDiagnostics {
-        /// Clip propensities into `[clip, 1 - clip]` when `Some`.
-        clip: Option<f64>,
-        /// Drop units outside `[trim, 1 - trim]` when `Some`.
-        trim: Option<f64>,
-    },
-}
-
-impl OverlapPolicy {
-    /// Require diagnostics with no clipping or trimming.
-    #[must_use]
-    pub const fn require_diagnostics() -> Self {
-        Self::RequireDiagnostics { clip: None, trim: None }
-    }
-}
-
-/// Closed propensity interval excluded from the target population (DESIGN §14.3).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PropensityInterval {
-    /// Inclusive lower bound in `[0, 1]`.
-    pub low: f64,
-    /// Inclusive upper bound in `[0, 1]`.
-    pub high: f64,
-}
-
-/// Sensitivity of ESS / extreme weights to neighboring clip thresholds (DESIGN §14.3).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ClipSensitivity {
-    /// Neighboring clip thresholds evaluated (typically `{clip/2, clip, 2·clip}` capped).
-    pub thresholds: Arc<[f64]>,
-    /// Kish ESS at each threshold (same order as [`Self::thresholds`]).
-    pub ess: Arc<[f64]>,
-    /// Extreme-weight counts (`w > 10`) at each threshold.
-    pub extreme_weight_counts: Arc<[u32]>,
-}
-
-/// Propensity overlap / positivity report retained on estimates.
-#[derive(Clone, Debug, PartialEq)]
-pub struct OverlapReport {
-    /// Minimum fitted propensity (before clipping).
-    pub propensity_min: f64,
-    /// Maximum fitted propensity (before clipping).
-    pub propensity_max: f64,
-    /// Kish effective sample size of the applied weights.
-    pub ess: f64,
-    /// Count of weights above the extreme-weight threshold (default 10).
-    pub extreme_weight_count: u32,
-    /// Fraction of rows excluded by trimming (0 if no trim).
-    pub excluded_fraction: f64,
-    /// Fraction of units whose propensity lies in the retained common-support band.
-    ///
-    /// Band is `[clip, 1 - clip]` when clip is set, else `[trim, 1 - trim]` when trim is set,
-    /// else the full unit interval (support = 1).
-    pub target_population_support: f64,
-    /// Propensity intervals excluded by trimming (empty when no trim).
-    pub excluded_regions: Arc<[PropensityInterval]>,
-    /// Clip threshold applied, if any.
-    pub clip: Option<f64>,
-    /// Trim threshold applied, if any.
-    pub trim: Option<f64>,
-    /// ESS / extreme-weight sensitivity across neighboring clip thresholds.
-    pub clip_sensitivity: Option<ClipSensitivity>,
-}
-
-impl OverlapReport {
-    /// Build a report from fitted propensities and optional IPW weights.
-    #[must_use]
-    pub fn from_propensities(
-        propensities: &[f64],
-        weights: Option<&[f64]>,
-        policy: OverlapPolicy,
-    ) -> Self {
-        let (clip, trim) = match policy {
-            OverlapPolicy::ExplicitOverride => (None, None),
-            OverlapPolicy::RequireDiagnostics { clip, trim } => (clip, trim),
-        };
-        let mut min_p = f64::INFINITY;
-        let mut max_p = f64::NEG_INFINITY;
-        let mut excluded = 0u32;
-        let mut in_support = 0u32;
-        let support_lo = clip.or(trim).unwrap_or(0.0);
-        let support_hi = 1.0 - support_lo;
-        for &p in propensities {
-            min_p = min_p.min(p);
-            max_p = max_p.max(p);
-            if let Some(t) = trim {
-                if p < t || p > 1.0 - t {
-                    excluded = excluded.saturating_add(1);
-                }
-            }
-            if p >= support_lo && p <= support_hi {
-                in_support = in_support.saturating_add(1);
-            }
-        }
-        if propensities.is_empty() {
-            min_p = f64::NAN;
-            max_p = f64::NAN;
-        }
-        let n = propensities.len().max(1) as f64;
-        let excluded_fraction = f64::from(excluded) / n;
-        let target_population_support =
-            if propensities.is_empty() { f64::NAN } else { f64::from(in_support) / n };
-        let excluded_regions: Arc<[PropensityInterval]> = match trim {
-            Some(t) if t > 0.0 => Arc::from([
-                PropensityInterval { low: 0.0, high: t },
-                PropensityInterval { low: 1.0 - t, high: 1.0 },
-            ]),
-            _ => Arc::from([]),
-        };
-        let (ess, extreme_weight_count) = match weights {
-            Some(w) if !w.is_empty() => weight_summary(w),
-            _ => (f64::from(u32::try_from(propensities.len()).unwrap_or(u32::MAX)), 0),
-        };
-        let clip_sensitivity = clip.map(|c| clip_sensitivity_grid(propensities, c));
-        Self {
-            propensity_min: min_p,
-            propensity_max: max_p,
-            ess,
-            extreme_weight_count,
-            excluded_fraction,
-            target_population_support,
-            excluded_regions,
-            clip,
-            trim,
-            clip_sensitivity,
-        }
-    }
-}
-
-fn weight_summary(weights: &[f64]) -> (f64, u32) {
-    let sum: f64 = weights.iter().sum();
-    let sum_sq: f64 = weights.iter().map(|x| x * x).sum();
-    let ess = if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 };
-    let extreme = weights.iter().filter(|&&x| x > 10.0).count();
-    (ess, u32::try_from(extreme).unwrap_or(u32::MAX))
-}
-
-/// ATE-style IPW weights from propensities at a clip threshold (for sensitivity grids).
-fn ate_ipw_weights_from_propensity(propensities: &[f64], clip: f64) -> Vec<f64> {
-    let lo = clip.clamp(1e-6, 0.49);
-    let hi = 1.0 - lo;
-    propensities
-        .iter()
-        .map(|&p_raw| {
-            let p = p_raw.clamp(lo, hi);
-            // Two-arm contribution: treat as treated weight 1/p for sensitivity shape.
-            1.0 / p + 1.0 / (1.0 - p)
-        })
-        .collect()
-}
-
-fn clip_sensitivity_grid(propensities: &[f64], clip: f64) -> ClipSensitivity {
-    let c = clip.clamp(1e-6, 0.49);
-    let candidates = [c * 0.5, c, (c * 2.0).min(0.49)];
-    let mut thresholds = Vec::with_capacity(3);
-    let mut ess_vals = Vec::with_capacity(3);
-    let mut extreme_counts = Vec::with_capacity(3);
-    for &thr in &candidates {
-        if thresholds.last().is_some_and(|&prev: &f64| (prev - thr).abs() < 1e-15) {
-            continue;
-        }
-        let rebuilt = ate_ipw_weights_from_propensity(propensities, thr);
-        let (ess, extreme) = weight_summary(&rebuilt);
-        thresholds.push(thr);
-        ess_vals.push(ess);
-        extreme_counts.push(extreme);
-    }
-    ClipSensitivity {
-        thresholds: Arc::from(thresholds),
-        ess: Arc::from(ess_vals),
-        extreme_weight_counts: Arc::from(extreme_counts),
-    }
-}
+use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::prepare::{require_method, treatment_contrast, validate_simple_ate_query};
 
 /// Prepared estimation problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -281,51 +103,34 @@ impl LinearAdjustmentAte {
             self.overlap,
             "LinearAdjustmentAte requires ExplicitOverride overlap policy",
         )?;
-        if &*estimand.method != "backdoor.adjustment" {
-            return Err(EstimationError::IncompatibleEstimand {
-                message: "LinearAdjustmentAte expects backdoor.adjustment",
-            });
-        }
-        query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
-        if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::UnsupportedQuery(
-                "Phase 1 linear adjustment does not support effect modifiers".into(),
-            ));
-        }
-        if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::UnsupportedQuery(
-                "Phase 1 linear adjustment only supports TargetPopulation::AllObserved".into(),
-            ));
-        }
+        require_method(
+            estimand,
+            &[EstimandMethod::BackdoorAdjustment],
+            "LinearAdjustmentAte expects backdoor.adjustment",
+        )?;
+        validate_simple_ate_query(query)?;
         let treatment = query.treatment;
         let outcome = query.outcome;
-        let active = intervention_f64(&query.active)?;
-        let control = intervention_f64(&query.control)?;
-        let treatment_delta = active - control;
-        if treatment_delta == 0.0 {
-            return Err(EstimationError::UnsupportedQuery(
-                "active and control treatment levels must differ".into(),
-            ));
-        }
+        let (_, _, treatment_delta) = treatment_contrast(&query.active, &query.control)?;
 
         let mut ids = Vec::with_capacity(2 + estimand.adjustment_set.len());
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
         let row_mask =
-            data.complete_case_mask(&ids).map_err(|e| EstimationError::Data(e.to_string()))?;
+            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         let t = data
             .float64_masked(treatment, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let y = data
             .float64_masked(outcome, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
             covs.push((
                 z,
                 data.float64_masked(z, &row_mask)
-                    .map_err(|e| EstimationError::Data(e.to_string()))?,
+                    .map_err(EstimationError::from)?,
             ));
         }
         let cov_refs: Vec<(VariableId, &[f64])> =
@@ -333,7 +138,7 @@ impl LinearAdjustmentAte {
         let selected_rows: Vec<usize> =
             row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
         let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
-            .map_err(|e| EstimationError::Stats(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         Ok(PreparedEstimationProblem {
             design,
             method: Arc::clone(&estimand.method),
@@ -358,11 +163,11 @@ impl LinearAdjustmentAte {
         let fit = problem
             .design
             .fit_ols(&self.backend, &mut workspace.ols)
-            .map_err(|e| EstimationError::Stats(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let t_col = problem
             .design
             .treatment_column()
-            .ok_or_else(|| EstimationError::Stats("missing treatment column".into()))?;
+            .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
         let ate = fit.coefficients[t_col] * problem.treatment_delta;
         let n = problem.design.nrows as f64;
         let p = problem.design.ncols as f64;
@@ -403,33 +208,22 @@ impl LinearAdjustmentAte {
         let mut rng = ctx.rng.stream(0xA7E_u64);
         let n = problem.design.nrows;
         let p = problem.design.ncols;
-        let mut ates = Vec::with_capacity(self.bootstrap_replicates as usize);
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                y_boot[r] = problem.design.outcome[idx];
+        let se = crate::util::bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                y_boot[r] = problem.design.outcome[src];
                 for c in 0..p {
-                    x_boot[c * n + r] = problem.design.matrix[c * n + idx];
+                    x_boot[c * n + r] = problem.design.matrix[c * n + src];
                 }
             }
             let fit = self
                 .backend
                 .least_squares(&x_boot, n, p, &y_boot, &mut workspace.ols)
-                .map_err(|e| EstimationError::Stats(e.to_string()))?;
-            ates.push(fit.coefficients[t_col] * problem.treatment_delta);
-        }
-        let mean = ates.iter().sum::<f64>() / ates.len() as f64;
-        let var = ates
-            .iter()
-            .map(|a| {
-                let d = a - mean;
-                d * d
-            })
-            .sum::<f64>()
-            / (ates.len() as f64 - 1.0).max(1.0);
-        Ok(var.sqrt())
+                .map_err(EstimationError::from)?;
+            Ok(Some(fit.coefficients[t_col] * problem.treatment_delta))
+        })?;
+        Ok(se.unwrap_or(f64::NAN))
     }
 }
 
@@ -460,6 +254,31 @@ fn analytic_se_treatment(
     };
     (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
 }
+
+impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {
+    type Fit = EffectEstimate;
+
+    fn prepare(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &AverageEffectQuery,
+        _ctx: &ExecutionContext,
+    ) -> Result<PreparedEstimationProblem, EstimationError> {
+        Self::prepare(self, data, estimand, query)
+    }
+
+    fn fit(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Self::Fit, EstimationError> {
+        Self::fit(self, problem, workspace, ctx, AssumptionSet::new())
+    }
+}
+
+impl crate::estimator::TabularAteEstimator for LinearAdjustmentAte {}
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]

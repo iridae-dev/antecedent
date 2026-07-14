@@ -12,6 +12,7 @@ pub mod envelope;
 pub mod error;
 pub mod frontdoor;
 pub mod generalized;
+pub mod identifier;
 pub mod iv;
 pub mod rd;
 pub mod result;
@@ -26,6 +27,7 @@ pub use envelope::{
 pub use error::IdentificationError;
 pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
 pub use generalized::{GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier};
+pub use identifier::{IdentificationWorkspace, Identifier};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use result::{

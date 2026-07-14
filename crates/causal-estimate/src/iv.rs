@@ -30,7 +30,8 @@ use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx, invert_square};
 
-use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
+use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
 use crate::util::{sample_std, stats_err};
 
@@ -74,7 +75,7 @@ fn prepare_iv_problem(
         overlap,
         "IV estimators require ExplicitOverride overlap policy (not propensity-based)",
     )?;
-    if &*estimand.method != "iv" {
+    if estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::Iv) {
         return Err(EstimationError::IncompatibleEstimand {
             message: "IV estimators expect an \"iv\" estimand",
         });
@@ -113,13 +114,13 @@ fn prepare_iv_problem(
     ids.extend_from_slice(&estimand.instruments);
     ids.extend_from_slice(&estimand.adjustment_set);
     let row_mask =
-        data.complete_case_mask(&ids).map_err(|e| EstimationError::Data(e.to_string()))?;
+        data.complete_case_mask(&ids).map_err(EstimationError::from)?;
     let t = data
         .float64_masked(treatment, &row_mask)
-        .map_err(|e| EstimationError::Data(e.to_string()))?;
+        .map_err(EstimationError::from)?;
     let y = data
         .float64_masked(outcome, &row_mask)
-        .map_err(|e| EstimationError::Data(e.to_string()))?;
+        .map_err(EstimationError::from)?;
     let nrows = t.len();
 
     let z_ncols = 1 + estimand.instruments.len();
@@ -130,7 +131,7 @@ fn prepare_iv_problem(
     for (i, &z_id) in estimand.instruments.iter().enumerate() {
         let col = data
             .float64_masked(z_id, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
         for r in 0..nrows {
             instruments_matrix[base + r] = col[r];
@@ -145,7 +146,7 @@ fn prepare_iv_problem(
     for (i, &x_id) in estimand.adjustment_set.iter().enumerate() {
         let col = data
             .float64_masked(x_id, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
         for r in 0..nrows {
             exogenous_matrix[base + r] = col[r];
@@ -307,9 +308,7 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
         }
     }
     if n1 == 0 || n0 == 0 {
-        return Err(EstimationError::Data(
-            "Wald IV requires both instrument arms (Z=0 and Z=1) to be present".into(),
-        ));
+        return Err(EstimationError::data_msg("Wald IV requires both instrument arms (Z=0 and Z=1) to be present"));
     }
     let n1f = n1 as f64;
     let n0f = n0 as f64;
@@ -319,8 +318,8 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
     let mean_t0 = st0 / n0f;
     let denom = mean_t1 - mean_t0;
     if denom.abs() < 1e-10 {
-        return Err(EstimationError::Stats(
-            "degenerate first stage: instrument is uncorrelated with treatment".into(),
+        return Err(EstimationError::stats_msg(
+            "degenerate first stage: instrument is uncorrelated with treatment",
         ));
     }
     let ratio = (mean_y1 - mean_y0) / denom;
@@ -533,7 +532,7 @@ mod tests {
     use causal_expr::IdentifiedEstimand;
 
     use super::*;
-    use crate::adjustment::OverlapPolicy;
+    use crate::overlap::OverlapPolicy;
 
     fn standard_normal(rng: &mut CausalRng) -> f64 {
         let u1 = rng.next_f64().max(1e-12);

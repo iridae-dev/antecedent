@@ -12,8 +12,7 @@ use causal_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspac
 
 use crate::error::IdentificationError;
 use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
-    IdentifiedEstimand,
+    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
 };
 
 /// Configuration for adjustment-set enumeration.
@@ -205,19 +204,15 @@ impl BackdoorIdentifier {
         }
 
         if valid.is_empty() {
-            return Ok(IdentificationResult {
-                status: IdentificationStatus::NotIdentified,
+            return Ok(IdentificationResult::not_identified(
                 query,
-                estimands: Vec::new(),
-                arena: CausalExprArena::new(),
                 derivation,
-                required_assumptions: assumptions,
-                diagnostics: Vec::new(),
-                performance: IdentificationPerformanceRecord {
+                assumptions,
+                IdentificationPerformanceRecord {
                     candidates_examined: examined,
                     sets_returned: 0,
                 },
-            });
+            ));
         }
 
         let mut arena = CausalExprArena::new();
@@ -245,19 +240,17 @@ impl BackdoorIdentifier {
             derivation.push("backdoor.adjustment_set", format!("|Z|={}", z.len()));
         }
 
-        Ok(IdentificationResult {
-            status: IdentificationStatus::NonparametricallyIdentified,
+        Ok(IdentificationResult::identified(
             query,
             estimands,
             arena,
             derivation,
-            required_assumptions: assumptions,
-            diagnostics: Vec::new(),
-            performance: IdentificationPerformanceRecord {
+            assumptions,
+            IdentificationPerformanceRecord {
                 candidates_examined: examined,
                 sets_returned: u64::try_from(valid.len()).unwrap_or(u64::MAX),
             },
-        })
+        ))
     }
 }
 
@@ -272,7 +265,7 @@ pub(crate) fn is_backdoor_adjustment(
     z: &[DenseNodeId],
     ws: &mut DSeparationWorkspace,
 ) -> Result<bool, IdentificationError> {
-    mutilated.is_d_separated(t, y, z, ws).map_err(|e| IdentificationError::Graph(e.to_string()))
+    mutilated.is_d_separated(t, y, z, ws).map_err(IdentificationError::from)
 }
 
 pub(crate) fn remove_outgoing(dag: &Dag, t: DenseNodeId) -> Result<Dag, IdentificationError> {
@@ -284,14 +277,14 @@ pub(crate) fn remove_outgoing_set(
     dag: &Dag,
     nodes: &[DenseNodeId],
 ) -> Result<Dag, IdentificationError> {
-    let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::Graph("n".into()))?;
+    let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::msg("n"))?;
     let mut out = Dag::with_variables(n);
     for e in dag.edges() {
         let (from, to) = e.parent_child().expect("dag");
         if nodes.contains(&from) {
             continue;
         }
-        out.insert_directed(from, to).map_err(|e| IdentificationError::Graph(e.to_string()))?;
+        out.insert_directed(from, to).map_err(IdentificationError::from)?;
     }
     Ok(out)
 }
@@ -299,14 +292,14 @@ pub(crate) fn remove_outgoing_set(
 /// `G` with every node in `nodes` fully removed (both incoming and outgoing
 /// edges dropped; node ids and count preserved).
 pub(crate) fn remove_nodes(dag: &Dag, nodes: &[DenseNodeId]) -> Result<Dag, IdentificationError> {
-    let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::Graph("n".into()))?;
+    let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::msg("n"))?;
     let mut out = Dag::with_variables(n);
     for e in dag.edges() {
         let (from, to) = e.parent_child().expect("dag");
         if nodes.contains(&from) || nodes.contains(&to) {
             continue;
         }
-        out.insert_directed(from, to).map_err(|e| IdentificationError::Graph(e.to_string()))?;
+        out.insert_directed(from, to).map_err(IdentificationError::from)?;
     }
     Ok(out)
 }
@@ -322,7 +315,7 @@ pub(crate) fn var_to_dense(id: VariableId, dag: &Dag) -> Result<DenseNodeId, Ide
 pub(crate) fn dense_to_var(id: DenseNodeId, dag: &Dag) -> Result<VariableId, IdentificationError> {
     match dag.nodes().get(id.as_usize()) {
         Some(causal_graph::NodeRef::Static(v)) => Ok(*v),
-        _ => Err(IdentificationError::Graph("expected static node".into())),
+        _ => Err(IdentificationError::msg("expected static node")),
     }
 }
 
@@ -330,6 +323,7 @@ pub(crate) fn dense_to_var(id: DenseNodeId, dag: &Dag) -> Result<VariableId, Ide
 mod tests {
     use super::*;
     use causal_core::AverageEffectQuery;
+    use crate::result::IdentificationStatus;
 
     #[test]
     fn confounding_requires_z() {

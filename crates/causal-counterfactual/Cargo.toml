@@ -18,9 +18,10 @@ causal-data = { path = "../causal-data" }
 causal-graph = { path = "../causal-graph" }
 causal-model = { path = "../causal-model" }
 causal-prob = { path = "../causal-prob" }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+criterion = { workspace = true }
 
 [[bench]]
 name = "counterfactual_batch"

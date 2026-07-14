@@ -57,8 +57,8 @@ impl LaggedLinearPair {
     /// Invalid lengths / lag.
     pub fn simulate(&self) -> Result<(TimeSeriesData, KnownLaggedParent), DataError> {
         if self.n < self.lag as usize + 2 {
-            return Err(DataError::InvalidValidity {
-                message: "series too short for configured lag",
+            return Err(DataError::InvalidArgument {
+                message: "series too short for configured lag".into(),
             });
         }
         let mut b = CausalSchemaBuilder::new();

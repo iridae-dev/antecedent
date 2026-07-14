@@ -20,10 +20,11 @@ use causal_expr::IdentifiedEstimand;
 use causal_stats::CompiledDesign;
 
 use crate::adjustment::{
-    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
-    PreparedEstimationProblem, intervention_f64,
+    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem,
+    intervention_f64,
 };
 use crate::error::EstimationError;
+use crate::overlap::OverlapPolicy;
 
 /// Temporal linear adjustment for unfolded backdoor estimands.
 #[derive(Clone, Debug)]
@@ -66,9 +67,13 @@ impl TemporalLinearAdjustment {
                 message: "temporal linear adjustment requires ExplicitOverride overlap policy",
             });
         }
-        if &*estimand.method != "temporal.backdoor.unfolded"
-            && &*estimand.method != "backdoor.adjustment"
-        {
+        if !matches!(
+            estimand.method_kind().ok(),
+            Some(
+                causal_expr::EstimandMethod::TemporalBackdoorUnfolded
+                    | causal_expr::EstimandMethod::BackdoorAdjustment
+            )
+        ) {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "TemporalLinearAdjustment expects temporal.backdoor.unfolded",
             });
@@ -86,7 +91,7 @@ impl TemporalLinearAdjustment {
         for &dense_var in estimand.adjustment_set.iter() {
             let key = indexer
                 .key_of(dense_var.raw())
-                .map_err(|e| EstimationError::Data(e.to_string()))?;
+                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
             let lag = offset_to_lag(key.offset)?;
             cols.push(LaggedColumn { variable: key.variable, lag });
             adj_keys.push(key.variable);
@@ -95,10 +100,10 @@ impl TemporalLinearAdjustment {
         let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
         let plan = data
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let mut sample_ws = SampleWorkspace::default();
         let prep =
-            plan.prepare(data, &mut sample_ws).map_err(|e| EstimationError::Data(e.to_string()))?;
+            plan.prepare(data, &mut sample_ws).map_err(EstimationError::from)?;
 
         let n = prep.n;
         let (row_start, row_end) = if let Some(s) = split {
@@ -106,9 +111,7 @@ impl TemporalLinearAdjustment {
             let est_start = s.estimation.start.saturating_sub(max_lag as usize);
             let est_end = s.estimation.end.saturating_sub(max_lag as usize).min(n);
             if est_start >= est_end {
-                return Err(EstimationError::Data(
-                    "estimation split empty after lag alignment".into(),
-                ));
+                return Err(EstimationError::data_msg("estimation split empty after lag alignment"));
             }
             (est_start, est_end)
         } else {
@@ -126,7 +129,7 @@ impl TemporalLinearAdjustment {
             covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
         let selected: Vec<usize> = (0..nrows).collect();
         let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected)
-            .map_err(|e| EstimationError::Stats(e.to_string()))?;
+            .map_err(EstimationError::from)?;
 
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;

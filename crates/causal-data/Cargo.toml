@@ -19,9 +19,10 @@ arrow = ["dep:arrow-array", "dep:arrow-schema", "dep:arrow-buffer"]
 [dependencies]
 causal-core = { path = "../causal-core" }
 causal-kernels = { path = "../causal-kernels" }
-arrow-array = { version = "54", optional = true, default-features = false }
-arrow-schema = { version = "54", optional = true, default-features = false }
-arrow-buffer = { version = "54", optional = true, default-features = false }
+arrow-array = { workspace = true, optional = true }
+arrow-schema = { workspace = true, optional = true }
+arrow-buffer = { workspace = true, optional = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-serde_json = "1"
+serde_json = { workspace = true }

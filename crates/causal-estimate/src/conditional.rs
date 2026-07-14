@@ -15,7 +15,8 @@ use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{FaerBackend, form_xtx, invert_square};
 
-use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
+use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
 use crate::util::require_explicit_override;
 
@@ -88,7 +89,7 @@ impl ConditionalLinearAdjustment {
                 "ConditionalLinearAdjustment only supports AllObserved".into(),
             ));
         }
-        if &*estimand.method != "backdoor.adjustment" {
+        if estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::BackdoorAdjustment) {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "ConditionalLinearAdjustment expects backdoor.adjustment",
             });
@@ -106,19 +107,19 @@ impl ConditionalLinearAdjustment {
         let mut ids = vec![query.treatment, query.outcome, w_id];
         ids.extend_from_slice(&estimand.adjustment_set);
         let row_mask =
-            data.complete_case_mask(&ids).map_err(|e| EstimationError::Data(e.to_string()))?;
+            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         let t = data
             .float64_masked(query.treatment, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let y = data
             .float64_masked(query.outcome, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let w = data
             .float64_masked(w_id, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let n = t.len();
         if n < 8 {
-            return Err(EstimationError::Data("too few complete rows for conditional ATE".into()));
+            return Err(EstimationError::data_msg("too few complete rows for conditional ATE"));
         }
 
         // Design: [1, T, W, T*W, Z...]
@@ -134,7 +135,7 @@ impl ConditionalLinearAdjustment {
         for (k, &z) in estimand.adjustment_set.iter().enumerate() {
             let zcol = data
                 .float64_masked(z, &row_mask)
-                .map_err(|e| EstimationError::Data(e.to_string()))?;
+                .map_err(EstimationError::from)?;
             let base = (4 + k) * n;
             design[base..base + n].copy_from_slice(&zcol);
         }
@@ -147,7 +148,7 @@ impl ConditionalLinearAdjustment {
             xty[c] = col.iter().zip(y.iter()).map(|(a, b)| a * b).sum();
         }
         let inv = invert_square(&xtx, ncols).ok_or_else(|| {
-            EstimationError::Stats("singular design in conditional ATE".into())
+            EstimationError::stats_msg("singular design in conditional ATE")
         })?;
         let mut coef = vec![0.0; ncols];
         for i in 0..ncols {

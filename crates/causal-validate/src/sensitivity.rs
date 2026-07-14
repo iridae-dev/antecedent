@@ -280,7 +280,7 @@ fn covariate_matrix(
     all.push(problem.treatment());
     all.push(problem.outcome());
     let mask =
-        problem.data.complete_case_mask(&all).map_err(|e| ValidationError::Data(e.to_string()))?;
+        problem.data.complete_case_mask(&all).map_err(ValidationError::from)?;
     let n = mask.iter().filter(|&&k| k).count();
     if ids.is_empty() {
         return Ok((vec![1.0; n], n, 1));
@@ -291,7 +291,7 @@ fn covariate_matrix(
         let col = problem
             .data
             .float64_masked(z, &mask)
-            .map_err(|e| ValidationError::Data(e.to_string()))?;
+            .map_err(ValidationError::from)?;
         for (r, &v) in col.iter().enumerate() {
             cov[r * dim + c] = v;
         }
@@ -362,17 +362,17 @@ impl NonparametricSensitivity {
         let mask = problem
             .data
             .complete_case_mask(&ids)
-            .map_err(|e| ValidationError::Data(e.to_string()))?;
+            .map_err(ValidationError::from)?;
         let t = problem
             .data
             .float64_masked(problem.treatment(), &mask)
-            .map_err(|e| ValidationError::Data(e.to_string()))?;
+            .map_err(ValidationError::from)?;
         let y = problem
             .data
             .float64_masked(problem.outcome(), &mask)
-            .map_err(|e| ValidationError::Data(e.to_string()))?;
+            .map_err(ValidationError::from)?;
         if t.len() != n || y.len() != n {
-            return Err(ValidationError::Data("nonparametric sensitivity row mismatch".into()));
+            return Err(ValidationError::data_msg("nonparametric sensitivity row mismatch"));
         }
         let h = self.bandwidth.unwrap_or_else(|| silverman_bandwidth(&cov, n, dim));
         let t_hat = nw_loo_predict(&t, &cov, dim, h);

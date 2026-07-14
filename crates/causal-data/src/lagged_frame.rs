@@ -9,7 +9,8 @@
 
 use std::sync::Arc;
 
-use causal_core::{Lag, VariableId};
+use causal_core::{KernelPolicy, Lag, VariableId};
+use causal_kernels::{F64VectorView, gather};
 
 use crate::column::ColumnView;
 use crate::dataset::TimeSeriesData;
@@ -64,7 +65,9 @@ impl LaggedFrame {
         reference: ReferencePointPolicy,
     ) -> Result<Self, DataError> {
         if variables.is_empty() {
-            return Err(DataError::InvalidValidity { message: "lagged frame needs ≥1 variable" });
+            return Err(DataError::InvalidArgument {
+                message: "lagged frame needs ≥1 variable".into(),
+            });
         }
         ensure_unmasked(data)?;
         let lag_map = LagMap::with_reference(data.row_count(), max_lag, reference)?;
@@ -72,9 +75,10 @@ impl LaggedFrame {
         let n_lags = max_lag as usize + 1;
         let n_cols = variables.len().saturating_mul(n_lags);
         let mut values = vec![0.0; n_cols.saturating_mul(n_effective)];
+        let policy = KernelPolicy::default_policy();
 
         // Row indexes depend only on the lag: compute each lag's gather once.
-        let mut lag_rows = vec![vec![0u32; n_effective]; n_lags];
+        let mut lag_rows = vec![vec![0usize; n_effective]; n_lags];
         for (lag, rows) in lag_rows.iter_mut().enumerate() {
             lag_map.fill_row_indexes(Lag::from_raw(lag as u32), rows)?;
         }
@@ -84,12 +88,11 @@ impl LaggedFrame {
                 return Err(DataError::TypeMismatch { id: var, expected: "float64" });
             };
             ensure_complete_float(src)?;
+            let src_view = F64VectorView::contiguous(&src.values);
             for (lag, rows) in lag_rows.iter().enumerate() {
                 let col = slot * n_lags + lag;
                 let dst = &mut values[col * n_effective..(col + 1) * n_effective];
-                for (j, &row) in rows.iter().enumerate() {
-                    dst[j] = src.values[row as usize];
-                }
+                gather(&policy, src_view, rows, dst);
             }
         }
 

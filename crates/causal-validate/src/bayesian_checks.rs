@@ -87,13 +87,13 @@ impl PriorPredictiveCheck {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
         if n == 0 || p == 0 {
-            return Err(ValidationError::Estimation("empty design for PPC".into()));
+            return Err(ValidationError::estimation_msg("empty design for PPC"));
         }
         let observed = problem.design.outcome.iter().sum::<f64>() / n as f64;
         let mut rng = CausalRng::from_seed(self.seed);
         let prior = PriorSet::weakly_informative(p);
         let coef_prior = prior.gaussian_coefficients().ok_or_else(|| {
-            ValidationError::Estimation("weakly informative prior missing coefficients".into())
+            ValidationError::estimation_msg("weakly informative prior missing coefficients")
         })?;
         let mut summaries = Vec::with_capacity(self.n_sims as usize);
         let mut beta = vec![0.0; p];
@@ -154,7 +154,7 @@ impl PosteriorPredictiveCheck {
         let observed = problem.design.outcome.iter().sum::<f64>() / n as f64;
         let n_draws = posterior.draws.n_draws.min(self.n_sims as usize);
         if n_draws == 0 {
-            return Err(ValidationError::Estimation("no posterior draws for PPC".into()));
+            return Err(ValidationError::estimation_msg("no posterior draws for PPC"));
         }
         let mut summaries = Vec::with_capacity(n_draws);
         for d in 0..n_draws {
@@ -166,7 +166,7 @@ impl PosteriorPredictiveCheck {
                     let b = posterior
                         .draws
                         .get(d, c)
-                        .map_err(|e| ValidationError::Estimation(e.to_string()))?;
+                        .map_err(ValidationError::from)?;
                     eta += x * b;
                 }
                 mean_y += self.family.mean_from_eta(eta);
@@ -223,10 +223,10 @@ impl PriorSensitivity {
                 overlap: estimator.overlap,
             };
             let post = est.fit(problem, identification, workspace, ctx).map_err(|e| {
-                ValidationError::Estimation(format!("prior sensitivity fit failed: {e}"))
+                ValidationError::estimation_msg(format!("prior sensitivity fit failed: {e}"))
             })?;
             let eq = post.effect_column().ok_or_else(|| {
-                ValidationError::Estimation("missing effect column in sensitivity fit".into())
+                ValidationError::estimation_msg("missing effect column in sensitivity fit")
             })?;
             means.push(post.summaries.mean[eq]);
             sds.push(post.summaries.sd[eq]);

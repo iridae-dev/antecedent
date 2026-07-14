@@ -9,6 +9,7 @@
 )]
 
 use causal_core::{CausalRng, ExecutionContext, Intervention, MechanismOverride, StochasticPolicy};
+use causal_kernels::standard_normal;
 
 use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatch, ValueBatchMut};
 use crate::compile::{CompiledCausalModel, MechanismSlot};
@@ -205,10 +206,7 @@ fn sample_stochastic(
         StochasticPolicy::Gaussian { mean, variance } => {
             let s = variance.sqrt();
             for i in 0..n_rows {
-                let u1 = rng.next_f64().max(f64::EPSILON);
-                let u2 = rng.next_f64();
-                let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-                out[i] = mean + s * z;
+                out[i] = mean + s * standard_normal(rng);
             }
             Ok(())
         }

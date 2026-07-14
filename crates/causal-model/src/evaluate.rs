@@ -117,11 +117,11 @@ fn mean_loglik(model: &CompiledCausalModel, data: &TabularData) -> Result<f64, M
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?;
+        let y = data.float64_values(var).map_err(ModelError::from)?;
         let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
         for (pi, &p) in gather.parents.iter().enumerate() {
             let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_values(pv).map_err(|e| ModelError::Data(e.to_string()))?;
+            let col = data.float64_values(pv).map_err(ModelError::from)?;
             parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
         }
         let parents = ParentBatch {
@@ -157,12 +157,12 @@ fn residual_summary(
             continue;
         }
         let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?;
+        let y = data.float64_values(var).map_err(ModelError::from)?;
         ws.prepare(n, gather.n_parents().max(1));
         let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
         for (pi, &p) in gather.parents.iter().enumerate() {
             let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_values(pv).map_err(|e| ModelError::Data(e.to_string()))?;
+            let col = data.float64_values(pv).map_err(ModelError::from)?;
             parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
         }
         let parents = ParentBatch {
@@ -201,11 +201,11 @@ fn residual_independence_tests(
                 continue;
             }
             let ovar = model.output_layout.variables[other];
-            let x = data.float64_values(ovar).map_err(|e| ModelError::Data(e.to_string()))?;
+            let x = data.float64_values(ovar).map_err(ModelError::from)?;
             let cols: [&[f64]; 2] = [resid.as_slice(), x.as_slice()];
             let res = test
                 .test_one(&cols, &[], SignificanceMethod::Analytic, &mut ws, &ctx)
-                .map_err(|e| ModelError::Stats(e.to_string()))?;
+                .map_err(ModelError::from)?;
             ps.push(res.p_value);
         }
     }
@@ -224,7 +224,7 @@ fn local_markov_tests(
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?;
+        let y = data.float64_values(var).map_err(ModelError::from)?;
         let parent_ids: Vec<usize> = gather.parents.iter().map(|p| p.as_usize()).collect();
         let node_pos = model.node_order.iter().position(|d| *d == node).unwrap_or(0);
         for (oi, _) in model.node_order.iter().enumerate() {
@@ -232,13 +232,13 @@ fn local_markov_tests(
                 continue;
             }
             let ovar = model.output_layout.variables[oi];
-            let x = data.float64_values(ovar).map_err(|e| ModelError::Data(e.to_string()))?;
+            let x = data.float64_values(ovar).map_err(ModelError::from)?;
             let mut cols: Vec<&[f64]> = vec![y.as_slice(), x.as_slice()];
             let mut cond_storage: Vec<Vec<f64>> = Vec::new();
             for &p in &parent_ids {
                 let pv = model.output_layout.variables[p];
                 cond_storage
-                    .push(data.float64_values(pv).map_err(|e| ModelError::Data(e.to_string()))?);
+                    .push(data.float64_values(pv).map_err(ModelError::from)?);
             }
             for c in &cond_storage {
                 cols.push(c.as_slice());
@@ -246,7 +246,7 @@ fn local_markov_tests(
             let z: Vec<usize> = (2..cols.len()).collect();
             let res = test
                 .test_one(&cols, &z, SignificanceMethod::Analytic, &mut ws, &ctx)
-                .map_err(|e| ModelError::Stats(e.to_string()))?;
+                .map_err(ModelError::from)?;
             ps.push(res.p_value);
         }
         let _ = var;
@@ -270,7 +270,7 @@ fn permutation_baseline(
         message: "empty model".into(),
     })?;
     let var = model.output_layout.variables[last.as_usize()];
-    let mut y = data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?;
+    let mut y = data.float64_values(var).map_err(ModelError::from)?;
     let mut acc = 0.0;
     for _ in 0..n_perm {
         // Fisher–Yates
@@ -284,7 +284,7 @@ fn permutation_baseline(
         let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
         for (pi, &p) in gather.parents.iter().enumerate() {
             let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_values(pv).map_err(|e| ModelError::Data(e.to_string()))?;
+            let col = data.float64_values(pv).map_err(ModelError::from)?;
             parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
         }
         let parents = ParentBatch {
@@ -329,7 +329,7 @@ impl MechanismPredictiveCheck {
         use crate::sample::sample_observational;
         use causal_core::ExecutionContext;
 
-        let observed = data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?;
+        let observed = data.float64_values(var).map_err(ModelError::from)?;
         let obs_mean = observed.iter().sum::<f64>() / observed.len().max(1) as f64;
         let dense = model.dense_of(var).ok_or_else(|| ModelError::Shape {
             message: "variable not in model".into(),

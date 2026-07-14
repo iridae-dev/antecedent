@@ -76,9 +76,9 @@ pub fn graph_evidence_from_scored_with_sepsets(
     let mut graph = TemporalDag::empty();
     for s in &links {
         let from = ensure_lagged(&mut graph, s.link.source, s.link.source_lag)
-            .map_err(|e| DiscoveryError::Data(e.to_string()))?;
+            .map_err(DiscoveryError::from)?;
         let to = ensure_lagged(&mut graph, s.link.target, s.link.target_lag)
-            .map_err(|e| DiscoveryError::Data(e.to_string()))?;
+            .map_err(DiscoveryError::from)?;
         let _ = graph.insert_directed(from, to);
     }
     let edge_evidence = edge_evidence_from_scored(&links, sepsets);
@@ -122,7 +122,7 @@ pub fn cpdag_from_scored_links(
         for lag in 0..=max_lag {
             let id = cpdag
                 .add_lagged(v, Lag::from_raw(lag))
-                .map_err(|e| DiscoveryError::Data(e.to_string()))?;
+                .map_err(DiscoveryError::from)?;
             node_ids.insert((v.raw(), lag), id);
         }
     }
@@ -143,7 +143,7 @@ pub fn cpdag_from_scored_links(
         } else {
             cpdag.insert_directed(src, tgt)
         };
-        insert.map_err(|e| DiscoveryError::Data(e.to_string()))?;
+        insert.map_err(DiscoveryError::from)?;
     }
     Ok(cpdag)
 }
@@ -164,7 +164,7 @@ pub fn pag_from_scored_links(
         for lag in 0..=max_lag {
             let id = pag
                 .add_lagged(v, Lag::from_raw(lag))
-                .map_err(|e| DiscoveryError::Data(e.to_string()))?;
+                .map_err(DiscoveryError::from)?;
             node_ids.insert((v.raw(), lag), id);
         }
     }
@@ -191,7 +191,7 @@ pub fn pag_from_scored_links(
         } else {
             pag.insert_directed(src, tgt)
         };
-        insert.map_err(|e| DiscoveryError::Data(e.to_string()))?;
+        insert.map_err(DiscoveryError::from)?;
     }
     Ok(pag)
 }

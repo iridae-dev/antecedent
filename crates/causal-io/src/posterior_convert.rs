@@ -1,4 +1,4 @@
-//! Convert [`CausalPosterior`] to durable wire artifacts.
+//! Convert [`CausalPosterior`] (internal) ↔ versioned wire artifacts (DESIGN.md §24.2).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -7,13 +7,13 @@
 use causal_core::VERSION;
 use causal_estimate::CausalPosterior;
 use causal_identify::IdentificationStatus;
-use causal_io::{
-    CausalPosteriorWire, EncodedArtifact, PosteriorQuantityWire, decode_posterior_artifact,
-    encode_posterior_artifact,
-};
 use causal_prob::PosteriorQuantityKind;
 
-use crate::error::AnalysisError;
+use crate::container::EncodedArtifact;
+use crate::error::IoError;
+use crate::posterior::{
+    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact, encode_posterior_artifact,
+};
 
 /// Encode a [`CausalPosterior`] to container bytes (Python / tooling).
 ///
@@ -23,11 +23,10 @@ use crate::error::AnalysisError;
 pub fn encode_causal_posterior_bytes(
     posterior: &CausalPosterior,
     artifact_id: &str,
-) -> Result<Vec<u8>, AnalysisError> {
+) -> Result<Vec<u8>, IoError> {
     let art = encode_causal_posterior(posterior, artifact_id)?;
     let mut buf = Vec::new();
-    art.write_to(&mut buf)
-        .map_err(|e| AnalysisError::Estimate(format!("posterior encode write: {e}")))?;
+    art.write_to(&mut buf)?;
     Ok(buf)
 }
 
@@ -39,7 +38,7 @@ pub fn encode_causal_posterior_bytes(
 pub fn encode_causal_posterior(
     posterior: &CausalPosterior,
     artifact_id: &str,
-) -> Result<EncodedArtifact, AnalysisError> {
+) -> Result<EncodedArtifact, IoError> {
     let quantities: Vec<PosteriorQuantityWire> = posterior
         .draws
         .schema
@@ -83,7 +82,6 @@ pub fn encode_causal_posterior(
         draws_encoding: "f64_le_colmajor".into(),
     };
     encode_posterior_artifact(&meta, &posterior.draws.values, artifact_id, VERSION)
-        .map_err(|e| AnalysisError::Estimate(format!("posterior encode: {e}")))
 }
 
 /// Decode posterior wire metadata + draws (Python / tooling consumers).
@@ -93,9 +91,7 @@ pub fn encode_causal_posterior(
 /// IO failures.
 pub fn decode_causal_posterior_bytes(
     bytes: &[u8],
-) -> Result<(CausalPosteriorWire, Vec<f64>), AnalysisError> {
-    let artifact = EncodedArtifact::read_from(bytes)
-        .map_err(|e| AnalysisError::Estimate(format!("posterior decode: {e}")))?;
+) -> Result<(CausalPosteriorWire, Vec<f64>), IoError> {
+    let artifact = EncodedArtifact::read_from(bytes)?;
     decode_posterior_artifact(&artifact)
-        .map_err(|e| AnalysisError::Estimate(format!("posterior decode: {e}")))
 }

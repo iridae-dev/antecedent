@@ -18,8 +18,7 @@ use causal_graph::{
 use crate::envelope::{GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
 use crate::error::IdentificationError;
 use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
-    IdentifiedEstimand,
+    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
 };
 
 /// Config for PAG generalized-adjustment envelopes.
@@ -66,13 +65,11 @@ impl GeneralizedAdjustmentIdentifier {
         let t_d = DenseNodeId::from_raw(t.raw());
         let y_d = DenseNodeId::from_raw(y.raw());
         if t_d.as_usize() >= pag.node_count() || y_d.as_usize() >= pag.node_count() {
-            return Err(IdentificationError::Graph(
-                "treatment/outcome not in PAG".into(),
-            ));
+            return Err(IdentificationError::msg("treatment/outcome not in PAG"));
         }
 
         let sampler = CompletionSampler::new(pag.clone(), self.config.max_completions)
-            .map_err(|e| IdentificationError::Graph(e.to_string()))?;
+            .map_err(IdentificationError::from)?;
         let mut cases = Vec::new();
         let w = ProbabilityMass(self.config.per_completion_weight);
         for completion in sampler {
@@ -105,7 +102,7 @@ fn identify_on_mag_completion(
     let mut ws = DSeparationWorkspace::default();
     let sep = mutilated
         .is_m_separated(t_d, y_d, &[], &mut ws)
-        .map_err(|e| IdentificationError::Graph(e.to_string()))?;
+        .map_err(IdentificationError::from)?;
     if sep {
         let mut arena = CausalExprArena::new();
         let functional = arena.backdoor_ate(
@@ -120,23 +117,21 @@ fn identify_on_mag_completion(
             Arc::from([]),
             functional,
         );
-        return Ok(IdentificationResult {
-            status: IdentificationStatus::NonparametricallyIdentified,
+        return Ok(IdentificationResult::identified(
             query,
-            estimands: vec![estimand],
+            vec![estimand],
             arena,
-            derivation: {
+            {
                 let mut d = DerivationTrace::default();
                 d.push("generalized.adjustment", "empty Z m-separates in G_underbar{T}");
                 d
             },
-            required_assumptions: AssumptionSet::default(),
-            diagnostics: Vec::new(),
-            performance: IdentificationPerformanceRecord {
+            AssumptionSet::default(),
+            IdentificationPerformanceRecord {
                 candidates_examined: 1,
                 sets_returned: 1,
             },
-        });
+        ));
     }
     Ok(not_identified(query, "no empty-set generalized adjustment on completion"))
 }
@@ -144,16 +139,12 @@ fn identify_on_mag_completion(
 fn not_identified(query: CausalQuery, detail: &str) -> IdentificationResult {
     let mut derivation = DerivationTrace::default();
     derivation.push("generalized.adjustment", detail);
-    IdentificationResult {
-        status: IdentificationStatus::NotIdentified,
+    IdentificationResult::not_identified(
         query,
-        estimands: Vec::new(),
-        arena: CausalExprArena::new(),
         derivation,
-        required_assumptions: AssumptionSet::default(),
-        diagnostics: Vec::new(),
-        performance: IdentificationPerformanceRecord::default(),
-    }
+        AssumptionSet::default(),
+        IdentificationPerformanceRecord::default(),
+    )
 }
 
 fn mag_to_admg(mag: &Pag) -> Option<Admg> {
@@ -213,6 +204,7 @@ fn mutilate_outgoing(admg: &Admg, t: DenseNodeId) -> Admg {
 mod tests {
     use super::*;
     use causal_graph::Pag;
+    use crate::result::IdentificationStatus;
 
     #[test]
     fn envelope_preserves_mass_on_mixed_pag() {

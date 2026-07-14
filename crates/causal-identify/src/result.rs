@@ -84,6 +84,48 @@ impl IdentificationResult {
             _ => None,
         }
     }
+
+    /// Nonparametrically identified result with estimands.
+    #[must_use]
+    pub fn identified(
+        query: CausalQuery,
+        estimands: Vec<IdentifiedEstimand>,
+        arena: CausalExprArena,
+        derivation: DerivationTrace,
+        required_assumptions: AssumptionSet,
+        performance: IdentificationPerformanceRecord,
+    ) -> Self {
+        Self {
+            status: IdentificationStatus::NonparametricallyIdentified,
+            query,
+            estimands,
+            arena,
+            derivation,
+            required_assumptions,
+            diagnostics: Vec::new(),
+            performance,
+        }
+    }
+
+    /// Not-identified result (empty estimands / fresh arena).
+    #[must_use]
+    pub fn not_identified(
+        query: CausalQuery,
+        derivation: DerivationTrace,
+        required_assumptions: AssumptionSet,
+        performance: IdentificationPerformanceRecord,
+    ) -> Self {
+        Self {
+            status: IdentificationStatus::NotIdentified,
+            query,
+            estimands: Vec::new(),
+            arena: CausalExprArena::new(),
+            derivation,
+            required_assumptions,
+            diagnostics: Vec::new(),
+            performance,
+        }
+    }
 }
 
 #[cfg(test)]

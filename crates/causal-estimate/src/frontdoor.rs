@@ -55,7 +55,8 @@ use causal_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
 };
 
-use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
+use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
 use crate::util::{sample_std, stats_err};
 
@@ -100,7 +101,7 @@ fn prepare_frontdoor_problem(
         overlap,
         "FrontDoorTwoStage requires ExplicitOverride overlap policy (not propensity-based)",
     )?;
-    if &*estimand.method != "frontdoor" {
+    if estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::FrontDoor) {
         return Err(EstimationError::IncompatibleEstimand {
             message: "FrontDoorTwoStage expects a \"frontdoor\" estimand",
         });
@@ -142,16 +143,16 @@ fn prepare_frontdoor_problem(
 
     let ids = [treatment, outcome, mediator_id];
     let row_mask =
-        data.complete_case_mask(&ids).map_err(|e| EstimationError::Data(e.to_string()))?;
+        data.complete_case_mask(&ids).map_err(EstimationError::from)?;
     let t = data
         .float64_masked(treatment, &row_mask)
-        .map_err(|e| EstimationError::Data(e.to_string()))?;
+        .map_err(EstimationError::from)?;
     let m = data
         .float64_masked(mediator_id, &row_mask)
-        .map_err(|e| EstimationError::Data(e.to_string()))?;
+        .map_err(EstimationError::from)?;
     let y = data
         .float64_masked(outcome, &row_mask)
-        .map_err(|e| EstimationError::Data(e.to_string()))?;
+        .map_err(EstimationError::from)?;
     let nrows = t.len();
 
     Ok(PreparedFrontDoorProblem {
@@ -388,7 +389,7 @@ mod tests {
     use causal_expr::IdentifiedEstimand;
 
     use super::*;
-    use crate::adjustment::OverlapPolicy;
+    use crate::overlap::OverlapPolicy;
 
     fn standard_normal(rng: &mut CausalRng) -> f64 {
         let u1 = rng.next_f64().max(1e-12);

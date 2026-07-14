@@ -14,7 +14,7 @@ use causal_expr::{CausalExprArena, IdentifiedEstimand};
 
 use crate::error::IdentificationError;
 use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
+    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
 };
 
 /// Configuration for sharp RD identification.
@@ -123,19 +123,17 @@ impl SharpRdIdentifier {
             ),
         );
 
-        Ok(IdentificationResult {
-            status: IdentificationStatus::NonparametricallyIdentified,
+        Ok(IdentificationResult::identified(
             query,
-            estimands: vec![estimand],
+            vec![estimand],
             arena,
             derivation,
-            required_assumptions: assumptions,
-            diagnostics: Vec::new(),
-            performance: IdentificationPerformanceRecord {
+            assumptions,
+            IdentificationPerformanceRecord {
                 candidates_examined: 1,
                 sets_returned: 1,
             },
-        })
+        ))
     }
 }
 
@@ -144,6 +142,7 @@ mod tests {
     use causal_core::{AverageEffectQuery, VariableId};
 
     use super::*;
+    use crate::result::IdentificationStatus;
 
     #[test]
     fn identifies_with_declared_assumptions() {

@@ -31,6 +31,7 @@ use crate::rcc::RandomCommonCause;
 use crate::reisz::ReiszSensitivity;
 use crate::sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 use crate::unobserved_common_cause::UnobservedCommonCause;
+use crate::validator::run_validator;
 
 /// Named validators that can be attached to a [`ValidationSuite`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -178,9 +179,12 @@ impl ValidationSuite {
                         "PlaceboTreatment requires backdoor.adjustment + linear path",
                     ));
                 }
-                Ok(ValidationOutcome::Report(
-                    PlaceboTreatment::new().refute(problem, workspace, ctx)?,
-                ))
+                Ok(ValidationOutcome::Report(run_validator(
+                    &PlaceboTreatment::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
             }
             ValidatorId::RandomCommonCause => {
                 if !linear_ok {
@@ -189,9 +193,12 @@ impl ValidationSuite {
                         "RandomCommonCause requires backdoor.adjustment + linear path",
                     ));
                 }
-                Ok(ValidationOutcome::Report(
-                    RandomCommonCause::new().refute(problem, workspace, ctx)?,
-                ))
+                Ok(ValidationOutcome::Report(run_validator(
+                    &RandomCommonCause::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
             }
             ValidatorId::Bootstrap => {
                 if !linear_ok {
@@ -200,24 +207,36 @@ impl ValidationSuite {
                         "BootstrapRefute requires backdoor.adjustment + linear path",
                     ));
                 }
-                Ok(ValidationOutcome::Report(
-                    BootstrapRefute::new().refute(problem, workspace, ctx)?,
-                ))
+                Ok(ValidationOutcome::Report(run_validator(
+                    &BootstrapRefute::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
             }
             ValidatorId::UnobservedCommonCause => {
                 if !linear_ok {
                     return Ok(na(id, "UnobservedCommonCause requires backdoor.adjustment"));
                 }
-                Ok(ValidationOutcome::Report(
-                    UnobservedCommonCause::new().refute(problem, workspace, ctx)?,
-                ))
+                Ok(ValidationOutcome::Report(run_validator(
+                    &UnobservedCommonCause::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
             }
-            ValidatorId::Overlap => {
-                Ok(ValidationOutcome::Report(OverlapRefuter::new().refute(problem)?))
-            }
-            ValidatorId::OverlapRule => {
-                Ok(ValidationOutcome::Report(OverlapRuleRefuter::new().refute(problem)?))
-            }
+            ValidatorId::Overlap => Ok(ValidationOutcome::Report(run_validator(
+                &OverlapRefuter::new(),
+                problem,
+                workspace,
+                ctx,
+            )?)),
+            ValidatorId::OverlapRule => Ok(ValidationOutcome::Report(run_validator(
+                &OverlapRuleRefuter::new(),
+                problem,
+                workspace,
+                ctx,
+            )?)),
             ValidatorId::DataSubset => {
                 if !linear_ok {
                     return Ok(na(
@@ -225,45 +244,75 @@ impl ValidationSuite {
                         "DataSubsetRefuter requires backdoor.adjustment + linear path",
                     ));
                 }
-                Ok(ValidationOutcome::Report(
-                    DataSubsetRefuter::new().refute(problem, workspace, ctx)?,
-                ))
+                Ok(ValidationOutcome::Report(run_validator(
+                    &DataSubsetRefuter::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
             }
             ValidatorId::DummyOutcome => {
                 if !linear_ok {
                     return Ok(na(id, "DummyOutcome requires backdoor.adjustment + linear path"));
                 }
-                Ok(ValidationOutcome::Report(DummyOutcome::new().refute(problem, workspace, ctx)?))
+                Ok(ValidationOutcome::Report(run_validator(
+                    &DummyOutcome::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
             }
-            ValidatorId::EValue => Ok(ValidationOutcome::Report(EValue::new().refute(problem)?)),
+            ValidatorId::EValue => Ok(ValidationOutcome::Report(run_validator(
+                &EValue::new(),
+                problem,
+                workspace,
+                ctx,
+            )?)),
             ValidatorId::Graph => {
                 if !linear_ok {
                     return Ok(na(id, "GraphRefuter requires backdoor.adjustment + linear path"));
                 }
-                Ok(ValidationOutcome::Report(GraphRefuter::new().refute(problem, workspace, ctx)?))
+                Ok(ValidationOutcome::Report(run_validator(
+                    &GraphRefuter::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
             }
             ValidatorId::LinearSensitivity => {
                 if !linear_ok {
                     return Ok(na(id, "LinearSensitivity requires backdoor.adjustment"));
                 }
-                Ok(ValidationOutcome::Report(
-                    LinearSensitivity::new().refute(problem, workspace, ctx)?,
-                ))
+                Ok(ValidationOutcome::Report(run_validator(
+                    &LinearSensitivity::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
             }
             ValidatorId::PartialLinearSensitivity => {
                 if !linear_ok {
                     return Ok(na(id, "PartialLinearSensitivity requires backdoor.adjustment"));
                 }
-                Ok(ValidationOutcome::Report(
-                    PartialLinearSensitivity::new().refute(problem, workspace, ctx)?,
-                ))
+                Ok(ValidationOutcome::Report(run_validator(
+                    &PartialLinearSensitivity::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
             }
-            ValidatorId::NonparametricSensitivity => Ok(ValidationOutcome::Report(
-                NonparametricSensitivity::new().refute(problem, workspace, ctx)?,
-            )),
-            ValidatorId::Reisz => Ok(ValidationOutcome::Report(
-                ReiszSensitivity::new().refute(problem, workspace, ctx)?,
-            )),
+            ValidatorId::NonparametricSensitivity => Ok(ValidationOutcome::Report(run_validator(
+                &NonparametricSensitivity::new(),
+                problem,
+                workspace,
+                ctx,
+            )?)),
+            ValidatorId::Reisz => Ok(ValidationOutcome::Report(run_validator(
+                &ReiszSensitivity::new(),
+                problem,
+                workspace,
+                ctx,
+            )?)),
             ValidatorId::PriorPredictive
             | ValidatorId::PosteriorPredictive
             | ValidatorId::PriorSensitivity => Ok(na(

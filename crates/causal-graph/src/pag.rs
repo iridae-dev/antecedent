@@ -7,22 +7,15 @@
 use causal_core::VariableId;
 
 use crate::error::GraphError;
+use crate::marked_storage::{self, AdjEntry};
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
-
-/// Adjacency entry: neighbor plus marks at self and at neighbor.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub(crate) struct PagAdjEntry {
-    pub(crate) neighbor: DenseNodeId,
-    pub(crate) at_self: Endpoint,
-    pub(crate) at_neighbor: Endpoint,
-}
 
 /// Static PAG over variables (DESIGN §6.2).
 #[derive(Clone, Debug)]
 pub struct Pag {
     nodes: Vec<NodeRef>,
-    adj: Vec<Vec<PagAdjEntry>>,
+    adj: Vec<Vec<AdjEntry>>,
 }
 
 impl Pag {
@@ -123,16 +116,7 @@ impl Pag {
                 });
             }
         }
-        self.adj[edge.a.as_usize()].push(PagAdjEntry {
-            neighbor: edge.b,
-            at_self: edge.at_a,
-            at_neighbor: edge.at_b,
-        });
-        self.adj[edge.b.as_usize()].push(PagAdjEntry {
-            neighbor: edge.a,
-            at_self: edge.at_b,
-            at_neighbor: edge.at_a,
-        });
+        marked_storage::push_marked_pair(&mut self.adj, edge);
         Ok(())
     }
 
@@ -204,20 +188,7 @@ impl Pag {
     /// Marked edge between `a` and `b` if present.
     #[must_use]
     pub fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
-        if a.as_usize() >= self.node_count() || b.as_usize() >= self.node_count() {
-            return None;
-        }
-        for e in &self.adj[a.as_usize()] {
-            if e.neighbor == b {
-                return Some(MarkedEdge {
-                    a,
-                    b,
-                    at_a: e.at_self,
-                    at_b: e.at_neighbor,
-                });
-            }
-        }
-        None
+        marked_storage::edge_between(&self.adj, a, b)
     }
 
     /// Neighbors with marks.
@@ -248,19 +219,10 @@ impl Pag {
         let edge = MarkedEdge { a, b, at_a, at_b };
         if let Some((from, to)) = edge.parent_child() {
             // Temporarily remove to test cycle on remaining directed part.
-            self.remove_edge(a, b);
+            marked_storage::remove_edge(&mut self.adj, a, b);
             let cycle = self.reaches_directed(to, from);
             // Re-insert with new marks either way.
-            self.adj[a.as_usize()].push(PagAdjEntry {
-                neighbor: b,
-                at_self: at_a,
-                at_neighbor: at_b,
-            });
-            self.adj[b.as_usize()].push(PagAdjEntry {
-                neighbor: a,
-                at_self: at_b,
-                at_neighbor: at_a,
-            });
+            marked_storage::push_marked_pair(&mut self.adj, edge);
             if cycle {
                 return Err(GraphError::Cycle {
                     from: from.raw(),
@@ -269,58 +231,40 @@ impl Pag {
             }
             return Ok(());
         }
-        for e in &mut self.adj[a.as_usize()] {
-            if e.neighbor == b {
-                e.at_self = at_a;
-                e.at_neighbor = at_b;
-            }
-        }
-        for e in &mut self.adj[b.as_usize()] {
-            if e.neighbor == a {
-                e.at_self = at_b;
-                e.at_neighbor = at_a;
-            }
-        }
-        Ok(())
-    }
-
-    fn remove_edge(&mut self, a: DenseNodeId, b: DenseNodeId) {
-        self.adj[a.as_usize()].retain(|e| e.neighbor != b);
-        self.adj[b.as_usize()].retain(|e| e.neighbor != a);
+        marked_storage::set_marks(&mut self.adj, a, b, at_a, at_b)
     }
 
     /// Directed children (definite Tail→Arrow from this node).
     #[must_use]
     pub fn directed_children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
-        self.adj[id.as_usize()]
-            .iter()
-            .filter(|e| matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)))
-            .map(|e| e.neighbor)
-            .collect()
+        marked_storage::directed_children(&self.adj, id).collect()
+    }
+
+    /// Borrowed directed-child iterator (reachability hot path).
+    #[must_use]
+    pub fn directed_children_iter(
+        &self,
+        id: DenseNodeId,
+    ) -> impl Iterator<Item = DenseNodeId> + '_ {
+        marked_storage::directed_children(&self.adj, id)
     }
 
     /// Whether `from` reaches `to` via definite directed edges only.
     #[must_use]
     pub fn reaches_directed(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
-        if from == to {
-            return true;
-        }
         let mut ws = GraphWorkspace::default();
-        ws.prepare(self.node_count());
-        ws.frontier.push(from);
-        ws.visited.insert(from);
-        while let Some(u) = ws.frontier.pop() {
-            for c in self.directed_children(u) {
-                if c == to {
-                    return true;
-                }
-                if !ws.visited.contains(c) {
-                    ws.visited.insert(c);
-                    ws.frontier.push(c);
-                }
-            }
-        }
-        false
+        self.reaches_directed_with(&mut ws, from, to)
+    }
+
+    /// Directed reachability reusing a caller-owned workspace.
+    #[must_use]
+    pub fn reaches_directed_with(
+        &self,
+        ws: &mut GraphWorkspace,
+        from: DenseNodeId,
+        to: DenseNodeId,
+    ) -> bool {
+        marked_storage::reaches_directed(&self.adj, ws, from, to)
     }
 }
 

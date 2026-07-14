@@ -18,10 +18,14 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
-    BayesianConfig, CausalAnalysis, InferenceMode, JpcmciPlus, RefuteSuite, Rpcmci,
-    TemporalLinearPredictor, TemporalMediationEstimator, counterfactual_ite,
-    decode_causal_posterior_bytes, encode_causal_posterior_bytes, fit_gcm, sample_do,
-    two_regime_half_split,
+    BayesianConfig, CausalAnalysis, DiscoverParams, DiscoveryPerformanceRecord, InferenceMode,
+    RefuteSuite, ScoredLink, TemporalLinearPredictor, TemporalMediationEstimator,
+    counterfactual_ite, decode_causal_posterior_bytes,
+    discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
+    discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
+    encode_causal_posterior_bytes, fit_gcm, pag_definite_directed_edge_count, resolve_ci,
+    sample_do, two_regime_half_split,
 };
 use causal_io::{
     CausalPosteriorWire, PosteriorQuantityWire, encode_posterior_artifact as encode_posterior_wire,
@@ -35,12 +39,8 @@ use causal_data::{
     MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
     tabular_from_record_batch,
 };
-use causal_discovery::{
-    DiscoveryConstraints, DiscoveryWorkspace, Lpcmci, Pcmci, PcmciPlus, TemporalConstraints,
-};
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
-use causal_stats::ci_from_name;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -429,25 +429,6 @@ struct PcmciDiscoveryResult {
     cpdag_undirected_edges: u64,
 }
 
-fn resolve_ci(
-    ci: &str,
-    weights: Option<Vec<f64>>,
-) -> PyResult<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>> {
-    let key = ci.trim().to_ascii_lowercase();
-    if matches!(key.as_str(), "weighted_parcorr" | "weighted_partial_corr") {
-        let Some(w) = weights else {
-            return Err(PyValueError::new_err("weights required when ci='weighted_parcorr'"));
-        };
-        return Ok(Arc::new(causal_stats::WeightedPartialCorrelation::new(w)));
-    }
-    if weights.is_some() {
-        return Err(PyValueError::new_err(
-            "observation weights are only supported when ci='weighted_parcorr'",
-        ));
-    }
-    ci_from_name(ci).map_err(py_err)
-}
-
 fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<VariableId>)> {
     let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
     let tabular = loaded.data;
@@ -463,7 +444,7 @@ fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<Varia
 
 fn discovered_links(
     names: &[String],
-    links: &[causal_discovery::ScoredLink],
+    links: &[ScoredLink],
 ) -> Vec<DiscoveredLink> {
     links
         .iter()
@@ -487,10 +468,10 @@ fn discovered_links(
 
 fn discovery_result_fields(
     names: &[String],
-    links: &[causal_discovery::ScoredLink],
+    links: &[ScoredLink],
     algorithm_id: &str,
     algorithm_config: &str,
-    performance: &causal_discovery::DiscoveryPerformanceRecord,
+    performance: &DiscoveryPerformanceRecord,
     pending_edge_count: u64,
     ci_name: String,
     cpdag_nodes: u64,
@@ -532,26 +513,14 @@ fn discover_pcmci(
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci, weights)?;
+    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
 
     py.allow_threads(move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let pcmci = Pcmci::new()
-            .with_fdr(fdr)
-            .with_constraints(DiscoveryConstraints {
-                temporal: TemporalConstraints {
-                    max_lag: Lag::from_raw(max_lag),
-                    min_lag: Lag::from_raw(1),
-                },
-                alpha,
-                max_cond_size: 2,
-                ..DiscoveryConstraints::default()
-            })
-            .with_ci(ci_impl);
-        let mut ws = DiscoveryWorkspace::default();
+        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
-        let result = pcmci.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
+        let result = facade_discover_pcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
@@ -583,26 +552,14 @@ fn discover_pcmci_plus(
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci, weights)?;
+    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
 
     py.allow_threads(move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let plus = PcmciPlus::new()
-            .with_fdr(fdr)
-            .with_constraints(DiscoveryConstraints {
-                temporal: TemporalConstraints {
-                    max_lag: Lag::from_raw(max_lag),
-                    min_lag: Lag::CONTEMPORANEOUS,
-                },
-                alpha,
-                max_cond_size: 2,
-                ..DiscoveryConstraints::default()
-            })
-            .with_ci(ci_impl);
-        let mut ws = DiscoveryWorkspace::default();
+        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
-        let result = plus.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
+        let result = facade_discover_pcmci_plus(&series, &variables, &params, &ctx).map_err(py_err)?;
 
         let cpdag = &result.evidence.graph;
         let directed = cpdag.directed_edge_count() as u64;
@@ -641,51 +598,18 @@ fn discover_lpcmci(
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci, weights)?;
+    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
 
     py.allow_threads(move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let alg = Lpcmci::new()
-            .with_fdr(fdr)
-            .with_constraints(DiscoveryConstraints {
-                temporal: TemporalConstraints {
-                    max_lag: Lag::from_raw(max_lag),
-                    min_lag: Lag::CONTEMPORANEOUS,
-                },
-                alpha,
-                max_cond_size: 2,
-                ..DiscoveryConstraints::default()
-            })
-            .with_ci(ci_impl);
-        let mut ws = DiscoveryWorkspace::default();
+        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
-        let result = alg.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
+        let result = facade_discover_lpcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
 
         let pag = &result.evidence.graph;
         let pending = result.review.pending_circles.len() as u64;
-        // Count definite directed edges for summary.
-        let mut directed = 0u64;
-        for i in 0..pag.node_count() {
-            let a = DenseNodeId::from_raw(i as u32);
-            for (b, at_a, at_b) in pag.neighbors(a) {
-                if b.raw() < a.raw() {
-                    continue;
-                }
-                if matches!(
-                    (at_a, at_b),
-                    (
-                        causal_graph::Endpoint::Tail,
-                        causal_graph::Endpoint::Arrow
-                    ) | (
-                        causal_graph::Endpoint::Arrow,
-                        causal_graph::Endpoint::Tail
-                    )
-                ) {
-                    directed += 1;
-                }
-            }
-        }
+        let directed = pag_definite_directed_edge_count(pag);
 
         Ok(discovery_result_fields(
             &names,
@@ -726,7 +650,7 @@ fn discover_jpcmci_plus(
         batches.push(columns_to_batch(&names, cols)?);
     }
     let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci, weights)?;
+    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(env_columns);
 
     py.allow_threads(move || {
@@ -740,21 +664,9 @@ fn discover_jpcmci_plus(
             series_list.push(series);
         }
         let multi = MultiEnvironmentData::try_new(Arc::from(series_list)).map_err(py_err)?;
-        let alg = JpcmciPlus::new()
-            .with_fdr(fdr)
-            .with_constraints(DiscoveryConstraints {
-                temporal: TemporalConstraints {
-                    max_lag: Lag::from_raw(max_lag),
-                    min_lag: Lag::CONTEMPORANEOUS,
-                },
-                alpha,
-                max_cond_size: 2,
-                ..DiscoveryConstraints::default()
-            })
-            .with_ci(ci_impl);
-        let mut ws = DiscoveryWorkspace::default();
+        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
-        let result = alg.run(&multi, &variables, &mut ws, &ctx).map_err(py_err)?;
+        let result = facade_discover_jpcmci_plus(&multi, &variables, &params, &ctx).map_err(py_err)?;
         let cpdag = &result.evidence.graph;
         Ok(discovery_result_fields(
             &names,
@@ -786,27 +698,15 @@ fn discover_rpcmci(
     weights: Option<Vec<f64>>,
 ) -> PyResult<RpcmciDiscoverySummary> {
     let batch = columns_to_batch(&names, &columns)?;
-    let ci_impl = resolve_ci(ci, weights)?;
+    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
     py.allow_threads(move || {
         let (series, variables) = series_from_batch(&batch)?;
         let assign = two_regime_half_split(series.row_count());
-        let plus = PcmciPlus::new()
-            .with_fdr(fdr)
-            .with_constraints(DiscoveryConstraints {
-                temporal: TemporalConstraints {
-                    max_lag: Lag::from_raw(max_lag),
-                    min_lag: Lag::CONTEMPORANEOUS,
-                },
-                alpha,
-                max_cond_size: 2,
-                ..DiscoveryConstraints::default()
-            })
-            .with_ci(ci_impl);
-        let alg = Rpcmci::new().with_min_regime_len(40).with_pcmci_plus(plus);
-        let mut ws = DiscoveryWorkspace::default();
+        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
-        let result = alg.run(&series, &variables, &assign, &mut ws, &ctx).map_err(py_err)?;
+        let result =
+            facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx).map_err(py_err)?;
         let mut regime_ids = Vec::new();
         let mut directed = Vec::new();
         let mut undirected = Vec::new();

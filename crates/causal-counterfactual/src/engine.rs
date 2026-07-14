@@ -135,7 +135,7 @@ impl CounterfactualEngine {
                     infer_noise_column(self.model.mechanisms.get(node), y, parents, out)?;
                 }
                 other => {
-                    return Err(CounterfactualError::Model(format!(
+                    return Err(CounterfactualError::model_msg(format!(
                         "abduction requires invertible mechanism, got {other:?}"
                     )));
                 }
@@ -165,7 +165,7 @@ impl CounterfactualEngine {
         _ctx: &ExecutionContext,
     ) -> Result<CounterfactualResult, CounterfactualError> {
         if worlds.is_empty() {
-            return Err(CounterfactualError::Model("no worlds".into()));
+            return Err(CounterfactualError::model_msg("no worlds"));
         }
         let n_units = exo.n_units;
         let n_nodes = exo.n_nodes;
@@ -173,7 +173,7 @@ impl CounterfactualEngine {
         let mut outcome_dense = Vec::with_capacity(outcomes.len());
         for &o in outcomes {
             outcome_dense.push(self.model.dense_of(o).ok_or_else(|| {
-                CounterfactualError::Model(format!("outcome {o} not in model"))
+                CounterfactualError::model_msg(format!("outcome {o} not in model"))
             })?);
         }
 

@@ -4,20 +4,22 @@
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use causal_core::{ExecutionContext, Lag, VariableId};
 use causal_data::TimeSeriesData;
-use causal_graph::{DenseNodeId, TemporalPagReview};
+use causal_graph::TemporalPagReview;
 use causal_stats::ConditionalIndependence;
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::evidence::{pag_evidence_from_oriented, pag_from_scored_links, threshold_scored_links};
-use crate::orientation::OrientationState;
-use crate::result::{AlgorithmRecord, DiscoveryDiagnostic, PagDiscoveryResult};
+use crate::pipeline::{
+    algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
+    with_links_retained,
+};
+use crate::result::PagDiscoveryResult;
 use crate::rule_scheduling::{
     LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciR1, LpcmciR2, LpcmciR3,
     run_lpcmci_orientation,
@@ -89,30 +91,8 @@ impl Lpcmci {
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
         let mut pag = pag_from_scored_links(&scored, variables, max_lag)?;
 
-        let mut node_ids = HashMap::<(u32, u32), DenseNodeId>::new();
-        for (i, node) in pag.nodes().iter().enumerate() {
-            if let causal_graph::NodeRef::Lagged { variable, lag } = node {
-                node_ids.insert((variable.raw(), lag.raw()), DenseNodeId::from_raw(i as u32));
-            }
-        }
-
-        let mut state = OrientationState::default();
-        let mut sepset_entries: Vec<_> = engine_result.sepsets.iter().collect();
-        sepset_entries
-            .sort_by_key(|((s, slag, t, tlag), _)| (s.raw(), slag.raw(), t.raw(), tlag.raw()));
-        for ((s, slag, t, tlag), sep) in sepset_entries {
-            let Some(&sa) = node_ids.get(&(s.raw(), slag.raw())) else {
-                continue;
-            };
-            let Some(&tb) = node_ids.get(&(t.raw(), tlag.raw())) else {
-                continue;
-            };
-            let mapped: Vec<DenseNodeId> = sep
-                .iter()
-                .filter_map(|(v, l)| node_ids.get(&(v.raw(), l.raw())).copied())
-                .collect();
-            state.set_sepset(sa, tb, Arc::from(mapped));
-        }
+        let node_ids = lagged_node_index(pag.nodes());
+        let mut state = orientation_state_from_sepsets(&node_ids, &engine_result.sepsets);
 
         let rules: [&dyn crate::rule_scheduling::LpcmciOrientationRule; 5] = [
             &LpcmciOrientCollider,
@@ -122,30 +102,31 @@ impl Lpcmci {
             &LpcmciDiscriminatingPathRule,
         ];
         let _delta = run_lpcmci_orientation(&mut pag, &rules, &mut state)
-            .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
+            .map_err(DiscoveryError::from)?;
 
-        let algorithm = AlgorithmRecord {
-            id: Arc::from("lpcmci"),
-            config: Arc::from(format!(
+        let algorithm = algorithm_record(
+            "lpcmci",
+            format!(
                 "alpha={},max_lag={},fdr={},min_lag={}",
                 alpha,
                 self.engine.constraints.temporal.max_lag.raw(),
                 self.fdr,
                 self.engine.constraints.temporal.min_lag.raw()
-            )),
-        };
+            ),
+        );
         let evidence = pag_evidence_from_oriented(pag.clone(), scored, &engine_result.sepsets);
         let review = TemporalPagReview::from_pag(pag, algorithm.id.clone());
-        let links_retained = evidence.links.len() as u64;
+        let links_retained = evidence.links.len();
         let mut diagnostics = engine_result.diagnostics;
-        diagnostics.push(DiscoveryDiagnostic {
-            code: Arc::from("lpcmci.pag"),
-            message: Arc::from(format!(
+        push_diagnostic(
+            &mut diagnostics,
+            "lpcmci.pag",
+            format!(
                 "oriented temporal PAG with {} nodes ({} circle edges pending)",
                 evidence.graph.node_count(),
                 review.pending_circles.len()
-            )),
-        });
+            ),
+        );
 
         Ok(PagDiscoveryResult {
             evidence,
@@ -154,11 +135,7 @@ impl Lpcmci {
             assumptions: engine_result.assumptions,
             iterations: engine_result.iterations,
             diagnostics,
-            performance: {
-                let mut p = engine_result.performance;
-                p.links_retained = links_retained;
-                p
-            },
+            performance: with_links_retained(engine_result.performance, links_retained),
             sepsets: engine_result.sepsets,
         })
     }

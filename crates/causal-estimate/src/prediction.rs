@@ -46,9 +46,9 @@ impl TemporalLinearPredictor {
         cols.extend_from_slice(&parents);
         let plan = data
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let mut ws = SampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws).map_err(|e| EstimationError::Data(e.to_string()))?;
+        let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
         let n = prep.n;
         let y = prep.column(0);
         let ncols = 1 + parents.len();
@@ -70,7 +70,7 @@ impl TemporalLinearPredictor {
             xty[c] = col.iter().zip(y.iter()).map(|(a, b)| a * b).sum();
         }
         let inv = invert_square(&xtx, ncols).ok_or_else(|| {
-            EstimationError::Stats("singular design in temporal predictor".into())
+            EstimationError::stats_msg("singular design in temporal predictor")
         })?;
         let mut coef = vec![0.0; ncols];
         for i in 0..ncols {
@@ -108,9 +108,9 @@ impl TemporalLinearPredictor {
         cols.extend_from_slice(&self.parents);
         let plan = data
             .plan_lagged_sample(self.max_lag, Arc::<[LaggedColumn]>::from(cols))
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let mut ws = SampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws).map_err(|e| EstimationError::Data(e.to_string()))?;
+        let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
         let n = prep.n;
         let mut out = vec![0.0; n];
         for i in 0..n {

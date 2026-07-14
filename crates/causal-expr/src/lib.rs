@@ -8,7 +8,7 @@
 mod estimand;
 mod pretty;
 
-pub use estimand::IdentifiedEstimand;
+pub use estimand::{EstimandMethod, IdentifiedEstimand};
 
 use pretty::pretty_expr;
 

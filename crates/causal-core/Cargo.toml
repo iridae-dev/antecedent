@@ -13,3 +13,4 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
+thiserror = { workspace = true }

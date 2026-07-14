@@ -54,7 +54,7 @@ pub fn aggregate_effect_envelope(
     options: EnvelopeOptions,
 ) -> Result<CausalPosterior, EstimationError> {
     if graphs.n_samples == 0 {
-        return Err(EstimationError::Stats("empty graph ensemble".into()));
+        return Err(EstimationError::stats_msg("empty graph ensemble"));
     }
     let by_key: std::collections::HashMap<u64, &GraphEffectDraws> =
         per_graph.iter().map(|g| (g.graph_key, g)).collect();
@@ -66,12 +66,12 @@ pub fn aggregate_effect_envelope(
         }
         let key = graphs.graph_keys[i];
         let g = by_key.get(&key).ok_or_else(|| {
-            EstimationError::Stats(format!("missing effect draws for graph key {key}"))
+            EstimationError::stats_msg(format!("missing effect draws for graph key {key}"))
         })?;
         match n_draws {
             None => n_draws = Some(g.effect_draws.len()),
             Some(n) if n != g.effect_draws.len() => {
-                return Err(EstimationError::Stats("per-graph effect draw counts differ".into()));
+                return Err(EstimationError::stats_msg("per-graph effect draw counts differ"));
             }
             _ => {}
         }
@@ -85,10 +85,10 @@ pub fn aggregate_effect_envelope(
     // Draws always report E[τ | identified]: normalize over identified mass.
     // Unidentified mass is retained on the artifact unless explicitly dropped.
     if !(identified_mass > 0.0) {
-        return Err(EstimationError::Stats("no identified mass for effect envelope".into()));
+        return Err(EstimationError::stats_msg("no identified mass for effect envelope"));
     }
     if !(total > 0.0) {
-        return Err(EstimationError::Stats("non-positive total weight".into()));
+        return Err(EstimationError::stats_msg("non-positive total weight"));
     }
     let weight_scale = 1.0 / identified_mass;
 
@@ -115,7 +115,7 @@ pub fn aggregate_effect_envelope(
         quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("ate_envelope") }]),
     };
     let draws = PosteriorDraws::from_column_major(schema, n_draws, mixture)
-        .map_err(|e| EstimationError::Stats(e.to_string()))?;
+        .map_err(EstimationError::from)?;
     let summaries = draws.summarize();
 
     let identification = if retained_unidentified > 0.0 {

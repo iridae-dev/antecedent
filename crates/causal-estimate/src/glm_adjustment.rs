@@ -31,8 +31,10 @@ use causal_stats::{
     fit_glm, form_xtx, invert_square,
 };
 
-use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
+use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
+use crate::gcomp::gcomp_diffs;
 use crate::util::{sample_std, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
@@ -116,7 +118,7 @@ impl GlmAdjustmentAte {
             self.overlap,
             "GlmAdjustmentAte requires ExplicitOverride overlap policy",
         )?;
-        if &*estimand.method != "backdoor.adjustment" && &*estimand.method != "backdoor.efficient" {
+        if !matches!(estimand.method_kind().ok(), Some(causal_expr::EstimandMethod::BackdoorAdjustment | causal_expr::EstimandMethod::BackdoorEfficient)) {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "GlmAdjustmentAte expects backdoor.adjustment or backdoor.efficient",
             });
@@ -147,13 +149,13 @@ impl GlmAdjustmentAte {
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
         let row_mask =
-            data.complete_case_mask(&ids).map_err(|e| EstimationError::Data(e.to_string()))?;
+            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         let t = data
             .float64_masked(treatment, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let y = data
             .float64_masked(outcome, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         match self.family {
             GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
                 for &yi in &y {
@@ -180,7 +182,7 @@ impl GlmAdjustmentAte {
             covs.push((
                 z,
                 data.float64_masked(z, &row_mask)
-                    .map_err(|e| EstimationError::Data(e.to_string()))?,
+                    .map_err(EstimationError::from)?,
             ));
         }
         let cov_refs: Vec<(VariableId, &[f64])> =
@@ -188,7 +190,7 @@ impl GlmAdjustmentAte {
         let selected_rows: Vec<usize> =
             row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
         let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
-            .map_err(|e| EstimationError::Stats(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         Ok(PreparedGlmProblem {
             design,
             method: Arc::clone(&estimand.method),
@@ -215,7 +217,7 @@ impl GlmAdjustmentAte {
         let t_col = problem
             .design
             .treatment_column()
-            .ok_or_else(|| EstimationError::Stats("missing treatment column".into()))?;
+            .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
         let glm_fit = fit_glm(
             problem.family,
             GlmDesignRef {
@@ -325,37 +327,6 @@ impl GlmAdjustmentAte {
     }
 }
 
-/// Per-row mean-scale contrast `μ(T=active, Z) − μ(T=control, Z)`.
-#[allow(clippy::too_many_arguments)]
-fn gcomp_diffs(
-    family: GlmFamily,
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
-    coefficients: &[f64],
-    active: f64,
-    control: f64,
-) -> Vec<f64> {
-    let mut diffs = Vec::with_capacity(nrows);
-    for r in 0..nrows {
-        let mut eta_active = 0.0;
-        let mut eta_control = 0.0;
-        for c in 0..ncols {
-            let coef = coefficients[c];
-            if c == t_col {
-                eta_active += active * coef;
-                eta_control += control * coef;
-            } else {
-                let val = x_colmajor[c * nrows + r];
-                eta_active += val * coef;
-                eta_control += val * coef;
-            }
-        }
-        diffs.push(family.mean_from_eta(eta_active) - family.mean_from_eta(eta_control));
-    }
-    diffs
-}
 
 /// Response-scale derivative `dμ/dη` at `eta` (equal to the variance function for these
 /// canonical links, up to the dispersion).
@@ -476,7 +447,7 @@ mod tests {
     use causal_expr::IdentifiedEstimand;
 
     use super::*;
-    use crate::adjustment::OverlapPolicy;
+    use crate::overlap::OverlapPolicy;
 
     /// Binary-outcome SCM: `Z ~ U(-0.5, 0.5)`, `T ∈ {0,1}`, `logit(Y=1) = -0.5 + 2T + Z`.
     fn binary_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {

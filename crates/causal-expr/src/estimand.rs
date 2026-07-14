@@ -2,11 +2,102 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use causal_core::VariableId;
 
 use crate::ExprId;
+
+/// Typed identification method tag (wire form remains the Display string).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum EstimandMethod {
+    /// Classic backdoor adjustment.
+    BackdoorAdjustment,
+    /// Efficient backdoor adjustment set.
+    BackdoorEfficient,
+    /// Front-door identification.
+    FrontDoor,
+    /// Instrumental variable.
+    Iv,
+    /// Sharp regression discontinuity.
+    RdSharp,
+    /// Temporal backdoor after finite unfolding.
+    TemporalBackdoorUnfolded,
+    /// Temporal mediation — total effect.
+    TemporalMediationTotal,
+    /// Temporal mediation — direct effect.
+    TemporalMediationDirect,
+    /// Temporal mediation — mediated effect.
+    TemporalMediationMediated,
+}
+
+impl EstimandMethod {
+    /// Canonical wire / Display string.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BackdoorAdjustment => "backdoor.adjustment",
+            Self::BackdoorEfficient => "backdoor.efficient",
+            Self::FrontDoor => "frontdoor",
+            Self::Iv => "iv",
+            Self::RdSharp => "rd.sharp",
+            Self::TemporalBackdoorUnfolded => "temporal.backdoor.unfolded",
+            Self::TemporalMediationTotal => "temporal_mediation.total",
+            Self::TemporalMediationDirect => "temporal_mediation.direct",
+            Self::TemporalMediationMediated => "temporal_mediation.mediated",
+        }
+    }
+
+    /// Whether this is any temporal-mediation variant.
+    #[must_use]
+    pub const fn is_temporal_mediation(self) -> bool {
+        matches!(
+            self,
+            Self::TemporalMediationTotal
+                | Self::TemporalMediationDirect
+                | Self::TemporalMediationMediated
+        )
+    }
+
+    /// Whether this is a backdoor-family adjustment estimand.
+    #[must_use]
+    pub const fn is_backdoor_family(self) -> bool {
+        matches!(self, Self::BackdoorAdjustment | Self::BackdoorEfficient)
+    }
+}
+
+impl fmt::Display for EstimandMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for EstimandMethod {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "backdoor.adjustment" => Self::BackdoorAdjustment,
+            "backdoor.efficient" => Self::BackdoorEfficient,
+            "frontdoor" => Self::FrontDoor,
+            "iv" => Self::Iv,
+            "rd.sharp" => Self::RdSharp,
+            "temporal.backdoor.unfolded" => Self::TemporalBackdoorUnfolded,
+            "temporal_mediation.total" => Self::TemporalMediationTotal,
+            "temporal_mediation.direct" => Self::TemporalMediationDirect,
+            "temporal_mediation.mediated" => Self::TemporalMediationMediated,
+            other => return Err(format!("unknown estimand method `{other}`")),
+        })
+    }
+}
+
+impl From<EstimandMethod> for Arc<str> {
+    fn from(value: EstimandMethod) -> Self {
+        Arc::from(value.as_str())
+    }
+}
 
 /// One identified estimand.
 ///
@@ -15,7 +106,7 @@ use crate::ExprId;
 /// Unused role slices are empty.
 #[derive(Clone, Debug)]
 pub struct IdentifiedEstimand {
-    /// Method tag (e.g. `backdoor.adjustment`, `frontdoor`, `iv`).
+    /// Method tag (wire string; parse with [`Self::method_kind`]).
     pub method: Arc<str>,
     /// Adjustment set (dense variable ids). Empty when not an adjustment estimand.
     pub adjustment_set: Arc<[VariableId]>,
@@ -28,6 +119,15 @@ pub struct IdentifiedEstimand {
 }
 
 impl IdentifiedEstimand {
+    /// Parse the method tag into a typed [`EstimandMethod`].
+    ///
+    /// # Errors
+    ///
+    /// Unknown method string.
+    pub fn method_kind(&self) -> Result<EstimandMethod, String> {
+        EstimandMethod::from_str(self.method.as_ref())
+    }
+
     /// Backdoor-style estimand with an adjustment set and empty IV/mediator roles.
     #[must_use]
     pub fn backdoor(

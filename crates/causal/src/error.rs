@@ -1,53 +1,71 @@
-//! Facade errors.
-use core::fmt;
+//! Facade errors (DESIGN.md §22 `CausalError` shape).
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// Analysis pipeline failures.
-#[derive(Clone, Debug, Eq, PartialEq)]
+use causal_counterfactual::CounterfactualError;
+use causal_discovery::DiscoveryError;
+use causal_estimate::EstimationError;
+use causal_identify::IdentificationError;
+use causal_io::IoError;
+use causal_model::ModelError;
+use causal_validate::ValidationError;
+use thiserror::Error;
+
+/// Analysis pipeline failures — structured sum over domain errors.
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum AnalysisError {
     /// Identification failed.
-    Identify(String),
+    #[error(transparent)]
+    Identify(#[from] IdentificationError),
     /// Estimation failed.
-    Estimate(String),
+    #[error(transparent)]
+    Estimate(#[from] EstimationError),
     /// Validation / refutation failed.
-    Validate(String),
+    #[error(transparent)]
+    Validate(#[from] ValidationError),
+    /// Discovery failed.
+    #[error(transparent)]
+    Discovery(#[from] DiscoveryError),
+    /// Structural / probabilistic model failure.
+    #[error(transparent)]
+    Model(#[from] ModelError),
+    /// Counterfactual evaluation failed.
+    #[error(transparent)]
+    Counterfactual(#[from] CounterfactualError),
+    /// Artifact serialization / deserialization.
+    #[error(transparent)]
+    Serialization(#[from] IoError),
     /// Logical / physical plan compilation failed.
+    #[error("{message}")]
     Compile {
         /// Message.
         message: String,
     },
     /// Memory or other resource refusal.
+    #[error("{message}")]
     Resource {
         /// Message.
         message: String,
     },
     /// Graph review incomplete.
+    #[error("{message}")]
     ReviewRequired {
         /// Message.
         message: String,
     },
     /// Query / feature unsupported.
+    #[error("{message}")]
     Unsupported {
         /// Message.
         message: &'static str,
     },
     /// Missing required builder input.
+    #[error("missing required field: {field}")]
     Missing {
         /// Field name.
         field: &'static str,
     },
 }
 
-impl fmt::Display for AnalysisError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Identify(m) | Self::Estimate(m) | Self::Validate(m) => write!(f, "{m}"),
-            Self::Compile { message }
-            | Self::Resource { message }
-            | Self::ReviewRequired { message } => write!(f, "{message}"),
-            Self::Unsupported { message } => write!(f, "{message}"),
-            Self::Missing { field } => write!(f, "missing required field: {field}"),
-        }
-    }
-}
-
-impl std::error::Error for AnalysisError {}
+/// Alias matching DESIGN.md §22 naming.
+pub type CausalError = AnalysisError;

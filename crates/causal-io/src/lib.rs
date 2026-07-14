@@ -10,6 +10,7 @@ pub mod container;
 pub mod convert;
 pub mod error;
 pub mod posterior;
+pub mod posterior_convert;
 pub mod trace;
 pub mod wire;
 
@@ -22,6 +23,9 @@ pub use error::IoError;
 pub use posterior::{
     CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,
     encode_posterior_artifact,
+};
+pub use posterior_convert::{
+    decode_causal_posterior_bytes, encode_causal_posterior, encode_causal_posterior_bytes,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,

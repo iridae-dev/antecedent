@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use causal_core::{CausalRng, ExecutionContext, Intervention, VariableId};
 use causal_data::{TableView, TabularData};
+use causal_kernels::standard_normal;
 
 use crate::batch::MechanismWorkspace;
 use crate::compile::CompiledCausalModel;
@@ -67,8 +68,8 @@ impl WeightingDoSampler {
         let t_dense = model.dense_of(self.treatment).ok_or_else(|| ModelError::Shape {
             message: "treatment not in model".into(),
         })?;
-        let y = data.float64_values(self.outcome).map_err(|e| ModelError::Data(e.to_string()))?;
-        let t = data.float64_values(self.treatment).map_err(|e| ModelError::Data(e.to_string()))?;
+        let y = data.float64_values(self.outcome).map_err(ModelError::from)?;
+        let t = data.float64_values(self.treatment).map_err(ModelError::from)?;
         let n = y.len();
         let gather = model.gather_for(t_dense).ok_or_else(|| ModelError::Shape {
             message: "missing gather for treatment".into(),
@@ -113,7 +114,7 @@ impl WeightingDoSampler {
         let mut parent_cols = Vec::new();
         for &p in gather.parents.iter() {
             let var = model.output_layout.variables[p.as_usize()];
-            parent_cols.push(data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?);
+            parent_cols.push(data.float64_values(var).map_err(ModelError::from)?);
         }
         let n_par = gather.n_parents();
         let mut parent_mat = vec![0.0; n * n_par];
@@ -334,9 +335,7 @@ impl McmcDoSampler {
         let iters = self.burn_in + n_samples * self.thin.max(1);
 
         for i in 0..iters {
-            let u1 = rng.next_f64().max(f64::EPSILON);
-            let u2 = rng.next_f64();
-            let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+            let z = standard_normal(rng);
             let prop = current + self.proposal_sd * z;
             let p_cur = KdeDoSampler::density(&kde, current).max(1e-300);
             let p_prop = KdeDoSampler::density(&kde, prop).max(1e-300);

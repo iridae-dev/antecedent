@@ -7,6 +7,8 @@
 
 #![allow(clippy::many_single_char_names)]
 
+use std::collections::HashSet;
+
 use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
 
 use crate::discriminating_paths::{
@@ -15,6 +17,30 @@ use crate::discriminating_paths::{
 use crate::orientation::{
     OrientationError, OrientationQueue, OrientationState, RuleDelta,
 };
+
+/// Drain the orientation queue into a focus set, or scan all nodes when empty
+/// (same contract as Meek [`crate::orientation`] rules).
+fn focus_nodes(graph: &TemporalPag, queue: &mut OrientationQueue) -> Vec<DenseNodeId> {
+    if queue.is_empty() {
+        (0..graph.node_count())
+            .map(|i| DenseNodeId::from_raw(i as u32))
+            .collect()
+    } else {
+        let mut v = Vec::new();
+        while let Some(n) = queue.pop() {
+            v.push(n);
+        }
+        v
+    }
+}
+
+/// Enqueue a changed node and its adjacency (local delta, not full-graph re-seed).
+fn enqueue_local(graph: &TemporalPag, id: DenseNodeId, queue: &mut OrientationQueue) {
+    queue.push(id);
+    for (n, _, _) in graph.neighbors(id) {
+        queue.push(n);
+    }
+}
 
 /// Named LPCMCI orientation rule.
 pub trait LpcmciOrientationRule {
@@ -50,9 +76,8 @@ impl LpcmciOrientationRule for LpcmciOrientCollider {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
-        let n = graph.node_count();
-        for i in 0..n {
-            let b = DenseNodeId::from_raw(i as u32);
+        let focus = focus_nodes(graph, queue);
+        for b in focus {
             let nbrs: Vec<_> = graph.neighbors(b).map(|(x, _, _)| x).collect();
             for (ai, &a) in nbrs.iter().enumerate() {
                 for &c in &nbrs[ai + 1..] {
@@ -72,10 +97,10 @@ impl LpcmciOrientationRule for LpcmciOrientCollider {
                         if !matches!(e.at_b, Endpoint::Arrow) {
                             graph
                                 .set_marks(a, b, at_a, at_b)
-                                .map_err(|err| OrientationError::Graph(err.to_string()))?;
+                                .map_err(|err| OrientationError::from(err))?;
                             delta.edges_changed += 1;
-                            queue.push(a);
-                            queue.push(b);
+                            enqueue_local(graph, a, queue);
+                            enqueue_local(graph, b, queue);
                         }
                     }
                     if let Some(e) = graph.edge_between(c, b) {
@@ -84,10 +109,10 @@ impl LpcmciOrientationRule for LpcmciOrientCollider {
                         if !matches!(e.at_b, Endpoint::Arrow) {
                             graph
                                 .set_marks(c, b, at_c, at_b)
-                                .map_err(|err| OrientationError::Graph(err.to_string()))?;
+                                .map_err(|err| OrientationError::from(err))?;
                             delta.edges_changed += 1;
-                            queue.push(c);
-                            queue.push(b);
+                            enqueue_local(graph, c, queue);
+                            enqueue_local(graph, b, queue);
                         }
                     }
                 }
@@ -114,9 +139,8 @@ impl LpcmciOrientationRule for LpcmciR1 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
-        let n = graph.node_count();
-        for i in 0..n {
-            let b = DenseNodeId::from_raw(i as u32);
+        let focus = focus_nodes(graph, queue);
+        for b in focus {
             let nbrs: Vec<_> = graph.neighbors(b).collect();
             for &(a, at_b_from_a, at_a) in &nbrs {
                 // a → b : at_a Tail, at_b Arrow when viewed from a… use edge_between
@@ -153,15 +177,15 @@ impl LpcmciOrientationRule for LpcmciR1 {
                     if e_bc.a == b {
                         graph
                             .set_marks(b, c, at_b, at_c)
-                            .map_err(|err| OrientationError::Graph(err.to_string()))?;
+                            .map_err(|err| OrientationError::from(err))?;
                     } else {
                         graph
                             .set_marks(c, b, at_c, at_b)
-                            .map_err(|err| OrientationError::Graph(err.to_string()))?;
+                            .map_err(|err| OrientationError::from(err))?;
                     }
                     delta.edges_changed += 1;
-                    queue.push(b);
-                    queue.push(c);
+                    enqueue_local(graph, b, queue);
+                    enqueue_local(graph, c, queue);
                 }
             }
         }
@@ -186,9 +210,8 @@ impl LpcmciOrientationRule for LpcmciR2 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
-        let n = graph.node_count();
-        for i in 0..n {
-            let b = DenseNodeId::from_raw(i as u32);
+        let focus = focus_nodes(graph, queue);
+        for b in focus {
             let nbrs: Vec<_> = graph.neighbors(b).map(|(x, _, _)| x).collect();
             for &a in &nbrs {
                 for &c in &nbrs {
@@ -223,8 +246,8 @@ impl LpcmciOrientationRule for LpcmciR2 {
                     }
                     set_marks_oriented(graph, a, c, at_a_ac, Endpoint::Arrow)?;
                     delta.edges_changed += 1;
-                    queue.push(a);
-                    queue.push(c);
+                    enqueue_local(graph, a, queue);
+                    enqueue_local(graph, c, queue);
                 }
             }
         }
@@ -249,9 +272,9 @@ impl LpcmciOrientationRule for LpcmciR3 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
+        let focus = focus_nodes(graph, queue);
         let n = graph.node_count();
-        for i in 0..n {
-            let b = DenseNodeId::from_raw(i as u32);
+        for b in focus {
             let nbrs: Vec<_> = graph.neighbors(b).map(|(x, _, _)| x).collect();
             for (ai, &a) in nbrs.iter().enumerate() {
                 for &c in &nbrs[ai + 1..] {
@@ -295,8 +318,8 @@ impl LpcmciOrientationRule for LpcmciR3 {
                         }
                         set_marks_oriented(graph, d, b, at_d_db, Endpoint::Arrow)?;
                         delta.edges_changed += 1;
-                        queue.push(d);
-                        queue.push(b);
+                        enqueue_local(graph, d, queue);
+                        enqueue_local(graph, b, queue);
                     }
                 }
             }
@@ -327,16 +350,16 @@ fn set_marks_oriented(
     at_b: Endpoint,
 ) -> Result<(), OrientationError> {
     let Some(e) = graph.edge_between(a, b) else {
-        return Err(OrientationError::Graph("missing edge in set_marks_oriented".into()));
+        return Err(OrientationError::msg("missing edge in set_marks_oriented"));
     };
     if e.a == a {
         graph
             .set_marks(a, b, at_a, at_b)
-            .map_err(|err| OrientationError::Graph(err.to_string()))
+            .map_err(|err| OrientationError::from(err))
     } else {
         graph
             .set_marks(b, a, at_b, at_a)
-            .map_err(|err| OrientationError::Graph(err.to_string()))
+            .map_err(|err| OrientationError::from(err))
     }
 }
 
@@ -356,9 +379,14 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
+        let focus = focus_nodes(graph, queue);
+        let focus_set: HashSet<u32> = focus.iter().map(|n| n.raw()).collect();
         let paths = find_discriminating_paths(graph, 64, 8);
         for path in paths {
             if path.nodes.len() < 3 {
+                continue;
+            }
+            if !path.nodes.iter().any(|n| focus_set.contains(&n.raw())) {
                 continue;
             }
             let a = path.nodes[0];
@@ -379,11 +407,11 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
                 if e.a == c {
                     graph
                         .set_marks(c, b, at_c, at_b)
-                        .map_err(|err| OrientationError::Graph(err.to_string()))?;
+                        .map_err(|err| OrientationError::from(err))?;
                 } else {
                     graph
                         .set_marks(b, c, at_b, at_c)
-                        .map_err(|err| OrientationError::Graph(err.to_string()))?;
+                        .map_err(|err| OrientationError::from(err))?;
                 }
             } else {
                 // c —* b with tail at c (non-collider)
@@ -392,16 +420,16 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
                 if e.a == c {
                     graph
                         .set_marks(c, b, at_c, at_b)
-                        .map_err(|err| OrientationError::Graph(err.to_string()))?;
+                        .map_err(|err| OrientationError::from(err))?;
                 } else {
                     graph
                         .set_marks(b, c, at_b, at_c)
-                        .map_err(|err| OrientationError::Graph(err.to_string()))?;
+                        .map_err(|err| OrientationError::from(err))?;
                 }
             }
             delta.edges_changed += 1;
-            queue.push(c);
-            queue.push(b);
+            enqueue_local(graph, c, queue);
+            enqueue_local(graph, b, queue);
         }
         delta.fixed_point = delta.edges_changed == 0;
         Ok(delta)
@@ -409,6 +437,9 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
 }
 
 /// Schedule LPCMCI rules to a fixed point using a local delta queue.
+///
+/// Seeds all nodes once. Subsequent rounds honor nodes enqueued by rules
+/// (DESIGN.md §13.6 / §13.8) — no full-graph re-seed after each round.
 ///
 /// # Errors
 ///
@@ -431,19 +462,22 @@ pub fn run_lpcmci_orientation(
         for rule in rules {
             let d = rule.apply(graph, state, &mut queue)?;
             total.edges_changed += d.edges_changed;
+            total.enqueued += d.enqueued;
             if d.edges_changed > 0 {
                 any = true;
             }
         }
-        if !any {
+        if !any && queue.is_empty() {
             total.fixed_point = true;
             break;
         }
-        // Drain queue markers (rules already push affected locals).
-        while queue.pop().is_some() {}
-        for i in 0..graph.node_count() {
-            queue.push(DenseNodeId::from_raw(i as u32));
+        if !any {
+            // Idle queue with no further orientations — drain and stop.
+            while queue.pop().is_some() {}
+            total.fixed_point = true;
+            break;
         }
+        // Keep delta-queued nodes for the next round (do not re-seed all nodes).
     }
     Ok(total)
 }
@@ -483,6 +517,33 @@ mod tests {
         assert_eq!(LpcmciR1.id(), "lpcmci.r1");
         assert_eq!(LpcmciR2.id(), "lpcmci.r2");
         assert_eq!(LpcmciR3.id(), "lpcmci.r3");
+    }
+
+    #[test]
+    fn scheduler_honors_delta_queue_without_reseed() {
+        // a → b o→ c and a o-o c  ⇒  R2 orients a o→ c; subsequent rounds must not
+        // require a full-graph re-seed to finish.
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_circle_arrow(b, c).unwrap();
+        g.insert_marked(causal_graph::MarkedEdge {
+            a,
+            b: c,
+            at_a: Endpoint::Circle,
+            at_b: Endpoint::Circle,
+        })
+        .unwrap();
+        let mut state = OrientationState::default();
+        let rules: [&dyn LpcmciOrientationRule; 1] = [&LpcmciR2];
+        let d = run_lpcmci_orientation(&mut g, &rules, &mut state).unwrap();
+        assert!(d.edges_changed > 0);
+        assert!(d.fixed_point);
+        let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+        assert!(matches!(at_a, Endpoint::Circle));
+        assert!(matches!(at_c, Endpoint::Arrow));
     }
 }
 

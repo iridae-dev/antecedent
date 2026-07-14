@@ -6,7 +6,8 @@
 
 use std::sync::Arc;
 
-use causal_core::{Lag, VariableId};
+use causal_core::{KernelPolicy, Lag, VariableId};
+use causal_kernels::{F64VectorView, gather};
 
 use crate::column::{ColumnView, Float64Column};
 use crate::dataset::TimeSeriesData;
@@ -93,7 +94,7 @@ impl LagMap {
     /// # Errors
     ///
     /// Length mismatch or lag exceeding `max_lag`.
-    pub fn fill_row_indexes(&self, lag: Lag, out: &mut [u32]) -> Result<(), DataError> {
+    pub fn fill_row_indexes(&self, lag: Lag, out: &mut [usize]) -> Result<(), DataError> {
         if out.len() != self.n_effective {
             return Err(DataError::LengthMismatch {
                 expected: self.n_effective,
@@ -102,10 +103,12 @@ impl LagMap {
             });
         }
         if lag.raw() > self.max_lag {
-            return Err(DataError::InvalidValidity { message: "lag exceeds max_lag" });
+            return Err(DataError::InvalidArgument {
+                message: "lag exceeds max_lag".into(),
+            });
         }
         for (i, slot) in out.iter_mut().enumerate() {
-            *slot = u32::try_from(self.row_index(lag, i)).expect("row fits u32 for series_len");
+            *slot = self.row_index(lag, i);
         }
         Ok(())
     }
@@ -180,7 +183,9 @@ impl SamplePlan {
     ) -> Result<Self, DataError> {
         let columns = columns.into();
         if columns.is_empty() {
-            return Err(DataError::InvalidValidity { message: "sample plan needs ≥1 column" });
+            return Err(DataError::InvalidArgument {
+                message: "sample plan needs ≥1 column".into(),
+            });
         }
         let lag_map = Arc::new(LagMap::with_reference(series_len, max_lag, reference)?);
         Self::validate_columns(lag_map.max_lag(), &columns)?;
@@ -197,7 +202,9 @@ impl SamplePlan {
         columns: Arc<[LaggedColumn]>,
     ) -> Result<Self, DataError> {
         if columns.is_empty() {
-            return Err(DataError::InvalidValidity { message: "sample plan needs ≥1 column" });
+            return Err(DataError::InvalidArgument {
+                message: "sample plan needs ≥1 column".into(),
+            });
         }
         Self::validate_columns(lag_map.max_lag(), &columns)?;
         Ok(Self { columns, lag_map })
@@ -206,8 +213,8 @@ impl SamplePlan {
     fn validate_columns(max_lag: u32, columns: &[LaggedColumn]) -> Result<(), DataError> {
         for c in columns {
             if c.lag.raw() > max_lag {
-                return Err(DataError::InvalidValidity {
-                    message: "planned column lag exceeds max_lag",
+                return Err(DataError::InvalidArgument {
+                    message: "planned column lag exceeds max_lag".into(),
                 });
             }
         }
@@ -266,17 +273,21 @@ impl SamplePlan {
         let n = self.lag_map.n_effective;
         let ncols = self.columns.len();
         workspace.prepare(n, ncols);
+        let policy = KernelPolicy::default_policy();
 
         for (c, col) in self.columns.iter().enumerate() {
             let ColumnView::Float64(src) = data.column(col.variable)? else {
                 return Err(DataError::TypeMismatch { id: col.variable, expected: "float64" });
             };
             ensure_complete_float(src)?;
-            self.lag_map.fill_row_indexes(col.lag, &mut workspace.row_indexes)?;
+            self.lag_map.fill_row_indexes(col.lag, &mut workspace.row_indexes[..n])?;
             let dst = &mut workspace.values[c * n..(c + 1) * n];
-            for (j, &row) in workspace.row_indexes.iter().enumerate() {
-                dst[j] = src.values[row as usize];
-            }
+            gather(
+                &policy,
+                F64VectorView::contiguous(&src.values),
+                &workspace.row_indexes[..n],
+                dst,
+            );
         }
 
         Ok(PreparedSample {
@@ -293,7 +304,7 @@ impl SamplePlan {
 #[derive(Clone, Debug, Default)]
 pub struct SampleWorkspace {
     /// Reused row-index buffer (length = `n_effective`).
-    pub row_indexes: Vec<u32>,
+    pub row_indexes: Vec<usize>,
     /// Column-major gathered values (`ncols * n`).
     pub values: Vec<f64>,
     capacity_n: usize,

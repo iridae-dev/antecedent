@@ -22,10 +22,13 @@ causal-graph = { path = "../causal-graph" }
 causal-identify = { path = "../causal-identify" }
 causal-io = { path = "../causal-io" }
 causal-prob = { path = "../causal-prob" }
+causal-stats = { path = "../causal-stats" }
 causal-validate = { path = "../causal-validate" }
 causal-model = { path = "../causal-model" }
 causal-counterfactual = { path = "../causal-counterfactual" }
 causal-attribution = { path = "../causal-attribution" }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-serde_json = "1"
+causal-kernels = { path = "../causal-kernels" }
+serde_json = { workspace = true }

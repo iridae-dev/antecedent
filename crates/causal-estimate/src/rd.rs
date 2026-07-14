@@ -31,7 +31,8 @@ use causal_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
 };
 
-use crate::adjustment::{EffectEstimate, OverlapPolicy, intervention_f64};
+use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
 use crate::util::{sample_std, stats_err};
 
@@ -123,7 +124,7 @@ impl SharpRegressionDiscontinuity {
             self.overlap,
             "SharpRegressionDiscontinuity requires ExplicitOverride overlap policy",
         )?;
-        if &*estimand.method != "rd.sharp" {
+        if estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::RdSharp) {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "SharpRegressionDiscontinuity expects an \"rd.sharp\" estimand",
             });
@@ -160,13 +161,13 @@ impl SharpRegressionDiscontinuity {
 
         let ids = [query.outcome, self.running_variable];
         let row_mask =
-            data.complete_case_mask(&ids).map_err(|e| EstimationError::Data(e.to_string()))?;
+            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         let outcome_full = data
             .float64_masked(query.outcome, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let running_full = data
             .float64_masked(self.running_variable, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
 
         let mut y_sel = Vec::new();
         let mut centered_sel = Vec::new();
@@ -181,16 +182,12 @@ impl SharpRegressionDiscontinuity {
         }
         let nrows = y_sel.len();
         if nrows == 0 {
-            return Err(EstimationError::Data(
-                "no rows within the bandwidth window of the cutoff".into(),
-            ));
+            return Err(EstimationError::data_msg("no rows within the bandwidth window of the cutoff"));
         }
         let has_treated = treated_sel.iter().any(|&t| t > 0.5);
         let has_control = treated_sel.iter().any(|&t| t < 0.5);
         if !has_treated || !has_control {
-            return Err(EstimationError::Data(
-                "bandwidth window must contain rows on both sides of the cutoff".into(),
-            ));
+            return Err(EstimationError::data_msg("bandwidth window must contain rows on both sides of the cutoff"));
         }
 
         let matrix = build_rd_matrix(&treated_sel, &centered_sel);
@@ -324,7 +321,7 @@ mod tests {
     use causal_expr::IdentifiedEstimand;
 
     use super::*;
-    use crate::adjustment::OverlapPolicy;
+    use crate::overlap::OverlapPolicy;
 
     /// `R ~ U(-1, 1)`, `T = 1{R ≥ 0}`, `Y = 2 + 0.5R + 3T − 0.8T·R + noise`. Jump at cutoff = 3.
     fn sharp_rd_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {

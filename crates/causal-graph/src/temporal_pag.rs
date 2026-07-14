@@ -9,7 +9,8 @@ use std::sync::Arc;
 use causal_core::{Lag, VariableId};
 
 use crate::error::GraphError;
-use crate::pag::{DefiniteStatusPath, Pag, PagAdjEntry};
+use crate::marked_storage::{self, AdjEntry};
+use crate::pag::{DefiniteStatusPath, Pag};
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
@@ -17,7 +18,7 @@ use crate::workspace::GraphWorkspace;
 #[derive(Clone, Debug)]
 pub struct TemporalPag {
     nodes: Vec<NodeRef>,
-    adj: Vec<Vec<PagAdjEntry>>,
+    adj: Vec<Vec<AdjEntry>>,
 }
 
 impl TemporalPag {
@@ -137,16 +138,7 @@ impl TemporalPag {
                 });
             }
         }
-        self.adj[edge.a.as_usize()].push(PagAdjEntry {
-            neighbor: edge.b,
-            at_self: edge.at_a,
-            at_neighbor: edge.at_b,
-        });
-        self.adj[edge.b.as_usize()].push(PagAdjEntry {
-            neighbor: edge.a,
-            at_self: edge.at_b,
-            at_neighbor: edge.at_a,
-        });
+        marked_storage::push_marked_pair(&mut self.adj, edge);
         Ok(())
     }
 
@@ -190,20 +182,7 @@ impl TemporalPag {
     /// Edge between nodes.
     #[must_use]
     pub fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
-        if a.as_usize() >= self.node_count() || b.as_usize() >= self.node_count() {
-            return None;
-        }
-        for e in &self.adj[a.as_usize()] {
-            if e.neighbor == b {
-                return Some(MarkedEdge {
-                    a,
-                    b,
-                    at_a: e.at_self,
-                    at_b: e.at_neighbor,
-                });
-            }
-        }
-        None
+        marked_storage::edge_between(&self.adj, a, b)
     }
 
     /// Neighbors.
@@ -234,51 +213,25 @@ impl TemporalPag {
         if !self.has_edge(a, b) {
             return Err(GraphError::UnknownNode { id: a.raw() });
         }
-        for e in &mut self.adj[a.as_usize()] {
-            if e.neighbor == b {
-                e.at_self = at_a;
-                e.at_neighbor = at_b;
-            }
-        }
-        for e in &mut self.adj[b.as_usize()] {
-            if e.neighbor == a {
-                e.at_self = at_b;
-                e.at_neighbor = at_a;
-            }
-        }
-        Ok(())
-    }
-
-    fn directed_children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
-        self.adj[id.as_usize()]
-            .iter()
-            .filter(|e| matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)))
-            .map(|e| e.neighbor)
-            .collect()
+        marked_storage::set_marks(&mut self.adj, a, b, at_a, at_b)
     }
 
     /// Directed reachability.
     #[must_use]
     pub fn reaches_directed(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
-        if from == to {
-            return true;
-        }
         let mut ws = GraphWorkspace::default();
-        ws.prepare(self.node_count());
-        ws.frontier.push(from);
-        ws.visited.insert(from);
-        while let Some(u) = ws.frontier.pop() {
-            for c in self.directed_children(u) {
-                if c == to {
-                    return true;
-                }
-                if !ws.visited.contains(c) {
-                    ws.visited.insert(c);
-                    ws.frontier.push(c);
-                }
-            }
-        }
-        false
+        self.reaches_directed_with(&mut ws, from, to)
+    }
+
+    /// Directed reachability reusing a caller-owned workspace.
+    #[must_use]
+    pub fn reaches_directed_with(
+        &self,
+        ws: &mut GraphWorkspace,
+        from: DenseNodeId,
+        to: DenseNodeId,
+    ) -> bool {
+        marked_storage::reaches_directed(&self.adj, ws, from, to)
     }
 
     /// View as static [`Pag`] for algorithms that only need adjacency/marks.

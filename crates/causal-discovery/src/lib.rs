@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod algorithm;
 pub mod ci;
 pub mod combinations;
 pub mod constraints;
@@ -17,10 +18,12 @@ pub mod lpcmci;
 pub mod orientation;
 pub mod pcmci;
 pub mod pcmci_plus;
+pub mod pipeline;
 pub mod result;
 pub mod rpcmci;
 pub mod rule_scheduling;
 
+pub use algorithm::DiscoveryAlgorithm;
 pub use ci::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, PartialCorrelation,
@@ -47,6 +50,10 @@ pub use orientation::{
 };
 pub use pcmci::Pcmci;
 pub use pcmci_plus::PcmciPlus;
+pub use pipeline::{
+    algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
+    with_links_retained,
+};
 pub use rpcmci::{
     RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, regime_edge_counts,
     two_regime_half_split,

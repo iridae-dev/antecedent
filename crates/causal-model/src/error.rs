@@ -2,57 +2,51 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::fmt;
+use causal_data::DataError;
+use causal_graph::GraphError;
+use causal_stats::StatsError;
+use thiserror::Error;
 
 /// Errors from compiling, fitting, or sampling causal models.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum ModelError {
     /// Graph / shape inconsistency.
+    #[error("model shape error: {message}")]
     Shape {
         /// Context.
         message: String,
     },
     /// Graph is cyclic or has no topological order.
+    #[error("not a DAG: {message}")]
     NotDag {
         /// Context.
         message: String,
     },
     /// Mechanism missing for a node.
+    #[error("missing mechanism for node {node}")]
     MissingMechanism {
         /// Dense node index.
         node: u32,
     },
     /// Unsupported intervention or mechanism family.
+    #[error("unsupported: {message}")]
     Unsupported {
         /// Context.
         message: String,
     },
     /// Numerical failure.
+    #[error("numerical error: {message}")]
     Numerical {
         /// Context.
         message: String,
     },
     /// Graph error passthrough.
-    Graph(String),
+    #[error(transparent)]
+    Graph(#[from] GraphError),
     /// Data error passthrough.
-    Data(String),
+    #[error(transparent)]
+    Data(#[from] DataError),
     /// Stats error passthrough.
-    Stats(String),
+    #[error(transparent)]
+    Stats(#[from] StatsError),
 }
-
-impl fmt::Display for ModelError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Shape { message } => write!(f, "model shape error: {message}"),
-            Self::NotDag { message } => write!(f, "not a DAG: {message}"),
-            Self::MissingMechanism { node } => write!(f, "missing mechanism for node {node}"),
-            Self::Unsupported { message } => write!(f, "unsupported: {message}"),
-            Self::Numerical { message } => write!(f, "numerical error: {message}"),
-            Self::Graph(msg) => write!(f, "graph error: {msg}"),
-            Self::Data(msg) => write!(f, "data error: {msg}"),
-            Self::Stats(msg) => write!(f, "stats error: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for ModelError {}

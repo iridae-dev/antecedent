@@ -12,7 +12,7 @@ use std::sync::Arc;
 use causal_core::{ExecutionContext, Lag, MediationContrast, MediationQuery};
 use causal_data::{LaggedColumn, SampleWorkspace, TimeSeriesData};
 use causal_expr::IdentifiedEstimand;
-use causal_stats::{FaerBackend, form_xtx, invert_square};
+use causal_stats::FaerBackend;
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
@@ -60,7 +60,7 @@ impl TemporalMediationEstimator {
     ) -> Result<TemporalMediationEstimate, EstimationError> {
         let _ = ctx;
         query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
-        if !(estimand.method.starts_with("temporal_mediation") || estimand.method.as_ref() == "frontdoor")
+        if !(estimand.method_kind().ok().is_some_and(|m| m.is_temporal_mediation() || m == causal_expr::EstimandMethod::FrontDoor))
         {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "TemporalMediationEstimator expects temporal_mediation.* or frontdoor",
@@ -88,15 +88,15 @@ impl TemporalMediationEstimator {
         ]);
         let plan = data
             .plan_lagged_sample(1, cols)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let mut ws = SampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws).map_err(|e| EstimationError::Data(e.to_string()))?;
+        let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
         let t = prep.column(0);
         let m = prep.column(1);
         let y = prep.column(2);
         let n = prep.n;
         if n < 4 {
-            return Err(EstimationError::Data("insufficient effective samples for mediation".into()));
+            return Err(EstimationError::data_msg("insufficient effective samples for mediation"));
         }
 
         // Stage 1: M ~ [1, T] → a = β_T
@@ -122,7 +122,7 @@ impl TemporalMediationEstimator {
                 se_analytic: 0.0,
                 se_bootstrap: None,
                 assumptions: Default::default(),
-                overlap: crate::adjustment::OverlapPolicy::ExplicitOverride,
+                overlap: crate::overlap::OverlapPolicy::ExplicitOverride,
                 overlap_report: None,
                 retained_memory_bytes: None,
             },
@@ -167,27 +167,8 @@ fn ols_fit(
     ncols: usize,
     y: &[f64],
 ) -> Result<Vec<f64>, EstimationError> {
-    let n = y.len();
-    let mut xtx = vec![0.0; ncols * ncols];
-    let mut xty = vec![0.0; ncols];
-    form_xtx(design_colmajor, n, ncols, &mut xtx);
-    for c in 0..ncols {
-        let col = &design_colmajor[c * n..(c + 1) * n];
-        xty[c] = col.iter().zip(y.iter()).map(|(a, b)| a * b).sum();
-    }
-    let inv = invert_square(&xtx, ncols).ok_or_else(|| {
-        EstimationError::Stats("singular design in temporal mediation OLS".into())
-    })?;
-    let mut coef = vec![0.0; ncols];
-    for i in 0..ncols {
-        let mut s = 0.0;
-        for j in 0..ncols {
-            s += inv[i * ncols + j] * xty[j];
-        }
-        coef[i] = s;
-    }
     let _ = backend;
-    Ok(coef)
+    crate::util::ols_colmajor(design_colmajor, y.len(), ncols, y)
 }
 
 /// Temporal effect surface aligning with Tigramite (direct / total / mediated / conditional).

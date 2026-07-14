@@ -19,10 +19,11 @@ faer = ["dep:faer"]
 [dependencies]
 causal-core = { path = "../causal-core" }
 causal-kernels = { path = "../causal-kernels" }
-faer = { version = "0.21", optional = true }
+faer = { workspace = true, optional = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+criterion = { workspace = true }
 
 [[bench]]
 name = "matching"

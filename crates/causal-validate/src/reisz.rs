@@ -145,15 +145,15 @@ impl ReiszSensitivity {
         let mask = problem
             .data
             .complete_case_mask(&ids)
-            .map_err(|e| ValidationError::Data(e.to_string()))?;
+            .map_err(ValidationError::from)?;
         let t = problem
             .data
             .float64_masked(problem.treatment(), &mask)
-            .map_err(|e| ValidationError::Data(e.to_string()))?;
+            .map_err(ValidationError::from)?;
         let y = problem
             .data
             .float64_masked(problem.outcome(), &mask)
-            .map_err(|e| ValidationError::Data(e.to_string()))?;
+            .map_err(ValidationError::from)?;
         let nrows = t.len();
         for &ti in &t {
             if !(ti == 0.0 || ti == 1.0) {
@@ -171,14 +171,14 @@ impl ReiszSensitivity {
             let col = problem
                 .data
                 .float64_masked(z, &mask)
-                .map_err(|e| ValidationError::Data(e.to_string()))?;
+                .map_err(ValidationError::from)?;
             let base = (1 + i) * nrows;
             design[base..base + nrows].copy_from_slice(&col);
         }
         let backend = FaerBackend;
         let mut ws = PropensityWorkspace::default();
         let fit = fit_propensity(&design, nrows, ncols, &t, &backend, &mut ws, &self.glm_options)
-            .map_err(|e| ValidationError::Estimation(e.to_string()))?;
+            .map_err(ValidationError::from)?;
         let lo = self.clip.clamp(1e-6, 0.49);
         let hi = 1.0 - lo;
         let mut alpha = Vec::with_capacity(nrows);

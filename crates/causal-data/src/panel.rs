@@ -38,15 +38,15 @@ impl PanelData {
     pub fn try_new(units: impl Into<Arc<[PanelUnit]>>) -> Result<Self, DataError> {
         let units = units.into();
         if units.is_empty() {
-            return Err(DataError::InvalidValidity {
-                message: "panel data needs ≥1 unit",
+            return Err(DataError::InvalidArgument {
+                message: "panel data needs ≥1 unit".into(),
             });
         }
         let schema = Arc::new(units[0].series.schema().clone());
         for u in units.iter().skip(1) {
             if u.series.schema() != schema.as_ref() {
-                return Err(DataError::InvalidValidity {
-                    message: "panel unit schemas must match",
+                return Err(DataError::InvalidArgument {
+                    message: "panel unit schemas must match".into(),
                 });
             }
         }
@@ -73,7 +73,9 @@ impl PanelData {
     pub fn unit(&self, i: usize) -> Result<&PanelUnit, DataError> {
         self.units
             .get(i)
-            .ok_or(DataError::InvalidValidity { message: "panel unit index out of range" })
+            .ok_or(DataError::InvalidArgument {
+                message: "panel unit index out of range".into(),
+            })
     }
 
     /// All units.

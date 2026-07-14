@@ -116,7 +116,7 @@ impl MechanismRegistry {
         for gather in model.parent_gathers.iter() {
             let node = gather.child;
             let var = model.output_layout.variables[node.as_usize()];
-            let y = data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?;
+            let y = data.float64_values(var).map_err(ModelError::from)?;
             let is_discrete = is_low_cardinality(&y, 8);
             let families: &[MechanismFamily] =
                 if is_discrete { &self.discrete } else { &self.continuous };
@@ -268,7 +268,7 @@ fn fit_family(
             for (pi, &parent) in gather.parents.iter().enumerate() {
                 let var = model.output_layout.variables[parent.as_usize()];
                 let col =
-                    data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?;
+                    data.float64_values(var).map_err(ModelError::from)?;
                 let base = (1 + pi) * n;
                 x[base..base + n].copy_from_slice(&col[..n]);
             }
@@ -280,7 +280,7 @@ fn fit_family(
                     .collect();
                 let fit = backend
                     .least_squares(&x, n, ncols, &indicators, ls_ws)
-                    .map_err(|e| ModelError::Stats(e.to_string()))?;
+                    .map_err(ModelError::from)?;
                 let base = cat * ncols;
                 logit_coeffs[base..base + ncols].copy_from_slice(&fit.coefficients[..ncols]);
             }
@@ -300,13 +300,13 @@ fn fit_family(
             for (pi, &parent) in gather.parents.iter().enumerate() {
                 let var = model.output_layout.variables[parent.as_usize()];
                 let col =
-                    data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?;
+                    data.float64_values(var).map_err(ModelError::from)?;
                 let base = (1 + pi) * n;
                 x[base..base + n].copy_from_slice(&col[..n]);
             }
             let fit = backend
                 .least_squares(&x, n, ncols, y, ls_ws)
-                .map_err(|e| ModelError::Stats(e.to_string()))?;
+                .map_err(ModelError::from)?;
             let intercept = fit.coefficients[0];
             let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
             let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
@@ -328,7 +328,7 @@ fn residual_mse(
     let mut parent_cols: Vec<Vec<f64>> = Vec::with_capacity(gather.n_parents());
     for &parent in gather.parents.iter() {
         let var = model.output_layout.variables[parent.as_usize()];
-        parent_cols.push(data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?);
+        parent_cols.push(data.float64_values(var).map_err(ModelError::from)?);
     }
     for r in 0..n {
         let mut pred = intercept;

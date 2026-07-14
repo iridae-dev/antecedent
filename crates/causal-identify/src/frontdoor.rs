@@ -31,8 +31,7 @@ use crate::backdoor::{
 };
 use crate::error::IdentificationError;
 use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
-    IdentifiedEstimand,
+    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
 };
 
 /// Configuration for front-door mediator-set search.
@@ -149,19 +148,15 @@ impl FrontDoorIdentifier {
         );
 
         if valid.is_empty() {
-            return Ok(IdentificationResult {
-                status: IdentificationStatus::NotIdentified,
+            return Ok(IdentificationResult::not_identified(
                 query,
-                estimands: Vec::new(),
-                arena: CausalExprArena::new(),
                 derivation,
-                required_assumptions: assumptions,
-                diagnostics: Vec::new(),
-                performance: IdentificationPerformanceRecord {
+                assumptions,
+                IdentificationPerformanceRecord {
                     candidates_examined: examined,
                     sets_returned: 0,
                 },
-            });
+            ));
         }
 
         let mut arena = CausalExprArena::new();
@@ -186,19 +181,17 @@ impl FrontDoorIdentifier {
             derivation.push("frontdoor.mediator_set", format!("|M|={}", m.len()));
         }
 
-        Ok(IdentificationResult {
-            status: IdentificationStatus::NonparametricallyIdentified,
+        Ok(IdentificationResult::identified(
             query,
             estimands,
             arena,
             derivation,
-            required_assumptions: assumptions,
-            diagnostics: Vec::new(),
-            performance: IdentificationPerformanceRecord {
+            assumptions,
+            IdentificationPerformanceRecord {
                 candidates_examined: examined,
                 sets_returned: u64::try_from(valid.len()).unwrap_or(u64::MAX),
             },
-        })
+        ))
     }
 }
 
@@ -227,7 +220,7 @@ fn is_frontdoor_set(
     for &mi in m {
         let sep = t_mutilated
             .is_d_separated(t, mi, &[], ws)
-            .map_err(|e| IdentificationError::Graph(e.to_string()))?;
+            .map_err(IdentificationError::from)?;
         if !sep {
             return Ok(false);
         }
@@ -239,7 +232,7 @@ fn is_frontdoor_set(
     for &mi in m {
         let sep = m_mutilated
             .is_d_separated(mi, y, &[t], ws)
-            .map_err(|e| IdentificationError::Graph(e.to_string()))?;
+            .map_err(IdentificationError::from)?;
         if !sep {
             return Ok(false);
         }
@@ -252,6 +245,7 @@ fn is_frontdoor_set(
 mod tests {
     use super::*;
     use causal_core::AverageEffectQuery;
+    use crate::result::IdentificationStatus;
 
     #[test]
     fn classic_frontdoor_with_unmeasured_confounder() {

@@ -187,10 +187,13 @@ dependencies = [
  "causal-graph",
  "causal-identify",
  "causal-io",
+ "causal-kernels",
  "causal-model",
  "causal-prob",
+ "causal-stats",
  "causal-validate",
  "serde_json",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -202,11 +205,15 @@ dependencies = [
  "causal-data",
  "causal-graph",
  "causal-model",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "causal-core"
 version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.19",
+]
 
 [[package]]
 name = "causal-counterfactual"
@@ -218,6 +225,7 @@ dependencies = [
  "causal-model",
  "causal-prob",
  "criterion",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -230,6 +238,7 @@ dependencies = [
  "causal-core",
  "causal-kernels",
  "serde_json",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -242,6 +251,7 @@ dependencies = [
  "causal-stats",
  "criterion",
  "serde_json",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -256,6 +266,7 @@ dependencies = [
  "causal-prob",
  "causal-stats",
  "criterion",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -271,6 +282,7 @@ version = "0.1.0"
 dependencies = [
  "causal-core",
  "criterion",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -282,6 +294,7 @@ dependencies = [
  "causal-expr",
  "causal-graph",
  "criterion",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -290,9 +303,13 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "causal-core",
+ "causal-estimate",
  "causal-graph",
+ "causal-identify",
+ "causal-prob",
  "ciborium",
  "serde",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -310,9 +327,11 @@ dependencies = [
  "causal-core",
  "causal-data",
  "causal-graph",
+ "causal-kernels",
  "causal-prob",
  "causal-stats",
  "criterion",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -322,6 +341,7 @@ dependencies = [
  "causal-core",
  "causal-kernels",
  "criterion",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -333,12 +353,9 @@ dependencies = [
  "causal",
  "causal-core",
  "causal-data",
- "causal-discovery",
- "causal-estimate",
  "causal-expr",
  "causal-graph",
  "causal-io",
- "causal-stats",
  "numpy",
  "pyo3",
 ]
@@ -351,6 +368,7 @@ dependencies = [
  "causal-kernels",
  "criterion",
  "faer",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -366,6 +384,7 @@ dependencies = [
  "causal-prob",
  "causal-stats",
  "serde_json",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1616,7 +1635,7 @@ dependencies = [
  "byteorder",
  "enum-as-inner",
  "libc",
- "thiserror",
+ "thiserror 1.0.69",
  "walkdir",
 ]
 
@@ -1632,7 +1651,16 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09a43598840e33d5b0331f38c5e30d13bb11c11210a4b58f0d9b18a5a5eefcd9"
+dependencies = [
+ "thiserror-impl 2.0.19",
 ]
 
 [[package]]
@@ -1644,6 +1672,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.2",
 ]
 
 [[package]]

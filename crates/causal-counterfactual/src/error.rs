@@ -2,42 +2,38 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::fmt;
+use causal_model::ModelError;
+use thiserror::Error;
 
 /// Counterfactual errors.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum CounterfactualError {
     /// Model / shape issue.
-    Model(String),
+    #[error(transparent)]
+    Model(#[from] ModelError),
     /// Missing factual values required for abduction.
+    #[error("missing factual: {message}")]
     MissingFactual {
         /// Variable.
         message: String,
     },
     /// Nested interventions not allowed.
+    #[error("nested counterfactuals not enabled")]
     NestedNotAllowed,
     /// Numerical failure.
+    #[error("numerical error: {message}")]
     Numerical {
         /// Context.
         message: String,
     },
 }
 
-impl fmt::Display for CounterfactualError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Model(m) => write!(f, "counterfactual model error: {m}"),
-            Self::MissingFactual { message } => write!(f, "missing factual: {message}"),
-            Self::NestedNotAllowed => write!(f, "nested counterfactuals not enabled"),
-            Self::Numerical { message } => write!(f, "numerical error: {message}"),
-        }
-    }
-}
-
-impl std::error::Error for CounterfactualError {}
-
-impl From<causal_model::ModelError> for CounterfactualError {
-    fn from(e: causal_model::ModelError) -> Self {
-        Self::Model(e.to_string())
+impl CounterfactualError {
+    /// Ad-hoc model message.
+    #[must_use]
+    pub fn model_msg(message: impl Into<String>) -> Self {
+        Self::Model(ModelError::Unsupported {
+            message: message.into(),
+        })
     }
 }

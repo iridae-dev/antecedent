@@ -11,6 +11,10 @@ pub mod bayesian;
 pub mod conditional;
 pub mod envelope;
 pub mod error;
+pub mod estimator;
+pub mod gcomp;
+pub mod overlap;
+pub mod prepare;
 pub mod frontdoor;
 pub mod glm_adjustment;
 pub mod iv;
@@ -21,10 +25,10 @@ pub mod temporal_adjustment;
 pub mod temporal_mediation;
 mod util;
 
-pub use adjustment::{
-    ClipSensitivity, EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy,
-    OverlapReport, PreparedEstimationProblem, PropensityInterval,
-};
+pub use adjustment::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem};
+pub use estimator::{Estimator, FittedEstimator, TabularAteEstimator};
+pub use overlap::{ClipSensitivity, OverlapPolicy, OverlapReport, PropensityInterval};
+pub use causal_expr::EstimandMethod;
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,

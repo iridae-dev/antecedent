@@ -306,9 +306,9 @@ impl PcmciEngine {
         // PC phase frame at max_lag; MCI conditions on pa(X_{t−τ}) with lags up to 2·max_lag
         // (tigramite's `2xtau_max` cut-off), so it needs a deeper frame.
         let frame = LaggedFrame::from_series(data, variables, max_lag)
-            .map_err(|e| DiscoveryError::Data(e.to_string()))?;
+            .map_err(DiscoveryError::from)?;
         let mci_frame = LaggedFrame::from_series(data, variables, 2 * max_lag)
-            .map_err(|e| DiscoveryError::Data(e.to_string()))?;
+            .map_err(DiscoveryError::from)?;
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if frame.values_bytes() + mci_frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
@@ -330,7 +330,7 @@ impl PcmciEngine {
             let _prepared = self
                 .ci
                 .prepare(&cols, &plan, ctx)
-                .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
+                .map_err(DiscoveryError::from)?;
         }
 
         let (all_parents, iterations, mut ci_tests) =
@@ -571,15 +571,15 @@ impl PcmciEngine {
             truncated += mci_conditioning(link, parents, src_parents, &mut workspace.others);
 
             let xi = frame.column_index(link.source, link.source_lag).ok_or_else(|| {
-                DiscoveryError::Data(format!("missing lagged column for {:?}", link.source))
+                DiscoveryError::data_msg(format!("missing lagged column for {:?}", link.source))
             })?;
             let yi = frame.column_index(link.target, link.target_lag).ok_or_else(|| {
-                DiscoveryError::Data(format!("missing lagged column for {:?}", link.target))
+                DiscoveryError::data_msg(format!("missing lagged column for {:?}", link.target))
             })?;
             let z_start = z_flat.len();
             for &(v, l) in &workspace.others {
                 let zi = frame.column_index(v, l).ok_or_else(|| {
-                    DiscoveryError::Data(format!("missing lagged column for {v:?} lag {l:?}"))
+                    DiscoveryError::data_msg(format!("missing lagged column for {v:?} lag {l:?}"))
                 })?;
                 z_flat.push(zi);
             }
@@ -597,14 +597,14 @@ impl PcmciEngine {
         let out = self
             .ci
             .test_batch(&req, &mut workspace.ci, ctx)
-            .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
+            .map_err(DiscoveryError::from)?;
         if out.results.len() != links.len() {
-            return Err(DiscoveryError::Stats("CI batch result length mismatch".into()));
+            return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
         let mut scored = Vec::with_capacity(links.len());
         for (link, result) in links.into_iter().zip(out.results) {
             if !result.statistic.is_finite() || !result.p_value.is_finite() {
-                return Err(DiscoveryError::Stats("non-finite CI statistic or p-value".into()));
+                return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
             }
             scored.push(ScoredLink {
                 link,
@@ -635,16 +635,16 @@ impl PcmciEngine {
         }
         workspace.col_idxs.clear();
         let xi = frame.column_index(x, x_lag).ok_or_else(|| {
-            DiscoveryError::Data(format!("missing lagged column for {x:?} lag {x_lag:?}"))
+            DiscoveryError::data_msg(format!("missing lagged column for {x:?} lag {x_lag:?}"))
         })?;
         let yi = frame.column_index(y, y_lag).ok_or_else(|| {
-            DiscoveryError::Data(format!("missing lagged column for {y:?} lag {y_lag:?}"))
+            DiscoveryError::data_msg(format!("missing lagged column for {y:?} lag {y_lag:?}"))
         })?;
         workspace.col_idxs.push(xi);
         workspace.col_idxs.push(yi);
         for &(v, l) in cond {
             let zi = frame.column_index(v, l).ok_or_else(|| {
-                DiscoveryError::Data(format!("missing lagged column for {v:?} lag {l:?}"))
+                DiscoveryError::data_msg(format!("missing lagged column for {v:?} lag {l:?}"))
             })?;
             workspace.col_idxs.push(zi);
         }
@@ -670,14 +670,14 @@ impl PcmciEngine {
             let out = self
                 .ci
                 .test_batch(&req, &mut workspace.ci, ctx)
-                .map_err(|e| DiscoveryError::Stats(e.to_string()))?;
+                .map_err(DiscoveryError::from)?;
             out.results
                 .into_iter()
                 .next()
-                .ok_or_else(|| DiscoveryError::Stats("CI batch returned no results".into()))?
+                .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?
         };
         if !result.statistic.is_finite() || !result.p_value.is_finite() {
-            return Err(DiscoveryError::Stats("non-finite CI statistic or p-value".into()));
+            return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
         }
         Ok((result.statistic, result.p_value))
     }

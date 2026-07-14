@@ -14,9 +14,13 @@ workspace = true
 
 [dependencies]
 causal-core = { path = "../causal-core" }
+causal-estimate = { path = "../causal-estimate" }
 causal-graph = { path = "../causal-graph" }
-blake3 = "1"
-ciborium = "0.2"
-serde = { version = "1", features = ["derive"] }
+causal-identify = { path = "../causal-identify" }
+causal-prob = { path = "../causal-prob" }
+blake3 = { workspace = true }
+ciborium = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]

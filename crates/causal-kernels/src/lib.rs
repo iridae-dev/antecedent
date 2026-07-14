@@ -14,6 +14,7 @@
 pub mod dispatch;
 pub mod parcorr;
 pub mod portable;
+pub mod rng;
 pub mod scalar;
 pub mod view;
 
@@ -22,6 +23,7 @@ pub use dispatch::{
     select_impl,
 };
 pub use parcorr::{ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson};
+pub use rng::standard_normal;
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 
 #[cfg(test)]

@@ -16,8 +16,7 @@ use causal_graph::{DSeparationWorkspace, Dag, DenseNodeId};
 use crate::backdoor::{PreparedIdentificationGraph, dense_to_var, remove_outgoing, var_to_dense};
 use crate::error::IdentificationError;
 use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
-    IdentifiedEstimand,
+    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
 };
 
 /// Configuration for instrument search.
@@ -123,19 +122,15 @@ impl InstrumentalVariableIdentifier {
         );
 
         if valid.is_empty() {
-            return Ok(IdentificationResult {
-                status: IdentificationStatus::NotIdentified,
+            return Ok(IdentificationResult::not_identified(
                 query,
-                estimands: Vec::new(),
-                arena: CausalExprArena::new(),
                 derivation,
-                required_assumptions: assumptions,
-                diagnostics: Vec::new(),
-                performance: IdentificationPerformanceRecord {
+                assumptions,
+                IdentificationPerformanceRecord {
                     candidates_examined: examined,
                     sets_returned: 0,
                 },
-            });
+            ));
         }
 
         let mut arena = CausalExprArena::new();
@@ -164,19 +159,17 @@ impl InstrumentalVariableIdentifier {
             derivation.push("iv.instrument", format!("Z={}", z_var.raw()));
         }
 
-        Ok(IdentificationResult {
-            status: IdentificationStatus::NonparametricallyIdentified,
+        Ok(IdentificationResult::identified(
             query,
             estimands,
             arena,
             derivation,
-            required_assumptions: assumptions,
-            diagnostics: Vec::new(),
-            performance: IdentificationPerformanceRecord {
+            assumptions,
+            IdentificationPerformanceRecord {
                 candidates_examined: examined,
                 sets_returned: u64::try_from(valid.len()).unwrap_or(u64::MAX),
             },
-        })
+        ))
     }
 }
 
@@ -197,7 +190,7 @@ fn is_valid_instrument(
         return Ok(false);
     }
     let independent_of_t =
-        dag.is_d_separated(z, t, &[], ws).map_err(|e| IdentificationError::Graph(e.to_string()))?;
+        dag.is_d_separated(z, t, &[], ws).map_err(IdentificationError::from)?;
     if independent_of_t {
         return Ok(false);
     }
@@ -207,13 +200,14 @@ fn is_valid_instrument(
     // given ∅. Conditioning on T directly would instead open the T-collider
     // between Z and any T-Y confounder, so we mutilate rather than condition.
     let t_mutilated = remove_outgoing(dag, t)?;
-    t_mutilated.is_d_separated(z, y, &[], ws).map_err(|e| IdentificationError::Graph(e.to_string()))
+    t_mutilated.is_d_separated(z, y, &[], ws).map_err(IdentificationError::from)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use causal_core::{AverageEffectQuery, VariableId};
+    use crate::result::IdentificationStatus;
 
     #[test]
     fn confounded_treatment_with_valid_instrument() {

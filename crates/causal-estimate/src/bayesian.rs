@@ -30,7 +30,8 @@ use causal_prob::{
 };
 use causal_stats::{CompiledDesign, GlmFamily};
 
-use crate::adjustment::{OverlapPolicy, intervention_f64};
+use crate::adjustment::intervention_f64;
+use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
 use crate::util::require_explicit_override;
 
@@ -72,10 +73,10 @@ impl CausalPosterior {
     pub fn probability_below(&self, threshold: f64) -> Result<f64, EstimationError> {
         let q = self
             .effect_column()
-            .ok_or_else(|| EstimationError::Stats("CausalPosterior has no effect column".into()))?;
+            .ok_or_else(|| EstimationError::stats_msg("CausalPosterior has no effect column"))?;
         self.draws
             .probability_below(q, threshold)
-            .map_err(|e| EstimationError::Stats(e.to_string()))
+            .map_err(EstimationError::from)
     }
 }
 
@@ -171,7 +172,7 @@ impl BayesianGComputationAte {
             self.overlap,
             "BayesianGComputationAte requires ExplicitOverride overlap policy",
         )?;
-        if &*estimand.method != "backdoor.adjustment" && &*estimand.method != "backdoor.efficient" {
+        if !matches!(estimand.method_kind().ok(), Some(causal_expr::EstimandMethod::BackdoorAdjustment | causal_expr::EstimandMethod::BackdoorEfficient)) {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "BayesianGComputationAte expects backdoor.adjustment/efficient",
             });
@@ -202,19 +203,19 @@ impl BayesianGComputationAte {
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
         let row_mask =
-            data.complete_case_mask(&ids).map_err(|e| EstimationError::Data(e.to_string()))?;
+            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         let t = data
             .float64_masked(treatment, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let y = data
             .float64_masked(outcome, &row_mask)
-            .map_err(|e| EstimationError::Data(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
             covs.push((
                 z,
                 data.float64_masked(z, &row_mask)
-                    .map_err(|e| EstimationError::Data(e.to_string()))?,
+                    .map_err(EstimationError::from)?,
             ));
         }
         let cov_refs: Vec<(VariableId, &[f64])> =
@@ -222,7 +223,7 @@ impl BayesianGComputationAte {
         let selected_rows: Vec<usize> =
             row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
         let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
-            .map_err(|e| EstimationError::Stats(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         Ok(PreparedBayesianProblem {
             design,
             method: Arc::clone(&estimand.method),
@@ -308,13 +309,13 @@ impl BayesianGComputationAte {
         .map_err(prob_err)?;
 
         if !fit.diagnostics.allows_posterior() {
-            return Err(EstimationError::Stats("Bayesian fit refused without diagnostics".into()));
+            return Err(EstimationError::stats_msg("Bayesian fit refused without diagnostics"));
         }
 
         let t_col = problem
             .design
             .treatment_column()
-            .ok_or_else(|| EstimationError::Stats("missing treatment column".into()))?;
+            .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
 
         let mechanism = BayesianGlmMechanism {
             coefficient_draws: fit.draws,
@@ -345,7 +346,7 @@ impl BayesianGComputationAte {
         let batch = mechanism
             .coefficient_draws
             .batch(0, n_draws)
-            .map_err(|e| EstimationError::Stats(e.to_string()))?;
+            .map_err(EstimationError::from)?;
         evaluator.evaluate_batch(&compiled, batch, &mut effect_out, &mut workspace.eval, ctx)?;
 
         let mut quantities = mechanism.coefficient_draws.schema.quantities.to_vec();
@@ -360,12 +361,12 @@ impl BayesianGComputationAte {
                 continue;
             }
             let dest = quantities.iter().position(|qq| qq == q).ok_or_else(|| {
-                EstimationError::Stats(format!("posterior quantity missing from schema: {q:?}"))
+                EstimationError::stats_msg(format!("posterior quantity missing from schema: {q:?}"))
             })?;
             let col = mechanism
                 .coefficient_draws
                 .column(qi)
-                .map_err(|e| EstimationError::Stats(e.to_string()))?;
+                .map_err(EstimationError::from)?;
             values[dest * n_draws..(dest + 1) * n_draws].copy_from_slice(col);
         }
         values[effect_idx * n_draws..(effect_idx + 1) * n_draws]
@@ -376,7 +377,7 @@ impl BayesianGComputationAte {
             n_draws,
             values,
         )
-        .map_err(|e| EstimationError::Stats(e.to_string()))?;
+        .map_err(EstimationError::from)?;
         let summaries = draws.summarize();
 
         let _ = mechanism;
@@ -473,7 +474,7 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
 
     fn compile(&self) -> Result<Self::Compiled, EstimationError> {
         if self.treatment_col >= self.ncols {
-            return Err(EstimationError::Stats("treatment column out of range".into()));
+            return Err(EstimationError::stats_msg("treatment column out of range"));
         }
         Ok(CompiledGCompAte)
     }
@@ -493,7 +494,7 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
         // Coefficient columns 0..ncols from the batch (ignore extra quantities).
         let mut coef_cols: Vec<&[f64]> = Vec::with_capacity(self.ncols);
         for c in 0..self.ncols {
-            let col = posterior.column(c).map_err(|e| EstimationError::Stats(e.to_string()))?;
+            let col = posterior.column(c).map_err(EstimationError::from)?;
             coef_cols.push(col);
         }
 
@@ -560,7 +561,7 @@ fn likelihood_to_glm_family(l: BayesLikelihood) -> GlmFamily {
 }
 
 fn prob_err(e: causal_prob::ProbError) -> EstimationError {
-    EstimationError::Stats(e.to_string())
+    EstimationError::from(e)
 }
 
 /// Build a non-identified posterior artifact that still records priors (exit criterion #2).

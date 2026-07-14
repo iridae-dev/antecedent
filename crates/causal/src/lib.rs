@@ -6,15 +6,25 @@
 #![deny(missing_docs)]
 
 pub mod analysis;
+pub mod discovery;
+pub mod discovery_defaults;
 pub mod error;
 pub mod gcm;
 pub mod inference;
 pub mod planner;
-pub mod posterior_io;
 pub mod result;
 pub mod review;
+pub mod strategy_table;
 
 pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RefuteSuite};
+pub use discovery::{
+    DiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pcmci, discover_pcmci_plus,
+    discover_rpcmci, pag_definite_directed_edge_count,
+};
+pub use discovery_defaults::{
+    contemporaneous_constraints, pcmci_constraints, resolve_ci, DEFAULT_ALPHA,
+    DEFAULT_MAX_COND_SIZE, DEFAULT_RPCMCI_MIN_REGIME_LEN,
+};
 pub use error::AnalysisError;
 pub use gcm::{FittedGcm, IteResult, anomaly_attribution, counterfactual_ite, fit_gcm, sample_do};
 pub use inference::{BayesianConfig, InferenceMode};
@@ -23,9 +33,17 @@ pub use planner::{
     StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
     is_dag_only_identifier, reject_dag_only_on_pag,
 };
+pub use strategy_table::{
+    estimate_provenance_step, estimate_static_effect, identify_provenance_step, identify_static,
+    validate_static_pair, DEFAULT_ESTIMATOR, DEFAULT_IDENTIFIER,
+};
 
 // Phase 8 PAG / LPCMCI surfaces.
-pub use causal_discovery::{JpcmciPlus, Lpcmci, RegimeAssignment, RegimeGraphCollection, Rpcmci, two_regime_half_split};
+pub use causal_discovery::{
+    CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryPerformanceRecord, JpcmciPlus, Lpcmci,
+    PagDiscoveryResult, RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult,
+    ScoredLink, two_regime_half_split,
+};
 pub use causal_estimate::{
     ConditionalLinearAdjustment, TemporalEffectSurface, TemporalLinearPredictor,
     TemporalMediationEstimator,
@@ -37,14 +55,46 @@ pub use causal_identify::{
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
     IdentificationEnvelope, ProbabilityMass, TemporalMediationIdentifier,
 };
-pub use posterior_io::{
-    decode_causal_posterior_bytes, encode_causal_posterior, encode_causal_posterior_bytes,
-};
 pub use result::CausalAnalysisResult;
 pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
     compile_temporal_with_graph, ensure_review_complete,
 };
+
+/// Encode a [`causal_estimate::CausalPosterior`] to durable bytes.
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on IO failures.
+pub fn encode_causal_posterior_bytes(
+    posterior: &causal_estimate::CausalPosterior,
+    artifact_id: &str,
+) -> Result<Vec<u8>, AnalysisError> {
+    causal_io::encode_causal_posterior_bytes(posterior, artifact_id).map_err(AnalysisError::from)
+}
+
+/// Encode a [`causal_estimate::CausalPosterior`] to a durable artifact.
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on IO failures.
+pub fn encode_causal_posterior(
+    posterior: &causal_estimate::CausalPosterior,
+    artifact_id: &str,
+) -> Result<causal_io::EncodedArtifact, AnalysisError> {
+    causal_io::encode_causal_posterior(posterior, artifact_id).map_err(AnalysisError::from)
+}
+
+/// Decode posterior wire metadata + draws.
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on IO failures.
+pub fn decode_causal_posterior_bytes(
+    bytes: &[u8],
+) -> Result<(causal_io::CausalPosteriorWire, Vec<f64>), AnalysisError> {
+    causal_io::decode_causal_posterior_bytes(bytes).map_err(AnalysisError::from)
+}
 
 // Phase 7 GCM / counterfactual / basic attribution surfaces.
 pub use causal_attribution::{
@@ -77,14 +127,9 @@ mod tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
     use causal_graph::{Dag, DenseNodeId};
+    use causal_kernels::standard_normal;
 
     use super::*;
-
-    fn standard_normal(rng: &mut CausalRng) -> f64 {
-        let u1 = rng.next_f64().max(1e-12);
-        let u2 = rng.next_f64();
-        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-    }
 
     fn scm() -> (TabularData, Dag, AverageEffectQuery) {
         let n = 200usize;

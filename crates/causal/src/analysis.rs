@@ -20,26 +20,20 @@ use causal_core::{
     TemporalEffectQuery, VERSION, VariableId,
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use causal_discovery::{
-    DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus, TemporalConstraints,
-};
 use causal_estimate::{
-    AipwAte, AipwWorkspace, BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior,
-    DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace, FrontDoorTwoStage,
-    FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace, LinearAdjustmentAte,
-    OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching, PropensityStratification,
-    PropensityWeighting, RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment,
-    TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
+    BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, EffectEstimate,
+    EstimationWorkspace, OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity,
+    TemporalLinearAdjustment,
 };
 use causal_expr::IdentifiedEstimand;
 use causal_graph::{Dag, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
 use causal_identify::{
-    BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier, IdentificationError,
-    IdentificationResult, IdentificationStatus, InstrumentalVariableIdentifier, SharpRdConfig,
-    SharpRdIdentifier, TemporalBackdoorIdentifier,
+    IdentificationStatus, SharpRdConfig, SharpRdIdentifier, TemporalBackdoorIdentifier,
 };
 use causal_validate::{RefutationProblem, RefutationReport, ValidationSuite};
 
+use crate::discovery::{discover_pcmci, discover_pcmci_plus, DiscoverParams};
+use crate::discovery_defaults::resolve_ci;
 use crate::error::AnalysisError;
 use crate::inference::{BayesianConfig, InferenceMode};
 use crate::planner::{
@@ -47,6 +41,10 @@ use crate::planner::{
     StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
 };
 use crate::result::CausalAnalysisResult;
+use crate::strategy_table::{
+    estimate_provenance_step, estimate_static_effect, identify_provenance_step, identify_static,
+    DEFAULT_ESTIMATOR, DEFAULT_IDENTIFIER,
+};
 use crate::review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
     ensure_review_complete,
@@ -508,9 +506,9 @@ impl CausalAnalysis {
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
         let identifier =
-            self.identifier.clone().unwrap_or_else(|| Arc::from("backdoor.adjustment"));
+            self.identifier.clone().unwrap_or_else(|| Arc::from(DEFAULT_IDENTIFIER));
         let estimator =
-            self.estimator.clone().unwrap_or_else(|| Arc::from("linear.adjustment.ate"));
+            self.estimator.clone().unwrap_or_else(|| Arc::from(DEFAULT_ESTIMATOR));
         (identifier, estimator)
     }
 
@@ -634,9 +632,9 @@ impl CausalAnalysis {
     ) -> Result<CausalAnalysisResult, AnalysisError> {
         let started = Instant::now();
         let identifier =
-            physical.logical.record.identifier.as_deref().unwrap_or("backdoor.adjustment");
+            physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
         let estimator =
-            physical.logical.record.estimator.as_deref().unwrap_or("linear.adjustment.ate");
+            physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
 
         // rd.sharp has no graph-based identification step (DESIGN.md §21.2); dispatch to its
         // own path before touching `graph`.
@@ -652,84 +650,18 @@ impl CausalAnalysis {
             .estimands
             .first()
             .cloned()
-            .ok_or_else(|| AnalysisError::Identify("no estimand returned".into()))?;
+            .ok_or_else(|| AnalysisError::Compile { message: "no estimand returned".into() })?;
         let assumptions = identification.required_assumptions.clone();
 
-        let estimate: EffectEstimate = match estimator {
-            "linear.adjustment.ate" => {
-                let mut est = LinearAdjustmentAte::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                est.overlap = OverlapPolicy::ExplicitOverride;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                let mut ws = EstimationWorkspace::default();
-                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            "propensity.weighting" => {
-                let mut est = PropensityWeighting::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                let mut ws = PropensityEstimationWorkspace::default();
-                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            "propensity.matching" => {
-                let mut est = PropensityMatching::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                let mut ws = PropensityEstimationWorkspace::default();
-                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            "propensity.stratification" => {
-                let mut est = PropensityStratification::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                let mut ws = PropensityEstimationWorkspace::default();
-                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            "distance.matching" => {
-                let mut est = DistanceMatching::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                let mut ws = PropensityEstimationWorkspace::default();
-                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            "aipw" => {
-                let mut est = AipwAte::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                let mut ws = AipwWorkspace::default();
-                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            "glm.adjustment" => {
-                let mut est = GlmAdjustmentAte::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                let mut ws = GlmAdjustmentWorkspace::default();
-                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            "frontdoor.two_stage" => {
-                let mut est = FrontDoorTwoStage::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                let mut ws = FrontDoorWorkspace::default();
-                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            "iv.wald" => {
-                let mut est = WaldIv::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                est.fit(&prep, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            "iv.2sls" => {
-                let mut est = TwoStageLeastSquares::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
-                let mut ws = TwoStageLeastSquaresWorkspace::default();
-                est.fit(&prep, &mut ws, ctx, assumptions.clone()).map_err(est_err)?
-            }
-            _ => {
-                return Err(AnalysisError::Unsupported { message: "unknown static estimator" });
-            }
-        };
+        let estimate = estimate_static_effect(
+            estimator,
+            data,
+            &estimand,
+            query,
+            assumptions,
+            self.bootstrap_replicates,
+            ctx,
+        )?;
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
@@ -786,13 +718,13 @@ impl CausalAnalysis {
     ) -> Result<CausalAnalysisResult, AnalysisError> {
         let started = Instant::now();
         let identifier =
-            physical.logical.record.identifier.as_deref().unwrap_or("backdoor.adjustment");
+            physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
         let identification = identify_static(identifier, graph, query)?;
         let estimand = identification
             .estimands
             .first()
             .cloned()
-            .ok_or_else(|| AnalysisError::Identify("no estimand returned".into()))?;
+            .ok_or_else(|| AnalysisError::Compile { message: "no estimand returned".into() })?;
 
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
@@ -806,9 +738,9 @@ impl CausalAnalysis {
             overlap: OverlapPolicy::ExplicitOverride,
             prior_scale: cfg.prior_scale,
         };
-        let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+        let prep = est.prepare(data, &estimand, query).map_err(AnalysisError::from)?;
         let mut ws = BayesianGCompWorkspace::default();
-        let posterior = est.fit(&prep, identification.status, &mut ws, ctx).map_err(est_err)?;
+        let posterior = est.fit(&prep, identification.status, &mut ws, ctx).map_err(AnalysisError::from)?;
         let estimate = effect_from_posterior(&posterior)?;
 
         let mut diagnostics = identification.diagnostics.clone();
@@ -859,21 +791,21 @@ impl CausalAnalysis {
             bandwidth: rd.bandwidth,
         })
         .identify(CausalQuery::AverageEffect(query.clone()))
-        .map_err(identify_err)?;
+        .map_err(AnalysisError::from)?;
         let estimand = identification
             .estimands
             .first()
             .cloned()
-            .ok_or_else(|| AnalysisError::Identify("rd.sharp returned no estimand".into()))?;
+            .ok_or_else(|| AnalysisError::Compile { message: "rd.sharp returned no estimand".into() })?;
 
         let mut est =
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
         est.bootstrap_replicates = self.bootstrap_replicates;
-        let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+        let prep = est.prepare(data, &estimand, query).map_err(AnalysisError::from)?;
         let mut ws = RdWorkspace::default();
         let estimate = est
             .fit(&prep, &mut ws, ctx, identification.required_assumptions.clone())
-            .map_err(est_err)?;
+            .map_err(AnalysisError::from)?;
 
         let diagnostics = vec![overlap_diagnostic(estimate.overlap)];
 
@@ -909,27 +841,27 @@ impl CausalAnalysis {
         let started = Instant::now();
         let id_res = TemporalBackdoorIdentifier::new()
             .identify_temporal(graph, query)
-            .map_err(|e| AnalysisError::Identify(e.to_string()))?;
+            .map_err(AnalysisError::from)?;
         let identification = id_res.result;
         if identification.status != IdentificationStatus::NonparametricallyIdentified {
-            return Err(AnalysisError::Identify("temporal effect not identified".into()));
+            return Err(AnalysisError::Compile { message: "temporal effect not identified".into() });
         }
         let estimand = identification
             .estimands
             .first()
             .cloned()
-            .ok_or_else(|| AnalysisError::Identify("no estimand returned".into()))?;
+            .ok_or_else(|| AnalysisError::Compile { message: "no estimand returned".into() })?;
 
         let mut estimator = TemporalLinearAdjustment::new();
         estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
         estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
         let prep = estimator
             .prepare(data, &estimand, query, &id_res.indexer, self.split.as_ref())
-            .map_err(|e| AnalysisError::Estimate(e.to_string()))?;
+            .map_err(AnalysisError::from)?;
         let mut workspace = EstimationWorkspace::default();
         let estimate = estimator
             .fit(&prep, &mut workspace, ctx, identification.required_assumptions.clone())
-            .map_err(|e| AnalysisError::Estimate(e.to_string()))?;
+            .map_err(AnalysisError::from)?;
 
         let provenance = provenance_pair(
             (
@@ -1033,21 +965,14 @@ fn run_pcmci_review(
     fdr: bool,
     ctx: &ExecutionContext,
 ) -> Result<TemporalGraphReview, AnalysisError> {
-    let schema = data.schema();
-    let vars: Vec<VariableId> = schema.variables().iter().map(|v| v.id).collect();
-    let pcmci = Pcmci::new().with_fdr(fdr).with_constraints(DiscoveryConstraints {
-        temporal: TemporalConstraints {
-            max_lag: causal_core::Lag::from_raw(max_lag),
-            min_lag: causal_core::Lag::from_raw(1),
-        },
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = DiscoverParams {
+        max_lag,
         alpha,
-        max_cond_size: 2,
-        ..DiscoveryConstraints::default()
-    });
-    let mut ws = DiscoveryWorkspace::default();
-    let result = pcmci
-        .run(data, &vars, &mut ws, ctx)
-        .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+        fdr,
+        ci: resolve_ci("parcorr", None)?,
+    };
+    let result = discover_pcmci(data, &vars, &params, ctx)?;
     Ok(result.review)
 }
 
@@ -1058,21 +983,14 @@ fn run_pcmci_plus_review(
     fdr: bool,
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, AnalysisError> {
-    let schema = data.schema();
-    let vars: Vec<VariableId> = schema.variables().iter().map(|v| v.id).collect();
-    let plus = PcmciPlus::new().with_fdr(fdr).with_constraints(DiscoveryConstraints {
-        temporal: TemporalConstraints {
-            max_lag: causal_core::Lag::from_raw(max_lag),
-            min_lag: causal_core::Lag::CONTEMPORANEOUS,
-        },
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = DiscoverParams {
+        max_lag,
         alpha,
-        max_cond_size: 2,
-        ..DiscoveryConstraints::default()
-    });
-    let mut ws = DiscoveryWorkspace::default();
-    let result = plus
-        .run(data, &vars, &mut ws, ctx)
-        .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+        fdr,
+        ci: resolve_ci("parcorr", None)?,
+    };
+    let result = discover_pcmci_plus(data, &vars, &params, ctx)?;
     Ok(result.review)
 }
 
@@ -1095,20 +1013,13 @@ fn run_refuters(
     };
     let outcomes = validation
         .run(&problem, workspace, ctx)
-        .map_err(|e| AnalysisError::Validate(e.to_string()))?;
+        .map_err(AnalysisError::from)?;
     Ok(ValidationSuite::reports_only(&outcomes))
-}
-
-// Owned-value signature keeps every `.map_err(est_err)` / `.map_err(identify_err)` call site
-// terse (`fn(E) -> AnalysisError` matches `map_err`'s closure signature directly).
-#[allow(clippy::needless_pass_by_value)]
-fn est_err(e: EstimationError) -> AnalysisError {
-    AnalysisError::Estimate(e.to_string())
 }
 
 fn effect_from_posterior(posterior: &CausalPosterior) -> Result<EffectEstimate, AnalysisError> {
     let eq = posterior.effect_column().ok_or_else(|| {
-        AnalysisError::Estimate("Bayesian posterior missing effect column".into())
+        AnalysisError::Compile { message: "Bayesian posterior missing effect column".into() }
     })?;
     let ate = posterior.summaries.mean[eq];
     let se = posterior.summaries.sd[eq] / (posterior.draws.n_draws as f64).sqrt().max(1.0);
@@ -1121,81 +1032,6 @@ fn effect_from_posterior(posterior: &CausalPosterior) -> Result<EffectEstimate, 
         overlap_report: None,
         retained_memory_bytes: None,
     })
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn identify_err(e: IdentificationError) -> AnalysisError {
-    AnalysisError::Identify(e.to_string())
-}
-
-/// Run the identifier named by `identifier` against `graph`/`query`, returning its
-/// [`IdentificationResult`] (Phase 4 static dispatch table; DESIGN.md §21.2).
-fn identify_static(
-    identifier: &str,
-    graph: &Dag,
-    query: &AverageEffectQuery,
-) -> Result<IdentificationResult, AnalysisError> {
-    let q = CausalQuery::AverageEffect(query.clone());
-    let result = match identifier {
-        "backdoor.adjustment" => {
-            let id = BackdoorIdentifier::new();
-            let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q).map_err(identify_err)?
-        }
-        "backdoor.efficient" => {
-            let id = EfficientBackdoorIdentifier::new();
-            let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q).map_err(identify_err)?
-        }
-        "frontdoor" => {
-            let id = FrontDoorIdentifier::new();
-            let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q).map_err(identify_err)?
-        }
-        "iv" => {
-            let id = InstrumentalVariableIdentifier::new();
-            let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q).map_err(identify_err)?
-        }
-        _ => {
-            return Err(AnalysisError::Unsupported { message: "unknown static identifier" });
-        }
-    };
-    if result.status != IdentificationStatus::NonparametricallyIdentified {
-        return Err(AnalysisError::Identify("effect not identified".into()));
-    }
-    Ok(result)
-}
-
-/// Provenance `(artifact_id, operation)` for an identifier id.
-fn identify_provenance_step(identifier: &str) -> (&'static str, &'static str) {
-    match identifier {
-        "backdoor.adjustment" => ("identify.backdoor", "identify.backdoor"),
-        "backdoor.efficient" => ("identify.efficient_backdoor", "identify.efficient_backdoor"),
-        "frontdoor" => ("identify.frontdoor", "identify.frontdoor"),
-        "iv" => ("identify.iv", "identify.iv"),
-        _ => ("identify.unknown", "identify.unknown"),
-    }
-}
-
-/// Provenance `(artifact_id, operation)` for an estimator id.
-fn estimate_provenance_step(estimator: &str) -> (&'static str, &'static str) {
-    match estimator {
-        "linear.adjustment.ate" => ("estimate.linear_adjustment", "estimate.linear_adjustment_ate"),
-        "propensity.weighting" => ("estimate.propensity", "estimate.propensity_weighting"),
-        "propensity.matching" => ("estimate.propensity", "estimate.propensity_matching"),
-        "propensity.stratification" => {
-            ("estimate.propensity", "estimate.propensity_stratification")
-        }
-        "distance.matching" => ("estimate.matching", "estimate.distance_matching"),
-        "aipw" => ("estimate.aipw", "estimate.aipw"),
-        "glm.adjustment" => ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),
-        "frontdoor.two_stage" => ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
-        "iv.wald" => ("estimate.iv", "estimate.wald_iv"),
-        "iv.2sls" => ("estimate.iv", "estimate.two_stage_least_squares"),
-        "bayesian.gcomp" => ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
-        _ => ("estimate.unknown", "estimate.unknown"),
-    }
 }
 
 /// Diagnostic recording which overlap policy an estimator applied.

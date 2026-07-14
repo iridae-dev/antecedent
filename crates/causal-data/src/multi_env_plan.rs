@@ -13,6 +13,41 @@ use crate::reference::ReferencePointPolicy;
 use crate::sample::{LagMap, LaggedColumn, SamplePlan};
 use crate::table::TableView;
 
+/// Build one [`SamplePlan`] per series length, sharing [`LagMap`] Arcs for equal lengths.
+///
+/// # Errors
+///
+/// Empty column list, or invalid lag maps / column lags.
+pub fn plans_for_series_lengths(
+    lengths: impl IntoIterator<Item = usize>,
+    max_lag: u32,
+    columns: &Arc<[LaggedColumn]>,
+) -> Result<Vec<SamplePlan>, DataError> {
+    if columns.is_empty() {
+        return Err(DataError::InvalidArgument {
+            message: "sample plan needs ≥1 column".into(),
+        });
+    }
+    let mut by_len: HashMap<usize, Arc<LagMap>> = HashMap::new();
+    let mut plans = Vec::new();
+    for series_len in lengths {
+        let lag_map = match by_len.get(&series_len) {
+            Some(m) => Arc::clone(m),
+            None => {
+                let m = Arc::new(LagMap::with_reference(
+                    series_len,
+                    max_lag,
+                    ReferencePointPolicy::SeriesOrigin,
+                )?);
+                by_len.insert(series_len, Arc::clone(&m));
+                m
+            }
+        };
+        plans.push(SamplePlan::with_shared(lag_map, Arc::clone(columns))?);
+    }
+    Ok(plans)
+}
+
 /// Shared lag maps + column list for multi-environment sample planning.
 ///
 /// Environments are only borrowed from the parent [`MultiEnvironmentData`].
@@ -39,31 +74,15 @@ impl MultiEnvSamplePlan {
         let columns = columns.into();
         let n_env = data.env_count();
         if n_env == 0 {
-            return Err(DataError::InvalidValidity {
-                message: "multi-env sample plan needs ≥1 environment",
+            return Err(DataError::InvalidArgument {
+                message: "multi-env sample plan needs ≥1 environment".into(),
             });
         }
-        if columns.is_empty() {
-            return Err(DataError::InvalidValidity { message: "sample plan needs ≥1 column" });
-        }
-        let mut by_len: HashMap<usize, Arc<LagMap>> = HashMap::new();
-        let mut plans = Vec::with_capacity(n_env);
-        for i in 0..n_env {
-            let series = data.environment(i)?;
-            let lag_map = match by_len.get(&series.row_count()) {
-                Some(m) => Arc::clone(m),
-                None => {
-                    let m = Arc::new(LagMap::with_reference(
-                        series.row_count(),
-                        max_lag,
-                        ReferencePointPolicy::SeriesOrigin,
-                    )?);
-                    by_len.insert(series.row_count(), Arc::clone(&m));
-                    m
-                }
-            };
-            plans.push(SamplePlan::with_shared(lag_map, Arc::clone(&columns))?);
-        }
+        let lengths = (0..n_env).map(|i| {
+            data.environment(i).map(|s| s.row_count())
+        });
+        let lengths: Result<Vec<_>, _> = lengths.collect();
+        let plans = plans_for_series_lengths(lengths?, max_lag, &columns)?;
         Ok(Self { columns, plans: Arc::from(plans) })
     }
 
@@ -79,8 +98,8 @@ impl MultiEnvSamplePlan {
     ///
     /// Out of range.
     pub fn plan(&self, i: usize) -> Result<&SamplePlan, DataError> {
-        self.plans.get(i).ok_or(DataError::InvalidValidity {
-            message: "multi-env plan index out of range",
+        self.plans.get(i).ok_or(DataError::InvalidArgument {
+            message: "multi-env plan index out of range".into(),
         })
     }
 }
@@ -107,32 +126,15 @@ impl PanelSamplePlan {
     ) -> Result<Self, DataError> {
         let columns = columns.into();
         if panel.unit_count() == 0 {
-            return Err(DataError::InvalidValidity {
-                message: "panel sample plan needs ≥1 unit",
+            return Err(DataError::InvalidArgument {
+                message: "panel sample plan needs ≥1 unit".into(),
             });
         }
-        if columns.is_empty() {
-            return Err(DataError::InvalidValidity { message: "sample plan needs ≥1 column" });
-        }
-        let mut by_len: HashMap<usize, Arc<LagMap>> = HashMap::new();
-        let mut plans = Vec::with_capacity(panel.unit_count());
-        for i in 0..panel.unit_count() {
-            let unit = panel.unit(i)?;
-            let series = &unit.series;
-            let lag_map = match by_len.get(&series.row_count()) {
-                Some(m) => Arc::clone(m),
-                None => {
-                    let m = Arc::new(LagMap::with_reference(
-                        series.row_count(),
-                        max_lag,
-                        ReferencePointPolicy::SeriesOrigin,
-                    )?);
-                    by_len.insert(series.row_count(), Arc::clone(&m));
-                    m
-                }
-            };
-            plans.push(SamplePlan::with_shared(lag_map, Arc::clone(&columns))?);
-        }
+        let lengths = (0..panel.unit_count()).map(|i| {
+            panel.unit(i).map(|u| u.series.row_count())
+        });
+        let lengths: Result<Vec<_>, _> = lengths.collect();
+        let plans = plans_for_series_lengths(lengths?, max_lag, &columns)?;
         Ok(Self { columns, plans: Arc::from(plans) })
     }
 

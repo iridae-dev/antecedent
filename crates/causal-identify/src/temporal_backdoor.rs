@@ -115,7 +115,7 @@ impl TemporalBackdoorIdentifier {
         let min_offset = treatment_at.min(outcome_at).min(0);
         let max_offset = treatment_at.max(outcome_at).max(0);
         let horizon = u32::try_from(max_offset)
-            .map_err(|_| IdentificationError::Graph("negative horizon".into()))?
+            .map_err(|_| IdentificationError::msg("negative horizon"))?
             .saturating_add(1);
 
         let variable_count = required_variable_count(template, query.treatment, query.outcome);
@@ -140,9 +140,9 @@ impl TemporalBackdoorIdentifier {
         let mut history = base_history;
         let (history, unfolded, treatment_dense, outcome_dense) = loop {
             let indexer = TemporalIndexer::new(variable_count, history, horizon)
-                .map_err(|e| IdentificationError::Graph(e.to_string()))?;
+                .map_err(|e| IdentificationError::msg(e.to_string()))?;
             let unfolded =
-                template.unfold(indexer).map_err(|e| IdentificationError::Graph(e.to_string()))?;
+                template.unfold(indexer).map_err(|e| IdentificationError::msg(e.to_string()))?;
 
             let treatment_dense = unfolded
                 .indexer

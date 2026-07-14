@@ -175,7 +175,7 @@ impl Rpcmci {
         ctx: &ExecutionContext,
     ) -> Result<RpcmciDiscoveryResult, DiscoveryError> {
         if assignments.len() != data.row_count() {
-            return Err(DiscoveryError::Data(format!(
+            return Err(DiscoveryError::data_msg(format!(
                 "regime assignment length {} != series length {}",
                 assignments.len(),
                 data.row_count()
@@ -267,7 +267,7 @@ fn median_split_assignment(
     indicator: VariableId,
 ) -> Result<RegimeAssignment, DiscoveryError> {
     let ColumnView::Float64(col) = data.column(indicator).map_err(|e| {
-        DiscoveryError::Data(format!("regime indicator: {e}"))
+        DiscoveryError::data_msg(format!("regime indicator: {e}"))
     })? else {
         return Err(DiscoveryError::Unsupported {
             message: "regime indicator must be float64",
@@ -297,7 +297,7 @@ fn subset_series(data: &TimeSeriesData, idxs: &[usize]) -> Result<TimeSeriesData
     for i in 0..schema.len() {
         let id = VariableId::from_raw(i as u32);
         let ColumnView::Float64(src) = data.column(id).map_err(|e| {
-            DiscoveryError::Data(format!("subset column: {e}"))
+            DiscoveryError::data_msg(format!("subset column: {e}"))
         })? else {
             return Err(DiscoveryError::Unsupported {
                 message: "RPCMCI subset currently supports float64 columns only",
@@ -306,17 +306,17 @@ fn subset_series(data: &TimeSeriesData, idxs: &[usize]) -> Result<TimeSeriesData
         let values: Vec<f64> = idxs.iter().map(|&r| src.values[r]).collect();
         cols.push(OwnedColumn::Float64(
             Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(n)).map_err(
-                |e| DiscoveryError::Data(format!("subset float column: {e}")),
+                |e| DiscoveryError::data_msg(format!("subset float column: {e}")),
             )?,
         ));
     }
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None)
-        .map_err(|e| DiscoveryError::Data(format!("subset storage: {e}")))?;
+        .map_err(|e| DiscoveryError::data_msg(format!("subset storage: {e}")))?;
     TimeSeriesData::try_new(
         storage,
         TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
-    .map_err(|e| DiscoveryError::Data(format!("subset series: {e}")))
+    .map_err(|e| DiscoveryError::data_msg(format!("subset series: {e}")))
 }
 
 /// Seed helper for regime discovery benches: build a two-regime assignment map.

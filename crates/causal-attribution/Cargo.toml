@@ -18,3 +18,4 @@ causal-data = { path = "../causal-data" }
 causal-graph = { path = "../causal-graph" }
 causal-model = { path = "../causal-model" }
 causal-counterfactual = { path = "../causal-counterfactual" }
+thiserror = { workspace = true }

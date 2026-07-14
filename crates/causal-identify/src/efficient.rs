@@ -34,8 +34,7 @@ use crate::backdoor::{
 };
 use crate::error::IdentificationError;
 use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
-    IdentifiedEstimand,
+    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
 };
 
 /// Identifier that returns one efficient backdoor adjustment set.
@@ -165,23 +164,19 @@ impl EfficientBackdoorIdentifier {
         }
 
         if valid.is_empty() {
-            return Ok(IdentificationResult {
-                status: IdentificationStatus::NotIdentified,
+            return Ok(IdentificationResult::not_identified(
                 query,
-                estimands: Vec::new(),
-                arena: CausalExprArena::new(),
-                derivation: {
+                {
                     let mut d = DerivationTrace::default();
                     d.push("backdoor.efficient", "no valid adjustment set");
                     d
                 },
-                required_assumptions: default_assumptions(),
-                diagnostics: Vec::new(),
-                performance: IdentificationPerformanceRecord {
+                default_assumptions(),
+                IdentificationPerformanceRecord {
                     candidates_examined: examined,
                     sets_returned: 0,
                 },
-            });
+            ));
         }
 
         let parent_set: BitSet = {
@@ -232,23 +227,21 @@ impl EfficientBackdoorIdentifier {
         let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
         let mut derivation = DerivationTrace::default();
         derivation.push("backdoor.efficient", format!("selected via {rule}; |Z|={}", vars.len()));
-        Ok(IdentificationResult {
-            status: IdentificationStatus::NonparametricallyIdentified,
+        Ok(IdentificationResult::identified(
             query,
-            estimands: vec![IdentifiedEstimand::backdoor(
+            vec![IdentifiedEstimand::backdoor(
                 "backdoor.efficient",
                 Arc::from(vars),
                 functional,
             )],
             arena,
             derivation,
-            required_assumptions: default_assumptions(),
-            diagnostics: Vec::new(),
-            performance: IdentificationPerformanceRecord {
+            default_assumptions(),
+            IdentificationPerformanceRecord {
                 candidates_examined: examined,
                 sets_returned: 1,
             },
-        })
+        ))
     }
 }
 
@@ -297,6 +290,7 @@ fn default_assumptions() -> AssumptionSet {
 mod tests {
     use super::*;
     use causal_graph::Dag;
+    use crate::result::IdentificationStatus;
 
     #[test]
     fn o_set_selects_confounder() {
