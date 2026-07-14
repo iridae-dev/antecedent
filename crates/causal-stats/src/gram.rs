@@ -8,6 +8,14 @@
 pub fn form_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
     xtx[..ncols * ncols].fill(0.0);
+    accumulate_xtx(x_colmajor, nrows, ncols, xtx);
+}
+
+/// Accumulate `XᵀX` into an existing symmetric Gram (row-major) from column-major `X`.
+///
+/// Used by incremental OLS sufficient statistics (DESIGN.md §20).
+pub fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
+    debug_assert!(xtx.len() >= ncols * ncols);
     for c1 in 0..ncols {
         for c2 in c1..ncols {
             let mut acc = 0.0;
@@ -16,8 +24,27 @@ pub fn form_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64])
             for r in 0..nrows {
                 acc += col1[r] * col2[r];
             }
-            xtx[c1 * ncols + c2] = acc;
-            xtx[c2 * ncols + c1] = acc;
+            xtx[c1 * ncols + c2] += acc;
+            if c1 != c2 {
+                xtx[c2 * ncols + c1] += acc;
+            }
+        }
+    }
+}
+
+/// Accumulate one design row into `XtX` and `Xty` (row-major Gram).
+pub fn accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f64]) {
+    let ncols = row.len();
+    debug_assert!(xtx.len() >= ncols * ncols);
+    debug_assert!(xty.len() >= ncols);
+    for c1 in 0..ncols {
+        xty[c1] += row[c1] * y;
+        for c2 in c1..ncols {
+            let v = row[c1] * row[c2];
+            xtx[c1 * ncols + c2] += v;
+            if c1 != c2 {
+                xtx[c2 * ncols + c1] += v;
+            }
         }
     }
 }
@@ -64,4 +91,28 @@ pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
         }
     }
     Some(inv)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accumulate_row_matches_form_xtx() {
+        let nrows = 4;
+        let ncols = 2;
+        // Column-major: col0 = [1,2,3,4], col1 = [0.5,1.5,2.5,3.5]
+        let x = [1.0, 2.0, 3.0, 4.0, 0.5, 1.5, 2.5, 3.5];
+        let mut full = vec![0.0; 4];
+        form_xtx(&x, nrows, ncols, &mut full);
+        let mut row_acc = vec![0.0; 4];
+        let mut xty = vec![0.0; 2];
+        for r in 0..nrows {
+            let row = [x[r], x[nrows + r]];
+            accumulate_xtx_xty_row(&row, 0.0, &mut row_acc, &mut xty);
+        }
+        for i in 0..4 {
+            assert!((full[i] - row_acc[i]).abs() < 1e-12, "{i}: {} vs {}", full[i], row_acc[i]);
+        }
+    }
 }

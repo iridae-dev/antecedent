@@ -128,6 +128,61 @@ impl CachePolicy {
     }
 }
 
+/// Bounded cache budget for incremental causal state (DESIGN.md §20).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct CacheBudget {
+    /// Maximum retained cache bytes.
+    pub max_bytes: u64,
+    /// Bytes currently retained (updated by the state crate).
+    pub used_bytes: u64,
+}
+
+impl CacheBudget {
+    /// Fresh budget with `max_bytes` capacity and zero usage.
+    #[must_use]
+    pub const fn new(max_bytes: u64) -> Self {
+        Self { max_bytes, used_bytes: 0 }
+    }
+
+    /// Unlimited soft budget (still subject to OS limits).
+    #[must_use]
+    pub const fn unlimited() -> Self {
+        Self { max_bytes: u64::MAX, used_bytes: 0 }
+    }
+
+    /// Remaining capacity in bytes.
+    #[must_use]
+    pub const fn remaining(self) -> u64 {
+        self.max_bytes.saturating_sub(self.used_bytes)
+    }
+
+    /// Whether `additional` bytes would fit under the budget.
+    #[must_use]
+    pub const fn can_admit(self, additional: u64) -> bool {
+        self.used_bytes.saturating_add(additional) <= self.max_bytes
+    }
+}
+
+/// Shared Monte Carlo / approximate-compute budget report (DESIGN.md §§17, 19).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MonteCarloBudget {
+    /// Scalar / batch evaluations performed.
+    pub evaluations: u64,
+    /// Monte Carlo samples drawn.
+    pub samples: u64,
+    /// Exact enumerations performed, if any.
+    pub exact_enumerations: u64,
+}
+
+/// Per-estimate Monte Carlo uncertainty summary.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct MonteCarloError {
+    /// Estimated standard error of the reported score.
+    pub stderr: f64,
+    /// Samples contributing to this estimate.
+    pub samples: u64,
+}
+
 /// Cooperative cancellation token.
 #[derive(Clone, Debug, Default)]
 pub struct CancellationToken {

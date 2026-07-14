@@ -36,7 +36,7 @@ pub use error::StatsError;
 pub use faer_backend::FaerBackend;
 pub use fdr::benjamini_hochberg;
 pub use glm::{GlmDesignRef, GlmFamily, GlmFit, GlmOptions, fit_glm};
-pub use gram::{form_xtx, invert_square};
+pub use gram::{accumulate_xtx, accumulate_xtx_xty_row, form_xtx, invert_square};
 pub use linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
 pub use matching::{
     EXACT_MATCHING_ROW_LIMIT, MatchingDistance, MatchingIndex, nearest_euclidean_scalar,

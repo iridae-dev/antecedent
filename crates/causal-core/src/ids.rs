@@ -213,6 +213,102 @@ impl fmt::Display for CategoryDomainId {
     }
 }
 
+/// Registered causal-query handle in incremental state / design objectives.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct QueryId(u32);
+
+impl QueryId {
+    /// Create from a raw dense index.
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    /// Underlying dense index.
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+
+    /// Convert to `usize` for indexing.
+    #[must_use]
+    pub const fn as_usize(self) -> usize {
+        self.0 as usize
+    }
+}
+
+impl fmt::Display for QueryId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Q{}", self.0)
+    }
+}
+
+/// Registered model handle in design objectives / state model stores.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ModelId(u32);
+
+impl ModelId {
+    /// Create from a raw dense index.
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    /// Underlying dense index.
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+
+    /// Convert to `usize` for indexing.
+    #[must_use]
+    pub const fn as_usize(self) -> usize {
+        self.0 as usize
+    }
+}
+
+impl fmt::Display for ModelId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "M{}", self.0)
+    }
+}
+
+/// Monotonic causal-state version (DESIGN.md §20).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
+pub struct StateVersion(u64);
+
+impl StateVersion {
+    /// Initial version.
+    pub const ZERO: Self = Self(0);
+
+    /// Create from a raw counter.
+    #[must_use]
+    pub const fn from_raw(raw: u64) -> Self {
+        Self(raw)
+    }
+
+    /// Underlying counter.
+    #[must_use]
+    pub const fn raw(self) -> u64 {
+        self.0
+    }
+
+    /// Next version after an event application.
+    #[must_use]
+    pub const fn next(self) -> Self {
+        Self(self.0.wrapping_add(1))
+    }
+}
+
+impl fmt::Display for StateVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "S{}", self.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,6 +322,9 @@ mod tests {
         assert_eq!(size_of::<Lag>(), 4);
         assert_eq!(size_of::<CategoryDomainId>(), 4);
         assert_eq!(size_of::<ComponentId>(), 4);
+        assert_eq!(size_of::<QueryId>(), 4);
+        assert_eq!(size_of::<ModelId>(), 4);
+        assert_eq!(size_of::<StateVersion>(), 8);
     }
 
     #[test]

@@ -30,10 +30,14 @@ pub use assumption::{
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{
-    CachePolicy, CancellationToken, CausalRng, Determinism, ExecutionContext, KernelPolicy,
-    MemoryBudget, NonZeroThreadCount, Parallelism, ProgressSink, RngFactory,
+    CacheBudget, CachePolicy, CancellationToken, CausalRng, Determinism, ExecutionContext,
+    KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount,
+    Parallelism, ProgressSink, RngFactory,
 };
-pub use ids::{CategoryDomainId, ComponentId, EnvironmentId, Lag, RegimeId, VariableId};
+pub use ids::{
+    CategoryDomainId, ComponentId, EnvironmentId, Lag, ModelId, QueryId, RegimeId, StateVersion,
+    VariableId,
+};
 pub use intervention::{
     Intervention, InterventionError, InterventionSequence, MechanismOverride,
     SequencedIntervention, StochasticPolicy, TemporalPolicy,
