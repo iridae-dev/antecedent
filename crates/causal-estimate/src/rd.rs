@@ -32,8 +32,8 @@ use causal_stats::{
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
-use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
+use crate::overlap::OverlapPolicy;
 use crate::util::{sample_std, stats_err};
 
 /// Local-linear RD design column count: `[1, T, (R-c), T·(R-c)]`.
@@ -160,14 +160,11 @@ impl SharpRegressionDiscontinuity {
         }
 
         let ids = [query.outcome, self.running_variable];
-        let row_mask =
-            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-        let outcome_full = data
-            .float64_masked(query.outcome, &row_mask)
-            .map_err(EstimationError::from)?;
-        let running_full = data
-            .float64_masked(self.running_variable, &row_mask)
-            .map_err(EstimationError::from)?;
+        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let outcome_full =
+            data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
+        let running_full =
+            data.float64_masked(self.running_variable, &row_mask).map_err(EstimationError::from)?;
 
         let mut y_sel = Vec::new();
         let mut centered_sel = Vec::new();
@@ -182,12 +179,16 @@ impl SharpRegressionDiscontinuity {
         }
         let nrows = y_sel.len();
         if nrows == 0 {
-            return Err(EstimationError::data_msg("no rows within the bandwidth window of the cutoff"));
+            return Err(EstimationError::data_msg(
+                "no rows within the bandwidth window of the cutoff",
+            ));
         }
         let has_treated = treated_sel.iter().any(|&t| t > 0.5);
         let has_control = treated_sel.iter().any(|&t| t < 0.5);
         if !has_treated || !has_control {
-            return Err(EstimationError::data_msg("bandwidth window must contain rows on both sides of the cutoff"));
+            return Err(EstimationError::data_msg(
+                "bandwidth window must contain rows on both sides of the cutoff",
+            ));
         }
 
         let matrix = build_rd_matrix(&treated_sel, &centered_sel);

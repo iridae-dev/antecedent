@@ -4,11 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::needless_range_loop,
-    clippy::many_single_char_names
-)]
+#![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::many_single_char_names)]
 
 use causal_core::CausalRng;
 use causal_kernels::standard_normal;
@@ -106,11 +102,7 @@ pub fn evaluate_column(
                         });
                     }
                     for r in 0..n {
-                        let u = if noise[r] > 0.0 && noise[r] < 1.0 {
-                            noise[r]
-                        } else {
-                            0.5
-                        };
+                        let u = if noise[r] > 0.0 && noise[r] < 1.0 { noise[r] } else { 0.5 };
                         output[r] = categorical_draw(support, probs, u);
                     }
                 }
@@ -125,11 +117,7 @@ pub fn evaluate_column(
                     let mut row_probs = vec![0.0; k];
                     for r in 0..n {
                         softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
-                        let u = if noise[r] > 0.0 && noise[r] < 1.0 {
-                            noise[r]
-                        } else {
-                            0.5
-                        };
+                        let u = if noise[r] > 0.0 && noise[r] < 1.0 { noise[r] } else { 0.5 };
                         output[r] = categorical_draw(support, &row_probs, u);
                     }
                 }
@@ -221,7 +209,8 @@ pub fn log_prob_column(
         }
         MechanismSlot::Constant { value } => {
             for r in 0..n {
-                output[r] = if (values[r] - *value).abs() < 1e-12 { 0.0 } else { f64::NEG_INFINITY };
+                output[r] =
+                    if (values[r] - *value).abs() < 1e-12 { 0.0 } else { f64::NEG_INFINITY };
             }
             Ok(())
         }
@@ -283,35 +272,32 @@ pub fn sample_column(
 ) -> Result<(), ModelError> {
     let n = parents.n_rows;
     ws.prepare(n, parents.n_parents.max(1));
-    match slot {
-        MechanismSlot::Discrete { support, probs, logit_coeffs } => {
-            for r in 0..n {
-                let u = rng.next_f64().max(f64::EPSILON);
-                match logit_coeffs {
-                    None => {
-                        output[r] = categorical_draw(support, probs, u);
+    if let MechanismSlot::Discrete { support, probs, logit_coeffs } = slot {
+        for r in 0..n {
+            let u = rng.next_f64().max(f64::EPSILON);
+            match logit_coeffs {
+                None => {
+                    output[r] = categorical_draw(support, probs, u);
+                }
+                Some(logits) => {
+                    let k = support.len();
+                    let width = 1 + parents.n_parents;
+                    if logits.len() != k * width {
+                        return Err(ModelError::Shape {
+                            message: "discrete logit_coeffs length mismatch".into(),
+                        });
                     }
-                    Some(logits) => {
-                        let k = support.len();
-                        let width = 1 + parents.n_parents;
-                        if logits.len() != k * width {
-                            return Err(ModelError::Shape {
-                                message: "discrete logit_coeffs length mismatch".into(),
-                            });
-                        }
-                        let mut row_probs = vec![0.0; k];
-                        softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
-                        output[r] = categorical_draw(support, &row_probs, u);
-                    }
+                    let mut row_probs = vec![0.0; k];
+                    softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
+                    output[r] = categorical_draw(support, &row_probs, u);
                 }
             }
-            Ok(())
         }
-        _ => {
-            let mut noise = vec![0.0; n];
-            sample_noise_column(slot, n, rng, &mut noise)?;
-            evaluate_column(slot, parents, &noise, output, ws)
-        }
+        Ok(())
+    } else {
+        let mut noise = vec![0.0; n];
+        sample_noise_column(slot, n, rng, &mut noise)?;
+        evaluate_column(slot, parents, &noise, output, ws)
     }
 }
 
@@ -401,11 +387,7 @@ pub fn evaluate_batch_topo(
         ws.prepare(n_rows, gather.n_parents().max(1));
         gather.gather(values.values, n_rows, &mut ws.parents);
         let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n_rows)].to_vec();
-        let parents = ParentBatch {
-            n_rows,
-            n_parents: gather.n_parents(),
-            values: &parent_owned,
-        };
+        let parents = ParentBatch { n_rows, n_parents: gather.n_parents(), values: &parent_owned };
         let noise_slice = noise.column(node.as_usize())?;
         let noise_owned = noise_slice.to_vec();
         let out = values.column_mut(node.as_usize())?;

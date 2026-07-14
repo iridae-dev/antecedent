@@ -2,11 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments
-)]
+#![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::too_many_arguments)]
 
 use causal_core::{CausalRng, ExecutionContext, Intervention, MechanismOverride, StochasticPolicy};
 use causal_kernels::standard_normal;
@@ -83,11 +79,7 @@ pub fn sample_with_overlay(
         };
         // Copy parents to owned so we can mutably write the child column.
         let parent_owned = parents.values.to_vec();
-        let parents = ParentBatch {
-            n_rows,
-            n_parents: gather.n_parents(),
-            values: &parent_owned,
-        };
+        let parents = ParentBatch { n_rows, n_parents: gather.n_parents(), values: &parent_owned };
 
         let out = values.column_mut(idx)?;
 
@@ -116,7 +108,7 @@ pub fn sample_with_overlay(
 }
 
 /// Posterior-predictive interventional sampling: for each coefficient draw block,
-/// refresh LinearGaussian slots then sample. `draw_updater` mutates slots in place.
+/// refresh `LinearGaussian` slots then sample. `draw_updater` mutates slots in place.
 ///
 /// # Errors
 ///
@@ -180,7 +172,7 @@ fn soft_to_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismS
                 });
             }
             let intercept = soft.parameters[0];
-            let coeffs = std::sync::Arc::from(soft.parameters[1..1 + n_parents].to_vec());
+            let coeffs = std::sync::Arc::from(soft.parameters[1..=n_parents].to_vec());
             let sigma = soft.parameters[1 + n_parents].max(1e-12);
             Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma })
         }
@@ -266,11 +258,7 @@ pub fn sample_structural_with_overlay(
         ws.prepare(n_rows, gather.n_parents().max(1));
         gather.gather(values.values, n_rows, &mut ws.parents);
         let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n_rows)].to_vec();
-        let parents = ParentBatch {
-            n_rows,
-            n_parents: gather.n_parents(),
-            values: &parent_owned,
-        };
+        let parents = ParentBatch { n_rows, n_parents: gather.n_parents(), values: &parent_owned };
         let out = values.column_mut(idx)?;
         if let Some(v) = overlay.hard_set[idx] {
             out.fill(v);
@@ -340,7 +328,8 @@ mod tests {
                 Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
             ),
         ];
-        let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
         let mut g = Dag::with_variables(2);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let compiled = CompiledCausalModel::compile(g).unwrap();

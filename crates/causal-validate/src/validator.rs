@@ -76,7 +76,11 @@ pub fn run_validator<'a, V>(
     ctx: &ExecutionContext,
 ) -> Result<RefutationReport, ValidationError>
 where
-    V: Validator<RefutationProblem<'a>, Prepared = PreparedRefutation<'a>, Report = RefutationReport>,
+    V: Validator<
+            RefutationProblem<'a>,
+            Prepared = PreparedRefutation<'a>,
+            Report = RefutationReport,
+        >,
 {
     let mut prepared = validator.prepare(problem, ctx)?;
     validator.validate(&mut prepared, workspace, ctx)
@@ -123,12 +127,8 @@ impl_effect_validator!(UnobservedCommonCause, |this: &UnobservedCommonCause, p, 
 impl_effect_validator!(DataSubsetRefuter, |this: &DataSubsetRefuter, p, ws, ctx| {
     this.refute(p, ws, ctx)
 });
-impl_effect_validator!(DummyOutcome, |this: &DummyOutcome, p, ws, ctx| {
-    this.refute(p, ws, ctx)
-});
-impl_effect_validator!(GraphRefuter, |this: &GraphRefuter, p, ws, ctx| {
-    this.refute(p, ws, ctx)
-});
+impl_effect_validator!(DummyOutcome, |this: &DummyOutcome, p, ws, ctx| { this.refute(p, ws, ctx) });
+impl_effect_validator!(GraphRefuter, |this: &GraphRefuter, p, ws, ctx| { this.refute(p, ws, ctx) });
 impl_effect_validator!(LinearSensitivity, |this: &LinearSensitivity, p, ws, ctx| {
     this.refute(p, ws, ctx)
 });

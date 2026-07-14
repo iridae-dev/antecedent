@@ -13,9 +13,7 @@ use causal_core::{
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 
 use crate::error::IdentificationError;
-use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
-};
+use crate::result::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 
 /// Configuration for sharp RD identification.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -129,10 +127,7 @@ impl SharpRdIdentifier {
             arena,
             derivation,
             assumptions,
-            IdentificationPerformanceRecord {
-                candidates_examined: 1,
-                sets_returned: 1,
-            },
+            IdentificationPerformanceRecord { candidates_examined: 1, sets_returned: 1 },
         ))
     }
 }

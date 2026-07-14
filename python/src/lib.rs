@@ -10,7 +10,8 @@
     clippy::needless_pass_by_value,
     clippy::too_many_arguments,
     clippy::similar_names,
-    clippy::cast_possible_truncation
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss
 )]
 
 use std::sync::Arc;
@@ -18,22 +19,20 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
-    BayesianConfig, CausalAnalysis, DiscoverParams, DiscoveryPerformanceRecord, InferenceMode,
-    RefuteSuite, ScoredLink, TemporalLinearPredictor, TemporalMediationEstimator,
-    counterfactual_ite, decode_causal_posterior_bytes,
-    discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    BayesianConfig, CausalAnalysis, DifferenceMeasure, DiscoverParams, DiscoveryPerformanceRecord,
+    DistributionChangeOptions, InferenceMode, RefuteSuite, ScoredLink, TemporalLinearPredictor,
+    TemporalMediationEstimator, attribute_distribution_change, counterfactual_ite,
+    decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
     encode_causal_posterior_bytes, fit_gcm, pag_definite_directed_edge_count, resolve_ci,
     sample_do, two_regime_half_split,
 };
-use causal_io::{
-    CausalPosteriorWire, PosteriorQuantityWire, encode_posterior_artifact as encode_posterior_wire,
-};
-use causal_core::VERSION;
 use causal_core::{
-    AverageEffectQuery, CausalRng, ExecutionContext, Intervention, Lag, MediationContrast,
-    MediationQuery, TemporalEffectQuery, TemporalPolicy, Value, VariableId,
+    AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalRng,
+    ChangeAttributionQuery, ExecutionContext, Intervention, Lag, MediationContrast, MediationQuery,
+    PopulationSelector, ShapleyConfig, TemporalEffectQuery, TemporalPolicy, VERSION, Value,
+    VariableId,
 };
 use causal_data::{
     MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
@@ -41,6 +40,9 @@ use causal_data::{
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
+use causal_io::{
+    CausalPosteriorWire, PosteriorQuantityWire, encode_posterior_artifact as encode_posterior_wire,
+};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -336,8 +338,7 @@ fn ate_result_from_analysis(
         posterior_artifact,
     ) = if let Some(post) = result.posterior.as_ref() {
         let eq = post.effect_column().unwrap_or(0);
-        let artifact = encode_causal_posterior_bytes(post, "ate-analysis")
-            .ok();
+        let artifact = encode_causal_posterior_bytes(post, "ate-analysis").ok();
         (
             Some(post.summaries.mean[eq]),
             Some(post.summaries.sd[eq]),
@@ -442,10 +443,7 @@ fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<Varia
     Ok((series, variables))
 }
 
-fn discovered_links(
-    names: &[String],
-    links: &[ScoredLink],
-) -> Vec<DiscoveredLink> {
+fn discovered_links(names: &[String], links: &[ScoredLink]) -> Vec<DiscoveredLink> {
     links
         .iter()
         .map(|s| DiscoveredLink {
@@ -559,7 +557,8 @@ fn discover_pcmci_plus(
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
-        let result = facade_discover_pcmci_plus(&series, &variables, &params, &ctx).map_err(py_err)?;
+        let result =
+            facade_discover_pcmci_plus(&series, &variables, &params, &ctx).map_err(py_err)?;
 
         let cpdag = &result.evidence.graph;
         let directed = cpdag.directed_edge_count() as u64;
@@ -666,7 +665,8 @@ fn discover_jpcmci_plus(
         let multi = MultiEnvironmentData::try_new(Arc::from(series_list)).map_err(py_err)?;
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
-        let result = facade_discover_jpcmci_plus(&multi, &variables, &params, &ctx).map_err(py_err)?;
+        let result =
+            facade_discover_jpcmci_plus(&multi, &variables, &params, &ctx).map_err(py_err)?;
         let cpdag = &result.evidence.graph;
         Ok(discovery_result_fields(
             &names,
@@ -705,8 +705,8 @@ fn discover_rpcmci(
         let assign = two_regime_half_split(series.row_count());
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
-        let result =
-            facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx).map_err(py_err)?;
+        let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)
+            .map_err(py_err)?;
         let mut regime_ids = Vec::new();
         let mut directed = Vec::new();
         let mut undirected = Vec::new();
@@ -752,18 +752,9 @@ fn mediation_effects_summary(
         let y = id(&outcome)?;
         let q = MediationQuery::binary(t, y, [m], MediationContrast::Total);
         let mut arena = CausalExprArena::new();
-        let functional = arena.frontdoor_ate(
-            t,
-            y,
-            &[m],
-            Value::f64(1.0),
-            Value::f64(0.0),
-        );
-        let estimand = IdentifiedEstimand::frontdoor(
-            "temporal_mediation.total",
-            Arc::from([m]),
-            functional,
-        );
+        let functional = arena.frontdoor_ate(t, y, &[m], Value::f64(1.0), Value::f64(0.0));
+        let estimand =
+            IdentifiedEstimand::frontdoor("temporal_mediation.total", Arc::from([m]), functional);
         let ctx = ExecutionContext::for_tests(seed);
         let surface = TemporalMediationEstimator::new()
             .effect_surface(&series, &estimand, &q, &ctx)
@@ -1087,9 +1078,75 @@ fn quantity_wire_name(q: &PosteriorQuantityWire) -> String {
             name.clone().unwrap_or_else(|| format!("coef_{index}"))
         }
         PosteriorQuantityWire::ResidualVariance => "residual_variance".into(),
-        PosteriorQuantityWire::Effect { name } => name.clone(),
-        PosteriorQuantityWire::Scalar { name } => name.clone(),
+        PosteriorQuantityWire::Effect { name } | PosteriorQuantityWire::Scalar { name } => {
+            name.clone()
+        }
     }
+}
+
+/// Fit GCM and attribute distribution change between two row ranges via Shapley.
+///
+/// Returns `(total_change, [(component_name, contribution), ...])`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, n_samples=500, seed=0))]
+fn gcm_distribution_change(
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    outcome: String,
+    baseline_start: usize,
+    baseline_end: usize,
+    comparison_start: usize,
+    comparison_end: usize,
+    n_samples: usize,
+    seed: u64,
+) -> PyResult<(f64, Vec<(String, f64)>)> {
+    Python::with_gil(|_py| {
+        let batch = columns_to_batch(&names, &columns)?;
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let query = ChangeAttributionQuery::new(
+            y_id,
+            PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
+            PopulationSelector::TimeRange { start: comparison_start, end: comparison_end },
+        )
+        .with_components(AttributionComponents::Mechanisms)
+        .with_allocation(AllocationMethod::Shapley {
+            approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
+        });
+        let mut ctx = ExecutionContext::for_tests(seed);
+        ctx.cache_policy = CachePolicy::enabled(Some(4_000_000));
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: n_samples.max(100),
+            seed,
+        };
+        let result = attribute_distribution_change(&fitted.model, &data, &query, &opts, &ctx)
+            .map_err(py_err)?;
+        let mut pairs = Vec::with_capacity(result.contributions.len());
+        for c in result.contributions.iter() {
+            let name = data
+                .schema()
+                .get(c.component.variable())
+                .map_or_else(|_| format!("V{}", c.component.raw()), |v| v.name.to_string());
+            pairs.push((name, c.contribution));
+        }
+        Ok((result.total_change, pairs))
+    })
 }
 
 /// Decode a serialized posterior artifact into summaries + column-major draws.
@@ -1122,10 +1179,8 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
             if name == "residual_variance" {
                 PosteriorQuantityWire::ResidualVariance
             } else if name.starts_with("coef_") {
-                let index = name
-                    .strip_prefix("coef_")
-                    .and_then(|s| s.parse::<u32>().ok())
-                    .unwrap_or(0);
+                let index =
+                    name.strip_prefix("coef_").and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
                 PosteriorQuantityWire::Coefficient { index, name: None }
             } else {
                 PosteriorQuantityWire::Effect { name: name.clone() }
@@ -1134,9 +1189,8 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
         .collect();
     let meta = CausalPosteriorWire {
         quantities,
-        n_draws: u32::try_from(artifact.n_draws).map_err(|_| {
-            PyValueError::new_err("n_draws exceeds u32")
-        })?,
+        n_draws: u32::try_from(artifact.n_draws)
+            .map_err(|_| PyValueError::new_err("n_draws exceeds u32"))?,
         mean: artifact.mean.clone(),
         sd: artifact.sd.clone(),
         q025: artifact.q025.clone(),
@@ -1148,7 +1202,8 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
         hessian_condition: artifact.hessian_condition,
         draws_encoding: "f64_le_colmajor".into(),
     };
-    let art = encode_posterior_wire(&meta, &artifact.draws, "py-posterior", VERSION).map_err(py_err)?;
+    let art =
+        encode_posterior_wire(&meta, &artifact.draws, "py-posterior", VERSION).map_err(py_err)?;
     let mut buf = Vec::new();
     art.write_to(&mut buf).map_err(py_err)?;
     Ok(buf)
@@ -1169,6 +1224,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(predict_intervened_summary, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_counterfactual_ite, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_sample_do, m)?)?;
+    m.add_function(wrap_pyfunction!(gcm_distribution_change, m)?)?;
     m.add_function(wrap_pyfunction!(decode_posterior_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(encode_posterior_artifact, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;

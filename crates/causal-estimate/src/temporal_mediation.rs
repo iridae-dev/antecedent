@@ -5,11 +5,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::similar_names)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::many_single_char_names,
+    clippy::similar_names
+)]
 
 use std::sync::Arc;
 
-use causal_core::{ExecutionContext, Lag, MediationContrast, MediationQuery};
+use causal_core::{AssumptionSet, ExecutionContext, Lag, MediationContrast, MediationQuery};
 use causal_data::{LaggedColumn, SampleWorkspace, TimeSeriesData};
 use causal_expr::IdentifiedEstimand;
 use causal_stats::FaerBackend;
@@ -60,8 +65,9 @@ impl TemporalMediationEstimator {
     ) -> Result<TemporalMediationEstimate, EstimationError> {
         let _ = ctx;
         query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
-        if !(estimand.method_kind().ok().is_some_and(|m| m.is_temporal_mediation() || m == causal_expr::EstimandMethod::FrontDoor))
-        {
+        if !(estimand.method_kind().ok().is_some_and(|m| {
+            m.is_temporal_mediation() || m == causal_expr::EstimandMethod::FrontDoor
+        })) {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "TemporalMediationEstimator expects temporal_mediation.* or frontdoor",
             });
@@ -86,9 +92,7 @@ impl TemporalMediationEstimator {
             LaggedColumn { variable: mediator, lag: Lag::CONTEMPORANEOUS },
             LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
         ]);
-        let plan = data
-            .plan_lagged_sample(1, cols)
-            .map_err(EstimationError::from)?;
+        let plan = data.plan_lagged_sample(1, cols).map_err(EstimationError::from)?;
         let mut ws = SampleWorkspace::default();
         let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
         let t = prep.column(0);
@@ -121,7 +125,7 @@ impl TemporalMediationEstimator {
                 ate: point,
                 se_analytic: 0.0,
                 se_bootstrap: None,
-                assumptions: Default::default(),
+                assumptions: AssumptionSet::default(),
                 overlap: crate::overlap::OverlapPolicy::ExplicitOverride,
                 overlap_report: None,
                 retained_memory_bytes: None,
@@ -245,16 +249,28 @@ mod tests {
         }
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(m), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(m),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();

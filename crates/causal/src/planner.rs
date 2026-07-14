@@ -12,9 +12,7 @@ use causal_core::{
     TargetPopulation, TemporalEffectQuery,
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use causal_graph::{
-    Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
-};
+use causal_graph::{Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag};
 
 use crate::error::AnalysisError;
 use crate::strategy_table::validate_static_pair;
@@ -298,10 +296,7 @@ pub fn is_dag_only_identifier(identifier: &str) -> bool {
 /// # Errors
 ///
 /// [`AnalysisError::Compile`] when a DAG-only identifier is paired with PAG graph input.
-pub fn reject_dag_only_on_pag(
-    graph: &GraphInput,
-    identifier: &str,
-) -> Result<(), AnalysisError> {
+pub fn reject_dag_only_on_pag(graph: &GraphInput, identifier: &str) -> Result<(), AnalysisError> {
     let is_pag = matches!(
         graph,
         GraphInput::Pag(_) | GraphInput::TemporalPag(_) | GraphInput::DiscoverLpcmci { .. }

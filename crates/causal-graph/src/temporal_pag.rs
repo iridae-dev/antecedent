@@ -95,9 +95,7 @@ impl TemporalPag {
         self.validate_node(edge.a)?;
         self.validate_node(edge.b)?;
         if edge.a == edge.b {
-            return Err(GraphError::InvalidEndpoints {
-                message: "TemporalPag rejects self-loops",
-            });
+            return Err(GraphError::InvalidEndpoints { message: "TemporalPag rejects self-loops" });
         }
         if let (
             NodeRef::Lagged { variable: v1, lag: l1 },
@@ -109,10 +107,8 @@ impl TemporalPag {
             }
             // Directed edge must not point future → past (smaller lag = closer to present).
             if let Some((from, to)) = edge.parent_child() {
-                if let (
-                    NodeRef::Lagged { lag: lf, .. },
-                    NodeRef::Lagged { lag: lt, .. },
-                ) = (self.nodes[from.as_usize()], self.nodes[to.as_usize()])
+                if let (NodeRef::Lagged { lag: lf, .. }, NodeRef::Lagged { lag: lt, .. }) =
+                    (self.nodes[from.as_usize()], self.nodes[to.as_usize()])
                 {
                     // Lag is non-negative steps into the past; edge from larger lag to smaller
                     // lag goes past→present (allowed). from lag < to lag means future→past.
@@ -125,17 +121,11 @@ impl TemporalPag {
             }
         }
         if self.has_edge(edge.a, edge.b) {
-            return Err(GraphError::DuplicateEdge {
-                from: edge.a.raw(),
-                to: edge.b.raw(),
-            });
+            return Err(GraphError::DuplicateEdge { from: edge.a.raw(), to: edge.b.raw() });
         }
         if let Some((from, to)) = edge.parent_child() {
             if self.reaches_directed(to, from) {
-                return Err(GraphError::Cycle {
-                    from: from.raw(),
-                    to: to.raw(),
-                });
+                return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
             }
         }
         marked_storage::push_marked_pair(&mut self.adj, edge);
@@ -186,14 +176,11 @@ impl TemporalPag {
     }
 
     /// Neighbors.
-    #[must_use]
     pub fn neighbors(
         &self,
         id: DenseNodeId,
     ) -> impl Iterator<Item = (DenseNodeId, Endpoint, Endpoint)> + '_ {
-        self.adj[id.as_usize()]
-            .iter()
-            .map(|e| (e.neighbor, e.at_self, e.at_neighbor))
+        self.adj[id.as_usize()].iter().map(|e| (e.neighbor, e.at_self, e.at_neighbor))
     }
 
     /// Set marks on existing edge.
@@ -239,20 +226,15 @@ impl TemporalPag {
     /// Nodes become `Static(VariableId::from_raw(dense))` — only for algorithm reuse.
     #[must_use]
     pub fn as_static_pag_for_alg(&self) -> Pag {
-        let n = self.node_count() as u32;
+        let n = u32::try_from(self.node_count()).expect("node fit");
         let mut p = Pag::with_variables(n);
         for i in 0..self.node_count() {
-            let a = DenseNodeId::from_raw(i as u32);
+            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             for e in &self.adj[i] {
                 if e.neighbor.raw() < a.raw() {
                     continue;
                 }
-                let edge = MarkedEdge {
-                    a,
-                    b: e.neighbor,
-                    at_a: e.at_self,
-                    at_b: e.at_neighbor,
-                };
+                let edge = MarkedEdge { a, b: e.neighbor, at_a: e.at_self, at_b: e.at_neighbor };
                 let _ = p.insert_marked(edge);
             }
         }
@@ -271,8 +253,7 @@ impl TemporalPag {
         max_paths: usize,
         max_len: usize,
     ) -> Result<Vec<DefiniteStatusPath>, GraphError> {
-        self.as_static_pag_for_alg()
-            .definite_status_paths(x, y, max_paths, max_len)
+        self.as_static_pag_for_alg().definite_status_paths(x, y, max_paths, max_len)
     }
 }
 
@@ -319,7 +300,7 @@ impl TemporalPagReview {
     pub fn from_pag(graph: TemporalPag, algorithm: impl Into<Arc<str>>) -> Self {
         let mut pending = Vec::new();
         for i in 0..graph.node_count() {
-            let a = DenseNodeId::from_raw(i as u32);
+            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             for (b, at_a, at_b) in graph.neighbors(a) {
                 if b.raw() < a.raw() {
                     continue;
@@ -329,11 +310,7 @@ impl TemporalPagReview {
                 }
             }
         }
-        Self {
-            graph,
-            pending_circles: Arc::from(pending),
-            algorithm: algorithm.into(),
-        }
+        Self { graph, pending_circles: Arc::from(pending), algorithm: algorithm.into() }
     }
 
     /// Whether no circle marks remain.

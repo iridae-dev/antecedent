@@ -98,19 +98,16 @@ impl AverageEffectQuery {
         if self.treatment == self.outcome {
             return Err(QueryError::TreatmentEqualsOutcome { id: self.treatment });
         }
-        let control_var = self.control.primary_variable().ok_or(
-            QueryError::AmbiguousInterventionTarget,
-        )?;
+        let control_var =
+            self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if control_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
                 got: control_var,
             });
         }
-        let active_var = self
-            .active
-            .primary_variable()
-            .ok_or(QueryError::AmbiguousInterventionTarget)?;
+        let active_var =
+            self.active.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if active_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
@@ -227,20 +224,16 @@ impl TemporalEffectQuery {
             }
             other => QueryError::InvalidIntervention(other.to_string()),
         })?;
-        let control_var = self
-            .control
-            .primary_variable()
-            .ok_or(QueryError::AmbiguousInterventionTarget)?;
+        let control_var =
+            self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if control_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
                 got: control_var,
             });
         }
-        let active_var = self
-            .active
-            .primary_variable()
-            .ok_or(QueryError::AmbiguousInterventionTarget)?;
+        let active_var =
+            self.active.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if active_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
@@ -337,19 +330,16 @@ impl MediationQuery {
         if self.mediators.iter().any(|&m| m == self.treatment || m == self.outcome) {
             return Err(QueryError::MediatorOverlapsTreatmentOrOutcome);
         }
-        let control_var = self.control.primary_variable().ok_or(
-            QueryError::AmbiguousInterventionTarget,
-        )?;
+        let control_var =
+            self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if control_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
                 got: control_var,
             });
         }
-        let active_var = self
-            .active
-            .primary_variable()
-            .ok_or(QueryError::AmbiguousInterventionTarget)?;
+        let active_var =
+            self.active.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if active_var != self.treatment {
             return Err(QueryError::InterventionVariableMismatch {
                 expected: self.treatment,
@@ -492,7 +482,7 @@ impl AnomalyAttributionQuery {
     ///
     /// # Errors
     ///
-    /// Empty targets or zero max_units.
+    /// Empty targets or zero `max_units`.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.targets.is_empty() {
             return Err(QueryError::EmptyAnomalyTargets);
@@ -535,12 +525,20 @@ impl PopulationSelector {
     pub fn validate(&self) -> Result<(), QueryError> {
         match self {
             Self::All | Self::Environment { .. } => Ok(()),
-            Self::Rows(rows) if rows.is_empty() => Err(QueryError::EmptyPopulationRows),
-            Self::Rows(_) => Ok(()),
-            Self::TimeRange { start, end } if end <= start => {
-                Err(QueryError::InvalidPopulationTimeRange { start: *start, end: *end })
+            Self::Rows(rows) => {
+                if rows.is_empty() {
+                    Err(QueryError::EmptyPopulationRows)
+                } else {
+                    Ok(())
+                }
             }
-            Self::TimeRange { .. } => Ok(()),
+            Self::TimeRange { start, end } => {
+                if *end <= *start {
+                    Err(QueryError::InvalidPopulationTimeRange { start: *start, end: *end })
+                } else {
+                    Ok(())
+                }
+            }
         }
     }
 }
@@ -658,13 +656,20 @@ impl ShapleyConfig {
         }
         match self.mode {
             ShapleyMode::Exact => Ok(()),
-            ShapleyMode::MonteCarlo { n_samples } if n_samples == 0 => {
-                Err(QueryError::NonPositiveShapleySamples)
+            ShapleyMode::MonteCarlo { n_samples } => {
+                if n_samples == 0 {
+                    Err(QueryError::NonPositiveShapleySamples)
+                } else {
+                    Ok(())
+                }
             }
-            ShapleyMode::Permutation { n_permutations } if n_permutations == 0 => {
-                Err(QueryError::NonPositiveShapleySamples)
+            ShapleyMode::Permutation { n_permutations } => {
+                if n_permutations == 0 {
+                    Err(QueryError::NonPositiveShapleySamples)
+                } else {
+                    Ok(())
+                }
             }
-            ShapleyMode::MonteCarlo { .. } | ShapleyMode::Permutation { .. } => Ok(()),
         }
     }
 }
@@ -695,9 +700,7 @@ impl AllocationMethod {
     /// Empty sequential order or invalid Shapley config.
     pub fn validate(&self) -> Result<(), QueryError> {
         match self {
-            Self::Sequential { order } if order.is_empty() => {
-                Err(QueryError::EmptyAllocationOrder)
-            }
+            Self::Sequential { order } if order.is_empty() => Err(QueryError::EmptyAllocationOrder),
             Self::Sequential { .. } | Self::PathBased => Ok(()),
             Self::Shapley { approximation } => approximation.validate(),
         }
@@ -766,7 +769,7 @@ impl ChangeAttributionQuery {
     ///
     /// # Errors
     ///
-    /// Invalid populations, allocation, or zero max_components.
+    /// Invalid populations, allocation, or zero `max_components`.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.max_components == 0 {
             return Err(QueryError::NonPositiveComponentLimit);
@@ -907,7 +910,7 @@ impl UnitChangeQuery {
     ///
     /// # Errors
     ///
-    /// Zero max_units or invalid allocation.
+    /// Zero `max_units` or invalid allocation.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.max_units == 0 {
             return Err(QueryError::NonPositiveAnomalyLimit);
@@ -1056,7 +1059,7 @@ pub enum QueryError {
     EmptyCounterfactualOutcomes,
     /// Anomaly query has no targets.
     EmptyAnomalyTargets,
-    /// Anomaly max_units must be ≥ 1.
+    /// Anomaly `max_units` must be ≥ 1.
     NonPositiveAnomalyLimit,
     /// Mediation query has no mediators.
     EmptyMediators,
@@ -1079,7 +1082,7 @@ pub enum QueryError {
     NonPositiveShapleyLimit,
     /// Approximate Shapley sample / permutation count must be ≥ 1.
     NonPositiveShapleySamples,
-    /// Change attribution max_components must be ≥ 1.
+    /// Change attribution `max_components` must be ≥ 1.
     NonPositiveComponentLimit,
     /// Mechanism-change query has no targets.
     EmptyMechanismChangeTargets,
@@ -1244,10 +1247,7 @@ mod tests {
             PopulationSelector::TimeRange { start: 5, end: 5 },
             PopulationSelector::All,
         );
-        assert!(matches!(
-            bad.validate(),
-            Err(QueryError::InvalidPopulationTimeRange { .. })
-        ));
+        assert!(matches!(bad.validate(), Err(QueryError::InvalidPopulationTimeRange { .. })));
     }
 
     #[test]

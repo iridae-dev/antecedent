@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use causal_core::{ExecutionContext, Lag, VariableId};
+use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::{LaggedColumn, MultiEnvSamplePlan, MultiEnvironmentData, TableView};
 use causal_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
 use causal_stats::ConditionalIndependence;
@@ -19,14 +19,13 @@ use crate::evidence::{
     cpdag_evidence_from_oriented, cpdag_from_scored_links, threshold_scored_links,
 };
 use crate::orientation::{
-    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule,
-    run_orientation_to_fixed_point,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule, run_orientation_to_fixed_point,
 };
 use crate::pipeline::{
     algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
 };
 use crate::result::{
-    CpdagDiscoveryResult, DiscoveryPerformanceRecord, LaggedLink, ScoredLink,
+    CpdagDiscoveryResult, DiscoveryPerformanceRecord, LaggedLink, PcSepsets, ScoredLink,
 };
 
 /// Alias for J-PCMCI+ discovery output (context-augmented temporal CPDAG).
@@ -87,6 +86,7 @@ impl JpcmciPlus {
     /// # Errors
     ///
     /// Empty multi-env, engine / orientation failures.
+    #[allow(clippy::too_many_lines)]
     pub fn run(
         &self,
         data: &MultiEnvironmentData,
@@ -95,37 +95,33 @@ impl JpcmciPlus {
         ctx: &ExecutionContext,
     ) -> Result<JpcmciPlusDiscoveryResult, DiscoveryError> {
         if data.env_count() == 0 {
-            return Err(DiscoveryError::Unsupported {
-                message: "J-PCMCI+ needs ≥1 environment",
-            });
+            return Err(DiscoveryError::Unsupported { message: "J-PCMCI+ needs ≥1 environment" });
         }
         self.engine.constraints.validate()?;
 
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
         // Plan once across environments: shared columns Arc + LagMap reuse by length.
         // Never clone sibling environment series payloads.
-        let mut plan_cols: Vec<LaggedColumn> = Vec::with_capacity(variables.len() * (max_lag as usize + 1));
+        let mut plan_cols: Vec<LaggedColumn> =
+            Vec::with_capacity(variables.len() * (max_lag as usize + 1));
         for &variable in variables {
             for lag in 0..=max_lag {
-                plan_cols.push(LaggedColumn {
-                    variable,
-                    lag: Lag::from_raw(lag),
-                });
+                plan_cols.push(LaggedColumn { variable, lag: Lag::from_raw(lag) });
             }
         }
         let plan = MultiEnvSamplePlan::try_from_multi_env(data, max_lag, Arc::from(plan_cols))
             .map_err(|e| DiscoveryError::data_msg(format!("multi-env sample plan failed: {e}")))?;
 
         let mut per_env_scored: Vec<Vec<ScoredLink>> = Vec::with_capacity(data.env_count());
-        let mut last_sepsets = Default::default();
-        let mut assumptions = Default::default();
+        let mut last_sepsets = PcSepsets::default();
+        let mut assumptions = AssumptionSet::default();
         let mut iterations = Vec::new();
         let mut diagnostics = Vec::new();
         let mut performance = DiscoveryPerformanceRecord::default();
 
         // Record shared-geometry cost once (not per-env full series bytes).
-        let plan_bytes = plan.columns.len().saturating_mul(16)
-            + plan.env_count().saturating_mul(64);
+        let plan_bytes =
+            plan.columns.len().saturating_mul(16) + plan.env_count().saturating_mul(64);
         performance.lagged_frame_bytes = plan_bytes as u64;
 
         for i in 0..data.env_count() {
@@ -152,9 +148,8 @@ impl JpcmciPlus {
             diagnostics.extend(engine_result.diagnostics);
             performance.ci_tests += engine_result.performance.ci_tests;
             performance.targets = engine_result.performance.targets;
-            performance.lagged_frame_bytes = performance
-                .lagged_frame_bytes
-                .max(engine_result.performance.lagged_frame_bytes);
+            performance.lagged_frame_bytes =
+                performance.lagged_frame_bytes.max(engine_result.performance.lagged_frame_bytes);
         }
 
         diagnostics.push(crate::result::DiscoveryDiagnostic {
@@ -166,7 +161,10 @@ impl JpcmciPlus {
             )),
         });
 
-        let pooled = pool_scored_links(&per_env_scored, self.engine.constraints.multi_dataset.pool_lagged_ci);
+        let pooled = pool_scored_links(
+            &per_env_scored,
+            self.engine.constraints.multi_dataset.pool_lagged_ci,
+        );
         let alpha = self.engine.constraints.alpha;
         let scored = threshold_scored_links(pooled, self.fdr, alpha);
 

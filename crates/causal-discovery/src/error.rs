@@ -31,9 +31,7 @@ impl DiscoveryError {
     /// Ad-hoc data-layer message.
     #[must_use]
     pub fn data_msg(message: impl Into<String>) -> Self {
-        Self::Data(DataError::InvalidArgument {
-            message: message.into(),
-        })
+        Self::Data(DataError::InvalidArgument { message: message.into() })
     }
 
     /// Ad-hoc stats-layer message.

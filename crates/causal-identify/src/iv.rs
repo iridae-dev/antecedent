@@ -126,10 +126,7 @@ impl InstrumentalVariableIdentifier {
                 query,
                 derivation,
                 assumptions,
-                IdentificationPerformanceRecord {
-                    candidates_examined: examined,
-                    sets_returned: 0,
-                },
+                IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
             ));
         }
 
@@ -189,8 +186,7 @@ fn is_valid_instrument(
     if !dag.reaches(z, t) {
         return Ok(false);
     }
-    let independent_of_t =
-        dag.is_d_separated(z, t, &[], ws).map_err(IdentificationError::from)?;
+    let independent_of_t = dag.is_d_separated(z, t, &[], ws).map_err(IdentificationError::from)?;
     if independent_of_t {
         return Ok(false);
     }
@@ -206,8 +202,8 @@ fn is_valid_instrument(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use causal_core::{AverageEffectQuery, VariableId};
     use crate::result::IdentificationStatus;
+    use causal_core::{AverageEffectQuery, VariableId};
 
     #[test]
     fn confounded_treatment_with_valid_instrument() {

@@ -46,10 +46,7 @@ impl Lpcmci {
     pub fn new() -> Self {
         let mut constraints = DiscoveryConstraints::default();
         constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
-        Self {
-            engine: PcmciEngine::new().with_constraints(constraints),
-            fdr: true,
-        }
+        Self { engine: PcmciEngine::new().with_constraints(constraints), fdr: true }
     }
 
     /// Configure constraints.
@@ -94,15 +91,10 @@ impl Lpcmci {
         let node_ids = lagged_node_index(pag.nodes());
         let mut state = orientation_state_from_sepsets(&node_ids, &engine_result.sepsets);
 
-        let rules: [&dyn crate::rule_scheduling::LpcmciOrientationRule; 5] = [
-            &LpcmciOrientCollider,
-            &LpcmciR1,
-            &LpcmciR2,
-            &LpcmciR3,
-            &LpcmciDiscriminatingPathRule,
-        ];
-        let _delta = run_lpcmci_orientation(&mut pag, &rules, &mut state)
-            .map_err(DiscoveryError::from)?;
+        let rules: [&dyn crate::rule_scheduling::LpcmciOrientationRule; 5] =
+            [&LpcmciOrientCollider, &LpcmciR1, &LpcmciR2, &LpcmciR3, &LpcmciDiscriminatingPathRule];
+        let _delta =
+            run_lpcmci_orientation(&mut pag, &rules, &mut state).map_err(DiscoveryError::from)?;
 
         let algorithm = algorithm_record(
             "lpcmci",
@@ -202,10 +194,7 @@ mod tests {
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
         let data = TimeSeriesData::try_new(
             storage,
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: n,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap();
         (data, vec![VariableId::from_raw(0), VariableId::from_raw(1)])
@@ -228,9 +217,6 @@ mod tests {
         let result = alg.run(&data, &vars, &mut ws, &ctx).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "lpcmci");
         assert!(result.evidence.graph.node_count() > 0);
-        assert!(matches!(
-            result.evidence.source,
-            crate::result::EvidenceSource::Discovery { .. }
-        ));
+        assert!(matches!(result.evidence.source, crate::result::EvidenceSource::Discovery { .. }));
     }
 }

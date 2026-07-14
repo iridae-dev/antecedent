@@ -58,9 +58,7 @@ pub fn fill_resample_indexes(
     out: &mut Vec<u32>,
 ) -> Result<(), DataError> {
     if n == 0 {
-        return Err(DataError::InvalidArgument {
-            message: "resample needs n > 0".into(),
-        });
+        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
     }
     if plan.is_weight_plan() {
         return Err(DataError::InvalidArgument {
@@ -122,9 +120,7 @@ pub fn fill_resample_weights(
     out: &mut Vec<f64>,
 ) -> Result<(), DataError> {
     if n == 0 {
-        return Err(DataError::InvalidArgument {
-            message: "resample needs n > 0".into(),
-        });
+        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
     }
     if !matches!(plan, ResamplingPlan::BayesianBootstrap) {
         return Err(DataError::InvalidArgument {

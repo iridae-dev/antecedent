@@ -9,8 +9,8 @@
 use std::sync::Arc;
 
 use causal_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    AssumptionSet, CausalQuery, MediationContrast, MediationQuery, TemporalEffectQuery,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, CausalQuery, MediationContrast, MediationQuery, TemporalEffectQuery,
     TemporalPolicy, VariableId,
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
@@ -49,7 +49,7 @@ impl TemporalMediationIdentifier {
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid mediation query",
         })?;
-        self.ensure_mediators_intercept(template, query)?;
+        Self::ensure_mediators_intercept(template, query)?;
 
         let method: Arc<str> = match query.contrast {
             MediationContrast::Total => Arc::from("temporal_mediation.total"),
@@ -74,15 +74,13 @@ impl TemporalMediationIdentifier {
         };
 
         let mut arena = CausalExprArena::new();
-        let functional = arena.frontdoor_ate(
-            query.treatment,
-            query.outcome,
-            &query.mediators,
-            active,
-            control,
+        let functional =
+            arena.frontdoor_ate(query.treatment, query.outcome, &query.mediators, active, control);
+        let estimand = IdentifiedEstimand::frontdoor(
+            Arc::clone(&method),
+            Arc::clone(&query.mediators),
+            functional,
         );
-        let estimand =
-            IdentifiedEstimand::frontdoor(Arc::clone(&method), Arc::clone(&query.mediators), functional);
 
         let mut assumptions = AssumptionSet::new();
         assumptions.push(AssumptionRecord {
@@ -157,20 +155,20 @@ impl TemporalMediationIdentifier {
     }
 
     fn ensure_mediators_intercept(
-        &self,
         template: &TemporalDag,
         query: &MediationQuery,
     ) -> Result<(), IdentificationError> {
-        let med: std::collections::HashSet<VariableId> =
-            query.mediators.iter().copied().collect();
+        let med: std::collections::HashSet<VariableId> = query.mediators.iter().copied().collect();
         let mut has_path = false;
         let mut has_direct = false;
         for e in template.edges() {
             let Some((from, to)) = e.parent_child() else {
                 continue;
             };
-            let (Some(NodeRef::Lagged { variable: src, .. }), Some(NodeRef::Lagged { variable: tgt, .. })) =
-                (template.nodes().get(from.as_usize()), template.nodes().get(to.as_usize()))
+            let (
+                Some(NodeRef::Lagged { variable: src, .. }),
+                Some(NodeRef::Lagged { variable: tgt, .. }),
+            ) = (template.nodes().get(from.as_usize()), template.nodes().get(to.as_usize()))
             else {
                 continue;
             };

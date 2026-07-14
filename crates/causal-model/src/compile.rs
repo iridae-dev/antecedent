@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::cast_possible_truncation)]
+
 use std::sync::Arc;
 
 use causal_core::VariableId;
@@ -143,7 +145,9 @@ impl CompiledCausalModel {
                 Some(NodeRef::Static(v)) => variables.push(*v),
                 Some(other) => {
                     return Err(ModelError::Unsupported {
-                        message: format!("CompiledCausalModel requires Static nodes, got {other:?}"),
+                        message: format!(
+                            "CompiledCausalModel requires Static nodes, got {other:?}"
+                        ),
                     });
                 }
                 None => {
@@ -155,10 +159,7 @@ impl CompiledCausalModel {
         let mut gathers = Vec::with_capacity(order.len());
         for &child in &order {
             let parents = graph.parents(child).to_vec();
-            gathers.push(ParentGatherPlan {
-                child,
-                parents: Arc::from(parents),
-            });
+            gathers.push(ParentGatherPlan { child, parents: Arc::from(parents) });
         }
         let node_order = Arc::from(order);
         Ok(Self {

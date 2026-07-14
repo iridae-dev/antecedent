@@ -305,10 +305,10 @@ impl PcmciEngine {
         let max_lag = self.constraints.temporal.max_lag.raw();
         // PC phase frame at max_lag; MCI conditions on pa(X_{t−τ}) with lags up to 2·max_lag
         // (tigramite's `2xtau_max` cut-off), so it needs a deeper frame.
-        let frame = LaggedFrame::from_series(data, variables, max_lag)
-            .map_err(DiscoveryError::from)?;
-        let mci_frame = LaggedFrame::from_series(data, variables, 2 * max_lag)
-            .map_err(DiscoveryError::from)?;
+        let frame =
+            LaggedFrame::from_series(data, variables, max_lag).map_err(DiscoveryError::from)?;
+        let mci_frame =
+            LaggedFrame::from_series(data, variables, 2 * max_lag).map_err(DiscoveryError::from)?;
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if frame.values_bytes() + mci_frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
@@ -327,10 +327,7 @@ impl PcmciEngine {
                 significance: self.constraints.significance,
                 confidence: ConfidenceMethod::default(),
             };
-            let _prepared = self
-                .ci
-                .prepare(&cols, &plan, ctx)
-                .map_err(DiscoveryError::from)?;
+            let _prepared = self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
         }
 
         let (all_parents, iterations, mut ci_tests) =
@@ -594,10 +591,7 @@ impl PcmciEngine {
             significance: self.constraints.significance,
             confidence: ConfidenceMethod::default(),
         };
-        let out = self
-            .ci
-            .test_batch(&req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
+        let out = self.ci.test_batch(&req, &mut workspace.ci, ctx).map_err(DiscoveryError::from)?;
         if out.results.len() != links.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
@@ -667,10 +661,8 @@ impl PcmciEngine {
                 significance: self.constraints.significance,
                 confidence: ConfidenceMethod::default(),
             };
-            let out = self
-                .ci
-                .test_batch(&req, &mut workspace.ci, ctx)
-                .map_err(DiscoveryError::from)?;
+            let out =
+                self.ci.test_batch(&req, &mut workspace.ci, ctx).map_err(DiscoveryError::from)?;
             out.results
                 .into_iter()
                 .next()

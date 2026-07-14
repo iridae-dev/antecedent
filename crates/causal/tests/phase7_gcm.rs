@@ -9,9 +9,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use causal::{
-    anomaly_attribution, counterfactual_ite, fit_gcm, sample_do, arrow_strengths,
-    streaming_matches_retained, CounterfactualEngine, CounterfactualWorld, KdeDoSampler,
-    McmcDoSampler, MechanismWorkspace, WeightingDoSampler,
+    CounterfactualEngine, CounterfactualWorld, KdeDoSampler, McmcDoSampler, MechanismWorkspace,
+    WeightingDoSampler, anomaly_attribution, arrow_strengths, counterfactual_ite, fit_gcm,
+    sample_do, streaming_matches_retained,
 };
 use causal_core::{
     CausalRng, CausalSchemaBuilder, ExecutionContext, Intervention, MeasurementSpec, RoleHint,
@@ -22,9 +22,7 @@ use causal_graph::{Dag, DenseNodeId};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../conformance/phase7")
-        .join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/phase7").join(name)
 }
 
 fn load_expected(name: &str) -> JsonValue {
@@ -69,8 +67,7 @@ fn chain_data(n: usize, plant_outlier: bool) -> (TabularData, Dag) {
     ];
     let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
     let mut g = Dag::with_variables(2);
-    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-        .unwrap();
+    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     (data, g)
 }
 
@@ -126,11 +123,7 @@ fn gcm_cf_ite() {
         &ctx,
     )
     .unwrap();
-    assert!(
-        (ite.mean_ite - true_ite).abs() < tol,
-        "mean_ite={} true={true_ite}",
-        ite.mean_ite
-    );
+    assert!((ite.mean_ite - true_ite).abs() < tol, "mean_ite={} true={true_ite}", ite.mean_ite);
     assert_eq!(format!("{:?}", ite.noise_inference), "Invertible");
 
     let engine = CounterfactualEngine::new(fitted.model);
@@ -138,14 +131,10 @@ fn gcm_cf_ite() {
     let mut ws = MechanismWorkspace::default();
     let worlds = [CounterfactualWorld {
         unit_rows: None,
-        interventions: Arc::from([Intervention::set(
-            VariableId::from_raw(0),
-            Value::f64(1.0),
-        )]),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
     }];
-    let res = engine
-        .predict(&exo, &worlds, &[VariableId::from_raw(1)], false, &mut ws, &ctx)
-        .unwrap();
+    let res =
+        engine.predict(&exo, &worlds, &[VariableId::from_raw(1)], false, &mut ws, &ctx).unwrap();
     assert!(streaming_matches_retained(&res, 0, DenseNodeId::from_raw(1)));
     assert!(expected["streaming_equiv_retained"].as_bool().unwrap());
 }
@@ -188,8 +177,7 @@ fn binary_treatment_scm(n: usize) -> (causal::CompiledCausalModel, TabularData) 
     ];
     let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
     let mut g = Dag::with_variables(2);
-    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-        .unwrap();
+    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let fitted = fit_gcm(g, &data).unwrap();
     (fitted.model, data)
 }

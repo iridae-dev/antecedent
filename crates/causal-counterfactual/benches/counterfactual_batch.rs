@@ -2,19 +2,21 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(missing_docs, clippy::cast_precision_loss, clippy::many_single_char_names)]
+
 use std::sync::Arc;
 
 use causal_core::{
     CausalSchemaBuilder, ExecutionContext, Intervention, MeasurementSpec, RoleHint, SmallRoleSet,
     Value, ValueType, VariableId,
 };
-use causal_counterfactual::{CounterfactualEngine, CounterfactualWorld, streaming_matches_retained};
+use causal_counterfactual::{
+    CounterfactualEngine, CounterfactualWorld, streaming_matches_retained,
+};
 use causal_data::column::{Float64Column, ValidityBitmap};
 use causal_data::{OwnedColumn, OwnedColumnarStorage, TabularData};
 use causal_graph::{Dag, DenseNodeId};
-use causal_model::{
-    CompiledCausalModel, MechanismRegistry, MechanismWorkspace, SelectionPolicy,
-};
+use causal_model::{CompiledCausalModel, MechanismRegistry, MechanismWorkspace, SelectionPolicy};
 use criterion::{Criterion, criterion_group, criterion_main};
 
 fn engine() -> (CounterfactualEngine, TabularData) {

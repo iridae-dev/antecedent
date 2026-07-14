@@ -1,0 +1,4 @@
+algorithm = "attribution.distribution_change"
+phase = 10
+status = "implemented"
+notes = "DoWhy-GCM distribution-change + robust variant"

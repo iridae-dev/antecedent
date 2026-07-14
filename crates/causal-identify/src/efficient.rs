@@ -172,10 +172,7 @@ impl EfficientBackdoorIdentifier {
                     d
                 },
                 default_assumptions(),
-                IdentificationPerformanceRecord {
-                    candidates_examined: examined,
-                    sets_returned: 0,
-                },
+                IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
             ));
         }
 
@@ -229,18 +226,11 @@ impl EfficientBackdoorIdentifier {
         derivation.push("backdoor.efficient", format!("selected via {rule}; |Z|={}", vars.len()));
         Ok(IdentificationResult::identified(
             query,
-            vec![IdentifiedEstimand::backdoor(
-                "backdoor.efficient",
-                Arc::from(vars),
-                functional,
-            )],
+            vec![IdentifiedEstimand::backdoor("backdoor.efficient", Arc::from(vars), functional)],
             arena,
             derivation,
             default_assumptions(),
-            IdentificationPerformanceRecord {
-                candidates_examined: examined,
-                sets_returned: 1,
-            },
+            IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 1 },
         ))
     }
 }
@@ -289,8 +279,8 @@ fn default_assumptions() -> AssumptionSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use causal_graph::Dag;
     use crate::result::IdentificationStatus;
+    use causal_graph::Dag;
 
     #[test]
     fn o_set_selects_confounder() {

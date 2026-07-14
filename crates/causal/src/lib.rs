@@ -22,11 +22,16 @@ pub use discovery::{
     discover_rpcmci, pag_definite_directed_edge_count,
 };
 pub use discovery_defaults::{
-    contemporaneous_constraints, pcmci_constraints, resolve_ci, DEFAULT_ALPHA,
-    DEFAULT_MAX_COND_SIZE, DEFAULT_RPCMCI_MIN_REGIME_LEN,
+    DEFAULT_ALPHA, DEFAULT_MAX_COND_SIZE, DEFAULT_RPCMCI_MIN_REGIME_LEN,
+    contemporaneous_constraints, pcmci_constraints, resolve_ci,
 };
 pub use error::AnalysisError;
-pub use gcm::{FittedGcm, IteResult, anomaly_attribution, counterfactual_ite, fit_gcm, sample_do};
+pub use gcm::{
+    FittedGcm, IteResult, anomaly_attribution, attribute_distribution_change,
+    attribute_distribution_change_robust, attribute_feature_relevance, attribute_paths,
+    attribute_unit_change, change_attribution_builder, counterfactual_ite, fit_gcm,
+    mechanism_change_detection, rank_root_causes, sample_do,
+};
 pub use inference::{BayesianConfig, InferenceMode};
 pub use planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
@@ -34,8 +39,8 @@ pub use planner::{
     is_dag_only_identifier, reject_dag_only_on_pag,
 };
 pub use strategy_table::{
-    estimate_provenance_step, estimate_static_effect, identify_provenance_step, identify_static,
-    validate_static_pair, DEFAULT_ESTIMATOR, DEFAULT_IDENTIFIER,
+    DEFAULT_ESTIMATOR, DEFAULT_IDENTIFIER, estimate_provenance_step, estimate_static_effect,
+    identify_provenance_step, identify_static, validate_static_pair,
 };
 
 // Phase 8 PAG / LPCMCI surfaces.
@@ -96,10 +101,13 @@ pub fn decode_causal_posterior_bytes(
     causal_io::decode_causal_posterior_bytes(bytes).map_err(AnalysisError::from)
 }
 
-// Phase 7 GCM / counterfactual / basic attribution surfaces.
+// Phase 7–10 GCM / counterfactual / attribution surfaces.
 pub use causal_attribution::{
-    AnomalyScores, ArrowStrength, AttributionError, arrow_strengths, intrinsic_influence,
-    score_anomalies,
+    AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
+    DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
+    MechanismChangeMethod, RobustChangeOptions, RootCauseRank, UnitChangeResult, arrow_strengths,
+    detect_mechanism_changes, distribution_change, distribution_change_robust, feature_relevance,
+    intrinsic_influence, path_decompose, root_cause_rank, score_anomalies, unit_change,
 };
 pub use causal_counterfactual::{
     CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError, CounterfactualResult,
@@ -108,7 +116,7 @@ pub use causal_counterfactual::{
 };
 pub use causal_model::{
     CompiledCausalModel, DoSampleResult, InvertibleStructuralCausalModel, KdeDoSampler,
-    MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismWorkspace, McmcDoSampler,
+    McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismWorkspace,
     ModelCollection, ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy,
     StructuralCausalModel, WeightingDoSampler, interventional_mean, sample_interventional,
     sample_observational,

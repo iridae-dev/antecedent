@@ -5,19 +5,21 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::cast_possible_truncation)]
+
 use std::sync::Arc;
 
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::{MultiEnvironmentData, TimeSeriesData};
 use causal_discovery::{
-    CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryWorkspace, JpcmciPlus, Lpcmci, Pcmci,
-    PcmciPlus, PagDiscoveryResult, RegimeAssignment, Rpcmci, RpcmciDiscoveryResult,
+    CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryWorkspace, JpcmciPlus, Lpcmci,
+    PagDiscoveryResult, Pcmci, PcmciPlus, RegimeAssignment, Rpcmci, RpcmciDiscoveryResult,
 };
 use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
 use causal_stats::ConditionalIndependence;
 
 use crate::discovery_defaults::{
-    contemporaneous_constraints, pcmci_constraints, DEFAULT_RPCMCI_MIN_REGIME_LEN,
+    DEFAULT_RPCMCI_MIN_REGIME_LEN, contemporaneous_constraints, pcmci_constraints,
 };
 use crate::error::AnalysisError;
 
@@ -142,8 +144,7 @@ pub fn discover_rpcmci(
         .with_min_regime_len(min_regime_len.unwrap_or(DEFAULT_RPCMCI_MIN_REGIME_LEN))
         .with_pcmci_plus(plus);
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, assignment, &mut ws, ctx)
-        .map_err(AnalysisError::from)
+    alg.run(data, variables, assignment, &mut ws, ctx).map_err(AnalysisError::from)
 }
 
 /// Count definite directed edges in a temporal PAG (Tail–Arrow or Arrow–Tail).

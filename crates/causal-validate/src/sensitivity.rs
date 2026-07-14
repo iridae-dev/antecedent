@@ -279,8 +279,7 @@ fn covariate_matrix(
     let mut all = ids.clone();
     all.push(problem.treatment());
     all.push(problem.outcome());
-    let mask =
-        problem.data.complete_case_mask(&all).map_err(ValidationError::from)?;
+    let mask = problem.data.complete_case_mask(&all).map_err(ValidationError::from)?;
     let n = mask.iter().filter(|&&k| k).count();
     if ids.is_empty() {
         return Ok((vec![1.0; n], n, 1));
@@ -288,10 +287,7 @@ fn covariate_matrix(
     let dim = ids.len();
     let mut cov = vec![0.0; n * dim];
     for (c, &z) in ids.iter().enumerate() {
-        let col = problem
-            .data
-            .float64_masked(z, &mask)
-            .map_err(ValidationError::from)?;
+        let col = problem.data.float64_masked(z, &mask).map_err(ValidationError::from)?;
         for (r, &v) in col.iter().enumerate() {
             cov[r * dim + c] = v;
         }
@@ -359,18 +355,13 @@ impl NonparametricSensitivity {
         let mut ids = problem.estimand.adjustment_set.to_vec();
         ids.push(problem.treatment());
         ids.push(problem.outcome());
-        let mask = problem
-            .data
-            .complete_case_mask(&ids)
-            .map_err(ValidationError::from)?;
+        let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
         let t = problem
             .data
             .float64_masked(problem.treatment(), &mask)
             .map_err(ValidationError::from)?;
-        let y = problem
-            .data
-            .float64_masked(problem.outcome(), &mask)
-            .map_err(ValidationError::from)?;
+        let y =
+            problem.data.float64_masked(problem.outcome(), &mask).map_err(ValidationError::from)?;
         if t.len() != n || y.len() != n {
             return Err(ValidationError::data_msg("nonparametric sensitivity row mismatch"));
         }

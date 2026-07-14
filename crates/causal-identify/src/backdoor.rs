@@ -208,10 +208,7 @@ impl BackdoorIdentifier {
                 query,
                 derivation,
                 assumptions,
-                IdentificationPerformanceRecord {
-                    candidates_examined: examined,
-                    sets_returned: 0,
-                },
+                IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
             ));
         }
 
@@ -322,8 +319,8 @@ pub(crate) fn dense_to_var(id: DenseNodeId, dag: &Dag) -> Result<VariableId, Ide
 #[cfg(test)]
 mod tests {
     use super::*;
-    use causal_core::AverageEffectQuery;
     use crate::result::IdentificationStatus;
+    use causal_core::AverageEffectQuery;
 
     #[test]
     fn confounding_requires_z() {

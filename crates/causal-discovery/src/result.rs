@@ -5,7 +5,10 @@
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, Lag, VariableId};
-use causal_graph::{TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview};
+use causal_graph::{
+    TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
+    TemporalPagReview,
+};
 
 /// One lagged parent `(variable, lag)`.
 pub type LaggedParent = (VariableId, Lag);

@@ -2,7 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::needless_range_loop
+)]
 
 use std::sync::Arc;
 
@@ -78,14 +83,14 @@ impl ModelEvaluator {
         let permutation_loglik = permutation_baseline(model, data, self.n_permutations, self.seed)?;
 
         let mut falsified = false;
-        for &p in residual_independence_p.iter() {
+        for &p in &residual_independence_p {
             if p < self.alpha {
                 falsified = true;
                 notes.push(Arc::from("residual independence rejected at alpha"));
                 break;
             }
         }
-        for &p in local_markov_p.iter() {
+        for &p in &local_markov_p {
             if p < self.alpha {
                 falsified = true;
                 notes.push(Arc::from("local Markov condition rejected at alpha"));
@@ -141,10 +146,12 @@ fn mean_loglik(model: &CompiledCausalModel, data: &TabularData) -> Result<f64, M
     Ok(total / count.max(1) as f64)
 }
 
+type ResidualByNode = Vec<Option<Vec<f64>>>;
+
 fn residual_summary(
     model: &CompiledCausalModel,
     data: &TabularData,
-) -> Result<(f64, Vec<Option<Vec<f64>>>), ModelError> {
+) -> Result<(f64, ResidualByNode), ModelError> {
     let n = data.row_count();
     let mut residuals_by_node = vec![None; model.n_nodes()];
     let mut abs_sum = 0.0;
@@ -237,8 +244,7 @@ fn local_markov_tests(
             let mut cond_storage: Vec<Vec<f64>> = Vec::new();
             for &p in &parent_ids {
                 let pv = model.output_layout.variables[p];
-                cond_storage
-                    .push(data.float64_values(pv).map_err(ModelError::from)?);
+                cond_storage.push(data.float64_values(pv).map_err(ModelError::from)?);
             }
             for c in &cond_storage {
                 cols.push(c.as_slice());
@@ -266,9 +272,10 @@ fn permutation_baseline(
     let mut rng = CausalRng::from_seed(seed);
     // Permute a leaf outcome column and recompute mean loglik under original mechanisms
     // as a crude noise baseline (same X, shuffled Y for last node).
-    let last = *model.node_order.last().ok_or_else(|| ModelError::Shape {
-        message: "empty model".into(),
-    })?;
+    let last = *model
+        .node_order
+        .last()
+        .ok_or_else(|| ModelError::Shape { message: "empty model".into() })?;
     let var = model.output_layout.variables[last.as_usize()];
     let mut y = data.float64_values(var).map_err(ModelError::from)?;
     let mut acc = 0.0;
@@ -331,9 +338,9 @@ impl MechanismPredictiveCheck {
 
         let observed = data.float64_values(var).map_err(ModelError::from)?;
         let obs_mean = observed.iter().sum::<f64>() / observed.len().max(1) as f64;
-        let dense = model.dense_of(var).ok_or_else(|| ModelError::Shape {
-            message: "variable not in model".into(),
-        })?;
+        let dense = model
+            .dense_of(var)
+            .ok_or_else(|| ModelError::Shape { message: "variable not in model".into() })?;
         let mut rng = CausalRng::from_seed(self.seed);
         let mut ws = MechanismWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
@@ -345,8 +352,9 @@ impl MechanismPredictiveCheck {
         }
         let pred_mean = means.iter().sum::<f64>() / means.len().max(1) as f64;
         let below = means.iter().filter(|&&m| m <= obs_mean).count() as f64;
-        let p = (2.0 * (below / means.len().max(1) as f64).min(1.0 - below / means.len().max(1) as f64))
-            .min(1.0);
+        let p = (2.0
+            * (below / means.len().max(1) as f64).min(1.0 - below / means.len().max(1) as f64))
+        .min(1.0);
         Ok((obs_mean, pred_mean, p))
     }
 }
@@ -355,9 +363,7 @@ impl MechanismPredictiveCheck {
 mod tests {
     use super::*;
     use crate::registry::{MechanismRegistry, SelectionPolicy};
-    use causal_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
+    use causal_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};
     use causal_graph::Dag;
@@ -397,7 +403,8 @@ mod tests {
                 Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
             ),
         ];
-        let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
         let mut g = Dag::with_variables(2);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let compiled = CompiledCausalModel::compile(g).unwrap();

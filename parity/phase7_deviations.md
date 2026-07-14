@@ -3,12 +3,10 @@
 Intentional deferrals from DESIGN.md §32 (Phase 7) as reconciled against
 `parity/gcm.toml` (authoritative for `status`).
 
-## 1. Shapley / coalition attribution → Phase 10
+## 1. Shapley / coalition attribution → Phase 10 — RESOLVED
 
-DESIGN.md Phase 7 delivers **basic** anomaly attribution and causal influence.
-Full Shapley utilities, distribution-change attribution, mechanism-change
-attribution, and unit-change decompositions remain Phase 10
-(`causal-attribution` expansion).
+Completed in Phase 10 (`causal-attribution` Shapley engine, distribution-change,
+unit-change, robust variant). See `parity/phase10.toml` and ADR 0015.
 
 ## 2. Bayesian DAG posterior search remains deferred
 
@@ -19,4 +17,5 @@ Bayesian DAG/DBN search stays deferred (see Phase 6 deviations).
 
 Every `phase = 7` row in `parity/gcm.toml` with `status = "done"` is backed by
 conformance under `conformance/phase7/`, unit tests, and/or criterion benches
-mapped in `scripts/gate_phase7.sh`.
+mapped in `scripts/gate_phase7.sh`. Phase 10 rows are gated by
+`scripts/gate_phase10.sh`.

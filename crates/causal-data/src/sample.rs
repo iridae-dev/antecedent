@@ -103,9 +103,7 @@ impl LagMap {
             });
         }
         if lag.raw() > self.max_lag {
-            return Err(DataError::InvalidArgument {
-                message: "lag exceeds max_lag".into(),
-            });
+            return Err(DataError::InvalidArgument { message: "lag exceeds max_lag".into() });
         }
         for (i, slot) in out.iter_mut().enumerate() {
             *slot = self.row_index(lag, i);

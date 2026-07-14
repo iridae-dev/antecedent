@@ -18,8 +18,7 @@ use crate::evidence::{
     cpdag_evidence_from_oriented, cpdag_from_scored_links, threshold_scored_links,
 };
 use crate::orientation::{
-    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule,
-    run_orientation_to_fixed_point,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule, run_orientation_to_fixed_point,
 };
 use crate::pipeline::{
     algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,

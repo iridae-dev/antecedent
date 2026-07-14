@@ -54,20 +54,18 @@ fn series(n: usize) -> TimeSeriesData {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     TimeSeriesData::try_new(
         storage,
-        TimeIndex {
-            regularity: SamplingRegularity::Regular { interval_ns: 1 },
-            length: n,
-        },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap()
 }
 
 fn bench_rpcmci(c: &mut Criterion) {
+    // Soft budgets from benches/baselines/phase9_regime_mediation.md (Apple M1 class).
+    const SPARSE_BUDGET: Duration = Duration::from_millis(500);
+    const STRESS_BUDGET: Duration = Duration::from_secs(2);
+
     let plus = PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
-        temporal: TemporalConstraints {
-            max_lag: Lag::from_raw(1),
-            min_lag: Lag::CONTEMPORANEOUS,
-        },
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::CONTEMPORANEOUS },
         alpha: 0.2,
         max_cond_size: 1,
         ..DiscoveryConstraints::default()
@@ -75,18 +73,13 @@ fn bench_rpcmci(c: &mut Criterion) {
     let alg = Rpcmci::new().with_min_regime_len(30).with_pcmci_plus(plus);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
 
-    // Soft budgets from benches/baselines/phase9_regime_mediation.md (Apple M1 class).
-    const SPARSE_BUDGET: Duration = Duration::from_millis(500);
-    const STRESS_BUDGET: Duration = Duration::from_secs(2);
-
     c.bench_function("rpcmci_sparse_120", |b| {
         let data = series(120);
         let assign = two_regime_half_split(120);
         b.iter(|| {
             let mut ws = DiscoveryWorkspace::default();
-            let r = alg
-                .run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(1))
-                .unwrap();
+            let r =
+                alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(1)).unwrap();
             black_box(r.graphs.len());
         });
     });
@@ -96,9 +89,8 @@ fn bench_rpcmci(c: &mut Criterion) {
         let assign = two_regime_half_split(240);
         b.iter(|| {
             let mut ws = DiscoveryWorkspace::default();
-            let r = alg
-                .run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2))
-                .unwrap();
+            let r =
+                alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2)).unwrap();
             black_box(r.graphs.len());
         });
     });
@@ -109,9 +101,7 @@ fn bench_rpcmci(c: &mut Criterion) {
         let assign = two_regime_half_split(120);
         let mut ws = DiscoveryWorkspace::default();
         let t0 = Instant::now();
-        let r = alg
-            .run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(1))
-            .unwrap();
+        let r = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(1)).unwrap();
         let elapsed = t0.elapsed();
         assert_eq!(r.graphs.len(), 2);
         assert!(
@@ -124,9 +114,7 @@ fn bench_rpcmci(c: &mut Criterion) {
         let assign = two_regime_half_split(240);
         let mut ws = DiscoveryWorkspace::default();
         let t0 = Instant::now();
-        let r = alg
-            .run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2))
-            .unwrap();
+        let r = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2)).unwrap();
         let elapsed = t0.elapsed();
         assert_eq!(r.graphs.len(), 2);
         assert!(

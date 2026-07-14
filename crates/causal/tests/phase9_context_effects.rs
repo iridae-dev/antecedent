@@ -18,16 +18,14 @@ use causal_core::{
 };
 use causal_data::{
     Float64Column, LaggedColumn, MultiEnvironmentData, OwnedColumn, OwnedColumnarStorage,
-    SamplingRegularity, TabularData, TableView, TimeIndex, TimeSeriesData, ValidityBitmap,
+    SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData, ValidityBitmap,
 };
 use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, PcmciPlus, TemporalConstraints};
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../conformance/phase9")
-        .join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/phase9").join(name)
 }
 
 fn load_expected(name: &str) -> JsonValue {
@@ -68,10 +66,7 @@ fn toy_env(n: usize, seed: f64) -> TimeSeriesData {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     TimeSeriesData::try_new(
         storage,
-        TimeIndex {
-            regularity: SamplingRegularity::Regular { interval_ns: 1 },
-            length: n,
-        },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap()
 }
@@ -84,29 +79,16 @@ fn jpcmci_plus_two_env_pin() {
     assert!(multi.env_count() >= expected["min_envs"].as_u64().unwrap() as usize);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
     let alg = JpcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
-        temporal: TemporalConstraints {
-            max_lag: Lag::from_raw(1),
-            min_lag: Lag::CONTEMPORANEOUS,
-        },
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::CONTEMPORANEOUS },
         alpha: 0.25,
         max_cond_size: 2,
         ..DiscoveryConstraints::default()
     });
     let mut ws = DiscoveryWorkspace::default();
-    let result = alg
-        .run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(1))
-        .unwrap();
-    assert_eq!(
-        result.algorithm.id.as_ref(),
-        expected["algorithm_id"].as_str().unwrap()
-    );
+    let result = alg.run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(1)).unwrap();
+    assert_eq!(result.algorithm.id.as_ref(), expected["algorithm_id"].as_str().unwrap());
     assert!(result.evidence.graph.node_count() >= expected["min_nodes"].as_u64().unwrap() as usize);
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "jpcmci_plus.multi_env_plan")
-    );
+    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "jpcmci_plus.multi_env_plan"));
 }
 
 #[test]
@@ -115,9 +97,8 @@ fn rpcmci_two_regime_pin() {
     let data = toy_env(200, 0.0);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
     let assign = two_regime_half_split(data.row_count());
-    let alg = Rpcmci::new()
-        .with_min_regime_len(40)
-        .with_pcmci_plus(PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
+    let alg = Rpcmci::new().with_min_regime_len(40).with_pcmci_plus(
+        PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
             temporal: TemporalConstraints {
                 max_lag: Lag::from_raw(1),
                 min_lag: Lag::CONTEMPORANEOUS,
@@ -125,19 +106,12 @@ fn rpcmci_two_regime_pin() {
             alpha: 0.25,
             max_cond_size: 2,
             ..DiscoveryConstraints::default()
-        }));
+        }),
+    );
     let mut ws = DiscoveryWorkspace::default();
-    let result = alg
-        .run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2))
-        .unwrap();
-    assert_eq!(
-        result.algorithm.id.as_ref(),
-        expected["algorithm_id"].as_str().unwrap()
-    );
-    assert_eq!(
-        result.graphs.len(),
-        expected["n_regimes"].as_u64().unwrap() as usize
-    );
+    let result = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2)).unwrap();
+    assert_eq!(result.algorithm.id.as_ref(), expected["algorithm_id"].as_str().unwrap());
+    assert_eq!(result.graphs.len(), expected["n_regimes"].as_u64().unwrap() as usize);
 }
 
 #[test]
@@ -184,10 +158,7 @@ fn temporal_mediation_numeric_pin() {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TimeSeriesData::try_new(
         storage,
-        TimeIndex {
-            regularity: SamplingRegularity::Regular { interval_ns: 1 },
-            length: n,
-        },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap();
     let q = MediationQuery::binary(
@@ -208,9 +179,7 @@ fn temporal_mediation_numeric_pin() {
         .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(3))
         .unwrap();
     assert!(est.mediated.unwrap() > mediated_min);
-    assert!(
-        (est.total.unwrap() - est.direct.unwrap() - est.mediated.unwrap()).abs() < decomp_tol
-    );
+    assert!((est.total.unwrap() - est.direct.unwrap() - est.mediated.unwrap()).abs() < decomp_tol);
 }
 
 #[test]
@@ -307,19 +276,13 @@ fn prediction_smoke_pin() {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TimeSeriesData::try_new(
         storage,
-        TimeIndex {
-            regularity: SamplingRegularity::Regular { interval_ns: 1 },
-            length: n,
-        },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap();
     let pred = TemporalLinearPredictor::fit(
         &data,
         VariableId::from_raw(1),
-        [LaggedColumn {
-            variable: VariableId::from_raw(0),
-            lag: Lag::from_raw(1),
-        }],
+        [LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::from_raw(1) }],
     )
     .unwrap();
     let yhat = pred.predict_intervened(&data, VariableId::from_raw(0), 1.0).unwrap();

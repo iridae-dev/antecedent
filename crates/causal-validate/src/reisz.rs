@@ -142,18 +142,13 @@ impl ReiszSensitivity {
     ) -> Result<(Vec<f64>, Vec<f64>, f64), ValidationError> {
         let mut ids = vec![problem.treatment(), problem.outcome()];
         ids.extend_from_slice(&problem.estimand.adjustment_set);
-        let mask = problem
-            .data
-            .complete_case_mask(&ids)
-            .map_err(ValidationError::from)?;
+        let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
         let t = problem
             .data
             .float64_masked(problem.treatment(), &mask)
             .map_err(ValidationError::from)?;
-        let y = problem
-            .data
-            .float64_masked(problem.outcome(), &mask)
-            .map_err(ValidationError::from)?;
+        let y =
+            problem.data.float64_masked(problem.outcome(), &mask).map_err(ValidationError::from)?;
         let nrows = t.len();
         for &ti in &t {
             if !(ti == 0.0 || ti == 1.0) {
@@ -168,10 +163,7 @@ impl ReiszSensitivity {
             *r = 1.0;
         }
         for (i, &z) in problem.estimand.adjustment_set.iter().enumerate() {
-            let col = problem
-                .data
-                .float64_masked(z, &mask)
-                .map_err(ValidationError::from)?;
+            let col = problem.data.float64_masked(z, &mask).map_err(ValidationError::from)?;
             let base = (1 + i) * nrows;
             design[base..base + nrows].copy_from_slice(&col);
         }

@@ -19,10 +19,7 @@ pub fn resolve_rows(
     resolve_rows_n(data.row_count(), selector)
 }
 
-fn resolve_rows_n(
-    n: usize,
-    selector: &PopulationSelector,
-) -> Result<Vec<usize>, AttributionError> {
+fn resolve_rows_n(n: usize, selector: &PopulationSelector) -> Result<Vec<usize>, AttributionError> {
     match selector {
         PopulationSelector::All => Ok((0..n).collect()),
         PopulationSelector::Rows(rows) => {
@@ -46,9 +43,9 @@ fn resolve_rows_n(
         PopulationSelector::Environment { env_index } => Err(AttributionError::Message(format!(
             "environment selector (env_index={env_index}) requires MultiEnvironmentData"
         ))),
-        other => Err(AttributionError::Message(format!(
-            "unsupported population selector: {other:?}"
-        ))),
+        other => {
+            Err(AttributionError::Message(format!("unsupported population selector: {other:?}")))
+        }
     }
 }
 
@@ -90,10 +87,10 @@ pub fn resolve_multi_env_rows(
 /// # Errors
 ///
 /// Out of range.
-pub fn multi_env_series<'a>(
-    data: &'a MultiEnvironmentData,
+pub fn multi_env_series(
+    data: &MultiEnvironmentData,
     env_index: usize,
-) -> Result<&'a TimeSeriesData, AttributionError> {
+) -> Result<&TimeSeriesData, AttributionError> {
     Ok(data.environment(env_index)?)
 }
 
@@ -102,10 +99,7 @@ pub fn multi_env_series<'a>(
 /// # Errors
 ///
 /// Data access failures.
-pub fn subset_table(
-    data: &TabularData,
-    rows: &[usize],
-) -> Result<TabularData, AttributionError> {
+pub fn subset_table(data: &TabularData, rows: &[usize]) -> Result<TabularData, AttributionError> {
     use std::sync::Arc;
 
     use causal_data::column::{Float64Column, ValidityBitmap};

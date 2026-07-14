@@ -5,6 +5,7 @@
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
+    clippy::many_single_char_names,
     clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
@@ -15,9 +16,10 @@ use causal_core::{CausalRng, ExecutionContext, Intervention, VariableId};
 use causal_data::{TableView, TabularData};
 use causal_kernels::standard_normal;
 
-use crate::batch::MechanismWorkspace;
-use crate::compile::CompiledCausalModel;
+use crate::batch::{MechanismWorkspace, ParentBatch};
+use crate::compile::{CompiledCausalModel, MechanismSlot};
 use crate::error::ModelError;
+use crate::mechanism::log_prob_column;
 use crate::sample::sample_interventional;
 
 /// Result of a do-sampler run.
@@ -65,15 +67,15 @@ impl WeightingDoSampler {
         treatment_value: f64,
         _ctx: &ExecutionContext,
     ) -> Result<DoSampleResult, ModelError> {
-        let t_dense = model.dense_of(self.treatment).ok_or_else(|| ModelError::Shape {
-            message: "treatment not in model".into(),
-        })?;
+        let t_dense = model
+            .dense_of(self.treatment)
+            .ok_or_else(|| ModelError::Shape { message: "treatment not in model".into() })?;
         let y = data.float64_values(self.outcome).map_err(ModelError::from)?;
         let t = data.float64_values(self.treatment).map_err(ModelError::from)?;
         let n = y.len();
-        let gather = model.gather_for(t_dense).ok_or_else(|| ModelError::Shape {
-            message: "missing gather for treatment".into(),
-        })?;
+        let gather = model
+            .gather_for(t_dense)
+            .ok_or_else(|| ModelError::Shape { message: "missing gather for treatment".into() })?;
 
         let mut weights = vec![0.0; n];
         let mut values = Vec::with_capacity(n);
@@ -106,10 +108,6 @@ impl WeightingDoSampler {
         }
 
         // Confounded: IPW using Gaussian propensity from fitted treatment mechanism.
-        use crate::compile::MechanismSlot;
-        use crate::mechanism::log_prob_column;
-        use crate::batch::ParentBatch;
-
         let slot = model.mechanisms.get(t_dense);
         let mut parent_cols = Vec::new();
         for &p in gather.parents.iter() {
@@ -152,10 +150,12 @@ impl WeightingDoSampler {
         }
         let _ = t_do;
         let wsum: f64 = weights.iter().sum();
-        if !(wsum > 0.0) {
-            return Err(ModelError::Numerical { message: "weighting sampler: zero weight mass".into() });
+        if wsum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+            return Err(ModelError::Numerical {
+                message: "weighting sampler: zero weight mass".into(),
+            });
         }
-        for w in weights.iter_mut() {
+        for w in &mut weights {
             *w /= wsum;
         }
         notes.push(Arc::from("IPW / kernel-stabilized weighting"));
@@ -178,7 +178,7 @@ impl WeightingDoSampler {
             return result.values.iter().sum::<f64>() / result.values.len() as f64;
         }
         let wsum: f64 = result.weights.iter().sum();
-        if !(wsum > 0.0) {
+        if wsum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return f64::NAN;
         }
         result.values.iter().zip(result.weights.iter()).map(|(v, w)| v * w).sum::<f64>() / wsum
@@ -216,9 +216,9 @@ impl KdeDoSampler {
         ctx: &ExecutionContext,
     ) -> Result<DoSampleResult, ModelError> {
         let batch = sample_interventional(model, interventions, n_draws, rng, ws, ctx)?;
-        let dense = model.dense_of(self.outcome).ok_or_else(|| ModelError::Shape {
-            message: "outcome not in model".into(),
-        })?;
+        let dense = model
+            .dense_of(self.outcome)
+            .ok_or_else(|| ModelError::Shape { message: "outcome not in model".into() })?;
         let col = batch.column(dense.as_usize())?;
         let bw = self.bandwidth.unwrap_or_else(|| silverman_bandwidth(col));
         Ok(DoSampleResult {
@@ -276,12 +276,7 @@ pub struct McmcDoSampler {
 
 impl Default for McmcDoSampler {
     fn default() -> Self {
-        Self {
-            outcome: VariableId::from_raw(0),
-            proposal_sd: 0.5,
-            burn_in: 100,
-            thin: 2,
-        }
+        Self { outcome: VariableId::from_raw(0), proposal_sd: 0.5, burn_in: 100, thin: 2 }
     }
 }
 
@@ -313,9 +308,9 @@ impl McmcDoSampler {
         ctx: &ExecutionContext,
     ) -> Result<DoSampleResult, ModelError> {
         let pilot = sample_interventional(model, interventions, n_samples.max(64), rng, ws, ctx)?;
-        let dense = model.dense_of(self.outcome).ok_or_else(|| ModelError::Shape {
-            message: "outcome not in model".into(),
-        })?;
+        let dense = model
+            .dense_of(self.outcome)
+            .ok_or_else(|| ModelError::Shape { message: "outcome not in model".into() })?;
         let pilot_col = pilot.column(dense.as_usize())?;
         let kde = DoSampleResult {
             values: Arc::from(pilot_col.to_vec()),
@@ -378,9 +373,9 @@ pub fn interventional_mean(
     ctx: &ExecutionContext,
 ) -> Result<f64, ModelError> {
     let batch = sample_interventional(model, interventions, n_draws, rng, ws, ctx)?;
-    let dense = model.dense_of(outcome).ok_or_else(|| ModelError::Shape {
-        message: "outcome not in model".into(),
-    })?;
+    let dense = model
+        .dense_of(outcome)
+        .ok_or_else(|| ModelError::Shape { message: "outcome not in model".into() })?;
     let col = batch.column(dense.as_usize())?;
     Ok(col.iter().sum::<f64>() / col.len().max(1) as f64)
 }
@@ -434,7 +429,8 @@ mod tests {
                 Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity).unwrap(),
             ),
         ];
-        let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
         let mut g = Dag::with_variables(2);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let compiled = CompiledCausalModel::compile(g).unwrap();

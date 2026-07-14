@@ -16,10 +16,7 @@ fn circle_chain(n: usize) -> TemporalPag {
     let mut g = TemporalPag::empty();
     let mut nodes = Vec::with_capacity(n);
     for i in 0..n {
-        nodes.push(
-            g.add_lagged(VariableId::from_raw(i as u32), Lag::CONTEMPORANEOUS)
-                .unwrap(),
-        );
+        nodes.push(g.add_lagged(VariableId::from_raw(i as u32), Lag::CONTEMPORANEOUS).unwrap());
     }
     if n >= 2 {
         g.insert_directed(nodes[0], nodes[1]).unwrap();
@@ -31,11 +28,8 @@ fn circle_chain(n: usize) -> TemporalPag {
 }
 
 fn bench_pag_orient(c: &mut Criterion) {
-    let rules: [&dyn LpcmciOrientationRule; 3] = [
-        &LpcmciOrientCollider,
-        &LpcmciR1,
-        &LpcmciDiscriminatingPathRule,
-    ];
+    let rules: [&dyn LpcmciOrientationRule; 3] =
+        [&LpcmciOrientCollider, &LpcmciR1, &LpcmciDiscriminatingPathRule];
 
     c.bench_function("pag_orient_sparse_40", |b| {
         b.iter(|| {

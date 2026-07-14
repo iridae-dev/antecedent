@@ -11,8 +11,8 @@ use causal_stats::benjamini_hochberg;
 
 use crate::error::DiscoveryError;
 use crate::result::{
-    CpdagGraphEvidence, DagGraphEvidence, EdgeEvidence, EvidenceSource, PagGraphEvidence, PcSepsets,
-    ScoredLink,
+    CpdagGraphEvidence, DagGraphEvidence, EdgeEvidence, EvidenceSource, PagGraphEvidence,
+    PcSepsets, ScoredLink,
 };
 
 /// Optionally FDR-adjust then retain links whose (adjusted) p-value is below `alpha`.
@@ -120,9 +120,7 @@ pub fn cpdag_from_scored_links(
     let mut node_ids = HashMap::<(u32, u32), DenseNodeId>::new();
     for &v in variables {
         for lag in 0..=max_lag {
-            let id = cpdag
-                .add_lagged(v, Lag::from_raw(lag))
-                .map_err(DiscoveryError::from)?;
+            let id = cpdag.add_lagged(v, Lag::from_raw(lag)).map_err(DiscoveryError::from)?;
             node_ids.insert((v.raw(), lag), id);
         }
     }
@@ -162,9 +160,7 @@ pub fn pag_from_scored_links(
     let mut node_ids = HashMap::<(u32, u32), DenseNodeId>::new();
     for &v in variables {
         for lag in 0..=max_lag {
-            let id = pag
-                .add_lagged(v, Lag::from_raw(lag))
-                .map_err(DiscoveryError::from)?;
+            let id = pag.add_lagged(v, Lag::from_raw(lag)).map_err(DiscoveryError::from)?;
             node_ids.insert((v.raw(), lag), id);
         }
     }
@@ -208,8 +204,6 @@ pub fn pag_evidence_from_oriented(
         graph,
         edge_evidence,
         links: Arc::from(links),
-        source: EvidenceSource::Discovery {
-            algorithm: Arc::from("lpcmci"),
-        },
+        source: EvidenceSource::Discovery { algorithm: Arc::from("lpcmci") },
     }
 }

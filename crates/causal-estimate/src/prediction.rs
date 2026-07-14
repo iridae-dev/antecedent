@@ -1,11 +1,16 @@
 //! Temporal linear model prediction under interventions (Phase 9).
 //!
-//! Fit a lagged linear SEM once, then batch-predict under do() without
+//! Fit a lagged linear SEM once, then batch-predict under `do()` without
 //! Python-per-horizon crossings.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::needless_range_loop,
+    clippy::similar_names
+)]
 
 use std::sync::Arc;
 
@@ -40,7 +45,7 @@ impl TemporalLinearPredictor {
         parents: impl Into<Arc<[LaggedColumn]>>,
     ) -> Result<Self, EstimationError> {
         let parents = parents.into();
-        let max_lag = parents.iter().map(|p| p.lag.raw()).max().unwrap_or(0).max(0);
+        let max_lag = parents.iter().map(|p| p.lag.raw()).max().unwrap_or(0);
         let mut cols = Vec::with_capacity(1 + parents.len());
         cols.push(LaggedColumn { variable: target, lag: Lag::CONTEMPORANEOUS });
         cols.extend_from_slice(&parents);
@@ -53,8 +58,8 @@ impl TemporalLinearPredictor {
         let y = prep.column(0);
         let ncols = 1 + parents.len();
         let mut design = vec![0.0; n * ncols];
-        for i in 0..n {
-            design[i] = 1.0;
+        for design_cell in design.iter_mut().take(n) {
+            *design_cell = 1.0;
         }
         for (p, _) in parents.iter().enumerate() {
             let col = prep.column(1 + p);
@@ -69,9 +74,8 @@ impl TemporalLinearPredictor {
             let col = &design[c * n..(c + 1) * n];
             xty[c] = col.iter().zip(y.iter()).map(|(a, b)| a * b).sum();
         }
-        let inv = invert_square(&xtx, ncols).ok_or_else(|| {
-            EstimationError::stats_msg("singular design in temporal predictor")
-        })?;
+        let inv = invert_square(&xtx, ncols)
+            .ok_or_else(|| EstimationError::stats_msg("singular design in temporal predictor"))?;
         let mut coef = vec![0.0; ncols];
         for i in 0..ncols {
             let mut s = 0.0;
@@ -81,12 +85,7 @@ impl TemporalLinearPredictor {
             coef[i] = s;
         }
         let _ = FaerBackend;
-        Ok(Self {
-            target,
-            parents,
-            coefficients: Arc::from(coef),
-            max_lag,
-        })
+        Ok(Self { target, parents, coefficients: Arc::from(coef), max_lag })
     }
 
     /// Batch-predict under a hard intervention on one parent variable (all horizons).
@@ -116,11 +115,8 @@ impl TemporalLinearPredictor {
         for i in 0..n {
             let mut yhat = self.coefficients[0];
             for (p, parent) in self.parents.iter().enumerate() {
-                let x = if parent.variable == intervene_var {
-                    level
-                } else {
-                    prep.column(1 + p)[i]
-                };
+                let x =
+                    if parent.variable == intervene_var { level } else { prep.column(1 + p)[i] };
                 yhat += self.coefficients[1 + p] * x;
             }
             out[i] = yhat;
@@ -165,12 +161,20 @@ mod tests {
         }
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(x), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();

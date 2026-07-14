@@ -38,8 +38,8 @@ use causal_stats::{
 };
 
 use crate::adjustment::EffectEstimate;
-use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::error::EstimationError;
+use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
     gather, prepare_propensity_problem, split_by_treatment, trim_of, trim_retained_rows,
@@ -330,7 +330,9 @@ fn fit_outcome_models(
 ) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
     let (treated_idx, control_idx) = split_by_treatment(treatment);
     if treated_idx.is_empty() || control_idx.is_empty() {
-        return Err(EstimationError::data_msg("AIPW outcome regression requires both treated and control rows"));
+        return Err(EstimationError::data_msg(
+            "AIPW outcome regression requires both treated and control rows",
+        ));
     }
 
     select_rows_colmajor(design_matrix, nrows, ncols, &control_idx, &mut workspace.control_design);

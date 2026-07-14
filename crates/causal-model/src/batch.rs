@@ -23,11 +23,7 @@ impl ValueBatch {
     /// Allocate zeros.
     #[must_use]
     pub fn zeros(n_rows: usize, n_nodes: usize) -> Self {
-        Self {
-            n_rows,
-            n_nodes,
-            values: Arc::from(vec![0.0; n_rows.saturating_mul(n_nodes)]),
-        }
+        Self { n_rows, n_nodes, values: Arc::from(vec![0.0; n_rows.saturating_mul(n_nodes)]) }
     }
 
     /// Borrow a column.
@@ -132,11 +128,7 @@ impl NoiseBatch {
     /// Zeros.
     #[must_use]
     pub fn zeros(n_rows: usize, n_nodes: usize) -> Self {
-        Self {
-            n_rows,
-            n_nodes,
-            values: Arc::from(vec![0.0; n_rows.saturating_mul(n_nodes)]),
-        }
+        Self { n_rows, n_nodes, values: Arc::from(vec![0.0; n_rows.saturating_mul(n_nodes)]) }
     }
 
     /// Column.

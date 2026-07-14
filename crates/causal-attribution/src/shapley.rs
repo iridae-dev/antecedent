@@ -6,9 +6,7 @@ use causal_core::{CausalRng, ComponentId, ExecutionContext, ShapleyConfig, Shapl
 
 use crate::coalition::{CoalitionCache, CoalitionKey};
 use crate::error::AttributionError;
-use crate::result::{
-    CacheStats, ComponentContribution, ComputeBudget, InteractionTerm,
-};
+use crate::result::{CacheStats, ComponentContribution, ComputeBudget, InteractionTerm};
 
 /// Payoff function `v(S)` for a coalition bitmask (`bit i` ⇒ player `i` present).
 pub trait CoalitionPayoff {
@@ -25,7 +23,7 @@ pub trait CoalitionPayoff {
 pub struct ShapleyEstimate {
     /// Ordered player ids.
     pub players: Vec<ComponentId>,
-    /// Shapley values φ_i.
+    /// Shapley values `φ_i`.
     pub values: Vec<f64>,
     /// Optional pairwise interactions from sequential residuals (empty for pure Shapley).
     pub interactions: Vec<InteractionTerm>,
@@ -116,9 +114,9 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
     let mut budget = ComputeBudget::default();
 
     let eval = |mask: u64,
-                    payoff: &mut P,
-                    cache: &mut CoalitionCache,
-                    budget: &mut ComputeBudget|
+                payoff: &mut P,
+                cache: &mut CoalitionCache,
+                budget: &mut ComputeBudget|
      -> Result<f64, AttributionError> {
         let key = CoalitionKey { mask, tag: 0 };
         if let Some(v) = cache.get(key) {
@@ -199,14 +197,10 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
         }
         ShapleyMode::Permutation { n_permutations } => {
             let mut cfg = *config;
-            cfg.mode = ShapleyMode::MonteCarlo {
-                n_samples: n_permutations,
-            };
+            cfg.mode = ShapleyMode::MonteCarlo { n_samples: n_permutations };
             estimate_shapley(players, &cfg, payoff, ctx)
         }
-        _ => Err(AttributionError::Message(
-            "unsupported ShapleyMode variant".into(),
-        )),
+        _ => Err(AttributionError::Message("unsupported ShapleyMode variant".into())),
     }
 }
 
@@ -361,9 +355,7 @@ mod tests {
     #[test]
     fn monte_carlo_reports_stderr() {
         let players: Vec<_> = (0..4).map(ComponentId::from_raw).collect();
-        let mut payoff = AdditivePayoff {
-            weights: vec![1.0, 1.0, 1.0, 1.0],
-        };
+        let mut payoff = AdditivePayoff { weights: vec![1.0, 1.0, 1.0, 1.0] };
         let cfg = ShapleyConfig::monte_carlo(200).with_seed(7);
         let mut ctx = ExecutionContext::for_tests(1);
         ctx.cache_policy = CachePolicy::enabled(None);

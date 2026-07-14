@@ -152,10 +152,7 @@ impl FrontDoorIdentifier {
                 query,
                 derivation,
                 assumptions,
-                IdentificationPerformanceRecord {
-                    candidates_examined: examined,
-                    sets_returned: 0,
-                },
+                IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
             ));
         }
 
@@ -218,9 +215,7 @@ fn is_frontdoor_set(
     // outgoing edges removed, T must be d-separated from every m given ∅.
     let t_mutilated = remove_outgoing(dag, t)?;
     for &mi in m {
-        let sep = t_mutilated
-            .is_d_separated(t, mi, &[], ws)
-            .map_err(IdentificationError::from)?;
+        let sep = t_mutilated.is_d_separated(t, mi, &[], ws).map_err(IdentificationError::from)?;
         if !sep {
             return Ok(false);
         }
@@ -230,9 +225,7 @@ fn is_frontdoor_set(
     // m's outgoing edges removed, each m must be d-separated from Y given {T}.
     let m_mutilated = remove_outgoing_set(dag, m)?;
     for &mi in m {
-        let sep = m_mutilated
-            .is_d_separated(mi, y, &[t], ws)
-            .map_err(IdentificationError::from)?;
+        let sep = m_mutilated.is_d_separated(mi, y, &[t], ws).map_err(IdentificationError::from)?;
         if !sep {
             return Ok(false);
         }
@@ -244,8 +237,8 @@ fn is_frontdoor_set(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use causal_core::AverageEffectQuery;
     use crate::result::IdentificationStatus;
+    use causal_core::AverageEffectQuery;
 
     #[test]
     fn classic_frontdoor_with_unmeasured_confounder() {

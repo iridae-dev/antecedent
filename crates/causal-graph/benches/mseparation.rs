@@ -10,8 +10,7 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 fn sparse_admg(n: u32) -> Admg {
     let mut g = Admg::with_variables(n);
     for i in 0..n.saturating_sub(1) {
-        g.insert_directed(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1))
-            .unwrap();
+        g.insert_directed(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
     }
     for i in (0..n.saturating_sub(2)).step_by(4) {
         let _ = g.insert_bidirected(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 2));
@@ -35,8 +34,7 @@ fn stress_admg(n: u32) -> Admg {
 fn sparse_pag(n: u32) -> Pag {
     let mut g = Pag::with_variables(n);
     for i in 0..n.saturating_sub(1) {
-        g.insert_directed(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1))
-            .unwrap();
+        g.insert_directed(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
     }
     g
 }

@@ -60,9 +60,7 @@ impl Pag {
     /// Non-static or capacity.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         if !matches!(node, NodeRef::Static(_)) {
-            return Err(GraphError::InvalidEndpoints {
-                message: "Pag accepts only Static nodes",
-            });
+            return Err(GraphError::InvalidEndpoints { message: "Pag accepts only Static nodes" });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
@@ -98,22 +96,14 @@ impl Pag {
         self.validate_node(edge.a)?;
         self.validate_node(edge.b)?;
         if edge.a == edge.b {
-            return Err(GraphError::InvalidEndpoints {
-                message: "Pag rejects self-loops",
-            });
+            return Err(GraphError::InvalidEndpoints { message: "Pag rejects self-loops" });
         }
         if self.has_edge(edge.a, edge.b) {
-            return Err(GraphError::DuplicateEdge {
-                from: edge.a.raw(),
-                to: edge.b.raw(),
-            });
+            return Err(GraphError::DuplicateEdge { from: edge.a.raw(), to: edge.b.raw() });
         }
         if let Some((from, to)) = edge.parent_child() {
             if self.reaches_directed(to, from) {
-                return Err(GraphError::Cycle {
-                    from: from.raw(),
-                    to: to.raw(),
-                });
+                return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
             }
         }
         marked_storage::push_marked_pair(&mut self.adj, edge);
@@ -162,12 +152,7 @@ impl Pag {
         b: DenseNodeId,
     ) -> Result<(), GraphError> {
         let (a, b) = if a.raw() <= b.raw() { (a, b) } else { (b, a) };
-        self.insert_marked(MarkedEdge {
-            a,
-            b,
-            at_a: Endpoint::Circle,
-            at_b: Endpoint::Circle,
-        })
+        self.insert_marked(MarkedEdge { a, b, at_a: Endpoint::Circle, at_b: Endpoint::Circle })
     }
 
     /// Bidirected `a ↔ b`.
@@ -192,11 +177,11 @@ impl Pag {
     }
 
     /// Neighbors with marks.
-    #[must_use]
-    pub fn neighbors(&self, id: DenseNodeId) -> impl Iterator<Item = (DenseNodeId, Endpoint, Endpoint)> + '_ {
-        self.adj[id.as_usize()]
-            .iter()
-            .map(|e| (e.neighbor, e.at_self, e.at_neighbor))
+    pub fn neighbors(
+        &self,
+        id: DenseNodeId,
+    ) -> impl Iterator<Item = (DenseNodeId, Endpoint, Endpoint)> + '_ {
+        self.adj[id.as_usize()].iter().map(|e| (e.neighbor, e.at_self, e.at_neighbor))
     }
 
     /// Set marks on an existing edge (from `a`'s perspective).
@@ -224,10 +209,7 @@ impl Pag {
             // Re-insert with new marks either way.
             marked_storage::push_marked_pair(&mut self.adj, edge);
             if cycle {
-                return Err(GraphError::Cycle {
-                    from: from.raw(),
-                    to: to.raw(),
-                });
+                return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
             }
             return Ok(());
         }
@@ -241,7 +223,6 @@ impl Pag {
     }
 
     /// Borrowed directed-child iterator (reachability hot path).
-    #[must_use]
     pub fn directed_children_iter(
         &self,
         id: DenseNodeId,
@@ -343,8 +324,8 @@ impl Pag {
             };
             let mark_from_pred = if e1.a == v { e1.at_a } else { e1.at_b };
             let mark_from_succ = if e2.a == v { e2.at_a } else { e2.at_b };
-            let definite_collider =
-                matches!(mark_from_pred, Endpoint::Arrow) && matches!(mark_from_succ, Endpoint::Arrow);
+            let definite_collider = matches!(mark_from_pred, Endpoint::Arrow)
+                && matches!(mark_from_succ, Endpoint::Arrow);
             let definite_noncollider = matches!(mark_from_pred, Endpoint::Tail)
                 || matches!(mark_from_succ, Endpoint::Tail);
             if !(definite_collider || definite_noncollider) {
@@ -391,8 +372,7 @@ mod tests {
     #[test]
     fn accepts_circle_marks() {
         let mut g = Pag::with_variables(2);
-        g.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
+        g.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         assert!(g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
     }
 

@@ -207,6 +207,7 @@ dependencies = [
  "causal-model",
  "causal-prob",
  "causal-stats",
+ "criterion",
  "thiserror 2.0.19",
 ]
 

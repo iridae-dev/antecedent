@@ -39,9 +39,7 @@ pub struct ArrowLoadResult {
 /// Unsupported column types, empty batches, or schema construction failures.
 pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult, DataError> {
     if batch.num_columns() == 0 {
-        return Err(DataError::InvalidArgument {
-            message: "record batch has no columns".into(),
-        });
+        return Err(DataError::InvalidArgument { message: "record batch has no columns".into() });
     }
     let mut builder = CausalSchemaBuilder::new();
     let mut columns = Vec::with_capacity(batch.num_columns());

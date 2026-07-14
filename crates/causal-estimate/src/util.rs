@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::similar_names)]
 
 use causal_core::CausalRng;
 use causal_stats::{StatsError, form_xtx, invert_square};

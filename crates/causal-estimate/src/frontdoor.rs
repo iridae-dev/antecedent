@@ -56,8 +56,8 @@ use causal_stats::{
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
-use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
+use crate::overlap::OverlapPolicy;
 use crate::util::{sample_std, stats_err};
 
 /// Stage-1 design column count: `[1, T]`.
@@ -142,17 +142,10 @@ fn prepare_frontdoor_problem(
     let mediator_id = estimand.mediators[0];
 
     let ids = [treatment, outcome, mediator_id];
-    let row_mask =
-        data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-    let t = data
-        .float64_masked(treatment, &row_mask)
-        .map_err(EstimationError::from)?;
-    let m = data
-        .float64_masked(mediator_id, &row_mask)
-        .map_err(EstimationError::from)?;
-    let y = data
-        .float64_masked(outcome, &row_mask)
-        .map_err(EstimationError::from)?;
+    let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+    let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
+    let m = data.float64_masked(mediator_id, &row_mask).map_err(EstimationError::from)?;
+    let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
     let nrows = t.len();
 
     Ok(PreparedFrontDoorProblem {

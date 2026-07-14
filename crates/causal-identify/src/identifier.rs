@@ -5,9 +5,7 @@
 use causal_core::{AssumptionSet, CausalQuery};
 use causal_graph::Dag;
 
-use crate::backdoor::{
-    BackdoorIdentifier, PreparedIdentificationGraph,
-};
+use crate::backdoor::{BackdoorIdentifier, PreparedIdentificationGraph};
 use crate::efficient::EfficientBackdoorIdentifier;
 use crate::error::IdentificationError;
 use crate::frontdoor::FrontDoorIdentifier;

@@ -35,8 +35,8 @@ pub use execution::{
 };
 pub use ids::{CategoryDomainId, ComponentId, EnvironmentId, Lag, RegimeId, VariableId};
 pub use intervention::{
-    Intervention, InterventionError, InterventionSequence, MechanismOverride, SequencedIntervention,
-    StochasticPolicy, TemporalPolicy,
+    Intervention, InterventionError, InterventionSequence, MechanismOverride,
+    SequencedIntervention, StochasticPolicy, TemporalPolicy,
 };
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,

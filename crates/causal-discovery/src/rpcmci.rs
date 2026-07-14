@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names
+)]
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -68,11 +72,7 @@ impl RegimeAssignment {
     /// Row indexes belonging to `regime`.
     #[must_use]
     pub fn indexes_for(&self, regime: RegimeId) -> Vec<usize> {
-        self.regimes
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &r)| (r == regime).then_some(i))
-            .collect()
+        self.regimes.iter().enumerate().filter_map(|(i, &r)| (r == regime).then_some(i)).collect()
     }
 }
 
@@ -184,7 +184,7 @@ impl Rpcmci {
         let regimes = assignments.unique_regimes();
         if regimes.is_empty() {
             return Err(DiscoveryError::Unsupported {
-                message: "RPCMCI needs ≥1 distinct regime",
+                message: "RPCMCI needs ≥1 distinct regime"
             });
         }
 
@@ -229,10 +229,7 @@ impl Rpcmci {
         };
         diagnostics.push(DiscoveryDiagnostic {
             code: Arc::from("rpcmci.graphs"),
-            message: Arc::from(format!(
-                "produced {} per-regime temporal CPDAGs",
-                graphs.len()
-            )),
+            message: Arc::from(format!("produced {} per-regime temporal CPDAGs", graphs.len())),
         });
 
         Ok(RpcmciDiscoveryResult {
@@ -266,12 +263,11 @@ fn median_split_assignment(
     data: &TimeSeriesData,
     indicator: VariableId,
 ) -> Result<RegimeAssignment, DiscoveryError> {
-    let ColumnView::Float64(col) = data.column(indicator).map_err(|e| {
-        DiscoveryError::data_msg(format!("regime indicator: {e}"))
-    })? else {
-        return Err(DiscoveryError::Unsupported {
-            message: "regime indicator must be float64",
-        });
+    let ColumnView::Float64(col) = data
+        .column(indicator)
+        .map_err(|e| DiscoveryError::data_msg(format!("regime indicator: {e}")))?
+    else {
+        return Err(DiscoveryError::Unsupported { message: "regime indicator must be float64" });
     };
     let mut sorted: Vec<f64> = col.values.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -279,13 +275,7 @@ fn median_split_assignment(
     let regimes: Vec<RegimeId> = col
         .values
         .iter()
-        .map(|&v| {
-            if v <= mid {
-                RegimeId::from_raw(0)
-            } else {
-                RegimeId::from_raw(1)
-            }
-        })
+        .map(|&v| if v <= mid { RegimeId::from_raw(0) } else { RegimeId::from_raw(1) })
         .collect();
     RegimeAssignment::try_new(Arc::from(regimes))
 }
@@ -296,18 +286,17 @@ fn subset_series(data: &TimeSeriesData, idxs: &[usize]) -> Result<TimeSeriesData
     let mut cols = Vec::with_capacity(schema.len());
     for i in 0..schema.len() {
         let id = VariableId::from_raw(i as u32);
-        let ColumnView::Float64(src) = data.column(id).map_err(|e| {
-            DiscoveryError::data_msg(format!("subset column: {e}"))
-        })? else {
+        let ColumnView::Float64(src) =
+            data.column(id).map_err(|e| DiscoveryError::data_msg(format!("subset column: {e}")))?
+        else {
             return Err(DiscoveryError::Unsupported {
                 message: "RPCMCI subset currently supports float64 columns only",
             });
         };
         let values: Vec<f64> = idxs.iter().map(|&r| src.values[r]).collect();
         cols.push(OwnedColumn::Float64(
-            Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(n)).map_err(
-                |e| DiscoveryError::data_msg(format!("subset float column: {e}")),
-            )?,
+            Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(n))
+                .map_err(|e| DiscoveryError::data_msg(format!("subset float column: {e}")))?,
         ));
     }
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None)
@@ -324,13 +313,7 @@ fn subset_series(data: &TimeSeriesData, idxs: &[usize]) -> Result<TimeSeriesData
 pub fn two_regime_half_split(series_len: usize) -> RegimeAssignment {
     let mid = series_len / 2;
     let regimes: Vec<RegimeId> = (0..series_len)
-        .map(|t| {
-            if t < mid {
-                RegimeId::from_raw(0)
-            } else {
-                RegimeId::from_raw(1)
-            }
-        })
+        .map(|t| if t < mid { RegimeId::from_raw(0) } else { RegimeId::from_raw(1) })
         .collect();
     RegimeAssignment { regimes: Arc::from(regimes) }
 }
@@ -420,19 +403,17 @@ mod tests {
     #[test]
     fn rpcmci_returns_one_graph_per_regime() {
         let (data, vars, assign) = two_regime_series(200);
-        let algo = Rpcmci::new()
-            .with_min_regime_len(40)
-            .with_pcmci_plus(PcmciPlus::new().with_fdr(false).with_constraints(
-                DiscoveryConstraints {
-                    temporal: TemporalConstraints {
-                        max_lag: Lag::from_raw(1),
-                        min_lag: causal_core::Lag::CONTEMPORANEOUS,
-                    },
-                    alpha: 0.25,
-                    max_cond_size: 2,
-                    ..DiscoveryConstraints::default()
+        let algo = Rpcmci::new().with_min_regime_len(40).with_pcmci_plus(
+            PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(1),
+                    min_lag: causal_core::Lag::CONTEMPORANEOUS,
                 },
-            ));
+                alpha: 0.25,
+                max_cond_size: 2,
+                ..DiscoveryConstraints::default()
+            }),
+        );
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(3);
         let result = algo.run(&data, &vars, &assign, &mut ws, &ctx).unwrap();

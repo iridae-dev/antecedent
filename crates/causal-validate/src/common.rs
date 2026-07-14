@@ -90,9 +90,7 @@ pub(crate) fn fit_once(
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
-    let prep = estimator
-        .prepare(data, estimand, query)
-        .map_err(ValidationError::from)?;
+    let prep = estimator.prepare(data, estimand, query).map_err(ValidationError::from)?;
     estimator
         .fit(&prep, workspace, ctx, causal_core::AssumptionSet::new())
         .map_err(ValidationError::from)
@@ -227,8 +225,7 @@ pub(crate) fn with_row_subset(
             bytes[i / 8] |= 1 << (i % 8);
         }
     }
-    let mask =
-        ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)?;
+    let mask = ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)?;
     data.with_analysis_mask(mask).map_err(ValidationError::from)
 }
 
@@ -259,8 +256,7 @@ pub(crate) fn with_resampled_rows(
             bytes[i / 8] |= 1 << (i % 8);
         }
     }
-    let mask =
-        ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)?;
+    let mask = ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)?;
     out.with_analysis_mask(mask).map_err(ValidationError::from)
 }
 

@@ -4,7 +4,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::many_single_char_names,
+    clippy::needless_range_loop
+)]
 
 use std::sync::Arc;
 
@@ -13,7 +18,9 @@ use causal_data::{TableView, TabularData};
 use causal_graph::DenseNodeId;
 use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::compile::{CompiledCausalModel, CompiledMechanismStore, MechanismSlot, ParentGatherPlan};
+use crate::compile::{
+    CompiledCausalModel, CompiledMechanismStore, MechanismSlot, ParentGatherPlan,
+};
 use crate::error::ModelError;
 
 /// Candidate mechanism family known to the registry.
@@ -123,7 +130,7 @@ impl MechanismRegistry {
 
             let mut candidates = Vec::new();
             for &family in families {
-                match score_family(family, gather, model, data, &y, &backend, &mut ls_ws) {
+                match score_family(family, gather, model, data, &y, backend, &mut ls_ws) {
                     Ok(c) => candidates.push(c),
                     Err(_) => continue,
                 }
@@ -133,11 +140,12 @@ impl MechanismRegistry {
                     message: format!("no mechanism candidates for variable {var}"),
                 });
             }
-            candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+            candidates
+                .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
             let selected = policy.select(&candidates).ok_or_else(|| ModelError::Unsupported {
                 message: "selection policy produced no family".into(),
             })?;
-            let fitted = fit_family(selected, gather, model, data, &y, &backend, &mut ls_ws)?;
+            let fitted = fit_family(selected, gather, model, data, &y, backend, &mut ls_ws)?;
             slots[node.as_usize()] = fitted.clone();
             assignments.push(MechanismAssignment {
                 node,
@@ -167,17 +175,16 @@ impl SelectionPolicy {
     pub fn select(self, candidates: &[MechanismCandidate]) -> Option<MechanismFamily> {
         match self {
             Self::BestScore => candidates.first().map(|c| c.family),
-            Self::RequireFamily(fam) => candidates.iter().find(|c| c.family == fam).map(|c| c.family),
+            Self::RequireFamily(fam) => {
+                candidates.iter().find(|c| c.family == fam).map(|c| c.family)
+            }
         }
     }
 }
 
 fn is_low_cardinality(y: &[f64], max_levels: usize) -> bool {
-    let mut vals: Vec<i64> = y
-        .iter()
-        .filter(|v| v.is_finite())
-        .map(|v| (v * 1e6).round() as i64)
-        .collect();
+    let mut vals: Vec<i64> =
+        y.iter().filter(|v| v.is_finite()).map(|v| (v * 1e6).round() as i64).collect();
     vals.sort_unstable();
     vals.dedup();
     !vals.is_empty() && vals.len() <= max_levels
@@ -189,7 +196,7 @@ fn score_family(
     model: &CompiledCausalModel,
     data: &TabularData,
     y: &[f64],
-    backend: &FaerBackend,
+    backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismCandidate, ModelError> {
     let fitted = fit_family(family, gather, model, data, y, backend, ls_ws)?;
@@ -222,7 +229,7 @@ fn fit_family(
     model: &CompiledCausalModel,
     data: &TabularData,
     y: &[f64],
-    backend: &FaerBackend,
+    backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
@@ -245,7 +252,9 @@ fn fit_family(
                 }
             }
             if pairs.is_empty() {
-                return Err(ModelError::Shape { message: "no finite values for discrete fit".into() });
+                return Err(ModelError::Shape {
+                    message: "no finite values for discrete fit".into(),
+                });
             }
             let total = pairs.iter().map(|(_, _, c)| *c).sum::<usize>() as f64;
             let support: Vec<f64> = pairs.iter().map(|(_, v, _)| *v).collect();
@@ -267,17 +276,14 @@ fn fit_family(
             }
             for (pi, &parent) in gather.parents.iter().enumerate() {
                 let var = model.output_layout.variables[parent.as_usize()];
-                let col =
-                    data.float64_values(var).map_err(ModelError::from)?;
+                let col = data.float64_values(var).map_err(ModelError::from)?;
                 let base = (1 + pi) * n;
                 x[base..base + n].copy_from_slice(&col[..n]);
             }
             let mut logit_coeffs = vec![0.0; k * ncols];
             for (cat, &sv) in support.iter().enumerate() {
-                let indicators: Vec<f64> = y
-                    .iter()
-                    .map(|&yi| if (yi - sv).abs() < 1e-12 { 1.0 } else { 0.0 })
-                    .collect();
+                let indicators: Vec<f64> =
+                    y.iter().map(|&yi| if (yi - sv).abs() < 1e-12 { 1.0 } else { 0.0 }).collect();
                 let fit = backend
                     .least_squares(&x, n, ncols, &indicators, ls_ws)
                     .map_err(ModelError::from)?;
@@ -299,14 +305,11 @@ fn fit_family(
             }
             for (pi, &parent) in gather.parents.iter().enumerate() {
                 let var = model.output_layout.variables[parent.as_usize()];
-                let col =
-                    data.float64_values(var).map_err(ModelError::from)?;
+                let col = data.float64_values(var).map_err(ModelError::from)?;
                 let base = (1 + pi) * n;
                 x[base..base + n].copy_from_slice(&col[..n]);
             }
-            let fit = backend
-                .least_squares(&x, n, ncols, y, ls_ws)
-                .map_err(ModelError::from)?;
+            let fit = backend.least_squares(&x, n, ncols, y, ls_ws).map_err(ModelError::from)?;
             let intercept = fit.coefficients[0];
             let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
             let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
@@ -367,13 +370,13 @@ impl ModelCollection {
         let graph_keys = graph_keys.into();
         let weights = weights.into();
         if models.len() != graph_keys.len() || models.len() != weights.len() {
-            return Err(ModelError::Shape {
-                message: "ModelCollection length mismatch".into(),
-            });
+            return Err(ModelError::Shape { message: "ModelCollection length mismatch".into() });
         }
         let sum: f64 = weights.iter().sum();
-        if !(sum > 0.0) {
-            return Err(ModelError::Shape { message: "ModelCollection weights non-positive".into() });
+        if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+            return Err(ModelError::Shape {
+                message: "ModelCollection weights non-positive".into(),
+            });
         }
         let weights: Arc<[f64]> = Arc::from(weights.iter().map(|w| w / sum).collect::<Vec<_>>());
         Ok(Self { models, graph_keys, weights })
@@ -454,6 +457,9 @@ mod tests {
         let (store, assigns) =
             reg.assign_and_fit(&compiled, &data, SelectionPolicy::BestScore).unwrap();
         assert_eq!(assigns.len(), 2);
-        assert!(matches!(store.get(DenseNodeId::from_raw(1)), MechanismSlot::LinearGaussian { .. }));
+        assert!(matches!(
+            store.get(DenseNodeId::from_raw(1)),
+            MechanismSlot::LinearGaussian { .. }
+        ));
     }
 }

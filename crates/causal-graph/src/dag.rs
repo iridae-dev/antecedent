@@ -221,6 +221,55 @@ impl Dag {
             kids.iter().map(move |&to| MarkedEdge::directed(from, to))
         })
     }
+
+    /// Enumerate simple directed paths from `from` to `to` (inclusive endpoints).
+    ///
+    /// Bounded by `max_paths` and `max_len` (number of nodes on the path).
+    ///
+    /// # Errors
+    ///
+    /// Unknown nodes.
+    pub fn directed_paths(
+        &self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+        max_paths: usize,
+        max_len: usize,
+    ) -> Result<Vec<Vec<DenseNodeId>>, GraphError> {
+        self.validate_node(from)?;
+        self.validate_node(to)?;
+        let mut out = Vec::new();
+        if max_paths == 0 || max_len == 0 {
+            return Ok(out);
+        }
+        let mut stack = vec![vec![from]];
+        while let Some(path) = stack.pop() {
+            if out.len() >= max_paths {
+                break;
+            }
+            let last = *path.last().expect("nonempty");
+            if path.len() > 1 && last == to {
+                out.push(path);
+                continue;
+            }
+            if last == to && path.len() == 1 {
+                out.push(path);
+                continue;
+            }
+            if path.len() >= max_len {
+                continue;
+            }
+            for &c in self.children(last) {
+                if path.contains(&c) {
+                    continue;
+                }
+                let mut next = path.clone();
+                next.push(c);
+                stack.push(next);
+            }
+        }
+        Ok(out)
+    }
 }
 
 #[cfg(test)]

@@ -2,10 +2,9 @@
 
 Intentional deferrals from DESIGN.md §32 (Phase 9).
 
-## 1. Mechanism-change / Shapley attribution across regimes → Phase 10
+## 1. Mechanism-change / Shapley attribution across regimes → Phase 10 — RESOLVED
 
-RPCMCI ships typed regime assignments and per-regime graphs. Cross-regime
-mechanism-change and Shapley-style attribution remain Phase 10.
+Completed in Phase 10. See `parity/phase10.toml` and ADR 0015.
 
 ## 2. Experiment design / CausalState → Phase 11
 

@@ -102,8 +102,7 @@ impl TemporalLinearAdjustment {
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
         let mut sample_ws = SampleWorkspace::default();
-        let prep =
-            plan.prepare(data, &mut sample_ws).map_err(EstimationError::from)?;
+        let prep = plan.prepare(data, &mut sample_ws).map_err(EstimationError::from)?;
 
         let n = prep.n;
         let (row_start, row_end) = if let Some(s) = split {
@@ -111,7 +110,9 @@ impl TemporalLinearAdjustment {
             let est_start = s.estimation.start.saturating_sub(max_lag as usize);
             let est_end = s.estimation.end.saturating_sub(max_lag as usize).min(n);
             if est_start >= est_end {
-                return Err(EstimationError::data_msg("estimation split empty after lag alignment"));
+                return Err(EstimationError::data_msg(
+                    "estimation split empty after lag alignment",
+                ));
             }
             (est_start, est_end)
         } else {

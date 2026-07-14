@@ -100,8 +100,8 @@ impl PriorPredictiveCheck {
         for _ in 0..self.n_sims {
             // Draw β ~ prior once per simulation, then μ_i = g^{-1}(x_i'β).
             for c in 0..p {
-                beta[c] = coef_prior.mean[c]
-                    + coef_prior.variance[c].sqrt() * standard_normal(&mut rng);
+                beta[c] =
+                    coef_prior.mean[c] + coef_prior.variance[c].sqrt() * standard_normal(&mut rng);
             }
             let mut mean_y = 0.0;
             for r in 0..n {
@@ -163,10 +163,7 @@ impl PosteriorPredictiveCheck {
                 let mut eta = 0.0;
                 for c in 0..p {
                     let x = problem.design.matrix[c * n + r];
-                    let b = posterior
-                        .draws
-                        .get(d, c)
-                        .map_err(ValidationError::from)?;
+                    let b = posterior.draws.get(d, c).map_err(ValidationError::from)?;
                     eta += x * b;
                 }
                 mean_y += self.family.mean_from_eta(eta);
@@ -414,10 +411,9 @@ mod tests {
         let post = bayes
             .fit(&prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
             .unwrap();
-        let post_rep =
-            PosteriorPredictiveCheck { n_sims: 50, ..PosteriorPredictiveCheck::new() }
-                .check(&prep, &post)
-                .unwrap();
+        let post_rep = PosteriorPredictiveCheck { n_sims: 50, ..PosteriorPredictiveCheck::new() }
+            .check(&prep, &post)
+            .unwrap();
         assert_eq!(post_rep.kind, PredictiveCheckKind::Posterior);
     }
 

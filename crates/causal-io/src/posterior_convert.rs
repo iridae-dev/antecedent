@@ -12,7 +12,8 @@ use causal_prob::PosteriorQuantityKind;
 use crate::container::EncodedArtifact;
 use crate::error::IoError;
 use crate::posterior::{
-    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact, encode_posterior_artifact,
+    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,
+    encode_posterior_artifact,
 };
 
 /// Encode a [`CausalPosterior`] to container bytes (Python / tooling).

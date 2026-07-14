@@ -180,7 +180,7 @@ impl StochasticPolicy {
                     });
                 }
                 let sum: f64 = probs.iter().sum();
-                if !(sum > 0.0) {
+                if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
                     return Err(InterventionError::InvalidStochasticPolicy {
                         message: "categorical probs must sum to a positive value",
                     });

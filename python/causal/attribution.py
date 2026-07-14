@@ -1,9 +1,7 @@
-"""Attribution helpers (DESIGN.md §25.1).
-
-Attribution surfaces are available on the Rust facade; Python bindings land here
-as they are exposed.
-"""
+"""Attribution helpers (DESIGN.md §25.1 / Phase 10)."""
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from ._native import gcm_distribution_change
+
+__all__ = ["gcm_distribution_change"]

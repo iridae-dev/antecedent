@@ -32,9 +32,9 @@ use causal_stats::{
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
-use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
 use crate::gcomp::gcomp_diffs;
+use crate::overlap::OverlapPolicy;
 use crate::util::{sample_std, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
@@ -118,7 +118,13 @@ impl GlmAdjustmentAte {
             self.overlap,
             "GlmAdjustmentAte requires ExplicitOverride overlap policy",
         )?;
-        if !matches!(estimand.method_kind().ok(), Some(causal_expr::EstimandMethod::BackdoorAdjustment | causal_expr::EstimandMethod::BackdoorEfficient)) {
+        if !matches!(
+            estimand.method_kind().ok(),
+            Some(
+                causal_expr::EstimandMethod::BackdoorAdjustment
+                    | causal_expr::EstimandMethod::BackdoorEfficient
+            )
+        ) {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "GlmAdjustmentAte expects backdoor.adjustment or backdoor.efficient",
             });
@@ -148,14 +154,9 @@ impl GlmAdjustmentAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let row_mask =
-            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-        let t = data
-            .float64_masked(treatment, &row_mask)
-            .map_err(EstimationError::from)?;
-        let y = data
-            .float64_masked(outcome, &row_mask)
-            .map_err(EstimationError::from)?;
+        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
+        let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
         match self.family {
             GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
                 for &yi in &y {
@@ -179,11 +180,7 @@ impl GlmAdjustmentAte {
         }
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
-            covs.push((
-                z,
-                data.float64_masked(z, &row_mask)
-                    .map_err(EstimationError::from)?,
-            ));
+            covs.push((z, data.float64_masked(z, &row_mask).map_err(EstimationError::from)?));
         }
         let cov_refs: Vec<(VariableId, &[f64])> =
             covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
@@ -326,7 +323,6 @@ impl GlmAdjustmentAte {
         sample_std(&estimates)
     }
 }
-
 
 /// Response-scale derivative `dμ/dη` at `eta` (equal to the variance function for these
 /// canonical links, up to the dispersion).

@@ -30,12 +30,12 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
     for &o in observed {
         observed_set.insert(o);
     }
-    let k = observed.len() as u32;
+    let k = u32::try_from(observed.len()).expect("node fit");
     let mut admg = Admg::with_variables(k);
     // Map original dense id → projected dense id.
     let mut map = vec![None; dag.node_count()];
     for (i, &o) in observed.iter().enumerate() {
-        map[o.as_usize()] = Some(DenseNodeId::from_raw(i as u32));
+        map[o.as_usize()] = Some(DenseNodeId::from_raw(u32::try_from(i).expect("node fit")));
     }
 
     let mut ws = GraphWorkspace::default();
@@ -119,7 +119,7 @@ fn share_latent_common_ancestor(
 ) -> bool {
     let n = dag.node_count();
     for i in 0..n {
-        let l = DenseNodeId::from_raw(i as u32);
+        let l = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
         if !is_latent(l, observed) {
             continue;
         }
@@ -178,7 +178,7 @@ pub fn projection_preserves_msep_sample(
     let admg = latent_project(dag, observed)?;
     let mut map = vec![None; dag.node_count()];
     for (i, &o) in observed.iter().enumerate() {
-        map[o.as_usize()] = Some(DenseNodeId::from_raw(i as u32));
+        map[o.as_usize()] = Some(DenseNodeId::from_raw(u32::try_from(i).expect("node fit")));
     }
     let mut dws = DSeparationWorkspace::default();
     let mut mws = DSeparationWorkspace::default();
@@ -214,22 +214,16 @@ mod tests {
         dag.insert_directed(l, x).unwrap();
         dag.insert_directed(l, y).unwrap();
         let admg = latent_project(&dag, &[x, y]).unwrap();
-        assert!(admg.bidirected_neighbors(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(1)));
+        assert!(
+            admg.bidirected_neighbors(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(1))
+        );
         let mut ws = DSeparationWorkspace::default();
-        assert!(!admg
-            .is_m_separated(
-                DenseNodeId::from_raw(0),
-                DenseNodeId::from_raw(1),
-                &[],
-                &mut ws
-            )
-            .unwrap());
-        assert!(projection_preserves_msep_sample(
-            &dag,
-            &[x, y],
-            &[(x, y, vec![])]
-        )
-        .unwrap());
+        assert!(
+            !admg
+                .is_m_separated(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), &[], &mut ws)
+                .unwrap()
+        );
+        assert!(projection_preserves_msep_sample(&dag, &[x, y], &[(x, y, vec![])]).unwrap());
     }
 
     #[test]

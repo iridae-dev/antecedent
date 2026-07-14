@@ -95,10 +95,7 @@ impl OverlapRuleRefuter {
     ) -> Result<OverlapReport, ValidationError> {
         let mut ids = vec![problem.treatment()];
         ids.extend_from_slice(&problem.estimand.adjustment_set);
-        let row_mask = problem
-            .data
-            .complete_case_mask(&ids)
-            .map_err(ValidationError::from)?;
+        let row_mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
         let t = problem
             .data
             .float64_masked(problem.treatment(), &row_mask)
@@ -110,10 +107,7 @@ impl OverlapRuleRefuter {
             *r = 1.0;
         }
         for (i, &z) in problem.estimand.adjustment_set.iter().enumerate() {
-            let col = problem
-                .data
-                .float64_masked(z, &row_mask)
-                .map_err(ValidationError::from)?;
+            let col = problem.data.float64_masked(z, &row_mask).map_err(ValidationError::from)?;
             let base = (1 + i) * nrows;
             design[base..base + nrows].copy_from_slice(&col);
         }

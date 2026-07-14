@@ -32,8 +32,6 @@ impl CounterfactualError {
     /// Ad-hoc model message.
     #[must_use]
     pub fn model_msg(message: impl Into<String>) -> Self {
-        Self::Model(ModelError::Unsupported {
-            message: message.into(),
-        })
+        Self::Model(ModelError::Unsupported { message: message.into() })
     }
 }

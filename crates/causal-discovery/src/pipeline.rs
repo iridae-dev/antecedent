@@ -7,14 +7,13 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use std::collections::HashMap;
+use std::hash::BuildHasher;
 use std::sync::Arc;
 
 use causal_graph::{DenseNodeId, NodeRef};
 
 use crate::orientation::OrientationState;
-use crate::result::{
-    AlgorithmRecord, DiscoveryDiagnostic, DiscoveryPerformanceRecord, PcSepsets,
-};
+use crate::result::{AlgorithmRecord, DiscoveryDiagnostic, DiscoveryPerformanceRecord, PcSepsets};
 
 /// Map lagged `(variable, lag)` pairs to dense node ids for orientation.
 #[must_use]
@@ -22,10 +21,7 @@ pub fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> 
     let mut node_ids = HashMap::new();
     for (i, node) in nodes.iter().enumerate() {
         if let NodeRef::Lagged { variable, lag } = node {
-            node_ids.insert(
-                (variable.raw(), lag.raw()),
-                DenseNodeId::from_raw(i as u32),
-            );
+            node_ids.insert((variable.raw(), lag.raw()), DenseNodeId::from_raw(i as u32));
         }
     }
     node_ids
@@ -37,8 +33,8 @@ pub fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> 
 /// inserted in sorted key order so the winning entry for a pair recorded in both
 /// directions is deterministic (`HashMap` iteration order is not).
 #[must_use]
-pub fn orientation_state_from_sepsets(
-    node_ids: &HashMap<(u32, u32), DenseNodeId>,
+pub fn orientation_state_from_sepsets<S: BuildHasher>(
+    node_ids: &HashMap<(u32, u32), DenseNodeId, S>,
     sepsets: &PcSepsets,
 ) -> OrientationState {
     let mut state = OrientationState::default();
@@ -52,10 +48,8 @@ pub fn orientation_state_from_sepsets(
         let Some(&tb) = node_ids.get(&(t.raw(), tlag.raw())) else {
             continue;
         };
-        let mapped: Vec<DenseNodeId> = sep
-            .iter()
-            .filter_map(|(v, l)| node_ids.get(&(v.raw(), l.raw())).copied())
-            .collect();
+        let mapped: Vec<DenseNodeId> =
+            sep.iter().filter_map(|(v, l)| node_ids.get(&(v.raw(), l.raw())).copied()).collect();
         state.set_sepset(sa, tb, Arc::from(mapped));
     }
     state
@@ -64,10 +58,7 @@ pub fn orientation_state_from_sepsets(
 /// Build an [`AlgorithmRecord`] from id + config digest.
 #[must_use]
 pub fn algorithm_record(id: &str, config: impl Into<String>) -> AlgorithmRecord {
-    AlgorithmRecord {
-        id: Arc::from(id),
-        config: Arc::from(config.into()),
-    }
+    AlgorithmRecord { id: Arc::from(id), config: Arc::from(config.into()) }
 }
 
 /// Append a discovery diagnostic.
@@ -76,10 +67,8 @@ pub fn push_diagnostic(
     code: &str,
     message: impl Into<String>,
 ) {
-    diagnostics.push(DiscoveryDiagnostic {
-        code: Arc::from(code),
-        message: Arc::from(message.into()),
-    });
+    diagnostics
+        .push(DiscoveryDiagnostic { code: Arc::from(code), message: Arc::from(message.into()) });
 }
 
 /// Copy performance counters and set retained-link count.

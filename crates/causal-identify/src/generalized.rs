@@ -5,15 +5,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names
+)]
 
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, Value, VariableId};
 use causal_expr::CausalExprArena;
-use causal_graph::{
-    Admg, CompletionSampler, DSeparationWorkspace, DenseNodeId, Endpoint, Pag,
-};
+use causal_graph::{Admg, CompletionSampler, DSeparationWorkspace, DenseNodeId, Endpoint, Pag};
 
 use crate::envelope::{GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
 use crate::error::IdentificationError;
@@ -74,11 +76,7 @@ impl GeneralizedAdjustmentIdentifier {
         let w = ProbabilityMass(self.config.per_completion_weight);
         for completion in sampler {
             let result = identify_on_mag_completion(&completion.graph, t, y, t_d, y_d)?;
-            cases.push(GraphIdentificationCase {
-                graph: completion.graph,
-                result,
-                weight: w,
-            });
+            cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
         }
         Ok(IdentificationEnvelope::from_cases(cases))
     }
@@ -100,23 +98,13 @@ fn identify_on_mag_completion(
     // Backdoor-style: empty Z m-separates T from Y in G_{\underline{T}} (remove outgoing from T).
     let mutilated = mutilate_outgoing(&admg, t_d);
     let mut ws = DSeparationWorkspace::default();
-    let sep = mutilated
-        .is_m_separated(t_d, y_d, &[], &mut ws)
-        .map_err(IdentificationError::from)?;
+    let sep =
+        mutilated.is_m_separated(t_d, y_d, &[], &mut ws).map_err(IdentificationError::from)?;
     if sep {
         let mut arena = CausalExprArena::new();
-        let functional = arena.backdoor_ate(
-            t,
-            y,
-            &[],
-            Value::f64(1.0),
-            Value::f64(0.0),
-        );
-        let estimand = IdentifiedEstimand::backdoor(
-            "generalized.adjustment.empty",
-            Arc::from([]),
-            functional,
-        );
+        let functional = arena.backdoor_ate(t, y, &[], Value::f64(1.0), Value::f64(0.0));
+        let estimand =
+            IdentifiedEstimand::backdoor("generalized.adjustment.empty", Arc::from([]), functional);
         return Ok(IdentificationResult::identified(
             query,
             vec![estimand],
@@ -127,10 +115,7 @@ fn identify_on_mag_completion(
                 d
             },
             AssumptionSet::default(),
-            IdentificationPerformanceRecord {
-                candidates_examined: 1,
-                sets_returned: 1,
-            },
+            IdentificationPerformanceRecord { candidates_examined: 1, sets_returned: 1 },
         ));
     }
     Ok(not_identified(query, "no empty-set generalized adjustment on completion"))
@@ -203,20 +188,16 @@ fn mutilate_outgoing(admg: &Admg, t: DenseNodeId) -> Admg {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use causal_graph::Pag;
     use crate::result::IdentificationStatus;
+    use causal_graph::Pag;
 
     #[test]
     fn envelope_preserves_mass_on_mixed_pag() {
         // T o→ Y : some completions identify, some may not depending on marks.
         let mut pag = Pag::with_variables(2);
-        pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
+        pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let id = GeneralizedAdjustmentIdentifier {
-            config: GeneralizedAdjustmentConfig {
-                max_completions: 8,
-                per_completion_weight: 1.0,
-            },
+            config: GeneralizedAdjustmentConfig { max_completions: 8, per_completion_weight: 1.0 },
         };
         let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let env = id.identify_pag_envelope(&pag, &q).unwrap();
@@ -229,8 +210,7 @@ mod tests {
     #[test]
     fn directed_edge_identifies_with_empty_z() {
         let mut pag = Pag::with_variables(2);
-        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let id = GeneralizedAdjustmentIdentifier::new();
         let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let env = id.identify_pag_envelope(&pag, &q).unwrap();

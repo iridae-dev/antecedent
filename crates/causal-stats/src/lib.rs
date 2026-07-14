@@ -7,6 +7,7 @@
 
 pub mod ci;
 pub mod design;
+pub mod divergence;
 pub mod error;
 #[cfg(feature = "faer")]
 pub mod faer_backend;
@@ -27,6 +28,9 @@ pub use ci::{
     ci_from_name,
 };
 pub use design::{CompiledDesign, DesignColumnRole};
+pub use divergence::{
+    classifier_two_sample, gaussian_kl, mean_diff_two_sample, mean_var, residual_likelihood_ratio,
+};
 pub use error::StatsError;
 #[cfg(feature = "faer")]
 pub use faer_backend::FaerBackend;

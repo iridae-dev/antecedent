@@ -31,8 +31,8 @@ use causal_prob::{
 use causal_stats::{CompiledDesign, GlmFamily};
 
 use crate::adjustment::intervention_f64;
-use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
+use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
 
 /// Causal posterior over an identified functional (DESIGN.md §14.4).
@@ -74,9 +74,7 @@ impl CausalPosterior {
         let q = self
             .effect_column()
             .ok_or_else(|| EstimationError::stats_msg("CausalPosterior has no effect column"))?;
-        self.draws
-            .probability_below(q, threshold)
-            .map_err(EstimationError::from)
+        self.draws.probability_below(q, threshold).map_err(EstimationError::from)
     }
 }
 
@@ -172,7 +170,13 @@ impl BayesianGComputationAte {
             self.overlap,
             "BayesianGComputationAte requires ExplicitOverride overlap policy",
         )?;
-        if !matches!(estimand.method_kind().ok(), Some(causal_expr::EstimandMethod::BackdoorAdjustment | causal_expr::EstimandMethod::BackdoorEfficient)) {
+        if !matches!(
+            estimand.method_kind().ok(),
+            Some(
+                causal_expr::EstimandMethod::BackdoorAdjustment
+                    | causal_expr::EstimandMethod::BackdoorEfficient
+            )
+        ) {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "BayesianGComputationAte expects backdoor.adjustment/efficient",
             });
@@ -202,21 +206,12 @@ impl BayesianGComputationAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let row_mask =
-            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-        let t = data
-            .float64_masked(treatment, &row_mask)
-            .map_err(EstimationError::from)?;
-        let y = data
-            .float64_masked(outcome, &row_mask)
-            .map_err(EstimationError::from)?;
+        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
+        let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
-            covs.push((
-                z,
-                data.float64_masked(z, &row_mask)
-                    .map_err(EstimationError::from)?,
-            ));
+            covs.push((z, data.float64_masked(z, &row_mask).map_err(EstimationError::from)?));
         }
         let cov_refs: Vec<(VariableId, &[f64])> =
             covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
@@ -343,10 +338,7 @@ impl BayesianGComputationAte {
         workspace.eval.prepare(n_draws, problem.design.ncols);
         let mut effect_out = EffectBatch::default();
         effect_out.prepare(n_draws);
-        let batch = mechanism
-            .coefficient_draws
-            .batch(0, n_draws)
-            .map_err(EstimationError::from)?;
+        let batch = mechanism.coefficient_draws.batch(0, n_draws).map_err(EstimationError::from)?;
         evaluator.evaluate_batch(&compiled, batch, &mut effect_out, &mut workspace.eval, ctx)?;
 
         let mut quantities = mechanism.coefficient_draws.schema.quantities.to_vec();
@@ -363,10 +355,7 @@ impl BayesianGComputationAte {
             let dest = quantities.iter().position(|qq| qq == q).ok_or_else(|| {
                 EstimationError::stats_msg(format!("posterior quantity missing from schema: {q:?}"))
             })?;
-            let col = mechanism
-                .coefficient_draws
-                .column(qi)
-                .map_err(EstimationError::from)?;
+            let col = mechanism.coefficient_draws.column(qi).map_err(EstimationError::from)?;
             values[dest * n_draws..(dest + 1) * n_draws].copy_from_slice(col);
         }
         values[effect_idx * n_draws..(effect_idx + 1) * n_draws]

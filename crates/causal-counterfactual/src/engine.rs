@@ -4,6 +4,7 @@
 
 #![allow(
     clippy::cast_precision_loss,
+    clippy::many_single_char_names,
     clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
@@ -73,9 +74,7 @@ impl CounterfactualEngine {
     /// Build from a fitted model (mechanisms should be invertible families).
     #[must_use]
     pub fn new(model: CompiledCausalModel) -> Self {
-        let compiled = CompiledCounterfactualPlan {
-            node_order: Arc::clone(&model.node_order),
-        };
+        let compiled = CompiledCounterfactualPlan { node_order: Arc::clone(&model.node_order) };
         Self { model, compiled }
     }
 
@@ -123,11 +122,8 @@ impl CounterfactualEngine {
             ws.prepare(n, gather.n_parents().max(1));
             gather.gather(&values, n, &mut ws.parents);
             let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n)].to_vec();
-            let parents = ParentBatch {
-                n_rows: n,
-                n_parents: gather.n_parents(),
-                values: &parent_owned,
-            };
+            let parents =
+                ParentBatch { n_rows: n, n_parents: gather.n_parents(), values: &parent_owned };
             let y = &values[idx * n..(idx + 1) * n];
             let out = &mut noise[idx * n..(idx + 1) * n];
             match self.model.mechanisms.get(node) {
@@ -142,12 +138,7 @@ impl CounterfactualEngine {
             }
         }
 
-        Ok(ExogenousPosterior {
-            noise: Arc::from(noise),
-            n_units: n,
-            n_nodes,
-            kind,
-        })
+        Ok(ExogenousPosterior { noise: Arc::from(noise), n_units: n, n_nodes, kind })
     }
 
     /// Predict counterfactual outcomes for worlds sharing abduced noise.
@@ -190,8 +181,9 @@ impl CounterfactualEngine {
                     }
                 }
             }
-            let overlay = InterventionOverlay::from_interventions(&self.model, &world.interventions)?;
-            let unit_filter: Option<&[usize]> = world.unit_rows.as_ref().map(|a| a.as_ref());
+            let overlay =
+                InterventionOverlay::from_interventions(&self.model, &world.interventions)?;
+            let unit_filter: Option<&[usize]> = world.unit_rows.as_ref().map(AsRef::as_ref);
 
             let mut values_buf = vec![0.0; n_units * n_nodes];
             let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
@@ -201,7 +193,8 @@ impl CounterfactualEngine {
                 let idx = node.as_usize();
                 ws.prepare(n_units, gather.n_parents().max(1));
                 gather.gather(values.values, n_units, &mut ws.parents);
-                let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n_units)].to_vec();
+                let parent_owned =
+                    ws.parents[..gather.n_parents().saturating_mul(n_units)].to_vec();
                 let parents = ParentBatch {
                     n_rows: n_units,
                     n_parents: gather.n_parents(),
@@ -271,14 +264,8 @@ impl CounterfactualEngine {
         ctx: &ExecutionContext,
     ) -> Result<Arc<[f64]>, CounterfactualError> {
         let worlds = [
-            CounterfactualWorld {
-                unit_rows: None,
-                interventions: Arc::from([active]),
-            },
-            CounterfactualWorld {
-                unit_rows: None,
-                interventions: Arc::from([control]),
-            },
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([active]) },
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([control]) },
         ];
         let res = self.predict(exo, &worlds, &[outcome], false, ws, ctx)?;
         let o = self.model.dense_of(outcome).unwrap();
@@ -337,7 +324,11 @@ impl CounterfactualResult {
 
 /// Equivalence: streaming mean matches mean of retained draws for the same result.
 #[must_use]
-pub fn streaming_matches_retained(result: &CounterfactualResult, world: usize, outcome: DenseNodeId) -> bool {
+pub fn streaming_matches_retained(
+    result: &CounterfactualResult,
+    world: usize,
+    outcome: DenseNodeId,
+) -> bool {
     let stream = result.streaming_outcome_mean(world, outcome);
     let mut sum = 0.0;
     let mut n = 0usize;
@@ -370,10 +361,7 @@ pub fn nested_hard_counterfactual(
     let exo = engine.abduct(data, false)?;
     let mut combined = outer.to_vec();
     combined.extend_from_slice(inner);
-    let world = CounterfactualWorld {
-        unit_rows: None,
-        interventions: Arc::from(combined),
-    };
+    let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
     let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
     let o = engine.model.dense_of(outcome).unwrap();
     Ok(res.streaming_outcome_mean(0, o))
@@ -429,7 +417,8 @@ mod tests {
                 Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity).unwrap(),
             ),
         ];
-        let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
         let mut g = Dag::with_variables(2);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let compiled = CompiledCausalModel::compile(g).unwrap();

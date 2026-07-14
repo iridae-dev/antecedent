@@ -258,11 +258,7 @@ impl TemporalCpdag {
     }
 
     /// Borrowed directed-child iterator (orientation hot path).
-    #[must_use]
-    pub fn children_iter(
-        &self,
-        id: DenseNodeId,
-    ) -> impl Iterator<Item = DenseNodeId> + '_ {
+    pub fn children_iter(&self, id: DenseNodeId) -> impl Iterator<Item = DenseNodeId> + '_ {
         marked_storage::directed_children(&self.adj, id)
     }
 
@@ -448,9 +444,7 @@ mod tests {
     fn accepts_context_nodes_without_coercing() {
         use causal_core::EnvironmentId;
         let mut g = TemporalCpdag::empty();
-        let c = g
-            .add_context(VariableId::from_raw(0), Some(EnvironmentId::from_raw(1)))
-            .unwrap();
+        let c = g.add_context(VariableId::from_raw(0), Some(EnvironmentId::from_raw(1))).unwrap();
         let y = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
         match g.nodes()[c.as_usize()] {
             NodeRef::Context { variable, environment } => {

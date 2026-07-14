@@ -5,9 +5,7 @@
 #![allow(clippy::many_single_char_names)]
 
 use crate::admg::Admg;
-use crate::dsep::{
-    DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult,
-};
+use crate::dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
 use crate::error::GraphError;
 use crate::pag::Pag;
 use crate::types::DenseNodeId;
@@ -50,9 +48,7 @@ impl Admg {
         ws: &mut DSeparationWorkspace,
     ) -> Result<(), GraphError> {
         if out.len() != queries.len() {
-            return Err(GraphError::InvalidEndpoints {
-                message: "batch output length mismatch",
-            });
+            return Err(GraphError::InvalidEndpoints { message: "batch output length mismatch" });
         }
         for (i, &(x, y, z)) in queries.iter().enumerate() {
             out[i] = self.is_m_separated(x, y, z, ws)?;
@@ -78,9 +74,7 @@ impl Admg {
             self.validate_node_pub(v)?;
         }
         if x == y {
-            return Ok(SeparationResult::Connected {
-                active_path: vec![PathStep { node: x }],
-            });
+            return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
         }
         if let Some(path) = self.m_sep_active_path(x, y, z, ws) {
             Ok(SeparationResult::Connected { active_path: path })
@@ -172,7 +166,7 @@ impl Admg {
         // Moralize: undirected edges for directed + bidirected within ancestral set;
         // marry co-parents of each node.
         for i in 0..n {
-            let u = DenseNodeId::from_raw(i as u32);
+            let u = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             if !ws.ancestral.contains(u) {
                 continue;
             }
@@ -263,17 +257,12 @@ mod tests {
     #[test]
     fn bidirected_connects_without_conditioning() {
         let mut g = Admg::with_variables(2);
-        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
+        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let mut ws = DSeparationWorkspace::default();
-        assert!(!g
-            .is_m_separated(
-                DenseNodeId::from_raw(0),
-                DenseNodeId::from_raw(1),
-                &[],
-                &mut ws
-            )
-            .unwrap());
+        assert!(
+            !g.is_m_separated(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), &[], &mut ws)
+                .unwrap()
+        );
     }
 
     #[test]
@@ -356,9 +345,7 @@ impl Pag {
             self.validate_node_pub(v)?;
         }
         if x == y {
-            return Ok(SeparationResult::Connected {
-                active_path: vec![PathStep { node: x }],
-            });
+            return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
         }
         let paths = self.definite_status_paths(x, y, max_paths, max_len)?;
         if let Some(p) = paths.iter().find(|p| self.path_active_given(&p.nodes, z)) {
@@ -368,9 +355,7 @@ impl Pag {
         } else {
             Ok(SeparationResult::Separated {
                 conditioning: z.to_vec(),
-                certificate: SeparationCertificate {
-                    conditioning: z.to_vec(),
-                },
+                certificate: SeparationCertificate { conditioning: z.to_vec() },
             })
         }
     }
@@ -388,9 +373,7 @@ impl Pag {
         max_len: usize,
     ) -> Result<(), GraphError> {
         if out.len() != queries.len() {
-            return Err(GraphError::InvalidEndpoints {
-                message: "batch output length mismatch",
-            });
+            return Err(GraphError::InvalidEndpoints { message: "batch output length mismatch" });
         }
         for (i, &(x, y, z)) in queries.iter().enumerate() {
             out[i] = self.is_m_separated(x, y, z, max_paths, max_len)?;

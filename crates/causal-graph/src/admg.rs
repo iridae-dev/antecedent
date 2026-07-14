@@ -69,9 +69,7 @@ impl Admg {
     /// Non-static node or capacity overflow.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         if !matches!(node, NodeRef::Static(_)) {
-            return Err(GraphError::InvalidEndpoints {
-                message: "Admg accepts only Static nodes",
-            });
+            return Err(GraphError::InvalidEndpoints { message: "Admg accepts only Static nodes" });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
@@ -233,7 +231,7 @@ impl Admg {
             if label[i] != u32::MAX {
                 continue;
             }
-            let root = DenseNodeId::from_raw(i as u32);
+            let root = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             label[i] = next;
             stack.push(root);
             while let Some(u) = stack.pop() {
@@ -271,7 +269,7 @@ impl Admg {
             .iter()
             .enumerate()
             .filter(|&(_, &d)| d == 0)
-            .map(|(i, _)| DenseNodeId::from_raw(i as u32))
+            .map(|(i, _)| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
             .collect();
         let mut seen = 0usize;
         while let Some(u) = q.pop() {

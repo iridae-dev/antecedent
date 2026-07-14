@@ -11,7 +11,7 @@ use causal_core::{ComponentId, VariableId};
 pub struct ComponentContribution {
     /// Component (usually a node mechanism).
     pub component: ComponentId,
-    /// Point contribution (additive under Shapley; path-share under PathBased).
+    /// Point contribution (additive under Shapley; path-share under `PathBased`).
     pub contribution: f64,
     /// Optional posterior / bootstrap standard error.
     pub stderr: Option<f64>,

@@ -32,7 +32,7 @@ use causal_identify::{
 };
 use causal_validate::{RefutationProblem, RefutationReport, ValidationSuite};
 
-use crate::discovery::{discover_pcmci, discover_pcmci_plus, DiscoverParams};
+use crate::discovery::{DiscoverParams, discover_pcmci, discover_pcmci_plus};
 use crate::discovery_defaults::resolve_ci;
 use crate::error::AnalysisError;
 use crate::inference::{BayesianConfig, InferenceMode};
@@ -41,13 +41,13 @@ use crate::planner::{
     StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
 };
 use crate::result::CausalAnalysisResult;
-use crate::strategy_table::{
-    estimate_provenance_step, estimate_static_effect, identify_provenance_step, identify_static,
-    DEFAULT_ESTIMATOR, DEFAULT_IDENTIFIER,
-};
 use crate::review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
     ensure_review_complete,
+};
+use crate::strategy_table::{
+    DEFAULT_ESTIMATOR, DEFAULT_IDENTIFIER, estimate_provenance_step, estimate_static_effect,
+    identify_provenance_step, identify_static,
 };
 
 /// Which refuters to run (static ATE path).
@@ -187,13 +187,7 @@ impl CausalAnalysisBuilder {
 
     /// Discover with RPCMCI (regime graphs; typically review-required via Python path).
     #[must_use]
-    pub fn discover_rpcmci(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: bool,
-        accept: bool,
-    ) -> Self {
+    pub fn discover_rpcmci(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
         self.graph =
             Some(GraphInput::DiscoverRpcmci { max_lag, alpha, fdr, accept_discovered: accept });
         self
@@ -505,10 +499,8 @@ impl CausalAnalysis {
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
-        let identifier =
-            self.identifier.clone().unwrap_or_else(|| Arc::from(DEFAULT_IDENTIFIER));
-        let estimator =
-            self.estimator.clone().unwrap_or_else(|| Arc::from(DEFAULT_ESTIMATOR));
+        let identifier = self.identifier.clone().unwrap_or_else(|| Arc::from(DEFAULT_IDENTIFIER));
+        let estimator = self.estimator.clone().unwrap_or_else(|| Arc::from(DEFAULT_ESTIMATOR));
         (identifier, estimator)
     }
 
@@ -633,8 +625,7 @@ impl CausalAnalysis {
         let started = Instant::now();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
-        let estimator =
-            physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
+        let estimator = physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
 
         // rd.sharp has no graph-based identification step (DESIGN.md §21.2); dispatch to its
         // own path before touching `graph`.
@@ -740,7 +731,8 @@ impl CausalAnalysis {
         };
         let prep = est.prepare(data, &estimand, query).map_err(AnalysisError::from)?;
         let mut ws = BayesianGCompWorkspace::default();
-        let posterior = est.fit(&prep, identification.status, &mut ws, ctx).map_err(AnalysisError::from)?;
+        let posterior =
+            est.fit(&prep, identification.status, &mut ws, ctx).map_err(AnalysisError::from)?;
         let estimate = effect_from_posterior(&posterior)?;
 
         let mut diagnostics = identification.diagnostics.clone();
@@ -792,11 +784,9 @@ impl CausalAnalysis {
         })
         .identify(CausalQuery::AverageEffect(query.clone()))
         .map_err(AnalysisError::from)?;
-        let estimand = identification
-            .estimands
-            .first()
-            .cloned()
-            .ok_or_else(|| AnalysisError::Compile { message: "rd.sharp returned no estimand".into() })?;
+        let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+            AnalysisError::Compile { message: "rd.sharp returned no estimand".into() }
+        })?;
 
         let mut est =
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
@@ -844,7 +834,9 @@ impl CausalAnalysis {
             .map_err(AnalysisError::from)?;
         let identification = id_res.result;
         if identification.status != IdentificationStatus::NonparametricallyIdentified {
-            return Err(AnalysisError::Compile { message: "temporal effect not identified".into() });
+            return Err(AnalysisError::Compile {
+                message: "temporal effect not identified".into(),
+            });
         }
         let estimand = identification
             .estimands
@@ -966,12 +958,7 @@ fn run_pcmci_review(
     ctx: &ExecutionContext,
 ) -> Result<TemporalGraphReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci: resolve_ci("parcorr", None)?,
-    };
+    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
     let result = discover_pcmci(data, &vars, &params, ctx)?;
     Ok(result.review)
 }
@@ -984,12 +971,7 @@ fn run_pcmci_plus_review(
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci: resolve_ci("parcorr", None)?,
-    };
+    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
     let result = discover_pcmci_plus(data, &vars, &params, ctx)?;
     Ok(result.review)
 }
@@ -1011,15 +993,13 @@ fn run_refuters(
         RefuteSuite::PlaceboAndRcc => ValidationSuite::placebo_and_rcc(),
         RefuteSuite::Full => ValidationSuite::full_effect(),
     };
-    let outcomes = validation
-        .run(&problem, workspace, ctx)
-        .map_err(AnalysisError::from)?;
+    let outcomes = validation.run(&problem, workspace, ctx).map_err(AnalysisError::from)?;
     Ok(ValidationSuite::reports_only(&outcomes))
 }
 
 fn effect_from_posterior(posterior: &CausalPosterior) -> Result<EffectEstimate, AnalysisError> {
-    let eq = posterior.effect_column().ok_or_else(|| {
-        AnalysisError::Compile { message: "Bayesian posterior missing effect column".into() }
+    let eq = posterior.effect_column().ok_or_else(|| AnalysisError::Compile {
+        message: "Bayesian posterior missing effect column".into(),
     })?;
     let ate = posterior.summaries.mean[eq];
     let se = posterior.summaries.sd[eq] / (posterior.draws.n_draws as f64).sqrt().max(1.0);

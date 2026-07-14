@@ -30,9 +30,7 @@ impl ReferencePointPolicy {
     ) -> Result<(usize, usize), crate::error::DataError> {
         use crate::error::DataError;
         if series_len == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "empty time series".into(),
-            });
+            return Err(DataError::InvalidArgument { message: "empty time series".into() });
         }
         let max_lag_usize = max_lag as usize;
         if max_lag_usize >= series_len {

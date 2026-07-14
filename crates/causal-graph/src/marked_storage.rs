@@ -41,34 +41,28 @@ pub(crate) fn push_marked_pair(adj: &mut [Vec<AdjEntry>], edge: MarkedEdge) {
 
 /// Marked edge between `a` and `b` if present.
 #[must_use]
-pub(crate) fn edge_between(adj: &[Vec<AdjEntry>], a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
+pub(crate) fn edge_between(
+    adj: &[Vec<AdjEntry>],
+    a: DenseNodeId,
+    b: DenseNodeId,
+) -> Option<MarkedEdge> {
     if a.as_usize() >= adj.len() || b.as_usize() >= adj.len() {
         return None;
     }
     for e in &adj[a.as_usize()] {
         if e.neighbor == b {
-            return Some(MarkedEdge {
-                a,
-                b,
-                at_a: e.at_self,
-                at_b: e.at_neighbor,
-            });
+            return Some(MarkedEdge { a, b, at_a: e.at_self, at_b: e.at_neighbor });
         }
     }
     None
 }
 
 /// Iterator over definite directed children (Tail→Arrow from `id`).
-#[must_use]
 pub(crate) fn directed_children(
     adj: &[Vec<AdjEntry>],
     id: DenseNodeId,
 ) -> impl Iterator<Item = DenseNodeId> + '_ {
-    adj.get(id.as_usize())
-        .into_iter()
-        .flatten()
-        .filter(|e| e.is_directed_out())
-        .map(|e| e.neighbor)
+    adj.get(id.as_usize()).into_iter().flatten().filter(|e| e.is_directed_out()).map(|e| e.neighbor)
 }
 
 /// Whether `from` reaches `to` via definite directed edges, reusing `ws`.

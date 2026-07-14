@@ -8,9 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal::{
-    GraphInput, reject_dag_only_on_pag, GeneralizedAdjustmentIdentifier, Lpcmci,
-};
+use causal::{GeneralizedAdjustmentIdentifier, GraphInput, Lpcmci, reject_dag_only_on_pag};
 use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
@@ -20,13 +18,13 @@ use causal_data::{
     TimeSeriesData, ValidityBitmap,
 };
 use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, TemporalConstraints};
-use causal_graph::{CompletionSampler, Dag, DenseNodeId, Pag, latent_project, projection_preserves_msep_sample};
+use causal_graph::{
+    CompletionSampler, Dag, DenseNodeId, Pag, latent_project, projection_preserves_msep_sample,
+};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../conformance/phase8")
-        .join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/phase8").join(name)
 }
 
 fn load_expected(name: &str) -> JsonValue {
@@ -63,29 +61,18 @@ fn tiny_series(n: usize) -> (TimeSeriesData, Vec<VariableId>) {
     }
     let cols = vec![
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(0),
-                Arc::from(x),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(0), Arc::from(x), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(1),
-                Arc::from(y),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TimeSeriesData::try_new(
         storage,
-        TimeIndex {
-            regularity: SamplingRegularity::Regular { interval_ns: 1 },
-            length: n,
-        },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap();
     (data, vec![VariableId::from_raw(0), VariableId::from_raw(1)])
@@ -96,10 +83,7 @@ fn lpcmci_chain() {
     let expected = load_expected("lpcmci_chain");
     let (data, vars) = tiny_series(80);
     let alg = Lpcmci::new().with_fdr(false).with_constraints(DiscoveryConstraints {
-        temporal: TemporalConstraints {
-            max_lag: Lag::from_raw(1),
-            min_lag: Lag::CONTEMPORANEOUS,
-        },
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::CONTEMPORANEOUS },
         alpha: 0.2,
         max_cond_size: 2,
         ..DiscoveryConstraints::default()
@@ -107,10 +91,7 @@ fn lpcmci_chain() {
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
     let result = alg.run(&data, &vars, &mut ws, &ctx).unwrap();
-    assert_eq!(
-        result.algorithm.id.as_ref(),
-        expected["algorithm_id"].as_str().unwrap()
-    );
+    assert_eq!(result.algorithm.id.as_ref(), expected["algorithm_id"].as_str().unwrap());
     assert!(result.evidence.graph.node_count() >= expected["min_nodes"].as_u64().unwrap() as usize);
     assert!(
         result.evidence.links.len() >= expected["min_links_retained"].as_u64().unwrap() as usize
@@ -143,8 +124,7 @@ fn latent_projection_msep() {
 fn envelope_unidentified_mass() {
     let expected = load_expected("envelope_unidentified_mass");
     let mut pag = Pag::with_variables(2);
-    pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-        .unwrap();
+    pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let id = GeneralizedAdjustmentIdentifier::new();
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let env = id.identify_pag_envelope(&pag, &q).unwrap();
@@ -166,12 +146,9 @@ fn dag_only_pag_reject() {
 #[test]
 fn completion_sampler_respects_bound() {
     let mut pag = Pag::with_variables(3);
-    pag.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-        .unwrap();
-    pag.insert_circle_arrow(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2))
-        .unwrap();
+    pag.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_circle_arrow(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     let max = 3usize;
     let n = CompletionSampler::new(pag, max).unwrap().count();
     assert!(n <= max);
 }
-

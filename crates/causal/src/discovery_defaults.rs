@@ -1,6 +1,6 @@
 //! Shared discovery constraint defaults and CI resolution (DESIGN.md §21 / §25.2).
 //!
-//! Single source for TemporalConstraints / DiscoveryConstraints used by
+//! Single source for `TemporalConstraints` / `DiscoveryConstraints` used by
 //! [`crate::analysis`] and the Python bindings — do not duplicate these blocks.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -9,9 +9,7 @@ use std::sync::Arc;
 
 use causal_core::Lag;
 use causal_discovery::{DiscoveryConstraints, TemporalConstraints};
-use causal_stats::{
-    ConditionalIndependence, WeightedPartialCorrelation, ci_from_name,
-};
+use causal_stats::{ConditionalIndependence, WeightedPartialCorrelation, ci_from_name};
 
 use crate::error::AnalysisError;
 

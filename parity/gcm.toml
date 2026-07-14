@@ -55,12 +55,30 @@ notes = "Anomaly scores + arrow strength + intrinsic influence"
 
 [[capabilities]]
 id = "gcm.attribution.shapley"
-status = "intentional_deviation"
+status = "done"
 phase = 10
-notes = "Shapley / coalition attribution deferred to Phase 10"
+notes = "Exact + MC Shapley with size limits, budget, MC stderr, coalition cache"
 
 [[capabilities]]
 id = "gcm.attribution.distribution_change"
-status = "intentional_deviation"
+status = "done"
 phase = 10
-notes = "Distribution/mechanism-change attribution deferred to Phase 10"
+notes = "Mechanism-swap distribution-change attribution"
+
+[[capabilities]]
+id = "gcm.attribution.robust"
+status = "done"
+phase = 10
+notes = "Regression-hybrid robust distribution-change"
+
+[[capabilities]]
+id = "gcm.attribution.unit_change"
+status = "done"
+phase = 10
+notes = "Per-unit input attribution via Shapley"
+
+[[capabilities]]
+id = "gcm.attribution.feature_relevance"
+status = "done"
+phase = 10
+notes = "Interventional feature relevance scores"

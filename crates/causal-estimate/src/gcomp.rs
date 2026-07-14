@@ -2,11 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments)]
+#![allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
 
 use causal_stats::GlmFamily;
 
 /// Per-row mean-scale contrast `μ(T=active, Z) − μ(T=control, Z)`.
+#[must_use]
 pub fn gcomp_diffs(
     family: GlmFamily,
     x_colmajor: &[f64],
@@ -35,6 +36,7 @@ pub fn gcomp_diffs(
 }
 
 /// Single-row mean-scale contrast.
+#[must_use]
 pub fn gcomp_row_contrast(
     family: GlmFamily,
     x_colmajor: &[f64],
@@ -63,6 +65,7 @@ pub fn gcomp_row_contrast(
 }
 
 /// Mean ATE across rows for one coefficient vector.
+#[must_use]
 pub fn gcomp_mean_ate(
     family: GlmFamily,
     x_colmajor: &[f64],

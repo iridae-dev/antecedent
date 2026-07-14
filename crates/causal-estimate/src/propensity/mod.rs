@@ -36,8 +36,8 @@ use causal_stats::{
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
-use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::error::EstimationError;
+use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::util::{sample_std, stats_err};
 
 include!("prepare.rs");

@@ -50,20 +50,19 @@ pub fn score_anomalies(
     }
     let mut out = Vec::with_capacity(query.targets.len());
     for &target in query.targets.iter() {
-        let dense = model.dense_of(target).ok_or_else(|| {
-            AttributionError::Message(format!("target {target} not in model"))
-        })?;
-        let gather = model.gather_for(dense).ok_or_else(|| {
-            AttributionError::Message("missing gather".into())
-        })?;
+        let dense = model
+            .dense_of(target)
+            .ok_or_else(|| AttributionError::Message(format!("target {target} not in model")))?;
+        let gather = model
+            .gather_for(dense)
+            .ok_or_else(|| AttributionError::Message("missing gather".into()))?;
         let y_all =
             data.float64_values(target).map_err(|e| AttributionError::Message(e.to_string()))?;
         let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
         for (pi, &p) in gather.parents.iter().enumerate() {
             let pv = model.output_layout.variables[p.as_usize()];
-            let col = data
-                .float64_values(pv)
-                .map_err(|e| AttributionError::Message(e.to_string()))?;
+            let col =
+                data.float64_values(pv).map_err(|e| AttributionError::Message(e.to_string()))?;
             parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
         }
         let parents = ParentBatch {
@@ -113,7 +112,9 @@ pub struct ArrowStrength {
 /// # Errors
 ///
 /// Model issues.
-pub fn arrow_strengths(model: &CompiledCausalModel) -> Result<Vec<ArrowStrength>, AttributionError> {
+pub fn arrow_strengths(
+    model: &CompiledCausalModel,
+) -> Result<Vec<ArrowStrength>, AttributionError> {
     let mut out = Vec::new();
     for gather in model.parent_gathers.iter() {
         let child_var = model.output_layout.variables[gather.child.as_usize()];
@@ -166,11 +167,9 @@ pub fn intrinsic_influence(
     let mut rng = causal_core::CausalRng::from_seed(0);
     let mut ws = MechanismWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
-    let child_dense = model.dense_of(child).ok_or_else(|| {
-        AttributionError::Message("child missing".into())
-    })?;
-    let pcol =
-        data.float64_values(parent).map_err(|e| AttributionError::Message(e.to_string()))?;
+    let child_dense =
+        model.dense_of(child).ok_or_else(|| AttributionError::Message("child missing".into()))?;
+    let pcol = data.float64_values(parent).map_err(|e| AttributionError::Message(e.to_string()))?;
     let pmean = pcol.iter().sum::<f64>() / pcol.len().max(1) as f64;
     let hi = sample_interventional(
         model,
@@ -196,9 +195,7 @@ pub fn intrinsic_influence(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use causal_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
+    use causal_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};
     use causal_graph::{Dag, DenseNodeId};
@@ -243,8 +240,7 @@ mod tests {
         let data =
             TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
         let mut g = Dag::with_variables(2);
-        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let compiled = CompiledCausalModel::compile(g).unwrap();
         let (store, _) = MechanismRegistry::standard()
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)

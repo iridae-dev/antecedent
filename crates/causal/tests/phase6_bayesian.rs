@@ -8,14 +8,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal::{encode_causal_posterior_bytes, decode_causal_posterior_bytes};
+use causal::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-};
+use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
 use causal_estimate::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, EnvelopeOptions,
     EstimationWorkspace, GraphEffectDraws, LinearAdjustmentAte, aggregate_effect_envelope,
@@ -29,14 +27,12 @@ use causal_prob::{
     LaplaceGlmBackend, LaplaceWorkspace, PriorSet, PriorSpec, WeightedGraphSamples,
 };
 use causal_validate::{
-    PosteriorPredictiveCheck, PriorPredictiveCheck, PriorSensitivity, PredictiveCheckKind,
+    PosteriorPredictiveCheck, PredictiveCheckKind, PriorPredictiveCheck, PriorSensitivity,
 };
 use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../conformance/phase6")
-        .join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/phase6").join(name)
 }
 
 fn load_expected(name: &str) -> JsonValue {
@@ -112,10 +108,7 @@ fn shared_functional_ate() {
     );
     let query = AverageEffectQuery::binary_ate(t, y);
 
-    let freq = LinearAdjustmentAte {
-        bootstrap_replicates: 0,
-        ..LinearAdjustmentAte::new()
-    };
+    let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
     let freq_est = freq
@@ -154,11 +147,10 @@ fn nonidentified_prior() {
     let expected = load_expected("nonidentified_prior");
     let prior = PriorSet::weakly_informative(3);
     let post = nonidentified_with_prior(&prior, InferenceDiagnostics::analytic("none"));
-    assert_eq!(
-        format!("{:?}", post.identification),
-        expected["identification"].as_str().unwrap()
+    assert_eq!(format!("{:?}", post.identification), expected["identification"].as_str().unwrap());
+    assert!(
+        (post.unidentified_mass - expected["unidentified_mass"].as_f64().unwrap()).abs() < 1e-12
     );
-    assert!((post.unidentified_mass - expected["unidentified_mass"].as_f64().unwrap()).abs() < 1e-12);
     assert_eq!(expected["prior_recorded"].as_bool().unwrap(), !post.assumptions.is_empty());
 }
 
@@ -189,19 +181,9 @@ fn conjugate_gaussian() {
         categorical: Vec::new(),
     };
     let mut ws = LaplaceWorkspace::default();
-    let design = BayesDesignRef {
-        x_colmajor: &x,
-        nrows: n,
-        ncols: 2,
-        y: &y,
-        weights: None,
-        offsets: None,
-    };
-    let opts = BayesFitOptions {
-        n_draws: 200,
-        seed: 42,
-        ..BayesFitOptions::default()
-    };
+    let design =
+        BayesDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y, weights: None, offsets: None };
+    let opts = BayesFitOptions { n_draws: 200, seed: 42, ..BayesFitOptions::default() };
     let fit = ConjugateGaussianBackend
         .fit(
             BayesLikelihood::GaussianIdentity,
@@ -237,19 +219,9 @@ fn laplace_glm() {
     }
     let prior = PriorSet::weakly_informative(2);
     let mut ws = LaplaceWorkspace::default();
-    let design = BayesDesignRef {
-        x_colmajor: &x,
-        nrows: n,
-        ncols: 2,
-        y: &y,
-        weights: None,
-        offsets: None,
-    };
-    let opts = BayesFitOptions {
-        n_draws: 100,
-        seed: 9,
-        ..BayesFitOptions::default()
-    };
+    let design =
+        BayesDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y, weights: None, offsets: None };
+    let opts = BayesFitOptions { n_draws: 100, seed: 9, ..BayesFitOptions::default() };
     let fit = LaplaceGlmBackend
         .fit(
             BayesLikelihood::GaussianIdentity,
@@ -275,30 +247,16 @@ fn graph_effect_envelope() {
     let mixture = expected["expected_mixture_mean"].as_f64().unwrap();
 
     let graphs = WeightedGraphSamples::new(
-        vec![
-            identified[0].as_f64().unwrap(),
-            w_unid,
-            identified[1].as_f64().unwrap(),
-        ],
-        vec![
-            GraphIdentFlag::Identified,
-            GraphIdentFlag::Unidentified,
-            GraphIdentFlag::Identified,
-        ],
+        vec![identified[0].as_f64().unwrap(), w_unid, identified[1].as_f64().unwrap()],
+        vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified, GraphIdentFlag::Identified],
         vec![1, 2, 3],
     )
     .unwrap();
     let e0 = effects[0].as_f64().unwrap();
     let e1 = effects[1].as_f64().unwrap();
     let per = vec![
-        GraphEffectDraws {
-            graph_key: 1,
-            effect_draws: Arc::from(vec![e0, e0, e0]),
-        },
-        GraphEffectDraws {
-            graph_key: 3,
-            effect_draws: Arc::from(vec![e1, e1, e1]),
-        },
+        GraphEffectDraws { graph_key: 1, effect_draws: Arc::from(vec![e0, e0, e0]) },
+        GraphEffectDraws { graph_key: 3, effect_draws: Arc::from(vec![e1, e1, e1]) },
     ];
     let env = aggregate_effect_envelope(
         &graphs,
@@ -334,33 +292,20 @@ fn ppc() {
     };
     let prep = bayes.prepare(&data, &estimand, &query).unwrap();
     let ctx = ExecutionContext::for_tests(1);
-    let prior_rep = PriorPredictiveCheck {
-        n_sims: 50,
-        seed: 3,
-        ..PriorPredictiveCheck::new()
-    }
-    .check(&prep, &ctx)
-    .unwrap();
+    let prior_rep = PriorPredictiveCheck { n_sims: 50, seed: 3, ..PriorPredictiveCheck::new() }
+        .check(&prep, &ctx)
+        .unwrap();
     assert_eq!(prior_rep.kind, PredictiveCheckKind::Prior);
     if expected["require_finite_p_value"].as_bool().unwrap() {
         assert!(prior_rep.p_value.is_finite());
     }
 
     let mut ws = BayesianGCompWorkspace::default();
-    let post = bayes
-        .fit(
-            &prep,
-            IdentificationStatus::NonparametricallyIdentified,
-            &mut ws,
-            &ctx,
-        )
+    let post =
+        bayes.fit(&prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx).unwrap();
+    let post_rep = PosteriorPredictiveCheck { n_sims: 50, ..PosteriorPredictiveCheck::new() }
+        .check(&prep, &post)
         .unwrap();
-    let post_rep = PosteriorPredictiveCheck {
-        n_sims: 50,
-        ..PosteriorPredictiveCheck::new()
-    }
-    .check(&prep, &post)
-    .unwrap();
     assert_eq!(post_rep.kind, PredictiveCheckKind::Posterior);
     assert!(post_rep.p_value.is_finite());
 }
@@ -368,12 +313,8 @@ fn ppc() {
 #[test]
 fn prior_sensitivity() {
     let expected = load_expected("prior_sensitivity");
-    let scales: Vec<f64> = expected["scales"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| v.as_f64().unwrap())
-        .collect();
+    let scales: Vec<f64> =
+        expected["scales"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
 
     let (data, t, y, z) = linear_scm_table(40);
     let estimand = IdentifiedEstimand::backdoor(
@@ -391,17 +332,9 @@ fn prior_sensitivity() {
     let prep = bayes.prepare(&data, &estimand, &query).unwrap();
     let mut ws = BayesianGCompWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
-    let sens = PriorSensitivity {
-        scales: Arc::from(scales.clone()),
-    };
+    let sens = PriorSensitivity { scales: Arc::from(scales.clone()) };
     let (summary, _) = sens
-        .evaluate(
-            &bayes,
-            &prep,
-            IdentificationStatus::NonparametricallyIdentified,
-            &mut ws,
-            &ctx,
-        )
+        .evaluate(&bayes, &prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
         .unwrap();
     assert_eq!(summary.prior_scales.len(), scales.len());
     if expected["require_finite_effect_means"].as_bool().unwrap() {

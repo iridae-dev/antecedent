@@ -6,18 +6,25 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::many_single_char_names,
+    clippy::similar_names
+)]
 
 use std::sync::Arc;
 
-use causal_core::{AverageEffectQuery, ConditionalEffectQuery, ExecutionContext, TargetPopulation};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ConditionalEffectQuery, ExecutionContext, TargetPopulation,
+};
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{FaerBackend, form_xtx, invert_square};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
-use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
+use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
 
 /// Conditional linear adjustment ATE.
@@ -106,17 +113,10 @@ impl ConditionalLinearAdjustment {
         let w_id = query.effect_modifiers[0];
         let mut ids = vec![query.treatment, query.outcome, w_id];
         ids.extend_from_slice(&estimand.adjustment_set);
-        let row_mask =
-            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-        let t = data
-            .float64_masked(query.treatment, &row_mask)
-            .map_err(EstimationError::from)?;
-        let y = data
-            .float64_masked(query.outcome, &row_mask)
-            .map_err(EstimationError::from)?;
-        let w = data
-            .float64_masked(w_id, &row_mask)
-            .map_err(EstimationError::from)?;
+        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let t = data.float64_masked(query.treatment, &row_mask).map_err(EstimationError::from)?;
+        let y = data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
+        let w = data.float64_masked(w_id, &row_mask).map_err(EstimationError::from)?;
         let n = t.len();
         if n < 8 {
             return Err(EstimationError::data_msg("too few complete rows for conditional ATE"));
@@ -133,9 +133,7 @@ impl ConditionalLinearAdjustment {
             design[3 * n + i] = t[i] * w[i];
         }
         for (k, &z) in estimand.adjustment_set.iter().enumerate() {
-            let zcol = data
-                .float64_masked(z, &row_mask)
-                .map_err(EstimationError::from)?;
+            let zcol = data.float64_masked(z, &row_mask).map_err(EstimationError::from)?;
             let base = (4 + k) * n;
             design[base..base + n].copy_from_slice(&zcol);
         }
@@ -147,9 +145,8 @@ impl ConditionalLinearAdjustment {
             let col = &design[c * n..(c + 1) * n];
             xty[c] = col.iter().zip(y.iter()).map(|(a, b)| a * b).sum();
         }
-        let inv = invert_square(&xtx, ncols).ok_or_else(|| {
-            EstimationError::stats_msg("singular design in conditional ATE")
-        })?;
+        let inv = invert_square(&xtx, ncols)
+            .ok_or_else(|| EstimationError::stats_msg("singular design in conditional ATE"))?;
         let mut coef = vec![0.0; ncols];
         for i in 0..ncols {
             let mut s = 0.0;
@@ -169,7 +166,7 @@ impl ConditionalLinearAdjustment {
             ate: point,
             se_analytic: 0.0,
             se_bootstrap: None,
-            assumptions: Default::default(),
+            assumptions: AssumptionSet::default(),
             overlap: OverlapPolicy::ExplicitOverride,
             overlap_report: None,
             retained_memory_bytes: None,
@@ -180,8 +177,8 @@ impl ConditionalLinearAdjustment {
 #[cfg(test)]
 mod tests {
     use causal_core::{
-        AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-        VariableId,
+        AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet,
+        ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -208,19 +205,32 @@ mod tests {
         let schema = b.build().unwrap();
         let t: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
         let w: Vec<f64> = (0..n).map(|i| (i % 5) as f64).collect();
-        let y: Vec<f64> = t.iter().zip(w.iter()).map(|(&ti, &wi)| 1.0 + 2.0 * ti + 0.5 * ti * wi).collect();
+        let y: Vec<f64> =
+            t.iter().zip(w.iter()).map(|(&ti, &wi)| 1.0 + 2.0 * ti + 0.5 * ti * wi).collect();
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(2), Arc::from(w), ValidityBitmap::all_valid(n))
-                    .unwrap(),
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(w),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
             ),
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();

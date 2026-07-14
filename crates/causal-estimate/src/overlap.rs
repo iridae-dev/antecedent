@@ -185,4 +185,3 @@ fn clip_sensitivity_grid(propensities: &[f64], clip: f64) -> ClipSensitivity {
         extreme_weight_counts: Arc::from(extreme_counts),
     }
 }
-

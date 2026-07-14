@@ -23,3 +23,8 @@ causal-stats = { path = "../causal-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "shapley"
+harness = false

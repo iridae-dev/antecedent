@@ -54,15 +54,15 @@ pub use pipeline::{
     algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
     with_links_retained,
 };
-pub use rpcmci::{
-    RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, regime_edge_counts,
-    two_regime_half_split,
-};
 pub use result::{
     AlgorithmRecord, CpdagDiscoveryResult, CpdagGraphEvidence, DagDiscoveryResult,
     DagGraphEvidence, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
     DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, LaggedParent,
     PagDiscoveryResult, PagGraphEvidence, PcSepsets, ScoredLink, SepsetKey,
+};
+pub use rpcmci::{
+    RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, regime_edge_counts,
+    two_regime_half_split,
 };
 pub use rule_scheduling::{
     LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciOrientationRule, LpcmciR1, LpcmciR2,

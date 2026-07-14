@@ -39,7 +39,7 @@ impl CompletionSampler {
         let mut sites = Vec::new();
         let n = pag.node_count();
         for i in 0..n {
-            let a = DenseNodeId::from_raw(i as u32);
+            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             for (b, at_a, at_b) in pag.neighbors(a) {
                 if b.raw() < a.raw() {
                     continue;
@@ -57,13 +57,7 @@ impl CompletionSampler {
                 message: "too many circle endpoints for CompletionSampler mask",
             });
         }
-        Ok(Self {
-            base: pag,
-            circle_sites: sites,
-            max_completions,
-            next_index: 0,
-            assign: 0,
-        })
+        Ok(Self { base: pag, circle_sites: sites, max_completions, next_index: 0, assign: 0 })
     }
 
     /// Hard cap.
@@ -82,19 +76,10 @@ impl CompletionSampler {
         let mut g = self.base.clone();
         for (i, &(a, b, at_a_circle)) in self.circle_sites.iter().enumerate() {
             let choose_arrow = ((mask >> i) & 1) == 1;
-            let new_mark = if choose_arrow {
-                Endpoint::Arrow
-            } else {
-                Endpoint::Tail
-            };
-            let Some(edge) = g.edge_between(a, b) else {
-                return None;
-            };
-            let (at_a, at_b) = if at_a_circle {
-                (new_mark, edge.at_b)
-            } else {
-                (edge.at_a, new_mark)
-            };
+            let new_mark = if choose_arrow { Endpoint::Arrow } else { Endpoint::Tail };
+            let edge = g.edge_between(a, b)?;
+            let (at_a, at_b) =
+                if at_a_circle { (new_mark, edge.at_b) } else { (edge.at_a, new_mark) };
             // Skip illegal directed cycles.
             if g.set_marks(a, b, at_a, at_b).is_err() {
                 return None;
@@ -102,7 +87,7 @@ impl CompletionSampler {
         }
         // Verify no circles remain.
         for i in 0..g.node_count() {
-            let a = DenseNodeId::from_raw(i as u32);
+            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             for (b, at_a, at_b) in g.neighbors(a) {
                 if b.raw() < a.raw() {
                     continue;
@@ -125,11 +110,7 @@ impl Iterator for CompletionSampler {
             return None;
         }
         let n_sites = self.circle_sites.len();
-        let total = if n_sites == 0 {
-            1u64
-        } else {
-            1u64 << n_sites
-        };
+        let total = if n_sites == 0 { 1u64 } else { 1u64 << n_sites };
         while self.assign < total {
             let mask = self.assign;
             self.assign += 1;
@@ -138,7 +119,7 @@ impl Iterator for CompletionSampler {
                 self.next_index += 1;
                 return Some(PagCompletion { graph, index });
             }
-            // Invalid orientation — try next mask without counting against... 
+            // Invalid orientation — try next mask without counting against...
             // Actually invalid ones shouldn't count toward max? Plan says max completions
             // yielded. Skip invalid without incrementing next_index — but still need to
             // avoid infinite loop. assign already advanced.
@@ -155,18 +136,15 @@ mod tests {
     #[test]
     fn respects_max_completions_bound() {
         let mut pag = Pag::with_variables(2);
-        pag.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
+        pag.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let sampler = CompletionSampler::new(pag, 2).unwrap();
         assert_eq!(sampler.n_circle_sites(), 2);
         let collected: Vec<_> = sampler.collect();
         assert!(collected.len() <= 2);
         assert!(!collected.is_empty());
         for c in &collected {
-            let e = c
-                .graph
-                .edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-                .unwrap();
+            let e =
+                c.graph.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
             assert!(!matches!(e.at_a, Endpoint::Circle));
             assert!(!matches!(e.at_b, Endpoint::Circle));
         }
@@ -175,8 +153,7 @@ mod tests {
     #[test]
     fn no_circle_yields_single_completion() {
         let mut pag = Pag::with_variables(2);
-        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let collected: Vec<_> = CompletionSampler::new(pag, 10).unwrap().collect();
         assert_eq!(collected.len(), 1);
     }

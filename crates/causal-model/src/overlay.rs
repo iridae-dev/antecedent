@@ -145,9 +145,7 @@ fn apply_intervention(
             }
             Ok(())
         }
-        _ => Err(ModelError::Unsupported {
-            message: "unknown intervention variant".into(),
-        }),
+        _ => Err(ModelError::Unsupported { message: "unknown intervention variant".into() }),
     }
 }
 

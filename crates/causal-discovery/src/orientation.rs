@@ -42,9 +42,7 @@ impl From<OrientationError> for DiscoveryError {
     fn from(e: OrientationError) -> Self {
         match e {
             OrientationError::Graph(g) => DiscoveryError::Graph(g),
-            OrientationError::Precondition { message } => {
-                DiscoveryError::Unsupported { message }
-            }
+            OrientationError::Precondition { message } => DiscoveryError::Unsupported { message },
             OrientationError::Message(m) => DiscoveryError::stats_msg(m),
         }
     }
@@ -200,9 +198,7 @@ impl OrientationRule for MeekR1 {
             for a in graph.parents(b) {
                 for c in graph.undirected_neighbors(b) {
                     if !graph.has_edge(a, c) {
-                        graph
-                            .orient_undirected(b, c)
-                            .map_err(OrientationError::from)?;
+                        graph.orient_undirected(b, c).map_err(OrientationError::from)?;
                         delta.edges_changed += 1;
                         delta.fixed_point = false;
                         delta.premises.push(Arc::from(format!(
@@ -248,9 +244,7 @@ impl OrientationRule for MeekR2 {
             for b in graph.children(*a) {
                 for c in graph.children(b) {
                     if graph.edge_between(*a, c).is_some_and(|e| e.is_undirected()) {
-                        graph
-                            .orient_undirected(*a, c)
-                            .map_err(OrientationError::from)?;
+                        graph.orient_undirected(*a, c).map_err(OrientationError::from)?;
                         delta.edges_changed += 1;
                         delta.fixed_point = false;
                         delta.premises.push(Arc::from(format!(
@@ -315,9 +309,7 @@ impl OrientationRule for MeekR3 {
                     }
                 }
                 if orient {
-                    graph
-                        .orient_undirected(*a, b)
-                        .map_err(OrientationError::from)?;
+                    graph.orient_undirected(*a, b).map_err(OrientationError::from)?;
                     delta.edges_changed += 1;
                     delta.fixed_point = false;
                     delta.premises.push(Arc::from(format!(
@@ -380,9 +372,7 @@ impl OrientationRule for MeekR4 {
                     }
                 }
                 if orient {
-                    graph
-                        .orient_undirected(*a, b)
-                        .map_err(OrientationError::from)?;
+                    graph.orient_undirected(*a, b).map_err(OrientationError::from)?;
                     delta.edges_changed += 1;
                     delta.fixed_point = false;
                     delta.premises.push(Arc::from(format!(
@@ -452,18 +442,14 @@ impl OrientationRule for OrientCollider {
                     let mut oriented = 0u32;
                     if a_undirected && graph.edge_between(a, *c).is_some_and(|e| e.is_undirected())
                     {
-                        graph
-                            .orient_undirected(a, *c)
-                            .map_err(OrientationError::from)?;
+                        graph.orient_undirected(a, *c).map_err(OrientationError::from)?;
                         oriented += 1;
                         changed.push(a);
                         changed.push(*c);
                     }
                     if b_undirected && graph.edge_between(b, *c).is_some_and(|e| e.is_undirected())
                     {
-                        graph
-                            .orient_undirected(b, *c)
-                            .map_err(OrientationError::from)?;
+                        graph.orient_undirected(b, *c).map_err(OrientationError::from)?;
                         oriented += 1;
                         changed.push(b);
                         changed.push(*c);

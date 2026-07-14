@@ -5,26 +5,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
+#![allow(clippy::cast_possible_truncation, clippy::many_single_char_names, clippy::similar_names)]
 
 use std::collections::HashSet;
 
 use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
 
-use crate::discriminating_paths::{
-    discriminating_implies_collider, find_discriminating_paths,
-};
-use crate::orientation::{
-    OrientationError, OrientationQueue, OrientationState, RuleDelta,
-};
+use crate::discriminating_paths::{discriminating_implies_collider, find_discriminating_paths};
+use crate::orientation::{OrientationError, OrientationQueue, OrientationState, RuleDelta};
 
 /// Drain the orientation queue into a focus set, or scan all nodes when empty
 /// (same contract as Meek [`crate::orientation`] rules).
 fn focus_nodes(graph: &TemporalPag, queue: &mut OrientationQueue) -> Vec<DenseNodeId> {
     if queue.is_empty() {
-        (0..graph.node_count())
-            .map(|i| DenseNodeId::from_raw(i as u32))
-            .collect()
+        (0..graph.node_count()).map(|i| DenseNodeId::from_raw(i as u32)).collect()
     } else {
         let mut v = Vec::new();
         while let Some(n) = queue.pop() {
@@ -95,9 +89,7 @@ impl LpcmciOrientationRule for LpcmciOrientCollider {
                         let at_a = e.at_a;
                         let at_b = Endpoint::Arrow;
                         if !matches!(e.at_b, Endpoint::Arrow) {
-                            graph
-                                .set_marks(a, b, at_a, at_b)
-                                .map_err(|err| OrientationError::from(err))?;
+                            graph.set_marks(a, b, at_a, at_b).map_err(OrientationError::from)?;
                             delta.edges_changed += 1;
                             enqueue_local(graph, a, queue);
                             enqueue_local(graph, b, queue);
@@ -107,9 +99,7 @@ impl LpcmciOrientationRule for LpcmciOrientCollider {
                         let at_c = e.at_a;
                         let at_b = Endpoint::Arrow;
                         if !matches!(e.at_b, Endpoint::Arrow) {
-                            graph
-                                .set_marks(c, b, at_c, at_b)
-                                .map_err(|err| OrientationError::from(err))?;
+                            graph.set_marks(c, b, at_c, at_b).map_err(OrientationError::from)?;
                             delta.edges_changed += 1;
                             enqueue_local(graph, c, queue);
                             enqueue_local(graph, b, queue);
@@ -147,10 +137,8 @@ impl LpcmciOrientationRule for LpcmciR1 {
                 let Some(e_ab) = graph.edge_between(a, b) else {
                     continue;
                 };
-                let directed_ab = matches!(
-                    (e_ab.at_a, e_ab.at_b),
-                    (Endpoint::Tail, Endpoint::Arrow)
-                );
+                let directed_ab =
+                    matches!((e_ab.at_a, e_ab.at_b), (Endpoint::Tail, Endpoint::Arrow));
                 if !directed_ab {
                     let _ = (at_b_from_a, at_a);
                     continue;
@@ -175,13 +163,9 @@ impl LpcmciOrientationRule for LpcmciR1 {
                     let (at_b, at_c) = (Endpoint::Tail, mark_at_c);
                     // set from b's perspective
                     if e_bc.a == b {
-                        graph
-                            .set_marks(b, c, at_b, at_c)
-                            .map_err(|err| OrientationError::from(err))?;
+                        graph.set_marks(b, c, at_b, at_c).map_err(OrientationError::from)?;
                     } else {
-                        graph
-                            .set_marks(c, b, at_c, at_b)
-                            .map_err(|err| OrientationError::from(err))?;
+                        graph.set_marks(c, b, at_c, at_b).map_err(OrientationError::from)?;
                     }
                     delta.edges_changed += 1;
                     enqueue_local(graph, b, queue);
@@ -306,14 +290,16 @@ impl LpcmciOrientationRule for LpcmciR3 {
                             continue;
                         };
                         let _ = (at_a_ad, at_c_cd);
-                        if !matches!(at_d_ad, Endpoint::Circle) || !matches!(at_d_cd, Endpoint::Circle)
+                        if !matches!(at_d_ad, Endpoint::Circle)
+                            || !matches!(at_d_cd, Endpoint::Circle)
                         {
                             continue;
                         }
                         if !matches!(at_b_db, Endpoint::Circle) {
                             continue;
                         }
-                        if matches!(at_d_db, Endpoint::Arrow) && matches!(at_b_db, Endpoint::Arrow) {
+                        if matches!(at_d_db, Endpoint::Arrow) && matches!(at_b_db, Endpoint::Arrow)
+                        {
                             continue;
                         }
                         set_marks_oriented(graph, d, b, at_d_db, Endpoint::Arrow)?;
@@ -335,11 +321,7 @@ fn marks_between(
     b: DenseNodeId,
 ) -> Option<(Endpoint, Endpoint)> {
     let e = graph.edge_between(a, b)?;
-    if e.a == a {
-        Some((e.at_a, e.at_b))
-    } else {
-        Some((e.at_b, e.at_a))
-    }
+    if e.a == a { Some((e.at_a, e.at_b)) } else { Some((e.at_b, e.at_a)) }
 }
 
 fn set_marks_oriented(
@@ -353,13 +335,9 @@ fn set_marks_oriented(
         return Err(OrientationError::msg("missing edge in set_marks_oriented"));
     };
     if e.a == a {
-        graph
-            .set_marks(a, b, at_a, at_b)
-            .map_err(|err| OrientationError::from(err))
+        graph.set_marks(a, b, at_a, at_b).map_err(OrientationError::from)
     } else {
-        graph
-            .set_marks(b, a, at_b, at_a)
-            .map_err(|err| OrientationError::from(err))
+        graph.set_marks(b, a, at_b, at_a).map_err(OrientationError::from)
     }
 }
 
@@ -405,26 +383,18 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
                 let at_c = if e.a == c { e.at_a } else { e.at_b };
                 let at_b = Endpoint::Arrow;
                 if e.a == c {
-                    graph
-                        .set_marks(c, b, at_c, at_b)
-                        .map_err(|err| OrientationError::from(err))?;
+                    graph.set_marks(c, b, at_c, at_b).map_err(OrientationError::from)?;
                 } else {
-                    graph
-                        .set_marks(b, c, at_b, at_c)
-                        .map_err(|err| OrientationError::from(err))?;
+                    graph.set_marks(b, c, at_b, at_c).map_err(OrientationError::from)?;
                 }
             } else {
                 // c —* b with tail at c (non-collider)
                 let at_c = Endpoint::Tail;
                 let at_b = if e.a == b { e.at_a } else { e.at_b };
                 if e.a == c {
-                    graph
-                        .set_marks(c, b, at_c, at_b)
-                        .map_err(|err| OrientationError::from(err))?;
+                    graph.set_marks(c, b, at_c, at_b).map_err(OrientationError::from)?;
                 } else {
-                    graph
-                        .set_marks(b, c, at_b, at_c)
-                        .map_err(|err| OrientationError::from(err))?;
+                    graph.set_marks(b, c, at_b, at_c).map_err(OrientationError::from)?;
                 }
             }
             delta.edges_changed += 1;
@@ -449,13 +419,13 @@ pub fn run_lpcmci_orientation(
     rules: &[&dyn LpcmciOrientationRule],
     state: &mut OrientationState,
 ) -> Result<RuleDelta, OrientationError> {
+    const MAX_ROUNDS: u32 = 10_000;
     let mut queue = OrientationQueue::new();
     for i in 0..graph.node_count() {
         queue.push(DenseNodeId::from_raw(i as u32));
     }
     let mut total = RuleDelta::default();
     let mut rounds = 0u32;
-    const MAX_ROUNDS: u32 = 10_000;
     while rounds < MAX_ROUNDS {
         rounds += 1;
         let mut any = false;
@@ -546,4 +516,3 @@ mod tests {
         assert!(matches!(at_c, Endpoint::Arrow));
     }
 }
-

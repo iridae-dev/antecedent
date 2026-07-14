@@ -31,8 +31,8 @@ use causal_expr::IdentifiedEstimand;
 use causal_stats::{FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx, invert_square};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
-use crate::overlap::OverlapPolicy;
 use crate::error::EstimationError;
+use crate::overlap::OverlapPolicy;
 use crate::util::{sample_std, stats_err};
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
@@ -113,14 +113,9 @@ fn prepare_iv_problem(
     ids.push(outcome);
     ids.extend_from_slice(&estimand.instruments);
     ids.extend_from_slice(&estimand.adjustment_set);
-    let row_mask =
-        data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-    let t = data
-        .float64_masked(treatment, &row_mask)
-        .map_err(EstimationError::from)?;
-    let y = data
-        .float64_masked(outcome, &row_mask)
-        .map_err(EstimationError::from)?;
+    let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+    let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
+    let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
     let nrows = t.len();
 
     let z_ncols = 1 + estimand.instruments.len();
@@ -129,9 +124,7 @@ fn prepare_iv_problem(
         instruments_matrix[r] = 1.0;
     }
     for (i, &z_id) in estimand.instruments.iter().enumerate() {
-        let col = data
-            .float64_masked(z_id, &row_mask)
-            .map_err(EstimationError::from)?;
+        let col = data.float64_masked(z_id, &row_mask).map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
         for r in 0..nrows {
             instruments_matrix[base + r] = col[r];
@@ -144,9 +137,7 @@ fn prepare_iv_problem(
         exogenous_matrix[r] = 1.0;
     }
     for (i, &x_id) in estimand.adjustment_set.iter().enumerate() {
-        let col = data
-            .float64_masked(x_id, &row_mask)
-            .map_err(EstimationError::from)?;
+        let col = data.float64_masked(x_id, &row_mask).map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
         for r in 0..nrows {
             exogenous_matrix[base + r] = col[r];
@@ -308,7 +299,9 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
         }
     }
     if n1 == 0 || n0 == 0 {
-        return Err(EstimationError::data_msg("Wald IV requires both instrument arms (Z=0 and Z=1) to be present"));
+        return Err(EstimationError::data_msg(
+            "Wald IV requires both instrument arms (Z=0 and Z=1) to be present",
+        ));
     }
     let n1f = n1 as f64;
     let n0f = n0 as f64;

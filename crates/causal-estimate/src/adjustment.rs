@@ -6,9 +6,7 @@
 
 use std::sync::Arc;
 
-use causal_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, VariableId,
-};
+use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, VariableId};
 use causal_data::TabularData;
 use causal_expr::{EstimandMethod, IdentifiedEstimand};
 use causal_stats::{
@@ -117,21 +115,12 @@ impl LinearAdjustmentAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let row_mask =
-            data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-        let t = data
-            .float64_masked(treatment, &row_mask)
-            .map_err(EstimationError::from)?;
-        let y = data
-            .float64_masked(outcome, &row_mask)
-            .map_err(EstimationError::from)?;
+        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
+        let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
-            covs.push((
-                z,
-                data.float64_masked(z, &row_mask)
-                    .map_err(EstimationError::from)?,
-            ));
+            covs.push((z, data.float64_masked(z, &row_mask).map_err(EstimationError::from)?));
         }
         let cov_refs: Vec<(VariableId, &[f64])> =
             covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();

@@ -24,24 +24,21 @@ pub fn plans_for_series_lengths(
     columns: &Arc<[LaggedColumn]>,
 ) -> Result<Vec<SamplePlan>, DataError> {
     if columns.is_empty() {
-        return Err(DataError::InvalidArgument {
-            message: "sample plan needs ≥1 column".into(),
-        });
+        return Err(DataError::InvalidArgument { message: "sample plan needs ≥1 column".into() });
     }
     let mut by_len: HashMap<usize, Arc<LagMap>> = HashMap::new();
     let mut plans = Vec::new();
     for series_len in lengths {
-        let lag_map = match by_len.get(&series_len) {
-            Some(m) => Arc::clone(m),
-            None => {
-                let m = Arc::new(LagMap::with_reference(
-                    series_len,
-                    max_lag,
-                    ReferencePointPolicy::SeriesOrigin,
-                )?);
-                by_len.insert(series_len, Arc::clone(&m));
-                m
-            }
+        let lag_map = if let Some(m) = by_len.get(&series_len) {
+            Arc::clone(m)
+        } else {
+            let m = Arc::new(LagMap::with_reference(
+                series_len,
+                max_lag,
+                ReferencePointPolicy::SeriesOrigin,
+            )?);
+            by_len.insert(series_len, Arc::clone(&m));
+            m
         };
         plans.push(SamplePlan::with_shared(lag_map, Arc::clone(columns))?);
     }
@@ -78,9 +75,7 @@ impl MultiEnvSamplePlan {
                 message: "multi-env sample plan needs ≥1 environment".into(),
             });
         }
-        let lengths = (0..n_env).map(|i| {
-            data.environment(i).map(|s| s.row_count())
-        });
+        let lengths = (0..n_env).map(|i| data.environment(i).map(TableView::row_count));
         let lengths: Result<Vec<_>, _> = lengths.collect();
         let plans = plans_for_series_lengths(lengths?, max_lag, &columns)?;
         Ok(Self { columns, plans: Arc::from(plans) })
@@ -130,9 +125,7 @@ impl PanelSamplePlan {
                 message: "panel sample plan needs ≥1 unit".into(),
             });
         }
-        let lengths = (0..panel.unit_count()).map(|i| {
-            panel.unit(i).map(|u| u.series.row_count())
-        });
+        let lengths = (0..panel.unit_count()).map(|i| panel.unit(i).map(|u| u.series.row_count()));
         let lengths: Result<Vec<_>, _> = lengths.collect();
         let plans = plans_for_series_lengths(lengths?, max_lag, &columns)?;
         Ok(Self { columns, plans: Arc::from(plans) })
@@ -162,10 +155,7 @@ mod tests {
     use crate::testing::float_series;
 
     fn one_col() -> Arc<[LaggedColumn]> {
-        Arc::from([LaggedColumn {
-            variable: VariableId::from_raw(0),
-            lag: Lag::CONTEMPORANEOUS,
-        }])
+        Arc::from([LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::CONTEMPORANEOUS }])
     }
 
     #[test]

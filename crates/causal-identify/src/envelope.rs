@@ -117,9 +117,9 @@ impl<G> IdentificationEnvelope<G> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use causal_core::{AverageEffectQuery, CausalQuery, VariableId};
-    use causal_expr::CausalExprArena;
     use crate::result::{DerivationTrace, IdentificationPerformanceRecord};
+    use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
+    use causal_expr::CausalExprArena;
 
     fn dummy_result(status: IdentificationStatus) -> IdentificationResult {
         IdentificationResult {
@@ -131,7 +131,7 @@ mod tests {
             estimands: Vec::new(),
             arena: CausalExprArena::new(),
             derivation: DerivationTrace::default(),
-            required_assumptions: Default::default(),
+            required_assumptions: AssumptionSet::default(),
             diagnostics: Vec::new(),
             performance: IdentificationPerformanceRecord::default(),
         }

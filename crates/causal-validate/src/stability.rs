@@ -85,10 +85,8 @@ impl BlockBootstrapStability {
                 &mut index_scratch,
             )
             .map_err(ValidationError::from)?;
-            let result = self
-                .pcmci
-                .run(&boot, variables, workspace, ctx)
-                .map_err(ValidationError::from)?;
+            let result =
+                self.pcmci.run(&boot, variables, workspace, ctx).map_err(ValidationError::from)?;
             for s in result.evidence.links.iter() {
                 *counts.entry(s.link).or_insert(0) += 1;
             }
