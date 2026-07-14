@@ -191,6 +191,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "causal-attribution"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+ "causal-counterfactual",
+ "causal-data",
+ "causal-graph",
+ "causal-model",
+]
+
+[[package]]
 name = "causal-core"
 version = "0.1.0"
 
