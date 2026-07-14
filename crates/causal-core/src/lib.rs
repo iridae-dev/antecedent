@@ -44,8 +44,9 @@ pub use plan::{
 };
 pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
 pub use query::{
-    AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CounterfactualQuery, QueryError,
-    TargetPopulation, TemporalEffectQuery,
+    AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, ConditionalEffectQuery,
+    CounterfactualQuery, MediationContrast, MediationQuery, QueryError, TargetPopulation,
+    TemporalEffectQuery,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
