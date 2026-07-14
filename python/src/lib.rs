@@ -29,7 +29,7 @@ use causal_data::{
     SamplingRegularity, TableView, TimeIndex, TimeSeriesData, tabular_from_record_batch,
 };
 use causal_discovery::{
-    DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus, TemporalConstraints,
+    DiscoveryConstraints, DiscoveryWorkspace, Lpcmci, Pcmci, PcmciPlus, TemporalConstraints,
 };
 use causal_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
 use causal_stats::ci_from_name;
@@ -580,6 +580,83 @@ fn discover_pcmci_plus(
     })
 }
 
+/// Run LPCMCI discovery returning links plus temporal PAG summary (no per-edge GIL).
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
+fn discover_lpcmci(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: &str,
+    weights: Option<Vec<f64>>,
+) -> PyResult<PcmciDiscoveryResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let ci_name = ci.to_string();
+    let ci_impl = resolve_ci(ci, weights)?;
+    drop(columns);
+
+    py.allow_threads(move || {
+        let (series, variables) = series_from_batch(&batch)?;
+        let alg = Lpcmci::new()
+            .with_fdr(fdr)
+            .with_constraints(DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(max_lag),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                alpha,
+                max_cond_size: 2,
+                ..DiscoveryConstraints::default()
+            })
+            .with_ci(ci_impl);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(seed);
+        let result = alg.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
+
+        let pag = &result.evidence.graph;
+        let pending = result.review.pending_circles.len() as u64;
+        // Count definite directed edges for summary.
+        let mut directed = 0u64;
+        for i in 0..pag.node_count() {
+            let a = DenseNodeId::from_raw(i as u32);
+            for (b, at_a, at_b) in pag.neighbors(a) {
+                if b.raw() < a.raw() {
+                    continue;
+                }
+                if matches!(
+                    (at_a, at_b),
+                    (
+                        causal_graph::Endpoint::Tail,
+                        causal_graph::Endpoint::Arrow
+                    ) | (
+                        causal_graph::Endpoint::Arrow,
+                        causal_graph::Endpoint::Tail
+                    )
+                ) {
+                    directed += 1;
+                }
+            }
+        }
+
+        Ok(discovery_result_fields(
+            &names,
+            &result.evidence.links,
+            result.algorithm.id.as_ref(),
+            result.algorithm.config.as_ref(),
+            &result.performance,
+            pending,
+            ci_name,
+            pag.node_count() as u64,
+            directed,
+            pending, // undirected field reused as circle-pending count
+        ))
+    })
+}
+
 /// Unified analysis result (static or temporal).
 #[pyclass]
 #[derive(Clone)]
@@ -822,6 +899,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci_plus, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_lpcmci, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_counterfactual_ite, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_sample_do, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;

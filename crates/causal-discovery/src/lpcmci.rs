@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use causal_core::{ExecutionContext, Lag, VariableId};
 use causal_data::TimeSeriesData;
-use causal_graph::{DenseNodeId, TemporalPag, TemporalPagReview};
+use causal_graph::{DenseNodeId, TemporalPagReview};
 use causal_stats::ConditionalIndependence;
 
 use crate::constraints::DiscoveryConstraints;
@@ -248,6 +248,9 @@ mod tests {
         let result = alg.run(&data, &vars, &mut ws, &ctx).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "lpcmci");
         assert!(result.evidence.graph.node_count() > 0);
-        let _pag: &TemporalPag = &result.evidence.graph;
+        assert!(matches!(
+            result.evidence.source,
+            crate::result::EvidenceSource::Discovery { .. }
+        ));
     }
 }
