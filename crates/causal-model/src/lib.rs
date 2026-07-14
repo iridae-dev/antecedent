@@ -12,6 +12,7 @@ pub mod batch;
 pub mod compile;
 pub mod do_sampler;
 pub mod error;
+pub mod evaluate;
 pub mod mechanism;
 pub mod overlay;
 pub mod registry;
@@ -28,6 +29,7 @@ pub use do_sampler::{
     DoSampleResult, KdeDoSampler, McmcDoSampler, WeightingDoSampler, interventional_mean,
 };
 pub use error::ModelError;
+pub use evaluate::{MechanismPredictiveCheck, ModelEvaluationReport, ModelEvaluator};
 pub use mechanism::{
     evaluate_batch_topo, evaluate_column, infer_noise_column, log_prob_column, sample_column,
     sample_noise_batch, sample_noise_column,
