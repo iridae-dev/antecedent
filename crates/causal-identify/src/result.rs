@@ -14,6 +14,10 @@ pub use causal_expr::IdentifiedEstimand;
 pub enum IdentificationStatus {
     /// Nonparametrically identified.
     NonparametricallyIdentified,
+    /// Identified only under a proper subset of the model class (partial ID).
+    PartiallyIdentified,
+    /// Identification depends on which graph in an equivalence class / ensemble.
+    GraphDependent,
     /// Not identified.
     NotIdentified,
 }
