@@ -1,0 +1,19 @@
+feature_id = "estimate.bayesian_gcomp"
+implementation_crate = "causal-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Bayesian g-computation / posterior predictive contrasts"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "shared ATE vs LinearAdjustmentAte on noiseless SCM",
+  "nonidentified_with_prior preserves IdentificationStatus",
+  "conformance/phase6/shared_functional_ate",
+  "conformance/phase6/nonidentified_prior",
+]

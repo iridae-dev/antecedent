@@ -1,0 +1,8 @@
+{
+  "true_ate": 2.0,
+  "tolerance": 0.05,
+  "tolerance_class": "PosteriorDistribution",
+  "frequentist": "linear_adjustment",
+  "bayesian": "conjugate_gcomp",
+  "notes": "Y = 2T + 0.5Z; both engines share backdoor.adjustment IR"
+}
