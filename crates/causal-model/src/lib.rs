@@ -10,6 +10,7 @@
 
 pub mod batch;
 pub mod compile;
+pub mod do_sampler;
 pub mod error;
 pub mod mechanism;
 pub mod overlay;
@@ -22,6 +23,9 @@ pub use batch::{
 pub use compile::{
     CompiledCausalModel, CompiledMechanismStore, InvertibleStructuralCausalModel, MechanismSlot,
     ModelOutputLayout, ParentGatherPlan, ProbabilisticCausalModel, StructuralCausalModel,
+};
+pub use do_sampler::{
+    DoSampleResult, KdeDoSampler, McmcDoSampler, WeightingDoSampler, interventional_mean,
 };
 pub use error::ModelError;
 pub use mechanism::{
