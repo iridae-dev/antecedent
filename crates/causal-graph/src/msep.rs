@@ -1,7 +1,4 @@
-//! m-separation for ADMGs (DESIGN.md §6.5).
-//!
-//! Ancestral subgraph → moralize (including bidirected as undirected) →
-//! remove conditioning → undirected reachability.
+//! m-separation for ADMGs and definite-status m-separation for PAGs (DESIGN.md §6.5).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -12,7 +9,10 @@ use crate::dsep::{
     DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult,
 };
 use crate::error::GraphError;
+use crate::pag::Pag;
 use crate::types::DenseNodeId;
+
+// --- ADMG m-separation (ancestral moralization) ---
 
 impl Admg {
     /// Whether `x` is m-separated from `y` given `z` (boolean; no path alloc).
@@ -303,5 +303,116 @@ mod tests {
         let mut ws = DSeparationWorkspace::default();
         assert!(g.is_m_separated(x, y, &[], &mut ws).unwrap());
         assert!(!g.is_m_separated(x, y, &[z], &mut ws).unwrap());
+    }
+}
+
+// --- PAG definite-status m-separation ---
+
+impl Pag {
+    /// Whether `x` is m-separated from `y` given `z` via definite-status paths.
+    ///
+    /// Separated iff no definite-status path from x to y is active given z
+    /// (bounded search; completeness up to `max_len` / `max_paths`).
+    ///
+    /// # Errors
+    ///
+    /// Unknown nodes.
+    pub fn is_m_separated(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        z: &[DenseNodeId],
+        max_paths: usize,
+        max_len: usize,
+    ) -> Result<bool, GraphError> {
+        self.validate_node_pub(x)?;
+        self.validate_node_pub(y)?;
+        for &v in z {
+            self.validate_node_pub(v)?;
+        }
+        if x == y {
+            return Ok(false);
+        }
+        let paths = self.definite_status_paths(x, y, max_paths, max_len)?;
+        Ok(!paths.iter().any(|p| self.path_active_given(&p.nodes, z)))
+    }
+
+    /// m-separation with witness (active definite-status path or certificate).
+    ///
+    /// # Errors
+    ///
+    /// Unknown nodes.
+    pub fn m_separation(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        z: &[DenseNodeId],
+        max_paths: usize,
+        max_len: usize,
+    ) -> Result<SeparationResult, GraphError> {
+        self.validate_node_pub(x)?;
+        self.validate_node_pub(y)?;
+        for &v in z {
+            self.validate_node_pub(v)?;
+        }
+        if x == y {
+            return Ok(SeparationResult::Connected {
+                active_path: vec![PathStep { node: x }],
+            });
+        }
+        let paths = self.definite_status_paths(x, y, max_paths, max_len)?;
+        if let Some(p) = paths.iter().find(|p| self.path_active_given(&p.nodes, z)) {
+            Ok(SeparationResult::Connected {
+                active_path: p.nodes.iter().map(|&node| PathStep { node }).collect(),
+            })
+        } else {
+            Ok(SeparationResult::Separated {
+                conditioning: z.to_vec(),
+                certificate: SeparationCertificate {
+                    conditioning: z.to_vec(),
+                },
+            })
+        }
+    }
+
+    /// Batch boolean PAG m-separation.
+    ///
+    /// # Errors
+    ///
+    /// Length mismatch or unknown nodes.
+    pub fn is_m_separated_batch(
+        &self,
+        queries: &[(DenseNodeId, DenseNodeId, &[DenseNodeId])],
+        out: &mut [bool],
+        max_paths: usize,
+        max_len: usize,
+    ) -> Result<(), GraphError> {
+        if out.len() != queries.len() {
+            return Err(GraphError::InvalidEndpoints {
+                message: "batch output length mismatch",
+            });
+        }
+        for (i, &(x, y, z)) in queries.iter().enumerate() {
+            out[i] = self.is_m_separated(x, y, z, max_paths, max_len)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod pag_msep_tests {
+    use super::*;
+    use crate::pag::Pag;
+
+    #[test]
+    fn directed_chain_msep() {
+        let mut g = Pag::with_variables(3);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let c = DenseNodeId::from_raw(2);
+        g.insert_directed(a, b).unwrap();
+        g.insert_directed(b, c).unwrap();
+        assert!(!g.is_m_separated(a, c, &[], 32, 8).unwrap());
+        assert!(g.is_m_separated(a, c, &[b], 32, 8).unwrap());
     }
 }
