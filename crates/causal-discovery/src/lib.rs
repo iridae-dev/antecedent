@@ -18,6 +18,7 @@ pub mod orientation;
 pub mod pcmci;
 pub mod pcmci_plus;
 pub mod result;
+pub mod rpcmci;
 pub mod rule_scheduling;
 
 pub use ci::{
@@ -46,6 +47,10 @@ pub use orientation::{
 };
 pub use pcmci::Pcmci;
 pub use pcmci_plus::PcmciPlus;
+pub use rpcmci::{
+    RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, regime_edge_counts,
+    two_regime_half_split,
+};
 pub use result::{
     AlgorithmRecord, CpdagDiscoveryResult, CpdagGraphEvidence, DagDiscoveryResult,
     DagGraphEvidence, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
