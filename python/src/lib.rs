@@ -24,7 +24,7 @@ use causal::{
     DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, GraphIdentFlag,
     InferenceMode, MeasurementPlan, RefuteSuite, SamplingPlan, ScoredLink, StateEvent,
     TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples, apply_state_event,
-    attribute_distribution_change, counterfactual_ite, dag_from_dot, dag_from_json, dag_to_dot,
+    attribute_distribution_change, counterfactual_ite, dag_from_dot, dag_to_dot,
     dag_to_json, decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
@@ -244,7 +244,7 @@ fn analyze_ate(
     // Drop NumPy borrows before releasing the GIL.
     drop(columns);
 
-    py.allow_threads(move || {
+    py.detach(move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -382,7 +382,7 @@ fn ate_result_from_analysis(
 }
 
 /// One discovered lagged link for Python.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct DiscoveredLink {
     #[pyo3(get)]
@@ -517,7 +517,7 @@ fn discover_pcmci(
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
 
-    py.allow_threads(move || {
+    py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
@@ -556,7 +556,7 @@ fn discover_pcmci_plus(
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
 
-    py.allow_threads(move || {
+    py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
@@ -603,7 +603,7 @@ fn discover_lpcmci(
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
 
-    py.allow_threads(move || {
+    py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
         let ctx = ExecutionContext::for_tests(seed);
@@ -655,7 +655,7 @@ fn discover_jpcmci_plus(
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(env_columns);
 
-    py.allow_threads(move || {
+    py.detach(move || {
         let mut series_list = Vec::with_capacity(batches.len());
         let mut variables = Vec::new();
         for (i, batch) in batches.iter().enumerate() {
@@ -703,7 +703,7 @@ fn discover_rpcmci(
     let batch = columns_to_batch(&names, &columns)?;
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
-    py.allow_threads(move || {
+    py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
         let assign = two_regime_half_split(series.row_count());
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
@@ -742,7 +742,7 @@ fn mediation_effects_summary(
 ) -> PyResult<MediationEffectsSummary> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    py.allow_threads(move || {
+    py.detach(move || {
         let (series, _) = series_from_batch(&batch)?;
         let id = |nm: &str| {
             series
@@ -784,7 +784,7 @@ fn predict_intervened_summary(
 ) -> PyResult<PredictSummary> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    py.allow_threads(move || {
+    py.detach(move || {
         let (series, _) = series_from_batch(&batch)?;
         let id = |nm: &str| {
             series
@@ -842,7 +842,7 @@ struct PredictSummary {
 }
 
 /// Unified analysis result (static or temporal).
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct AnalysisResult {
     #[pyo3(get)]
@@ -896,7 +896,7 @@ fn analyze(
 ) -> PyResult<AnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    py.allow_threads(move || {
+    py.detach(move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let tabular = loaded.data;
         let n = tabular.row_count();
@@ -990,7 +990,7 @@ fn gcm_counterfactual_ite(
     control: f64,
     seed: u64,
 ) -> PyResult<GcmIteResult> {
-    Python::with_gil(|_py| {
+    Python::attach(|_py| {
         let batch = columns_to_batch(&names, &columns)?;
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
@@ -1033,7 +1033,7 @@ fn gcm_sample_do(
     n_draws: usize,
     seed: u64,
 ) -> PyResult<GcmSampleResult> {
-    Python::with_gil(|_py| {
+    Python::attach(|_py| {
         let batch = columns_to_batch(&names, &columns)?;
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
@@ -1104,7 +1104,7 @@ fn gcm_distribution_change(
     n_samples: usize,
     seed: u64,
 ) -> PyResult<(f64, Vec<(String, f64)>)> {
-    Python::with_gil(|_py| {
+    Python::attach(|_py| {
         let batch = columns_to_batch(&names, &columns)?;
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;

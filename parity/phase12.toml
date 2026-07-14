@@ -7,7 +7,7 @@ phase = 12
 
 [[capabilities]]
 id = "phase12.parity_closure"
-status = "in_progress"
+status = "done"
 phase = 12
 notes = "Every required DoWhy/Tigramite item done or intentional_deviation with ADR"
 
@@ -25,7 +25,7 @@ notes = "Format 0.1 frozen; migrate registry + golden fixtures"
 
 [[capabilities]]
 id = "phase12.wheel_matrix"
-status = "in_progress"
+status = "done"
 phase = 12
 notes = "CPython 3.11–3.14 × Linux/macOS/Windows wheels in CI"
 
@@ -43,6 +43,6 @@ notes = "docs/hot_paths.md + benches/baselines owners/contracts"
 
 [[capabilities]]
 id = "phase12.security_review"
-status = "in_progress"
+status = "done"
 phase = 12
 notes = "unsafe/license/dependency review + cargo-deny"

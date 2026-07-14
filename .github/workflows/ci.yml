@@ -37,11 +37,11 @@ jobs:
       - name: Test
         run: cargo test --workspace --exclude causal
 
-      - name: Phase 4/5 parity gate
-        run: bash scripts/gate_phase45_parity.sh
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
 
-      - name: Phase 6 Bayesian gate
-        run: bash scripts/gate_phase6.sh
+      - name: Phase 12 release gate
+        run: bash scripts/gate_phase12.sh
 
       - name: DCO check
         if: github.event_name == 'pull_request'
@@ -57,10 +57,71 @@ jobs:
             fi
           done < <(git rev-list "$RANGE")
 
-  # Phase 0 wheel-build skeleton (maturin). Full matrix lands in Phase 12.
-  python-wheel:
-    name: Python wheel skeleton
-    runs-on: ubuntu-latest
+  # DESIGN.md §25.5: CPython 3.11–3.14; Linux x86_64/aarch64 manylinux;
+  # macOS x86_64/arm64; Windows x86_64. Default faer path (no system BLAS).
+  python-wheels:
+    name: Wheel ${{ matrix.os }} py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.11"
+            target: x86_64
+            manylinux: auto
+          - os: ubuntu-latest
+            python: "3.12"
+            target: x86_64
+            manylinux: auto
+          - os: ubuntu-latest
+            python: "3.13"
+            target: x86_64
+            manylinux: auto
+          - os: ubuntu-latest
+            python: "3.14"
+            target: x86_64
+            manylinux: auto
+          - os: ubuntu-24.04-arm
+            python: "3.12"
+            target: aarch64
+            manylinux: auto
+          - os: macos-13
+            python: "3.12"
+            target: x86_64
+            manylinux: ""
+          - os: macos-14
+            python: "3.11"
+            target: aarch64
+            manylinux: ""
+          - os: macos-14
+            python: "3.12"
+            target: aarch64
+            manylinux: ""
+          - os: macos-14
+            python: "3.13"
+            target: aarch64
+            manylinux: ""
+          - os: macos-14
+            python: "3.14"
+            target: aarch64
+            manylinux: ""
+          - os: windows-latest
+            python: "3.11"
+            target: x64
+            manylinux: ""
+          - os: windows-latest
+            python: "3.12"
+            target: x64
+            manylinux: ""
+          - os: windows-latest
+            python: "3.13"
+            target: x64
+            manylinux: ""
+          - os: windows-latest
+            python: "3.14"
+            target: x64
+            manylinux: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -69,23 +130,22 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
         with:
-          workspaces: python -> ../target
+          working-directory: python
+          command: build
+          args: --release --out dist -i python
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          sccache: "true"
 
-      - name: Install maturin
-        run: pip install maturin
-
-      - name: Build wheel (abi3 / manylinux not required yet)
-        working-directory: python
-        run: maturin build --release --out dist
-
-      - name: Install wheel and smoke-import
+      - name: Install wheel and smoke tests
+        shell: bash
         working-directory: python
         run: |
           pip install dist/*.whl numpy pytest
           python -c "import causal; print(causal.__version__)"
-          pytest -q tests/test_arrow_copy_gate.py
+          pytest -q tests/test_arrow_copy_gate.py tests/test_graph_interchange.py

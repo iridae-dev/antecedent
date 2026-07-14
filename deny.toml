@@ -1,0 +1,53 @@
+# cargo-deny configuration (Phase 12 security / license review)
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
+[advisories]
+version = 2
+yanked = "warn"
+ignore = [
+    # Transitive via faer → gemm; paste is a build-time proc-macro only.
+    # No safe upgrade in faer 0.21; tracked in docs/security_review.md (Phase 12).
+    { id = "RUSTSEC-2024-0436", reason = "faer/gemm still depends on archived paste; build-time only, no runtime vuln" },
+]
+[licenses]
+version = 2
+confidence-threshold = 0.8
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "CC0-1.0",
+    "BSL-1.0",
+    "NCSA",
+    "OpenSSL",
+    "MPL-2.0",
+]
+exceptions = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
