@@ -10,7 +10,8 @@ use std::sync::Arc;
 
 use causal::{
     anomaly_attribution, counterfactual_ite, fit_gcm, sample_do, arrow_strengths,
-    streaming_matches_retained, CounterfactualEngine, CounterfactualWorld, MechanismWorkspace,
+    streaming_matches_retained, CounterfactualEngine, CounterfactualWorld, KdeDoSampler,
+    McmcDoSampler, MechanismWorkspace, WeightingDoSampler,
 };
 use causal_core::{
     CausalRng, CausalSchemaBuilder, ExecutionContext, Intervention, MeasurementSpec, RoleHint,
@@ -147,4 +148,96 @@ fn gcm_cf_ite() {
         .unwrap();
     assert!(streaming_matches_retained(&res, 0, DenseNodeId::from_raw(1)));
     assert!(expected["streaming_equiv_retained"].as_bool().unwrap());
+}
+
+fn binary_treatment_scm(n: usize) -> (causal::CompiledCausalModel, TabularData) {
+    let mut b = CausalSchemaBuilder::new();
+    b.add_variable(
+        "t",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "y",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    let schema = b.build().unwrap();
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        t[i] = if i % 2 == 0 { 1.0 } else { 0.0 };
+        y[i] = 2.0 * t[i];
+    }
+    let validity = ValidityBitmap::all_valid(n);
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), validity.clone()).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity).unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let mut g = Dag::with_variables(2);
+    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+        .unwrap();
+    let fitted = fit_gcm(g, &data).unwrap();
+    (fitted.model, data)
+}
+
+#[test]
+fn do_sampling_weighting() {
+    let expected = load_expected("do_sampling_weighting");
+    let true_mean = expected["expected_treated_mean"].as_f64().unwrap();
+    let (model, data) = binary_treatment_scm(80);
+    let ctx = ExecutionContext::for_tests(1);
+    let sampler = WeightingDoSampler::new(VariableId::from_raw(0), VariableId::from_raw(1));
+    let res = sampler.estimate(&model, &data, 1.0, &ctx).unwrap();
+    let mean = WeightingDoSampler::weighted_mean(&res);
+    assert!((mean - true_mean).abs() < 1e-9, "mean={mean} expected={true_mean}");
+}
+
+#[test]
+fn do_sampling_kde() {
+    let expected = load_expected("do_sampling_kde");
+    let n_draws = expected["n_draws"].as_u64().unwrap() as usize;
+    let (model, _) = binary_treatment_scm(80);
+    let ctx = ExecutionContext::for_tests(1);
+    let mut rng = CausalRng::from_seed(3);
+    let mut ws = MechanismWorkspace::default();
+    let iv = [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))];
+    let kde = KdeDoSampler::new(VariableId::from_raw(1))
+        .sample(&model, &iv, n_draws, &mut rng, &mut ws, &ctx)
+        .unwrap();
+    assert_eq!(kde.values.len(), n_draws);
+    if expected["require_finite_draws"].as_bool().unwrap() {
+        assert!(kde.values.iter().all(|v| v.is_finite()));
+    }
+}
+
+#[test]
+fn do_sampling_mcmc() {
+    let expected = load_expected("do_sampling_mcmc");
+    let n_samples = expected["n_samples"].as_u64().unwrap() as usize;
+    let (model, _) = binary_treatment_scm(80);
+    let ctx = ExecutionContext::for_tests(1);
+    let mut rng = CausalRng::from_seed(3);
+    let mut ws = MechanismWorkspace::default();
+    let iv = [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))];
+    let mcmc = McmcDoSampler::new(VariableId::from_raw(1))
+        .sample(&model, &iv, n_samples, &mut rng, &mut ws, &ctx)
+        .unwrap();
+    assert_eq!(mcmc.values.len(), n_samples);
+    if expected["require_positive_accept_rate"].as_bool().unwrap() {
+        assert!(mcmc.accept_rate.unwrap() > 0.0);
+    }
 }

@@ -15,6 +15,22 @@ use causal_prob::PosteriorQuantityKind;
 
 use crate::error::AnalysisError;
 
+/// Encode a [`CausalPosterior`] to container bytes (Python / tooling).
+///
+/// # Errors
+///
+/// IO failures.
+pub fn encode_causal_posterior_bytes(
+    posterior: &CausalPosterior,
+    artifact_id: &str,
+) -> Result<Vec<u8>, AnalysisError> {
+    let art = encode_causal_posterior(posterior, artifact_id)?;
+    let mut buf = Vec::new();
+    art.write_to(&mut buf)
+        .map_err(|e| AnalysisError::Estimate(format!("posterior encode write: {e}")))?;
+    Ok(buf)
+}
+
 /// Encode a [`CausalPosterior`] to a durable artifact.
 ///
 /// # Errors

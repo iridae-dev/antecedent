@@ -1,5 +1,14 @@
 {
   "algorithm_id": "lpcmci",
   "min_nodes": 2,
+  "min_links_retained": 1,
+  "orientation_rule_ids": [
+    "lpcmci.orient_collider",
+    "lpcmci.r1",
+    "lpcmci.r2",
+    "lpcmci.r3",
+    "lpcmci.discriminating_path"
+  ],
+  "max_pending_circles": 16,
   "tolerance_class": "Exact"
 }

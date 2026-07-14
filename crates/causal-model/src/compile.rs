@@ -46,7 +46,7 @@ pub struct ModelOutputLayout {
     pub variables: Arc<[VariableId]>,
 }
 
-/// Placeholder mechanism slot filled by fitting / registry (B3/B4).
+/// Mechanism slot filled by fitting / registry.
 #[derive(Clone, Debug, Default)]
 pub enum MechanismSlot {
     /// Unassigned.
@@ -66,12 +66,19 @@ pub enum MechanismSlot {
         /// Residual standard deviation.
         sigma: f64,
     },
-    /// Empirical / discrete categorical over finite support (packed probs).
+    /// Discrete categorical over finite support.
+    ///
+    /// Unconditional when `logit_coeffs` is `None` (use `probs`).
+    /// Parent-conditional when `logit_coeffs` is `Some`: softmax over
+    /// `support.len()` rows of length `1 + n_parents` (intercept + parent coeffs).
     Discrete {
         /// Support values.
         support: Arc<[f64]>,
-        /// Probabilities (same length), may be conditional on parents later.
+        /// Unconditional probabilities (same length as support); ignored when
+        /// `logit_coeffs` is set.
         probs: Arc<[f64]>,
+        /// Optional softmax logit coefficients, row-major `[k * (1 + p) + j]`.
+        logit_coeffs: Option<Arc<[f64]>>,
     },
     /// Constant mechanism.
     Constant {

@@ -19,9 +19,14 @@ use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
     BayesianConfig, CausalAnalysis, InferenceMode, JpcmciPlus, RefuteSuite, Rpcmci,
-    TemporalLinearPredictor, TemporalMediationEstimator, counterfactual_ite, fit_gcm, sample_do,
+    TemporalLinearPredictor, TemporalMediationEstimator, counterfactual_ite,
+    decode_causal_posterior_bytes, encode_causal_posterior_bytes, fit_gcm, sample_do,
     two_regime_half_split,
 };
+use causal_io::{
+    CausalPosteriorWire, PosteriorQuantityWire, encode_posterior_artifact as encode_posterior_wire,
+};
+use causal_core::VERSION;
 use causal_core::{
     AverageEffectQuery, CausalRng, ExecutionContext, Intervention, Lag, MediationContrast,
     MediationQuery, TemporalEffectQuery, TemporalPolicy, Value, VariableId,
@@ -107,6 +112,38 @@ struct AteAnalysisResult {
     /// Inference backend id (e.g. laplace / conjugate_gaussian).
     #[pyo3(get)]
     posterior_backend: Option<String>,
+    /// Serialized posterior artifact bytes (CBOR meta + f64 LE draws) when Bayesian.
+    #[pyo3(get)]
+    posterior_artifact: Option<Vec<u8>>,
+}
+
+/// Decoded posterior artifact for Python consumers (Phase 6 exit: serializable + consumable).
+#[pyclass]
+struct PosteriorArtifact {
+    #[pyo3(get)]
+    n_draws: usize,
+    #[pyo3(get)]
+    mean: Vec<f64>,
+    #[pyo3(get)]
+    sd: Vec<f64>,
+    #[pyo3(get)]
+    q025: Vec<f64>,
+    #[pyo3(get)]
+    q975: Vec<f64>,
+    #[pyo3(get)]
+    draws: Vec<f64>,
+    #[pyo3(get)]
+    backend_id: String,
+    #[pyo3(get)]
+    identification: String,
+    #[pyo3(get)]
+    unidentified_mass: f64,
+    #[pyo3(get)]
+    converged: bool,
+    #[pyo3(get)]
+    hessian_condition: f64,
+    #[pyo3(get)]
+    quantity_names: Vec<String>,
 }
 
 fn columns_to_batch(
@@ -296,8 +333,11 @@ fn ate_result_from_analysis(
         posterior_n_draws,
         posterior_p_below_zero,
         posterior_backend,
+        posterior_artifact,
     ) = if let Some(post) = result.posterior.as_ref() {
         let eq = post.effect_column().unwrap_or(0);
+        let artifact = encode_causal_posterior_bytes(post, "ate-analysis")
+            .ok();
         (
             Some(post.summaries.mean[eq]),
             Some(post.summaries.sd[eq]),
@@ -306,9 +346,10 @@ fn ate_result_from_analysis(
             Some(post.draws.n_draws),
             post.probability_below(0.0).ok(),
             Some(post.diagnostics.backend_id.to_string()),
+            artifact,
         )
     } else {
-        (None, None, None, None, None, None, None)
+        (None, None, None, None, None, None, None, None)
     };
 
     AteAnalysisResult {
@@ -332,6 +373,7 @@ fn ate_result_from_analysis(
         posterior_n_draws,
         posterior_p_below_zero,
         posterior_backend,
+        posterior_artifact,
     }
 }
 
@@ -1139,6 +1181,79 @@ fn gcm_sample_do(
     })
 }
 
+fn quantity_wire_name(q: &PosteriorQuantityWire) -> String {
+    match q {
+        PosteriorQuantityWire::Coefficient { index, name } => {
+            name.clone().unwrap_or_else(|| format!("coef_{index}"))
+        }
+        PosteriorQuantityWire::ResidualVariance => "residual_variance".into(),
+        PosteriorQuantityWire::Effect { name } => name.clone(),
+        PosteriorQuantityWire::Scalar { name } => name.clone(),
+    }
+}
+
+/// Decode a serialized posterior artifact into summaries + column-major draws.
+#[pyfunction]
+fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
+    let (meta, draws) = decode_causal_posterior_bytes(&bytes).map_err(py_err)?;
+    Ok(PosteriorArtifact {
+        n_draws: meta.n_draws as usize,
+        mean: meta.mean,
+        sd: meta.sd,
+        q025: meta.q025,
+        q975: meta.q975,
+        draws,
+        backend_id: meta.backend_id,
+        identification: meta.identification,
+        unidentified_mass: meta.unidentified_mass,
+        converged: meta.converged,
+        hessian_condition: meta.hessian_condition,
+        quantity_names: meta.quantities.iter().map(quantity_wire_name).collect(),
+    })
+}
+
+/// Re-encode a decoded [`PosteriorArtifact`] to container bytes (round-trip).
+#[pyfunction]
+fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> {
+    let quantities: Vec<PosteriorQuantityWire> = artifact
+        .quantity_names
+        .iter()
+        .map(|name| {
+            if name == "residual_variance" {
+                PosteriorQuantityWire::ResidualVariance
+            } else if name.starts_with("coef_") {
+                let index = name
+                    .strip_prefix("coef_")
+                    .and_then(|s| s.parse::<u32>().ok())
+                    .unwrap_or(0);
+                PosteriorQuantityWire::Coefficient { index, name: None }
+            } else {
+                PosteriorQuantityWire::Effect { name: name.clone() }
+            }
+        })
+        .collect();
+    let meta = CausalPosteriorWire {
+        quantities,
+        n_draws: u32::try_from(artifact.n_draws).map_err(|_| {
+            PyValueError::new_err("n_draws exceeds u32")
+        })?,
+        mean: artifact.mean.clone(),
+        sd: artifact.sd.clone(),
+        q025: artifact.q025.clone(),
+        q975: artifact.q975.clone(),
+        identification: artifact.identification.clone(),
+        unidentified_mass: artifact.unidentified_mass,
+        backend_id: artifact.backend_id.clone(),
+        converged: artifact.converged,
+        hessian_condition: artifact.hessian_condition,
+        draws_encoding: "f64_le_colmajor".into(),
+    };
+    let art = encode_posterior_wire(&meta, &artifact.draws, "py-posterior", VERSION).map_err(py_err)?;
+    let mut buf = Vec::new();
+    art.write_to(&mut buf).map_err(py_err)?;
+    Ok(buf)
+}
+
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1154,8 +1269,11 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(predict_intervened_summary, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_counterfactual_ite, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_sample_do, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_posterior_artifact, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_posterior_artifact, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
+    m.add_class::<PosteriorArtifact>()?;
     m.add_class::<AnalysisResult>()?;
     m.add_class::<DiscoveredLink>()?;
     m.add_class::<PcmciDiscoveryResult>()?;

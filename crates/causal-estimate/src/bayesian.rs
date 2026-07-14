@@ -359,7 +359,9 @@ impl BayesianGComputationAte {
             if matches!(q, PosteriorQuantityKind::ResidualVariance) {
                 continue;
             }
-            let dest = quantities.iter().position(|qq| qq == q).expect("quantity present");
+            let dest = quantities.iter().position(|qq| qq == q).ok_or_else(|| {
+                EstimationError::Stats(format!("posterior quantity missing from schema: {q:?}"))
+            })?;
             let col = mechanism
                 .coefficient_draws
                 .column(qi)
@@ -582,7 +584,18 @@ pub fn nonidentified_with_prior(
         quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("ate") }]),
     };
     let draws = PosteriorDraws::from_column_major(schema, 0, Arc::<[f64]>::from(Vec::<f64>::new()))
-        .expect("empty draws");
+        .unwrap_or_else(|_| {
+            // n_draws=0 with empty values is always shape-valid; fall back to empty schema draws.
+            PosteriorDraws {
+                schema: PosteriorSchema {
+                    quantities: Arc::from([PosteriorQuantityKind::Effect {
+                        name: Arc::from("ate"),
+                    }]),
+                },
+                n_draws: 0,
+                values: Arc::from([]),
+            }
+        });
     let summaries = draws.summarize();
     CausalPosterior {
         draws,

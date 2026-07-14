@@ -1,9 +1,11 @@
-//! Phase 9 conformance pins: J-PCMCI+, RPCMCI, mediation, conditional, prediction.
+//! Phase 9 conformance pins: load every `conformance/phase9/*/expected.json`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss)]
 
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use causal::{
@@ -18,9 +20,20 @@ use causal_data::{
     Float64Column, LaggedColumn, MultiEnvironmentData, OwnedColumn, OwnedColumnarStorage,
     SamplingRegularity, TabularData, TableView, TimeIndex, TimeSeriesData, ValidityBitmap,
 };
-use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, TemporalConstraints};
+use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, PcmciPlus, TemporalConstraints};
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
-use causal_discovery::PcmciPlus;
+use serde_json::Value as JsonValue;
+
+fn fixture_dir(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../conformance/phase9")
+        .join(name)
+}
+
+fn load_expected(name: &str) -> JsonValue {
+    let raw = fs::read_to_string(fixture_dir(name).join("expected.json")).expect("expected.json");
+    serde_json::from_str(&raw).expect("parse expected.json")
+}
 
 fn toy_env(n: usize, seed: f64) -> TimeSeriesData {
     let mut b = CausalSchemaBuilder::new();
@@ -55,14 +68,20 @@ fn toy_env(n: usize, seed: f64) -> TimeSeriesData {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     TimeSeriesData::try_new(
         storage,
-        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        TimeIndex {
+            regularity: SamplingRegularity::Regular { interval_ns: 1 },
+            length: n,
+        },
     )
     .unwrap()
 }
 
 #[test]
 fn jpcmci_plus_two_env_pin() {
-    let multi = MultiEnvironmentData::try_new(Arc::from([toy_env(160, 0.0), toy_env(160, 1.0)])).unwrap();
+    let expected = load_expected("jpcmci_plus_two_env");
+    let multi =
+        MultiEnvironmentData::try_new(Arc::from([toy_env(160, 0.0), toy_env(160, 1.0)])).unwrap();
+    assert!(multi.env_count() >= expected["min_envs"].as_u64().unwrap() as usize);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
     let alg = JpcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
         temporal: TemporalConstraints {
@@ -77,12 +96,22 @@ fn jpcmci_plus_two_env_pin() {
     let result = alg
         .run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(1))
         .unwrap();
-    assert_eq!(result.algorithm.id.as_ref(), "jpcmci_plus");
-    assert!(result.evidence.graph.node_count() >= 2);
+    assert_eq!(
+        result.algorithm.id.as_ref(),
+        expected["algorithm_id"].as_str().unwrap()
+    );
+    assert!(result.evidence.graph.node_count() >= expected["min_nodes"].as_u64().unwrap() as usize);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "jpcmci_plus.multi_env_plan")
+    );
 }
 
 #[test]
 fn rpcmci_two_regime_pin() {
+    let expected = load_expected("rpcmci_two_regime");
     let data = toy_env(200, 0.0);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
     let assign = two_regime_half_split(data.row_count());
@@ -101,12 +130,21 @@ fn rpcmci_two_regime_pin() {
     let result = alg
         .run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2))
         .unwrap();
-    assert_eq!(result.algorithm.id.as_ref(), "rpcmci");
-    assert_eq!(result.graphs.len(), 2);
+    assert_eq!(
+        result.algorithm.id.as_ref(),
+        expected["algorithm_id"].as_str().unwrap()
+    );
+    assert_eq!(
+        result.graphs.len(),
+        expected["n_regimes"].as_u64().unwrap() as usize
+    );
 }
 
 #[test]
 fn temporal_mediation_numeric_pin() {
+    let expected = load_expected("temporal_mediation");
+    let mediated_min = expected["mediated_min"].as_f64().unwrap();
+    let decomp_tol = expected["decomposition_tol"].as_f64().unwrap();
     let n = 300usize;
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "m", "y"] {
@@ -146,7 +184,10 @@ fn temporal_mediation_numeric_pin() {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TimeSeriesData::try_new(
         storage,
-        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        TimeIndex {
+            regularity: SamplingRegularity::Regular { interval_ns: 1 },
+            length: n,
+        },
     )
     .unwrap();
     let q = MediationQuery::binary(
@@ -166,12 +207,17 @@ fn temporal_mediation_numeric_pin() {
     let est = TemporalMediationEstimator::new()
         .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(3))
         .unwrap();
-    assert!(est.mediated.unwrap() > 0.1);
-    assert!((est.total.unwrap() - est.direct.unwrap() - est.mediated.unwrap()).abs() < 0.2);
+    assert!(est.mediated.unwrap() > mediated_min);
+    assert!(
+        (est.total.unwrap() - est.direct.unwrap() - est.mediated.unwrap()).abs() < decomp_tol
+    );
 }
 
 #[test]
 fn conditional_effect_pin() {
+    let expected = load_expected("conditional_effect");
+    let ate_target = expected["ate_target"].as_f64().unwrap();
+    let ate_tol = expected["ate_tol"].as_f64().unwrap();
     let n = 200usize;
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "y", "w"] {
@@ -212,16 +258,22 @@ fn conditional_effect_pin() {
     )
     .with_effect_modifiers([VariableId::from_raw(2)]);
     let cq = ConditionalEffectQuery::try_new(q).unwrap();
-    let estimand =
-        IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from([]), causal_expr::ExprId::from_raw(0));
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from([]),
+        causal_expr::ExprId::from_raw(0),
+    );
     let est = ConditionalLinearAdjustment::new()
         .estimate(&data, &estimand, &cq, &ExecutionContext::for_tests(4))
         .unwrap();
-    assert!((est.ate - 3.0).abs() < 0.3);
+    assert!((est.ate - ate_target).abs() < ate_tol);
 }
 
 #[test]
 fn prediction_smoke_pin() {
+    let expected = load_expected("prediction_smoke");
+    let target = expected["mean_prediction_target"].as_f64().unwrap();
+    let tol = expected["tol"].as_f64().unwrap();
     let n = 80usize;
     let mut b = CausalSchemaBuilder::new();
     for name in ["x", "y"] {
@@ -255,16 +307,22 @@ fn prediction_smoke_pin() {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TimeSeriesData::try_new(
         storage,
-        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        TimeIndex {
+            regularity: SamplingRegularity::Regular { interval_ns: 1 },
+            length: n,
+        },
     )
     .unwrap();
     let pred = TemporalLinearPredictor::fit(
         &data,
         VariableId::from_raw(1),
-        [LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::from_raw(1) }],
+        [LaggedColumn {
+            variable: VariableId::from_raw(0),
+            lag: Lag::from_raw(1),
+        }],
     )
     .unwrap();
     let yhat = pred.predict_intervened(&data, VariableId::from_raw(0), 1.0).unwrap();
     let mean: f64 = yhat.iter().sum::<f64>() / yhat.len() as f64;
-    assert!((mean - 2.0).abs() < 0.25);
+    assert!((mean - target).abs() < tol);
 }

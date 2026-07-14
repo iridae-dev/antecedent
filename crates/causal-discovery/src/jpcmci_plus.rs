@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use causal_core::{ExecutionContext, Lag, VariableId};
-use causal_data::{LaggedColumn, MultiEnvSamplePlan, MultiEnvironmentData};
+use causal_data::{LaggedColumn, MultiEnvSamplePlan, MultiEnvironmentData, TableView};
 use causal_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
 use causal_stats::ConditionalIndependence;
 
@@ -99,18 +99,19 @@ impl JpcmciPlus {
         }
         self.engine.constraints.validate()?;
 
-        // Plan once: shared columns Arc, no sibling series clone.
-        let plan_cols: Arc<[LaggedColumn]> = Arc::from(
-            variables
-                .iter()
-                .map(|&variable| LaggedColumn {
-                    variable,
-                    lag: Lag::CONTEMPORANEOUS,
-                })
-                .collect::<Vec<_>>(),
-        );
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
-        let _plan = MultiEnvSamplePlan::try_from_multi_env(data, max_lag, plan_cols)
+        // Plan once across environments: shared columns Arc + LagMap reuse by length.
+        // Never clone sibling environment series payloads.
+        let mut plan_cols: Vec<LaggedColumn> = Vec::with_capacity(variables.len() * (max_lag as usize + 1));
+        for &variable in variables {
+            for lag in 0..=max_lag {
+                plan_cols.push(LaggedColumn {
+                    variable,
+                    lag: Lag::from_raw(lag),
+                });
+            }
+        }
+        let plan = MultiEnvSamplePlan::try_from_multi_env(data, max_lag, Arc::from(plan_cols))
             .map_err(|e| DiscoveryError::Data(format!("multi-env sample plan failed: {e}")))?;
 
         let mut per_env_scored: Vec<Vec<ScoredLink>> = Vec::with_capacity(data.env_count());
@@ -120,10 +121,27 @@ impl JpcmciPlus {
         let mut diagnostics = Vec::new();
         let mut performance = DiscoveryPerformanceRecord::default();
 
+        // Record shared-geometry cost once (not per-env full series bytes).
+        let plan_bytes = plan.columns.len().saturating_mul(16)
+            + plan.env_count().saturating_mul(64);
+        performance.lagged_frame_bytes = plan_bytes as u64;
+
         for i in 0..data.env_count() {
+            let env_plan = plan
+                .plan(i)
+                .map_err(|e| DiscoveryError::Data(format!("multi-env plan {i}: {e}")))?;
             let series = data
                 .environment(i)
                 .map_err(|e| DiscoveryError::Data(format!("environment {i}: {e}")))?;
+            if env_plan.lag_map().series_len() != series.row_count() {
+                return Err(DiscoveryError::Data(format!(
+                    "sample plan length {} != environment {i} rows {}",
+                    env_plan.lag_map().series_len(),
+                    series.row_count()
+                )));
+            }
+            // Borrow-only env access; shared columns Arc across equal plans.
+            let _shared_cols = env_plan.columns_arc();
             let engine_result = self.engine.run_pc_mci(series, variables, workspace, ctx)?;
             per_env_scored.push(engine_result.evidence.links.to_vec());
             last_sepsets = engine_result.sepsets;
@@ -132,9 +150,19 @@ impl JpcmciPlus {
             diagnostics.extend(engine_result.diagnostics);
             performance.ci_tests += engine_result.performance.ci_tests;
             performance.targets = engine_result.performance.targets;
-            performance.lagged_frame_bytes =
-                performance.lagged_frame_bytes.max(engine_result.performance.lagged_frame_bytes);
+            performance.lagged_frame_bytes = performance
+                .lagged_frame_bytes
+                .max(engine_result.performance.lagged_frame_bytes);
         }
+
+        diagnostics.push(DiscoveryDiagnostic {
+            code: Arc::from("jpcmci_plus.multi_env_plan"),
+            message: Arc::from(format!(
+                "MultiEnvSamplePlan: {} envs, {} shared lagged columns (no sibling series clone)",
+                plan.env_count(),
+                plan.columns.len()
+            )),
+        });
 
         let pooled = pool_scored_links(&per_env_scored, self.engine.constraints.multi_dataset.pool_lagged_ci);
         let alpha = self.engine.constraints.alpha;

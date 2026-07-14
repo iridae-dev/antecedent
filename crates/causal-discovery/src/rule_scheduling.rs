@@ -170,6 +170,176 @@ impl LpcmciOrientationRule for LpcmciR1 {
     }
 }
 
+/// FCI R2: if `a → b o→ c` or `a o→ b → c`, and `a o-* c`, orient arrow into `c` on `a–c`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LpcmciR2;
+
+impl LpcmciOrientationRule for LpcmciR2 {
+    fn id(&self) -> &'static str {
+        "lpcmci.r2"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalPag,
+        _state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta::default();
+        let n = graph.node_count();
+        for i in 0..n {
+            let b = DenseNodeId::from_raw(i as u32);
+            let nbrs: Vec<_> = graph.neighbors(b).map(|(x, _, _)| x).collect();
+            for &a in &nbrs {
+                for &c in &nbrs {
+                    if a == c {
+                        continue;
+                    }
+                    let Some((at_a_ab, at_b_ab)) = marks_between(graph, a, b) else {
+                        continue;
+                    };
+                    let Some((at_b_bc, at_c_bc)) = marks_between(graph, b, c) else {
+                        continue;
+                    };
+                    let case1 = matches!(at_a_ab, Endpoint::Tail)
+                        && matches!(at_b_ab, Endpoint::Arrow)
+                        && matches!(at_b_bc, Endpoint::Circle)
+                        && matches!(at_c_bc, Endpoint::Arrow);
+                    let case2 = matches!(at_a_ab, Endpoint::Circle)
+                        && matches!(at_b_ab, Endpoint::Arrow)
+                        && matches!(at_b_bc, Endpoint::Tail)
+                        && matches!(at_c_bc, Endpoint::Arrow);
+                    if !(case1 || case2) {
+                        continue;
+                    }
+                    let Some((at_a_ac, at_c_ac)) = marks_between(graph, a, c) else {
+                        continue;
+                    };
+                    if !matches!(at_a_ac, Endpoint::Circle) {
+                        continue;
+                    }
+                    if matches!(at_c_ac, Endpoint::Arrow) {
+                        continue; // already oriented
+                    }
+                    set_marks_oriented(graph, a, c, at_a_ac, Endpoint::Arrow)?;
+                    delta.edges_changed += 1;
+                    queue.push(a);
+                    queue.push(c);
+                }
+            }
+        }
+        delta.fixed_point = delta.edges_changed == 0;
+        Ok(delta)
+    }
+}
+
+/// FCI R3: collider `a *→ b ←* c` with nonadjacent a,c and `a *–o d o–* c`, `d *–o b` → orient `d *→ b`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LpcmciR3;
+
+impl LpcmciOrientationRule for LpcmciR3 {
+    fn id(&self) -> &'static str {
+        "lpcmci.r3"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalPag,
+        _state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta::default();
+        let n = graph.node_count();
+        for i in 0..n {
+            let b = DenseNodeId::from_raw(i as u32);
+            let nbrs: Vec<_> = graph.neighbors(b).map(|(x, _, _)| x).collect();
+            for (ai, &a) in nbrs.iter().enumerate() {
+                for &c in &nbrs[ai + 1..] {
+                    if graph.has_edge(a, c) {
+                        continue;
+                    }
+                    let Some((_, at_b_ab)) = marks_between(graph, a, b) else {
+                        continue;
+                    };
+                    let Some((_, at_b_cb)) = marks_between(graph, c, b) else {
+                        continue;
+                    };
+                    if !matches!(at_b_ab, Endpoint::Arrow) || !matches!(at_b_cb, Endpoint::Arrow) {
+                        continue;
+                    }
+                    // Find θ = d adjacent to a,c,b with circle marks into d from a/c and circle at b side.
+                    for j in 0..n {
+                        let d = DenseNodeId::from_raw(j as u32);
+                        if d == a || d == b || d == c {
+                            continue;
+                        }
+                        let Some((at_a_ad, at_d_ad)) = marks_between(graph, a, d) else {
+                            continue;
+                        };
+                        let Some((at_c_cd, at_d_cd)) = marks_between(graph, c, d) else {
+                            continue;
+                        };
+                        let Some((at_d_db, at_b_db)) = marks_between(graph, d, b) else {
+                            continue;
+                        };
+                        let _ = (at_a_ad, at_c_cd);
+                        if !matches!(at_d_ad, Endpoint::Circle) || !matches!(at_d_cd, Endpoint::Circle)
+                        {
+                            continue;
+                        }
+                        if !matches!(at_b_db, Endpoint::Circle) {
+                            continue;
+                        }
+                        if matches!(at_d_db, Endpoint::Arrow) && matches!(at_b_db, Endpoint::Arrow) {
+                            continue;
+                        }
+                        set_marks_oriented(graph, d, b, at_d_db, Endpoint::Arrow)?;
+                        delta.edges_changed += 1;
+                        queue.push(d);
+                        queue.push(b);
+                    }
+                }
+            }
+        }
+        delta.fixed_point = delta.edges_changed == 0;
+        Ok(delta)
+    }
+}
+
+fn marks_between(
+    graph: &TemporalPag,
+    a: DenseNodeId,
+    b: DenseNodeId,
+) -> Option<(Endpoint, Endpoint)> {
+    let e = graph.edge_between(a, b)?;
+    if e.a == a {
+        Some((e.at_a, e.at_b))
+    } else {
+        Some((e.at_b, e.at_a))
+    }
+}
+
+fn set_marks_oriented(
+    graph: &mut TemporalPag,
+    a: DenseNodeId,
+    b: DenseNodeId,
+    at_a: Endpoint,
+    at_b: Endpoint,
+) -> Result<(), OrientationError> {
+    let Some(e) = graph.edge_between(a, b) else {
+        return Err(OrientationError::Graph("missing edge in set_marks_oriented".into()));
+    };
+    if e.a == a {
+        graph
+            .set_marks(a, b, at_a, at_b)
+            .map_err(|err| OrientationError::Graph(err.to_string()))
+    } else {
+        graph
+            .set_marks(b, a, at_b, at_a)
+            .map_err(|err| OrientationError::Graph(err.to_string()))
+    }
+}
+
 /// Apply discriminating-path orientations.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciDiscriminatingPathRule;
@@ -277,3 +447,42 @@ pub fn run_lpcmci_orientation(
     }
     Ok(total)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use causal_core::{Lag, VariableId};
+
+    #[test]
+    fn r2_orients_circle_into_arrow() {
+        // a → b o→ c and a o-o c  ⇒  a o→ c
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_circle_arrow(b, c).unwrap();
+        g.insert_marked(causal_graph::MarkedEdge {
+            a,
+            b: c,
+            at_a: Endpoint::Circle,
+            at_b: Endpoint::Circle,
+        })
+        .unwrap();
+        let mut state = OrientationState::default();
+        let mut queue = OrientationQueue::new();
+        let d = LpcmciR2.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert!(d.edges_changed > 0);
+        let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+        assert!(matches!(at_a, Endpoint::Circle));
+        assert!(matches!(at_c, Endpoint::Arrow));
+    }
+
+    #[test]
+    fn rule_ids_cover_r1_r2_r3() {
+        assert_eq!(LpcmciR1.id(), "lpcmci.r1");
+        assert_eq!(LpcmciR2.id(), "lpcmci.r2");
+        assert_eq!(LpcmciR3.id(), "lpcmci.r3");
+    }
+}
+

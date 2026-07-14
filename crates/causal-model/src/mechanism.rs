@@ -45,8 +45,10 @@ pub fn sample_noise_column(
             Ok(())
         }
         MechanismSlot::Discrete { .. } => {
-            // Discrete uses direct categorical sampling in evaluate; noise unused.
-            output[..n_rows].fill(0.0);
+            // Uniform(0,1) drives categorical draws in evaluate / sample_column.
+            for i in 0..n_rows {
+                output[i] = rng.next_f64().clamp(f64::EPSILON, 1.0 - f64::EPSILON);
+            }
             Ok(())
         }
     }
@@ -91,14 +93,45 @@ pub fn evaluate_column(
             }
             Ok(())
         }
-        MechanismSlot::Discrete { support, probs } => {
-            if support.len() != probs.len() || support.is_empty() {
-                return Err(ModelError::Shape { message: "discrete support/probs mismatch".into() });
+        MechanismSlot::Discrete { support, probs, logit_coeffs } => {
+            if support.is_empty() {
+                return Err(ModelError::Shape { message: "empty discrete support".into() });
             }
-            // Noise unused; sample from categorical using noise as U(0,1) if in (0,1), else mid.
-            for r in 0..n {
-                let u = if noise[r] > 0.0 && noise[r] < 1.0 { noise[r] } else { 0.5 };
-                output[r] = categorical_draw(support, probs, u);
+            match logit_coeffs {
+                None => {
+                    if support.len() != probs.len() {
+                        return Err(ModelError::Shape {
+                            message: "discrete support/probs mismatch".into(),
+                        });
+                    }
+                    for r in 0..n {
+                        let u = if noise[r] > 0.0 && noise[r] < 1.0 {
+                            noise[r]
+                        } else {
+                            0.5
+                        };
+                        output[r] = categorical_draw(support, probs, u);
+                    }
+                }
+                Some(logits) => {
+                    let k = support.len();
+                    let width = 1 + parents.n_parents;
+                    if logits.len() != k * width {
+                        return Err(ModelError::Shape {
+                            message: "discrete logit_coeffs length mismatch".into(),
+                        });
+                    }
+                    let mut row_probs = vec![0.0; k];
+                    for r in 0..n {
+                        softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
+                        let u = if noise[r] > 0.0 && noise[r] < 1.0 {
+                            noise[r]
+                        } else {
+                            0.5
+                        };
+                        output[r] = categorical_draw(support, &row_probs, u);
+                    }
+                }
             }
             Ok(())
         }
@@ -191,16 +224,40 @@ pub fn log_prob_column(
             }
             Ok(())
         }
-        MechanismSlot::Discrete { support, probs } => {
-            let sum: f64 = probs.iter().sum();
+        MechanismSlot::Discrete { support, probs, logit_coeffs } => {
             for r in 0..n {
-                let mut lp = f64::NEG_INFINITY;
-                for (i, &s) in support.iter().enumerate() {
-                    if (values[r] - s).abs() < 1e-12 {
-                        lp = (probs[i] / sum).ln();
-                        break;
+                let lp = match logit_coeffs {
+                    None => {
+                        let sum: f64 = probs.iter().sum();
+                        let mut found = f64::NEG_INFINITY;
+                        for (i, &s) in support.iter().enumerate() {
+                            if (values[r] - s).abs() < 1e-12 {
+                                found = (probs[i] / sum.max(f64::EPSILON)).ln();
+                                break;
+                            }
+                        }
+                        found
                     }
-                }
+                    Some(logits) => {
+                        let k = support.len();
+                        let width = 1 + parents.n_parents;
+                        if logits.len() != k * width {
+                            return Err(ModelError::Shape {
+                                message: "discrete logit_coeffs length mismatch".into(),
+                            });
+                        }
+                        let mut row_probs = vec![0.0; k];
+                        softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
+                        let mut found = f64::NEG_INFINITY;
+                        for (i, &s) in support.iter().enumerate() {
+                            if (values[r] - s).abs() < 1e-12 {
+                                found = row_probs[i].max(f64::EPSILON).ln();
+                                break;
+                            }
+                        }
+                        found
+                    }
+                };
                 output[r] = lp;
             }
             Ok(())
@@ -226,10 +283,26 @@ pub fn sample_column(
     let n = parents.n_rows;
     ws.prepare(n, parents.n_parents.max(1));
     match slot {
-        MechanismSlot::Discrete { support, probs } => {
+        MechanismSlot::Discrete { support, probs, logit_coeffs } => {
             for r in 0..n {
                 let u = rng.next_f64().max(f64::EPSILON);
-                output[r] = categorical_draw(support, probs, u);
+                match logit_coeffs {
+                    None => {
+                        output[r] = categorical_draw(support, probs, u);
+                    }
+                    Some(logits) => {
+                        let k = support.len();
+                        let width = 1 + parents.n_parents;
+                        if logits.len() != k * width {
+                            return Err(ModelError::Shape {
+                                message: "discrete logit_coeffs length mismatch".into(),
+                            });
+                        }
+                        let mut row_probs = vec![0.0; k];
+                        softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
+                        output[r] = categorical_draw(support, &row_probs, u);
+                    }
+                }
             }
             Ok(())
         }
@@ -239,6 +312,40 @@ pub fn sample_column(
             evaluate_column(slot, parents, &noise, output, ws)
         }
     }
+}
+
+fn softmax_row_probs(
+    logits: &[f64],
+    k: usize,
+    width: usize,
+    parents: ParentBatch<'_>,
+    row: usize,
+    out: &mut [f64],
+) -> Result<(), ModelError> {
+    let mut max_eta = f64::NEG_INFINITY;
+    let mut etas = vec![0.0; k];
+    for cat in 0..k {
+        let base = cat * width;
+        let mut eta = logits[base];
+        for p in 0..parents.n_parents {
+            eta += logits[base + 1 + p] * parents.column(p)?[row];
+        }
+        etas[cat] = eta;
+        if eta > max_eta {
+            max_eta = eta;
+        }
+    }
+    let mut sum = 0.0;
+    for cat in 0..k {
+        let e = (etas[cat] - max_eta).exp();
+        out[cat] = e;
+        sum += e;
+    }
+    let inv = 1.0 / sum.max(f64::EPSILON);
+    for p in out.iter_mut() {
+        *p *= inv;
+    }
+    Ok(())
 }
 
 fn categorical_draw(support: &[f64], probs: &[f64], u: f64) -> f64 {

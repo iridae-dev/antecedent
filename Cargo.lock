@@ -337,6 +337,7 @@ dependencies = [
  "causal-estimate",
  "causal-expr",
  "causal-graph",
+ "causal-io",
  "causal-stats",
  "numpy",
  "pyo3",

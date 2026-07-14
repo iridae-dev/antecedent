@@ -58,6 +58,6 @@ pub use result::{
     PagDiscoveryResult, PagGraphEvidence, PcSepsets, ScoredLink, SepsetKey,
 };
 pub use rule_scheduling::{
-    LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciOrientationRule, LpcmciR1,
-    run_lpcmci_orientation,
+    LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciOrientationRule, LpcmciR1, LpcmciR2,
+    LpcmciR3, run_lpcmci_orientation,
 };

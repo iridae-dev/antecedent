@@ -20,6 +20,7 @@ workspace = true
 causal-core = { path = "../crates/causal-core" }
 causal-data = { path = "../crates/causal-data", features = ["arrow"] }
 causal = { path = "../crates/causal" }
+causal-io = { path = "../crates/causal-io" }
 causal-discovery = { path = "../crates/causal-discovery" }
 causal-estimate = { path = "../crates/causal-estimate" }
 causal-expr = { path = "../crates/causal-expr" }

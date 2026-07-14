@@ -5,6 +5,7 @@
 #![allow(missing_docs, clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use causal_core::{
     CausalSchemaBuilder, ExecutionContext, MeasurementSpec, MediationContrast, MediationQuery,
@@ -57,7 +58,10 @@ fn mediated(n: usize) -> (TimeSeriesData, MediationQuery, IdentifiedEstimand) {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TimeSeriesData::try_new(
         storage,
-        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        TimeIndex {
+            regularity: SamplingRegularity::Regular { interval_ns: 1 },
+            length: n,
+        },
     )
     .unwrap();
     let q = MediationQuery::binary(
@@ -79,6 +83,10 @@ fn mediated(n: usize) -> (TimeSeriesData, MediationQuery, IdentifiedEstimand) {
 
 fn bench_mediation(c: &mut Criterion) {
     let est = TemporalMediationEstimator::new();
+    // Soft budgets (phase9_regime_mediation.md); 2× headroom for gate `--test` noise.
+    const SPARSE_BUDGET: Duration = Duration::from_millis(10);
+    const STRESS_BUDGET: Duration = Duration::from_millis(40);
+
     c.bench_function("mediation_sparse_200", |b| {
         let (data, q, estimand) = mediated(200);
         b.iter(|| {
@@ -97,6 +105,33 @@ fn bench_mediation(c: &mut Criterion) {
             black_box(r.total);
         });
     });
+
+    {
+        let (data, q, estimand) = mediated(200);
+        let t0 = Instant::now();
+        let r = est
+            .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(1))
+            .unwrap();
+        let elapsed = t0.elapsed();
+        assert!(r.mediated.is_some());
+        assert!(
+            elapsed < SPARSE_BUDGET,
+            "mediation_sparse_200 exceeded soft budget: {elapsed:?} >= {SPARSE_BUDGET:?}"
+        );
+    }
+    {
+        let (data, q, estimand) = mediated(800);
+        let t0 = Instant::now();
+        let r = est
+            .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(2))
+            .unwrap();
+        let elapsed = t0.elapsed();
+        assert!(r.total.is_some());
+        assert!(
+            elapsed < STRESS_BUDGET,
+            "mediation_stress_800 exceeded soft budget: {elapsed:?} >= {STRESS_BUDGET:?}"
+        );
+    }
 }
 
 criterion_group!(benches, bench_mediation);

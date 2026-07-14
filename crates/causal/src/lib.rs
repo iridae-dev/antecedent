@@ -37,7 +37,9 @@ pub use causal_identify::{
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
     IdentificationEnvelope, ProbabilityMass, TemporalMediationIdentifier,
 };
-pub use posterior_io::{decode_causal_posterior_bytes, encode_causal_posterior};
+pub use posterior_io::{
+    decode_causal_posterior_bytes, encode_causal_posterior, encode_causal_posterior_bytes,
+};
 pub use result::CausalAnalysisResult;
 pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,

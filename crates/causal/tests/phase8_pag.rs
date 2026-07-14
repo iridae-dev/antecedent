@@ -112,6 +112,17 @@ fn lpcmci_chain() {
         expected["algorithm_id"].as_str().unwrap()
     );
     assert!(result.evidence.graph.node_count() >= expected["min_nodes"].as_u64().unwrap() as usize);
+    assert!(
+        result.evidence.links.len() >= expected["min_links_retained"].as_u64().unwrap() as usize
+    );
+    assert!(
+        result.review.pending_circles.len()
+            <= expected["max_pending_circles"].as_u64().unwrap() as usize
+    );
+    let rules = expected["orientation_rule_ids"].as_array().unwrap();
+    assert_eq!(rules.len(), 5);
+    assert!(rules.iter().any(|r| r.as_str() == Some("lpcmci.r2")));
+    assert!(rules.iter().any(|r| r.as_str() == Some("lpcmci.r3")));
 }
 
 #[test]
@@ -163,3 +174,4 @@ fn completion_sampler_respects_bound() {
     let n = CompletionSampler::new(pag, max).unwrap().count();
     assert!(n <= max);
 }
+

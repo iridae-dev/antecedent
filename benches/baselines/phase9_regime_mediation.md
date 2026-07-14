@@ -16,5 +16,6 @@ Criterion benches (run with `--test` in `gate_phase9.sh`):
 | mediation_stress_800 | < 20 ms / iter typical |
 
 Memory: multi-env sample plans must not clone sibling environment series
-(see `causal-data` `MultiEnvSamplePlan` unit test). Absolute timings are
-machine-dependent; gate only smoke-runs `--test`.
+(see `causal-data` `MultiEnvSamplePlan` unit test; J-PCMCI+ emits
+`jpcmci_plus.multi_env_plan` diagnostic). Soft latency budgets above are
+asserted on a single timed iteration when Criterion runs with `--test`.

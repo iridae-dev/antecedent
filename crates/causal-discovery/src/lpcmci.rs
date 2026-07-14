@@ -19,7 +19,8 @@ use crate::evidence::{pag_evidence_from_oriented, pag_from_scored_links, thresho
 use crate::orientation::OrientationState;
 use crate::result::{AlgorithmRecord, DiscoveryDiagnostic, PagDiscoveryResult};
 use crate::rule_scheduling::{
-    LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciR1, run_lpcmci_orientation,
+    LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciR1, LpcmciR2, LpcmciR3,
+    run_lpcmci_orientation,
 };
 
 /// LPCMCI: latent-confounder-aware PCMCI → oriented [`TemporalPag`].
@@ -113,9 +114,11 @@ impl Lpcmci {
             state.set_sepset(sa, tb, Arc::from(mapped));
         }
 
-        let rules: [&dyn crate::rule_scheduling::LpcmciOrientationRule; 3] = [
+        let rules: [&dyn crate::rule_scheduling::LpcmciOrientationRule; 5] = [
             &LpcmciOrientCollider,
             &LpcmciR1,
+            &LpcmciR2,
+            &LpcmciR3,
             &LpcmciDiscriminatingPathRule,
         ];
         let _delta = run_lpcmci_orientation(&mut pag, &rules, &mut state)

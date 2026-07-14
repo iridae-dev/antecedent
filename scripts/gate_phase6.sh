@@ -33,12 +33,12 @@ def caps(text: str):
 EVIDENCE = {
     "bayes.prob.columnar_posteriors": "crates/causal-prob/src/posterior.rs",
     "bayes.prob.priors": "crates/causal-prob/src/prior.rs",
-    "bayes.backend.conjugate_gaussian": "conformance/phase6/conjugate_gaussian",
-    "bayes.backend.laplace_glm": "conformance/phase6/laplace_glm",
-    "bayes.estimate.gcomp": "conformance/phase6/shared_functional_ate",
-    "bayes.estimate.graph_envelopes": "conformance/phase6/graph_effect_envelope",
-    "bayes.validate.ppc": "conformance/phase6/ppc",
-    "bayes.validate.prior_sensitivity": "conformance/phase6/prior_sensitivity",
+    "bayes.backend.conjugate_gaussian": "crates/causal/tests/phase6_bayesian.rs",
+    "bayes.backend.laplace_glm": "crates/causal/tests/phase6_bayesian.rs",
+    "bayes.estimate.gcomp": "crates/causal/tests/phase6_bayesian.rs",
+    "bayes.estimate.graph_envelopes": "crates/causal/tests/phase6_bayesian.rs",
+    "bayes.validate.ppc": "crates/causal/tests/phase6_bayesian.rs",
+    "bayes.validate.prior_sensitivity": "crates/causal/tests/phase6_bayesian.rs",
     "bayes.data.bayesian_bootstrap": "provenance/data.bayesian_bootstrap.toml",
     "bayes.io.posterior_artifact": "crates/causal-io/src/posterior.rs",
     "bayes.facade.inference_mode": "crates/causal/src/inference.rs",
@@ -85,13 +85,14 @@ if missing:
 print("Phase 6 inventory evidence map OK")
 PY
 
-echo "== cargo test causal-prob / estimate bayesian / io posterior =="
+echo "== cargo test causal-prob / estimate bayesian / io posterior / phase6 conformance =="
 cargo test -p causal-prob --lib
 cargo test -p causal-estimate --lib bayesian
 cargo test -p causal-estimate --lib envelope
 cargo test -p causal-validate --lib bayesian_checks
 cargo test -p causal-io --lib posterior
 cargo test -p causal-data --lib resample
+cargo test -p causal --test phase6_bayesian
 
 echo "== criterion smoke (reuse gates) =="
 cargo bench -p causal-prob --bench laplace_glm -- --test

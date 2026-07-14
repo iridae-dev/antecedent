@@ -35,10 +35,10 @@ EVIDENCE = {
     "gcm.model.mechanisms": "crates/causal-model/src/mechanism.rs",
     "gcm.model.registry_fit": "crates/causal-model/src/registry.rs",
     "gcm.model.sampling": "crates/causal-model/src/sample.rs",
-    "gcm.do_sampling": "conformance/phase7/do_sampling_weighting",
+    "gcm.do_sampling": "crates/causal/tests/phase7_gcm.rs",
     "gcm.model.falsification": "crates/causal-model/src/evaluate.rs",
-    "gcm.counterfactual.aap": "conformance/phase7/gcm_cf_ite",
-    "gcm.attribution.basic": "conformance/phase7/gcm_anomaly",
+    "gcm.counterfactual.aap": "crates/causal/tests/phase7_gcm.rs",
+    "gcm.attribution.basic": "crates/causal/tests/phase7_gcm.rs",
     "gcm.attribution.shapley": "parity/phase7_deviations.md",
     "gcm.attribution.distribution_change": "parity/phase7_deviations.md",
 }

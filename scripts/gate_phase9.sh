@@ -32,11 +32,11 @@ def caps(text: str):
 EVIDENCE = {
     "phase9.panel_data": "crates/causal-data/src/panel.rs",
     "phase9.context_graph": "crates/causal-graph/src/cpdag.rs",
-    "phase9.jpcmci_plus": "conformance/phase9/jpcmci_plus_two_env",
-    "phase9.rpcmci": "conformance/phase9/rpcmci_two_regime",
-    "phase9.mediation": "conformance/phase9/temporal_mediation",
-    "phase9.conditional": "conformance/phase9/conditional_effect",
-    "phase9.prediction": "conformance/phase9/prediction_smoke",
+    "phase9.jpcmci_plus": "crates/causal/tests/phase9_context_effects.rs",
+    "phase9.rpcmci": "crates/causal/tests/phase9_context_effects.rs",
+    "phase9.mediation": "crates/causal/tests/phase9_context_effects.rs",
+    "phase9.conditional": "crates/causal/tests/phase9_context_effects.rs",
+    "phase9.prediction": "crates/causal/tests/phase9_context_effects.rs",
 }
 
 missing = []

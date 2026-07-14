@@ -23,7 +23,7 @@ pub enum MechanismFamily {
     LinearGaussian,
     /// Constant (root or intercept-only).
     Constant,
-    /// Discrete categorical (root only in Phase 7 auto-assign).
+    /// Discrete categorical (unconditional root or parent-conditional softmax).
     Discrete,
 }
 
@@ -250,9 +250,44 @@ fn fit_family(
             let total = pairs.iter().map(|(_, _, c)| *c).sum::<usize>() as f64;
             let support: Vec<f64> = pairs.iter().map(|(_, v, _)| *v).collect();
             let probs: Vec<f64> = pairs.iter().map(|(_, _, c)| *c as f64 / total).collect();
+            let k = support.len();
+            let p = gather.n_parents();
+            if p == 0 {
+                return Ok(MechanismSlot::Discrete {
+                    support: Arc::from(support),
+                    probs: Arc::from(probs),
+                    logit_coeffs: None,
+                });
+            }
+            // Parent-conditional: one-vs-rest least squares on category indicators → softmax logits.
+            let ncols = 1 + p;
+            let mut x = vec![0.0; n * ncols];
+            for r in 0..n {
+                x[r] = 1.0;
+            }
+            for (pi, &parent) in gather.parents.iter().enumerate() {
+                let var = model.output_layout.variables[parent.as_usize()];
+                let col =
+                    data.float64_values(var).map_err(|e| ModelError::Data(e.to_string()))?;
+                let base = (1 + pi) * n;
+                x[base..base + n].copy_from_slice(&col[..n]);
+            }
+            let mut logit_coeffs = vec![0.0; k * ncols];
+            for (cat, &sv) in support.iter().enumerate() {
+                let indicators: Vec<f64> = y
+                    .iter()
+                    .map(|&yi| if (yi - sv).abs() < 1e-12 { 1.0 } else { 0.0 })
+                    .collect();
+                let fit = backend
+                    .least_squares(&x, n, ncols, &indicators, ls_ws)
+                    .map_err(|e| ModelError::Stats(e.to_string()))?;
+                let base = cat * ncols;
+                logit_coeffs[base..base + ncols].copy_from_slice(&fit.coefficients[..ncols]);
+            }
             Ok(MechanismSlot::Discrete {
                 support: Arc::from(support),
                 probs: Arc::from(probs),
+                logit_coeffs: Some(Arc::from(logit_coeffs)),
             })
         }
         MechanismFamily::LinearGaussian => {
