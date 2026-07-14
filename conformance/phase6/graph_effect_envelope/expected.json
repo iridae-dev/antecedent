@@ -1,0 +1,7 @@
+{
+  "unidentified_mass": 0.3,
+  "identified_weights": [0.5, 0.2],
+  "effect_means": [1.0, 3.0],
+  "expected_mixture_mean": 1.1,
+  "tolerance_class": "StableFloat"
+}
