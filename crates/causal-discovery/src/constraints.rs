@@ -28,6 +28,37 @@ impl Default for TemporalConstraints {
     }
 }
 
+/// How contemporaneous links may relate across environments (J-PCMCI+).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+pub enum CrossEnvLinkAssumption {
+    /// No cross-environment contemporaneous assumption (default).
+    #[default]
+    Independent,
+    /// Require the same contemporaneous skeleton across environments.
+    SharedContemporaneousSkeleton,
+    /// Allow environment-specific contemporaneous links (still shared lagged search space).
+    EnvironmentSpecificContemporaneous,
+}
+
+/// Multi-dataset / context-aware discovery constraints (Phase 9 / J-PCMCI+).
+#[derive(Clone, Debug, Default)]
+pub struct MultiDatasetConstraints {
+    /// System variables that act as context (appear as [`NodeRef::Context`] in output graphs).
+    pub context_variables: Arc<[VariableId]>,
+    /// Cross-environment link assumptions for pooled CI.
+    pub cross_env: CrossEnvLinkAssumption,
+    /// When true, pool CI evidence across environments for lagged system links.
+    pub pool_lagged_ci: bool,
+}
+
+impl MultiDatasetConstraints {
+    /// Whether `v` is marked as a context variable.
+    #[must_use]
+    pub fn is_context(&self, v: VariableId) -> bool {
+        self.context_variables.iter().any(|&x| x == v)
+    }
+}
+
 /// Compiled discovery constraints.
 #[derive(Clone, Debug)]
 pub struct DiscoveryConstraints {
@@ -47,6 +78,8 @@ pub struct DiscoveryConstraints {
     pub alpha: f64,
     /// CI significance method (analytic or block-shuffle).
     pub significance: SignificanceMethod,
+    /// Optional multi-dataset / context constraints (ignored by single-series PCMCI).
+    pub multi_dataset: MultiDatasetConstraints,
 }
 
 impl Default for DiscoveryConstraints {
@@ -60,6 +93,7 @@ impl Default for DiscoveryConstraints {
             max_cond_size: 3,
             alpha: 0.05,
             significance: SignificanceMethod::Analytic,
+            multi_dataset: MultiDatasetConstraints::default(),
         }
     }
 }
@@ -95,16 +129,25 @@ impl DiscoveryConstraints {
         }
     }
 
-    /// Validate required vs forbidden conflicts.
+    /// Validate required vs forbidden conflicts and multi-dataset sanity.
     ///
     /// # Errors
     ///
-    /// Conflicting required/forbidden edges.
+    /// Conflicting required/forbidden edges, or context variables listed as
+    /// both context and ordinary without a clear role.
     pub fn validate(&self) -> Result<(), DiscoveryError> {
         for r in self.required.iter() {
             if self.is_forbidden(*r) || self.tier_forbids(r.source, r.target) {
                 return Err(DiscoveryError::Unsupported {
                     message: "required edge conflicts with forbidden or tier constraints",
+                });
+            }
+        }
+        // Context → context lagged links are out of scope for J-PCMCI+ system search.
+        for r in self.required.iter() {
+            if self.multi_dataset.is_context(r.source) && self.multi_dataset.is_context(r.target) {
+                return Err(DiscoveryError::Unsupported {
+                    message: "required context→context lagged links are unsupported",
                 });
             }
         }
@@ -335,5 +378,21 @@ mod tests {
         };
         let compiled = c.compile(&vars).unwrap();
         assert!(!compiled.allows(bad));
+    }
+
+    #[test]
+    fn multi_dataset_context_flags() {
+        let ctx = VariableId::from_raw(2);
+        let c = DiscoveryConstraints {
+            multi_dataset: MultiDatasetConstraints {
+                context_variables: Arc::from([ctx]),
+                cross_env: CrossEnvLinkAssumption::SharedContemporaneousSkeleton,
+                pool_lagged_ci: true,
+            },
+            ..DiscoveryConstraints::default()
+        };
+        assert!(c.multi_dataset.is_context(ctx));
+        assert!(!c.multi_dataset.is_context(VariableId::from_raw(0)));
+        c.validate().unwrap();
     }
 }

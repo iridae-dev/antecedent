@@ -1,0 +1,18 @@
+feature_id = "discovery.multi_dataset_constraints"
+implementation_crate = "causal-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "J-PCMCI+: Causal discovery for multi-dataset time series", sections = ["multi-dataset constraints"] },
+]
+
+upstream_implementations_observed = [
+  { project = "tigramite", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+  "unit tests for MultiDatasetConstraints context flags and validation",
+]
