@@ -19,13 +19,13 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
-    BayesianConfig, CandidateDesign, CausalAnalysis, DataBatchRef, DifferenceMeasure,
-    DiscoverParams, DiscoveryPerformanceRecord, DistributionChangeOptions, DesignCost,
-    DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, GraphIdentFlag,
+    BayesianConfig, CandidateDesign, CausalAnalysis, DataBatchRef, DesignCost,
+    DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, DifferenceMeasure,
+    DiscoverParams, DiscoveryPerformanceRecord, DistributionChangeOptions, GraphIdentFlag,
     InferenceMode, MeasurementPlan, RefuteSuite, SamplingPlan, ScoredLink, StateEvent,
     TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples, apply_state_event,
-    attribute_distribution_change, counterfactual_ite, dag_from_dot, dag_to_dot,
-    dag_to_json, decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    attribute_distribution_change, counterfactual_ite, dag_from_dot, dag_to_dot, dag_to_json,
+    decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
     encode_causal_posterior_bytes, fit_gcm, new_causal_state, pag_definite_directed_edge_count,
@@ -34,8 +34,8 @@ use causal::{
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CacheBudget, CachePolicy,
     CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention, Lag, MediationContrast,
-    MediationQuery, PopulationSelector, ShapleyConfig, TemporalEffectQuery, TemporalPolicy, VERSION,
-    Value, VariableId,
+    MediationQuery, PopulationSelector, ShapleyConfig, TemporalEffectQuery, TemporalPolicy,
+    VERSION, Value, VariableId,
 };
 use causal_data::{
     MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
@@ -1168,13 +1168,7 @@ fn rank_design_eig(
 ) -> PyResult<(usize, Vec<f64>, u64)> {
     let flags: Vec<GraphIdentFlag> = identified
         .into_iter()
-        .map(|v| {
-            if v == 0 {
-                GraphIdentFlag::Unidentified
-            } else {
-                GraphIdentFlag::Identified
-            }
-        })
+        .map(|v| if v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified })
         .collect();
     let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_err)?;
     let mut candidates = Vec::new();
@@ -1209,8 +1203,9 @@ fn rank_design_eig(
         decisions: None,
         query_id_unlock: None,
     };
-    let ranking = rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
-        .map_err(py_err)?;
+    let ranking =
+        rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
+            .map_err(py_err)?;
     let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
     let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
     Ok((best, scores, ranking.budget.samples))
@@ -1224,12 +1219,10 @@ fn rank_design_eig(
 fn causal_state_append_demo(n_appends: u64, cache_bytes: u64) -> PyResult<(u64, usize)> {
     use causal_core::{AverageEffectQuery, CausalQuery};
     let mut state = new_causal_state(CacheBudget::new(cache_bytes));
-    let q = state
-        .queries
-        .register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-        )));
+    let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+    )));
     let _ = state.refresh_results(&[(q, 1, 16)]);
     for i in 0..n_appends {
         apply_state_event(

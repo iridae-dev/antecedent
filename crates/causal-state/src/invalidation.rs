@@ -47,12 +47,13 @@ impl InvalidationLog {
     }
 
     /// Record an invalidation.
-    pub fn push(&mut self, at_version: StateVersion, target: InvalidationTarget, reason: impl Into<Arc<str>>) {
-        self.entries.push(InvalidationEntry {
-            at_version,
-            target,
-            reason: reason.into(),
-        });
+    pub fn push(
+        &mut self,
+        at_version: StateVersion,
+        target: InvalidationTarget,
+        reason: impl Into<Arc<str>>,
+    ) {
+        self.entries.push(InvalidationEntry { at_version, target, reason: reason.into() });
     }
 
     /// Whether `query` has an unresolved invalidation after `since`.

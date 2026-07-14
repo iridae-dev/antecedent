@@ -12,8 +12,8 @@ use crate::error::StateError;
 use crate::event::StateEvent;
 use crate::invalidation::{InvalidationLog, InvalidationTarget};
 use crate::store::{
-    CachedResult, DataCatalog, DataVersion, GraphEvidenceStore, ModelStore, QueryStore, ResultStore,
-    SuffStatStore,
+    CachedResult, DataCatalog, DataVersion, GraphEvidenceStore, ModelStore, QueryStore,
+    ResultStore, SuffStatStore,
 };
 
 /// Incremental causal analysis state (embeddable; no service runtime).
@@ -139,12 +139,7 @@ impl CausalState {
     /// List registered queries that are currently stale.
     #[must_use]
     pub fn stale_queries(&self) -> Vec<QueryId> {
-        self.queries
-            .queries
-            .keys()
-            .copied()
-            .filter(|q| self.is_stale(*q))
-            .collect()
+        self.queries.queries.keys().copied().filter(|q| self.is_stale(*q)).collect()
     }
 
     /// Caller-driven recomputation hook: marks selected queries fresh after the
@@ -153,21 +148,13 @@ impl CausalState {
     /// # Errors
     ///
     /// Unknown query or cache budget refusal.
-    pub fn refresh_results(
-        &mut self,
-        updates: &[(QueryId, u64, u64)],
-    ) -> Result<(), StateError> {
+    pub fn refresh_results(&mut self, updates: &[(QueryId, u64, u64)]) -> Result<(), StateError> {
         for &(query, fingerprint, bytes) in updates {
             if !self.queries.queries.contains_key(&query) {
                 return Err(StateError::UnknownId(format!("query {}", query.raw())));
             }
             self.cached_results.insert(
-                CachedResult {
-                    query,
-                    fingerprint,
-                    bytes,
-                    computed_at: self.version,
-                },
+                CachedResult { query, fingerprint, bytes, computed_at: self.version },
                 &mut self.cache_budget,
             )?;
             if let Some(rec) = self.queries.queries.get_mut(&query) {
@@ -201,11 +188,7 @@ impl CausalState {
         let ids: Vec<QueryId> = self.cached_results.results.keys().copied().collect();
         for q in ids {
             self.cached_results.remove(q, &mut self.cache_budget);
-            self.invalidations.push(
-                v,
-                InvalidationTarget::QueryResult(q),
-                Arc::from(reason),
-            );
+            self.invalidations.push(v, InvalidationTarget::QueryResult(q), Arc::from(reason));
             if let Some(rec) = self.queries.queries.get_mut(&q) {
                 rec.result_valid_at = None;
             }
@@ -226,15 +209,11 @@ mod tests {
     #[test]
     fn append_marks_results_stale_without_autorun() {
         let mut state = CausalState::new(CacheBudget::new(1024));
-        let q = state
-            .queries
-            .register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-                VariableId::from_raw(0),
-                VariableId::from_raw(1),
-            )));
-        state
-            .refresh_results(&[(q, 42, 16)])
-            .expect("cache");
+        let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        )));
+        state.refresh_results(&[(q, 42, 16)]).expect("cache");
         assert!(!state.is_stale(q));
         state
             .apply(StateEvent::AppendData(DataBatchRef {
@@ -250,12 +229,10 @@ mod tests {
     #[test]
     fn cache_budget_refuses_oversized_insert() {
         let mut state = CausalState::new(CacheBudget::new(8));
-        let q = state
-            .queries
-            .register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-                VariableId::from_raw(0),
-                VariableId::from_raw(1),
-            )));
+        let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        )));
         let err = state.refresh_results(&[(q, 1, 64)]).expect_err("budget");
         assert!(matches!(err, StateError::CacheBudget { .. }));
     }

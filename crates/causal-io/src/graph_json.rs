@@ -23,11 +23,7 @@ pub struct DagJson {
 
 impl From<&DagWire> for DagJson {
     fn from(wire: &DagWire) -> Self {
-        Self {
-            node_count: wire.node_count,
-            edges: wire.edges.clone(),
-            variable_names: None,
-        }
+        Self { node_count: wire.node_count, edges: wire.edges.clone(), variable_names: None }
     }
 }
 
@@ -58,9 +54,7 @@ pub fn dag_from_json(json: &str) -> Result<Dag, IoError> {
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
     if let Some(names) = &doc.variable_names {
         if names.len() != doc.node_count as usize {
-            return Err(IoError::Convert(
-                "variable_names length must equal node_count".into(),
-            ));
+            return Err(IoError::Convert("variable_names length must equal node_count".into()));
         }
     }
     dag_from_wire(&doc.to_wire())

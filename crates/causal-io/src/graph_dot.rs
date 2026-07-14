@@ -173,7 +173,11 @@ fn push_quoted(out: &mut String, s: &str) {
     out.push('"');
 }
 
-fn intern(label: &str, order: &mut Vec<String>, index: &mut HashMap<String, u32>) -> Result<u32, IoError> {
+fn intern(
+    label: &str,
+    order: &mut Vec<String>,
+    index: &mut HashMap<String, u32>,
+) -> Result<u32, IoError> {
     if let Some(&i) = index.get(label) {
         return Ok(i);
     }
@@ -183,10 +187,7 @@ fn intern(label: &str, order: &mut Vec<String>, index: &mut HashMap<String, u32>
     Ok(i)
 }
 
-fn remap_numeric_dense(
-    order: &[String],
-    edges: &[(u32, u32)],
-) -> Result<Option<DagWire>, IoError> {
+fn remap_numeric_dense(order: &[String], edges: &[(u32, u32)]) -> Result<Option<DagWire>, IoError> {
     let mut nums = Vec::with_capacity(order.len());
     for label in order {
         let Ok(n) = label.parse::<u32>() else {
@@ -290,10 +291,7 @@ impl<'a> Lexer<'a> {
         if self.eat_char(expected) {
             Ok(())
         } else {
-            Err(IoError::Convert(format!(
-                "expected `{expected}` near `{}`",
-                self.snippet()
-            )))
+            Err(IoError::Convert(format!("expected `{expected}` near `{}`", self.snippet())))
         }
     }
 
@@ -335,7 +333,9 @@ impl<'a> Lexer<'a> {
                     '"' => return Ok(s),
                     '\\' => {
                         let Some(n) = self.bump() else {
-                            return Err(IoError::Convert("unterminated escape in DOT string".into()));
+                            return Err(IoError::Convert(
+                                "unterminated escape in DOT string".into(),
+                            ));
                         };
                         s.push(n);
                     }

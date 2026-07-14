@@ -31,8 +31,8 @@ pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeveri
 pub use error::SchemaError;
 pub use execution::{
     CacheBudget, CachePolicy, CancellationToken, CausalRng, Determinism, ExecutionContext,
-    KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount,
-    Parallelism, ProgressSink, RngFactory,
+    KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount, Parallelism,
+    ProgressSink, RngFactory,
 };
 pub use ids::{
     CategoryDomainId, ComponentId, EnvironmentId, Lag, ModelId, QueryId, RegimeId, StateVersion,

@@ -31,10 +31,7 @@ pub fn is_supported_source(v: FormatVersion) -> bool {
 pub fn migrate_artifact(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, IoError> {
     let from = artifact.manifest.format_version;
     if !is_supported_source(from) {
-        return Err(IoError::UnsupportedFormat {
-            major: from.major,
-            minor: from.minor,
-        });
+        return Err(IoError::UnsupportedFormat { major: from.major, minor: from.minor });
     }
     // Identity for 0.1; future minors chain here.
     artifact.manifest.format_version = STABLE_FORMAT;

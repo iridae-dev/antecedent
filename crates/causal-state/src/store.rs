@@ -9,7 +9,9 @@ use causal_core::{CacheBudget, CausalQuery, ModelId, QueryId, StateVersion};
 
 use crate::error::StateError;
 use crate::retention::RetentionPolicy;
-use crate::suff_stats::{LagIndexCacheEntry, LagIndexCacheKey, LinearOlsSuffStats, StreamingCovariance};
+use crate::suff_stats::{
+    LagIndexCacheEntry, LagIndexCacheKey, LinearOlsSuffStats, StreamingCovariance,
+};
 
 /// Opaque data batch reference (no borrowed buffers / process handles).
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -175,10 +177,7 @@ impl QueryStore {
     pub fn register(&mut self, query: CausalQuery) -> QueryId {
         let id = QueryId::from_raw(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
-        self.queries.insert(
-            id,
-            QueryRecord { id, query, result_valid_at: None },
-        );
+        self.queries.insert(id, QueryRecord { id, query, result_valid_at: None });
         id
     }
 }
@@ -217,12 +216,10 @@ impl ResultStore {
         let old_bytes = self.results.get(&result.query).map_or(0, |r| r.bytes);
         let net = result.bytes.saturating_sub(old_bytes);
         if !budget.can_admit(net) {
-            return Err(StateError::CacheBudget {
-                need: net,
-                remaining: budget.remaining(),
-            });
+            return Err(StateError::CacheBudget { need: net, remaining: budget.remaining() });
         }
-        budget.used_bytes = budget.used_bytes.saturating_sub(old_bytes).saturating_add(result.bytes);
+        budget.used_bytes =
+            budget.used_bytes.saturating_sub(old_bytes).saturating_add(result.bytes);
         self.results.insert(result.query, result);
         Ok(())
     }

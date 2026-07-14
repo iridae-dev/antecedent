@@ -18,10 +18,7 @@ fn bench_append(c: &mut Criterion) {
                 AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
             ));
             let _ = state.refresh_results(&[(q, 1, 32)]);
-            state
-                .suff_stats
-                .ols
-                .insert(Arc::from("ols"), LinearOlsSuffStats::new(2));
+            state.suff_stats.ols.insert(Arc::from("ols"), LinearOlsSuffStats::new(2));
             for i in 0..64u64 {
                 state
                     .apply(StateEvent::AppendData(DataBatchRef {

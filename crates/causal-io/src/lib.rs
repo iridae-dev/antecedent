@@ -26,7 +26,8 @@ pub use error::IoError;
 pub use graph_dot::{dag_from_dot, dag_to_dot, dag_wire_from_dot, dag_wire_to_dot};
 pub use graph_json::{DagJson, dag_from_json, dag_json_from_str, dag_to_json};
 pub use migrate::{
-    STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact, read_and_migrate,
+    STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact,
+    read_and_migrate,
 };
 pub use posterior::{
     CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,

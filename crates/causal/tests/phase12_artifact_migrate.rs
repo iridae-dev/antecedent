@@ -12,10 +12,10 @@ use causal_core::{
 };
 use causal_graph::{Dag, DenseNodeId};
 use causal_io::{
-    AnalysisTraceWire, ArtifactKind, CausalPosteriorWire, DerivationStepWire, EncodedArtifact,
-    FormatVersion, PosteriorQuantityWire, ProvenanceWire, STABLE_FORMAT, SemanticVersion,
-    assumptions_to_wire, dag_to_wire, encode_posterior_artifact, from_cbor, migrate_artifact,
-    read_and_migrate, schema_to_wire, section_descriptor, to_cbor, SectionBytes, ArtifactManifest,
+    AnalysisTraceWire, ArtifactKind, ArtifactManifest, CausalPosteriorWire, DerivationStepWire,
+    EncodedArtifact, FormatVersion, PosteriorQuantityWire, ProvenanceWire, STABLE_FORMAT,
+    SectionBytes, SemanticVersion, assumptions_to_wire, dag_to_wire, encode_posterior_artifact,
+    from_cbor, migrate_artifact, read_and_migrate, schema_to_wire, section_descriptor, to_cbor,
 };
 use serde_json::Value;
 use std::sync::Arc;

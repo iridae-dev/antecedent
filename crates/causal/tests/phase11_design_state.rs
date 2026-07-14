@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use causal::{
     CandidateDesign, CausalState, DesignCost, DesignEvaluationContext, DesignObjective,
-    DesignRankConfig, DesignRanker, LinearOlsSuffStats, MeasurementPlan, SamplingPlan,
-    StateEvent, apply_state_event, new_causal_state, rank_designs,
+    DesignRankConfig, DesignRanker, LinearOlsSuffStats, MeasurementPlan, SamplingPlan, StateEvent,
+    apply_state_event, new_causal_state, rank_designs,
 };
 use causal_core::{
     AverageEffectQuery, CacheBudget, CausalQuery, ExecutionContext, QueryId, VariableId,
@@ -65,8 +65,9 @@ fn rank_candidates_eig_conformance() {
         decisions: None,
         query_id_unlock: None,
     };
-    let ranking = rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
-        .unwrap();
+    let ranking =
+        rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
+            .unwrap();
     assert_eq!(ranking.ranked.len(), 2);
     assert!(ranking.budget.samples >= expected["min_mc_samples"].as_u64().unwrap());
     let best_kind = match &ranking.ranked[0].candidate {
@@ -92,12 +93,10 @@ fn incremental_ols_match_conformance() {
         serde_json::from_str(&fs::read_to_string(fixture("incremental_ols_match")).unwrap())
             .unwrap();
     let mut state = new_causal_state(CacheBudget::unlimited());
-    let q = state
-        .queries
-        .register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-        )));
+    let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+    )));
     let key: Arc<str> = Arc::from("ols");
     state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2));
 
@@ -105,11 +104,7 @@ fn incremental_ols_match_conformance() {
     let batch1_y = [1.0, 3.0];
     apply_state_event(
         &mut state,
-        StateEvent::AppendData(DataBatchRef {
-            id: Arc::from("b1"),
-            nrows: 2,
-            bytes: 32,
-        }),
+        StateEvent::AppendData(DataBatchRef { id: Arc::from("b1"), nrows: 2, bytes: 32 }),
     )
     .unwrap();
     state.suff_stats.ols.get_mut(&key).unwrap().append_batch(&batch1_rows, &batch1_y).unwrap();
@@ -118,11 +113,7 @@ fn incremental_ols_match_conformance() {
     let batch2_y = [5.0, 7.0];
     apply_state_event(
         &mut state,
-        StateEvent::AppendData(DataBatchRef {
-            id: Arc::from("b2"),
-            nrows: 2,
-            bytes: 32,
-        }),
+        StateEvent::AppendData(DataBatchRef { id: Arc::from("b2"), nrows: 2, bytes: 32 }),
     )
     .unwrap();
     state.suff_stats.ols.get_mut(&key).unwrap().append_batch(&batch2_rows, &batch2_y).unwrap();
@@ -143,18 +134,19 @@ fn incremental_ols_match_conformance() {
     assert!((beta_inc[1] - beta_full[1]).abs() < tol);
     assert!((beta_inc[0] - expected["beta0"].as_f64().unwrap()).abs() < tol);
     assert!((beta_inc[1] - expected["beta1"].as_f64().unwrap()).abs() < tol);
-    assert_eq!(state.version.raw(), expected["expected_version_after_two_appends"].as_u64().unwrap());
+    assert_eq!(
+        state.version.raw(),
+        expected["expected_version_after_two_appends"].as_u64().unwrap()
+    );
 }
 
 #[test]
 fn state_cache_budget_and_stale_queries() {
     let mut state: CausalState = new_causal_state(CacheBudget::new(16));
-    let q = state
-        .queries
-        .register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-        )));
+    let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+    )));
     assert!(state.refresh_results(&[(q, 1, 64)]).is_err());
     state.cache_budget = CacheBudget::new(128);
     state.refresh_results(&[(q, 9, 32)]).unwrap();

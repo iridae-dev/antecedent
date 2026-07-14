@@ -47,12 +47,7 @@ pub struct DesignRankConfig {
 
 impl Default for DesignRankConfig {
     fn default() -> Self {
-        Self {
-            min_batches: 4,
-            max_batches: 64,
-            rank_uncertainty_threshold: 0.05,
-            batch_size: 8,
-        }
+        Self { min_batches: 4, max_batches: 64, rank_uncertainty_threshold: 0.05, batch_size: 8 }
     }
 }
 
@@ -190,13 +185,8 @@ impl DesignRanker {
                 // Shared CRN draw index into graph posterior.
                 let g_idx = sample_categorical(&mut rng, &ctx_eval.graphs.weights);
                 for (slot, &cand_i) in active.iter().enumerate() {
-                    let score = score_candidate(
-                        objective,
-                        &candidates[cand_i],
-                        ctx_eval,
-                        g_idx,
-                        &mut rng,
-                    )?;
+                    let score =
+                        score_candidate(objective, &candidates[cand_i], ctx_eval, g_idx, &mut rng)?;
                     sums[slot] += score;
                     sumsq[slot] += score * score;
                     budget.evaluations += 1;
@@ -206,11 +196,14 @@ impl DesignRanker {
             }
 
             if batch_i + 1 >= min_batches {
-                let stderrs: Vec<f64> = (0..active.len())
-                    .map(|s| mc_stderr(sums[s], sumsq[s], n_samples))
-                    .collect();
-                if rank_uncertainty_ok(&sums, &stderrs, n_samples, self.config.rank_uncertainty_threshold)
-                {
+                let stderrs: Vec<f64> =
+                    (0..active.len()).map(|s| mc_stderr(sums[s], sumsq[s], n_samples)).collect();
+                if rank_uncertainty_ok(
+                    &sums,
+                    &stderrs,
+                    n_samples,
+                    self.config.rank_uncertainty_threshold,
+                ) {
                     early_stopped = true;
                     break;
                 }
@@ -366,7 +359,9 @@ where
     O: Clone,
 {
     match objective {
-        DesignObjective::ReduceGraphEntropy => Ok(eig_graph_entropy(candidate, ctx.graphs, graph_idx, rng)),
+        DesignObjective::ReduceGraphEntropy => {
+            Ok(eig_graph_entropy(candidate, ctx.graphs, graph_idx, rng))
+        }
         DesignObjective::IncreaseIdentificationProbability { query } => {
             Ok(id_prob_gain(candidate, ctx, *query, graph_idx))
         }
@@ -553,11 +548,7 @@ fn model_distinguish_score(
             count += 1;
         }
     }
-    if count == 0 {
-        0.0
-    } else {
-        strength * gap / count as f64
-    }
+    if count == 0 { 0.0 } else { strength * gap / count as f64 }
 }
 
 fn decision_regret_reduction<A, O>(
@@ -584,9 +575,7 @@ where
         CandidateDesign::IncreaseSamplingRate(s) => {
             (reg.outcomes.len() as u64).saturating_add(s.additional_samples / 10)
         }
-        CandidateDesign::Measure(_) | CandidateDesign::Intervene(_) => {
-            reg.outcomes.len() as u64
-        }
+        CandidateDesign::Measure(_) | CandidateDesign::Intervene(_) => reg.outcomes.len() as u64,
         CandidateDesign::ObserveEnvironment(e) => {
             (reg.outcomes.len() as u64).saturating_add(e.additional_rows / 10)
         }
@@ -670,10 +659,8 @@ mod tests {
             cost: DesignCost { amount: 100.0, sample_budget: 0 },
             tag: 1,
         })];
-        let ranker = DesignRanker::new().with_constraints(DesignConstraints {
-            max_cost: Some(10.0),
-            max_sample_budget: None,
-        });
+        let ranker = DesignRanker::new()
+            .with_constraints(DesignConstraints { max_cost: Some(10.0), max_sample_budget: None });
         let ctx = ExecutionContext::for_tests(1);
         let eval = DesignEvaluationContext::<(), ()> {
             graphs: &graphs,

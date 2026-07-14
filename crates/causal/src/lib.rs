@@ -191,8 +191,8 @@ mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
-        RoleHint, SmallRoleSet, ValueType, VariableId,
+        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
+        SmallRoleSet, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
