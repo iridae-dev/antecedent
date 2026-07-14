@@ -14,6 +14,7 @@ pub mod error;
 pub mod mechanism;
 pub mod overlay;
 pub mod registry;
+pub mod sample;
 
 pub use batch::{
     MechanismWorkspace, NoiseBatch, NoiseBatchMut, ParentBatch, ValueBatch, ValueBatchMut,
@@ -31,6 +32,10 @@ pub use overlay::{InterventionOverlay, ModelView};
 pub use registry::{
     MechanismAssignment, MechanismCandidate, MechanismFamily, MechanismRegistry, ModelCollection,
     SelectionPolicy,
+};
+pub use sample::{
+    sample_interventional, sample_observational, sample_posterior_predictive,
+    sample_structural_with_overlay, sample_with_overlay,
 };
 
 /// Crate version.
