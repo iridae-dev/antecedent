@@ -10,6 +10,8 @@ pub mod conjugate;
 pub mod diagnostics;
 pub mod error;
 pub mod graph_samples;
+pub mod laplace;
+pub mod linalg;
 pub mod posterior;
 pub mod prior;
 
@@ -23,6 +25,7 @@ pub use diagnostics::{
 };
 pub use error::ProbError;
 pub use graph_samples::{GraphIdentFlag, WeightedGraphSamples};
+pub use laplace::{LaplaceGlmBackend, fit_laplace_glm};
 pub use posterior::{
     EffectBatch, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,
     PosteriorSchema, PosteriorSummary,
