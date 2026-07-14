@@ -22,6 +22,7 @@ use crate::backend::{
 };
 use crate::diagnostics::InferenceDiagnostics;
 use crate::error::ProbError;
+use crate::linalg::{cholesky_spd, invert_spd};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, InvGammaPrior, PriorSet};
 
@@ -325,58 +326,6 @@ fn draw_nig(
         values[ncols * n_draws + d] = sigma2;
     }
     Ok(Arc::from(values))
-}
-
-fn invert_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
-    let chol = cholesky_spd(a, n)?;
-    // Invert via Cholesky: solve L L' X = I
-    let mut inv = vec![0.0; n * n];
-    let mut eye_col = vec![0.0; n];
-    let mut y = vec![0.0; n];
-    for col in 0..n {
-        eye_col.fill(0.0);
-        eye_col[col] = 1.0;
-        // Forward: L y = e
-        for i in 0..n {
-            let mut acc = eye_col[i];
-            for j in 0..i {
-                acc -= chol[i * n + j] * y[j];
-            }
-            y[i] = acc / chol[i * n + i];
-        }
-        // Back: L' x = y
-        for i in (0..n).rev() {
-            let mut acc = y[i];
-            for j in (i + 1)..n {
-                acc -= chol[j * n + i] * inv[j * n + col];
-            }
-            inv[i * n + col] = acc / chol[i * n + i];
-        }
-    }
-    Ok(inv)
-}
-
-fn cholesky_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
-    let mut l = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = a[i * n + j];
-            for k in 0..j {
-                sum -= l[i * n + k] * l[j * n + k];
-            }
-            if i == j {
-                if sum <= 0.0 {
-                    return Err(ProbError::Numerical {
-                        message: format!("Cholesky failed at diagonal {i}"),
-                    });
-                }
-                l[i * n + j] = sum.sqrt();
-            } else {
-                l[i * n + j] = sum / l[j * n + j];
-            }
-        }
-    }
-    Ok(l)
 }
 
 fn standard_normal(rng: &mut CausalRng) -> f64 {
