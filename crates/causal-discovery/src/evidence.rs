@@ -6,12 +6,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use causal_core::{Lag, VariableId};
-use causal_graph::{DenseNodeId, TemporalCpdag, TemporalDag, ensure_lagged};
+use causal_graph::{DenseNodeId, TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use causal_stats::benjamini_hochberg;
 
 use crate::error::DiscoveryError;
 use crate::result::{
-    CpdagGraphEvidence, DagGraphEvidence, EdgeEvidence, EvidenceSource, PcSepsets, ScoredLink,
+    CpdagGraphEvidence, DagGraphEvidence, EdgeEvidence, EvidenceSource, PagGraphEvidence, PcSepsets,
+    ScoredLink,
 };
 
 /// Optionally FDR-adjust then retain links whose (adjusted) p-value is below `alpha`.
@@ -145,4 +146,70 @@ pub fn cpdag_from_scored_links(
         insert.map_err(|e| DiscoveryError::Data(e.to_string()))?;
     }
     Ok(cpdag)
+}
+
+/// Build a temporal PAG from scored links (lagged directed, contemporaneous circle-circle).
+///
+/// # Errors
+///
+/// Node / edge insertion failures.
+pub fn pag_from_scored_links(
+    links: &[ScoredLink],
+    variables: &[VariableId],
+    max_lag: u32,
+) -> Result<TemporalPag, DiscoveryError> {
+    let mut pag = TemporalPag::empty();
+    let mut node_ids = HashMap::<(u32, u32), DenseNodeId>::new();
+    for &v in variables {
+        for lag in 0..=max_lag {
+            let id = pag
+                .add_lagged(v, Lag::from_raw(lag))
+                .map_err(|e| DiscoveryError::Data(e.to_string()))?;
+            node_ids.insert((v.raw(), lag), id);
+        }
+    }
+    for link in links {
+        let Some(&src) = node_ids.get(&(link.link.source.raw(), link.link.source_lag.raw())) else {
+            continue;
+        };
+        let Some(&tgt) = node_ids.get(&(link.link.target.raw(), link.link.target_lag.raw())) else {
+            continue;
+        };
+        if pag.has_edge(src, tgt) {
+            continue;
+        }
+        let contemporaneous =
+            link.link.source_lag.is_contemporaneous() && link.link.target_lag.is_contemporaneous();
+        let insert = if contemporaneous {
+            // Circle-circle for uncertain contemporaneous adjacency (latent-aware).
+            pag.insert_marked(causal_graph::MarkedEdge {
+                a: if src.raw() <= tgt.raw() { src } else { tgt },
+                b: if src.raw() <= tgt.raw() { tgt } else { src },
+                at_a: causal_graph::Endpoint::Circle,
+                at_b: causal_graph::Endpoint::Circle,
+            })
+        } else {
+            pag.insert_directed(src, tgt)
+        };
+        insert.map_err(|e| DiscoveryError::Data(e.to_string()))?;
+    }
+    Ok(pag)
+}
+
+/// Wrap an oriented [`TemporalPag`] and scored links as PAG evidence.
+#[must_use]
+pub fn pag_evidence_from_oriented(
+    graph: TemporalPag,
+    links: Vec<ScoredLink>,
+    sepsets: &PcSepsets,
+) -> PagGraphEvidence {
+    let edge_evidence = edge_evidence_from_scored(&links, sepsets);
+    PagGraphEvidence {
+        graph,
+        edge_evidence,
+        links: Arc::from(links),
+        source: EvidenceSource::Discovery {
+            algorithm: Arc::from("lpcmci"),
+        },
+    }
 }

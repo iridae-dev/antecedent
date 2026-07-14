@@ -30,7 +30,7 @@ pub use error::GraphError;
 pub use pag::{DefiniteStatusPath, Pag};
 pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use temporal::TemporalDag;
-pub use temporal_pag::TemporalPag;
+pub use temporal_pag::{TemporalPag, TemporalPagReview};
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 pub use unfold::{
     LazyUnfoldedTemporalGraph, TemporalCpdagReview, TemporalGraphReview, UnfoldedTemporalGraph,

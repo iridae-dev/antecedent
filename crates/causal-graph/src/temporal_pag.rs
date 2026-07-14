@@ -4,6 +4,8 @@
 
 #![allow(clippy::many_single_char_names)]
 
+use std::sync::Arc;
+
 use causal_core::{Lag, VariableId};
 
 use crate::error::GraphError;
@@ -344,5 +346,46 @@ mod tests {
         let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(0)).unwrap();
         g.insert_circle_arrow(a, b).unwrap();
         assert!(g.has_edge(a, b));
+    }
+}
+
+/// Review artifact for a discovered temporal PAG (pending circle marks).
+#[derive(Clone, Debug)]
+pub struct TemporalPagReview {
+    /// Proposed PAG.
+    pub graph: TemporalPag,
+    /// Edges that still have at least one circle endpoint `(a,b)` with `a.raw() <= b.raw()`.
+    pub pending_circles: Arc<[(DenseNodeId, DenseNodeId)]>,
+    /// Algorithm id.
+    pub algorithm: Arc<str>,
+}
+
+impl TemporalPagReview {
+    /// Build review listing all circle-bearing edges.
+    #[must_use]
+    pub fn from_pag(graph: TemporalPag, algorithm: impl Into<Arc<str>>) -> Self {
+        let mut pending = Vec::new();
+        for i in 0..graph.node_count() {
+            let a = DenseNodeId::from_raw(i as u32);
+            for (b, at_a, at_b) in graph.neighbors(a) {
+                if b.raw() < a.raw() {
+                    continue;
+                }
+                if matches!(at_a, Endpoint::Circle) || matches!(at_b, Endpoint::Circle) {
+                    pending.push((a, b));
+                }
+            }
+        }
+        Self {
+            graph,
+            pending_circles: Arc::from(pending),
+            algorithm: algorithm.into(),
+        }
+    }
+
+    /// Whether no circle marks remain.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.pending_circles.is_empty()
     }
 }
