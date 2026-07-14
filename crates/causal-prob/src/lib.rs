@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod backend;
+pub mod conjugate;
 pub mod diagnostics;
 pub mod error;
 pub mod graph_samples;
@@ -16,6 +17,7 @@ pub use backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
     LaplaceWorkspace, coefficient_schema,
 };
+pub use conjugate::{ConjugateGaussianBackend, fit_conjugate_gaussian};
 pub use diagnostics::{
     HessianFactorization, InferenceDiagnostics, PriorSensitivitySummary,
 };
