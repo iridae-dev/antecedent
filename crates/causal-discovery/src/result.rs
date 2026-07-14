@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, Lag, VariableId};
-use causal_graph::{TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
+use causal_graph::{TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview};
 
 /// One lagged parent `(variable, lag)`.
 pub type LaggedParent = (VariableId, Lag);
@@ -176,3 +176,9 @@ pub type DagDiscoveryResult = DiscoveryResult<TemporalDag, TemporalGraphReview>;
 
 /// PCMCI+ discovery result (`TemporalCpdag` evidence + CPDAG review).
 pub type CpdagDiscoveryResult = DiscoveryResult<TemporalCpdag, TemporalCpdagReview>;
+
+/// LPCMCI discovery result (`TemporalPag` evidence + PAG review).
+pub type PagDiscoveryResult = DiscoveryResult<TemporalPag, TemporalPagReview>;
+
+/// Graph evidence specialized to a temporal PAG.
+pub type PagGraphEvidence = GraphEvidence<TemporalPag>;

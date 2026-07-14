@@ -293,6 +293,7 @@ impl Admg {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::Endpoint;
 
     #[test]
     fn districts_split_on_bidirected() {
