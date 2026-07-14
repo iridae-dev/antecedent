@@ -93,6 +93,12 @@ impl OwnedColumnarStorage {
     pub fn columns(&self) -> &[OwnedColumn] {
         &self.columns
     }
+
+    /// Shared column Arc (identity for copy-avoidance checks).
+    #[must_use]
+    pub fn columns_arc(&self) -> &Arc<[OwnedColumn]> {
+        &self.columns
+    }
 }
 
 impl TableView for OwnedColumnarStorage {

@@ -1,7 +1,8 @@
 //! Multi-environment / multi-dataset container (DESIGN.md §5.1).
 //!
-//! Phase 2 vertical slice: typed list of series sharing one schema. J-PCMCI+
-//! multi-dataset *constraints* remain Phase 9.
+//! Typed list of series sharing one schema. Sample planning without per-env
+//! full copies lives in [`crate::multi_env_plan`]. J-PCMCI+ discovery
+//! constraints are wired in Phase 9 discovery.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
