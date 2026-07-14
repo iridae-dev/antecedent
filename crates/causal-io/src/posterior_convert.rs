@@ -93,6 +93,6 @@ pub fn encode_causal_posterior(
 pub fn decode_causal_posterior_bytes(
     bytes: &[u8],
 ) -> Result<(CausalPosteriorWire, Vec<f64>), IoError> {
-    let artifact = EncodedArtifact::read_from(bytes)?;
+    let artifact = crate::migrate::read_and_migrate(bytes)?;
     decode_posterior_artifact(&artifact)
 }

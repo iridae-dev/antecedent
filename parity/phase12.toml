@@ -19,7 +19,7 @@ notes = "DOT + JSON DAG interchange in causal-io; GML/NetworkX waived"
 
 [[capabilities]]
 id = "phase12.artifact_schema"
-status = "in_progress"
+status = "done"
 phase = 12
 notes = "Format 0.1 frozen; migrate registry + golden fixtures"
 

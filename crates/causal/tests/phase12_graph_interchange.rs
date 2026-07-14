@@ -18,7 +18,7 @@ fn conformance_dot_json_round_trip() {
     let raw = fs::read_to_string(fixture_dir().join("expected.json")).unwrap();
     let v: Value = serde_json::from_str(&raw).unwrap();
     let dot = v["dot"].as_str().unwrap();
-    let expected_n = v["expected_node_count"].as_u64().unwrap() as usize;
+    let expected_n = usize::try_from(v["expected_node_count"].as_u64().unwrap()).unwrap();
     let dag = dag_from_dot(dot).unwrap();
     assert_eq!(dag.node_count(), expected_n);
     assert!(dag.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));

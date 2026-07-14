@@ -14,6 +14,13 @@ pub enum IoError {
         /// Observed version.
         version: u32,
     },
+    /// Unsupported artifact format version (major.minor).
+    UnsupportedFormat {
+        /// Major.
+        major: u16,
+        /// Minor.
+        minor: u16,
+    },
     /// CBOR encode/decode failure.
     Cbor(String),
     /// Checksum mismatch.
@@ -40,6 +47,9 @@ impl fmt::Display for IoError {
             Self::BadMagic => write!(f, "bad artifact magic"),
             Self::UnsupportedVersion { version } => {
                 write!(f, "unsupported container version {version}")
+            }
+            Self::UnsupportedFormat { major, minor } => {
+                write!(f, "unsupported artifact format {major}.{minor}")
             }
             Self::Cbor(msg) => write!(f, "cbor error: {msg}"),
             Self::ChecksumMismatch { section } => {
