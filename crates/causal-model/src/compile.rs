@@ -128,7 +128,7 @@ pub struct CompiledCausalModel {
 impl CompiledCausalModel {
     /// Compile a static DAG into a topological execution plan.
     ///
-    /// Mechanisms start vacant; assignment/fit fills them (Phase 7 B3/B4).
+    /// Mechanisms start vacant; assignment/fit fills them .
     ///
     /// # Errors
     ///

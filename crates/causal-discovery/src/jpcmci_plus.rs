@@ -1,4 +1,4 @@
-//! J-PCMCI+: multi-environment PCMCI+ with context nodes (DESIGN.md §13.4–13.5, Phase 9).
+//! J-PCMCI+: multi-environment PCMCI+ with context nodes (DESIGN.md §13.4–13.5).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

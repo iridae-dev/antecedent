@@ -1,4 +1,4 @@
-//! Instrumental-variable estimators: Wald ratio and two-stage least squares (Phase 4).
+//! Instrumental-variable estimators: Wald ratio and two-stage least squares .
 //!
 //! Both estimators require an `"iv"` estimand with a non-empty
 //! [`IdentifiedEstimand::instruments`] slice (see `causal_identify::iv`). Positivity is not

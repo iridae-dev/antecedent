@@ -57,7 +57,7 @@ pub enum Endpoint {
     Tail,
     /// Arrow head.
     Arrow,
-    /// Circle (PAG; not used in Phase 0 DAG constructors).
+    /// Circle (PAG; not used in DAG constructors).
     Circle,
 }
 
@@ -122,7 +122,7 @@ impl MarkedEdge {
         }
     }
 
-    /// Whether marks are legal for a Phase 5 CPDAG (no Circle).
+    /// Whether marks are legal for a CPDAG (no Circle).
     #[must_use]
     pub const fn is_cpdag_legal(self) -> bool {
         !matches!(self.at_a, Endpoint::Circle)

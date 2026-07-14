@@ -1,7 +1,0 @@
-{
-  "true_mean_ite": 2.0,
-  "tolerance": 0.15,
-  "noise_inference": "Invertible",
-  "tolerance_class": "Approximate",
-  "streaming_equiv_retained": true
-}

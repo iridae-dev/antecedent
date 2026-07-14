@@ -1,4 +1,4 @@
-//! Logical and physical plan *records* (structs only; planner is Phase 3).
+//! Logical and physical plan *records* (structs only; planner is).
 //!
 //! These types attach to diagnostics and results so execution choices remain
 //! inspectable (DESIGN.md §21.2).

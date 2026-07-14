@@ -11,7 +11,7 @@
 - No CLA initially.
 - Machine-readable algorithm provenance under `provenance/`.
 - Clean-implementation rules: no source translation from Tigramite or
-  line-by-line DoWhy ports.
+ line-by-line DoWhy ports.
 
 ## Consequences
 

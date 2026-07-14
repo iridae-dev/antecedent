@@ -353,7 +353,7 @@ impl Pag {
             let collider = matches!(mark_from_pred, Endpoint::Arrow)
                 && matches!(mark_from_succ, Endpoint::Arrow);
             if collider {
-                // Collider (or descendant) must be in Z — Phase 8: require v in Z (conservative).
+                // Collider (or descendant) must be in Z — : require v in Z (conservative).
                 if !in_z(v) {
                     return false;
                 }

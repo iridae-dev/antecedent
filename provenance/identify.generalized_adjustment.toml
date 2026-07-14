@@ -6,12 +6,12 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Complete graphical characterization and identification of causal effects under latent confounding and selection bias", sections = ["generalized adjustment"] },
+ { title = "Complete graphical characterization and identification of causal effects under latent confounding and selection bias", sections = ["generalized adjustment"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
-  "IdentificationEnvelope unidentified mass",
-  "PAG completion envelope",
+ "IdentificationEnvelope unidentified mass",
+ "PAG completion envelope",
 ]

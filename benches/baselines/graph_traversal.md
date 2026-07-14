@@ -1,4 +1,4 @@
-# Graph traversal benchmark baseline (Phase 0)
+# Graph traversal benchmark baseline
 
 Workload: `dag_reach_chain_5k` — directed reachability on a 5,000-node chain
 using a reusable [`GraphWorkspace`].

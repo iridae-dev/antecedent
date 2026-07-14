@@ -1,4 +1,4 @@
-//! Artifact format migration registry (DESIGN.md §24.3 / Phase 12).
+//! Artifact format migration registry (DESIGN.md §24.3).
 //!
 //! Supported durable format is `0.1`. Identity migration is the only path today;
 //! unknown versions fail explicitly.
@@ -67,7 +67,7 @@ mod tests {
     use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
     fn tiny_artifact(fmt: FormatVersion) -> EncodedArtifact {
-        let payload = to_cbor(&"phase12").unwrap();
+        let payload = to_cbor(&"release").unwrap();
         let desc = section_descriptor("note", "application/cbor", &payload);
         EncodedArtifact {
             manifest: ArtifactManifest {

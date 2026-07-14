@@ -1,4 +1,4 @@
-//! d-separation batch benchmark (Phase 1 baseline).
+//! d-separation batch benchmark .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

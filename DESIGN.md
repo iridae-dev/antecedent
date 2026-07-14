@@ -2,7 +2,7 @@
 
 Status: implementation design, revision 2
 
-Performance posture: correctness and performance are co-equal implementation requirements from Phase 0. Hot-path data layout, allocation behavior, vectorization, parallel execution, and benchmark budgets are designed and tested during feature development; there is no late project-wide optimization phase.
+Performance posture: correctness and performance are co-equal implementation requirements. Hot-path data layout, allocation behavior, vectorization, parallel execution, and benchmark budgets are designed and tested during feature development; there is no late project-wide optimization pass.
 
 Scope baseline: functional parity with DoWhy excluding EconML integration, functional parity with Tigramite, and a Bayesian-first extension that preserves frequentist parity. The project is a library and Python extension, not a hosted service, workflow system, dashboard, or deployment platform.
 
@@ -2227,7 +2227,7 @@ Do not:
 - change RNG consumption order under strict determinism without a versioned behavior decision;
 - optimize benchmark-only fixtures while leaving representative mixed workloads slow;
 - use wall-clock benchmarks as the only evidence when allocation or memory growth is the real risk;
-- defer all performance validation to Phase 12.
+- defer all performance validation to a later release.
 
 ## 24. Serialization and artifact format
 
@@ -2925,349 +2925,9 @@ For designated hot APIs, the project documents performance-shape guarantees rath
 
 Removing one of these guarantees is an API change even if function signatures remain compatible.
 
-## 32. Implementation phases
+## 32. Initial public API examples
 
-There is no separate late optimization phase. Every phase has correctness, conformance, latency, allocation, and memory exit criteria for the hot paths introduced in that phase.
-
-### Phase 0: repository, views, kernels, and invariants
-
-Deliver:
-
-- workspace skeleton including `causal-kernels`;
-- Rust 1.85/edition 2024 policy;
-- `MIT OR Apache-2.0`, DCO, provenance templates;
-- `VariableId`, schema, assumptions, diagnostics, provenance;
-- stable library-owned table/column/matrix views;
-- Arrow-backed `TabularData` and `TimeSeriesData`;
-- dictionary categoricals and explicit contrasts;
-- temporal node identity and time-major dense indexing;
-- scalar reduction/gather kernels and optimized dispatch skeleton;
-- DAG and temporal DAG;
-- execution context and logical/physical plan records;
-- CBOR/Arrow artifact container skeleton;
-- pinned parity manifests;
-- CI, benchmark, fuzz, and wheel build skeleton.
-
-Exit criteria:
-
-- Rust and Python load the same Arrow dataset with measured copy behavior;
-- graph and schema artifacts round trip;
-- deterministic RNG streams are tested;
-- scalar and optimized seed kernels pass differential tests;
-- sample gather benchmark and graph traversal benchmark have baselines;
-- hot prepared sample path performs no repeated scratch allocation;
-- parity inventory and provenance requirements are assignable.
-
-### Phase 1: static identified-effect vertical slice
-
-Deliver:
-
-- indexed DAG storage and graph workspace;
-- d-separation boolean batch and witness modes;
-- backdoor adjustment search;
-- identified-functional IR;
-- compiled design matrices;
-- `faer` OLS and initial GLM adjustment;
-- ATE query;
-- IID/bootstrap uncertainty;
-- placebo and random-common-cause refuters;
-- high-level Rust and Python APIs.
-
-Exit criteria:
-
-- complete model-identify-estimate-refute workflow;
-- representative DoWhy conformance;
-- artifacts contain assumptions and derivation traces;
-- d-separation and adjustment benchmarks meet accepted sparse/dense budgets;
-- repeated estimator fits reuse compiled designs and workspaces;
-- Python analysis call has no row-proportional callbacks or list conversion.
-
-### Phase 2: temporal discovery vertical slice
-
-Deliver:
-
-- lag-map cache and prepared temporal sample builder;
-- partial-correlation scalar and optimized kernels;
-- analytic and block-shuffle significance;
-- PC-style parent selection;
-- MCI;
-- lagged PCMCI;
-- FDR;
-- block-bootstrap stability;
-- temporal graph review and lazy finite unfolding.
-
-Exit criteria:
-
-- Tigramite PCMCI conformance fixtures pass;
-- no Python callbacks or per-test heap allocation in the candidate hot loop;
-- target-wise parallel execution scales on the benchmark suite;
-- prepared sample and CI batch allocations remain within declared budgets;
-- temporal output schemas are stable across Rust and Python.
-
-### Phase 3: unified analysis planner
-
-Deliver:
-
-- common `CausalAnalysis` facade;
-- logical and physical planning;
-- static/temporal plan compilation;
-- graph review requirement;
-- temporal backdoor identification over unfolded graphs;
-- temporal linear adjustment;
-- discovery/estimation temporal split;
-- memory and batch-size planning.
-
-Exit criteria:
-
-- one API handles static and temporal use cases;
-- invalid modality/algorithm combinations fail during compilation;
-- manufacturing-style example runs in Rust and Python;
-- physical plan reports copies, materialization, kernels, peak-memory estimate, and task schedule;
-- planner refuses an over-budget dense plan when no valid chunked path exists.
-
-### Phase 4: classical effect parity
-
-Deliver:
-
-- propensity scoring, matching, stratification, weighting;
-- doubly robust estimation;
-- IV and 2SLS;
-- regression discontinuity;
-- front-door and two-stage regression;
-- efficient adjustment;
-- full refuter and sensitivity set;
-- do-samplers.
-
-Exit criteria:
-
-- required DoWhy non-GCM, non-EconML items are conformant or deviations documented;
-- positivity diagnostics are mandatory for propensity methods;
-- matching/index benchmarks and bootstrap reuse benchmarks pass;
-- no estimator rebuilds an unchanged design or propensity model during diagnostics without requirement.
-
-### Phase 5: PCMCI+ and full CI framework
-
-Deliver:
-
-- temporal CPDAG;
-- PCMCI+ orientation rules and delta queue;
-- robust, weighted, multivariate partial correlation;
-- G-squared, symbolic CMI, regression CI;
-- kNN CMI and mixed CMI;
-- GPDC backend;
-- confidence intervals and optimization behavior.
-
-Exit criteria:
-
-- core Tigramite CI and PCMCI+ parity;
-- statistical calibration suite passes;
-- CI batch benchmarks cover conditioning sizes and missingness;
-- orientation benchmarks demonstrate local-delta processing rather than global rescans;
-- kNN indexes and permutation plans are reused.
-
-### Phase 6: Bayesian core
-
-Deliver:
-
-- probability and columnar posterior types;
-- prior specifications;
-- analytic conjugate backend;
-- native Laplace Bayesian GLM backend;
-- Bayesian linear/GLM mechanisms;
-- Bayesian g-computation;
-- graph-weighted effect envelopes;
-- prior/posterior predictive checks;
-- prior sensitivity;
-- Bayesian bootstrap.
-
-Exit criteria:
-
-- the same identified functional is evaluated by frequentist and Bayesian engines;
-- non-identifiability remains explicit under informative priors;
-- posterior artifacts are serializable and consumable from Python;
-- Laplace fitting reuses gradient/Hessian workspaces and has convergence diagnostics;
-- posterior functional evaluation is batched and benchmarked;
-- draw storage has no object-per-draw representation.
-
-### Phase 7: GCM and counterfactuals
-
-Deliver:
-
-- PCM/SCM/invertible SCM;
-- compiled topological execution plans;
-- mechanism registry and auto-assignment;
-- fitting, observational and interventional sampling;
-- counterfactual abduction-action-prediction;
-- model evaluation and falsification;
-- basic anomaly attribution and causal influence.
-
-Exit criteria:
-
-- representative DoWhy-GCM workflows conform;
-- counterfactual assumptions and noise inference are visible;
-- simulation and counterfactual benchmarks use batch execution and intervention overlays;
-- model traversal is compiled once rather than performed per sample;
-- streaming summaries pass equivalence tests against retained-draw execution.
-
-### Phase 8: PAG and latent-confounder support
-
-Deliver:
-
-- ADMG, PAG, temporal PAG;
-- m-separation and latent projection;
-- generalized adjustment over graph classes;
-- LPCMCI orientation system;
-- identification envelope across PAG-compatible models.
-
-Exit criteria:
-
-- LPCMCI graph outputs conform;
-- DAG-only APIs cannot accept PAGs accidentally;
-- unidentified graph mass is preserved;
-- PAG orientation and m-separation benchmarks have sparse/stress baselines;
-- graph completions are streamed or sampled rather than retained without bound.
-
-### Phase 9: contextual, regime, effect, and mediation parity
-
-Deliver:
-
-- J-PCMCI+;
-- RPCMCI;
-- Tigramite causal-effects parity;
-- linear temporal mediation;
-- prediction/model wrappers;
-- panel and multi-environment refinements.
-
-Exit criteria:
-
-- remaining required Tigramite algorithm items conform;
-- multiple datasets and regimes use typed representations;
-- panel/temporal sample planning avoids per-environment full copies;
-- regime and mediation benchmarks pass their memory and latency budgets.
-
-### Phase 10: attribution and change explanation
-
-Deliver:
-
-- distribution-change attribution;
-- mechanism-change detection;
-- robust attribution;
-- Shapley and path decomposition;
-- unit-change attribution;
-- posterior contribution distributions;
-- graph-sensitive root-cause ranking.
-
-Exit criteria:
-
-- inverse "what changed and why" use case produces additive or explicitly nonadditive decompositions with uncertainty;
-- DoWhy-GCM attribution parity is complete;
-- exact methods enforce size limits;
-- approximate methods report compute budget and Monte Carlo error;
-- coalition caching and batched evaluation benchmarks pass.
-
-### Phase 11: design and incremental state
-
-Deliver:
-
-- experiment and measurement candidate types;
-- expected information gain;
-- effect-width and identification-probability objectives;
-- decision utility and constraints;
-- `CausalState` event/update/invalidation model;
-- incremental sufficient-statistic support for selected models.
-
-Exit criteria:
-
-- library ranks candidate measurements/interventions;
-- state updates identify stale results without requiring a service runtime;
-- incremental updates match full recomputation on reference fixtures;
-- state caches remain within configured budgets;
-- design Monte Carlo evaluation supports bounded batches and streaming summaries.
-
-### Phase 12: parity closure and 1.0 preparation
-
-Deliver:
-
-- close or explicitly waive every parity manifest item;
-- artifact schema stabilization;
-- complete Python wheel matrix;
-- documentation generated from conformance examples;
-- benchmark-baseline stabilization;
-- security, licensing, unsafe-code, and dependency review.
-
-Exit criteria:
-
-- no required capability remains `planned` or `blocked` without a published scope decision;
-- all stable artifacts migrate across supported versions;
-- Rust and Python APIs cover the same core functionality;
-- every designated hot path has a benchmark, allocation/memory contract, and owner;
-- no unexplained performance regression remains;
-- scalar and optimized paths pass full differential and conformance suites.
-
-## 33. Work decomposition for the first engineering team
-
-A practical initial split:
-
-### Graph/identification engineer
-
-Owns:
-
-- DAG/temporal DAG indexed storage;
-- graph workspaces and bitsets;
-- d-separation batch/witness APIs;
-- graph transformations and overlays;
-- adjustment search;
-- expression IR;
-- identification derivations;
-- graph and identification benchmarks.
-
-### Data/kernel/statistics engineer
-
-Owns:
-
-- stable data and matrix views;
-- Arrow adapters and copy diagnostics;
-- categorical domains and contrasts;
-- temporal sample planning and workspaces;
-- scalar/SIMD kernel framework;
-- `faer` backend;
-- regression, covariance, and resampling;
-- CI framework and partial correlation;
-- allocation and numerical benchmarks.
-
-### Discovery engineer
-
-Owns:
-
-- PC parent search;
-- PCMCI;
-- compiled candidate sets;
-- discovery diagnostics;
-- temporal graph evidence;
-- conformance fixtures;
-- discovery scaling and memory benchmarks.
-
-### Python/integration engineer
-
-Owns:
-
-- PyO3 wrappers;
-- Arrow/NumPy conversion;
-- facade API;
-- wheel builds;
-- cross-language tests;
-- GIL and copy-behavior tests;
-- Python boundary benchmarks.
-
-### Shared performance responsibility
-
-The engineer implementing a feature owns its benchmark and physical-plan behavior. Performance is not delegated to a later specialist. A kernel/SIMD specialist may review and improve implementations, but cannot compensate for an unsuitable public API, data layout, or algorithmic representation chosen earlier.
-
-The first shared milestone is Phase 1 plus Phase 2 foundations, not parallel implementation of the full DoWhy and Tigramite surfaces.
-
-## 34. Initial public API examples
-
-### 34.1 Static, Bayesian
+### 32.1 Static, Bayesian
 
 ```rust
 let result = CausalAnalysis::builder()
@@ -3285,7 +2945,7 @@ let posterior = result.posterior()?.effect();
 println!("P(effect < 0) = {}", posterior.probability_below(0.0));
 ```
 
-### 34.2 Temporal discovery and effect
+### 32.2 Temporal discovery and effect
 
 ```rust
 let request = CausalAnalysis::builder()
@@ -3313,7 +2973,7 @@ match request.compile()? {
 }
 ```
 
-### 34.3 Change attribution
+### 32.3 Change attribution
 
 ```rust
 let attribution = ChangeAttribution::new()
@@ -3327,7 +2987,7 @@ let attribution = ChangeAttribution::new()
     .run(&model, &posterior, &ctx)?;
 ```
 
-### 34.4 Python
+### 32.4 Python
 
 ```python
 result = causal.analyze(
@@ -3348,9 +3008,9 @@ result = causal.analyze(
 )
 ```
 
-## 35. Adopted architecture decisions
+## 33. Adopted architecture decisions
 
-The following decisions are accepted and are no longer open Phase 1 questions.
+The following decisions are accepted and are no longer open.
 
 1. **Linear algebra:** `faer` is the default dense backend behind an operation-level abstraction. Public APIs use library-owned matrix views. Optional BLAS is additive.
 2. **Artifact encoding:** canonical CBOR for semantic metadata and Arrow IPC for large arrays, inside a sectioned versioned container with BLAKE3 checksums and optional Zstandard compression.
@@ -3362,11 +3022,11 @@ The following decisions are accepted and are no longer open Phase 1 questions.
 8. **License and provenance:** `MIT OR Apache-2.0`, DCO sign-off, machine-readable algorithm provenance, and clean-implementation rules.
 9. **Parity baselines:** DoWhy v0.14 at commit `178ecc9c690a02f2801c1f70da2695f5744186cc`; Tigramite stable tag `5.2.1.25` at commit `5a8768754e6103755b006e9357e21c1a58534927`, plus extended snapshot commit `ff3ff13e1481073b8c5833a6fde1c304627a208e` for post-release features.
 10. **Tolerance policy:** fixture-specific `Exact`, `StableFloat`, `BackendSensitive`, `ResidualBased`, `MonteCarlo`, and `PosteriorDistribution` classes. There is no project-wide epsilon.
-11. **Performance posture:** performance and correctness are co-equal phase requirements. Hot paths require prepared/batch APIs, reusable workspaces, memory plans, scalar references, optimized differential tests, and benchmark gates from initial implementation.
+11. **Performance posture:** performance and correctness are co-equal requirements. Hot paths require prepared/batch APIs, reusable workspaces, memory plans, scalar references, optimized differential tests, and benchmark gates from initial implementation.
 
 Record these decisions as ADRs before dependent code is merged. Changing one requires an explicit superseding ADR and migration or compatibility analysis where applicable.
 
-## 36. Definition of completion
+## 34. Definition of completion
 
 The library reaches the described full scope when:
 
@@ -3384,5 +3044,5 @@ The library reaches the described full scope when:
 - scalar reference and optimized implementations pass the same semantic, property, conformance, and tolerance tests;
 - no supported workflow depends on per-row, per-test, per-draw, or per-sample Python callbacks in its native fast path;
 - physical plans expose materialization, copy, backend, SIMD, parallel, cache, and peak-memory decisions;
-- no phase relies on an unspecified future rewrite to obtain acceptable vectorization, parallelism, or memory behavior.
+- no subsystem relies on an unspecified future rewrite to obtain acceptable vectorization, parallelism, or memory behavior.
 

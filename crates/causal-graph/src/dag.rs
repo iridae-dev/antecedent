@@ -298,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn phase0_traversal_workspace_reuses_frontier_capacity() {
+    fn traversal_workspace_reuses_frontier_capacity() {
         let mut dag = Dag::with_variables(1_000);
         for i in 0..999 {
             dag.insert_directed(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();

@@ -30,5 +30,5 @@ name = "matching"
 harness = false
 
 [[bench]]
-name = "ci_phase5"
+name = "ci_framework"
 harness = false

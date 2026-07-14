@@ -12,7 +12,7 @@ adapters come later under optional features.
 
 ## Consequences
 
-- Phase 6 delivers Laplace MAP, Hessian factorization, and MVN approximation
-  before HMC/SMC adapters.
+- Laplace MAP, Hessian factorization, and MVN approximation
+ before HMC/SMC adapters.
 - Priors and parametric restrictions are recorded as assumptions; they do not
-  erase nonparametric non-identifiability.
+ erase nonparametric non-identifiability.

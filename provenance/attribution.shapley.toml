@@ -1,4 +1,3 @@
 algorithm = "attribution.shapley"
-phase = 10
 status = "implemented"
 notes = "Exact and Monte Carlo Shapley with coalition cache"

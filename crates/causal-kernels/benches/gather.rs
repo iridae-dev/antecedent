@@ -1,4 +1,4 @@
-//! Criterion benchmark for sample gather (Phase 0 baseline workload).
+//! Criterion benchmark for sample gather .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

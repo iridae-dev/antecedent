@@ -40,11 +40,11 @@ impl SemanticVersion {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {
-    /// Schema + graph bundle (Phase 0).
+    /// Schema + graph bundle .
     SchemaGraph,
-    /// Identification/estimation analysis trace (Phase 1).
+    /// Identification/estimation analysis trace .
     AnalysisTrace,
-    /// Columnar causal posterior (Phase 6).
+    /// Columnar causal posterior .
     CausalPosterior,
     /// Other / future.
     Other(String),

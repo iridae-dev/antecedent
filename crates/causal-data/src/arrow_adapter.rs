@@ -29,10 +29,10 @@ pub struct ArrowLoadResult {
 
 /// Load float64 columns from an Arrow record batch into [`TabularData`].
 ///
-/// Phase 0 supports contiguous float64 columns. Nullability is translated into
+// supports contiguous float64 columns. Nullability is translated into
 /// [`ValidityBitmap`]. The Arrow arrays are **copied** into library-owned
 /// `Arc<[f64]>` buffers so the public API never exposes Arrow types; the copy
-/// is recorded in diagnostics (Phase 0 exit criterion).
+/// is recorded in diagnostics .
 ///
 /// # Errors
 ///

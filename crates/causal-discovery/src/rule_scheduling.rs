@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn r2_orients_circle_into_arrow() {
-        // a → b o→ c and a o-o c  ⇒  a o→ c
+        // a → b o→ c and a o-o c ⇒ a o→ c
         let mut g = TemporalPag::empty();
         let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
         let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
@@ -491,7 +491,7 @@ mod tests {
 
     #[test]
     fn scheduler_honors_delta_queue_without_reseed() {
-        // a → b o→ c and a o-o c  ⇒  R2 orients a o→ c; subsequent rounds must not
+        // a → b o→ c and a o-o c ⇒ R2 orients a o→ c; subsequent rounds must not
         // require a full-graph re-seed to finish.
         let mut g = TemporalPag::empty();
         let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();

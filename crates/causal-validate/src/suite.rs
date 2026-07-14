@@ -112,7 +112,7 @@ impl ValidationSuite {
         Self::new().with(ValidatorId::Placebo).with(ValidatorId::RandomCommonCause)
     }
 
-    /// Full Phase 4 effect-validation set.
+    /// Full effect-validation set.
     #[must_use]
     pub fn full_effect() -> Self {
         Self::new()

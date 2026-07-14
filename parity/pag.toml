@@ -1,66 +1,54 @@
-# PAG / LPCMCI capability inventory (Phase 8)
-# Authoritative status for DESIGN.md §32 Phase 8 deliverables.
+# PAG / LPCMCI capability inventory
 # Status: pending | in_progress | done | intentional_deviation
 
 library = "causal"
-phase = 8
 
 [[capabilities]]
 id = "pag.graph.admg"
 status = "done"
-phase = 8
 notes = "Admg + districts"
 
 [[capabilities]]
 id = "pag.graph.pag_temporal"
 status = "done"
-phase = 8
 notes = "Pag + TemporalPag"
 
 [[capabilities]]
 id = "pag.graph.m_separation"
 status = "done"
-phase = 8
 notes = "ADMG moralization m-sep + PAG definite-status m-sep"
 
 [[capabilities]]
 id = "pag.graph.latent_projection"
 status = "done"
-phase = 8
 notes = "latent_project + m-sep preservation"
 
 [[capabilities]]
 id = "pag.graph.completions_streamed"
 status = "done"
-phase = 8
 notes = "CompletionSampler max_completions bound"
 
 [[capabilities]]
 id = "pag.identify.generalized_adjustment"
 status = "done"
-phase = 8
 notes = "GeneralizedAdjustmentIdentifier + IdentificationEnvelope"
 
 [[capabilities]]
 id = "pag.discovery.lpcmci"
 status = "done"
-phase = 8
 notes = "Lpcmci → TemporalPag; discriminating_paths + rule_scheduling"
 
 [[capabilities]]
 id = "pag.facade.dag_only_reject"
 status = "done"
-phase = 8
 notes = "reject_dag_only_on_pag"
 
 [[capabilities]]
 id = "pag.discovery.fci_rfci"
 status = "intentional_deviation"
-phase = 12
-notes = "Static FCI/RFCI not in Phase 8 deliver list"
+notes = "Static FCI/RFCI not delivered; LPCMCI is the PAG discovery surface"
 
 [[capabilities]]
 id = "pag.identify.full_id_idc"
 status = "intentional_deviation"
-phase = 12
-notes = "Full recursive semi-Markovian ID/IDC deferred; Phase 8 uses generalized adjustment envelopes"
+notes = "Full recursive semi-Markovian ID/IDC deferred; PAG uses generalized adjustment envelopes"

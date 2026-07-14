@@ -1,8 +1,0 @@
-{
-  "true_coefficients": [0.5, 1.5],
-  "tolerance": 1e-3,
-  "tolerance_class": "StableFloat",
-  "backend": "laplace",
-  "likelihood": "gaussian_identity",
-  "notes": "MAP must converge with Hessian diagnostics"
-}

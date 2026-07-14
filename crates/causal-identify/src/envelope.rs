@@ -1,4 +1,4 @@
-//! Identification envelopes over graph classes (DESIGN.md §10.1 / Phase 8).
+//! Identification envelopes over graph classes (DESIGN.md §10.1).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -40,7 +40,7 @@ pub struct GraphIdentificationCase<G> {
 
 /// Ensemble / equivalence-class identification result (DESIGN §10.1).
 ///
-/// Unidentified mass is preserved explicitly (Phase 8 exit criterion).
+/// Unidentified mass is preserved explicitly .
 #[derive(Clone, Debug)]
 pub struct IdentificationEnvelope<G> {
     /// Estimand shared by all identified cases, if any.

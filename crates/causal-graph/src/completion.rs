@@ -1,4 +1,4 @@
-//! Streamed / bounded PAG completion sampling (DESIGN.md §6.5 / Phase 8 exit).
+//! Streamed / bounded PAG completion sampling (DESIGN.md §6.5).
 //!
 //! Completions are never retained without bound: the sampler yields at most
 //! `max_completions` MAGs (circle-free ancestral graphs).

@@ -6,12 +6,12 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["m-separation"] },
+ { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["m-separation"] },
 ]
 
 upstream_implementations_observed = ["Tigramite"]
 
 test_sources = [
-  "ADMG m-separation unit tests",
-  "PAG definite-status m-separation",
+ "ADMG m-separation unit tests",
+ "PAG definite-status m-separation",
 ]

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Phase 8).
+Accepted.
 
 ## Context
 
@@ -15,12 +15,12 @@ breaks identification soundness (DESIGN.md §2 / §21.2).
 - m-separation via ancestral moralization (ADMG) and definite-status paths (PAG).
 - Completions streamed under `max_completions` (no unbounded retain).
 - Identification over PAGs uses `GeneralizedAdjustmentIdentifier` +
-  `IdentificationEnvelope` with explicit unidentified mass.
+ `IdentificationEnvelope` with explicit unidentified mass.
 - LPCMCI is its own type returning `TemporalPag`; discriminating paths and rule
-  scheduling are separate modules.
+ scheduling are separate modules.
 - Planner rejects DAG-only identifiers on PAG inputs.
 
 ## Consequences
 
-Exit criteria gated by `scripts/gate_phase8.sh`. Shapley attribution remains
-Phase 10; J/RPCMCI remain Phase 9.
+Exit criteria gated by `scripts/gate_pag.sh`. Shapley attribution remains
+Attribution inventory; J/RPCMCI live under context / tigramite.

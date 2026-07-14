@@ -1,10 +1,10 @@
-//! Sharp regression discontinuity estimator (Phase 4).
+//! Sharp regression discontinuity estimator .
 //!
 //! Treatment is defined deterministically by the running variable: `T = 1{running ≥ cutoff}`.
 //! The local effect at the cutoff is the coefficient on `T` in a local-linear OLS of `Y` on
 //! `[1, T, (R − c), T·(R − c)]`, restricted to rows within `bandwidth` of the cutoff.
 //!
-//! Bandwidth is explicit configuration in Phase 4 — no data-driven bandwidth selector
+//! Bandwidth is explicit configuration in — no data-driven bandwidth selector
 //! (Imbens–Kalyanaraman, cross-validation, etc.) is implemented yet.
 //!
 //! Uses the dedicated method tag `"rd.sharp"` rather than `backdoor.adjustment`, since RD
@@ -70,7 +70,7 @@ pub struct RdWorkspace {
 /// Sharp regression discontinuity estimator.
 ///
 /// `running_variable`, `cutoff`, and `bandwidth` are explicit configuration; there is no
-/// data-driven bandwidth selector in Phase 4.
+/// data-driven bandwidth selector in .
 #[derive(Clone, Debug)]
 pub struct SharpRegressionDiscontinuity {
     /// Dense linear-algebra backend.

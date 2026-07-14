@@ -1,0 +1,7 @@
+{
+ "true_effect": 2.0,
+ "tolerance": 0.45,
+ "identifier": "backdoor.adjustment",
+ "estimator": "propensity.stratification",
+ "notes": "stratified ATE"
+}

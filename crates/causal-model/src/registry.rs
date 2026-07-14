@@ -90,7 +90,7 @@ impl Default for MechanismRegistry {
 }
 
 impl MechanismRegistry {
-    /// Standard Phase 7 registry.
+    /// Standard registry.
     #[must_use]
     pub fn standard() -> Self {
         Self {

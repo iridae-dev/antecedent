@@ -52,7 +52,7 @@ impl PreparedIdentificationGraph {
     }
 }
 
-/// Identifier for static DAGs (Phase 1: backdoor).
+/// Identifier for static DAGs .
 #[derive(Clone, Debug, Default)]
 pub struct BackdoorIdentifier {
     /// Search configuration.
@@ -66,7 +66,7 @@ impl BackdoorIdentifier {
         Self::default()
     }
 
-    /// Prepare a graph (Phase 1: identity wrap).
+    /// Prepare a graph .
     ///
     /// # Errors
     ///
@@ -92,7 +92,7 @@ impl BackdoorIdentifier {
     ) -> Result<IdentificationResult, IdentificationError> {
         let CausalQuery::AverageEffect(ate) = query else {
             return Err(IdentificationError::UnsupportedQuery {
-                message: "Phase 1 only supports AverageEffect",
+                message: " only supports AverageEffect",
             });
         };
         ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
@@ -149,7 +149,7 @@ impl BackdoorIdentifier {
         let m = candidates.len();
         if m > 20 {
             return Err(IdentificationError::NotIdentified {
-                message: "candidate set too large for exact Phase 1 enumeration (>20)",
+                message: "candidate set too large for exact enumeration (>20)",
             });
         }
         let total_masks = 1usize << m;
@@ -224,7 +224,7 @@ impl BackdoorIdentifier {
                 ) => (active.clone(), control.clone()),
                 _ => {
                     return Err(IdentificationError::UnsupportedQuery {
-                        message: "Phase 1 backdoor ATE requires Set interventions",
+                        message: " backdoor ATE requires Set interventions",
                     });
                 }
             };

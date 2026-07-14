@@ -1,4 +1,4 @@
-//! Counterfactual batch / streaming equivalence bench (Phase 7 exit).
+//! Counterfactual batch / streaming equivalence bench .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

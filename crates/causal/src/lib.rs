@@ -46,7 +46,7 @@ pub use strategy_table::{
     identify_provenance_step, identify_static, validate_static_pair,
 };
 
-// Phase 8 PAG / LPCMCI surfaces.
+// PAG / LPCMCI surfaces.
 pub use causal_discovery::{
     CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryPerformanceRecord, JpcmciPlus, Lpcmci,
     PagDiscoveryResult, RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult,
@@ -147,7 +147,7 @@ pub fn decode_causal_posterior_bytes(
     causal_io::decode_causal_posterior_bytes(bytes).map_err(AnalysisError::from)
 }
 
-// Phase 7–10 GCM / counterfactual / attribution surfaces.
+// GCM / counterfactual / attribution surfaces.
 pub use causal_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
@@ -168,7 +168,7 @@ pub use causal_model::{
     sample_observational,
 };
 
-// Phase 11 design / incremental state surfaces.
+// design / incremental state surfaces.
 pub use causal_design::{
     CandidateDesign, ConstraintViolation, DecisionConstraint, DecisionEvaluation, DecisionProblem,
     DecisionProblemId, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
@@ -590,7 +590,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(7);
         let result = analysis.run(&ctx).unwrap();
         assert!((result.estimate.ate - 0.75).abs() < 0.08, "ate={}", result.estimate.ate);
-        assert_eq!(&*result.logical_plan.plan_id, "phase3.temporal_effect");
+        assert_eq!(&*result.logical_plan.plan_id, "temporal_effect");
         assert!(result.physical_plan.estimated_peak_memory_bytes.is_some());
         assert!(result.physical_plan.estimated_copy_bytes.is_some());
         assert!(!result.physical_plan.task_schedule.is_empty());

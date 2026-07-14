@@ -6,11 +6,11 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights"] },
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
-  "unit tests in crates/causal-data/src/resample.rs",
+ "unit tests in crates/causal-data/src/resample.rs",
 ]

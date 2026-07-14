@@ -1,7 +1,7 @@
 //! Lazy finite unfolding of temporal DAGs and graph-review artifacts.
 //!
 //! Stationary algorithms query edges on demand via [`LazyUnfoldedTemporalGraph`].
-//! Full materialisation is available when a static [`Dag`] is required (Phase 3).
+//! Full materialisation is available when a static [`Dag`] is required .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -36,7 +36,7 @@ pub struct LazyUnfoldedTemporalGraph {
 }
 
 impl TemporalDag {
-    /// Lazy unfold over a finite indexer window (Phase 2 default).
+    /// Lazy unfold over a finite indexer window .
     ///
     /// # Errors
     ///
@@ -179,7 +179,7 @@ fn insert_replicated_edges(
     Ok(())
 }
 
-/// Review-required temporal DAG artifact (Phase 2 produces; Phase 3 consumes).
+/// Review-required temporal DAG artifact .
 #[derive(Clone, Debug)]
 pub struct TemporalGraphReview {
     /// Proposed discovery graph.
@@ -225,7 +225,7 @@ impl TemporalGraphReview {
     }
 }
 
-/// Review-required temporal CPDAG artifact (Phase 5 PCMCI+).
+/// Review-required temporal CPDAG artifact .
 ///
 /// Directed edges must be accepted; undirected edges must be explicitly oriented
 /// before the CPDAG can be completed to a [`TemporalDag`] for identification.

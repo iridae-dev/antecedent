@@ -50,7 +50,7 @@ pub fn unit_change(
         | AttributionComponents::All => {}
         AttributionComponents::Mechanisms | AttributionComponents::Structure => {
             return Err(AttributionError::Message(
-                "unit_change Phase 10 path attributes Inputs (use distribution_change for mechanisms)"
+                "unit_change path attributes Inputs (use distribution_change for mechanisms)"
                     .into(),
             ));
         }

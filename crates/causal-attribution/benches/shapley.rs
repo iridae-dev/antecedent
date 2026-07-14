@@ -1,4 +1,4 @@
-//! Shapley attribution coalition-cache / MC bench (Phase 10).
+//! Shapley attribution coalition-cache / MC bench .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

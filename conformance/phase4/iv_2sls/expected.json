@@ -1,7 +1,0 @@
-{
-  "true_effect": 2.0,
-  "tolerance": 0.35,
-  "identifier": "iv",
-  "estimator": "iv.2sls",
-  "notes": "synthetic SCM; clean-room; binary instrument Z, unobserved confounder U (not in graph) with T=0.6Z+U+noise, Y=2T+U+noise; 2SLS recovers the structural effect despite U confounding the naive T-Y association"
-}

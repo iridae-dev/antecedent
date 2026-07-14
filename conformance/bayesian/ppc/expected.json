@@ -1,0 +1,4 @@
+{
+ "checks": ["prior_predictive", "posterior_predictive"],
+ "require_finite_p_value": true
+}

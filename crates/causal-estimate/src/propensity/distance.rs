@@ -196,4 +196,3 @@ impl DistanceMatching {
         sample_std(&estimates)
     }
 }
-

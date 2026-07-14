@@ -39,7 +39,7 @@ pub struct GraphEvidence<G> {
     pub graph: G,
     /// Per-edge evidence keyed by compact lagged links (not high-level node objects).
     pub edge_evidence: Arc<[EdgeEvidence]>,
-    /// Kept links with MCI statistics (aligned with [`Self::edge_evidence`] for Phase 2–5 callers).
+    /// Kept links with MCI statistics (aligned with [`Self::edge_evidence`] for callers).
     pub links: Arc<[ScoredLink]>,
     /// How the evidence was produced.
     pub source: EvidenceSource,

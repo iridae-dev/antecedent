@@ -1,4 +1,4 @@
-"""Graph helpers (DESIGN.md §25.1 / Phase 12 DOT+JSON interchange)."""
+"""Graph helpers (DESIGN.md §25.1 DOT+JSON interchange)."""
 
 from __future__ import annotations
 

@@ -6,14 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Efficient Adjustment Sets for Population Average Causal Treatment Effect Estimation in Graphical Models", doi = "10.48550/arXiv.2002.06825", sections = ["efficient / parental adjustment"] },
-  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["back-door criterion"] },
+ { title = "Efficient Adjustment Sets for Population Average Causal Treatment Effect Estimation in Graphical Models", doi = "10.48550/arXiv.2002.06825", sections = ["efficient / parental adjustment"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["back-door criterion"] },
 ]
 
 upstream_implementations_observed = [
-  { project = "dowhy", exposure = "black-box comparison only" },
+ { project = "dowhy", exposure = "black-box comparison only" },
 ]
 
 test_sources = [
-  "independently generated synthetic DAGs with known parental adjustment",
+ "independently generated synthetic DAGs with known parental adjustment",
 ]

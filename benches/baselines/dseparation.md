@@ -1,4 +1,4 @@
-# d-separation benchmark baseline (Phase 1)
+# d-separation benchmark baseline
 
 Workloads:
 

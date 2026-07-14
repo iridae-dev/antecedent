@@ -1,4 +1,4 @@
-//! Adjustment-set enumeration benchmark (Phase 1).
+//! Adjustment-set enumeration benchmark .
 #![allow(missing_docs, clippy::cast_possible_truncation)]
 
 use causal_core::{AverageEffectQuery, CausalQuery, VariableId};

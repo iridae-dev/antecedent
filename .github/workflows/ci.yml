@@ -40,8 +40,8 @@ jobs:
       - name: Install cargo-deny
         run: cargo install cargo-deny --locked
 
-      - name: Phase 12 release gate
-        run: bash scripts/gate_phase12.sh
+      - name: Release gate
+        run: bash scripts/gate_release.sh
 
       - name: DCO check
         if: github.event_name == 'pull_request'

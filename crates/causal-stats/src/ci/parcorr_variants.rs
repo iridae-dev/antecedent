@@ -1,4 +1,4 @@
-//! Robust, weighted, and multivariate partial-correlation CI tests (Phase 5).
+//! Robust, weighted, and multivariate partial-correlation CI tests .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -595,8 +595,8 @@ fn cca_leading(
     let cxx_inv = invert_symmetric(&cxx, px)?;
     let cyy_inv = invert_symmetric(&cyy, py)?;
 
-    // M = Cxx^{-1} Cxy Cyy^{-1} Cyx  (px × px)
-    // temp = Cxy Cyy^{-1}  (px × py)
+    // M = Cxx^{-1} Cxy Cyy^{-1} Cyx (px × px)
+    // temp = Cxy Cyy^{-1} (px × py)
     let mut temp = vec![0.0; px * py];
     for i in 0..px {
         for j in 0..py {
@@ -608,7 +608,7 @@ fn cca_leading(
         }
     }
     // Cyx = Cxy'
-    // temp2 = temp * Cyx = temp * Cxy'  (px × px)
+    // temp2 = temp * Cyx = temp * Cxy' (px × px)
     let mut temp2 = vec![0.0; px * px];
     for i in 0..px {
         for j in 0..px {

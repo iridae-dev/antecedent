@@ -6,14 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["OLS adjustment / regression"] },
+ { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["OLS adjustment / regression"] },
 ]
 
 upstream_implementations_observed = [
-  { project = "dowhy", exposure = "black-box comparison only" },
+ { project = "dowhy", exposure = "black-box comparison only" },
 ]
 
 test_sources = [
-  "independently generated synthetic linear SCMs with known ATE",
-  "black-box comparison against pinned DoWhy baseline (conformance/dowhy/linear_gaussian_ate)",
+ "independently generated synthetic linear SCMs with known ATE",
+ "black-box comparison against pinned DoWhy baseline (conformance/dowhy/linear_gaussian_ate)",
 ]

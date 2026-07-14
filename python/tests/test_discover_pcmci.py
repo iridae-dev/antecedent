@@ -1,4 +1,4 @@
-"""Phase 2: discover_pcmci schema stability and Exact lag-1 recovery."""
+"""discover_pcmci schema stability and Exact lag-1 recovery."""
 
 from __future__ import annotations
 

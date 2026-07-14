@@ -1,4 +1,4 @@
-# Adjustment search benchmark baseline (Phase 1)
+# Adjustment search benchmark baseline
 
 Workload: `backdoor_minimal_n8_cov` — T→Y with 8 common causes; enumerate
 minimal backdoor sets.

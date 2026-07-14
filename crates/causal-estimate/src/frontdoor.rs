@@ -1,7 +1,7 @@
-//! Front-door two-stage (product-of-coefficients) regression estimator (Phase 4).
+//! Front-door two-stage (product-of-coefficients) regression estimator .
 //!
 //! Requires a `"frontdoor"` estimand with a non-empty [`IdentifiedEstimand::mediators`] set
-//! (see `causal_identify::frontdoor`). Phase 4 supports exactly one mediator `M`; the front-door
+//! (see `causal_identify::frontdoor`). supports exactly one mediator `M`; the front-door
 //! criterion for a valid `M` guarantees:
 //!
 //! 1. `M` intercepts every directed path from `T` to `Y`.
@@ -20,9 +20,9 @@
 //!
 //! - **Stage 1**: OLS of `M` on `[1, T]` → `β_{M←T}`, the effect of `T` on `M`.
 //! - **Stage 2**: OLS of `Y` on `[1, T, M]` → `β_{Y←M·T}`, the effect of `M` on `Y` holding `T`
-//!   fixed. Conditioning on `T` here is what blocks the `M-Y` backdoor path guaranteed clear by
-//!   front-door criterion (3) above (e.g. `T <- U -> Y` confounding routed back through `M`);
-//!   dropping `T` from stage 2 would reintroduce that confounding.
+//! fixed. Conditioning on `T` here is what blocks the `M-Y` backdoor path guaranteed clear by
+//! front-door criterion (3) above (e.g. `T <- U -> Y` confounding routed back through `M`);
+//! dropping `T` from stage 2 would reintroduce that confounding.
 //!
 //! `ATE = β_{M←T} · β_{Y←M·T} · (active − control)`.
 //!
@@ -83,7 +83,7 @@ pub struct PreparedFrontDoorProblem {
     pub nrows: usize,
     /// Estimand method tag (always `"frontdoor"`).
     pub method: Arc<str>,
-    /// The single mediator variable (Phase 4 supports exactly one).
+    /// The single mediator variable .
     pub mediator_id: VariableId,
     /// Overlap policy applied.
     pub overlap: OverlapPolicy,

@@ -64,10 +64,10 @@ def parents_from_tigramite(results, pcmci, var_names: list[str]) -> list[dict]:
 
 def try_tigramite(x: np.ndarray, y: np.ndarray) -> dict:
     try:
-        import tigramite  # type: ignore
-        from tigramite import data_processing as pp  # type: ignore
-        from tigramite.independence_tests.parcorr import ParCorr  # type: ignore
-        from tigramite.pcmci import PCMCI  # type: ignore
+        import tigramite # type: ignore
+        from tigramite import data_processing as pp # type: ignore
+        from tigramite.independence_tests.parcorr import ParCorr # type: ignore
+        from tigramite.pcmci import PCMCI # type: ignore
     except ImportError:
         return {
             "available": False,

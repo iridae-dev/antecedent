@@ -1,4 +1,4 @@
-//! Temporal mediation sparse/stress benches (Phase 9).
+//! Temporal mediation sparse/stress benches .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -84,7 +84,7 @@ fn mediated(n: usize) -> (TimeSeriesData, MediationQuery, IdentifiedEstimand) {
 }
 
 fn bench_mediation(c: &mut Criterion) {
-    // Soft budgets (phase9_regime_mediation.md); 2× headroom for gate `--test` noise.
+    // Soft budgets (regime_mediation.md); 2× headroom for gate `--test` noise.
     const SPARSE_BUDGET: Duration = Duration::from_millis(10);
     const STRESS_BUDGET: Duration = Duration::from_millis(40);
 

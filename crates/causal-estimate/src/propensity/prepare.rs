@@ -162,7 +162,7 @@ fn fnv1a64(bytes_as_f64: &[f64]) -> u64 {
     hash
 }
 
-/// Default overlap policy for all Phase 4 propensity estimators: diagnostics mandatory,
+/// Default overlap policy for all propensity estimators: diagnostics mandatory,
 /// propensities clipped into `[0.01, 0.99]`, no trimming.
 #[must_use]
 pub const fn default_propensity_overlap() -> OverlapPolicy {

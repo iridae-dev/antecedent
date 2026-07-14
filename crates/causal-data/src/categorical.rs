@@ -262,7 +262,7 @@ impl ContrastMatrix {
 
 /// Compile a contrast into a design matrix for valid rows.
 ///
-/// Builds the contrast matrix for all contrast variants used by Phase 0/1 design
+/// Builds the contrast matrix for all contrast variants used by /1 design
 /// compilation (`Treatment`, `SumToZero`, `Helmert`, `Polynomial`,
 /// `FullRankIndicator`, `Custom`).
 ///

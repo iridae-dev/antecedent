@@ -1,6 +1,6 @@
 //! Interventions on causal variables (DESIGN.md §8.1).
 //!
-//! Phase 7 enables hard, shift, stochastic, soft, and sequenced interventions.
+//! enables hard, shift, stochastic, soft, and sequenced interventions.
 //! Estimators that only support hard `Set` continue to reject other variants.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -366,7 +366,7 @@ impl Intervention {
         }
     }
 
-    /// Whether this is a hard `Set` (Phase 1 estimator path).
+    /// Whether this is a hard `Set` .
     #[must_use]
     pub const fn is_hard_set(&self) -> bool {
         matches!(self, Self::Set { .. })

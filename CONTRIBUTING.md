@@ -28,10 +28,10 @@ This project is independently implemented from published papers, specifications,
 and public behavior. Do **not**:
 
 - copy or translate source, comments, docstrings, tests, or notebooks from
-  Tigramite;
+ Tigramite;
 - translate DoWhy code line by line;
 - commit upstream GPL source, translated GPL tests, or fixtures with unclear
-  redistribution status.
+ redistribution status.
 
 Reference libraries may be executed as black-box comparators in isolated
 conformance tooling. Every substantive algorithm needs a machine-readable
@@ -43,7 +43,7 @@ In project docs, "port" means capability parity, not source translation.
 
 - Implementation PRs cite papers, standards, or independent design notes.
 - Feature PRs that touch designated hot paths include benchmarks, allocation
-  assertions, and scalar-versus-optimized differential tests where applicable.
+ assertions, and scalar-versus-optimized differential tests where applicable.
 - Changing an accepted ADR requires a superseding ADR and migration analysis.
 
 ## Toolchain

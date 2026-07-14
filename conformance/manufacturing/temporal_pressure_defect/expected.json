@@ -11,5 +11,5 @@
   "horizon_steps": 1,
   "edges": [["pressure", 1, "defect", 0]],
   "sampling_interval_ns": 3600000000000,
-  "note": "Phase 3 uses discrete time steps; 2h at 1h sampling ≡ 2 steps"
+  "note": "Discrete time steps; 2h at 1h sampling ≡ 2 steps"
 }

@@ -1,0 +1,7 @@
+{
+ "true_effect": 0.25,
+ "tolerance": 0.15,
+ "identifier": "backdoor.adjustment",
+ "estimator": "glm.adjustment",
+ "notes": "logistic g-comp on binary Y"
+}

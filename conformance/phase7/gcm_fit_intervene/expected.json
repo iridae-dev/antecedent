@@ -1,7 +1,0 @@
-{
-  "true_interventional_mean_y": 7.0,
-  "tolerance": 0.35,
-  "tolerance_class": "Approximate",
-  "intervention": { "x": 3.0 },
-  "notes": "Linear Gaussian Y=1+2X; do(X=3) => E[Y]=7"
-}

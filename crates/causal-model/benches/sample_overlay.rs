@@ -1,4 +1,4 @@
-//! Batch interventional sampling benchmark (Phase 7 exit criterion).
+//! Batch interventional sampling benchmark .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

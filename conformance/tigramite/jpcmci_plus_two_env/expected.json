@@ -1,0 +1,6 @@
+{
+ "algorithm_id": "jpcmci_plus",
+ "min_envs": 2,
+ "min_nodes": 2,
+ "tolerance_class": "Exact"
+}

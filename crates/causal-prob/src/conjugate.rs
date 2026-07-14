@@ -279,7 +279,7 @@ fn draw_mvn_known_sigma(
         for j in 0..ncols {
             z[j] = standard_normal(&mut rng);
         }
-        // β = mean + chol * z  (chol lower)
+        // β = mean + chol * z (chol lower)
         for i in 0..ncols {
             let mut acc = mean[i];
             for j in 0..=i {

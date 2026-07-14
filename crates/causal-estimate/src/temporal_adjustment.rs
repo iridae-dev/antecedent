@@ -1,4 +1,4 @@
-//! Temporal linear adjustment estimator (DESIGN.md Phase 3).
+//! Temporal linear adjustment estimator (DESIGN.md).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

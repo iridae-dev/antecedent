@@ -6,13 +6,13 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "DoWhy-GCM: An Extension of DoWhy for Causal Graphical Models", doi = "10.48550/arXiv.2206.06821", sections = ["mechanisms", "interventions"] },
+ { title = "DoWhy-GCM: An Extension of DoWhy for Causal Graphical Models", doi = "10.48550/arXiv.2206.06821", sections = ["mechanisms", "interventions"] },
 ]
 
 upstream_implementations_observed = ["DoWhy-GCM"]
 
 test_sources = [
-  "conformance/phase7/gcm_fit_intervene",
-  "conformance/phase7/do_sampling_weighting",
-  "crates/causal-model/benches/sample_overlay.rs",
+ "conformance/gcm/gcm_fit_intervene",
+ "conformance/gcm/do_sampling_weighting",
+ "crates/causal-model/benches/sample_overlay.rs",
 ]

@@ -1,0 +1,7 @@
+{
+ "outcome": "y",
+ "total_change_min": 3.0,
+ "dominant_component": "y",
+ "allocation": "exact_shapley",
+ "notes": "Y intercept shifts by +5 between periods; X mechanism unchanged."
+}

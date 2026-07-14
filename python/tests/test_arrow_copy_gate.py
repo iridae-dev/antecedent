@@ -1,4 +1,4 @@
-"""Phase 0 gate: Python loads the shared Arrow/float fixture with measured copy.
+"""gate: Python loads the shared Arrow/float fixture with measured copy.
 
 Fixture: conformance/gates/arrow_copy_fixture.json (shared with Rust).
 """

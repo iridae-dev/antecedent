@@ -1,4 +1,4 @@
-# Partial-correlation batch baseline (Phase 2)
+# Partial-correlation batch baseline
 
 Workload: `parcorr_batch64_n2k_p8` — 64 partial-correlation queries on
 `n=2000` rows with up to 3 conditioning columns drawn from 8 series columns,

@@ -20,5 +20,5 @@ Parity is capability parity, not Python API parity. Manifests live under
 ## Consequences
 
 - Conformance fixtures record the pin, command, and environment used to
-  generate reference outputs.
+ generate reference outputs.
 - Upstream pin changes require manifest updates and regression review.

@@ -1,4 +1,4 @@
-//! JSON DAG interchange mirroring [`DagWire`] (Phase 12).
+//! JSON DAG interchange mirroring [`DagWire`] .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

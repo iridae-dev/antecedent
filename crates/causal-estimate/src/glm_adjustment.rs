@@ -1,4 +1,4 @@
-//! Generalized linear model (logistic) adjustment ATE estimator for binary outcomes (Phase 4).
+//! Generalized linear model (logistic) adjustment ATE estimator for binary outcomes .
 //!
 //! Fits a logistic GLM `Y ~ T + Z` and recovers the ATE by finite-difference g-computation:
 //! the fitted model is evaluated at `T = active` and `T = control` for every row (holding `Z`

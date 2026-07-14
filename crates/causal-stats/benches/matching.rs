@@ -1,4 +1,4 @@
-//! Matching-index benchmark (Phase 4).
+//! Matching-index benchmark .
 #![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 
 use causal_stats::{MatchingDistance, MatchingIndex};

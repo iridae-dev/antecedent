@@ -40,7 +40,7 @@ pub enum CrossEnvLinkAssumption {
     EnvironmentSpecificContemporaneous,
 }
 
-/// Multi-dataset / context-aware discovery constraints (Phase 9 / J-PCMCI+).
+/// Multi-dataset / context-aware discovery constraints .
 #[derive(Clone, Debug, Default)]
 pub struct MultiDatasetConstraints {
     /// System variables that act as context (appear as [`NodeRef::Context`] in output graphs).

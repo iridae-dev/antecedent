@@ -1,4 +1,4 @@
-# cargo-deny configuration (Phase 12 security / license review)
+# cargo-deny configuration (security / license review)
 # https://embarkstudios.github.io/cargo-deny/
 
 [graph]
@@ -11,7 +11,7 @@ version = 2
 yanked = "warn"
 ignore = [
     # Transitive via faer → gemm; paste is a build-time proc-macro only.
-    # No safe upgrade in faer 0.21; tracked in docs/security_review.md (Phase 12).
+    # No safe upgrade in faer 0.21; tracked in docs/security_review.md.
     { id = "RUSTSEC-2024-0436", reason = "faer/gemm still depends on archived paste; build-time only, no runtime vuln" },
 ]
 [licenses]

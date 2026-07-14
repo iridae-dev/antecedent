@@ -1,4 +1,4 @@
-//! `PyO3` bindings — Phase 0–7: Arrow load, `analyze_ate` (incl. Bayesian),
+//! `PyO3` bindings — : Arrow load, `analyze_ate` (incl. Bayesian),
 //! `analyze`, `discover_pcmci`, `discover_pcmci_plus`, GCM fit/sample/CF.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -122,7 +122,7 @@ struct AteAnalysisResult {
     posterior_artifact: Option<Vec<u8>>,
 }
 
-/// Decoded posterior artifact for Python consumers (Phase 6 exit: serializable + consumable).
+/// Decoded posterior artifact for Python consumers .
 #[pyclass]
 struct PosteriorArtifact {
     #[pyo3(get)]
@@ -198,10 +198,10 @@ fn load_float64_columns(
     })
 }
 
-/// Run static ATE: identify → estimate → optional refute (Phase 4; DESIGN.md §21.2).
+/// Run static ATE: identify → estimate → optional refute .
 ///
 /// `identifier`/`estimator` select the identification strategy and estimator; leaving both
-/// `None` preserves the Phase 0–3 default (`backdoor.adjustment` + `linear.adjustment.ate`).
+/// `None` preserves the default (`backdoor.adjustment` + `linear.adjustment.ate`).
 /// See [`causal::CausalAnalysisBuilder::identifier`] and
 /// [`causal::CausalAnalysisBuilder::estimator`] for the supported ids.
 ///
@@ -404,7 +404,7 @@ struct DiscoveredLink {
 
 /// Coarse-grained PCMCI discovery result (single boundary crossing).
 ///
-/// Field set is the stable Rust↔Python temporal discovery schema for Phase 2.
+/// Field set is the stable Rust↔Python temporal discovery schema for .
 #[pyclass]
 struct PcmciDiscoveryResult {
     #[pyo3(get)]

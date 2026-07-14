@@ -13,8 +13,7 @@ id = "tigramite.data.dataframe"
 group = "data_processing"
 description = "Dataframe-equivalent temporal data abstraction"
 status = "done"
-owner = "phase0"
-phase = 0
+owner = "foundation"
 notes = "TimeSeriesData / TabularData + Arrow; not a pandas clone"
 
 [[capabilities]]
@@ -22,26 +21,23 @@ id = "tigramite.data.masks"
 group = "data_processing"
 description = "Masks and missing flags"
 status = "intentional_deviation"
-owner = "phase12"
-phase = 0
-notes = "Column validity + analysis_mask exist; temporal discovery requires complete series (phase12_deviations)"
+owner = "release"
+notes = "Column validity + analysis_mask exist; temporal discovery requires complete series (release_deviations)"
 
 [[capabilities]]
 id = "tigramite.data.multiple_datasets"
 group = "data_processing"
 description = "Multiple datasets"
 status = "done"
-owner = "phase2"
-phase = 2
-notes = "MultiEnvironmentData typed container (J-PCMCI+ multi-dataset constraints remain Phase 9)."
+owner = "discovery"
+notes = "MultiEnvironmentData typed container (J-PCMCI+ multi-dataset constraints in context inventory)."
 
 [[capabilities]]
 id = "tigramite.data.offsets"
 group = "data_processing"
 description = "Time offsets / reference points"
 status = "done"
-owner = "phase2"
-phase = 2
+owner = "discovery"
 notes = "ReferencePointPolicy wired into LagMap / SamplePlan / LaggedFrame."
 
 [[capabilities]]
@@ -49,25 +45,22 @@ id = "tigramite.data.vector_variables"
 group = "data_processing"
 description = "Vector variables"
 status = "intentional_deviation"
-owner = "phase12"
-phase = 0
-notes = "FixedVectorColumn storage only; vector-var CI grouping not in 1.0 scope (phase12_deviations)"
+owner = "release"
+notes = "FixedVectorColumn storage only; vector-var CI grouping not in 1.0 scope (release_deviations)"
 
 [[capabilities]]
 id = "tigramite.data.transforms"
 group = "data_processing"
 description = "Transformations, smoothing, binning, ordinal patterns"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 
 [[capabilities]]
 id = "tigramite.data.bootstrap"
 group = "data_processing"
 description = "Bootstrap generation"
 status = "done"
-owner = "phase2"
-phase = 2
+owner = "discovery"
 notes = "ResamplingPlan (IID / moving-block / circular-block) in causal-data; validate stability consumes it."
 
 [[capabilities]]
@@ -75,16 +68,14 @@ id = "tigramite.ci.partial_corr"
 group = "conditional_independence"
 description = "Partial correlation"
 status = "done"
-owner = "phase2"
-phase = 2
+owner = "discovery"
 
 [[capabilities]]
 id = "tigramite.ci.multivariate_partial_corr"
 group = "conditional_independence"
 description = "Multivariate partial correlation"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 notes = "Block residualization + first canonical correlation; scalar blocks reduce to ParCorr."
 
 [[capabilities]]
@@ -92,8 +83,7 @@ id = "tigramite.ci.weighted_partial_corr"
 group = "conditional_independence"
 description = "Weighted partial correlation"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 notes = "Python discover_pcmci(_plus) accepts weights= when ci=weighted_parcorr."
 
 [[capabilities]]
@@ -101,117 +91,103 @@ id = "tigramite.ci.robust_partial_corr"
 group = "conditional_independence"
 description = "Robust partial correlation"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 
 [[capabilities]]
 id = "tigramite.ci.regression"
 group = "conditional_independence"
 description = "Regression CI"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 
 [[capabilities]]
 id = "tigramite.ci.cmi_knn"
 group = "conditional_independence"
 description = "CMI kNN"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 
 [[capabilities]]
 id = "tigramite.ci.mixed_cmi_knn"
 group = "conditional_independence"
 description = "Mixed CMI kNN"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 
 [[capabilities]]
 id = "tigramite.ci.symbolic_cmi"
 group = "conditional_independence"
 description = "Symbolic CMI"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 
 [[capabilities]]
 id = "tigramite.ci.gpdc"
 group = "conditional_independence"
 description = "GPDC"
 status = "intentional_deviation"
-owner = "phase5"
-phase = 5
-notes = "Native RBF-GP + distance correlation; no torch backend (see parity/phase5_deviations.md)."
+owner = "ci"
+notes = "Native RBF-GP + distance correlation; no torch backend (see parity/ci_deviations.md)."
 
 [[capabilities]]
 id = "tigramite.ci.gsquared"
 group = "conditional_independence"
 description = "G-squared"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 
 [[capabilities]]
 id = "tigramite.ci.oracle"
 group = "conditional_independence"
 description = "Oracle CI"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 
 [[capabilities]]
 id = "tigramite.discovery.pcmci"
 group = "discovery"
 description = "PCMCI"
 status = "done"
-owner = "phase2"
-phase = 2
+owner = "discovery"
 
 [[capabilities]]
 id = "tigramite.discovery.pcmci_plus"
 group = "discovery"
 description = "PCMCI+"
 status = "intentional_deviation"
-owner = "phase5"
-phase = 5
-notes = "Clean-room Exact parents pin; black-box Tigramite graph compare not required (phase5_deviations.md)."
+owner = "ci"
+notes = "Clean-room Exact parents pin; black-box Tigramite graph compare not required (ci_deviations.md)."
 
 [[capabilities]]
 id = "tigramite.discovery.lpcmci"
 group = "discovery"
 description = "LPCMCI"
 status = "done"
-owner = "phase8"
-phase = 8
-notes = "causal-discovery Lpcmci → TemporalPag; conformance/phase8/lpcmci_chain"
+owner = "pag"
+notes = "causal-discovery Lpcmci → TemporalPag; conformance/pag/lpcmci_chain"
 
 [[capabilities]]
 id = "tigramite.discovery.jpcmci_plus"
 group = "discovery"
 description = "J-PCMCI+"
 status = "done"
-owner = "phase9"
-phase = 9
-notes = "JpcmciPlus; conformance/phase9/jpcmci_plus_two_env"
+owner = "context"
+notes = "JpcmciPlus; conformance/tigramite/jpcmci_plus_two_env"
 
 [[capabilities]]
 id = "tigramite.discovery.rpcmci"
 group = "discovery"
 description = "RPCMCI"
 status = "done"
-owner = "phase9"
-phase = 9
-notes = "Rpcmci; conformance/phase9/rpcmci_two_regime"
+owner = "context"
+notes = "Rpcmci; conformance/tigramite/rpcmci_two_regime"
 
 [[capabilities]]
 id = "tigramite.discovery.fdr"
 group = "discovery"
 description = "FDR and confidence intervals"
 status = "done"
-owner = "phase2"
-phase = 2
+owner = "discovery"
 notes = "BH over full MCI family; Fisher-z analytic CIs on ParCorr results (95%)."
 
 [[capabilities]]
@@ -219,8 +195,7 @@ id = "tigramite.graphs.ts_graph"
 group = "graphs"
 description = "Time-series graph representations and stationarity"
 status = "done"
-owner = "phase0"
-phase = 0
+owner = "foundation"
 notes = "TemporalDag + unfold/stationarity; Assumption::Stationarity"
 
 [[capabilities]]
@@ -228,31 +203,27 @@ id = "tigramite.graphs.separation"
 group = "graphs"
 description = "Path and separation functions"
 status = "done"
-owner = "phase8"
-phase = 8
-notes = "d-separation (P1) + ADMG/PAG m-separation (P8); gate_phase8.sh"
+owner = "pag"
+notes = "d-separation (P1) + ADMG/PAG m-separation (P8); gate_pag.sh"
 [[capabilities]]
 id = "tigramite.graphs.endpoints"
 group = "graphs"
 description = "Endpoint / orientation semantics"
 status = "done"
-owner = "phase5"
-phase = 5
+owner = "ci"
 
 [[capabilities]]
 id = "tigramite.effects"
 group = "effects_and_models"
 description = "Causal effects, mediation, prediction"
 status = "done"
-owner = "phase9"
-phase = 9
-notes = "temporal mediation/effects/prediction; gate_phase9.sh"
+owner = "context"
+notes = "temporal mediation/effects/prediction; gate_context.sh"
 
 [[capabilities]]
 id = "tigramite.simulation"
 group = "simulation_and_presentation"
 description = "Structural process generators and toy models"
 status = "done"
-owner = "phase2"
-phase = 2
-notes = "LaggedLinearPair process generator in causal-data::sim for fixtures/toys; full SCM registry is Phase 7."
+owner = "discovery"
+notes = "LaggedLinearPair process generator in causal-data::sim for fixtures/toys; full SCM registry is in gcm / bayesian inventory."

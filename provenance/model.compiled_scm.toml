@@ -6,12 +6,12 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Structural causal models", "interventions"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Structural causal models", "interventions"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
-  "topological compile of chain DAG",
-  "intervention overlay hard-set without model clone",
+ "topological compile of chain DAG",
+ "intervention overlay hard-set without model clone",
 ]

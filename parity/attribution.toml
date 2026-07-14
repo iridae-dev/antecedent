@@ -1,0 +1,53 @@
+# Status: pending | in_progress | done | intentional_deviation
+
+library = "causal"
+
+[[capabilities]]
+id = "attribution.shapley"
+status = "done"
+notes = "Exact + Monte Carlo / permutation Shapley with size limits and MC stderr"
+
+[[capabilities]]
+id = "attribution.coalition_cache"
+status = "done"
+notes = "Semantic coalition cache keyed by mask + tag under CachePolicy"
+
+[[capabilities]]
+id = "attribution.distribution_change"
+status = "done"
+notes = "DoWhy-GCM distribution_change via mechanism-swap Shapley"
+
+[[capabilities]]
+id = "attribution.distribution_change_robust"
+status = "done"
+notes = "Regression-hybrid robust variant"
+
+[[capabilities]]
+id = "attribution.mechanism_change_detection"
+status = "done"
+notes = "Detection separate from attribution (LR / mean-diff / classifier proxy)"
+
+[[capabilities]]
+id = "attribution.unit_change"
+status = "done"
+notes = "Per-unit input Shapley vs reference parents"
+
+[[capabilities]]
+id = "attribution.path_decompose"
+status = "done"
+notes = "Directed-path product decomposition on DAG"
+
+[[capabilities]]
+id = "attribution.feature_relevance"
+status = "done"
+notes = "Interventional do-contrast relevance scores"
+
+[[capabilities]]
+id = "attribution.root_cause"
+status = "done"
+notes = "Ranking + optional graph/posterior contribution blocks"
+
+[[capabilities]]
+id = "attribution.facade"
+status = "done"
+notes = "Facade + conformance tests under crates/causal/tests/attribution.rs"

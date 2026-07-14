@@ -1,7 +1,0 @@
-{
-  "true_effect": 2.0,
-  "tolerance": 0.35,
-  "identifier": "backdoor.adjustment",
-  "estimator": "propensity.weighting",
-  "notes": "synthetic SCM; clean-room; Z~N(0,1) confounder, T~Bernoulli(sigmoid(-0.4+0.9Z)), Y=2T+Z+noise; IPW recovers ATE under confounding that biases a naive unadjusted contrast"
-}

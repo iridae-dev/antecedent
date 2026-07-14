@@ -6,12 +6,12 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Linear regression sufficient statistics (standard OLS)", doi = "", sections = ["normal equations"] },
+ { title = "Linear regression sufficient statistics (standard OLS)", doi = "", sections = ["normal equations"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
-  "independently generated synthetic design matrices",
-  "incremental vs full recompute fixtures",
+ "independently generated synthetic design matrices",
+ "incremental vs full recompute fixtures",
 ]

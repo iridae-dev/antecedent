@@ -1,0 +1,8 @@
+{
+ "true_coefficients": [1.0, 2.0],
+ "tolerance": 1e-3,
+ "tolerance_class": "StableFloat",
+ "backend": "conjugate_gaussian",
+ "prior": "known_residual_variance",
+ "notes": "noiseless y = 1 + 2x; MAP must match OLS"
+}

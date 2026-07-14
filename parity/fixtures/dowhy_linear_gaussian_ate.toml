@@ -1,4 +1,4 @@
-# Pointer into conformance/ for the Phase 1 DoWhy ATE fixture.
+# Pointer into conformance/ for the DoWhy ATE fixture.
 
 id = "dowhy.linear_gaussian_ate"
 capability_ids = [

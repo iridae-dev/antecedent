@@ -113,7 +113,7 @@ pub fn fit_laplace_glm(
             break;
         }
 
-        // Solve (−H) step = grad  for Newton step maximizing log-posterior.
+        // Solve (−H) step = grad for Newton step maximizing log-posterior.
         // We store neg_hessian = −∇²ℓ; Newton: β ← β + (−H)^{-1} ∇ℓ
         workspace.step[..ncols].fill(0.0);
         let hess = workspace.neg_hessian[..ncols * ncols].to_vec();

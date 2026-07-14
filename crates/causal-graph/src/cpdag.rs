@@ -1,7 +1,7 @@
-//! CPDAG and temporal CPDAG (Phase 5).
+//! CPDAG and temporal CPDAG .
 //!
 //! Undirected contemporaneous marks use [`Endpoint::Tail`]–[`Endpoint::Tail`].
-//! [`Endpoint::Circle`] is rejected (reserved for Phase 8 PAG/LPCMCI).
+//! [`Endpoint::Circle`] is rejected (reserved for PAG/LPCMCI).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -15,7 +15,7 @@ use crate::temporal::TemporalDag;
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
-/// Temporal CPDAG over lagged variable nodes (DESIGN §6.2, Phase 5).
+/// Temporal CPDAG over lagged variable nodes (DESIGN §6.2).
 #[derive(Clone, Debug)]
 pub struct TemporalCpdag {
     nodes: Vec<NodeRef>,
@@ -49,7 +49,7 @@ impl TemporalCpdag {
 
     /// Add a lagged or context node.
     ///
-    /// Context nodes are allowed for J-PCMCI+ / multi-dataset graphs (Phase 9).
+    /// Context nodes are allowed for J-PCMCI+ / multi-dataset graphs .
     /// Static nodes remain rejected (use a static CPDAG / DAG).
     ///
     /// # Errors
@@ -105,7 +105,7 @@ impl TemporalCpdag {
     pub fn insert_marked(&mut self, edge: MarkedEdge) -> Result<(), GraphError> {
         if !edge.is_cpdag_legal() {
             return Err(GraphError::InvalidEndpoints {
-                message: "CPDAG rejects Circle marks and non Tail/Arrow combinations (Phase 8 PAG)",
+                message: "CPDAG rejects Circle marks and non Tail/Arrow combinations ",
             });
         }
         self.validate_node(edge.a)?;

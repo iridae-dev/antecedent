@@ -1,4 +1,4 @@
-//! Manufacturing-style temporal effect example (DESIGN.md §34.2 / Phase 3).
+//! Manufacturing-style temporal effect example (DESIGN.md §34.2).
 //!
 //! Run: `cargo +1.85 test -p causal --test manufacturing_temporal -- --nocapture`
 //!
@@ -97,7 +97,7 @@ fn manufacturing_pressure_defect() {
 
     // Y ≈ 0.9 X_{t-1}; unit pulse ⇒ ATE ≈ 0.9
     assert!((result.estimate.ate - 0.9).abs() < 0.05, "ate={} expected ~0.9", result.estimate.ate);
-    assert_eq!(&*result.logical_plan.plan_id, "phase3.temporal_effect");
+    assert_eq!(&*result.logical_plan.plan_id, "temporal_effect");
     assert!(result.physical_plan.estimated_peak_memory_bytes.is_some());
     assert!(result.physical_plan.estimated_copy_bytes.is_some());
     assert!(!result.physical_plan.task_schedule.is_empty());

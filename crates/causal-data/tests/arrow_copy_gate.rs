@@ -1,4 +1,4 @@
-//! Cross-language Arrow load gate (Phase 0): measured copy behavior.
+//! Cross-language Arrow load gate : measured copy behavior.
 //!
 //! Fixture: `conformance/gates/arrow_copy_fixture.json` (shared with Python).
 //!

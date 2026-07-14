@@ -12,8 +12,7 @@ dashboard, or deployment platform.
 
 ## Design
 
-See [DESIGN.md](DESIGN.md) for the technical design, phase plan, and
-non-negotiable rules. Accepted architecture decisions live in [`adr/`](adr/).
+See [DESIGN.md](DESIGN.md) for the technical design and non-negotiable rules. Accepted architecture decisions live in [`adr/`](adr/).
 
 ## License
 

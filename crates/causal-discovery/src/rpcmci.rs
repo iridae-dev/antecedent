@@ -1,4 +1,4 @@
-//! RPCMCI: regime-PCMCI with typed assignments and per-regime graphs (Phase 9).
+//! RPCMCI: regime-PCMCI with typed assignments and per-regime graphs .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -284,7 +284,7 @@ mod tests {
 
     #[test]
     fn o_set_selects_confounder() {
-        // T <- Z -> Y, T -> Y  (O = pa(Y) \ {T, Y} = {Z})
+        // T <- Z -> Y, T -> Y (O = pa(Y) \ {T, Y} = {Z})
         let mut g = Dag::with_variables(3);
         let t = DenseNodeId::from_raw(0);
         let y = DenseNodeId::from_raw(1);

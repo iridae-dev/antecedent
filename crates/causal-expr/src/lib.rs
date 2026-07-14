@@ -71,7 +71,7 @@ pub enum ContrastOp {
     Difference,
 }
 
-/// Domain reference for a distribution (Phase 1: observational or interventional).
+/// Domain reference for a distribution .
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DomainRef {
     /// Observational P(·).
@@ -80,7 +80,7 @@ pub enum DomainRef {
     Interventional,
 }
 
-/// Outcome function id (Phase 1: identity of a single variable).
+/// Outcome function id .
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct OutcomeExprId(VariableId);
@@ -458,7 +458,7 @@ impl CausalExprArena {
 
     /// Build the Wald IV functional for ATE as a contrast of potential
     /// outcomes with an empty adjustment set; the instrument set is recorded
-    /// only in derivation metadata (Phase 1 keeps the IR unadjusted).
+    /// only in derivation metadata .
     pub fn iv_wald(
         &mut self,
         treatment: VariableId,

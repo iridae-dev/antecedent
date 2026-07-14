@@ -1,0 +1,7 @@
+{
+ "true_effect": 2.0,
+ "tolerance": 0.4,
+ "identifier": "backdoor.adjustment",
+ "estimator": "aipw",
+ "notes": "doubly robust ATE"
+}

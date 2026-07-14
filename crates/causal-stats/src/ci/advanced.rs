@@ -1,4 +1,4 @@
-//! Oracle, kNN/symbolic CMI, and GPDC CI tests (Phase 5).
+//! Oracle, kNN/symbolic CMI, and GPDC CI tests .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

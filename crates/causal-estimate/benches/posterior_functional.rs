@@ -1,4 +1,4 @@
-//! Batched posterior functional evaluation benchmark (Phase 6 exit criterion).
+//! Batched posterior functional evaluation benchmark .
 #![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 
 use std::sync::Arc;

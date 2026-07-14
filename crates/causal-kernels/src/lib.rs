@@ -98,7 +98,7 @@ mod tests {
     }
 
     #[test]
-    fn phase0_gather_hot_path_reuses_output_buffer() {
+    fn gather_hot_path_reuses_output_buffer() {
         let n = 8_000usize;
         let data: Vec<f64> = (0..n).map(|i| i as f64).collect();
         let src = F64VectorView::contiguous(&data);

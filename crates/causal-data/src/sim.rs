@@ -1,6 +1,6 @@
-//! Structural process generators for conformance / toys (Phase 2).
+//! Structural process generators for conformance / toys .
 //!
-//! Full SCM mechanism registry is Phase 7; this module covers lagged linear
+//! Full SCM mechanism registry is ; this module covers lagged linear
 //! processes with known parents for fixtures and notebooks.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

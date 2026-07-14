@@ -1,4 +1,4 @@
-//! Column transforms for discovery / symbolic CI (Phase 5).
+//! Column transforms for discovery / symbolic CI .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

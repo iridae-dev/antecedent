@@ -1,4 +1,4 @@
-//! Graph traversal benchmark baseline (Phase 0).
+//! Graph traversal benchmark baseline .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

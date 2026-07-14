@@ -1,4 +1,4 @@
-"""Phase 5: discover_pcmci_plus and CI name selection."""
+"""discover_pcmci_plus and CI name selection."""
 
 from __future__ import annotations
 

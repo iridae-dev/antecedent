@@ -6,7 +6,7 @@
 
 ## Decision
 
-Correctness and performance are co-equal from Phase 0. There is no late
+Correctness and performance are co-equal from the start. There is no late
 project-wide optimization phase. Hot paths require, from initial
 implementation:
 
@@ -20,6 +20,6 @@ implementation:
 ## Consequences
 
 - Feature PRs are incomplete without representative benchmarks and allocation
-  assertions for designated hot paths.
+ assertions for designated hot paths.
 - Optimizations must not silently change statistical semantics.
 - Parallelism is explicit and bounded via `ExecutionContext`.

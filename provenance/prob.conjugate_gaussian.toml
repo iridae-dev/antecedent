@@ -6,12 +6,12 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Normal–Inv-Gamma conjugate linear regression"] },
+ { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Normal–Inv-Gamma conjugate linear regression"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
-  "closed-form OLS recovery on noiseless linear design",
-  "conformance/phase6/conjugate_gaussian",
+ "closed-form OLS recovery on noiseless linear design",
+ "conformance/bayesian/conjugate_gaussian",
 ]

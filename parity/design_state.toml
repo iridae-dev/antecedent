@@ -1,0 +1,63 @@
+# Status: pending | in_progress | done | intentional_deviation
+
+library = "causal"
+
+[[capabilities]]
+id = "design_state.candidate_types"
+status = "done"
+notes = "Measure / Intervene / ObserveEnvironment / IncreaseSamplingRate plans"
+
+[[capabilities]]
+id = "design_state.eig"
+status = "done"
+notes = "Discrete graph-posterior expected information gain"
+
+[[capabilities]]
+id = "design_state.id_probability"
+status = "done"
+notes = "IncreaseIdentificationProbability over WeightedGraphSamples"
+
+[[capabilities]]
+id = "design_state.effect_width"
+status = "done"
+notes = "ReduceEffectPosteriorWidth via OLS Gram / n scaling"
+
+[[capabilities]]
+id = "design_state.decision_utility"
+status = "done"
+notes = "Batch Utility + DecisionConstraint; EU / regret / chance probs"
+
+[[capabilities]]
+id = "design_state.design_ranker"
+status = "done"
+notes = "Batched MC with CRN, adaptive stop, constraint violations recorded"
+
+[[capabilities]]
+id = "design_state.causal_state"
+status = "done"
+notes = "CausalState event/apply/invalidation without auto-rerun"
+
+[[capabilities]]
+id = "design_state.incremental_ols"
+status = "done"
+notes = "LinearOlsSuffStats append matches full recompute"
+
+[[capabilities]]
+id = "design_state.streaming_cov"
+status = "done"
+notes = "StreamingCovariance Welford updates"
+
+[[capabilities]]
+id = "design_state.cache_budget"
+status = "done"
+notes = "ResultStore refuses over-budget inserts"
+
+[[capabilities]]
+id = "design_state.facade"
+status = "done"
+notes = "rank_designs / new_causal_state / apply_state_event + Python surfaces"
+
+[[capabilities]]
+id = "design_state.incremental.particle_graph_score"
+status = "intentional_deviation"
+notes = "Particle-filter state and full graph-score incremental caches waived; OLS/streaming cov shipped — design_state_deviations.md"

@@ -185,7 +185,7 @@ impl LogicalAnalysisPlan {
         } else {
             Arc::from([ParallelTaskSpec {
                 dimension: Arc::from(match self.record.estimator.as_deref() {
-                    // Every Phase 3/4 estimator supports an optional IID bootstrap; parallelize
+                    // Every /4 estimator supports an optional IID bootstrap; parallelize
                     // over replicates when threads are available.
                     Some(
                         "temporal.linear.adjustment"
@@ -291,7 +291,7 @@ pub fn is_dag_only_identifier(identifier: &str) -> bool {
     )
 }
 
-/// Refuse DAG-only identification on a PAG input (DESIGN.md §21.2 / Phase 8 exit).
+/// Refuse DAG-only identification on a PAG input (DESIGN.md §21.2).
 ///
 /// # Errors
 ///
@@ -329,7 +329,7 @@ pub struct StaticAteCompileInput<'a> {
     pub estimator: Arc<str>,
 }
 
-/// Compile logical plan for static ATE (Phase 4 planner/estimator routing via DESIGN.md §21.2).
+/// Compile logical plan for static ATE .
 ///
 /// # Errors
 ///
@@ -353,7 +353,7 @@ pub fn compile_logical_static_ate(
         });
     }
     let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("phase4.static_ate"),
+        plan_id: Arc::from("static_ate"),
         data_classification: DataClassification::Tabular,
         discovery_algorithm: None,
         graph_review_required: false,
@@ -388,7 +388,7 @@ pub fn compile_logical_temporal_effect(
     let row_count_hint =
         split.map_or_else(|| data.row_count() as u64, |s| s.estimation.len() as u64);
     let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("phase3.temporal_effect"),
+        plan_id: Arc::from("temporal_effect"),
         data_classification: DataClassification::Temporal,
         discovery_algorithm: None,
         graph_review_required: review_required,

@@ -1,4 +1,4 @@
-//! ADMG/PAG m-separation sparse and stress benchmarks (Phase 8 exit).
+//! ADMG/PAG m-separation sparse and stress benchmarks .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

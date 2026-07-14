@@ -1,4 +1,4 @@
-//! Orientation local-delta vs naive global rescan (Phase 5).
+//! Orientation local-delta vs naive global rescan .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

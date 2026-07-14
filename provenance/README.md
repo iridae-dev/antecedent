@@ -12,6 +12,6 @@ Copy [`_template.toml`](_template.toml) to a descriptive name
 - Set `source_translation = false` and `copied_* = false` for clean-room work.
 - Cite papers with DOI and relevant sections.
 - List independent test sources (synthetic SCMs, paper examples, black-box
-  comparison against pinned baselines).
+ comparison against pinned baselines).
 - Never commit upstream GPL source, translated GPL tests, or fixtures with
-  unclear redistribution status.
+ unclear redistribution status.

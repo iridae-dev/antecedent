@@ -1,4 +1,4 @@
-//! Phase 11 incremental causal-state facade helpers.
+//! incremental causal-state facade helpers.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

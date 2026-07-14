@@ -173,8 +173,8 @@ mod tests {
     }
 
     #[test]
-    fn phase0_hot_path_allocation_gate_no_scratch_growth() {
-        // Phase 0 exit: prepared OLS hot path performs no repeated scratch allocation.
+    fn hot_path_allocation_gate_no_scratch_growth() {
+        // Prepared OLS hot path performs no repeated scratch allocation.
         let n = 400usize;
         let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
         let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();

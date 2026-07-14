@@ -1,4 +1,4 @@
-# Propensity bootstrap baselines (Phase 4)
+# Propensity bootstrap baselines 
 
 Owner: `causal-estimate` / `PropensityWeighting::fit`
 
@@ -14,7 +14,7 @@ Owner: `causal-estimate` / `PropensityWeighting::fit`
 - Bench target: `propensity_weighting_ipw_bootstrap50_n800` — n=800, 1 adjustment covariate,
   50 bootstrap replicates, `PropensityWeighting::fit` end to end (propensity fit + Hajek point
   estimate + bootstrap SE).
-- PR CI gate: `scripts/gate_phase4_reuse.sh`.
+- PR CI gate: `scripts/gate_estimate_reuse.sh`.
 
 ## Notes
 

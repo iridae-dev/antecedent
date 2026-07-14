@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Propensity-weighting (IPW) `analyze_ate` example (Phase 4).
+"""Propensity-weighting (IPW) `analyze_ate` example .
 
 Requires a built causal extension (`maturin develop` in python/).
 
 Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(sigmoid(-0.4 + 0.9 Z))`,
 `Y = 2T + Z + noise`. True ATE = 2; a naive unadjusted contrast is biased by
 `Z`, so this exercises the `propensity.weighting` estimator explicitly rather
-than the Phase 0-3 default (`linear.adjustment.ate`).
+than the -3 default (`linear.adjustment.ate`).
 """
 
 from __future__ import annotations

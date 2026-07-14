@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade (DESIGN.md §21 Phase 3).
+//! Unified `CausalAnalysis` facade (DESIGN.md §21).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -57,7 +57,7 @@ pub enum RefuteSuite {
     None,
     /// Placebo + random common cause (linear backdoor only).
     PlaceboAndRcc,
-    /// Full Phase 4 validation suite (applicable validators only; others NotApplicable).
+    /// Full validation suite (applicable validators only; others NotApplicable).
     Full,
 }
 
@@ -238,7 +238,7 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Select the identification strategy for the static ATE path (Phase 4; DESIGN.md §21.2).
+    /// Select the identification strategy for the static ATE path .
     ///
     /// Defaults to `backdoor.adjustment` when unset. Supported ids: `backdoor.adjustment`,
     /// `backdoor.efficient`, `frontdoor`, `iv`, `rd.sharp`. `compile` refuses any
@@ -250,7 +250,7 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Select the estimator for the static ATE path (Phase 4; DESIGN.md §21.2).
+    /// Select the estimator for the static ATE path .
     ///
     /// Defaults to `linear.adjustment.ate` when unset. Supported ids: `linear.adjustment.ate`,
     /// `propensity.weighting`, `propensity.matching`, `propensity.stratification`,
@@ -487,7 +487,7 @@ impl CausalAnalysis {
             }
             _ => {}
         }
-        // The temporal path is Phase 3 linear/temporal-backdoor only; refuse an explicitly
+        // The temporal path is linear/temporal-backdoor only; refuse an explicitly
         // selected non-temporal identifier/estimator rather than silently ignoring it.
         if matches!(&self.query, CausalQuery::TemporalEffect(_)) {
             if let Some(id) = &self.identifier {
@@ -628,7 +628,7 @@ impl CausalAnalysis {
     }
 
     /// Dispatch identify → estimate for the static ATE path, routing on the plan's resolved
-    /// identifier/estimator (Phase 4; DESIGN.md §21.2).
+    /// identifier/estimator .
     fn execute_static(
         &self,
         data: &TabularData,
@@ -960,7 +960,7 @@ fn provenance_pair(first: ProvStep<'_>, second: ProvStep<'_>) -> ProvenanceGraph
             parents: parent_arcs,
             assumptions: assumptions.clone(),
             library_version: Arc::from(VERSION),
-            config_digest: Some(Arc::from("phase3")),
+            config_digest: Some(Arc::from("temporal")),
         });
     }
     provenance

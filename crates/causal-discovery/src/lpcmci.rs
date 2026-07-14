@@ -1,4 +1,4 @@
-//! LPCMCI discovery returning a temporal PAG (DESIGN.md §13.4–13.5, Phase 8).
+//! LPCMCI discovery returning a temporal PAG (DESIGN.md §13.4–13.5).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

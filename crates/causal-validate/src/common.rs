@@ -37,7 +37,7 @@ pub struct RefutationReport {
     pub replicates: u32,
 }
 
-/// Inputs shared by Phase 1 effect refuters.
+/// Inputs shared by effect refuters.
 #[derive(Clone, Copy, Debug)]
 pub struct RefutationProblem<'a> {
     /// Tabular data.

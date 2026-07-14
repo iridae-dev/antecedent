@@ -6,14 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Laplace approximation"] },
+ { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Laplace approximation"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
-  "noiseless Gaussian recovery vs OLS",
-  "Bernoulli logit synthetic separation-safe design",
-  "criterion bench crates/causal-prob/benches/laplace_glm.rs",
-  "conformance/phase6/laplace_glm",
+ "noiseless Gaussian recovery vs OLS",
+ "Bernoulli logit synthetic separation-safe design",
+ "criterion bench crates/causal-prob/benches/laplace_glm.rs",
+ "conformance/bayesian/laplace_glm",
 ]

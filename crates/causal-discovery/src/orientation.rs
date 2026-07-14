@@ -1,4 +1,4 @@
-//! Orientation rules and local delta queues (DESIGN.md §13.6, Phase 5).
+//! Orientation rules and local delta queues (DESIGN.md §13.6).
 //!
 //! Rules enqueue only neighbors of changed edges — never a full-graph edge scan.
 //!
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn meek_r1_orients_chain() {
-        // a → b — c  ⇒  b → c
+        // a → b — c ⇒ b → c
         let mut g = TemporalCpdag::empty();
         let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();

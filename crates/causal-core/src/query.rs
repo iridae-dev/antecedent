@@ -33,7 +33,7 @@ pub struct AverageEffectQuery {
     pub treatment: VariableId,
     /// Outcome variable.
     pub outcome: VariableId,
-    /// Optional effect modifiers (Phase 1: empty / unused by estimators).
+    /// Optional effect modifiers .
     pub effect_modifiers: Arc<[VariableId]>,
     /// Control intervention level (typically treatment = 0).
     pub control: Intervention,
@@ -121,7 +121,7 @@ impl AverageEffectQuery {
     }
 }
 
-/// Temporal effect query over a discrete horizon (DESIGN.md §8 / Phase 3).
+/// Temporal effect query over a discrete horizon (DESIGN.md §8).
 #[derive(Clone, Debug, PartialEq)]
 pub struct TemporalEffectQuery {
     /// Treatment variable.
@@ -276,7 +276,7 @@ pub enum MediationContrast {
     NaturalIndirect,
 }
 
-/// Mediation query: treatment → mediators → outcome (DESIGN.md §8 / Phase 9).
+/// Mediation query: treatment → mediators → outcome (DESIGN.md §8).
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct MediationQuery {
     /// Treatment variable.
@@ -350,7 +350,7 @@ impl MediationQuery {
     }
 }
 
-/// Conditional average effect given effect modifiers (DESIGN.md §8 / Phase 9).
+/// Conditional average effect given effect modifiers (DESIGN.md §8).
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ConditionalEffectQuery {
     /// Inner ATE-style query; `effect_modifiers` must be non-empty.
@@ -392,15 +392,15 @@ pub enum CausalQuery {
     AverageEffect(AverageEffectQuery),
     /// Temporal effect over a discrete horizon.
     TemporalEffect(TemporalEffectQuery),
-    /// Counterfactual / unit-level what-if query (Phase 7).
+    /// Counterfactual / unit-level what-if query .
     Counterfactual(CounterfactualQuery),
-    /// Anomaly attribution for one or more units (Phase 7).
+    /// Anomaly attribution for one or more units .
     AnomalyAttribution(AnomalyAttributionQuery),
-    /// Distribution / population change attribution (Phase 10).
+    /// Distribution / population change attribution .
     ChangeAttribution(ChangeAttributionQuery),
-    /// Mechanism-change detection — not attribution (Phase 10 / DESIGN.md §17.3).
+    /// Mechanism-change detection — not attribution .
     MechanismChange(MechanismChangeQuery),
-    /// Per-unit change attribution (Phase 10).
+    /// Per-unit change attribution .
     UnitChange(UnitChangeQuery),
     /// Mediation (direct / mediated / natural effects).
     Mediation(MediationQuery),
@@ -453,7 +453,7 @@ impl CounterfactualQuery {
     }
 }
 
-/// Anomaly attribution query for observed units (DESIGN.md §17 / Phase 7 basic).
+/// Anomaly attribution query for observed units (DESIGN.md §17 basic).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AnomalyAttributionQuery {
     /// Variables whose anomaly scores are requested.
@@ -975,9 +975,9 @@ impl CausalQuery {
         Self::ConditionalEffect(query)
     }
 
-    /// Whether this query is the Phase 1 static ATE path.
+    /// Whether this query is the static ATE path.
     #[must_use]
-    pub const fn is_phase1_ate(&self) -> bool {
+    pub const fn is_static_ate(&self) -> bool {
         matches!(self, Self::AverageEffect(_))
     }
 
@@ -1178,12 +1178,12 @@ mod tests {
     }
 
     #[test]
-    fn causal_query_phase1_flag() {
+    fn causal_query_static_ate_flag() {
         let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
-        assert!(q.is_phase1_ate());
+        assert!(q.is_static_ate());
         assert!(!q.is_temporal_effect());
     }
 

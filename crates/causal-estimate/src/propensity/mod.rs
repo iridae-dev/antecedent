@@ -1,4 +1,4 @@
-//! Propensity-based estimators: weighting, stratification, and matching (Phase 4).
+//! Propensity-based estimators: weighting, stratification, and matching .
 //!
 //! All estimators here require propensity-based positivity diagnostics
 //! ([`OverlapPolicy::RequireDiagnostics`]) — [`OverlapPolicy::ExplicitOverride`] is refused

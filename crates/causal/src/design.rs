@@ -1,4 +1,4 @@
-//! Phase 11 experiment / measurement design facade helpers.
+//! experiment / measurement design facade helpers.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

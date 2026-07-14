@@ -1,0 +1,12 @@
+{
+ "fixture": "graph_dot_json",
+ "description": "DOT and JSON DAG interchange round-trip",
+ "dot": "digraph {\n 0 -> 1;\n 1 -> 2;\n}",
+ "json": {
+ "node_count": 3,
+ "edges": [[0, 1], [1, 2]],
+ "variable_names": ["a", "b", "c"]
+ },
+ "expected_node_count": 3,
+ "expected_edges": [[0, 1], [1, 2]]
+}

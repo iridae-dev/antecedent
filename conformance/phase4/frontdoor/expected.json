@@ -1,7 +1,0 @@
-{
-  "true_effect": 2.0,
-  "tolerance": 0.35,
-  "identifier": "frontdoor",
-  "estimator": "frontdoor.two_stage",
-  "notes": "synthetic SCM; clean-room; U->T->M->Y with U->Y confounding and no direct T->Y edge (U unmeasured, absent from the graph); M=1*T+noise, Y=2*M+U+noise; two-stage product-of-coefficients recovers effect=1*2=2"
-}

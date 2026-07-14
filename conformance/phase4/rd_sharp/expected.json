@@ -1,7 +1,0 @@
-{
-  "true_effect": 3.0,
-  "tolerance": 0.5,
-  "identifier": "rd.sharp",
-  "estimator": "rd.sharp",
-  "notes": "sharp RD jump"
-}

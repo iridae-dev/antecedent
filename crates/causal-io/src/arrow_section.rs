@@ -1,4 +1,4 @@
-//! Arrow IPC section helpers for the artifact container (Phase 0 skeleton).
+//! Arrow IPC section helpers for the artifact container .
 //!
 //! Large numerical payloads use Arrow IPC bytes rather than CBOR arrays
 //! (DESIGN.md §24). This module records the section content type and wraps

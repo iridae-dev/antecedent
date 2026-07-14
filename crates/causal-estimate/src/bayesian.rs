@@ -1,4 +1,4 @@
-//! Bayesian mechanisms, g-computation, and posterior functional evaluation (Phase 6).
+//! Bayesian mechanisms, g-computation, and posterior functional evaluation .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

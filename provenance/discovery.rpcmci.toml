@@ -6,14 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "RPCMCI: Regime-PCMCI", sections = ["regime assignments / per-regime graphs"] },
+ { title = "RPCMCI: Regime-PCMCI", sections = ["regime assignments / per-regime graphs"] },
 ]
 
 upstream_implementations_observed = [
-  { project = "tigramite", exposure = "black-box comparison only" },
+ { project = "tigramite", exposure = "black-box comparison only" },
 ]
 
 test_sources = [
-  "two-regime unit test",
-  "conformance/phase9/rpcmci_two_regime",
+ "two-regime unit test",
+ "conformance/tigramite/rpcmci_two_regime",
 ]

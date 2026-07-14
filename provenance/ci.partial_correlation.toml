@@ -6,14 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Detecting and quantifying causal associations in large nonlinear time series datasets", doi = "10.1126/sciadv.aau4996", sections = ["ParCorr conditional independence"] },
+ { title = "Detecting and quantifying causal associations in large nonlinear time series datasets", doi = "10.1126/sciadv.aau4996", sections = ["ParCorr conditional independence"] },
 ]
 
 upstream_implementations_observed = [
-  { project = "tigramite", exposure = "black-box comparison only" },
+ { project = "tigramite", exposure = "black-box comparison only" },
 ]
 
 test_sources = [
-  "independently generated residualized Gaussian samples",
-  "exercised end-to-end via PCMCI conformance (conformance/tigramite/pcmci_lag1)",
+ "independently generated residualized Gaussian samples",
+ "exercised end-to-end via PCMCI conformance (conformance/tigramite/pcmci_lag1)",
 ]

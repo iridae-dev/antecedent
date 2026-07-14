@@ -1,4 +1,4 @@
-//! Conditional ATE with effect modifiers (Phase 9 / `dowhy.estimate.conditional`).
+//! Conditional ATE with effect modifiers .
 //!
 //! Fits `Y ~ 1 + T + W + T×W` and reports the average treatment effect
 //! marginalized over observed modifier values:

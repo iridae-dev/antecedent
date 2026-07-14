@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manufacturing-style temporal analyze() example (Phase 3).
+"""Manufacturing-style temporal analyze() example .
 
 Requires a built causal extension (`maturin develop` in python/).
 """

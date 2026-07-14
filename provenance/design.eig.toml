@@ -6,12 +6,12 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Elements of Information Theory (Cover & Thomas)", doi = "10.1002/047174882X", sections = ["mutual information / entropy"] },
+ { title = "Elements of Information Theory (Cover & Thomas)", doi = "10.1002/047174882X", sections = ["mutual information / entropy"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
-  "independently generated synthetic graph posteriors",
-  "DESIGN.md §19 ranking requirements",
+ "independently generated synthetic graph posteriors",
+ "DESIGN.md §19 ranking requirements",
 ]

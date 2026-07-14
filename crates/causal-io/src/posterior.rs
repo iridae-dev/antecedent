@@ -1,4 +1,4 @@
-//! Wire types and encode/decode for columnar posterior artifacts (Phase 6).
+//! Wire types and encode/decode for columnar posterior artifacts .
 //!
 //! Draws live in an Arrow-IPC (or raw f64 LE) numerical section; metadata is CBOR.
 //! Internal Rust structs are never serialized directly.

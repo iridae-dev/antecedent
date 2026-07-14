@@ -1,4 +1,4 @@
-//! Prior/posterior predictive checks and prior sensitivity (DESIGN.md §18.4 Phase 6 subset).
+//! Prior/posterior predictive checks and prior sensitivity (DESIGN.md §18.4 subset).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

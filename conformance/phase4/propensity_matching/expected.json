@@ -1,7 +1,0 @@
-{
-  "true_effect": 2.0,
-  "tolerance": 0.5,
-  "identifier": "backdoor.adjustment",
-  "estimator": "propensity.matching",
-  "notes": "ATT matching on propensity"
-}

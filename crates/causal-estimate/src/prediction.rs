@@ -1,4 +1,4 @@
-//! Temporal linear model prediction under interventions (Phase 9).
+//! Temporal linear model prediction under interventions .
 //!
 //! Fit a lagged linear SEM once, then batch-predict under `do()` without
 //! Python-per-horizon crossings.

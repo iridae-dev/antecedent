@@ -1,4 +1,4 @@
-//! PCMCI+ returning a temporal CPDAG (DESIGN.md §13.4–13.5, Phase 5).
+//! PCMCI+ returning a temporal CPDAG (DESIGN.md §13.4–13.5).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

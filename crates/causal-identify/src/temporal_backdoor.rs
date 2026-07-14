@@ -99,7 +99,7 @@ impl TemporalBackdoorIdentifier {
         })?;
         let treatment_at = query.treatment_offset();
         let outcome_at = query.outcome_offset();
-        // Pulse-only for Phase 3 single-node backdoor.
+        // Pulse-only for single-node backdoor.
         if matches!(query.policy, TemporalPolicy::Sustained { .. }) {
             return Err(IdentificationError::UnsupportedQuery {
                 message: "temporal backdoor identification supports Pulse policies only; \
@@ -108,7 +108,7 @@ impl TemporalBackdoorIdentifier {
         }
         if !matches!(query.policy, TemporalPolicy::Pulse { .. }) {
             return Err(IdentificationError::UnsupportedQuery {
-                message: "unsupported temporal policy for Phase 3 backdoor identification",
+                message: "unsupported temporal policy for backdoor identification",
             });
         }
 

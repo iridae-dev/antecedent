@@ -36,7 +36,7 @@ pub enum SeparationResult {
     Separated {
         /// Conditioning set.
         conditioning: Vec<DenseNodeId>,
-        /// Certificate (Phase 1: echoes conditioning).
+        /// Certificate .
         certificate: SeparationCertificate,
     },
     /// d-connected; `active_path` is an undirected path in the moral graph

@@ -1,4 +1,4 @@
-//! G-squared and regression CI tests (Phase 5).
+//! G-squared and regression CI tests .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

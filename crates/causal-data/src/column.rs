@@ -192,7 +192,7 @@ impl Int64Column {
     }
 }
 
-/// Owned boolean column (bytes: 0/1 per row for Phase 0 simplicity).
+/// Owned boolean column (bytes: 0/1 per row for simplicity).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BooleanColumn {
     /// Variable id.

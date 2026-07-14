@@ -1,9 +1,9 @@
-# Pointer into conformance/ for the Phase 2 Tigramite PCMCI fixture.
+# Pointer into conformance/ for the Tigramite PCMCI fixture.
 
 id = "tigramite.pcmci_lag1"
 capability_ids = [
-  "tigramite.ci.partial_corr",
-  "tigramite.discovery.pcmci",
+ "tigramite.ci.partial_corr",
+ "tigramite.discovery.pcmci",
 ]
 fixture_dir = "conformance/tigramite/pcmci_lag1"
 tolerance_class = "Exact"

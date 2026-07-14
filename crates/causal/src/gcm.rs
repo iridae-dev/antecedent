@@ -1,4 +1,4 @@
-//! Phase 7 GCM workflow helpers (fit → sample → CF → anomaly).
+//! GCM workflow helpers (fit → sample → CF → anomaly).
 //!
 //! Thin facade over `causal-model` / `causal-counterfactual` / `causal-attribution`
 //! so planners and Python bind once at the library boundary.

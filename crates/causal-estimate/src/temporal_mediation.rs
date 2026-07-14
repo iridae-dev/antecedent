@@ -1,4 +1,4 @@
-//! Linear temporal mediation effects (Phase 9 / Tigramite effects parity).
+//! Linear temporal mediation effects .
 //!
 //! Path-product decomposition on lagged samples: total = direct + mediated
 //! under a linear SEM with a single mediator.

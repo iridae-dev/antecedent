@@ -1,4 +1,4 @@
-//! PCMCI parent-search / MCI benchmark (Phase 2).
+//! PCMCI parent-search / MCI benchmark .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

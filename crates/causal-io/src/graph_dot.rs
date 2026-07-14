@@ -1,4 +1,4 @@
-//! DOT digraph subset import/export for causal DAGs (DESIGN.md §24 / Phase 12).
+//! DOT digraph subset import/export for causal DAGs (DESIGN.md §24).
 //!
 //! Supports `digraph [name] { A -> B; ... }` with identifier or quoted node ids.
 //! Attribute lists `[...]` are skipped. Undirected edges and subgraphs are rejected.
@@ -126,13 +126,13 @@ pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> String {
     for &(from, to) in &wire.edges {
         if use_names {
             let names = names.expect("checked");
-            out.push_str("  ");
+            out.push_str(" ");
             push_quoted(&mut out, &names[from as usize]);
             out.push_str(" -> ");
             push_quoted(&mut out, &names[to as usize]);
             out.push_str(";\n");
         } else {
-            out.push_str(&format!("  {from} -> {to};\n"));
+            out.push_str(&format!(" {from} -> {to};\n"));
         }
     }
     // Ensure isolated nodes appear when names are provided.
@@ -145,14 +145,14 @@ pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> String {
         }
         for (i, present) in seen.iter().enumerate() {
             if !*present {
-                out.push_str("  ");
+                out.push_str(" ");
                 push_quoted(&mut out, &names[i]);
                 out.push_str(";\n");
             }
         }
     } else if wire.edges.is_empty() {
         for i in 0..wire.node_count {
-            out.push_str(&format!("  {i};\n"));
+            out.push_str(&format!(" {i};\n"));
         }
     }
     out.push('}');

@@ -1,4 +1,4 @@
-//! Regime discovery sparse/stress benches (Phase 9).
+//! Regime discovery sparse/stress benches .
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -60,7 +60,7 @@ fn series(n: usize) -> TimeSeriesData {
 }
 
 fn bench_rpcmci(c: &mut Criterion) {
-    // Soft budgets from benches/baselines/phase9_regime_mediation.md (Apple M1 class).
+    // Soft budgets from benches/baselines/regime_mediation.md (Apple M1 class).
     const SPARSE_BUDGET: Duration = Duration::from_millis(500);
     const STRESS_BUDGET: Duration = Duration::from_secs(2);
 

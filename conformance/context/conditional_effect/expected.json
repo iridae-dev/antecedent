@@ -1,0 +1,5 @@
+{
+ "ate_target": 3.0,
+ "ate_tol": 0.3,
+ "tolerance_class": "Numeric"
+}

@@ -8,7 +8,7 @@ use causal_core::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Wire form of an assumption tag (Phase 1 subset).
+/// Wire form of an assumption tag .
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AssumptionTagWire {

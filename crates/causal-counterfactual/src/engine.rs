@@ -26,7 +26,7 @@ use crate::error::CounterfactualError;
 pub enum NoiseInferenceKind {
     /// Exact inversion of invertible structural assignments.
     Invertible,
-    /// Posterior / sampled noise (not used in Phase 7 base path).
+    /// Posterior / sampled noise (not used in base path).
     PosteriorNoise,
     /// Assumed independent noise draws (no abduction).
     AssumedNoise,

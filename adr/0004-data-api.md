@@ -14,5 +14,5 @@ physical representation. Arrow crate types are **not** the public causal API.
 ## Consequences
 
 - Algorithms operate on typed slices, bitmaps, and prepared buffers after one
-  dispatch at the column boundary.
+ dispatch at the column boundary.
 - Materialization is explicit and recorded in execution diagnostics.

@@ -38,9 +38,9 @@ def synthesize() -> list[dict[str, float]]:
 
 def try_dowhy(rows: list[dict[str, float]]) -> dict:
     try:
-        import pandas as pd  # type: ignore
-        import dowhy  # type: ignore
-        from dowhy import CausalModel  # type: ignore
+        import pandas as pd # type: ignore
+        import dowhy # type: ignore
+        from dowhy import CausalModel # type: ignore
     except ImportError:
         return {
             "available": False,

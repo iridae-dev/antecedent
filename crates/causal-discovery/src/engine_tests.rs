@@ -152,7 +152,7 @@ fn parallel_matches_serial_link_set() {
 }
 
 #[test]
-fn phase2_ci_hot_path_no_scratch_growth() {
+fn ci_hot_path_no_scratch_growth() {
     let (data, vars) = var_series();
     let frame = LaggedFrame::from_series(&data, &vars, 2).unwrap();
     let engine = PcmciEngine::new().with_constraints(constraints());

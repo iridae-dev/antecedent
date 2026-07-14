@@ -1,4 +1,4 @@
-# PCMCI benchmark baseline (Phase 2)
+# PCMCI benchmark baseline
 
 Workload: `pcmci_n500_p4_lag2` — lagged PCMCI (PC parents + MCI, FDR off,
 `max_cond_size=1`, `max_lag=2`) on a synthetic 4-variable series of length 500.
@@ -26,10 +26,10 @@ Steady-state candidate loop (after one warmup CI):
 
 - one `LaggedFrame` per `run` (`p * (max_lag+1) * n_effective * 8` bytes);
 - `DiscoveryWorkspace` scratch (`col_idxs`, `z_flat`, `ci.parcorr`) must not
-  grow capacity across repeated CI calls;
+ grow capacity across repeated CI calls;
 - no per-CI `SamplePlan` / `Arc<[LaggedColumn]>` rebuild.
 
-Gate: `phase2_ci_hot_path_no_scratch_growth` in `causal-discovery`.
+Gate: `ci_hot_path_no_scratch_growth` in `causal-discovery`.
 
 ## Target-wise parallel scaling
 

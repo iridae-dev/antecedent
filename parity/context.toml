@@ -1,0 +1,66 @@
+# Context / regime / effects capability inventory
+# Fine-grained rows for gate evidence. Coarse Tigramite/DoWhy flips live in
+# `tigramite.toml` / `dowhy.toml`.
+
+[[capabilities]]
+id = "context.panel_data"
+group = "data"
+description = "PanelData + copy-avoiding multi-env SamplePlan"
+status = "done"
+owner = "context"
+notes = "crates/causal-data panel.rs / multi_env_plan.rs"
+
+[[capabilities]]
+id = "context.context_graph"
+group = "graphs"
+description = "Context nodes on TemporalCpdag + MultiDatasetConstraints"
+status = "done"
+owner = "context"
+
+[[capabilities]]
+id = "context.jpcmci_plus"
+group = "discovery"
+description = "JpcmciPlus on MultiEnvironmentData"
+status = "done"
+owner = "context"
+notes = "conformance/tigramite/jpcmci_plus_two_env"
+
+[[capabilities]]
+id = "context.rpcmci"
+group = "discovery"
+description = "Rpcmci regime assignments + per-regime graphs"
+status = "done"
+owner = "context"
+notes = "conformance/tigramite/rpcmci_two_regime"
+
+[[capabilities]]
+id = "context.mediation"
+group = "identify_estimate"
+description = "MediationQuery + temporal mediation ID/estimate"
+status = "done"
+owner = "context"
+notes = "conformance/context/temporal_mediation"
+
+[[capabilities]]
+id = "context.conditional"
+group = "estimate"
+description = "ConditionalEffectQuery / ConditionalLinearAdjustment"
+status = "done"
+owner = "context"
+notes = "conformance/context/conditional_effect"
+
+[[capabilities]]
+id = "context.prediction"
+group = "estimate"
+description = "TemporalLinearPredictor intervene+predict"
+status = "done"
+owner = "context"
+notes = "conformance/context/prediction_smoke"
+
+[[capabilities]]
+id = "context.mediation.nonparametric"
+group = "identify_estimate"
+description = "Nonparametric / path-specific natural-effect ID beyond linear SEM"
+status = "intentional_deviation"
+owner = "context"
+notes = "Linear temporal NDE/NIE shipped; exotic variants waived — context_deviations.md"

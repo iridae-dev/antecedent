@@ -15,4 +15,4 @@ conventions are confined to import/export adapters.
 
 - Graph and discovery hot paths use `DenseNodeId`, never string names.
 - Serialized artifacts carry stable variable schemas and lag metadata, not
-  dense node IDs.
+ dense node IDs.

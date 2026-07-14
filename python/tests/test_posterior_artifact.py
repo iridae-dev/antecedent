@@ -1,4 +1,4 @@
-"""Phase 6: posterior artifact encode/decode round-trip from Python."""
+"""posterior artifact encode/decode round-trip from Python."""
 
 from __future__ import annotations
 

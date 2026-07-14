@@ -1,4 +1,4 @@
-//! Generalized adjustment for CPDAG/PAG classes (DESIGN.md §10.2 / Phase 8).
+//! Generalized adjustment for CPDAG/PAG classes (DESIGN.md §10.2).
 //!
 //! Identification over a PAG streams bounded completions and aggregates an
 //! [`IdentificationEnvelope`], preserving unidentified mass.

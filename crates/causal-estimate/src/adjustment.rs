@@ -65,7 +65,7 @@ pub struct LinearAdjustmentAte {
     pub backend: FaerBackend,
     /// Bootstrap replicates (0 = skip bootstrap).
     pub bootstrap_replicates: u32,
-    /// Overlap policy (must be explicit in Phase 1).
+    /// Overlap policy (must be explicit in).
     pub overlap: OverlapPolicy,
 }
 
@@ -220,11 +220,11 @@ pub(crate) fn intervention_f64(intervention: &Intervention) -> Result<f64, Estim
     match intervention {
         Intervention::Set { value, .. } => value.as_f64().ok_or_else(|| {
             EstimationError::UnsupportedQuery(
-                "Phase 1 linear adjustment requires numeric treatment levels".into(),
+                " linear adjustment requires numeric treatment levels".into(),
             )
         }),
         _ => Err(EstimationError::UnsupportedQuery(
-            "Phase 1 linear adjustment requires Set interventions".into(),
+            " linear adjustment requires Set interventions".into(),
         )),
     }
 }

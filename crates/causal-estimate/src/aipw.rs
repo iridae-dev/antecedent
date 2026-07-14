@@ -1,4 +1,4 @@
-//! Augmented inverse-probability weighting (AIPW / doubly robust) ATE estimator (Phase 4).
+//! Augmented inverse-probability weighting (AIPW / doubly robust) ATE estimator .
 //!
 //! Combines an outcome regression (μ0(Z), μ1(Z), fit separately per treatment arm) with
 //! inverse-probability weighting of the residuals, so the estimator is consistent if *either*
@@ -67,7 +67,7 @@ pub struct AipwWorkspace {
 
 /// Doubly robust (AIPW) ATE estimator.
 ///
-/// Phase 4 supports [`TargetPopulation::AllObserved`] only; ATT/ATC are rejected with a clear
+// supports [`TargetPopulation::AllObserved`] only; ATT/ATC are rejected with a clear
 /// [`EstimationError::UnsupportedQuery`]. Positivity is mandatory: [`OverlapPolicy::ExplicitOverride`]
 /// is refused.
 #[derive(Clone, Debug)]

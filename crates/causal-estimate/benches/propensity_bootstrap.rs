@@ -1,4 +1,4 @@
-//! Propensity-weighting bootstrap benchmark (Phase 4).
+//! Propensity-weighting bootstrap benchmark .
 //!
 //! Times `PropensityWeighting::fit` with bootstrap replicates enabled, refitting the
 //! propensity model each replicate while reusing `PropensityEstimationWorkspace` scratch.

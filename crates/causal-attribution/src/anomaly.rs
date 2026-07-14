@@ -1,4 +1,4 @@
-//! Basic anomaly attribution and arrow strength (DESIGN.md §17 Phase 7 slice).
+//! Basic anomaly attribution and arrow strength (DESIGN.md §17 slice).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

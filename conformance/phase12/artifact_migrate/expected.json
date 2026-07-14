@@ -1,6 +1,0 @@
-{
-  "fixture": "artifact_migrate",
-  "stable_format": { "major": 0, "minor": 1 },
-  "kinds": ["schema_graph", "analysis_trace", "causal_posterior"],
-  "migration": "identity_0_1"
-}

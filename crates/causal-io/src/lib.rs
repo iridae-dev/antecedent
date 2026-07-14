@@ -94,7 +94,7 @@ mod tests {
                 library_version: SemanticVersion::from_crate_version(VERSION),
                 artifact_id: "test-schema-graph".into(),
                 sections: vec![schema_desc, dag_desc],
-                provenance: ProvenanceWire { note: "phase0-roundtrip".into() },
+                provenance: ProvenanceWire { note: "roundtrip".into() },
             },
             sections: vec![
                 SectionBytes { id: "schema".into(), data: schema_bytes },
@@ -149,7 +149,7 @@ mod tests {
                 library_version: SemanticVersion::from_crate_version(VERSION),
                 artifact_id: "test-analysis-trace".into(),
                 sections: vec![desc],
-                provenance: ProvenanceWire { note: "phase1-trace".into() },
+                provenance: ProvenanceWire { note: "trace".into() },
             },
             sections: vec![SectionBytes { id: "analysis.trace".into(), data: bytes }],
         };

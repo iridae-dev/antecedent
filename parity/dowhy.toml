@@ -13,8 +13,7 @@ id = "dowhy.model_graph.construction"
 group = "model_and_graph_workflow"
 description = "Causal model construction from data and graph"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 notes = "CausalAnalysis builder + data/graph/query; Python analyze_ate / analyze"
 
 [[capabilities]]
@@ -22,8 +21,7 @@ id = "dowhy.model_graph.treatment_outcome"
 group = "model_and_graph_workflow"
 description = "Explicit treatment/outcome/effect modifiers"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 notes = "AverageEffectQuery + RoleHint + effect_modifiers in causal-core"
 
 [[capabilities]]
@@ -31,17 +29,15 @@ id = "dowhy.model_graph.parsing"
 group = "model_and_graph_workflow"
 description = "Graph parsing and validation"
 status = "done"
-owner = "phase12"
-phase = 12
-notes = "DOT+JSON via causal-io; programmatic DAG + CBOR; GML/NetworkX waived (phase12_deviations)"
+owner = "release"
+notes = "DOT+JSON via causal-io; programmatic DAG + CBOR; GML/NetworkX waived (release_deviations)"
 
 [[capabilities]]
 id = "dowhy.model_graph.assumptions"
 group = "model_and_graph_workflow"
 description = "Inspectable assumptions"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 notes = "typed Assumption* on identify + wire/provenance; Python exposes counts"
 
 [[capabilities]]
@@ -49,16 +45,14 @@ id = "dowhy.model_graph.workflow"
 group = "model_and_graph_workflow"
 description = "Model, identify, estimate, refute workflow"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.identify.adjustment_sets"
 group = "identification"
 description = "Adjustment sets"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 notes = "backdoor + efficient adjustment search; same as identify.backdoor / efficient_backdoor"
 
 [[capabilities]]
@@ -66,154 +60,135 @@ id = "dowhy.identify.automatic"
 group = "identification"
 description = "Automatic identification"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.identify.backdoor"
 group = "identification"
 description = "Backdoor"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.identify.efficient_backdoor"
 group = "identification"
 description = "Efficient backdoor"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.identify.general_id"
 group = "identification"
 description = "General ID"
 status = "intentional_deviation"
-owner = "phase12"
-phase = 8
-notes = "Full Shpitser ID/IDC waived; generalized adjustment + envelope (see phase12_deviations / pag.toml)"
+owner = "release"
+notes = "Full Shpitser ID/IDC waived; generalized adjustment + envelope (see release_deviations / pag.toml)"
 
 [[capabilities]]
 id = "dowhy.identify.estimand"
 group = "identification"
 description = "Identified-estimand representation"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.estimate.linear_regression"
 group = "estimation"
 description = "Linear regression"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.estimate.glm"
 group = "estimation"
 description = "Generalized linear model"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.estimate.propensity"
 group = "estimation"
 description = "Propensity base, matching, stratification, weighting"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.estimate.matching"
 group = "estimation"
 description = "Distance matching"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.estimate.doubly_robust"
 group = "estimation"
 description = "Doubly robust"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.estimate.iv"
 group = "estimation"
 description = "Instrumental variables"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.estimate.rd"
 group = "estimation"
 description = "Regression discontinuity"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.estimate.two_stage"
 group = "estimation"
 description = "Two-stage regression"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.estimate.conditional"
 group = "estimation"
 description = "Conditional effects / effect modifiers"
 status = "done"
-owner = "phase9"
-phase = 9
-notes = "ConditionalLinearAdjustment; conformance/phase9/conditional_effect"
+owner = "context"
+notes = "ConditionalLinearAdjustment; conformance/context/conditional_effect"
 
 [[capabilities]]
 id = "dowhy.refute.placebo"
 group = "refutation_and_sensitivity"
 description = "Placebo treatment"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.refute.random_common_cause"
 group = "refutation_and_sensitivity"
 description = "Random common cause"
 status = "done"
-owner = "phase1"
-phase = 1
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.refute.bootstrap"
 group = "refutation_and_sensitivity"
 description = "Bootstrap"
 status = "done"
-owner = "phase4"
-phase = 1
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.refute.unobserved_common_cause"
 group = "refutation_and_sensitivity"
 description = "Unobserved common cause"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.refute.overlap"
 group = "refutation_and_sensitivity"
 description = "Overlap and overlap-rule assessment"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 notes = "OverlapRefuter + OverlapRuleRefuter (Crump-style retained support)."
 
 [[capabilities]]
@@ -221,40 +196,35 @@ id = "dowhy.refute.data_subset"
 group = "refutation_and_sensitivity"
 description = "Data subset"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.refute.dummy_outcome"
 group = "refutation_and_sensitivity"
 description = "Dummy outcome"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.refute.evalue"
 group = "refutation_and_sensitivity"
 description = "E-value"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.refute.graph"
 group = "refutation_and_sensitivity"
 description = "Graph refutation"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 
 [[capabilities]]
 id = "dowhy.refute.sensitivity"
 group = "refutation_and_sensitivity"
 description = "Linear, partial-linear, nonparametric, and Reisz-representer sensitivity"
 status = "done"
-owner = "phase4"
-phase = 4
+owner = "estimate"
 notes = "Nonparametric = NW residualization + partial-R² grid; Reisz = IPW representer L2 bounds."
 
 [[capabilities]]
@@ -262,8 +232,7 @@ id = "dowhy.do_sampling"
 group = "do_sampling"
 description = "Do-sampling (weighting, KDE, MCMC)"
 status = "done"
-owner = "phase7"
-phase = 7
+owner = "gcm"
 notes = "causal-model WeightingDoSampler / KdeDoSampler / McmcDoSampler"
 
 [[capabilities]]
@@ -271,17 +240,15 @@ id = "dowhy.gcm"
 group = "gcm"
 description = "GCM mechanisms, attribution, falsification, Shapley utilities"
 status = "done"
-owner = "phase7"
-phase = 7
-notes = "Core GCM+CF+basic anomaly/arrow strength done; Shapley → Phase 10 (parity/gcm.toml)"
+owner = "gcm"
+notes = "Core GCM+CF+basic anomaly/arrow strength done; Shapley in attribution inventory (parity/gcm.toml)"
 
 [[capabilities]]
 id = "dowhy.secondary"
 group = "secondary_surfaces"
 description = "Graph learners, transformers, interpreters, time-series helpers"
 status = "intentional_deviation"
-owner = "phase12"
-phase = 12
+owner = "release"
 notes = "DoWhy secondary grab-bag waived; discovery/transforms/effects tracked as dedicated capability IDs"
 
 [excluded]

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Phase 7).
+Accepted.
 
 ## Context
 
@@ -13,14 +13,14 @@ the semantic graph per draw. DESIGN.md §15.6 / §16.1 forbid both on the hot pa
 ## Decision
 
 - Compile each DAG once into a `CompiledCausalModel` (topo order + parent gather
-  plans + mechanism store).
+ plans + mechanism store).
 - Apply interventions as immutable `InterventionOverlay` views; never clone the
-  SCM per world or draw.
+ SCM per world or draw.
 - Dispatch mechanisms via monomorphized / enum kernels, not trait-object-per-scalar.
 - Counterfactuals abduce exogenous noise once, then reuse it across action
-  overlays (AAP), recording `NoiseInferenceKind` on results.
-- Shapley / distribution-change attribution remain Phase 10
-  (`parity/phase7_deviations.md`).
+ overlays (AAP), recording `NoiseInferenceKind` on results.
+- Shapley / distribution-change attribution live in the attribution inventory
+ (`parity/gcm_deviations.md`).
 
 ## Consequences
 

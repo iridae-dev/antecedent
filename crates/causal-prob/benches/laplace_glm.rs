@@ -1,4 +1,4 @@
-//! Laplace GLM workspace-reuse benchmark (Phase 6 exit criterion).
+//! Laplace GLM workspace-reuse benchmark .
 #![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 
 use causal_prob::{
