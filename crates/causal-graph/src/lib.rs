@@ -7,12 +7,14 @@
 
 pub mod admg;
 pub mod ancestry;
+pub mod completion;
 pub mod cpdag;
 pub mod dag;
 pub mod dsep;
 pub mod error;
 pub mod msep;
 pub mod pag;
+pub mod projection;
 pub mod temporal;
 pub mod temporal_pag;
 pub mod types;
@@ -20,11 +22,13 @@ pub mod unfold;
 pub mod workspace;
 
 pub use admg::Admg;
+pub use completion::{CompletionSampler, PagCompletion};
 pub use cpdag::{Cpdag, TemporalCpdag};
 pub use dag::Dag;
 pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
 pub use error::GraphError;
 pub use pag::{DefiniteStatusPath, Pag};
+pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use temporal::TemporalDag;
 pub use temporal_pag::TemporalPag;
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
