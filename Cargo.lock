@@ -375,6 +375,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "causal-state"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+ "causal-stats",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "causal-stats"
 version = "0.1.0"
 dependencies = [
