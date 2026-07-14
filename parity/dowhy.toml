@@ -164,9 +164,10 @@ phase = 4
 id = "dowhy.estimate.conditional"
 group = "estimation"
 description = "Conditional effects / effect modifiers"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase9"
 phase = 9
+notes = "ConditionalLinearAdjustment; conformance/phase9/conditional_effect"
 
 [[capabilities]]
 id = "dowhy.refute.placebo"

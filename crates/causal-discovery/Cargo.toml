@@ -33,3 +33,7 @@ harness = false
 [[bench]]
 name = "pag_orientation"
 harness = false
+
+[[bench]]
+name = "rpcmci"
+harness = false

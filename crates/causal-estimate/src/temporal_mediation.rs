@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use causal_core::{ExecutionContext, Lag, MediationContrast, MediationQuery, VariableId};
+use causal_core::{ExecutionContext, Lag, MediationContrast, MediationQuery};
 use causal_data::{LaggedColumn, SampleWorkspace, TimeSeriesData};
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{FaerBackend, form_xtx, invert_square};
@@ -230,7 +230,7 @@ impl TemporalMediationEstimator {
 mod tests {
     use causal_core::{
         CausalSchemaBuilder, ExecutionContext, MeasurementSpec, MediationContrast, RoleHint,
-        SmallRoleSet, ValueType,
+        SmallRoleSet, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
