@@ -9,6 +9,7 @@ pub mod arrow_section;
 pub mod container;
 pub mod convert;
 pub mod error;
+pub mod posterior;
 pub mod trace;
 pub mod wire;
 
@@ -18,6 +19,9 @@ pub use container::{
 };
 pub use convert::{dag_from_wire, dag_to_wire, from_cbor, schema_to_wire, to_cbor};
 pub use error::IoError;
+pub use posterior::{
+    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact, encode_posterior_artifact,
+};
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,
     assumptions_to_wire,

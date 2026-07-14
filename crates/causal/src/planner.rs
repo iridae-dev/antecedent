@@ -265,6 +265,7 @@ fn validate_static_pair(identifier: &str, estimator: &str) -> Result<(), Analysi
                 | "distance.matching"
                 | "aipw"
                 | "glm.adjustment"
+                | "bayesian.gcomp"
         ) | ("frontdoor", "frontdoor.two_stage")
             | ("iv", "iv.wald" | "iv.2sls")
             | ("rd.sharp", "rd.sharp")

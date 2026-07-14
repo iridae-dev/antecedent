@@ -1,10 +1,13 @@
-"""causal — Python bindings for the causal-library Rust workspace (Phase 0–5).
+"""causal — Python bindings for the causal-library Rust workspace (Phase 0–6).
 
 `analyze_ate` accepts optional `identifier`/`estimator` kwargs to select any of the
 Phase 4 identification/estimation pairs (e.g. `estimator="propensity.weighting"`,
 `identifier="iv", estimator="iv.2sls"`, `identifier="frontdoor",
 estimator="frontdoor.two_stage"`); omitting both preserves the Phase 0–3 default
 (`backdoor.adjustment` + `linear.adjustment.ate`).
+
+Pass `inference="bayesian"` (Laplace) or `inference="conjugate"` for Phase 6
+Bayesian g-computation; results expose `posterior_*` summary fields.
 
 `discover_pcmci` / `discover_pcmci_plus` accept `ci=` (name string) to select the
 conditional-independence test; default is `parcorr`. When `ci="weighted_parcorr"`,

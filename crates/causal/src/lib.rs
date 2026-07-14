@@ -7,16 +7,20 @@
 
 pub mod analysis;
 pub mod error;
+pub mod inference;
 pub mod planner;
+pub mod posterior_io;
 pub mod result;
 pub mod review;
 
 pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RefuteSuite};
 pub use error::AnalysisError;
+pub use inference::{BayesianConfig, InferenceMode};
 pub use planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
     StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
 };
+pub use posterior_io::{decode_causal_posterior_bytes, encode_causal_posterior};
 pub use result::CausalAnalysisResult;
 pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,

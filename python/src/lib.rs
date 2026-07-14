@@ -1,5 +1,5 @@
-//! `PyO3` bindings — Phase 0–5: Arrow load, `analyze_ate`, `analyze`,
-//! `discover_pcmci`, `discover_pcmci_plus`.
+//! `PyO3` bindings — Phase 0–6: Arrow load, `analyze_ate` (incl. Bayesian),
+//! `analyze`, `discover_pcmci`, `discover_pcmci_plus`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
-use causal::{CausalAnalysis, RefuteSuite};
+use causal::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
 use causal_core::{
     AverageEffectQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
@@ -79,6 +79,27 @@ struct AteAnalysisResult {
     overlap_ess: Option<f64>,
     #[pyo3(get)]
     overlap_propensity_min: Option<f64>,
+    /// Posterior mean of the primary effect (Bayesian path).
+    #[pyo3(get)]
+    posterior_effect_mean: Option<f64>,
+    /// Posterior SD of the primary effect.
+    #[pyo3(get)]
+    posterior_effect_sd: Option<f64>,
+    /// 2.5% quantile of the primary effect.
+    #[pyo3(get)]
+    posterior_q025: Option<f64>,
+    /// 97.5% quantile of the primary effect.
+    #[pyo3(get)]
+    posterior_q975: Option<f64>,
+    /// Number of posterior draws.
+    #[pyo3(get)]
+    posterior_n_draws: Option<usize>,
+    /// Empirical P(effect < 0).
+    #[pyo3(get)]
+    posterior_p_below_zero: Option<f64>,
+    /// Inference backend id (e.g. laplace / conjugate_gaussian).
+    #[pyo3(get)]
+    posterior_backend: Option<String>,
 }
 
 fn columns_to_batch(
@@ -147,6 +168,9 @@ fn load_float64_columns(
     *,
     identifier=None,
     estimator=None,
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
     refute=true,
     seed=1,
     bootstrap=50
@@ -160,6 +184,9 @@ fn analyze_ate(
     outcome: String,
     identifier: Option<String>,
     estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
     refute: bool,
     seed: u64,
     bootstrap: u32,
@@ -207,42 +234,101 @@ fn analyze_ate(
         if let Some(est) = estimator {
             builder = builder.estimator(est);
         }
+        if let Some(mode) = inference {
+            let cfg = match mode.to_ascii_lowercase().as_str() {
+                "bayesian" | "bayesian.laplace" | "laplace" => {
+                    BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
+                }
+                "bayesian.conjugate" | "conjugate" => {
+                    BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+                }
+                "frequentist" => {
+                    builder = builder.inference(InferenceMode::Frequentist);
+                    let analysis = builder.build().map_err(py_err)?;
+                    let ctx = ExecutionContext::for_tests(seed);
+                    let result = analysis.run(&ctx).map_err(py_err)?;
+                    return Ok(ate_result_from_analysis(&names, result));
+                }
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown inference mode {other:?}; use frequentist|bayesian|conjugate"
+                    )));
+                }
+            };
+            builder = builder.inference(InferenceMode::Bayesian(cfg)).refute(RefuteSuite::None);
+        }
         let analysis = builder.build().map_err(py_err)?;
         let ctx = ExecutionContext::for_tests(seed);
         let result = analysis.run(&ctx).map_err(py_err)?;
-
-        let adjustment_set: Vec<String> = result
-            .estimand
-            .adjustment_set
-            .iter()
-            .map(|id| {
-                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
-            })
-            .collect();
-
-        let refutation_passed =
-            result.refutations.is_empty() || result.refutations.iter().all(|r| r.passed);
-        let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
-        let overlap_ess = result.estimate.overlap_report.as_ref().map(|r| r.ess);
-        let overlap_propensity_min =
-            result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
-
-        Ok(AteAnalysisResult {
-            ate: result.estimate.ate,
-            se_analytic: result.estimate.se_analytic,
-            se_bootstrap: result.estimate.se_bootstrap,
-            adjustment_set,
-            identification_status: format!("{:?}", result.identification.status),
-            refutation_passed,
-            refutation_count: result.refutations.len(),
-            assumption_count: result.estimate.assumptions.len(),
-            derivation_step_count: result.identification.derivation.steps.len(),
-            method: result.estimand.method.to_string(),
-            estimator_id,
-            overlap_ess,
-            overlap_propensity_min,
-        })
+        Ok(ate_result_from_analysis(&names, result))
     })
+}
+
+fn ate_result_from_analysis(
+    names: &[String],
+    result: causal::CausalAnalysisResult,
+) -> AteAnalysisResult {
+    let adjustment_set: Vec<String> = result
+        .estimand
+        .adjustment_set
+        .iter()
+        .map(|id| {
+            names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
+        })
+        .collect();
+
+    let refutation_passed =
+        result.refutations.is_empty() || result.refutations.iter().all(|r| r.passed);
+    let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
+    let overlap_ess = result.estimate.overlap_report.as_ref().map(|r| r.ess);
+    let overlap_propensity_min =
+        result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
+
+    let (
+        posterior_effect_mean,
+        posterior_effect_sd,
+        posterior_q025,
+        posterior_q975,
+        posterior_n_draws,
+        posterior_p_below_zero,
+        posterior_backend,
+    ) = if let Some(post) = result.posterior.as_ref() {
+        let eq = post.effect_column().unwrap_or(0);
+        (
+            Some(post.summaries.mean[eq]),
+            Some(post.summaries.sd[eq]),
+            Some(post.summaries.q025[eq]),
+            Some(post.summaries.q975[eq]),
+            Some(post.draws.n_draws),
+            post.probability_below(0.0).ok(),
+            Some(post.diagnostics.backend_id.to_string()),
+        )
+    } else {
+        (None, None, None, None, None, None, None)
+    };
+
+    AteAnalysisResult {
+        ate: result.estimate.ate,
+        se_analytic: result.estimate.se_analytic,
+        se_bootstrap: result.estimate.se_bootstrap,
+        adjustment_set,
+        identification_status: format!("{:?}", result.identification.status),
+        refutation_passed,
+        refutation_count: result.refutations.len(),
+        assumption_count: result.estimate.assumptions.len(),
+        derivation_step_count: result.identification.derivation.steps.len(),
+        method: result.estimand.method.to_string(),
+        estimator_id,
+        overlap_ess,
+        overlap_propensity_min,
+        posterior_effect_mean,
+        posterior_effect_sd,
+        posterior_q025,
+        posterior_q975,
+        posterior_n_draws,
+        posterior_p_below_zero,
+        posterior_backend,
+    }
 }
 
 /// One discovered lagged link for Python.

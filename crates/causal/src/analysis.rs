@@ -23,11 +23,12 @@ use causal_discovery::{
     DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus, TemporalConstraints,
 };
 use causal_estimate::{
-    AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace,
-    FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
-    LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching,
-    PropensityStratification, PropensityWeighting, RdWorkspace, SharpRegressionDiscontinuity,
-    TemporalLinearAdjustment, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
+    AipwAte, AipwWorkspace, BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior,
+    DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace, FrontDoorTwoStage,
+    FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace, LinearAdjustmentAte,
+    OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching, PropensityStratification,
+    PropensityWeighting, RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment,
+    TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
 };
 use causal_expr::IdentifiedEstimand;
 use causal_graph::{Dag, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
@@ -39,6 +40,7 @@ use causal_identify::{
 use causal_validate::{RefutationProblem, RefutationReport, ValidationSuite};
 
 use crate::error::AnalysisError;
+use crate::inference::{BayesianConfig, InferenceMode};
 use crate::planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
     StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
@@ -90,6 +92,7 @@ pub struct CausalAnalysisBuilder {
     identifier: Option<Arc<str>>,
     estimator: Option<Arc<str>>,
     rd: Option<RdConfig>,
+    inference: InferenceMode,
 }
 
 impl Default for CausalAnalysisBuilder {
@@ -112,6 +115,7 @@ impl CausalAnalysisBuilder {
             identifier: None,
             estimator: None,
             rd: None,
+            inference: InferenceMode::Frequentist,
         }
     }
 
@@ -236,6 +240,18 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Configure frequentist vs Bayesian inference (DESIGN.md §34.1).
+    ///
+    /// [`InferenceMode::Bayesian`] selects estimator `bayesian.gcomp`.
+    #[must_use]
+    pub fn inference(mut self, mode: InferenceMode) -> Self {
+        if matches!(mode, InferenceMode::Bayesian(_)) {
+            self.estimator = Some(Arc::from("bayesian.gcomp"));
+        }
+        self.inference = mode;
+        self
+    }
+
     /// Configure the running variable / cutoff / bandwidth required by the `rd.sharp`
     /// estimator. `compile` refuses `rd.sharp` without this.
     #[must_use]
@@ -260,6 +276,7 @@ impl CausalAnalysisBuilder {
             identifier: self.identifier,
             estimator: self.estimator,
             rd: self.rd,
+            inference: self.inference,
         })
     }
 }
@@ -276,6 +293,7 @@ pub struct CausalAnalysis {
     identifier: Option<Arc<str>>,
     estimator: Option<Arc<str>>,
     rd: Option<RdConfig>,
+    inference: InferenceMode,
 }
 
 impl CausalAnalysis {
@@ -596,6 +614,9 @@ impl CausalAnalysis {
         if estimator == "rd.sharp" {
             return self.execute_rd(data, query, physical, ctx);
         }
+        if estimator == "bayesian.gcomp" {
+            return self.execute_bayesian(data, graph, query, physical, ctx);
+        }
 
         let identification = identify_static(identifier, graph, query)?;
         let estimand = identification
@@ -715,7 +736,76 @@ impl CausalAnalysis {
             identification,
             estimand,
             estimate,
+            posterior: None,
             refutations,
+            diagnostics,
+            provenance,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+        }))
+    }
+
+    /// Bayesian g-computation execute path.
+    fn execute_bayesian(
+        &self,
+        data: &TabularData,
+        graph: &Dag,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalAnalysisResult, AnalysisError> {
+        let started = Instant::now();
+        let identifier =
+            physical.logical.record.identifier.as_deref().unwrap_or("backdoor.adjustment");
+        let identification = identify_static(identifier, graph, query)?;
+        let estimand = identification
+            .estimands
+            .first()
+            .cloned()
+            .ok_or_else(|| AnalysisError::Identify("no estimand returned".into()))?;
+
+        let cfg = match &self.inference {
+            InferenceMode::Bayesian(c) => c.clone(),
+            InferenceMode::Frequentist => BayesianConfig::laplace(),
+        };
+        let est = BayesianGComputationAte {
+            backend: cfg.backend,
+            likelihood: cfg.likelihood,
+            n_draws: cfg.n_draws,
+            seed: ctx.rng.master_seed(),
+            overlap: OverlapPolicy::ExplicitOverride,
+            prior_scale: cfg.prior_scale,
+        };
+        let prep = est.prepare(data, &estimand, query).map_err(est_err)?;
+        let mut ws = BayesianGCompWorkspace::default();
+        let posterior = est
+            .fit(&prep, identification.status, &mut ws, ctx)
+            .map_err(est_err)?;
+        let estimate = effect_from_posterior(&posterior)?;
+
+        let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(overlap_diagnostic(estimate.overlap));
+
+        let (id_artifact, id_op) = identify_provenance_step(identifier);
+        let provenance = provenance_pair(
+            (id_artifact, id_op, &[], &identification.required_assumptions),
+            (
+                "estimate.bayesian_gcomp",
+                "estimate.bayesian_gcomp",
+                &[id_artifact],
+                &estimate.assumptions,
+            ),
+        );
+
+        Ok(assemble_result(AssembleArgs {
+            logical: &physical.logical.record,
+            physical: &physical.record,
+            identification,
+            estimand,
+            estimate,
+            posterior: Some(posterior),
+            refutations: Vec::new(),
             diagnostics,
             provenance,
             treatment: query.treatment,
@@ -771,6 +861,7 @@ impl CausalAnalysis {
             identification,
             estimand,
             estimate,
+            posterior: None,
             refutations: Vec::new(),
             diagnostics,
             provenance,
@@ -834,6 +925,7 @@ impl CausalAnalysis {
             identification,
             estimand,
             estimate,
+            posterior: None,
             refutations: Vec::new(),
             diagnostics: Vec::new(),
             provenance,
@@ -850,6 +942,7 @@ struct AssembleArgs<'a> {
     identification: causal_identify::IdentificationResult,
     estimand: IdentifiedEstimand,
     estimate: EffectEstimate,
+    posterior: Option<causal_estimate::CausalPosterior>,
     refutations: Vec<RefutationReport>,
     diagnostics: Vec<Diagnostic>,
     provenance: ProvenanceGraph,
@@ -872,6 +965,7 @@ fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
         identification: args.identification,
         estimand: args.estimand,
         estimate: args.estimate,
+        posterior: args.posterior,
         refutations: args.refutations,
         diagnostics: args.diagnostics,
         provenance: args.provenance,
@@ -985,6 +1079,24 @@ fn est_err(e: EstimationError) -> AnalysisError {
     AnalysisError::Estimate(e.to_string())
 }
 
+fn effect_from_posterior(posterior: &CausalPosterior) -> Result<EffectEstimate, AnalysisError> {
+    let eq = posterior.effect_column().ok_or_else(|| {
+        AnalysisError::Estimate("Bayesian posterior missing effect column".into())
+    })?;
+    let ate = posterior.summaries.mean[eq];
+    let se = posterior.summaries.sd[eq]
+        / (posterior.draws.n_draws as f64).sqrt().max(1.0);
+    Ok(EffectEstimate {
+        ate,
+        se_analytic: se,
+        se_bootstrap: None,
+        assumptions: posterior.assumptions.clone(),
+        overlap: OverlapPolicy::ExplicitOverride,
+        overlap_report: None,
+        retained_memory_bytes: None,
+    })
+}
+
 #[allow(clippy::needless_pass_by_value)]
 fn identify_err(e: IdentificationError) -> AnalysisError {
     AnalysisError::Identify(e.to_string())
@@ -1055,6 +1167,7 @@ fn estimate_provenance_step(estimator: &str) -> (&'static str, &'static str) {
         "frontdoor.two_stage" => ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
         "iv.wald" => ("estimate.iv", "estimate.wald_iv"),
         "iv.2sls" => ("estimate.iv", "estimate.two_stage_least_squares"),
+        "bayesian.gcomp" => ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
         _ => ("estimate.unknown", "estimate.unknown"),
     }
 }

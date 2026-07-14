@@ -8,8 +8,7 @@ use std::sync::Arc;
 
 use causal_core::{CausalRng, ExecutionContext};
 use causal_estimate::{
-    BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior,
-    PreparedBayesianProblem,
+    BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, PreparedBayesianProblem,
 };
 use causal_identify::IdentificationStatus;
 use causal_prob::{PriorSensitivitySummary, PriorSet};
@@ -306,7 +305,7 @@ mod tests {
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
-    use causal_estimate::BayesianGComputationAte;
+    use causal_estimate::{BayesianBackendKind, BayesianGComputationAte};
     use causal_expr::{ExprId, IdentifiedEstimand};
     use causal_identify::IdentificationStatus;
 

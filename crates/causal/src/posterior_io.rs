@@ -1,0 +1,81 @@
+//! Convert [`CausalPosterior`] to durable wire artifacts.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use causal_core::VERSION;
+use causal_estimate::CausalPosterior;
+use causal_identify::IdentificationStatus;
+use causal_io::{
+    CausalPosteriorWire, EncodedArtifact, PosteriorQuantityWire, decode_posterior_artifact,
+    encode_posterior_artifact,
+};
+use causal_prob::PosteriorQuantityKind;
+
+use crate::error::AnalysisError;
+
+/// Encode a [`CausalPosterior`] to a durable artifact.
+///
+/// # Errors
+///
+/// IO failures.
+pub fn encode_causal_posterior(
+    posterior: &CausalPosterior,
+    artifact_id: &str,
+) -> Result<EncodedArtifact, AnalysisError> {
+    let quantities: Vec<PosteriorQuantityWire> = posterior
+        .draws
+        .schema
+        .quantities
+        .iter()
+        .map(|q| match q {
+            PosteriorQuantityKind::Coefficient { index, name } => {
+                PosteriorQuantityWire::Coefficient {
+                    index: *index as u32,
+                    name: name.as_ref().map(|s| s.to_string()),
+                }
+            }
+            PosteriorQuantityKind::ResidualVariance => PosteriorQuantityWire::ResidualVariance,
+            PosteriorQuantityKind::Effect { name } => {
+                PosteriorQuantityWire::Effect { name: name.to_string() }
+            }
+            PosteriorQuantityKind::Scalar { name } => {
+                PosteriorQuantityWire::Scalar { name: name.to_string() }
+            }
+        })
+        .collect();
+    let meta = CausalPosteriorWire {
+        quantities,
+        n_draws: posterior.draws.n_draws as u32,
+        mean: posterior.summaries.mean.to_vec(),
+        sd: posterior.summaries.sd.to_vec(),
+        q025: posterior.summaries.q025.to_vec(),
+        q975: posterior.summaries.q975.to_vec(),
+        identification: match posterior.identification {
+            IdentificationStatus::NonparametricallyIdentified => {
+                "NonparametricallyIdentified".into()
+            }
+            IdentificationStatus::NotIdentified => "NotIdentified".into(),
+        },
+        unidentified_mass: posterior.unidentified_mass,
+        backend_id: posterior.diagnostics.backend_id.to_string(),
+        converged: posterior.diagnostics.converged,
+        hessian_condition: posterior.diagnostics.hessian_condition,
+        draws_encoding: "f64_le_colmajor".into(),
+    };
+    encode_posterior_artifact(&meta, &posterior.draws.values, artifact_id, VERSION)
+        .map_err(|e| AnalysisError::Estimate(format!("posterior encode: {e}")))
+}
+
+/// Decode posterior wire metadata + draws (Python / tooling consumers).
+///
+/// # Errors
+///
+/// IO failures.
+pub fn decode_causal_posterior_bytes(
+    bytes: &[u8],
+) -> Result<(CausalPosteriorWire, Vec<f64>), AnalysisError> {
+    let artifact = EncodedArtifact::read_from(bytes)
+        .map_err(|e| AnalysisError::Estimate(format!("posterior decode: {e}")))?;
+    decode_posterior_artifact(&artifact)
+        .map_err(|e| AnalysisError::Estimate(format!("posterior decode: {e}")))
+}

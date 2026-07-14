@@ -7,6 +7,7 @@ use causal_core::{
     ProvenanceGraph, VariableId,
 };
 use causal_estimate::EffectEstimate;
+use causal_estimate::CausalPosterior;
 use causal_identify::{IdentificationResult, IdentifiedEstimand};
 use causal_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
 use causal_validate::RefutationReport;
@@ -22,8 +23,10 @@ pub struct CausalAnalysisResult {
     pub identification: IdentificationResult,
     /// Primary estimand used for estimation.
     pub estimand: IdentifiedEstimand,
-    /// Point estimate + uncertainty.
+    /// Point estimate + uncertainty (frequentist, or Bayesian posterior mean summary).
     pub estimate: EffectEstimate,
+    /// Bayesian posterior when `InferenceMode::Bayesian` was used.
+    pub posterior: Option<CausalPosterior>,
     /// Refutation reports (may be empty).
     pub refutations: Vec<RefutationReport>,
     /// Diagnostics.
