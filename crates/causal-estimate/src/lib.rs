@@ -8,14 +8,17 @@
 pub mod adjustment;
 pub mod aipw;
 pub mod bayesian;
+pub mod conditional;
 pub mod envelope;
 pub mod error;
 pub mod frontdoor;
 pub mod glm_adjustment;
 pub mod iv;
+pub mod prediction;
 pub mod propensity;
 pub mod rd;
 pub mod temporal_adjustment;
+pub mod temporal_mediation;
 mod util;
 
 pub use adjustment::{
@@ -39,3 +42,7 @@ pub use propensity::{
 };
 pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
 pub use temporal_adjustment::TemporalLinearAdjustment;
+pub use conditional::ConditionalLinearAdjustment;
+pub use prediction::TemporalLinearPredictor;
+pub use temporal_mediation::{TemporalEffectSurface, TemporalMediationEstimate, TemporalMediationEstimator};
+
