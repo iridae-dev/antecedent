@@ -177,6 +177,19 @@ impl<'a> NoiseBatchMut<'a> {
         Ok(Self { n_rows, n_nodes, values })
     }
 
+    /// Immutable column.
+    ///
+    /// # Errors
+    ///
+    /// Out of range.
+    pub fn column(&self, node: usize) -> Result<&[f64], ModelError> {
+        if node >= self.n_nodes {
+            return Err(ModelError::Shape { message: "noise column out of range".into() });
+        }
+        let start = node * self.n_rows;
+        Ok(&self.values[start..start + self.n_rows])
+    }
+
     /// Mutable column.
     ///
     /// # Errors

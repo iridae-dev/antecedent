@@ -278,6 +278,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "causal-model"
+version = "0.1.0"
+dependencies = [
+ "causal-core",
+ "causal-data",
+ "causal-graph",
+ "causal-prob",
+ "causal-stats",
+ "criterion",
+]
+
+[[package]]
 name = "causal-prob"
 version = "0.1.0"
 dependencies = [
