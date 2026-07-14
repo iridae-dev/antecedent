@@ -1,9 +1,12 @@
-"""Graph helpers (DESIGN.md §25.1).
-
-Graph construction currently happens inside ``analyze`` / ``analyze_ate`` bindings;
-this module is reserved for future graph-facing Python APIs.
-"""
+"""Graph helpers (DESIGN.md §25.1 / Phase 12 DOT+JSON interchange)."""
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from ._native import format_dag_dot, format_dag_json, parse_dag_dot, parse_dag_json
+
+__all__ = [
+    "format_dag_dot",
+    "format_dag_json",
+    "parse_dag_dot",
+    "parse_dag_json",
+]

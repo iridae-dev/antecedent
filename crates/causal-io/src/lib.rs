@@ -9,6 +9,8 @@ pub mod arrow_section;
 pub mod container;
 pub mod convert;
 pub mod error;
+pub mod graph_dot;
+pub mod graph_json;
 pub mod posterior;
 pub mod posterior_convert;
 pub mod trace;
@@ -20,6 +22,8 @@ pub use container::{
 };
 pub use convert::{dag_from_wire, dag_to_wire, from_cbor, schema_to_wire, to_cbor};
 pub use error::IoError;
+pub use graph_dot::{dag_from_dot, dag_to_dot, dag_wire_from_dot, dag_wire_to_dot};
+pub use graph_json::{DagJson, dag_from_json, dag_json_from_str, dag_to_json};
 pub use posterior::{
     CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,
     encode_posterior_artifact,

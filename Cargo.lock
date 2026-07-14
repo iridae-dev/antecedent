@@ -325,6 +325,7 @@ dependencies = [
  "causal-prob",
  "ciborium",
  "serde",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 

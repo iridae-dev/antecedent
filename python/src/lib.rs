@@ -24,8 +24,8 @@ use causal::{
     DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, GraphIdentFlag,
     InferenceMode, MeasurementPlan, RefuteSuite, SamplingPlan, ScoredLink, StateEvent,
     TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples, apply_state_event,
-    attribute_distribution_change, counterfactual_ite, decode_causal_posterior_bytes,
-    discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    attribute_distribution_change, counterfactual_ite, dag_from_dot, dag_from_json, dag_to_dot,
+    dag_to_json, decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
     encode_causal_posterior_bytes, fit_gcm, new_causal_state, pag_definite_directed_edge_count,
@@ -1305,6 +1305,43 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
     Ok(buf)
 }
 
+/// Parse DOT digraph text; return `(node_count, edges)`.
+#[pyfunction]
+fn parse_dag_dot(dot: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
+    let dag = dag_from_dot(dot).map_err(py_err)?;
+    let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
+    Ok((wire.node_count as usize, wire.edges))
+}
+
+/// Emit DOT for a numeric DAG given `node_count` and `edges`.
+#[pyfunction]
+fn format_dag_dot(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
+    let wire = causal_io::DagWire { node_count, edges };
+    let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+    dag_to_dot(&dag, None).map_err(py_err)
+}
+
+/// Parse JSON DAG document; return `(node_count, edges, variable_names|None)`.
+#[pyfunction]
+fn parse_dag_json(json: &str) -> PyResult<(usize, Vec<(u32, u32)>, Option<Vec<String>>)> {
+    let doc = causal_io::dag_json_from_str(json).map_err(py_err)?;
+    let dag = causal_io::dag_from_wire(&doc.to_wire()).map_err(py_err)?;
+    let _ = dag;
+    Ok((doc.node_count as usize, doc.edges, doc.variable_names))
+}
+
+/// Emit JSON for a numeric DAG.
+#[pyfunction]
+fn format_dag_json(
+    node_count: u32,
+    edges: Vec<(u32, u32)>,
+    variable_names: Option<Vec<String>>,
+) -> PyResult<String> {
+    let wire = causal_io::DagWire { node_count, edges };
+    let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+    dag_to_json(&dag, variable_names.as_deref()).map_err(py_err)
+}
+
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1325,6 +1362,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(causal_state_append_demo, m)?)?;
     m.add_function(wrap_pyfunction!(decode_posterior_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(encode_posterior_artifact, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_dag_dot, m)?)?;
+    m.add_function(wrap_pyfunction!(format_dag_dot, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_dag_json, m)?)?;
+    m.add_function(wrap_pyfunction!(format_dag_json, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
     m.add_class::<PosteriorArtifact>()?;

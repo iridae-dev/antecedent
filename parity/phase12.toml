@@ -13,7 +13,7 @@ notes = "Every required DoWhy/Tigramite item done or intentional_deviation with 
 
 [[capabilities]]
 id = "phase12.graph_dot_json"
-status = "in_progress"
+status = "done"
 phase = 12
 notes = "DOT + JSON DAG interchange in causal-io; GML/NetworkX waived"
 

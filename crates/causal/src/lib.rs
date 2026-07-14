@@ -70,6 +70,48 @@ pub use review::{
 };
 pub use state::{apply_state_event, new_causal_state};
 
+/// Parse a DOT digraph into a [`causal_graph::Dag`].
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on malformed DOT or invalid DAG structure.
+pub fn dag_from_dot(dot: &str) -> Result<causal_graph::Dag, AnalysisError> {
+    causal_io::dag_from_dot(dot).map_err(AnalysisError::from)
+}
+
+/// Serialize a DAG to DOT.
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on conversion failure.
+pub fn dag_to_dot(
+    dag: &causal_graph::Dag,
+    names: Option<&[String]>,
+) -> Result<String, AnalysisError> {
+    causal_io::dag_to_dot(dag, names).map_err(AnalysisError::from)
+}
+
+/// Parse a JSON DAG document into a [`causal_graph::Dag`].
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on malformed JSON or invalid DAG structure.
+pub fn dag_from_json(json: &str) -> Result<causal_graph::Dag, AnalysisError> {
+    causal_io::dag_from_json(json).map_err(AnalysisError::from)
+}
+
+/// Serialize a DAG to JSON.
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on conversion failure.
+pub fn dag_to_json(
+    dag: &causal_graph::Dag,
+    names: Option<&[String]>,
+) -> Result<String, AnalysisError> {
+    causal_io::dag_to_json(dag, names).map_err(AnalysisError::from)
+}
+
 /// Encode a [`causal_estimate::CausalPosterior`] to durable bytes.
 ///
 /// # Errors

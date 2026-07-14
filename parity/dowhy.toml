@@ -30,10 +30,10 @@ notes = "AverageEffectQuery + RoleHint + effect_modifiers in causal-core"
 id = "dowhy.model_graph.parsing"
 group = "model_and_graph_workflow"
 description = "Graph parsing and validation"
-status = "in_progress"
+status = "done"
 owner = "phase12"
 phase = 12
-notes = "Programmatic DAG + CBOR exist; DOT+JSON interchange in Phase 12 (GML/NetworkX waived)"
+notes = "DOT+JSON via causal-io; programmatic DAG + CBOR; GML/NetworkX waived (phase12_deviations)"
 
 [[capabilities]]
 id = "dowhy.model_graph.assumptions"
