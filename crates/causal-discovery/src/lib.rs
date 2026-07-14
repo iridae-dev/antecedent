@@ -12,6 +12,7 @@ pub mod discriminating_paths;
 pub mod engine;
 pub mod error;
 pub mod evidence;
+pub mod jpcmci_plus;
 pub mod lpcmci;
 pub mod orientation;
 pub mod pcmci;
@@ -37,6 +38,7 @@ pub use evidence::{
     graph_evidence_from_scored_with_sepsets, pag_evidence_from_oriented, pag_from_scored_links,
     threshold_scored_links,
 };
+pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lpcmci::Lpcmci;
 pub use orientation::{
     MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationError, OrientationQueue,
