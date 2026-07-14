@@ -31,3 +31,7 @@ harness = false
 [[bench]]
 name = "posterior_functional"
 harness = false
+
+[[bench]]
+name = "temporal_mediation"
+harness = false

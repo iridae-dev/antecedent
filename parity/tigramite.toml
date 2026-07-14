@@ -188,17 +188,19 @@ notes = "causal-discovery Lpcmci → TemporalPag; conformance/phase8/lpcmci_chai
 id = "tigramite.discovery.jpcmci_plus"
 group = "discovery"
 description = "J-PCMCI+"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase9"
 phase = 9
+notes = "JpcmciPlus; conformance/phase9/jpcmci_plus_two_env"
 
 [[capabilities]]
 id = "tigramite.discovery.rpcmci"
 group = "discovery"
 description = "RPCMCI"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase9"
 phase = 9
+notes = "Rpcmci; conformance/phase9/rpcmci_two_regime"
 
 [[capabilities]]
 id = "tigramite.discovery.fdr"
@@ -237,9 +239,10 @@ phase = 5
 id = "tigramite.effects"
 group = "effects_and_models"
 description = "Causal effects, mediation, prediction"
-status = "pending"
-owner = ""
-phase = 3
+status = "done"
+owner = "phase9"
+phase = 9
+notes = "temporal mediation/effects/prediction; gate_phase9.sh"
 
 [[capabilities]]
 id = "tigramite.simulation"

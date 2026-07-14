@@ -230,7 +230,7 @@ impl TemporalMediationEstimator {
 mod tests {
     use causal_core::{
         CausalSchemaBuilder, ExecutionContext, MeasurementSpec, MediationContrast, RoleHint,
-        SmallRoleSet, ValueType,
+        SmallRoleSet, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
