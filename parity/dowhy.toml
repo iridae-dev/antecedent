@@ -12,33 +12,37 @@ notes = "Pinned per DESIGN.md §35.9 / ADR 0009"
 id = "dowhy.model_graph.construction"
 group = "model_and_graph_workflow"
 description = "Causal model construction from data and graph"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase1"
 phase = 1
+notes = "CausalAnalysis builder + data/graph/query; Python analyze_ate / analyze"
 
 [[capabilities]]
 id = "dowhy.model_graph.treatment_outcome"
 group = "model_and_graph_workflow"
 description = "Explicit treatment/outcome/effect modifiers"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase1"
 phase = 1
+notes = "AverageEffectQuery + RoleHint + effect_modifiers in causal-core"
 
 [[capabilities]]
 id = "dowhy.model_graph.parsing"
 group = "model_and_graph_workflow"
 description = "Graph parsing and validation"
-status = "pending"
-owner = ""
-phase = 1
+status = "in_progress"
+owner = "phase12"
+phase = 12
+notes = "Programmatic DAG + CBOR exist; DOT+JSON interchange in Phase 12 (GML/NetworkX waived)"
 
 [[capabilities]]
 id = "dowhy.model_graph.assumptions"
 group = "model_and_graph_workflow"
 description = "Inspectable assumptions"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase1"
 phase = 1
+notes = "typed Assumption* on identify + wire/provenance; Python exposes counts"
 
 [[capabilities]]
 id = "dowhy.model_graph.workflow"
@@ -52,9 +56,10 @@ phase = 1
 id = "dowhy.identify.adjustment_sets"
 group = "identification"
 description = "Adjustment sets"
-status = "pending"
-owner = ""
+status = "done"
+owner = "phase1"
 phase = 1
+notes = "backdoor + efficient adjustment search; same as identify.backdoor / efficient_backdoor"
 
 [[capabilities]]
 id = "dowhy.identify.automatic"
@@ -84,9 +89,10 @@ phase = 4
 id = "dowhy.identify.general_id"
 group = "identification"
 description = "General ID"
-status = "pending"
-owner = ""
+status = "intentional_deviation"
+owner = "phase12"
 phase = 8
+notes = "Full Shpitser ID/IDC waived; generalized adjustment + envelope (see phase12_deviations / pag.toml)"
 
 [[capabilities]]
 id = "dowhy.identify.estimand"
@@ -273,9 +279,10 @@ notes = "Core GCM+CF+basic anomaly/arrow strength done; Shapley → Phase 10 (pa
 id = "dowhy.secondary"
 group = "secondary_surfaces"
 description = "Graph learners, transformers, interpreters, time-series helpers"
-status = "pending"
-owner = ""
+status = "intentional_deviation"
+owner = "phase12"
 phase = 12
+notes = "DoWhy secondary grab-bag waived; discovery/transforms/effects tracked as dedicated capability IDs"
 
 [excluded]
 econml_adapter = true

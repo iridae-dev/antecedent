@@ -16,14 +16,17 @@ separately (not a DoWhy/Tigramite surface).
 - [phase8_deviations.md](phase8_deviations.md) — Phase 8 kept deferrals (FCI/ID → later)
 - [phase9.toml](phase9.toml) — Phase 9 context / regime / effects inventory
 - [phase9_deviations.md](phase9_deviations.md) — Phase 9 kept deferrals (Shapley → P10)
+- [phase10.toml](phase10.toml) — Phase 10 attribution inventory (if present)
+- [phase11.toml](phase11.toml) — Phase 11 design / state inventory
+- [phase12.toml](phase12.toml) — Phase 12 release-prep inventory
+- [phase12_deviations.md](phase12_deviations.md) — Phase 12 published scope decisions
 
 Status values: `pending`, `in_progress`, `done`, `intentional_deviation`.
 
 Do not mark a capability `done` without conformance fixtures under
-`conformance/` **or** a named calibration/unit harness recorded in
-`scripts/gate_phase45_parity.sh` / `scripts/gate_phase6.sh` /
-`scripts/gate_phase7.sh` / `scripts/gate_phase8.sh`, plus a recorded
-reference-output generation command where black-box comparison applies.
+`conformance/` **or** a named calibration/unit harness recorded in the
+corresponding `scripts/gate_phase*.sh`, plus a recorded reference-output
+generation command where black-box comparison applies.
 
 ## Exit gates
 
@@ -33,6 +36,9 @@ bash scripts/gate_phase6.sh
 bash scripts/gate_phase7.sh
 bash scripts/gate_phase8.sh
 bash scripts/gate_phase9.sh
+bash scripts/gate_phase10.sh
+bash scripts/gate_phase11.sh
+bash scripts/gate_phase12.sh
 ```
 
 Phase 8: PAG inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
@@ -40,6 +46,7 @@ DAG-only-reject conformance, m-separation + PAG orientation sparse/stress
 benches; FCI/RFCI and full ID/IDC deferred (`phase8_deviations.md`).
 
 Phase 9: J/RPCMCI, effects, conditional ATE gated by `gate_phase9.sh`.
-Kept deferrals: Shapley/mechanism-change→P10, design/state→P11, FCI/RFCI, native GPDC (no torch);
-Phase 6: Bayesian discovery, Stan/PyMC, hierarchical/BVAR/GP; Phase 7→10:
-Shapley attribution; Phase 8→later: FCI/RFCI, full ID/IDC.
+
+Phase 12: parity closure, DOT+JSON interchange, artifact format 0.1 freeze,
+wheel matrix, conformance docs, hot-path baselines, security review
+(`phase12_deviations.md`, ADR 0017). Package version remains 0.1.0.

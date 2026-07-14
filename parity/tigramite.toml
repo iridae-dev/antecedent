@@ -12,17 +12,19 @@ notes = "Pinned per DESIGN.md §35.9 / ADR 0009. Extended snapshot covers post-r
 id = "tigramite.data.dataframe"
 group = "data_processing"
 description = "Dataframe-equivalent temporal data abstraction"
-status = "pending"
-owner = "data-kernel-stats"
+status = "done"
+owner = "phase0"
 phase = 0
+notes = "TimeSeriesData / TabularData + Arrow; not a pandas clone"
 
 [[capabilities]]
 id = "tigramite.data.masks"
 group = "data_processing"
 description = "Masks and missing flags"
-status = "pending"
-owner = "data-kernel-stats"
+status = "intentional_deviation"
+owner = "phase12"
 phase = 0
+notes = "Column validity + analysis_mask exist; temporal discovery requires complete series (phase12_deviations)"
 
 [[capabilities]]
 id = "tigramite.data.multiple_datasets"
@@ -46,9 +48,10 @@ notes = "ReferencePointPolicy wired into LagMap / SamplePlan / LaggedFrame."
 id = "tigramite.data.vector_variables"
 group = "data_processing"
 description = "Vector variables"
-status = "pending"
-owner = "data-kernel-stats"
+status = "intentional_deviation"
+owner = "phase12"
 phase = 0
+notes = "FixedVectorColumn storage only; vector-var CI grouping not in 1.0 scope (phase12_deviations)"
 
 [[capabilities]]
 id = "tigramite.data.transforms"
@@ -215,9 +218,10 @@ notes = "BH over full MCI family; Fisher-z analytic CIs on ParCorr results (95%)
 id = "tigramite.graphs.ts_graph"
 group = "graphs"
 description = "Time-series graph representations and stationarity"
-status = "pending"
-owner = "data-kernel-stats"
+status = "done"
+owner = "phase0"
 phase = 0
+notes = "TemporalDag + unfold/stationarity; Assumption::Stationarity"
 
 [[capabilities]]
 id = "tigramite.graphs.separation"

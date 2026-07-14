@@ -21,3 +21,4 @@ and migration or compatibility analysis where applicable.
 | [0014](0014-phase9-context-effects.md) | Phase 9 context / regime effects |
 | [0015](0015-phase10-attribution.md) | Phase 10 attribution |
 | [0016](0016-phase11-design-state.md) | Phase 11 design and incremental state |
+| [0017](0017-phase12-1.0-prep.md) | Phase 12 parity closure and 1.0 preparation |
