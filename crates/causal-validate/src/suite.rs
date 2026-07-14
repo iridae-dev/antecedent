@@ -58,6 +58,12 @@ pub enum ValidatorId {
     NonparametricSensitivity,
     /// Reisz-representer sensitivity.
     Reisz,
+    /// Prior predictive check (Bayesian).
+    PriorPredictive,
+    /// Posterior predictive check (Bayesian).
+    PosteriorPredictive,
+    /// Prior sensitivity grid (Bayesian).
+    PriorSensitivity,
 }
 
 /// Outcome of one validator in a suite.
@@ -253,7 +259,22 @@ impl ValidationSuite {
             ValidatorId::Reisz => Ok(ValidationOutcome::Report(
                 ReiszSensitivity::new().refute(problem, workspace, ctx)?,
             )),
+            ValidatorId::PriorPredictive
+            | ValidatorId::PosteriorPredictive
+            | ValidatorId::PriorSensitivity => Ok(na(
+                id,
+                "Bayesian PPC/prior-sensitivity require CausalPosterior APIs in bayesian_checks",
+            )),
         }
+    }
+
+    /// Bayesian diagnostics suite identifiers.
+    #[must_use]
+    pub fn bayesian_diagnostics() -> Self {
+        Self::new()
+            .with(ValidatorId::PriorPredictive)
+            .with(ValidatorId::PosteriorPredictive)
+            .with(ValidatorId::PriorSensitivity)
     }
 }
 

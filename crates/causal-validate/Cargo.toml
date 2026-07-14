@@ -19,6 +19,7 @@ causal-estimate = { path = "../causal-estimate" }
 causal-expr = { path = "../causal-expr" }
 causal-identify = { path = "../causal-identify" }
 causal-discovery = { path = "../causal-discovery" }
+causal-prob = { path = "../causal-prob" }
 causal-stats = { path = "../causal-stats" }
 
 [dev-dependencies]

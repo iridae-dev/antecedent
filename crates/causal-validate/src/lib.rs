@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod bayesian_checks;
 pub mod bootstrap_refute;
 pub mod common;
 pub mod data_subset;
@@ -22,6 +23,10 @@ pub mod stability;
 pub mod suite;
 pub mod unobserved_common_cause;
 
+pub use bayesian_checks::{
+    PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
+    PriorSensitivity, with_prior_sensitivity,
+};
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport};
 pub use data_subset::DataSubsetRefuter;
