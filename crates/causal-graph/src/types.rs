@@ -106,12 +106,36 @@ impl MarkedEdge {
         matches!((self.at_a, self.at_b), (Endpoint::Tail, Endpoint::Tail))
     }
 
+    /// Whether this is a bidirected ADMG edge (arrow–arrow).
+    #[must_use]
+    pub const fn is_bidirected(self) -> bool {
+        matches!((self.at_a, self.at_b), (Endpoint::Arrow, Endpoint::Arrow))
+    }
+
+    /// Bidirected edge `a ↔ b`. Canonicalizes so `a.raw() <= b.raw()`.
+    #[must_use]
+    pub fn bidirected(a: DenseNodeId, b: DenseNodeId) -> Self {
+        if a.raw() <= b.raw() {
+            Self { a, b, at_a: Endpoint::Arrow, at_b: Endpoint::Arrow }
+        } else {
+            Self { a: b, b: a, at_a: Endpoint::Arrow, at_b: Endpoint::Arrow }
+        }
+    }
+
     /// Whether marks are legal for a Phase 5 CPDAG (no Circle).
     #[must_use]
     pub const fn is_cpdag_legal(self) -> bool {
         !matches!(self.at_a, Endpoint::Circle)
             && !matches!(self.at_b, Endpoint::Circle)
             && (self.is_dag_directed() || self.is_undirected())
+    }
+
+    /// Whether marks are legal for an ADMG (directed or bidirected; no Circle).
+    #[must_use]
+    pub const fn is_admg_legal(self) -> bool {
+        !matches!(self.at_a, Endpoint::Circle)
+            && !matches!(self.at_b, Endpoint::Circle)
+            && (self.is_dag_directed() || self.is_bidirected())
     }
 
     /// Oriented parent -> child for a DAG directed edge.
