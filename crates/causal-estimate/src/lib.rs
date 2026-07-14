@@ -8,6 +8,7 @@
 pub mod adjustment;
 pub mod aipw;
 pub mod bayesian;
+pub mod envelope;
 pub mod error;
 pub mod frontdoor;
 pub mod glm_adjustment;
@@ -27,6 +28,7 @@ pub use bayesian::{
     CausalPosterior, CompiledGCompAte, GCompAteEvaluator, PosteriorFunctionalEvaluator,
     PreparedBayesianProblem, nonidentified_with_prior,
 };
+pub use envelope::{EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope};
 pub use error::EstimationError;
 pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
