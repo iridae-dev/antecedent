@@ -33,7 +33,7 @@ pub use execution::{
     CachePolicy, CancellationToken, CausalRng, Determinism, ExecutionContext, KernelPolicy,
     MemoryBudget, NonZeroThreadCount, Parallelism, ProgressSink, RngFactory,
 };
-pub use ids::{CategoryDomainId, EnvironmentId, Lag, RegimeId, VariableId};
+pub use ids::{CategoryDomainId, ComponentId, EnvironmentId, Lag, RegimeId, VariableId};
 pub use intervention::{
     Intervention, InterventionError, InterventionSequence, MechanismOverride, SequencedIntervention,
     StochasticPolicy, TemporalPolicy,
@@ -44,9 +44,10 @@ pub use plan::{
 };
 pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
 pub use query::{
-    AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, ConditionalEffectQuery,
-    CounterfactualQuery, MediationContrast, MediationQuery, QueryError, TargetPopulation,
-    TemporalEffectQuery,
+    AllocationMethod, AnomalyAttributionQuery, AttributionComponents, AverageEffectQuery,
+    CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery,
+    MechanismChangeQuery, MediationContrast, MediationQuery, OrderedFloatBits, PopulationSelector,
+    QueryError, ShapleyConfig, ShapleyMode, TargetPopulation, TemporalEffectQuery, UnitChangeQuery,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,

@@ -1,4 +1,5 @@
 # causal-attribution
 
-Phase 7: basic anomaly scores and arrow strength. Shapley / distribution-change
-attribution remain Phase 10.
+Phase 10: anomaly scores, distribution/unit/mechanism-change attribution, Shapley
+and path decompositions, feature relevance, and graph-sensitive root-cause ranking
+(DESIGN.md §17).

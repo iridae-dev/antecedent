@@ -205,6 +205,8 @@ dependencies = [
  "causal-data",
  "causal-graph",
  "causal-model",
+ "causal-prob",
+ "causal-stats",
  "thiserror 2.0.19",
 ]
 

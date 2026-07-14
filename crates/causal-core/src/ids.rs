@@ -136,6 +136,58 @@ impl fmt::Display for Lag {
     }
 }
 
+/// Attribution component (typically a mechanism / node) in change decomposition.
+///
+/// Distinct from [`VariableId`] at the type level so allocation orders cannot
+/// silently mix raw variables with coalition players (DESIGN.md §17.2).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ComponentId(VariableId);
+
+impl ComponentId {
+    /// Wrap a variable as an attribution component (mechanism of that node).
+    #[must_use]
+    pub const fn from_variable(variable: VariableId) -> Self {
+        Self(variable)
+    }
+
+    /// Underlying variable id.
+    #[must_use]
+    pub const fn variable(self) -> VariableId {
+        self.0
+    }
+
+    /// Create from a raw dense variable index.
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(VariableId::from_raw(raw))
+    }
+
+    /// Underlying dense index.
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0.raw()
+    }
+
+    /// Convert to `usize` for indexing.
+    #[must_use]
+    pub const fn as_usize(self) -> usize {
+        self.0.as_usize()
+    }
+}
+
+impl fmt::Display for ComponentId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "C{}", self.0.raw())
+    }
+}
+
+impl From<VariableId> for ComponentId {
+    fn from(variable: VariableId) -> Self {
+        Self::from_variable(variable)
+    }
+}
+
 /// Stable handle for an immutable categorical domain stored in a schema.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -173,6 +225,7 @@ mod tests {
         assert_eq!(size_of::<RegimeId>(), 4);
         assert_eq!(size_of::<Lag>(), 4);
         assert_eq!(size_of::<CategoryDomainId>(), 4);
+        assert_eq!(size_of::<ComponentId>(), 4);
     }
 
     #[test]
