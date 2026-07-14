@@ -212,6 +212,9 @@ impl PcmciEngine {
                 };
                 ci_tests += 1;
                 let (stat, p) = outcome;
+                // Always record |stat| so required edges that fail independence still rank by
+                // observed association (not as +∞ / strongest).
+                min_stat[pi] = min_stat[pi].min(stat.abs());
                 if p >= self.constraints.alpha {
                     let link = LaggedLink {
                         source: src,
@@ -226,8 +229,6 @@ impl PcmciEngine {
                             Arc::from(combo.clone().into_boxed_slice()),
                         );
                     }
-                } else {
-                    min_stat[pi] = min_stat[pi].min(stat.abs());
                 }
                 workspace.combo = combo;
             }

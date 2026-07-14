@@ -18,6 +18,7 @@ use causal_data::{
 use super::*;
 use crate::constraints::{DiscoveryConstraints, TemporalConstraints};
 use crate::pcmci::Pcmci;
+use crate::result::LaggedLink;
 
 fn var_series() -> (TimeSeriesData, Vec<VariableId>) {
     // Y_t = 0.8 X_{t-1} + noise; X_t = noise
@@ -119,6 +120,9 @@ fn fdr_adjusts_full_mci_family() {
     let set_a: std::collections::BTreeSet<_> = a.evidence.links.iter().map(|s| s.link).collect();
     let set_b: std::collections::BTreeSet<_> = b.evidence.links.iter().map(|s| s.link).collect();
     assert!(set_a.is_subset(&set_b));
+    assert!(a.evidence.links.iter().all(|s| s.adjusted_p_value.is_some()));
+    assert!(b.evidence.links.iter().all(|s| s.adjusted_p_value.is_none()));
+    assert!(a.evidence.edge_evidence.iter().all(|e| e.adjusted_p_value.is_some()));
 }
 
 #[test]
@@ -262,4 +266,88 @@ fn mci_conditioning_keeps_shifted_autocorrelation_parent() {
     let dropped = mci_conditioning(link, &parents_target, &parents_source, &mut out);
     assert_eq!(dropped, 0);
     assert_eq!(out, vec![(x, Lag::from_raw(2))]);
+}
+
+#[test]
+fn pc1_ranks_required_independent_edge_by_statistic_not_infinity() {
+    // Y ← X (strong) plus independent noise Z. Force-require Z_{t-1} → Y so it survives
+    // PC1 despite independence; it must rank *after* the strong parent, not first via +∞.
+    let n = 500usize;
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["x", "y", "z"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let mut x = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    for t in 1..n {
+        x[t] = ((t as f64) * 0.017).sin();
+        z[t] = ((t as f64) * 0.113).cos();
+        y[t] = 0.9 * x[t - 1] + 0.01 * ((t as f64) * 0.03).cos();
+    }
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(x), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let data = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let vars = vec![VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let x_id = VariableId::from_raw(0);
+    let y_id = VariableId::from_raw(1);
+    let z_id = VariableId::from_raw(2);
+
+    let constraints = DiscoveryConstraints {
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+        alpha: 0.05,
+        max_cond_size: 2,
+        required: Arc::from([LaggedLink {
+            source: z_id,
+            source_lag: Lag::from_raw(1),
+            target: y_id,
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]),
+        ..DiscoveryConstraints::default()
+    };
+    let engine = PcmciEngine::new().with_constraints(constraints.clone());
+    let compiled = constraints.compile(&vars).unwrap();
+    let frame = LaggedFrame::from_series(&data, &vars, 1).unwrap();
+    let mut ws = DiscoveryWorkspace::default();
+    let ctx = ExecutionContext::for_tests(21);
+    let (parents, _) = engine
+        .select_parents(&frame, y_id, &vars, &compiled, &mut ws, &ctx)
+        .unwrap();
+
+    let strong = (x_id, Lag::from_raw(1));
+    let forced = (z_id, Lag::from_raw(1));
+    assert!(parents.contains(&strong), "parents={parents:?}");
+    assert!(parents.contains(&forced), "parents={parents:?}");
+    let i_strong = parents.iter().position(|p| *p == strong).unwrap();
+    let i_forced = parents.iter().position(|p| *p == forced).unwrap();
+    assert!(
+        i_strong < i_forced,
+        "strong parent must rank before required-independent edge: parents={parents:?}"
+    );
 }

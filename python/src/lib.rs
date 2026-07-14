@@ -261,6 +261,9 @@ struct DiscoveredLink {
     statistic: f64,
     #[pyo3(get)]
     p_value: f64,
+    /// Benjamini–Hochberg adjusted p-value when FDR ran; otherwise `None`.
+    #[pyo3(get)]
+    adjusted_p_value: Option<f64>,
 }
 
 /// Coarse-grained PCMCI discovery result (single boundary crossing).
@@ -345,6 +348,7 @@ fn discovered_links(
             target_lag: s.link.target_lag.raw(),
             statistic: s.statistic,
             p_value: s.p_value,
+            adjusted_p_value: s.adjusted_p_value,
         })
         .collect()
 }
