@@ -226,6 +226,7 @@ dependencies = [
  "causal-expr",
  "causal-graph",
  "causal-identify",
+ "causal-prob",
  "causal-stats",
  "criterion",
 ]

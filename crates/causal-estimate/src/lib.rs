@@ -7,6 +7,7 @@
 
 pub mod adjustment;
 pub mod aipw;
+pub mod bayesian;
 pub mod error;
 pub mod frontdoor;
 pub mod glm_adjustment;
@@ -21,6 +22,11 @@ pub use adjustment::{
     OverlapReport, PreparedEstimationProblem, PropensityInterval,
 };
 pub use aipw::{AipwAte, AipwWorkspace};
+pub use bayesian::{
+    BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
+    CausalPosterior, CompiledGCompAte, GCompAteEvaluator, PosteriorFunctionalEvaluator,
+    PreparedBayesianProblem, nonidentified_with_prior,
+};
 pub use error::EstimationError;
 pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
