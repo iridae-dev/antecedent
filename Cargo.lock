@@ -177,7 +177,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 name = "causal"
 version = "0.1.0"
 dependencies = [
+ "causal-attribution",
  "causal-core",
+ "causal-counterfactual",
  "causal-data",
  "causal-discovery",
  "causal-estimate",
@@ -185,6 +187,7 @@ dependencies = [
  "causal-graph",
  "causal-identify",
  "causal-io",
+ "causal-model",
  "causal-prob",
  "causal-validate",
  "serde_json",

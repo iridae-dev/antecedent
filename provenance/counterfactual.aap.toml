@@ -1,0 +1,17 @@
+feature_id = "counterfactual.aap"
+implementation_crate = "causal-counterfactual"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Counterfactuals", "abduction-action-prediction"] },
+]
+
+upstream_implementations_observed = ["DoWhy-GCM"]
+
+test_sources = [
+  "conformance/phase7/gcm_cf_ite",
+  "streaming_matches_retained equivalence",
+]

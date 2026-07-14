@@ -1,0 +1,16 @@
+feature_id = "attribution.basic"
+implementation_crate = "causal-attribution"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "DoWhy-GCM: An Extension of DoWhy for Causal Graphical Models", doi = "10.48550/arXiv.2206.06821", sections = ["anomaly attribution", "intrinsic causal influence"] },
+]
+
+upstream_implementations_observed = ["DoWhy-GCM"]
+
+test_sources = [
+  "conformance/phase7/gcm_anomaly",
+]
