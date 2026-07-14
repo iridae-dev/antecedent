@@ -25,13 +25,17 @@ pub use planner::{
 };
 
 // Phase 8 PAG / LPCMCI surfaces.
-pub use causal_discovery::Lpcmci;
+pub use causal_discovery::{JpcmciPlus, Lpcmci, RegimeAssignment, RegimeGraphCollection, Rpcmci, two_regime_half_split};
+pub use causal_estimate::{
+    ConditionalLinearAdjustment, TemporalEffectSurface, TemporalLinearPredictor,
+    TemporalMediationEstimator,
+};
 pub use causal_graph::{
     Admg, CompletionSampler, Pag, PagCompletion, TemporalPag, TemporalPagReview, latent_project,
 };
 pub use causal_identify::{
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
-    IdentificationEnvelope, ProbabilityMass,
+    IdentificationEnvelope, ProbabilityMass, TemporalMediationIdentifier,
 };
 pub use posterior_io::{decode_causal_posterior_bytes, encode_causal_posterior};
 pub use result::CausalAnalysisResult;

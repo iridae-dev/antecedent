@@ -334,6 +334,8 @@ dependencies = [
  "causal-core",
  "causal-data",
  "causal-discovery",
+ "causal-estimate",
+ "causal-expr",
  "causal-graph",
  "causal-stats",
  "numpy",

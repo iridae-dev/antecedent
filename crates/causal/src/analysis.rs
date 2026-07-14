@@ -173,6 +173,34 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Discover with J-PCMCI+ (multi-environment; typically review-required via Python path).
+    #[must_use]
+    pub fn discover_jpcmci_plus(
+        mut self,
+        max_lag: u32,
+        alpha: f64,
+        fdr: bool,
+        accept: bool,
+    ) -> Self {
+        self.graph =
+            Some(GraphInput::DiscoverJpcmciPlus { max_lag, alpha, fdr, accept_discovered: accept });
+        self
+    }
+
+    /// Discover with RPCMCI (regime graphs; typically review-required via Python path).
+    #[must_use]
+    pub fn discover_rpcmci(
+        mut self,
+        max_lag: u32,
+        alpha: f64,
+        fdr: bool,
+        accept: bool,
+    ) -> Self {
+        self.graph =
+            Some(GraphInput::DiscoverRpcmci { max_lag, alpha, fdr, accept_discovered: accept });
+        self
+    }
+
     /// Average-effect query (static).
     #[must_use]
     pub fn query(mut self, query: AverageEffectQuery) -> Self {
