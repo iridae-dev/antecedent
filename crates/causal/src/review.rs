@@ -6,7 +6,7 @@
 
 use causal_core::{ExecutionContext, TemporalEffectQuery};
 use causal_data::{DiscoveryEstimationSplit, TemporalNodeKey, TimeSeriesData};
-use causal_graph::{DenseNodeId, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
+use causal_graph::{DenseNodeId, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPagReview};
 
 use crate::error::AnalysisError;
 use crate::planner::{CompiledAnalysis, LogicalAnalysisPlan, compile_logical_temporal_effect};
@@ -254,6 +254,12 @@ pub fn compile_review_required(review: TemporalGraphReview) -> CompiledAnalysis 
 #[must_use]
 pub fn compile_review_required_cpdag(review: TemporalCpdagReview) -> CompiledAnalysis {
     CompiledAnalysis::ReviewRequiredCpdag(review)
+}
+
+/// Wrap LPCMCI / temporal PAG output as PAG review-required.
+#[must_use]
+pub fn compile_review_required_pag(review: TemporalPagReview) -> CompiledAnalysis {
+    CompiledAnalysis::ReviewRequiredPag(review)
 }
 
 /// Refuse when the logical plan still requires review.

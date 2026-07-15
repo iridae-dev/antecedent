@@ -332,7 +332,10 @@ fn prior_sensitivity() {
     let prep = bayes.prepare(&data, &estimand, &query).unwrap();
     let mut ws = BayesianGCompWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
-    let sens = PriorSensitivity { scales: Arc::from(scales.clone()) };
+    let sens = PriorSensitivity {
+        scales: Arc::from(scales.clone()),
+        ..PriorSensitivity::standard_grid()
+    };
     let (summary, _) = sens
         .evaluate(&bayes, &prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
         .unwrap();

@@ -17,6 +17,9 @@ use std::sync::Arc;
 use causal_core::ExecutionContext;
 use causal_estimate::EstimationWorkspace;
 
+use crate::bayesian_checks::{
+    PosteriorPredictiveCheck, PriorPredictiveCheck, PriorSensitivity,
+};
 use crate::bootstrap_refute::BootstrapRefute;
 use crate::common::{RefutationProblem, RefutationReport};
 use crate::data_subset::DataSubsetRefuter;
@@ -32,6 +35,52 @@ use crate::reisz::ReiszSensitivity;
 use crate::sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 use crate::unobserved_common_cause::UnobservedCommonCause;
 use crate::validator::run_validator;
+
+use causal_estimate::{
+    BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, PreparedBayesianProblem,
+};
+use causal_identify::IdentificationStatus;
+
+/// Context required to run Bayesian PPC / prior-sensitivity validators.
+pub struct BayesianSuiteContext<'a> {
+    /// Fitted Bayesian estimator configuration.
+    pub estimator: &'a BayesianGComputationAte,
+    /// Prepared design used for the primary fit.
+    pub prepared: &'a PreparedBayesianProblem,
+    /// Primary posterior (used for posterior predictive).
+    pub posterior: &'a CausalPosterior,
+    /// Identification status passed to sensitivity refits.
+    pub identification: IdentificationStatus,
+    /// Workspace for sensitivity refits.
+    pub workspace: &'a mut BayesianGCompWorkspace,
+    /// Original effect estimate (ATE) for report comparison.
+    pub original_ate: f64,
+    /// Two-sided α for predictive-check pass/fail (default 0.05).
+    pub ppc_alpha: f64,
+}
+
+impl<'a> BayesianSuiteContext<'a> {
+    /// Build with default PPC α = 0.05.
+    #[must_use]
+    pub fn new(
+        estimator: &'a BayesianGComputationAte,
+        prepared: &'a PreparedBayesianProblem,
+        posterior: &'a CausalPosterior,
+        identification: IdentificationStatus,
+        workspace: &'a mut BayesianGCompWorkspace,
+        original_ate: f64,
+    ) -> Self {
+        Self {
+            estimator,
+            prepared,
+            posterior,
+            identification,
+            workspace,
+            original_ate,
+            ppc_alpha: 0.05,
+        }
+    }
+}
 
 /// Named validators that can be attached to a [`ValidationSuite`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -160,6 +209,26 @@ impl ValidationSuite {
                 ValidationOutcome::NotApplicable { .. } => None,
             })
             .collect()
+    }
+
+    /// Run Bayesian validators that need a fitted posterior / prepared design.
+    ///
+    /// Frequentist `run` leaves Prior/Posterior predictive and PriorSensitivity as
+    /// [`ValidationOutcome::NotApplicable`]; call this path from Bayesian execute.
+    ///
+    /// # Errors
+    ///
+    /// Propagates hard failures from applicable Bayesian validators.
+    pub fn run_bayesian(
+        &self,
+        bayes: &mut BayesianSuiteContext<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<ValidationOutcome>, ValidationError> {
+        let mut out = Vec::with_capacity(self.validators.len());
+        for &id in &self.validators {
+            out.push(self.run_one_bayesian(id, bayes, ctx)?);
+        }
+        Ok(out)
     }
 
     fn run_one(
@@ -317,7 +386,50 @@ impl ValidationSuite {
             | ValidatorId::PosteriorPredictive
             | ValidatorId::PriorSensitivity => Ok(na(
                 id,
-                "Bayesian PPC/prior-sensitivity require CausalPosterior APIs in bayesian_checks",
+                "Bayesian PPC/prior-sensitivity require ValidationSuite::run_bayesian with a fitted posterior",
+            )),
+        }
+    }
+
+    fn run_one_bayesian(
+        &self,
+        id: ValidatorId,
+        bayes: &mut BayesianSuiteContext<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<ValidationOutcome, ValidationError> {
+        match id {
+            ValidatorId::PriorPredictive => {
+                let check = PriorPredictiveCheck {
+                    n_sims: 200,
+                    seed: ctx.rng.master_seed(),
+                    ..PriorPredictiveCheck::new()
+                };
+                let rep = check.check(bayes.prepared, ctx)?;
+                Ok(ValidationOutcome::Report(
+                    rep.to_refutation_report(bayes.original_ate, bayes.ppc_alpha),
+                ))
+            }
+            ValidatorId::PosteriorPredictive => {
+                let check = PosteriorPredictiveCheck::new();
+                let rep = check.check(bayes.prepared, bayes.posterior)?;
+                Ok(ValidationOutcome::Report(
+                    rep.to_refutation_report(bayes.original_ate, bayes.ppc_alpha),
+                ))
+            }
+            ValidatorId::PriorSensitivity => {
+                let sens = PriorSensitivity::standard_grid();
+                let (summary, _posts) = sens.evaluate(
+                    bayes.estimator,
+                    bayes.prepared,
+                    bayes.identification,
+                    bayes.workspace,
+                    ctx,
+                )?;
+                Ok(ValidationOutcome::Report(sens.to_report(&summary, bayes.original_ate)))
+            }
+            other => Ok(na(
+                other,
+                "validator is not a Bayesian diagnostic; use ValidationSuite::run",
             )),
         }
     }

@@ -98,9 +98,8 @@ Full P6.3 resample engine still open.
 - `load_float64_columns` (lib.rs:186-199) loads, counts bytes, and drops the data; exists only to
   satisfy the copy-gate test. Make it feed the real ingestion path or fold the gate into it.
 - All errors collapse to `ValueError` — map error categories to distinct exception types.
-**Status (honesty subset):** Bayesian no longer forces `RefuteSuite::None`; `refutation_ran` /
-`refutation_passed=false` when none ran; posterior encode/`probability_below` errors raise.
-Remaining: real `ExecutionContext`/`threads=`, rich returns, stubs, exception taxonomy.
+**Status:** Honesty subset done earlier; `ExecutionContext::production` + `threads=` kwargs wired on
+bindings that run native work. Remaining: rich returns, stubs, exception taxonomy.
 
 ### P2.6 `causal-design` ranker objectives are fabricated
 `crates/causal-design/src/ranker.rs:409,459,507-511`
@@ -111,22 +110,16 @@ is real; the payoffs it averages are placeholders.
 **Fix:** implement the real objectives (EIG via posterior simulation; identifiability via the
 actual identifier on the candidate graph; SE reduction via simulated design analysis). Do not ship silent placeholder numbers.
 
-### P2.7 Bayesian validators are permanent no-ops in the suite
-`crates/causal-validate/src/suite.rs:316-332`
-`PriorPredictive | PosteriorPredictive | PriorSensitivity` always return `NotApplicable` from
-`run_one`, yet `ValidationSuite::bayesian_diagnostics()` constructs a suite of exactly those three —
-a public constructor guaranteed to do nothing. Real implementations exist in `bayesian_checks.rs`
-but are never wired in. Also `PriorSensitivity::to_report` (`bayesian_checks.rs:252-262`) passes
-whenever the range is finite (can only fail on NaN).
-**Fix:** wire the `bayesian_checks.rs` implementations into `run_one`; give PriorSensitivity a real
-threshold on the sensitivity range.
+### P2.7 Bayesian validators are permanent no-ops in the suite — fixed
+`ValidationSuite::run_bayesian` + `BayesianSuiteContext` run Prior/Posterior PPC and PriorSensitivity;
+plain `run()` still returns honest `NotApplicable` for those ids. `PriorSensitivity::to_report` uses
+`max_relative_range` (default 0.5). `execute_bayesian` runs `bayesian_diagnostics()` when refute ≠ None.
 
-### P2.8 Dead-end facade builder APIs
-`crates/causal/src/analysis.rs:179-197` vs `compile()` at 391-453: `discover_jpcmci_plus`,
-`discover_rpcmci`, and `GraphInput::Pag`/`TemporalPag`/`DiscoverLpcmci` always hit
-`Err(Unsupported)` in `compile()`. `reject_dag_only_on_pag` (`planner.rs:299`) is never called
-outside a test.
-**Fix:** wire them through (the underlying crates exist).
+### P2.8 Dead-end facade builder APIs — fixed
+`compile()` wires `DiscoverJpcmciPlus` (single-env wrap), `DiscoverRpcmci` (half-split regimes →
+first-regime CPDAG review), `DiscoverLpcmci` / `TemporalPag` → `ReviewRequiredPag`, and
+`Pag` via `reject_dag_only_on_pag` (class-aware execute still not on the facade). Builder helpers:
+`discover_lpcmci`, `pag`, `temporal_pag`.
 
 ### P2.9 Fixed seeds / test contexts in production paths
 `crates/causal-model/src/evaluate.rs:200,229`, `crates/causal-attribution/src/distribution_change.rs:273`,
@@ -139,11 +132,11 @@ own no-global-RNG discipline and hiding Monte-Carlo variability from callers.
 - `KnnCmi` (`crates/causal-stats/src/ci/advanced.rs:215-222`) is not CMI/KSG: negative mean k-th NN
   distance in the joint space; no marginal counts, no digamma, no conditioning correction; `df: n`
   is meaningless. Valid only as a generic permutation dependence statistic. **Fix:** implement
-  KSG/FP-style CMI (Runge 2018 CMIknn) or rename honestly.
+  KSG/FP-style CMI (Runge 2018 CMIknn) or rename honestly. Or both - confirm usage.
 - `classifier_two_sample` (`crates/causal-stats/src/divergence.rs:57-59`) is a one-line alias of
   `mean_diff_two_sample`; `mechanism_change.rs:82-83` stamps `"classifier_two_sample"` into result
   artifacts — consumers see a classifier test that is blind to variance/shape changes. **Fix:**
-  implement a real C2ST or rename the method id.
+  implement a real C2ST or rename the method id. Confirm usage to determine which.
 - "Mixed regression CI" (`crates/causal-stats/src/ci/gsquared.rs:243-266`) is a trivial wrapper
   around partial correlation; `weighted_parcorr` in the factory binds a unit-weight variant
   (`crates/causal-stats/src/ci/factory.rs:48`). Implement.
@@ -154,7 +147,7 @@ own no-global-RNG discipline and hiding Monte-Carlo variability from callers.
 `request.significance`/`confidence`; permutation counts are hardcoded at 49 and CI level at 0.95. A
 caller requesting `BlockShuffle` silently gets analytic χ².
 **Fix:** honor the request or return an explicit unsupported-method error; hoist permutation count
-and level from the request.
+and level from the request. See which actually makes sense - I lean towards honoring the request.
 
 ### P2.12 Silent-fallback sweep (each small; fix opportunistically, loudest first)
 - `crates/causal-data/src/transforms.rs`: `equal_width_bin` maps NaN → bin 0; `ordinal_patterns`

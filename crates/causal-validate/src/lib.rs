@@ -25,8 +25,8 @@ pub mod unobserved_common_cause;
 pub mod validator;
 
 pub use bayesian_checks::{
-    PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
-    PriorSensitivity, with_prior_sensitivity,
+    DEFAULT_MAX_RELATIVE_PRIOR_RANGE, PosteriorPredictiveCheck, PredictiveCheckKind,
+    PredictiveCheckReport, PriorPredictiveCheck, PriorSensitivity, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport};
@@ -42,7 +42,7 @@ pub use rcc::RandomCommonCause;
 pub use reisz::ReiszSensitivity;
 pub use sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 pub use stability::{BlockBootstrapStability, DiscoveryStabilityReport, LinkStability};
-pub use suite::{ValidationOutcome, ValidationSuite, ValidatorId};
+pub use suite::{BayesianSuiteContext, ValidationOutcome, ValidationSuite, ValidatorId};
 pub use unobserved_common_cause::UnobservedCommonCause;
 pub use validator::{PreparedRefutation, Validator, run_validator};
 

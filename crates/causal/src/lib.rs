@@ -66,7 +66,7 @@ pub use causal_identify::{
 pub use result::CausalAnalysisResult;
 pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
-    compile_temporal_with_graph, ensure_review_complete,
+    compile_review_required_pag, compile_temporal_with_graph, ensure_review_complete,
 };
 pub use state::{apply_state_event, new_causal_state};
 
@@ -604,7 +604,7 @@ mod tests {
             }
             CompiledAnalysis::ReviewRequired(_)
             | CompiledAnalysis::ReviewRequiredCpdag(_)
-            | CompiledAnalysis::ReviewRequiredPag { .. } => {
+            | CompiledAnalysis::ReviewRequiredPag(_) => {
                 panic!("expected Ready")
             }
         }

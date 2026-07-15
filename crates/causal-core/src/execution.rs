@@ -321,6 +321,23 @@ impl ExecutionContext {
             cache_policy: CachePolicy::disabled(),
         }
     }
+
+    /// Production context: optimized kernels allowed, cache enabled, bounded threads.
+    #[must_use]
+    pub fn production(seed: u64, max_threads: u32) -> Self {
+        let threads =
+            NonZeroThreadCount::new(max_threads.max(1)).unwrap_or_else(NonZeroThreadCount::one);
+        Self {
+            parallelism: Parallelism::bounded(threads),
+            determinism: Determinism::Strict,
+            rng: RngFactory::from_seed(seed),
+            memory: MemoryBudget::unlimited(),
+            cancellation: CancellationToken::new(),
+            progress: None,
+            kernel_policy: KernelPolicy::default_policy(),
+            cache_policy: CachePolicy::enabled(None),
+        }
+    }
 }
 
 impl core::fmt::Debug for ExecutionContext {

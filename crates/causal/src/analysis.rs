@@ -19,36 +19,45 @@ use causal_core::{
     LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode,
     TemporalEffectQuery, VERSION, VariableId,
 };
-use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
+use causal_data::{
+    DiscoveryEstimationSplit, MultiEnvironmentData, TableView, TabularData, TimeSeriesData,
+};
 use causal_estimate::{
     BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, EffectEstimate,
     EstimationWorkspace, OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity,
     TemporalLinearAdjustment,
 };
 use causal_expr::IdentifiedEstimand;
-use causal_graph::{Dag, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
+use causal_graph::{Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag};
 use causal_identify::{
     IdentificationStatus, SharpRdConfig, SharpRdIdentifier, TemporalBackdoorIdentifier,
 };
-use causal_validate::{RefutationProblem, RefutationReport, ValidationSuite};
+use causal_validate::{
+    BayesianSuiteContext, RefutationProblem, RefutationReport, ValidationSuite,
+};
 
-use crate::discovery::{DiscoverParams, discover_pcmci, discover_pcmci_plus};
+use crate::discovery::{
+    DiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pcmci, discover_pcmci_plus,
+    discover_rpcmci,
+};
 use crate::discovery_defaults::resolve_ci;
 use crate::error::AnalysisError;
 use crate::inference::{BayesianConfig, InferenceMode};
 use crate::planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
     StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
+    reject_dag_only_on_pag,
 };
 use crate::result::CausalAnalysisResult;
 use crate::review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
-    ensure_review_complete,
+    compile_review_required_pag, ensure_review_complete,
 };
 use crate::strategy_table::{
     DEFAULT_ESTIMATOR, DEFAULT_IDENTIFIER, estimate_provenance_step, estimate_static_effect,
     identify_provenance_step, identify_static,
 };
+use causal_discovery::two_regime_half_split;
 
 /// Which refuters to run (static ATE path).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -193,6 +202,28 @@ impl CausalAnalysisBuilder {
     pub fn discover_rpcmci(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
         self.graph =
             Some(GraphInput::DiscoverRpcmci { max_lag, alpha, fdr, accept_discovered: accept });
+        self
+    }
+
+    /// Discover with LPCMCI (temporal PAG; typically [`CompiledAnalysis::ReviewRequiredPag`]).
+    #[must_use]
+    pub fn discover_lpcmci(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
+        self.graph =
+            Some(GraphInput::DiscoverLpcmci { max_lag, alpha, fdr, accept_discovered: accept });
+        self
+    }
+
+    /// Supply a static PAG (class-aware identification required; DAG-only IDs are refused).
+    #[must_use]
+    pub fn pag(mut self, graph: Pag) -> Self {
+        self.graph = Some(GraphInput::Pag(graph));
+        self
+    }
+
+    /// Supply a temporal PAG (review / class-aware identification required).
+    #[must_use]
+    pub fn temporal_pag(mut self, graph: TemporalPag) -> Self {
+        self.graph = Some(GraphInput::TemporalPag(graph));
         self
     }
 
@@ -372,10 +403,24 @@ impl CausalAnalysis {
             (
                 DataInput::Temporal(data),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmci { .. } | GraphInput::DiscoverPcmciPlus { .. },
+                GraphInput::DiscoverPcmci { .. }
+                | GraphInput::DiscoverPcmciPlus { .. }
+                | GraphInput::DiscoverJpcmciPlus { .. }
+                | GraphInput::DiscoverRpcmci { .. }
+                | GraphInput::DiscoverLpcmci { .. }
+                | GraphInput::TemporalPag(_),
             ) => {
                 // Review usually required; logical metadata still inspectable.
                 compile_logical_temporal_effect(data, &TemporalDag::empty(), q, self.split, true)
+            }
+            (DataInput::Tabular(_), CausalQuery::AverageEffect(_), graph @ GraphInput::Pag(_)) => {
+                let (identifier, _) = self.resolve_static_pair();
+                reject_dag_only_on_pag(graph, &identifier)?;
+                Err(AnalysisError::Compile {
+                    message: "static Pag requires class-aware identification \
+                     (generalized.adjustment envelope); CausalAnalysis execute is not wired for PAG"
+                        .into(),
+                })
             }
             _ => Err(AnalysisError::Unsupported {
                 message: "unsupported data/graph/query combination",
@@ -447,6 +492,79 @@ impl CausalAnalysis {
                     Ok(compile_review_required_cpdag(review))
                 }
             }
+            (
+                DataInput::Temporal(data),
+                CausalQuery::TemporalEffect(q),
+                GraphInput::DiscoverJpcmciPlus { max_lag, alpha, fdr, accept_discovered },
+            ) => {
+                let review = run_jpcmci_plus_review(data, *max_lag, *alpha, *fdr, ctx)?;
+                if *accept_discovered && review.pending_undirected.is_empty() {
+                    PendingCpdagReview::new(review, data.row_count(), q.clone(), self.split)
+                        .accept_all_directed()
+                        .finish(data, ctx)
+                } else {
+                    Ok(compile_review_required_cpdag(review))
+                }
+            }
+            (
+                DataInput::Temporal(data),
+                CausalQuery::TemporalEffect(_q),
+                GraphInput::DiscoverRpcmci { max_lag, alpha, fdr, accept_discovered },
+            ) => {
+                let result = run_rpcmci_discovery(data, *max_lag, *alpha, *fdr, ctx)?;
+                // Multi-regime estimation is not auto-wired; surface the first regime's CPDAG
+                // for review. Auto-accept only when a single fully-oriented regime exists.
+                let Some(first) = result.per_regime.first() else {
+                    return Err(AnalysisError::Compile {
+                        message: "RPCMCI returned no regime graphs".into(),
+                    });
+                };
+                let review = first.review.clone();
+                if *accept_discovered
+                    && result.per_regime.len() == 1
+                    && review.pending_undirected.is_empty()
+                {
+                    let q = match &self.query {
+                        CausalQuery::TemporalEffect(q) => q.clone(),
+                        _ => unreachable!(),
+                    };
+                    PendingCpdagReview::new(review, data.row_count(), q, self.split)
+                        .accept_all_directed()
+                        .finish(data, ctx)
+                } else {
+                    Ok(compile_review_required_cpdag(review))
+                }
+            }
+            (
+                DataInput::Temporal(data),
+                CausalQuery::TemporalEffect(_),
+                GraphInput::DiscoverLpcmci { max_lag, alpha, fdr, accept_discovered },
+            ) => {
+                let review = run_lpcmci_review(data, *max_lag, *alpha, *fdr, ctx)?;
+                // Temporal backdoor is DAG-only; never auto-finish a PAG into Ready.
+                let _ = accept_discovered;
+                Ok(compile_review_required_pag(review))
+            }
+            (
+                DataInput::Temporal(_),
+                CausalQuery::TemporalEffect(_),
+                GraphInput::TemporalPag(pag),
+            ) => {
+                // Never silently estimate on a PAG with temporal.backdoor (DAG-only).
+                Ok(compile_review_required_pag(causal_graph::TemporalPagReview::from_pag(
+                    pag.clone(),
+                    "supplied.temporal_pag",
+                )))
+            }
+            (DataInput::Tabular(_), CausalQuery::AverageEffect(_), graph @ GraphInput::Pag(_)) => {
+                let (identifier, _) = self.resolve_static_pair();
+                reject_dag_only_on_pag(graph, &identifier)?;
+                Err(AnalysisError::Compile {
+                    message: "static Pag requires class-aware identification \
+                     (generalized.adjustment envelope); CausalAnalysis execute is not wired for PAG"
+                        .into(),
+                })
+            }
             _ => Err(AnalysisError::Unsupported {
                 message: "unsupported data/graph/query combination",
             }),
@@ -477,13 +595,27 @@ impl CausalAnalysis {
             (
                 DataInput::Tabular(_),
                 _,
-                GraphInput::DiscoverPcmci { .. } | GraphInput::DiscoverPcmciPlus { .. },
+                GraphInput::DiscoverPcmci { .. }
+                | GraphInput::DiscoverPcmciPlus { .. }
+                | GraphInput::DiscoverJpcmciPlus { .. }
+                | GraphInput::DiscoverRpcmci { .. }
+                | GraphInput::DiscoverLpcmci { .. }
+                | GraphInput::TemporalPag(_),
             ) => {
                 return Err(AnalysisError::Compile {
                     message:
-                        "PCMCI / PCMCI+ discovery requires temporal data and a temporal effect query"
+                        "PCMCI-family / temporal PAG discovery requires temporal data and a temporal effect query"
                             .into(),
                 });
+            }
+            (DataInput::Temporal(_), _, GraphInput::Pag(_)) => {
+                return Err(AnalysisError::Compile {
+                    message: "static Pag requires tabular data and an average-effect query".into(),
+                });
+            }
+            (DataInput::Tabular(_), CausalQuery::AverageEffect(_), GraphInput::Pag(_)) => {
+                let (identifier, _) = self.resolve_static_pair();
+                reject_dag_only_on_pag(&self.graph, &identifier)?;
             }
             _ => {}
         }
@@ -754,6 +886,24 @@ impl CausalAnalysis {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
 
+        let refutations = match self.refute {
+            RefuteSuite::None => Vec::new(),
+            RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
+                let suite = ValidationSuite::bayesian_diagnostics();
+                let mut bayes_ctx = BayesianSuiteContext::new(
+                    &est,
+                    &prep,
+                    &posterior,
+                    identification.status,
+                    &mut ws,
+                    estimate.ate,
+                );
+                let outcomes =
+                    suite.run_bayesian(&mut bayes_ctx, ctx).map_err(AnalysisError::from)?;
+                ValidationSuite::reports_only(&outcomes)
+            }
+        };
+
         let (id_artifact, id_op) = identify_provenance_step(identifier);
         let provenance = provenance_pair(
             (id_artifact, id_op, &[], &identification.required_assumptions),
@@ -772,7 +922,7 @@ impl CausalAnalysis {
             estimand,
             estimate,
             posterior: Some(posterior),
-            refutations: Vec::new(),
+            refutations,
             diagnostics,
             provenance,
             treatment: query.treatment,
@@ -989,6 +1139,48 @@ fn run_pcmci_plus_review(
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
     let result = discover_pcmci_plus(data, &vars, &params, ctx)?;
+    Ok(result.review)
+}
+
+fn run_jpcmci_plus_review(
+    data: &TimeSeriesData,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    ctx: &ExecutionContext,
+) -> Result<TemporalCpdagReview, AnalysisError> {
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
+    let multi = MultiEnvironmentData::try_new(Arc::from([data.clone()])).map_err(|e| {
+        AnalysisError::Compile { message: format!("jpcmci+ multi-env wrap failed: {e}") }
+    })?;
+    let result = discover_jpcmci_plus(&multi, &vars, &params, ctx)?;
+    Ok(result.review)
+}
+
+fn run_rpcmci_discovery(
+    data: &TimeSeriesData,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    ctx: &ExecutionContext,
+) -> Result<causal_discovery::RpcmciDiscoveryResult, AnalysisError> {
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
+    let assign = two_regime_half_split(data.row_count());
+    discover_rpcmci(data, &vars, &assign, &params, None, ctx)
+}
+
+fn run_lpcmci_review(
+    data: &TimeSeriesData,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    ctx: &ExecutionContext,
+) -> Result<causal_graph::TemporalPagReview, AnalysisError> {
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
+    let result = discover_lpcmci(data, &vars, &params, ctx)?;
     Ok(result.review)
 }
 

@@ -204,6 +204,11 @@ fn load_float64_columns(
     })
 }
 
+
+fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
+    ExecutionContext::production(seed, threads)
+}
+
 /// Run static ATE: identify → estimate → optional refute .
 ///
 /// `identifier`/`estimator` select the identification strategy and estimator; leaving both
@@ -228,7 +233,8 @@ fn load_float64_columns(
     prior_scale=10.0,
     refute=true,
     seed=1,
-    bootstrap=50
+    bootstrap=50,
+    threads=1
 ))]
 fn analyze_ate(
     py: Python<'_>,
@@ -245,6 +251,7 @@ fn analyze_ate(
     refute: bool,
     seed: u64,
     bootstrap: u32,
+    threads: u32,
 ) -> PyResult<AteAnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     // Drop NumPy borrows before releasing the GIL.
@@ -300,7 +307,7 @@ fn analyze_ate(
                 "frequentist" => {
                     builder = builder.inference(InferenceMode::Frequentist);
                     let analysis = builder.build().map_err(py_err)?;
-                    let ctx = ExecutionContext::for_tests(seed);
+                    let ctx = py_execution_context(seed, threads);
                     let result = analysis.run(&ctx).map_err(py_err)?;
                     return ate_result_from_analysis(&names, result);
                 }
@@ -315,7 +322,7 @@ fn analyze_ate(
             // `refutation_passed=True` for checks that never ran.
         }
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
         ate_result_from_analysis(&names, result)
     })
@@ -516,7 +523,7 @@ fn discovery_result_fields(
 /// NumPy columns in, structured link list out once. No per-query Python callbacks.
 /// `ci` selects the conditional-independence test by name (default `parcorr`).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
 fn discover_pcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -527,6 +534,7 @@ fn discover_pcmci(
     seed: u64,
     ci: &str,
     weights: Option<Vec<f64>>,
+    threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_name = ci.to_string();
@@ -536,7 +544,7 @@ fn discover_pcmci(
     py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let result = facade_discover_pcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
         Ok(discovery_result_fields(
             &names,
@@ -555,7 +563,7 @@ fn discover_pcmci(
 
 /// Run PCMCI+ discovery returning links plus oriented temporal CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
 fn discover_pcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
@@ -566,6 +574,7 @@ fn discover_pcmci_plus(
     seed: u64,
     ci: &str,
     weights: Option<Vec<f64>>,
+    threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_name = ci.to_string();
@@ -575,7 +584,7 @@ fn discover_pcmci_plus(
     py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let result =
             facade_discover_pcmci_plus(&series, &variables, &params, &ctx).map_err(py_err)?;
 
@@ -602,7 +611,7 @@ fn discover_pcmci_plus(
 
 /// Run LPCMCI discovery returning links plus temporal PAG summary (no per-edge GIL).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
 fn discover_lpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -613,6 +622,7 @@ fn discover_lpcmci(
     seed: u64,
     ci: &str,
     weights: Option<Vec<f64>>,
+    threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_name = ci.to_string();
@@ -622,7 +632,7 @@ fn discover_lpcmci(
     py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let result = facade_discover_lpcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
 
         let pag = &result.evidence.graph;
@@ -648,7 +658,7 @@ fn discover_lpcmci(
 ///
 /// `env_columns` is a list of column batches (each env: same `names` order).
 #[pyfunction]
-#[pyo3(signature = (names, env_columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
+#[pyo3(signature = (names, env_columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
 fn discover_jpcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
@@ -659,6 +669,7 @@ fn discover_jpcmci_plus(
     seed: u64,
     ci: &str,
     weights: Option<Vec<f64>>,
+    threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
     if env_columns.is_empty() {
         return Err(PyValueError::new_err("discover_jpcmci_plus needs ≥1 environment"));
@@ -683,7 +694,7 @@ fn discover_jpcmci_plus(
         }
         let multi = MultiEnvironmentData::try_new(Arc::from(series_list)).map_err(py_err)?;
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let result =
             facade_discover_jpcmci_plus(&multi, &variables, &params, &ctx).map_err(py_err)?;
         let cpdag = &result.evidence.graph;
@@ -704,7 +715,7 @@ fn discover_jpcmci_plus(
 
 /// RPCMCI with half-split regimes (one GIL crossing).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
 fn discover_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -715,6 +726,7 @@ fn discover_rpcmci(
     seed: u64,
     ci: &str,
     weights: Option<Vec<f64>>,
+    threads: u32,
 ) -> PyResult<RpcmciDiscoverySummary> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
@@ -723,7 +735,7 @@ fn discover_rpcmci(
         let (series, variables) = series_from_batch(&batch)?;
         let assign = two_regime_half_split(series.row_count());
         let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)
             .map_err(py_err)?;
         let mut regime_ids = Vec::new();
@@ -746,7 +758,7 @@ fn discover_rpcmci(
 
 /// Mediation effect surface summary (total / direct / mediated).
 #[pyfunction]
-#[pyo3(signature = (names, columns, treatment, mediator, outcome, *, seed=1))]
+#[pyo3(signature = (names, columns, treatment, mediator, outcome, *, seed=1, threads=1))]
 fn mediation_effects_summary(
     py: Python<'_>,
     names: Vec<String>,
@@ -755,6 +767,7 @@ fn mediation_effects_summary(
     mediator: String,
     outcome: String,
     seed: u64,
+    threads: u32,
 ) -> PyResult<MediationEffectsSummary> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -774,7 +787,7 @@ fn mediation_effects_summary(
         let functional = arena.frontdoor_ate(t, y, &[m], Value::f64(1.0), Value::f64(0.0));
         let estimand =
             IdentifiedEstimand::frontdoor("temporal_mediation.total", Arc::from([m]), functional);
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let surface = TemporalMediationEstimator::new()
             .effect_surface(&series, &estimand, &q, &ctx)
             .map_err(py_err)?;
@@ -895,7 +908,8 @@ struct AnalysisResult {
     horizon_steps=1,
     active_level=1.0,
     seed=1,
-    bootstrap=0
+    bootstrap=0,
+    threads=1
 ))]
 fn analyze(
     py: Python<'_>,
@@ -909,6 +923,7 @@ fn analyze(
     active_level: f64,
     seed: u64,
     bootstrap: u32,
+    threads: u32,
 ) -> PyResult<AnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -953,7 +968,7 @@ fn analyze(
             .bootstrap_replicates(bootstrap)
             .build()
             .map_err(py_err)?;
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
         Ok(AnalysisResult {
             ate: result.estimate.ate,
@@ -996,6 +1011,7 @@ struct GcmSampleResult {
 ///
 /// Crosses the Python boundary once: NumPy columns + edges in, summary out.
 #[pyfunction]
+#[pyo3(signature = (names, columns, edges, treatment, outcome, active, control, seed=0, threads=1))]
 fn gcm_counterfactual_ite(
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -1005,6 +1021,7 @@ fn gcm_counterfactual_ite(
     active: f64,
     control: f64,
     seed: u64,
+    threads: u32,
 ) -> PyResult<GcmIteResult> {
     Python::attach(|_py| {
         let batch = columns_to_batch(&names, &columns)?;
@@ -1026,7 +1043,7 @@ fn gcm_counterfactual_ite(
         }
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let n_assignments = fitted.assignments.len();
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let ite = counterfactual_ite(fitted.model, &data, t_id, y_id, active, control, &ctx)
             .map_err(py_err)?;
         Ok(GcmIteResult {
@@ -1040,6 +1057,7 @@ fn gcm_counterfactual_ite(
 
 /// Fit GCM and return interventional column means under hard `do(treatment=value)`.
 #[pyfunction]
+#[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, seed=0, threads=1))]
 fn gcm_sample_do(
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -1048,6 +1066,7 @@ fn gcm_sample_do(
     do_value: f64,
     n_draws: usize,
     seed: u64,
+    threads: u32,
 ) -> PyResult<GcmSampleResult> {
     Python::attach(|_py| {
         let batch = columns_to_batch(&names, &columns)?;
@@ -1067,7 +1086,7 @@ fn gcm_sample_do(
             .map_err(py_err)?;
         }
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        let ctx = ExecutionContext::for_tests(seed);
+        let ctx = py_execution_context(seed, threads);
         let mut rng = CausalRng::from_seed(seed);
         let samples = sample_do(
             &fitted.model,
@@ -1107,7 +1126,7 @@ fn quantity_wire_name(q: &PosteriorQuantityWire) -> String {
 ///
 /// Returns `(total_change, [(component_name, contribution), ...])`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, n_samples=500, seed=0))]
+#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, n_samples=500, seed=0, threads=1))]
 fn gcm_distribution_change(
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -1119,6 +1138,7 @@ fn gcm_distribution_change(
     comparison_end: usize,
     n_samples: usize,
     seed: u64,
+    threads: u32,
 ) -> PyResult<(f64, Vec<(String, f64)>)> {
     Python::attach(|_py| {
         let batch = columns_to_batch(&names, &columns)?;
@@ -1147,7 +1167,7 @@ fn gcm_distribution_change(
         .with_allocation(AllocationMethod::Shapley {
             approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
         });
-        let mut ctx = ExecutionContext::for_tests(seed);
+        let mut ctx = py_execution_context(seed, threads);
         ctx.cache_policy = CachePolicy::enabled(Some(4_000_000));
         let opts = DistributionChangeOptions {
             measure: DifferenceMeasure::MeanDiff,
@@ -1173,7 +1193,7 @@ fn gcm_distribution_change(
 /// `graph_weights`, `identified` (0/1), and `graph_keys` form the discrete posterior.
 /// Returns `(best_index, scores, mc_samples)`.
 #[pyfunction]
-#[pyo3(signature = (graph_weights, identified, graph_keys, measure_var_ids, sampling_increments, seed=0))]
+#[pyo3(signature = (graph_weights, identified, graph_keys, measure_var_ids, sampling_increments, seed=0, threads=1))]
 fn rank_design_eig(
     graph_weights: Vec<f64>,
     identified: Vec<u8>,
@@ -1181,6 +1201,7 @@ fn rank_design_eig(
     measure_var_ids: Vec<u32>,
     sampling_increments: Vec<u64>,
     seed: u64,
+    threads: u32,
 ) -> PyResult<(usize, Vec<f64>, u64)> {
     let flags: Vec<GraphIdentFlag> = identified
         .into_iter()
@@ -1211,7 +1232,7 @@ fn rank_design_eig(
         batch_size: 4,
         rank_uncertainty_threshold: 0.5,
     });
-    let ctx = ExecutionContext::for_tests(seed);
+    let ctx = py_execution_context(seed, threads);
     let eval = DesignEvaluationContext::<(), ()> {
         graphs: &graphs,
         effect_width: None,

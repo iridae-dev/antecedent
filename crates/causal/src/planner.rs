@@ -12,7 +12,7 @@ use causal_core::{
     TargetPopulation, TemporalEffectQuery,
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use causal_graph::{Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag};
+use causal_graph::{Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview};
 
 use crate::error::AnalysisError;
 use crate::strategy_table::validate_static_pair;
@@ -123,7 +123,7 @@ impl LogicalAnalysisPlan {
         }
         if matches!(
             self.record.discovery_algorithm.as_deref(),
-            Some("pcmci" | "pcmci_plus" | "jpcmci_plus" | "rpcmci")
+            Some("pcmci" | "pcmci_plus" | "jpcmci_plus" | "rpcmci" | "lpcmci")
         ) && self.record.data_classification != DataClassification::Temporal
         {
             return Err(AnalysisError::Compile {
@@ -271,10 +271,7 @@ pub enum CompiledAnalysis {
     /// PCMCI+ CPDAG needs acceptance of directed edges and orientation of undirected marks.
     ReviewRequiredCpdag(TemporalCpdagReview),
     /// LPCMCI / PAG needs circle resolution or class-aware identification.
-    ReviewRequiredPag {
-        /// Message.
-        message: String,
-    },
+    ReviewRequiredPag(TemporalPagReview),
 }
 
 /// Whether an identifier is DAG-only (cannot accept a PAG without completion / class-aware ID).

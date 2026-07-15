@@ -40,6 +40,35 @@ pub struct PredictiveCheckReport {
     pub n_sims: u32,
 }
 
+impl PredictiveCheckReport {
+    /// Convert to a suite [`RefutationReport`] using a two-sided α threshold on `p_value`.
+    #[must_use]
+    pub fn to_refutation_report(&self, original_ate: f64, alpha: f64) -> RefutationReport {
+        let name = match self.kind {
+            PredictiveCheckKind::Prior => "prior_predictive",
+            PredictiveCheckKind::Posterior => "posterior_predictive",
+        };
+        let passed = self.p_value.is_finite() && self.p_value >= alpha;
+        RefutationReport {
+            refuter: Arc::from(name),
+            original_ate,
+            refuted_ate: self.predictive_mean,
+            comparison: self.p_value,
+            informative: true,
+            passed,
+            failure_condition: if passed {
+                None
+            } else {
+                Some(Arc::from(format!(
+                    "predictive check failed (p={} < alpha={alpha})",
+                    self.p_value
+                )))
+            },
+            replicates: self.n_sims,
+        }
+    }
+}
+
 /// Prior vs posterior predictive.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum PredictiveCheckKind {
@@ -174,11 +203,17 @@ impl PosteriorPredictiveCheck {
     }
 }
 
+/// Default max relative range of effect means across the prior-sensitivity grid.
+pub const DEFAULT_MAX_RELATIVE_PRIOR_RANGE: f64 = 0.5;
+
 /// Prior sensitivity grid over isotropic coefficient prior scales.
 #[derive(Clone, Debug)]
 pub struct PriorSensitivity {
     /// Prior scales (σ of isotropic Gaussian coefficient prior).
     pub scales: Arc<[f64]>,
+    /// Fail when `(max−min) / scale` exceeds this, where `scale` is
+    /// `max(|means…|, |original_ate|, ε)`.
+    pub max_relative_range: f64,
 }
 
 impl Default for PriorSensitivity {
@@ -188,10 +223,13 @@ impl Default for PriorSensitivity {
 }
 
 impl PriorSensitivity {
-    /// Standard grid `{0.5, 1, 2, 5, 10, 20}`.
+    /// Standard grid `{0.5, 1, 2, 5, 10, 20}` with [`DEFAULT_MAX_RELATIVE_PRIOR_RANGE`].
     #[must_use]
     pub fn standard_grid() -> Self {
-        Self { scales: Arc::from(vec![0.5, 1.0, 2.0, 5.0, 10.0, 20.0]) }
+        Self {
+            scales: Arc::from(vec![0.5, 1.0, 2.0, 5.0, 10.0, 20.0]),
+            max_relative_range: DEFAULT_MAX_RELATIVE_PRIOR_RANGE,
+        }
     }
 
     /// Refit Bayesian g-comp at each prior scale; return sensitivity summary.
@@ -240,6 +278,9 @@ impl PriorSensitivity {
     }
 
     /// Convert sensitivity range into a refutation-style report.
+    ///
+    /// Passes when the relative range of effect means is finite and
+    /// `≤ max_relative_range`.
     #[must_use]
     pub fn to_report(
         &self,
@@ -249,14 +290,30 @@ impl PriorSensitivity {
         let min = summary.effect_means.iter().copied().fold(f64::INFINITY, f64::min);
         let max = summary.effect_means.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let range = max - min;
+        let denom = summary
+            .effect_means
+            .iter()
+            .copied()
+            .map(f64::abs)
+            .fold(original_ate.abs(), f64::max)
+            .max(1e-8);
+        let relative = range / denom;
+        let passed = relative.is_finite() && relative <= self.max_relative_range;
         RefutationReport {
             refuter: Arc::from("prior_sensitivity"),
             original_ate,
             refuted_ate: summary.effect_means.last().copied().unwrap_or(original_ate),
-            comparison: range,
+            comparison: relative,
             informative: true,
-            passed: range.is_finite(),
-            failure_condition: None,
+            passed,
+            failure_condition: if passed {
+                None
+            } else {
+                Some(Arc::from(format!(
+                    "prior sensitivity relative range {relative} exceeds max {}",
+                    self.max_relative_range
+                )))
+            },
             replicates: self.scales.len() as u32,
         }
     }
@@ -429,7 +486,10 @@ mod tests {
         let prep = bayes.prepare(&data, &estimand, &query).unwrap();
         let mut ws = BayesianGCompWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let sens = PriorSensitivity { scales: Arc::from(vec![1.0, 10.0, 50.0]) };
+        let sens = PriorSensitivity {
+            scales: Arc::from(vec![1.0, 10.0, 50.0]),
+            max_relative_range: DEFAULT_MAX_RELATIVE_PRIOR_RANGE,
+        };
         let (summary, posts) = sens
             .evaluate(
                 &bayes,
