@@ -16,7 +16,7 @@ use causal_graph::{Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphRevi
 use causal_stats::FdrAdjustment;
 
 use crate::error::AnalysisError;
-use crate::strategy_table::validate_static_pair;
+use crate::strategy_table::{EstimatorId, IdentifierId, validate_static_pair};
 
 /// How the causal graph is supplied to the planner.
 #[derive(Clone, Debug)]
@@ -184,30 +184,24 @@ impl LogicalAnalysisPlan {
         let task_schedule: Arc<[ParallelTaskSpec]> = if workers == 0 {
             Arc::from([ParallelTaskSpec { dimension: Arc::from("serial"), units: 1 }])
         } else {
+            let estimator = self
+                .record
+                .estimator
+                .as_deref()
+                .map(EstimatorId::parse)
+                .unwrap_or(EstimatorId::Other(Arc::from("")));
             Arc::from([ParallelTaskSpec {
-                dimension: Arc::from(match self.record.estimator.as_deref() {
-                    // Every /4 estimator supports an optional IID bootstrap; parallelize
-                    // over replicates when threads are available.
-                    Some(
-                        "temporal.linear.adjustment"
-                        | "linear.adjustment.ate"
-                        | "propensity.weighting"
-                        | "propensity.matching"
-                        | "propensity.stratification"
-                        | "distance.matching"
-                        | "aipw"
-                        | "glm.adjustment"
-                        | "frontdoor.two_stage"
-                        | "iv.wald"
-                        | "iv.2sls"
-                        | "rd.sharp",
-                    ) => "bootstrap.replicate",
-                    _ => "analysis",
-                }),
+                dimension: Arc::from(estimator.parallel_task_dimension()),
                 units: workers,
             }])
         };
 
+        let estimator = self
+            .record
+            .estimator
+            .as_deref()
+            .map(EstimatorId::parse)
+            .unwrap_or(EstimatorId::Other(Arc::from("")));
         let record = PhysicalExecutionPlanRecord {
             plan_id: Arc::clone(&self.record.plan_id),
             materializations: Arc::from([(
@@ -215,19 +209,7 @@ impl LogicalAnalysisPlan {
                 BufferMaterialization::CopiedContiguous,
             )]),
             kernels: Arc::from([(
-                Arc::from(match self.record.estimator.as_deref() {
-                    Some("temporal.linear.adjustment") => "ols.faer.temporal",
-                    Some("propensity.weighting") => "ipw",
-                    Some("propensity.matching" | "distance.matching") => "matching",
-                    Some("propensity.stratification") => "propensity.stratification",
-                    Some("aipw") => "aipw",
-                    Some("glm.adjustment") => "glm.logit",
-                    Some("frontdoor.two_stage") => "frontdoor.two_stage",
-                    Some("iv.wald") => "iv.wald",
-                    Some("iv.2sls") => "2sls",
-                    Some("rd.sharp") => "rd.local_linear",
-                    _ => "ols.faer",
-                }),
+                Arc::from(estimator.kernel_label()),
                 KernelSelection::DenseBackend,
             )]),
             batch_size: Some(n_rows as usize),
@@ -277,16 +259,8 @@ pub enum CompiledAnalysis {
 
 /// Whether an identifier is DAG-only (cannot accept a PAG without completion / class-aware ID).
 #[must_use]
-pub fn is_dag_only_identifier(identifier: &str) -> bool {
-    matches!(
-        identifier,
-        "backdoor.adjustment"
-            | "backdoor.efficient"
-            | "frontdoor"
-            | "iv"
-            | "rd.sharp"
-            | "temporal.backdoor.unfolded"
-    )
+pub fn is_dag_only_identifier(identifier: impl Into<IdentifierId>) -> bool {
+    identifier.into().is_dag_only()
 }
 
 /// Refuse DAG-only identification on a PAG input (DESIGN.md §21.2).
@@ -294,16 +268,21 @@ pub fn is_dag_only_identifier(identifier: &str) -> bool {
 /// # Errors
 ///
 /// [`AnalysisError::Compile`] when a DAG-only identifier is paired with PAG graph input.
-pub fn reject_dag_only_on_pag(graph: &GraphInput, identifier: &str) -> Result<(), AnalysisError> {
+pub fn reject_dag_only_on_pag(
+    graph: &GraphInput,
+    identifier: impl Into<IdentifierId>,
+) -> Result<(), AnalysisError> {
+    let identifier = identifier.into();
     let is_pag = matches!(
         graph,
         GraphInput::Pag(_) | GraphInput::TemporalPag(_) | GraphInput::DiscoverLpcmci { .. }
     );
-    if is_pag && is_dag_only_identifier(identifier) {
+    if is_pag && identifier.is_dag_only() {
         return Err(AnalysisError::Compile {
             message: format!(
-                "DAG-only identification {identifier:?} cannot accept a PAG without a completion \
-                 or class-aware identifier (use generalized.adjustment)"
+                "DAG-only identification {:?} cannot accept a PAG without a completion \
+                 or class-aware identifier (use generalized.adjustment)",
+                identifier.as_str()
             ),
         });
     }
@@ -338,8 +317,10 @@ pub fn compile_logical_static_ate(
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {
     input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
-    validate_static_pair(&input.identifier, &input.estimator)?;
-    if &*input.estimator == "linear.adjustment.ate"
+    let identifier = IdentifierId::parse(&input.identifier);
+    let estimator = EstimatorId::parse(&input.estimator);
+    validate_static_pair(identifier.clone(), estimator.clone())?;
+    if matches!(estimator, EstimatorId::LinearAdjustmentAte)
         && input.query.target_population != TargetPopulation::AllObserved
     {
         return Err(AnalysisError::Compile {

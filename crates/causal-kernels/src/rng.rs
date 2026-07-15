@@ -4,12 +4,38 @@
 
 use causal_core::CausalRng;
 
-/// One standard-normal draw via Box–Muller.
+/// One standard-normal draw via Box–Muller (cosine component only).
 #[must_use]
 pub fn standard_normal(rng: &mut CausalRng) -> f64 {
-    let u1 = rng.next_f64().max(f64::EPSILON);
+    let (z, _) = standard_normal_pair(rng);
+    z
+}
+
+/// Box–Muller pair `(cos, sin)` from one uniform `(u1, u2)` draw.
+///
+/// Prefer [`fill_standard_normal`] when filling a buffer — it uses both
+/// components and halves RNG consumption vs repeated [`standard_normal`].
+#[must_use]
+pub fn standard_normal_pair(rng: &mut CausalRng) -> (f64, f64) {
+    let u1 = rng.next_f64().clamp(1e-12, 1.0);
     let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
+    let r = (-2.0 * u1.ln()).sqrt();
+    let theta = std::f64::consts::TAU * u2;
+    (r * theta.cos(), r * theta.sin())
+}
+
+/// Fill `out` with i.i.d. standard normals, emitting both Box–Muller components.
+pub fn fill_standard_normal(rng: &mut CausalRng, out: &mut [f64]) {
+    let mut i = 0;
+    while i < out.len() {
+        let (z0, z1) = standard_normal_pair(rng);
+        out[i] = z0;
+        i += 1;
+        if i < out.len() {
+            out[i] = z1;
+            i += 1;
+        }
+    }
 }
 
 /// Unbiased uniform index in `0..n` (rejects modulo bias).

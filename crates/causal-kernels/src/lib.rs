@@ -24,7 +24,10 @@ pub use dispatch::{
     select_impl,
 };
 pub use parcorr::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson};
-pub use rng::{categorical_from_u, sample_categorical, shuffle, standard_normal, unbiased_index};
+pub use rng::{
+    categorical_from_u, fill_standard_normal, sample_categorical, shuffle, standard_normal,
+    standard_normal_pair, unbiased_index,
+};
 pub use special::{erf, erfc, norm_cdf};
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 

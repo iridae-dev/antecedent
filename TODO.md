@@ -53,14 +53,6 @@ assignment and per-regime discovery; the alternating optimization is entirely ab
 **Fix:** implement masked CI evaluation (only use effective rows whose full lag window lies within
 one regime), then the alternating assignment loop.
 
-### P4.6 FDR options
-`crates/causal-stats/src/fdr.rs` implements BH only (correctly). Add Benjamini–Yekutieli and
-Bonferroni/Holm (DESIGN.md:1061), plus tigramite's `exclude_contemporaneous` family handling in
-`get_corrected_pvalues`.
-**DONE:** `MultipleTestingMethod` {BH, BY, Bonferroni, Holm}; `FdrAdjustment` with
-`exclude_contemporaneous` (tigramite default true); wired through discovery thresholding and
-facade `FdrControl`.
-
 ### P4.7 Generalized/PAG identification beyond the empty set
 `crates/causal-identify/src/generalized.rs:98-121` tests only `Z = ∅` per MAG completion; any
 confounded-but-adjustable completion reports NotIdentified. Implement generalized adjustment-set
@@ -135,8 +127,7 @@ roughly by how much current claims/outputs depend on them.
    binomial, probit IRLS (unblocks P4.12), robust M-estimation, ridge/lasso (optional
    separation fallback; hard-fail already shipped); **robust covariance §11.3** — HC0–HC3, cluster, multiway, HAC/Newey-West (zero hits
    repo-wide today; SEs are homoskedastic-analytic or bootstrap); shared resampling engine §11.4
-   additions — cluster and stationary-block bootstrap, permutation resampling; multiple testing
-   beyond BH (P4.6).
+   additions — cluster and stationary-block bootstrap, permutation resampling.
 5. **Mechanism families** (DESIGN.md:1422-1429): BVAR, state-space, GP, hierarchical (only
    conjugate Gaussian + Laplace GLM exist). Counterfactual trajectories (line 1637).
    Simulation-based calibration (line 1801). ESS/R-hat diagnostics
@@ -173,19 +164,6 @@ roughly by how much current claims/outputs depend on them.
 ---
 
 ## P6 — Code quality: DRY / SOLID / idiomatic
-
-### P6.4 Shared sampling primitives — remaining
-Prod Box–Muller is mostly on `causal_kernels::standard_normal`, but duplicates remain:
-`causal-validate/src/common.rs` `fill_gaussian` (paired cos/sin for stream parity), and inline
-Box–Muller in `causal-stats/src/ci/calibration.rs`. Test/bench copies also remain
-(`frontdoor`/`aipw`/`iv` tests, `estimate_conformance`, `propensity_bootstrap` bench). Route
-through kernels (add a paired-draw helper if stream shape must be preserved).
-
-### P6.6 Replace stringly-typed dispatch with enums — remaining
-Validate gates and `AssumptionTagWire` are typed. Facade planner still matches identifier /
-estimator ids as strings (`planner.rs` `is_dag_only_identifier`, physical-plan kernel selection,
-bootstrap task labels): a typo silently becomes wrong schedule / kernel. Introduce a closed enum
-(with `Other(String)` escape) so the applicability matrix is compile-checked.
 
 ### P6.9 API hygiene — remaining
 Done already: `FdrControl`/`DiscoveryAccept`/`MissingPolicy`/`ParCorrMode`; `series_len` checked;

@@ -6,6 +6,8 @@
 
 #![allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
 
+use std::sync::Arc;
+
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext};
 use causal_data::TabularData;
 use causal_estimate::{
@@ -24,38 +26,257 @@ use causal_identify::{
 
 use crate::error::AnalysisError;
 
+/// Closed set of identification strategies (plus [`IdentifierId::Other`] escape).
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum IdentifierId {
+    /// Classic backdoor adjustment-set search.
+    BackdoorAdjustment,
+    /// Efficient (optimal) backdoor adjustment.
+    BackdoorEfficient,
+    /// Front-door identification.
+    Frontdoor,
+    /// Instrumental-variable identification.
+    Iv,
+    /// Sharp regression discontinuity.
+    RdSharp,
+    /// Temporal unfolded backdoor.
+    TemporalBackdoorUnfolded,
+    /// Class-aware / generalized adjustment (PAG-safe).
+    GeneralizedAdjustment,
+    /// Unknown / extension id (not in the compile-time allowlist).
+    Other(Arc<str>),
+}
+
+impl IdentifierId {
+    /// Parse a wire / builder id string.
+    #[must_use]
+    pub fn parse(id: &str) -> Self {
+        match id {
+            "backdoor.adjustment" => Self::BackdoorAdjustment,
+            "backdoor.efficient" => Self::BackdoorEfficient,
+            "frontdoor" => Self::Frontdoor,
+            "iv" => Self::Iv,
+            "rd.sharp" => Self::RdSharp,
+            "temporal.backdoor.unfolded" => Self::TemporalBackdoorUnfolded,
+            "generalized.adjustment" => Self::GeneralizedAdjustment,
+            other => Self::Other(Arc::from(other)),
+        }
+    }
+
+    /// Canonical wire id.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::BackdoorAdjustment => "backdoor.adjustment",
+            Self::BackdoorEfficient => "backdoor.efficient",
+            Self::Frontdoor => "frontdoor",
+            Self::Iv => "iv",
+            Self::RdSharp => "rd.sharp",
+            Self::TemporalBackdoorUnfolded => "temporal.backdoor.unfolded",
+            Self::GeneralizedAdjustment => "generalized.adjustment",
+            Self::Other(s) => s.as_ref(),
+        }
+    }
+
+    /// Whether this identifier requires a DAG (not a raw PAG).
+    #[must_use]
+    pub const fn is_dag_only(&self) -> bool {
+        matches!(
+            self,
+            Self::BackdoorAdjustment
+                | Self::BackdoorEfficient
+                | Self::Frontdoor
+                | Self::Iv
+                | Self::RdSharp
+                | Self::TemporalBackdoorUnfolded
+        )
+    }
+}
+
+impl From<&str> for IdentifierId {
+    fn from(value: &str) -> Self {
+        Self::parse(value)
+    }
+}
+
+impl From<&Arc<str>> for IdentifierId {
+    fn from(value: &Arc<str>) -> Self {
+        Self::parse(value.as_ref())
+    }
+}
+
+/// Closed set of estimators (plus [`EstimatorId::Other`] escape).
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum EstimatorId {
+    /// OLS g-computation / linear adjustment ATE.
+    LinearAdjustmentAte,
+    /// Inverse-probability weighting.
+    PropensityWeighting,
+    /// Propensity-score matching.
+    PropensityMatching,
+    /// Propensity stratification.
+    PropensityStratification,
+    /// Covariate distance matching.
+    DistanceMatching,
+    /// Augmented IPW.
+    Aipw,
+    /// GLM (logit) adjustment.
+    GlmAdjustment,
+    /// Front-door two-stage.
+    FrontDoorTwoStage,
+    /// Wald IV.
+    IvWald,
+    /// Two-stage least squares.
+    Iv2Sls,
+    /// Sharp local-linear RD.
+    RdSharp,
+    /// Bayesian g-computation.
+    BayesianGcomp,
+    /// Temporal linear adjustment.
+    TemporalLinearAdjustment,
+    /// Unknown / extension id.
+    Other(Arc<str>),
+}
+
+impl EstimatorId {
+    /// Parse a wire / builder id string.
+    #[must_use]
+    pub fn parse(id: &str) -> Self {
+        match id {
+            "linear.adjustment.ate" => Self::LinearAdjustmentAte,
+            "propensity.weighting" => Self::PropensityWeighting,
+            "propensity.matching" => Self::PropensityMatching,
+            "propensity.stratification" => Self::PropensityStratification,
+            "distance.matching" => Self::DistanceMatching,
+            "aipw" => Self::Aipw,
+            "glm.adjustment" => Self::GlmAdjustment,
+            "frontdoor.two_stage" => Self::FrontDoorTwoStage,
+            "iv.wald" => Self::IvWald,
+            "iv.2sls" => Self::Iv2Sls,
+            "rd.sharp" => Self::RdSharp,
+            "bayesian.gcomp" => Self::BayesianGcomp,
+            "temporal.linear.adjustment" => Self::TemporalLinearAdjustment,
+            other => Self::Other(Arc::from(other)),
+        }
+    }
+
+    /// Canonical wire id.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::LinearAdjustmentAte => "linear.adjustment.ate",
+            Self::PropensityWeighting => "propensity.weighting",
+            Self::PropensityMatching => "propensity.matching",
+            Self::PropensityStratification => "propensity.stratification",
+            Self::DistanceMatching => "distance.matching",
+            Self::Aipw => "aipw",
+            Self::GlmAdjustment => "glm.adjustment",
+            Self::FrontDoorTwoStage => "frontdoor.two_stage",
+            Self::IvWald => "iv.wald",
+            Self::Iv2Sls => "iv.2sls",
+            Self::RdSharp => "rd.sharp",
+            Self::BayesianGcomp => "bayesian.gcomp",
+            Self::TemporalLinearAdjustment => "temporal.linear.adjustment",
+            Self::Other(s) => s.as_ref(),
+        }
+    }
+
+    /// Parallel-task dimension label for physical planning.
+    #[must_use]
+    pub const fn parallel_task_dimension(&self) -> &'static str {
+        match self {
+            Self::TemporalLinearAdjustment
+            | Self::LinearAdjustmentAte
+            | Self::PropensityWeighting
+            | Self::PropensityMatching
+            | Self::PropensityStratification
+            | Self::DistanceMatching
+            | Self::Aipw
+            | Self::GlmAdjustment
+            | Self::FrontDoorTwoStage
+            | Self::IvWald
+            | Self::Iv2Sls
+            | Self::RdSharp => "bootstrap.replicate",
+            Self::BayesianGcomp | Self::Other(_) => "analysis",
+        }
+    }
+
+    /// Dense-kernel label recorded on the physical plan.
+    #[must_use]
+    pub const fn kernel_label(&self) -> &'static str {
+        match self {
+            Self::TemporalLinearAdjustment => "ols.faer.temporal",
+            Self::PropensityWeighting => "ipw",
+            Self::PropensityMatching | Self::DistanceMatching => "matching",
+            Self::PropensityStratification => "propensity.stratification",
+            Self::Aipw => "aipw",
+            Self::GlmAdjustment => "glm.logit",
+            Self::FrontDoorTwoStage => "frontdoor.two_stage",
+            Self::IvWald => "iv.wald",
+            Self::Iv2Sls => "2sls",
+            Self::RdSharp => "rd.local_linear",
+            Self::LinearAdjustmentAte | Self::BayesianGcomp | Self::Other(_) => "ols.faer",
+        }
+    }
+}
+
+impl From<&str> for EstimatorId {
+    fn from(value: &str) -> Self {
+        Self::parse(value)
+    }
+}
+
+impl From<&Arc<str>> for EstimatorId {
+    fn from(value: &Arc<str>) -> Self {
+        Self::parse(value.as_ref())
+    }
+}
+
 /// Default identifier id when the builder omits one.
 pub const DEFAULT_IDENTIFIER: &str = "backdoor.adjustment";
 
 /// Default estimator id when the builder omits one.
 pub const DEFAULT_ESTIMATOR: &str = "linear.adjustment.ate";
 
+/// Default identifier as a closed enum.
+pub const DEFAULT_IDENTIFIER_ID: IdentifierId = IdentifierId::BackdoorAdjustment;
+
+/// Default estimator as a closed enum.
+pub const DEFAULT_ESTIMATOR_ID: EstimatorId = EstimatorId::LinearAdjustmentAte;
+
 /// Compile-time allowlist of identifier/estimator pairs for the static ATE path.
 ///
 /// # Errors
 ///
 /// Unknown ids or incompatible pairs.
-pub fn validate_static_pair(identifier: &str, estimator: &str) -> Result<(), AnalysisError> {
+pub fn validate_static_pair(
+    identifier: impl Into<IdentifierId>,
+    estimator: impl Into<EstimatorId>,
+) -> Result<(), AnalysisError> {
+    let identifier = identifier.into();
+    let estimator = estimator.into();
     let supported = matches!(
-        (identifier, estimator),
+        (&identifier, &estimator),
         (
-            "backdoor.adjustment" | "backdoor.efficient",
-            "linear.adjustment.ate"
-                | "propensity.weighting"
-                | "propensity.matching"
-                | "propensity.stratification"
-                | "distance.matching"
-                | "aipw"
-                | "glm.adjustment"
-                | "bayesian.gcomp"
-        ) | ("frontdoor", "frontdoor.two_stage")
-            | ("iv", "iv.wald" | "iv.2sls")
-            | ("rd.sharp", "rd.sharp")
+            IdentifierId::BackdoorAdjustment | IdentifierId::BackdoorEfficient,
+            EstimatorId::LinearAdjustmentAte
+                | EstimatorId::PropensityWeighting
+                | EstimatorId::PropensityMatching
+                | EstimatorId::PropensityStratification
+                | EstimatorId::DistanceMatching
+                | EstimatorId::Aipw
+                | EstimatorId::GlmAdjustment
+                | EstimatorId::BayesianGcomp
+        ) | (IdentifierId::Frontdoor, EstimatorId::FrontDoorTwoStage)
+            | (IdentifierId::Iv, EstimatorId::IvWald | EstimatorId::Iv2Sls)
+            | (IdentifierId::RdSharp, EstimatorId::RdSharp)
     );
     if !supported {
         return Err(AnalysisError::Compile {
             message: format!(
-                "identifier {identifier:?} is not compatible with estimator {estimator:?}"
+                "identifier {:?} is not compatible with estimator {:?}",
+                identifier.as_str(),
+                estimator.as_str()
             ),
         });
     }
@@ -68,28 +289,29 @@ pub fn validate_static_pair(identifier: &str, estimator: &str) -> Result<(), Ana
 ///
 /// Unknown identifier, identification failure, or non-identified status.
 pub fn identify_static(
-    identifier: &str,
+    identifier: impl Into<IdentifierId>,
     graph: &Dag,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, AnalysisError> {
+    let identifier = identifier.into();
     let q = CausalQuery::AverageEffect(query.clone());
     let result = match identifier {
-        "backdoor.adjustment" => {
+        IdentifierId::BackdoorAdjustment => {
             let id = BackdoorIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
             id.identify(&prepared, &q).map_err(identify_err)?
         }
-        "backdoor.efficient" => {
+        IdentifierId::BackdoorEfficient => {
             let id = EfficientBackdoorIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
             id.identify(&prepared, &q).map_err(identify_err)?
         }
-        "frontdoor" => {
+        IdentifierId::Frontdoor => {
             let id = FrontDoorIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
             id.identify(&prepared, &q).map_err(identify_err)?
         }
-        "iv" => {
+        IdentifierId::Iv => {
             let id = InstrumentalVariableIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
             id.identify(&prepared, &q).map_err(identify_err)?
@@ -106,33 +328,37 @@ pub fn identify_static(
 
 /// Provenance `(artifact_id, operation)` for an identifier id.
 #[must_use]
-pub fn identify_provenance_step(identifier: &str) -> (&'static str, &'static str) {
-    match identifier {
-        "backdoor.adjustment" => ("identify.backdoor", "identify.backdoor"),
-        "backdoor.efficient" => ("identify.efficient_backdoor", "identify.efficient_backdoor"),
-        "frontdoor" => ("identify.frontdoor", "identify.frontdoor"),
-        "iv" => ("identify.iv", "identify.iv"),
+pub fn identify_provenance_step(identifier: impl Into<IdentifierId>) -> (&'static str, &'static str) {
+    match identifier.into() {
+        IdentifierId::BackdoorAdjustment => ("identify.backdoor", "identify.backdoor"),
+        IdentifierId::BackdoorEfficient => {
+            ("identify.efficient_backdoor", "identify.efficient_backdoor")
+        }
+        IdentifierId::Frontdoor => ("identify.frontdoor", "identify.frontdoor"),
+        IdentifierId::Iv => ("identify.iv", "identify.iv"),
         _ => ("identify.unknown", "identify.unknown"),
     }
 }
 
 /// Provenance `(artifact_id, operation)` for an estimator id.
 #[must_use]
-pub fn estimate_provenance_step(estimator: &str) -> (&'static str, &'static str) {
-    match estimator {
-        "linear.adjustment.ate" => ("estimate.linear_adjustment", "estimate.linear_adjustment_ate"),
-        "propensity.weighting" => ("estimate.propensity", "estimate.propensity_weighting"),
-        "propensity.matching" => ("estimate.propensity", "estimate.propensity_matching"),
-        "propensity.stratification" => {
+pub fn estimate_provenance_step(estimator: impl Into<EstimatorId>) -> (&'static str, &'static str) {
+    match estimator.into() {
+        EstimatorId::LinearAdjustmentAte => {
+            ("estimate.linear_adjustment", "estimate.linear_adjustment_ate")
+        }
+        EstimatorId::PropensityWeighting => ("estimate.propensity", "estimate.propensity_weighting"),
+        EstimatorId::PropensityMatching => ("estimate.propensity", "estimate.propensity_matching"),
+        EstimatorId::PropensityStratification => {
             ("estimate.propensity", "estimate.propensity_stratification")
         }
-        "distance.matching" => ("estimate.matching", "estimate.distance_matching"),
-        "aipw" => ("estimate.aipw", "estimate.aipw"),
-        "glm.adjustment" => ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),
-        "frontdoor.two_stage" => ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
-        "iv.wald" => ("estimate.iv", "estimate.wald_iv"),
-        "iv.2sls" => ("estimate.iv", "estimate.two_stage_least_squares"),
-        "bayesian.gcomp" => ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
+        EstimatorId::DistanceMatching => ("estimate.matching", "estimate.distance_matching"),
+        EstimatorId::Aipw => ("estimate.aipw", "estimate.aipw"),
+        EstimatorId::GlmAdjustment => ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),
+        EstimatorId::FrontDoorTwoStage => ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
+        EstimatorId::IvWald => ("estimate.iv", "estimate.wald_iv"),
+        EstimatorId::Iv2Sls => ("estimate.iv", "estimate.two_stage_least_squares"),
+        EstimatorId::BayesianGcomp => ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
         _ => ("estimate.unknown", "estimate.unknown"),
     }
 }
@@ -143,7 +369,7 @@ pub fn estimate_provenance_step(estimator: &str) -> (&'static str, &'static str)
 ///
 /// Unknown estimator or estimation failure.
 pub fn estimate_static_effect(
-    estimator: &str,
+    estimator: impl Into<EstimatorId>,
     data: &TabularData,
     estimand: &IdentifiedEstimand,
     query: &AverageEffectQuery,
@@ -152,8 +378,8 @@ pub fn estimate_static_effect(
     overlap_policy: Option<OverlapPolicy>,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, AnalysisError> {
-    match estimator {
-        "linear.adjustment.ate" => {
+    match estimator.into() {
+        EstimatorId::LinearAdjustmentAte => {
             let mut est = LinearAdjustmentAte::new();
             est.bootstrap_replicates = bootstrap_replicates;
             est.overlap = OverlapPolicy::ExplicitOverride;
@@ -161,7 +387,7 @@ pub fn estimate_static_effect(
             let mut ws = EstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        "propensity.weighting" => {
+        EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
@@ -171,7 +397,7 @@ pub fn estimate_static_effect(
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        "propensity.matching" => {
+        EstimatorId::PropensityMatching => {
             let mut est = PropensityMatching::new();
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
@@ -181,7 +407,7 @@ pub fn estimate_static_effect(
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        "propensity.stratification" => {
+        EstimatorId::PropensityStratification => {
             let mut est = PropensityStratification::new();
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
@@ -191,7 +417,7 @@ pub fn estimate_static_effect(
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        "distance.matching" => {
+        EstimatorId::DistanceMatching => {
             let mut est = DistanceMatching::new();
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
@@ -201,7 +427,7 @@ pub fn estimate_static_effect(
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        "aipw" => {
+        EstimatorId::Aipw => {
             let mut est = AipwAte::new();
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
@@ -211,27 +437,27 @@ pub fn estimate_static_effect(
             let mut ws = AipwWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        "glm.adjustment" => {
+        EstimatorId::GlmAdjustment => {
             let mut est = GlmAdjustmentAte::new();
             est.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = GlmAdjustmentWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        "frontdoor.two_stage" => {
+        EstimatorId::FrontDoorTwoStage => {
             let mut est = FrontDoorTwoStage::new();
             est.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = FrontDoorWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        "iv.wald" => {
+        EstimatorId::IvWald => {
             let mut est = WaldIv::new();
             est.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             est.fit(&prep, ctx, assumptions).map_err(est_err)
         }
-        "iv.2sls" => {
+        EstimatorId::Iv2Sls => {
             let mut est = TwoStageLeastSquares::new();
             est.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;

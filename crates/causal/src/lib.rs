@@ -45,8 +45,9 @@ pub use planner::{
     is_dag_only_identifier, reject_dag_only_on_pag,
 };
 pub use strategy_table::{
-    DEFAULT_ESTIMATOR, DEFAULT_IDENTIFIER, estimate_provenance_step, estimate_static_effect,
-    identify_provenance_step, identify_static, validate_static_pair,
+    DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, EstimatorId,
+    IdentifierId, estimate_provenance_step, estimate_static_effect, identify_provenance_step,
+    identify_static, validate_static_pair,
 };
 
 // PAG / LPCMCI surfaces.

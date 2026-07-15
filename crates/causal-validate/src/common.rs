@@ -362,17 +362,5 @@ pub(crate) fn sample_sd(values: &[f64]) -> f64 {
 /// historical seeded tests).
 pub(crate) fn fill_gaussian(out: &mut [f64], ctx: &ExecutionContext, stream_id: u64) {
     let mut rng = ctx.rng.stream(stream_id);
-    let mut i = 0;
-    while i < out.len() {
-        let u1 = rng.next_f64().clamp(1e-12, 1.0);
-        let u2 = rng.next_f64();
-        let r = (-2.0 * u1.ln()).sqrt();
-        let theta = core::f64::consts::TAU * u2;
-        out[i] = r * theta.cos();
-        i += 1;
-        if i < out.len() {
-            out[i] = r * theta.sin();
-            i += 1;
-        }
-    }
+    causal_kernels::fill_standard_normal(&mut rng, out);
 }

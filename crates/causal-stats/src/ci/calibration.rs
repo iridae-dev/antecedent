@@ -5,6 +5,7 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 
 use causal_core::ExecutionContext;
+use causal_kernels::standard_normal;
 
 use crate::ci::types::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
@@ -68,20 +69,8 @@ pub fn calibrate_parcorr_like(
 
     for t in 0..trials {
         let mut rng = ctx.rng.stream(0xCA11_u64.wrapping_add(u64::from(t)));
-        let x: Vec<f64> = (0..n)
-            .map(|_| {
-                let u = (rng.next_u64() as f64) / (u64::MAX as f64);
-                let v = (rng.next_u64() as f64) / (u64::MAX as f64);
-                (-2.0 * u.max(1e-12).ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
-            })
-            .collect();
-        let y_null: Vec<f64> = (0..n)
-            .map(|_| {
-                let u = (rng.next_u64() as f64) / (u64::MAX as f64);
-                let v = (rng.next_u64() as f64) / (u64::MAX as f64);
-                (-2.0 * u.max(1e-12).ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
-            })
-            .collect();
+        let x: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
+        let y_null: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
         let cols_null: [&[f64]; 2] = [&x, &y_null];
         let req = CiBatchRequest {
             columns: &cols_null,
@@ -98,9 +87,7 @@ pub fn calibrate_parcorr_like(
         let y_alt: Vec<f64> = x
             .iter()
             .map(|&xi| {
-                let u = (rng.next_u64() as f64) / (u64::MAX as f64);
-                let v = (rng.next_u64() as f64) / (u64::MAX as f64);
-                let e = (-2.0 * u.max(1e-12).ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos();
+                let e = standard_normal(&mut rng);
                 0.7 * xi + 0.3 * e
             })
             .collect();

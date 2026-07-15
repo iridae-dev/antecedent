@@ -54,8 +54,9 @@ use crate::review::{
     compile_review_required_pag, ensure_review_complete,
 };
 use crate::strategy_table::{
-    DEFAULT_ESTIMATOR, DEFAULT_IDENTIFIER, estimate_provenance_step, estimate_static_effect,
-    identify_provenance_step, identify_static,
+    DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, EstimatorId,
+    IdentifierId, estimate_provenance_step, estimate_static_effect, identify_provenance_step,
+    identify_static,
 };
 use causal_discovery::two_regime_half_split;
 
@@ -661,7 +662,7 @@ impl CausalAnalysis {
         // selected non-temporal identifier/estimator rather than silently ignoring it.
         if matches!(&self.query, CausalQuery::TemporalEffect(_)) {
             if let Some(id) = &self.identifier {
-                if &**id != "temporal.backdoor.unfolded" {
+                if IdentifierId::parse(id) != IdentifierId::TemporalBackdoorUnfolded {
                     return Err(AnalysisError::Compile {
                         message: format!(
                             "temporal path only supports identifier \"temporal.backdoor.unfolded\"; got {id:?}"
@@ -670,7 +671,7 @@ impl CausalAnalysis {
                 }
             }
             if let Some(est) = &self.estimator {
-                if &**est != "temporal.linear.adjustment" {
+                if EstimatorId::parse(est) != EstimatorId::TemporalLinearAdjustment {
                     return Err(AnalysisError::Compile {
                         message: format!(
                             "temporal path only supports estimator \"temporal.linear.adjustment\"; got {est:?}"
@@ -684,13 +685,19 @@ impl CausalAnalysis {
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
-        let identifier = self.identifier.clone().unwrap_or_else(|| Arc::from(DEFAULT_IDENTIFIER));
-        let estimator = self.estimator.clone().unwrap_or_else(|| Arc::from(DEFAULT_ESTIMATOR));
+        let identifier = self
+            .identifier
+            .clone()
+            .unwrap_or_else(|| Arc::from(DEFAULT_IDENTIFIER_ID.as_str()));
+        let estimator = self
+            .estimator
+            .clone()
+            .unwrap_or_else(|| Arc::from(DEFAULT_ESTIMATOR_ID.as_str()));
         (identifier, estimator)
     }
 
     fn ensure_rd_config_present(&self, estimator: &str) -> Result<(), AnalysisError> {
-        if estimator == "rd.sharp" && self.rd.is_none() {
+        if matches!(EstimatorId::parse(estimator), EstimatorId::RdSharp) && self.rd.is_none() {
             return Err(AnalysisError::Compile {
                 message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
             });
@@ -811,13 +818,14 @@ impl CausalAnalysis {
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
         let estimator = physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
+        let estimator_id = EstimatorId::parse(estimator);
 
         // rd.sharp has no graph-based identification step (DESIGN.md §21.2); dispatch to its
         // own path before touching `graph`.
-        if estimator == "rd.sharp" {
+        if matches!(estimator_id, EstimatorId::RdSharp) {
             return self.execute_rd(data, query, physical, ctx);
         }
-        if estimator == "bayesian.gcomp" {
+        if matches!(estimator_id, EstimatorId::BayesianGcomp) {
             return self.execute_bayesian(data, graph, query, physical, ctx);
         }
 

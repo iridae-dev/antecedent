@@ -417,15 +417,10 @@ mod tests {
 
     use super::*;
     use crate::overlap::OverlapPolicy;
+    use causal_kernels::standard_normal;
 
     /// Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(logit(-0.5 + Z))`, `Y = 2T + Z + noise`.
     /// True ATE = 2. Matches the propensity-estimator test fixture (`crate::propensity`).
-    fn standard_normal(rng: &mut causal_core::CausalRng) -> f64 {
-        let u1 = rng.next_f64().max(1e-12);
-        let u2 = rng.next_f64();
-        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-    }
-
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         let (t, y, z) = confounded_columns(n, seed);
         build_dataset(t, y, z)

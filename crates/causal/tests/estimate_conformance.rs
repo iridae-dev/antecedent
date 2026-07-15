@@ -14,11 +14,12 @@ use std::sync::Arc;
 
 use causal::CausalAnalysis;
 use causal_core::{
-    AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
-    RoleHint, SmallRoleSet, ValueType, VariableId,
+    AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
+    SmallRoleSet, ValueType, VariableId,
 };
 use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
 use causal_graph::{Dag, DenseNodeId};
+use causal_kernels::standard_normal;
 use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
@@ -28,12 +29,6 @@ fn fixture_dir(name: &str) -> PathBuf {
 fn load_expected(name: &str) -> JsonValue {
     let raw = fs::read_to_string(fixture_dir(name).join("expected.json")).expect("expected.json");
     serde_json::from_str(&raw).expect("parse expected.json")
-}
-
-fn standard_normal(rng: &mut CausalRng) -> f64 {
-    let u1 = rng.next_f64().max(1e-12);
-    let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
 }
 
 /// Build `TabularData` from `(name, role, column)` triples; variable ids follow slice order.

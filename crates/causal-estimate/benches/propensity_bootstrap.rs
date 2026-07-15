@@ -14,13 +14,8 @@ use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData,
 use causal_estimate::{PropensityEstimationWorkspace, PropensityWeighting};
 use causal_expr::ExprId;
 use causal_expr::IdentifiedEstimand;
+use causal_kernels::standard_normal;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-
-fn standard_normal(rng: &mut causal_core::CausalRng) -> f64 {
-    let u1 = rng.next_f64().max(1e-12);
-    let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-}
 
 fn confounded_scm(n: usize) -> (TabularData, IdentifiedEstimand) {
     let mut rng = ExecutionContext::for_tests(11).rng.stream(0x1234_u64);
