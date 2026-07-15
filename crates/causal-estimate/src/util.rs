@@ -115,3 +115,62 @@ pub(crate) fn ols_colmajor(
     }
     Ok(beta)
 }
+
+/// OLS residual variance `σ² = RSS / (n − p)` for a fitted coefficient vector.
+pub(crate) fn ols_sigma2(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], beta: &[f64]) -> f64 {
+    let mut rss = 0.0;
+    for r in 0..nrows {
+        let mut pred = 0.0;
+        for c in 0..ncols {
+            pred += x_colmajor[c * nrows + r] * beta[c];
+        }
+        let e = y[r] - pred;
+        rss += e * e;
+    }
+    rss / (nrows.saturating_sub(ncols)).max(1) as f64
+}
+
+/// Variance of a single OLS coefficient: `σ² · [(XᵀX)⁻¹]_{jj}`.
+///
+/// Returns `NaN` if `XᵀX` is singular.
+pub(crate) fn coefficient_variance(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    col: usize,
+    sigma2: f64,
+) -> f64 {
+    let mut xtx = vec![0.0; ncols * ncols];
+    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
+    let Some(inv) = invert_square(&xtx, ncols) else {
+        return f64::NAN;
+    };
+    sigma2 * inv[col * ncols + col].max(0.0)
+}
+
+/// Delta-method SE for a linear contrast `gᵀ β`: `sqrt(σ² · gᵀ (XᵀX)⁻¹ g)`.
+///
+/// Returns `NaN` if the Gram matrix is singular or the quadratic form is non-finite.
+pub(crate) fn delta_method_se(inv_xtx: &[f64], ncols: usize, g: &[f64], sigma2: f64) -> f64 {
+    if g.len() != ncols || inv_xtx.len() != ncols * ncols {
+        return f64::NAN;
+    }
+    // v = inv · g
+    let mut v = vec![0.0; ncols];
+    for i in 0..ncols {
+        let mut s = 0.0;
+        for j in 0..ncols {
+            s += inv_xtx[i * ncols + j] * g[j];
+        }
+        v[i] = s;
+    }
+    let mut q = 0.0;
+    for i in 0..ncols {
+        q += g[i] * v[i];
+    }
+    let var = sigma2 * q;
+    if !var.is_finite() {
+        return f64::NAN;
+    }
+    var.max(0.0).sqrt()
+}

@@ -93,8 +93,32 @@ pub struct GlmFit {
     pub iterations: u32,
     /// Whether the IRLS loop converged.
     pub converged: bool,
+    /// Whether fitted means hit the soft clamp band (logistic separation signal).
+    pub separated: bool,
     /// Final deviance.
     pub deviance: f64,
+}
+
+impl GlmFit {
+    /// Error if IRLS failed to converge or logistic separation was detected.
+    ///
+    /// # Errors
+    ///
+    /// Non-converged or separated fits.
+    pub fn require_ok(&self) -> Result<(), StatsError> {
+        if !self.converged {
+            return Err(StatsError::Backend(
+                "GLM IRLS did not converge; refuse propensity/outcome scores".into(),
+            ));
+        }
+        if self.separated {
+            return Err(StatsError::Backend(
+                "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Fit a GLM on a compiled column-major design via IRLS + least squares.
@@ -132,7 +156,13 @@ fn fit_gaussian(
         return Err(StatsError::Shape { message: "X buffer too short" });
     }
     let fit = backend.least_squares(x_colmajor, nrows, ncols, y, workspace)?;
-    Ok(GlmFit { coefficients: fit.coefficients, iterations: 1, converged: true, deviance: fit.rss })
+    Ok(GlmFit {
+        coefficients: fit.coefficients,
+        iterations: 1,
+        converged: true,
+        separated: false,
+        deviance: fit.rss,
+    })
 }
 
 fn fit_poisson(
@@ -203,7 +233,7 @@ fn fit_poisson(
         }
     }
 
-    Ok(GlmFit { coefficients: beta, iterations, converged, deviance })
+    Ok(GlmFit { coefficients: beta, iterations, converged, separated: false, deviance })
 }
 
 fn fit_logistic(
@@ -229,6 +259,7 @@ fn fit_logistic(
     let mut x_w = vec![0.0; nrows * ncols];
     let mut z = vec![0.0; nrows];
     let mut converged = false;
+    let mut separated = false;
     let mut iterations = 0u32;
     let mut deviance = f64::INFINITY;
 
@@ -242,6 +273,10 @@ fn fit_logistic(
                 eta += x_colmajor[c * nrows + r] * beta[c];
             }
             let mu = 1.0 / (1.0 + (-eta).exp());
+            // Soft clamp masks the MLE under separation; flag when μ hits the band.
+            if mu < 1e-8 || mu > 1.0 - 1e-8 {
+                separated = true;
+            }
             let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
             let w = (mu_clamped * (1.0 - mu_clamped)).sqrt();
             let yi = y[r];
@@ -268,7 +303,7 @@ fn fit_logistic(
         }
     }
 
-    Ok(GlmFit { coefficients: beta, iterations, converged, deviance })
+    Ok(GlmFit { coefficients: beta, iterations, converged, separated, deviance })
 }
 
 #[cfg(test)]
@@ -299,6 +334,31 @@ mod tests {
         .unwrap();
         assert!(fit.converged, "iters={} deviance={}", fit.iterations, fit.deviance);
         assert!(fit.coefficients[1] > 0.5);
+        assert!(!fit.separated);
+    }
+
+    #[test]
+    fn logistic_flags_complete_separation() {
+        let n = 60usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            y[i] = t;
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = fit_glm(
+            GlmFamily::BinomialLogit,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(100, 1e-6),
+        )
+        .unwrap();
+        assert!(fit.separated);
+        assert!(fit.require_ok().is_err());
     }
 
     #[test]

@@ -52,7 +52,7 @@ use causal_core::{
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace,
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
@@ -232,14 +232,14 @@ impl FrontDoorTwoStage {
         let ate = beta_m_t * beta_y_m * problem.treatment_delta;
 
         let n = problem.nrows as f64;
-        let var1 = coefficient_variance(
+        let var1 = crate::util::coefficient_variance(
             &stage1_matrix(&problem.treatment),
             problem.nrows,
             STAGE1_NCOLS,
             STAGE1_TREATMENT_COL,
             stage1.rss / (n - STAGE1_NCOLS as f64).max(1.0),
         );
-        let var2 = coefficient_variance(
+        let var2 = crate::util::coefficient_variance(
             &stage2_matrix(&problem.treatment, &problem.mediator),
             problem.nrows,
             STAGE2_NCOLS,
@@ -349,21 +349,6 @@ fn stage2_matrix(treatment: &[f64], mediator: &[f64]) -> Vec<f64> {
     x[n..2 * n].copy_from_slice(treatment);
     x[2 * n..3 * n].copy_from_slice(mediator);
     x
-}
-
-fn coefficient_variance(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    col: usize,
-    sigma2: f64,
-) -> f64 {
-    let mut xtx = vec![0.0; ncols * ncols];
-    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    let Some(inv) = invert_square(&xtx, ncols) else {
-        return f64::NAN;
-    };
-    sigma2 * inv[col * ncols + col].max(0.0)
 }
 
 #[cfg(test)]

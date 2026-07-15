@@ -1018,7 +1018,8 @@ fn effect_from_posterior(posterior: &CausalPosterior) -> Result<EffectEstimate, 
         message: "Bayesian posterior missing effect column".into(),
     })?;
     let ate = posterior.summaries.mean[eq];
-    let se = posterior.summaries.sd[eq] / (posterior.draws.n_draws as f64).sqrt().max(1.0);
+    // Report posterior SD of the effect (sampling uncertainty), not MCSE of the mean.
+    let se = posterior.summaries.sd[eq];
     Ok(EffectEstimate {
         ate,
         se_analytic: se,

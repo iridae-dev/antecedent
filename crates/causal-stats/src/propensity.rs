@@ -68,6 +68,7 @@ pub fn fit_propensity(
         &mut workspace.ols,
         options,
     )?;
+    glm.require_ok()?;
     let mut scores = vec![0.0; nrows];
     predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut scores)?;
     Ok(PropensityFit { coefficients: glm.coefficients.clone(), scores, glm })
@@ -144,5 +145,21 @@ mod tests {
             .sum::<f64>()
             / 50.0;
         assert!(mean_treated > mean_control);
+    }
+
+    #[test]
+    fn propensity_errors_on_complete_separation() {
+        let n = 80usize;
+        let mut x = vec![0.0; n * 2];
+        let mut t = vec![0.0; n];
+        for i in 0..n {
+            let z = if i < n / 2 { -1.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = z;
+            t[i] = if z > 0.0 { 1.0 } else { 0.0 };
+        }
+        let mut ws = PropensityWorkspace::default();
+        let err = fit_propensity(&x, n, 2, &t, &FaerBackend, &mut ws, &GlmOptions::new(100, 1e-6));
+        assert!(err.is_err(), "complete separation must error");
     }
 }

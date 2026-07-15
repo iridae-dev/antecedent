@@ -228,6 +228,7 @@ impl GlmAdjustmentAte {
             &self.glm_options,
         )
         .map_err(stats_err)?;
+        glm_fit.require_ok().map_err(stats_err)?;
 
         let diffs = gcomp_diffs(
             problem.family,
@@ -302,6 +303,9 @@ impl GlmAdjustmentAte {
                 &mut workspace.ols,
                 &self.glm_options,
             ) else {
+                continue;
+            };
+            if fit.require_ok().is_err() {
                 continue;
             };
             let diffs = gcomp_diffs(

@@ -93,6 +93,7 @@ pub fn fit_laplace_glm(
             &mut workspace.neg_hessian[..ncols * ncols],
             &mut workspace.eta[..nrows],
             &mut workspace.work_w[..nrows],
+            1.0,
         )?;
         separation_warning |= sep;
 
@@ -141,6 +142,7 @@ pub fn fit_laplace_glm(
                 &coef_prior,
                 &prec,
                 &mut workspace.eta[..nrows],
+                1.0,
             )?;
             let old_obj = log_posterior_value(
                 likelihood,
@@ -149,6 +151,7 @@ pub fn fit_laplace_glm(
                 &coef_prior,
                 &prec,
                 &mut workspace.eta[..nrows],
+                1.0,
             )?;
             if new_obj >= old_obj - 1e-12 {
                 accepted = true;
@@ -164,7 +167,14 @@ pub fn fit_laplace_glm(
         }
     }
 
-    // Final gradient / Hessian at MAP
+    // Final gradient / Hessian at MAP. For GaussianIdentity, scale by residual σ² so
+    // posterior covariance matches the frequentist OLS scale when the prior is weak.
+    let gaussian_sigma2 = match likelihood {
+        BayesLikelihood::GaussianIdentity => {
+            gaussian_residual_sigma2(design, &workspace.beta[..ncols])
+        }
+        _ => 1.0,
+    };
     accumulate_likelihood(
         likelihood,
         design,
@@ -173,6 +183,7 @@ pub fn fit_laplace_glm(
         &mut workspace.neg_hessian[..ncols * ncols],
         &mut workspace.eta[..nrows],
         &mut workspace.work_w[..nrows],
+        gaussian_sigma2,
     )?;
     for i in 0..ncols {
         let diff = workspace.beta[i] - coef_prior.mean[i];
@@ -298,6 +309,9 @@ fn validate_design(design: BayesDesignRef<'_>) -> Result<(), ProbError> {
 }
 
 /// Accumulate likelihood gradient and −Hessian at `beta`. Returns (grad_inf, separation).
+///
+/// `gaussian_sigma2` scales the GaussianIdentity working weights / scores (`1/σ²`). Other
+/// likelihoods ignore it.
 fn accumulate_likelihood(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -306,11 +320,13 @@ fn accumulate_likelihood(
     neg_hess: &mut [f64],
     eta: &mut [f64],
     work_w: &mut [f64],
+    gaussian_sigma2: f64,
 ) -> Result<(f64, bool), ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
     grad.fill(0.0);
     neg_hess.fill(0.0);
+    let inv_sigma2 = 1.0 / gaussian_sigma2.max(1e-12);
 
     let mut separation = false;
     for r in 0..nrows {
@@ -325,8 +341,8 @@ fn accumulate_likelihood(
 
         let (mu, var_w, sep) = match likelihood {
             BayesLikelihood::GaussianIdentity => {
-                // σ² = 1 working variance for Laplace location model
-                (e, 1.0, false)
+                // Working weight for −Hessian ≈ X' (w/σ²) X
+                (e, inv_sigma2, false)
             }
             BayesLikelihood::BernoulliLogit => {
                 let mu = 1.0 / (1.0 + (-e).exp());
@@ -354,16 +370,12 @@ fn accumulate_likelihood(
         separation |= sep;
         work_w[r] = w_obs * var_w;
 
-        let resid = match likelihood {
-            BayesLikelihood::GaussianIdentity => y - mu,
-            BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit => y - mu,
-            BayesLikelihood::PoissonLog => y - mu,
-        };
+        let resid = y - mu;
 
         // Score contribution: for GLM, ∂ℓ/∂β = X' W_working^{-1/2} stuff;
         // use standard GLM score X'(y−μ) for canonical / working forms.
         let score_scale = match likelihood {
-            BayesLikelihood::GaussianIdentity => w_obs * resid,
+            BayesLikelihood::GaussianIdentity => w_obs * resid * inv_sigma2,
             BayesLikelihood::BernoulliLogit => w_obs * resid,
             BayesLikelihood::BernoulliProbit => {
                 // ∂ℓ/∂η = (y-μ) φ / (μ(1-μ))
@@ -398,6 +410,26 @@ fn accumulate_likelihood(
     Ok((ginf, separation))
 }
 
+fn gaussian_residual_sigma2(design: BayesDesignRef<'_>, beta: &[f64]) -> f64 {
+    let nrows = design.nrows;
+    let ncols = design.ncols;
+    let mut rss = 0.0;
+    let mut wsum = 0.0;
+    for r in 0..nrows {
+        let offset = design.offsets.map_or(0.0, |o| o[r]);
+        let mut pred = offset;
+        for c in 0..ncols {
+            pred += design.x_colmajor[c * nrows + r] * beta[c];
+        }
+        let w = design.weights.map_or(1.0, |ww| ww[r]);
+        let e = design.y[r] - pred;
+        rss += w * e * e;
+        wsum += w;
+    }
+    let df = (wsum - ncols as f64).max(1.0);
+    (rss / df).max(1e-12)
+}
+
 fn log_posterior_value(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -405,9 +437,11 @@ fn log_posterior_value(
     prior: &GaussianCoefficientPrior,
     prec: &[f64],
     eta: &mut [f64],
+    gaussian_sigma2: f64,
 ) -> Result<f64, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
+    let inv_sigma2 = 1.0 / gaussian_sigma2.max(1e-12);
     let mut ll = 0.0;
     for r in 0..nrows {
         let offset = design.offsets.map_or(0.0, |o| o[r]);
@@ -421,7 +455,7 @@ fn log_posterior_value(
         ll += w * match likelihood {
             BayesLikelihood::GaussianIdentity => {
                 let r = y - e;
-                -0.5 * r * r
+                -0.5 * inv_sigma2 * r * r
             }
             BayesLikelihood::BernoulliLogit => {
                 // y*η - softplus(η)
@@ -545,6 +579,71 @@ mod tests {
         let g0 = ws.grow_count;
         fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws).unwrap();
         assert_eq!(ws.grow_count, g0, "workspace must be reused");
+    }
+
+    #[test]
+    fn laplace_gaussian_posterior_scales_with_residual_variance() {
+        let n = 80;
+        let mut x = vec![0.0; n * 2];
+        let mut y_unit = vec![0.0; n];
+        let mut y_scaled = vec![0.0; n];
+        for r in 0..n {
+            let xi = r as f64 * 0.05;
+            x[r] = 1.0;
+            x[n + r] = xi;
+            let noise = ((r % 7) as f64 - 3.0) * 0.2;
+            y_unit[r] = 0.5 + 1.5 * xi + noise;
+            y_scaled[r] = 0.5 + 1.5 * xi + noise * 4.0;
+        }
+        let prior = PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
+                2, 1e6,
+            ))],
+            contrast: None,
+            categorical: Vec::new(),
+        };
+        let mut ws = LaplaceWorkspace::default();
+        let opts = BayesFitOptions { n_draws: 400, seed: 9, max_iter: 50, grad_tol: 1e-8 };
+        let fit_unit = fit_laplace_glm(
+            BayesLikelihood::GaussianIdentity,
+            BayesDesignRef {
+                x_colmajor: &x,
+                nrows: n,
+                ncols: 2,
+                y: &y_unit,
+                weights: None,
+                offsets: None,
+            },
+            &prior,
+            &opts,
+            &mut ws,
+        )
+        .unwrap();
+        let fit_scaled = fit_laplace_glm(
+            BayesLikelihood::GaussianIdentity,
+            BayesDesignRef {
+                x_colmajor: &x,
+                nrows: n,
+                ncols: 2,
+                y: &y_scaled,
+                weights: None,
+                offsets: None,
+            },
+            &prior,
+            &opts,
+            &mut ws,
+        )
+        .unwrap();
+        // Diagonal posterior SD for slope should grow ~4× when residual noise ×4.
+        let slope_sd = |fit: &BayesFitResult| -> f64 {
+            let col = fit.draws.column(1).unwrap();
+            let m = col.iter().sum::<f64>() / col.len() as f64;
+            let var = col.iter().map(|v| (v - m).powi(2)).sum::<f64>() / (col.len() - 1) as f64;
+            var.sqrt()
+        };
+        let sd_u = slope_sd(&fit_unit);
+        let sd_s = slope_sd(&fit_scaled);
+        assert!(sd_s > 2.5 * sd_u, "sd_unit={sd_u} sd_scaled={sd_s}");
     }
 
     #[test]

@@ -7,6 +7,8 @@ the conceptual roadmap — items in P5 are planned features not yet built, not d
 P0 (confirmed wrong math) and P1.1–P1.11 (graph-layer soundness) were verified fixed against the
 code on 2026-07-22 and removed from this backlog. Remaining P1 item below is interim only.
 
+Items are marked DONE with notes until independently verified and removed. Do not remove an item that you have just finished fixing.
+
 ---
 
 ## P1 — Graph-layer soundness (remaining)
@@ -30,7 +32,7 @@ likelihood-based model comparison for discrete conditionals.
 
 ## P2 — Honest reporting / silent failures
 
-### P2.1 Hard-coded `se_analytic: 0.0` in two estimators
+### P2.1 Hard-coded `se_analytic: 0.0` in two estimators — DONE
 - `crates/causal-estimate/src/conditional.rs:165-173` (`ConditionalLinearAdjustment`): zero SE with
   `se_bootstrap: None` is a claim of exact certainty. Implement the delta-method SE
   `sqrt(gᵀ σ²(XᵀX)⁻¹ g)` with `g = e_T + w̄·e_{T×W}` — `invert_square` and `form_xtx` are already
@@ -38,16 +40,19 @@ likelihood-based model comparison for discrete conditionals.
 - `crates/causal-estimate/src/temporal_mediation.rs:124-132`: same; reuse the Sobel SE
   implementation that already exists in `frontdoor.rs:234-254`.
 If an SE genuinely can't be computed, report `None`/NaN — never 0.0.
+**Status:** Fixed — conditional ATE uses delta-method SE; mediation uses shared
+`coefficient_variance` + Sobel/OLS SE by contrast; singular Gram → NaN.
 
-### P2.2 Bayesian facade SE is wrong by ~√n_draws; Laplace fixes σ²=1
+### P2.2 Bayesian facade SE is wrong by ~√n_draws; Laplace fixes σ²=1 — DONE
 - `crates/causal/src/analysis.rs:1021` reports `sd/√n_draws` (Monte-Carlo error of the posterior
   mean, ~31× too small at 1000 draws) where every other estimator reports a sampling SE. Report the
   posterior sd itself.
 - `crates/causal-prob/src/laplace.rs:327-330` fixes the working variance σ²=1 for GaussianIdentity,
   so the posterior scale is wrong unless residual variance ≈ 1. Estimate the residual variance and
   scale the curvature.
+**Status:** Fixed — facade reports posterior SD; Laplace final Hessian/loglik use residual σ².
 
-### P2.3 GLM convergence flag is never checked (separation goes undiagnosed)
+### P2.3 GLM convergence flag is never checked (separation goes undiagnosed) — DONE
 `crates/causal-stats/src/glm.rs:209-272` has no separation detection; under complete separation the
 fit returns `converged: false` — but no caller checks it: `fit_propensity`
 (`crates/causal-stats/src/propensity.rs:64-73`), `PropensityModel::fit`
@@ -57,6 +62,8 @@ pinned at the 1e-9 clamp and IPW/AIPW run on degenerate weights silently. DoWhy 
 L2-regularized logistic here, so behavior diverges from DoWhy exactly in the separation regime.
 **Fix:** propagate `converged: false` as an error or a loud overlap-report diagnostic at every call
 site; consider an optional ridge penalty as a separation fallback (ties into P5 GLM work).
+**Status:** Fixed — `GlmFit.separated` + `require_ok()`; hard-fail in `fit_propensity`,
+`PropensityModel::fit`, and `GlmAdjustmentAte::fit`. Ridge fallback remains P5.
 
 ### P2.4 Systemic silent bootstrap replicate-dropping in causal-estimate
 Failed replicates are skipped uncounted, so `se_bootstrap` is a `sample_std` over a

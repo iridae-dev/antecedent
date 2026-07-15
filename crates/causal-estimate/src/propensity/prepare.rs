@@ -64,6 +64,7 @@ impl PropensityModel {
             options,
         )
         .map_err(stats_err)?;
+        fit.glm.require_ok().map_err(stats_err)?;
         let clip = clip_of(problem.overlap);
         let mut clipped_scores = fit.scores.clone();
         if let Some(c) = clip {

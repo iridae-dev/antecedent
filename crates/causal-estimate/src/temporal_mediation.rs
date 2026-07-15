@@ -21,6 +21,7 @@ use causal_stats::FaerBackend;
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
+use crate::util::{coefficient_variance, ols_colmajor, ols_sigma2};
 
 /// Temporal mediation effect estimate with optional decomposition.
 #[derive(Clone, Debug)]
@@ -104,11 +105,11 @@ impl TemporalMediationEstimator {
         }
 
         // Stage 1: M ~ [1, T] → a = β_T
-        let (a, _) = ols_two_col(self.backend, t, m)?;
+        let (a, _intercept_m, design_a, sigma2_a) = ols_two_col(self.backend, t, m)?;
         // Stage 2: Y ~ [1, T, M] → c' = β_T (direct), b = β_M
-        let (c_prime, b) = ols_three_col(self.backend, t, m, y)?;
+        let (c_prime, b, design_b, sigma2_b) = ols_three_col(self.backend, t, m, y)?;
         // Reduced form: Y ~ [1, T] → c = total
-        let (c, _) = ols_two_col(self.backend, t, y)?;
+        let (c, _intercept_y, design_c, sigma2_c) = ols_two_col(self.backend, t, y)?;
 
         let total = c * delta;
         let direct = c_prime * delta;
@@ -120,10 +121,28 @@ impl TemporalMediationEstimator {
             MediationContrast::Mediated | MediationContrast::NaturalIndirect => mediated,
         };
 
+        let se_analytic = match query.contrast {
+            MediationContrast::Total => {
+                let var_c = coefficient_variance(&design_c, n, 2, 1, sigma2_c);
+                (var_c * delta * delta).max(0.0).sqrt()
+            }
+            MediationContrast::Direct | MediationContrast::NaturalDirect => {
+                let var_cp = coefficient_variance(&design_b, n, 3, 1, sigma2_b);
+                (var_cp * delta * delta).max(0.0).sqrt()
+            }
+            MediationContrast::Mediated | MediationContrast::NaturalIndirect => {
+                let var_a = coefficient_variance(&design_a, n, 2, 1, sigma2_a);
+                let var_b = coefficient_variance(&design_b, n, 3, 2, sigma2_b);
+                // Sobel: SE(ab) ≈ sqrt(b² Var(a) + a² Var(b)), then scale by |δ|.
+                let var_ab = b * b * var_a + a * a * var_b;
+                (var_ab * delta * delta).max(0.0).sqrt()
+            }
+        };
+
         Ok(TemporalMediationEstimate {
             effect: EffectEstimate {
                 ate: point,
-                se_analytic: 0.0,
+                se_analytic,
                 se_bootstrap: None,
                 assumptions: AssumptionSet::default(),
                 overlap: crate::overlap::OverlapPolicy::ExplicitOverride,
@@ -137,7 +156,12 @@ impl TemporalMediationEstimator {
     }
 }
 
-fn ols_two_col(backend: FaerBackend, x: &[f64], y: &[f64]) -> Result<(f64, f64), EstimationError> {
+/// Returns `(slope_x, intercept, design [1,x], σ²)`.
+fn ols_two_col(
+    backend: FaerBackend,
+    x: &[f64],
+    y: &[f64],
+) -> Result<(f64, f64, Vec<f64>, f64), EstimationError> {
     let n = x.len();
     let mut design = vec![0.0; n * 2];
     for i in 0..n {
@@ -145,15 +169,17 @@ fn ols_two_col(backend: FaerBackend, x: &[f64], y: &[f64]) -> Result<(f64, f64),
         design[n + i] = x[i];
     }
     let coef = ols_fit(backend, &design, 2, y)?;
-    Ok((coef[1], coef[0]))
+    let sigma2 = ols_sigma2(&design, n, 2, y, &coef);
+    Ok((coef[1], coef[0], design, sigma2))
 }
 
+/// Returns `(c' = β_T, b = β_M, design [1,T,M], σ²)`.
 fn ols_three_col(
     backend: FaerBackend,
     t: &[f64],
     m: &[f64],
     y: &[f64],
-) -> Result<(f64, f64), EstimationError> {
+) -> Result<(f64, f64, Vec<f64>, f64), EstimationError> {
     let n = t.len();
     let mut design = vec![0.0; n * 3];
     for i in 0..n {
@@ -162,7 +188,8 @@ fn ols_three_col(
         design[2 * n + i] = m[i];
     }
     let coef = ols_fit(backend, &design, 3, y)?;
-    Ok((coef[1], coef[2])) // c', b
+    let sigma2 = ols_sigma2(&design, n, 3, y, &coef);
+    Ok((coef[1], coef[2], design, sigma2))
 }
 
 fn ols_fit(
@@ -172,7 +199,7 @@ fn ols_fit(
     y: &[f64],
 ) -> Result<Vec<f64>, EstimationError> {
     let _ = backend;
-    crate::util::ols_colmajor(design_colmajor, y.len(), ncols, y)
+    ols_colmajor(design_colmajor, y.len(), ncols, y)
 }
 
 /// Temporal effect surface aligning with Tigramite (direct / total / mediated / conditional).
@@ -309,5 +336,10 @@ mod tests {
             .unwrap();
         assert!(est.mediated.unwrap() > 0.1);
         assert!((est.total.unwrap() - est.direct.unwrap() - est.mediated.unwrap()).abs() < 0.15);
+        assert!(
+            est.effect.se_analytic.is_finite() && est.effect.se_analytic > 0.0,
+            "se={}",
+            est.effect.se_analytic
+        );
     }
 }
