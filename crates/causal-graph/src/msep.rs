@@ -164,7 +164,7 @@ impl Admg {
         }
 
         // Moralize: undirected edges for directed + bidirected within ancestral set;
-        // marry co-parents of each node.
+        // then clique each bidirected district C with pa(C) (Richardson augmentation).
         for i in 0..n {
             let u = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             if !ws.ancestral.contains(u) {
@@ -180,15 +180,49 @@ impl Admg {
                     Self::add_undirected(ws, u, b);
                 }
             }
-            let parents = self.parents(u);
-            for (ai, &a) in parents.iter().enumerate() {
-                if !ws.ancestral.contains(a) {
+        }
+
+        // Bidirected-connected districts in the ancestral subgraph; clique C ∪ pa(C).
+        let mut district = vec![u32::MAX; n];
+        let mut n_districts = 0u32;
+        let mut stack = Vec::new();
+        for i in 0..n {
+            let u = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            if !ws.ancestral.contains(u) || district[i] != u32::MAX {
+                continue;
+            }
+            district[i] = n_districts;
+            stack.push(u);
+            while let Some(v) = stack.pop() {
+                for &w in self.bidirected_neighbors(v) {
+                    let wi = w.as_usize();
+                    if ws.ancestral.contains(w) && district[wi] == u32::MAX {
+                        district[wi] = n_districts;
+                        stack.push(w);
+                    }
+                }
+            }
+            n_districts += 1;
+        }
+        for d in 0..n_districts {
+            let mut clique = Vec::new();
+            for i in 0..n {
+                if district[i] != d {
                     continue;
                 }
-                for &b in &parents[ai + 1..] {
-                    if ws.ancestral.contains(b) {
-                        Self::add_undirected(ws, a, b);
+                let u = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+                if !clique.iter().any(|&x| x == u) {
+                    clique.push(u);
+                }
+                for &p in self.parents(u) {
+                    if ws.ancestral.contains(p) && !clique.iter().any(|&x| x == p) {
+                        clique.push(p);
                     }
+                }
+            }
+            for (ai, &a) in clique.iter().enumerate() {
+                for &b in &clique[ai + 1..] {
+                    Self::add_undirected(ws, a, b);
                 }
             }
         }
@@ -293,6 +327,27 @@ mod tests {
         assert!(g.is_m_separated(x, y, &[], &mut ws).unwrap());
         assert!(!g.is_m_separated(x, y, &[z], &mut ws).unwrap());
     }
+
+    #[test]
+    fn district_clique_opens_collider_connected_chain() {
+        // X → A ↔ B ← Y; conditioning on {A,B} opens the collider-connected path.
+        // Without district augmentation C={A,B} ∪ pa(C)={X,Y}, X and Y look separated.
+        let mut g = Admg::with_variables(4);
+        let x = DenseNodeId::from_raw(0);
+        let a = DenseNodeId::from_raw(1);
+        let b = DenseNodeId::from_raw(2);
+        let y = DenseNodeId::from_raw(3);
+        g.insert_directed(x, a).unwrap();
+        g.insert_bidirected(a, b).unwrap();
+        g.insert_directed(y, b).unwrap();
+        let mut ws = DSeparationWorkspace::default();
+        assert!(
+            !g.is_m_separated(x, y, &[a, b], &mut ws).unwrap(),
+            "X and Y must be m-connected given {{A,B}} via district clique"
+        );
+        // Without conditioning the colliders are closed → separated.
+        assert!(g.is_m_separated(x, y, &[], &mut ws).unwrap());
+    }
 }
 
 // --- PAG definite-status m-separation ---
@@ -300,12 +355,13 @@ mod tests {
 impl Pag {
     /// Whether `x` is m-separated from `y` given `z` via definite-status paths.
     ///
-    /// Separated iff no definite-status path from x to y is active given z
-    /// (bounded search; completeness up to `max_len` / `max_paths`).
+    /// Separated iff no definite-status path from x to y is active given z.
+    /// If the bounded search is truncated and no active path was found, returns
+    /// [`GraphError::SearchBudgetExhausted`] rather than claiming separation.
     ///
     /// # Errors
     ///
-    /// Unknown nodes.
+    /// Unknown nodes, or incomplete search under budget when no active path is known.
     pub fn is_m_separated(
         &self,
         x: DenseNodeId,
@@ -322,15 +378,21 @@ impl Pag {
         if x == y {
             return Ok(false);
         }
-        let paths = self.definite_status_paths(x, y, max_paths, max_len)?;
-        Ok(!paths.iter().any(|p| self.path_active_given(&p.nodes, z)))
+        let search = self.definite_status_paths(x, y, max_paths, max_len)?;
+        if search.paths.iter().any(|p| self.path_active_given(&p.nodes, z)) {
+            return Ok(false);
+        }
+        if search.truncated {
+            return Err(GraphError::SearchBudgetExhausted { max_paths, max_len });
+        }
+        Ok(true)
     }
 
     /// m-separation with witness (active definite-status path or certificate).
     ///
     /// # Errors
     ///
-    /// Unknown nodes.
+    /// Unknown nodes, or incomplete search under budget when no active path is known.
     pub fn m_separation(
         &self,
         x: DenseNodeId,
@@ -347,11 +409,13 @@ impl Pag {
         if x == y {
             return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
         }
-        let paths = self.definite_status_paths(x, y, max_paths, max_len)?;
-        if let Some(p) = paths.iter().find(|p| self.path_active_given(&p.nodes, z)) {
+        let search = self.definite_status_paths(x, y, max_paths, max_len)?;
+        if let Some(p) = search.paths.iter().find(|p| self.path_active_given(&p.nodes, z)) {
             Ok(SeparationResult::Connected {
                 active_path: p.nodes.iter().map(|&node| PathStep { node }).collect(),
             })
+        } else if search.truncated {
+            Err(GraphError::SearchBudgetExhausted { max_paths, max_len })
         } else {
             Ok(SeparationResult::Separated {
                 conditioning: z.to_vec(),
@@ -397,5 +461,40 @@ mod pag_msep_tests {
         g.insert_directed(b, c).unwrap();
         assert!(!g.is_m_separated(a, c, &[], 32, 8).unwrap());
         assert!(g.is_m_separated(a, c, &[b], 32, 8).unwrap());
+    }
+
+    #[test]
+    fn collider_opens_via_descendant() {
+        // X → C ← Y, C → D; Z = {D} opens the collider at C.
+        let mut g = Pag::with_variables(4);
+        let x = DenseNodeId::from_raw(0);
+        let c = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        let d = DenseNodeId::from_raw(3);
+        g.insert_directed(x, c).unwrap();
+        g.insert_directed(y, c).unwrap();
+        g.insert_directed(c, d).unwrap();
+        assert!(g.is_m_separated(x, y, &[], 32, 8).unwrap());
+        assert!(!g.is_m_separated(x, y, &[c], 32, 8).unwrap());
+        assert!(
+            !g.is_m_separated(x, y, &[d], 32, 8).unwrap(),
+            "descendant D in Z must open collider C"
+        );
+    }
+
+    #[test]
+    fn budget_exhaustion_is_error_not_separated() {
+        // Long directed chain; max_len too small to reach the other end.
+        let mut g = Pag::with_variables(5);
+        for i in 0..4 {
+            g.insert_directed(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
+        }
+        let x = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(4);
+        // Complete search finds the path.
+        assert!(!g.is_m_separated(x, y, &[], 32, 8).unwrap());
+        // Truncated search must not claim separation.
+        let err = g.is_m_separated(x, y, &[], 32, 2).unwrap_err();
+        assert!(matches!(err, GraphError::SearchBudgetExhausted { max_len: 2, .. }));
     }
 }

@@ -10,7 +10,7 @@ use causal_core::{Lag, VariableId};
 
 use crate::error::GraphError;
 use crate::marked_storage::{self, AdjEntry};
-use crate::pag::{DefiniteStatusPath, Pag};
+use crate::pag::Pag;
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
@@ -252,7 +252,7 @@ impl TemporalPag {
         y: DenseNodeId,
         max_paths: usize,
         max_len: usize,
-    ) -> Result<Vec<DefiniteStatusPath>, GraphError> {
+    ) -> Result<crate::pag::DefiniteStatusPathSearch, GraphError> {
         self.as_static_pag_for_alg().definite_status_paths(x, y, max_paths, max_len)
     }
 }

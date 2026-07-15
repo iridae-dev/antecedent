@@ -28,7 +28,7 @@ pub use cpdag::{Cpdag, TemporalCpdag};
 pub use dag::Dag;
 pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
 pub use error::GraphError;
-pub use pag::{DefiniteStatusPath, Pag};
+pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag};
 pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use temporal::TemporalDag;
 pub use temporal_pag::{TemporalPag, TemporalPagReview};

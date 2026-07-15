@@ -45,6 +45,17 @@ pub enum GraphError {
     },
     /// Node capacity exceeded.
     TooManyNodes,
+    /// Bounded path search hit `max_paths` or `max_len` before exploring all candidates.
+    ///
+    /// Returned when m-separation would otherwise conclude "separated" after an incomplete
+    /// search (an unexplored active path may still exist). Finding an active path remains
+    /// conclusive even under truncation.
+    SearchBudgetExhausted {
+        /// Path-count budget.
+        max_paths: usize,
+        /// Path-length budget.
+        max_len: usize,
+    },
 }
 
 impl fmt::Display for GraphError {
@@ -59,6 +70,9 @@ impl fmt::Display for GraphError {
             Self::DuplicateEdge { from, to } => write!(f, "duplicate edge {from}->{to}"),
             Self::InvalidLag { lag } => write!(f, "invalid lag {lag}"),
             Self::TooManyNodes => write!(f, "too many nodes"),
+            Self::SearchBudgetExhausted { max_paths, max_len } => {
+                write!(f, "path search budget exhausted (max_paths={max_paths}, max_len={max_len})")
+            }
         }
     }
 }

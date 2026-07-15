@@ -256,6 +256,15 @@ pub struct DefiniteStatusPath {
     pub nodes: Vec<DenseNodeId>,
 }
 
+/// Bounded enumeration of definite-status paths, with a truncation flag.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DefiniteStatusPathSearch {
+    /// Paths found within the budget.
+    pub paths: Vec<DefiniteStatusPath>,
+    /// `true` if `max_paths` / `max_len` cut the search short (result may be incomplete).
+    pub truncated: bool,
+}
+
 impl Pag {
     /// Enumerate definite-status paths from `x` to `y` up to `max_paths` (bounded).
     ///
@@ -268,16 +277,18 @@ impl Pag {
         y: DenseNodeId,
         max_paths: usize,
         max_len: usize,
-    ) -> Result<Vec<DefiniteStatusPath>, GraphError> {
+    ) -> Result<DefiniteStatusPathSearch, GraphError> {
         self.validate_node(x)?;
         self.validate_node(y)?;
         let mut out = Vec::new();
         if max_paths == 0 || max_len == 0 {
-            return Ok(out);
+            return Ok(DefiniteStatusPathSearch { paths: out, truncated: true });
         }
+        let mut truncated = false;
         let mut stack = vec![vec![x]];
         while let Some(path) = stack.pop() {
             if out.len() >= max_paths {
+                truncated = true;
                 break;
             }
             let last = *path.last().expect("nonempty");
@@ -288,14 +299,22 @@ impl Pag {
                 continue;
             }
             if path.len() >= max_len {
+                // Neighbors exist that we refuse to expand → incomplete.
+                for (nbr, _, _) in self.neighbors(last) {
+                    if path.len() >= 2 && path[path.len() - 2] == nbr {
+                        continue;
+                    }
+                    if path.contains(&nbr) {
+                        continue;
+                    }
+                    truncated = true;
+                    break;
+                }
                 continue;
             }
             for (nbr, _, _) in self.neighbors(last) {
                 if path.len() >= 2 && path[path.len() - 2] == nbr {
                     continue; // no immediate backtrack
-                }
-                if path.contains(&nbr) && nbr != y {
-                    continue; // simple paths (allow ending at y only once)
                 }
                 if path.contains(&nbr) {
                     continue;
@@ -305,7 +324,7 @@ impl Pag {
                 stack.push(next);
             }
         }
-        Ok(out)
+        Ok(DefiniteStatusPathSearch { paths: out, truncated })
     }
 
     fn path_is_definite_status(&self, path: &[DenseNodeId]) -> bool {
@@ -336,6 +355,8 @@ impl Pag {
     }
 
     /// Whether a definite-status path is active given `z` (m-connecting).
+    ///
+    /// A collider is open if it **or any definite directed descendant** is in `z`.
     #[must_use]
     pub fn path_active_given(&self, path: &[DenseNodeId], z: &[DenseNodeId]) -> bool {
         if path.len() < 2 {
@@ -353,8 +374,7 @@ impl Pag {
             let collider = matches!(mark_from_pred, Endpoint::Arrow)
                 && matches!(mark_from_succ, Endpoint::Arrow);
             if collider {
-                // Collider (or descendant) must be in Z — : require v in Z (conservative).
-                if !in_z(v) {
+                if !in_z(v) && !self.collider_descendant_in_z(v, z) {
                     return false;
                 }
             } else if in_z(v) {
@@ -362,6 +382,11 @@ impl Pag {
             }
         }
         true
+    }
+
+    /// True if some node in `z` is a definite directed descendant of `v`.
+    fn collider_descendant_in_z(&self, v: DenseNodeId, z: &[DenseNodeId]) -> bool {
+        z.iter().any(|&d| d != v && self.reaches_directed(v, d))
     }
 }
 
@@ -385,8 +410,8 @@ mod tests {
         g.insert_directed(a, b).unwrap();
         g.insert_directed(b, c).unwrap();
         let paths = g.definite_status_paths(a, c, 10, 8).unwrap();
-        assert!(!paths.is_empty());
-        assert!(g.path_active_given(&paths[0].nodes, &[]));
-        assert!(!g.path_active_given(&paths[0].nodes, &[b]));
+        assert!(!paths.paths.is_empty());
+        assert!(g.path_active_given(&paths.paths[0].nodes, &[]));
+        assert!(!g.path_active_given(&paths.paths[0].nodes, &[b]));
     }
 }

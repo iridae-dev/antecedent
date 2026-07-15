@@ -113,7 +113,8 @@ impl LpcmciOrientationRule for LpcmciOrientCollider {
     }
 }
 
-/// Propagate: if `a → b o-* c` and a,c nonadjacent, orient `b → c`.
+/// FCI R1: if `a *→ b o–* c` (arrow at b on a–b; circle at b on b–c) and a,c nonadjacent,
+/// orient `b → c` (tail at b and arrow at c).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciR1;
 
@@ -131,42 +132,28 @@ impl LpcmciOrientationRule for LpcmciR1 {
         let mut delta = RuleDelta::default();
         let focus = focus_nodes(graph, queue);
         for b in focus {
-            let nbrs: Vec<_> = graph.neighbors(b).collect();
-            for &(a, at_b_from_a, at_a) in &nbrs {
-                // a → b : at_a Tail, at_b Arrow when viewed from a… use edge_between
-                let Some(e_ab) = graph.edge_between(a, b) else {
+            let nbrs: Vec<_> = graph.neighbors(b).map(|(x, _, _)| x).collect();
+            for &a in &nbrs {
+                let Some((_, at_b_ab)) = marks_between(graph, a, b) else {
                     continue;
                 };
-                let directed_ab =
-                    matches!((e_ab.at_a, e_ab.at_b), (Endpoint::Tail, Endpoint::Arrow));
-                if !directed_ab {
-                    let _ = (at_b_from_a, at_a);
+                // Premise: arrow into b on a–b (any mark at a: o→, →, or ↔).
+                if !matches!(at_b_ab, Endpoint::Arrow) {
                     continue;
                 }
-                for &(c, _, _) in &nbrs {
-                    if c == a {
+                for &c in &nbrs {
+                    if c == a || graph.has_edge(a, c) {
                         continue;
                     }
-                    if graph.has_edge(a, c) {
-                        continue;
-                    }
-                    let Some(e_bc) = graph.edge_between(b, c) else {
+                    let Some((at_b_bc, _)) = marks_between(graph, b, c) else {
                         continue;
                     };
-                    // b o-* c with circle at b
-                    let mark_at_b = if e_bc.a == b { e_bc.at_a } else { e_bc.at_b };
-                    let mark_at_c = if e_bc.a == c { e_bc.at_a } else { e_bc.at_b };
-                    if !matches!(mark_at_b, Endpoint::Circle) {
+                    // b o–* c (circle at b).
+                    if !matches!(at_b_bc, Endpoint::Circle) {
                         continue;
                     }
-                    // Orient b → c
-                    let (at_b, at_c) = (Endpoint::Tail, mark_at_c);
-                    // set from b's perspective
-                    if e_bc.a == b {
-                        graph.set_marks(b, c, at_b, at_c).map_err(OrientationError::from)?;
-                    } else {
-                        graph.set_marks(c, b, at_c, at_b).map_err(OrientationError::from)?;
-                    }
+                    // Orient b → c (both endpoints).
+                    set_marks_oriented(graph, b, c, Endpoint::Tail, Endpoint::Arrow)?;
                     delta.edges_changed += 1;
                     enqueue_local(graph, b, queue);
                     enqueue_local(graph, c, queue);
@@ -178,7 +165,8 @@ impl LpcmciOrientationRule for LpcmciR1 {
     }
 }
 
-/// FCI R2: if `a → b o→ c` or `a o→ b → c`, and `a o-* c`, orient arrow into `c` on `a–c`.
+/// FCI R2: if `a → b *→ c` or `a *→ b → c`, and `a *–o c` (circle **at c**), orient
+/// arrow at c on a–c. Never overwrites a Tail at c.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciR2;
 
@@ -208,12 +196,12 @@ impl LpcmciOrientationRule for LpcmciR2 {
                     let Some((at_b_bc, at_c_bc)) = marks_between(graph, b, c) else {
                         continue;
                     };
+                    // a → b *→ c  (definite directed a→b; arrow at c on b–c)
                     let case1 = matches!(at_a_ab, Endpoint::Tail)
                         && matches!(at_b_ab, Endpoint::Arrow)
-                        && matches!(at_b_bc, Endpoint::Circle)
                         && matches!(at_c_bc, Endpoint::Arrow);
-                    let case2 = matches!(at_a_ab, Endpoint::Circle)
-                        && matches!(at_b_ab, Endpoint::Arrow)
+                    // a *→ b → c  (arrow at b on a–b; definite directed b→c)
+                    let case2 = matches!(at_b_ab, Endpoint::Arrow)
                         && matches!(at_b_bc, Endpoint::Tail)
                         && matches!(at_c_bc, Endpoint::Arrow);
                     if !(case1 || case2) {
@@ -222,11 +210,9 @@ impl LpcmciOrientationRule for LpcmciR2 {
                     let Some((at_a_ac, at_c_ac)) = marks_between(graph, a, c) else {
                         continue;
                     };
-                    if !matches!(at_a_ac, Endpoint::Circle) {
+                    // Circle at c only — never overwrite Tail or re-orient Arrow.
+                    if !matches!(at_c_ac, Endpoint::Circle) {
                         continue;
-                    }
-                    if matches!(at_c_ac, Endpoint::Arrow) {
-                        continue; // already oriented
                     }
                     set_marks_oriented(graph, a, c, at_a_ac, Endpoint::Arrow)?;
                     delta.edges_changed += 1;
@@ -341,7 +327,7 @@ fn set_marks_oriented(
     }
 }
 
-/// Apply discriminating-path orientations.
+/// Apply discriminating-path orientations (Zhang FCI R4).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciDiscriminatingPathRule;
 
@@ -361,49 +347,58 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
         let focus_set: HashSet<u32> = focus.iter().map(|n| n.raw()).collect();
         let paths = find_discriminating_paths(graph, 64, 8);
         for path in paths {
-            if path.nodes.len() < 3 {
-                continue;
-            }
             if !path.nodes.iter().any(|n| focus_set.contains(&n.raw())) {
                 continue;
             }
-            let a = path.nodes[0];
-            let c = path.nodes[path.nodes.len() - 2];
-            let b = path.nodes[path.nodes.len() - 1];
-            let Some(sep) = state.sepset(a, c) else {
+            let a = path.a();
+            let c = path.c();
+            let b = path.b();
+            let d_k = path.d_k();
+            // R4 consults Sep(a,b) — the non-adjacent endpoints — not Sep(a,c).
+            let Some(sep) = state.sepset(a, b) else {
                 continue;
             };
-            let b_in_sep = sep.iter().any(|&z| z == b);
-            let collider = discriminating_implies_collider(&path, b_in_sep);
-            let Some(e) = graph.edge_between(c, b) else {
+            let c_in_sep = sep.iter().any(|&z| z == c);
+            let collider = discriminating_implies_collider(c_in_sep);
+            let Some(e_cb) = graph.edge_between(c, b) else {
                 continue;
             };
+            // Premise: circle still at c on c–b.
+            let mark_at_c = if e_cb.a == c { e_cb.at_a } else { e_cb.at_b };
+            if !matches!(mark_at_c, Endpoint::Circle) {
+                continue;
+            }
             if collider {
-                // c *→ b
-                let at_c = if e.a == c { e.at_a } else { e.at_b };
-                let at_b = Endpoint::Arrow;
-                if e.a == c {
-                    graph.set_marks(c, b, at_c, at_b).map_err(OrientationError::from)?;
-                } else {
-                    graph.set_marks(b, c, at_b, at_c).map_err(OrientationError::from)?;
-                }
+                // dₖ *→ c ←* b (arrows into c on both edges; keep far-end marks).
+                set_arrow_at(graph, c, d_k)?;
+                set_arrow_at(graph, c, b)?;
             } else {
-                // c —* b with tail at c (non-collider)
-                let at_c = Endpoint::Tail;
-                let at_b = if e.a == b { e.at_a } else { e.at_b };
-                if e.a == c {
-                    graph.set_marks(c, b, at_c, at_b).map_err(OrientationError::from)?;
-                } else {
-                    graph.set_marks(b, c, at_b, at_c).map_err(OrientationError::from)?;
-                }
+                // c → b (non-collider at c).
+                graph
+                    .set_marks(c, b, Endpoint::Tail, Endpoint::Arrow)
+                    .map_err(OrientationError::from)?;
             }
             delta.edges_changed += 1;
             enqueue_local(graph, c, queue);
             enqueue_local(graph, b, queue);
+            enqueue_local(graph, d_k, queue);
         }
         delta.fixed_point = delta.edges_changed == 0;
         Ok(delta)
     }
+}
+
+/// Set the mark at `at` on edge `{at, other}` to [`Endpoint::Arrow`], keeping the far mark.
+fn set_arrow_at(
+    graph: &mut TemporalPag,
+    at: DenseNodeId,
+    other: DenseNodeId,
+) -> Result<(), OrientationError> {
+    let e = graph.edge_between(at, other).ok_or(OrientationError::Precondition {
+        message: "discriminating path missing edge",
+    })?;
+    let at_other = if e.a == other { e.at_a } else { e.at_b };
+    graph.set_marks(at, other, Endpoint::Arrow, at_other).map_err(OrientationError::from)
 }
 
 /// Schedule LPCMCI rules to a fixed point using a local delta queue.
@@ -483,6 +478,81 @@ mod tests {
     }
 
     #[test]
+    fn r2_fires_on_fully_directed_chain() {
+        // a → b → c and a *–o c (circle at c) ⇒ orient arrow at c.
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_directed(b, c).unwrap();
+        g.insert_marked(causal_graph::MarkedEdge {
+            a,
+            b: c,
+            at_a: Endpoint::Tail,
+            at_b: Endpoint::Circle,
+        })
+        .unwrap();
+        let mut state = OrientationState::default();
+        let mut queue = OrientationQueue::new();
+        let d = LpcmciR2.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert!(d.edges_changed > 0);
+        let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+        assert!(matches!(at_a, Endpoint::Tail));
+        assert!(matches!(at_c, Endpoint::Arrow));
+    }
+
+    #[test]
+    fn r2_does_not_overwrite_tail_at_c() {
+        // a → b → c and a → c already (tail at c would be illegal for R2 premise;
+        // use a *– Tail at c to ensure we refuse to overwrite).
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_directed(b, c).unwrap();
+        // Circle at a, Tail at c on a–c — R2 must not turn the Tail into an Arrow.
+        g.insert_marked(causal_graph::MarkedEdge {
+            a,
+            b: c,
+            at_a: Endpoint::Circle,
+            at_b: Endpoint::Tail,
+        })
+        .unwrap();
+        let mut state = OrientationState::default();
+        let mut queue = OrientationQueue::new();
+        let d = LpcmciR2.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert_eq!(d.edges_changed, 0);
+        let (_, at_c) = marks_between(&g, a, c).unwrap();
+        assert!(matches!(at_c, Endpoint::Tail));
+    }
+
+    #[test]
+    fn r1_orients_from_circle_arrow_premise() {
+        // a o→ b o–o c, a ≁ c ⇒ b → c (both marks).
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_circle_arrow(a, b).unwrap();
+        g.insert_marked(causal_graph::MarkedEdge {
+            a: b,
+            b: c,
+            at_a: Endpoint::Circle,
+            at_b: Endpoint::Circle,
+        })
+        .unwrap();
+        let mut state = OrientationState::default();
+        let mut queue = OrientationQueue::new();
+        let d = LpcmciR1.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert!(d.edges_changed > 0);
+        let (at_b, at_c) = marks_between(&g, b, c).unwrap();
+        assert!(matches!(at_b, Endpoint::Tail));
+        assert!(matches!(at_c, Endpoint::Arrow));
+    }
+
+    #[test]
     fn rule_ids_cover_r1_r2_r3() {
         assert_eq!(LpcmciR1.id(), "lpcmci.r1");
         assert_eq!(LpcmciR2.id(), "lpcmci.r2");
@@ -514,5 +584,56 @@ mod tests {
         let (at_a, at_c) = marks_between(&g, a, c).unwrap();
         assert!(matches!(at_a, Endpoint::Circle));
         assert!(matches!(at_c, Endpoint::Arrow));
+    }
+
+    #[test]
+    fn discriminating_r4_orients_collider_when_c_not_in_sep_ab() {
+        // Zhang path ⟨a, d, c, b⟩: a → d ← c, d → b, c o→ b; c ∉ Sep(a,b) ⇒ d *→ c ←* b.
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let d = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, d).unwrap();
+        g.insert_directed(c, d).unwrap();
+        g.insert_directed(d, b).unwrap();
+        g.insert_circle_arrow(c, b).unwrap();
+
+        let mut state = OrientationState::default();
+        state.set_sepset(a, b, std::sync::Arc::from([])); // c ∉ Sep(a,b)
+        let mut queue = OrientationQueue::new();
+        let delta = LpcmciDiscriminatingPathRule.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert!(delta.edges_changed > 0);
+
+        let (at_c_cb, at_b) = marks_between(&g, c, b).unwrap();
+        assert!(matches!(at_c_cb, Endpoint::Arrow), "arrow into c from b");
+        assert!(matches!(at_b, Endpoint::Arrow));
+
+        let (at_c_cd, at_d) = marks_between(&g, c, d).unwrap();
+        assert!(matches!(at_c_cd, Endpoint::Arrow), "arrow into c from d");
+        assert!(matches!(at_d, Endpoint::Arrow), "keep arrow at d");
+    }
+
+    #[test]
+    fn discriminating_r4_orients_noncollider_when_c_in_sep_ab() {
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let d = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, d).unwrap();
+        g.insert_directed(c, d).unwrap();
+        g.insert_directed(d, b).unwrap();
+        g.insert_circle_arrow(c, b).unwrap();
+
+        let mut state = OrientationState::default();
+        state.set_sepset(a, b, std::sync::Arc::from([c])); // c ∈ Sep(a,b)
+        let mut queue = OrientationQueue::new();
+        let delta = LpcmciDiscriminatingPathRule.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert!(delta.edges_changed > 0);
+
+        let (at_c, at_b) = marks_between(&g, c, b).unwrap();
+        assert!(matches!(at_c, Endpoint::Tail));
+        assert!(matches!(at_b, Endpoint::Arrow));
     }
 }

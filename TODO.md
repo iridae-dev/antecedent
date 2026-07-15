@@ -84,7 +84,7 @@ pass/fail gate; zero-effect test asserts failure under the default.
 These make the latent-variable stack (LPCMCI, PAG identification, refuters that consult
 m-separation) return wrong answers, not just weaker ones.
 
-### P1.1 ADMG m-separation misses collider-connected augmentation
+### P1.1 ADMG m-separation misses collider-connected augmentation — DONE
 `crates/causal-graph/src/msep.rs:126-195` (`build_moral_ancestral`)
 Moralization only converts directed/bidirected edges to undirected and marries direct co-parents.
 Correct m-separation (Richardson) requires the augmented graph: for each bidirected-connected
@@ -93,8 +93,9 @@ nodes joined by a collider-connecting path through bidirected chains). Confirmed
 `X → A ↔ B ← Y`, query `X ⟂ Y | {A,B}` wrongly returns separated.
 **Fix:** after restricting to the ancestral set, compute bidirected-connected districts and clique
 `C ∪ pa(C)` per district before the co-parent marriage step. Add the counterexample above as a test.
+**Status:** Fixed — ancestral districts clique `C ∪ pa(C)`; counterexample test added.
 
-### P1.2 PAG m-separation drops the collider-descendant rule; truncation returns "separated"
+### P1.2 PAG m-separation drops the collider-descendant rule; truncation returns "separated" — DONE
 `crates/causal-graph/src/pag.rs:340-365` (`path_active_given`), `msep.rs:309-361`
 A collider on a path is treated as open only if the collider itself is in Z; the m-connection
 criterion opens a collider if it *or any descendant* is in Z (e.g. `X → C ← Y`, `C → D`, Z = {D}
@@ -104,8 +105,10 @@ dropped.
 **Fix:** precompute "possible descendants in Z" per node (using definite-status descent for PAGs)
 and open colliders accordingly; on budget exhaustion return an explicit indeterminate/error rather
 than "separated".
+**Status:** Fixed — colliders open via definite directed descendants; truncated searches return
+`GraphError::SearchBudgetExhausted` instead of claiming separation.
 
-### P1.3 Discriminating-path rule does not implement discriminating paths
+### P1.3 Discriminating-path rule does not implement discriminating paths — DONE
 `crates/causal-discovery/src/discriminating_paths.rs:20-94`,
 `crates/causal-discovery/src/rule_scheduling.rs:346-407`
 Three compounding bugs vs FCI R4 / LPCMCI:
@@ -121,16 +124,19 @@ Three compounding bugs vs FCI R4 / LPCMCI:
 **Fix:** implement the full path definition (non-adjacency + collider-and-parent-of-b intermediates),
 correct the sepset lookup to `Sep(a,b)`, and orient both endpoints in the collider branch. Add
 fixture tests from the FCI literature (e.g. Zhang 2008 examples).
+**Status:** Fixed — Zhang discriminating-path definition; `c ∈ Sep(a,b)` gate; collider orients
+`dₖ *→ c ←* b`; non-collider orients `c → b`. Zhang minimal fixture + R4 rule tests added.
 
-### P1.4 LPCMCI R1 under-orients and requires too-strong premises
+### P1.4 LPCMCI R1 under-orients and requires too-strong premises — DONE
 `crates/causal-discovery/src/rule_scheduling.rs:120-178`
 FCI R1: if `a *→ b o–* c` (any mark at a, arrow at b) and a,c non-adjacent, orient `b → c` (tail at
 b **and** arrow at c). The code (i) requires the a–b edge to be fully directed tail→arrow, missing
 `a o→ b` / `a ↔ b` premises, and (ii) sets only the tail at b (line 163 keeps `mark_at_c`
 unchanged), producing `b —o c` where the literature derives `b → c`.
 **Fix:** relax the premise to arrow-at-b, and set both endpoint marks in the conclusion.
+**Status:** Fixed — premise is arrow-at-b; conclusion sets Tail at b and Arrow at c.
 
-### P1.5 LPCMCI R2 checks the circle on the wrong endpoint and can overwrite tails
+### P1.5 LPCMCI R2 checks the circle on the wrong endpoint and can overwrite tails — DONE
 `crates/causal-discovery/src/rule_scheduling.rs:211-231`
 FCI R2: if `a → b *→ c` or `a *→ b → c` and `a *–o c` (circle **at c**), orient arrow at c. The
 code requires `at_a_ac == Circle` (circle at a), and only skips when at_c is already Arrow — so it
@@ -138,8 +144,10 @@ can overwrite a Tail at c with an Arrow (unsound) and fails to fire when at_c is
 Tail. Its chain cases also require specific circle marks at b, missing e.g. `a → b → c`.
 **Fix:** fire only when the mark at c on the a–c edge is Circle; never overwrite a Tail; cover both
 chain forms per the rule.
+**Status:** Fixed — circle-at-c gate; both chain forms (`a→b *→c`, `a*→b →c` incl. fully directed);
+Tail at c is never overwritten.
 
-### P1.6 LPCMCI inserts lagged links as tail–arrow directed edges
+### P1.6 LPCMCI inserts lagged links as tail–arrow directed edges — DONE
 `crates/causal-discovery/src/evidence.rs:154-193` (`pag_from_scored_links`)
 Contemporaneous pairs get o–o (correct) but lagged links get `insert_directed` (tail at source). In
 a PAG a tail asserts ancestorship; a dependent lagged pair may be `X_{t−τ} ↔ Y_t` (lagged latent
@@ -147,6 +155,7 @@ confounding). LPCMCI (Gerhardus & Runge 2020) initializes lagged links as `o→`
 node by time order, circle at the earlier).
 **Fix:** insert lagged links with circle-at-source, arrow-at-target; let the rules upgrade circles
 to tails.
+**Status:** Fixed — lagged inserts use `insert_circle_arrow(src, tgt)`.
 
 ### P1.7 Orientation conflicts abort the run or are silently first-writer-wins
 `crates/causal-discovery/src/orientation.rs:406-475`, `crates/causal-graph/src/cpdag.rs:168-188`
@@ -274,8 +283,7 @@ bootstrap loops onto one shared helper so the fix lands once).
 Exported as `causal::rank_designs` "(DESIGN.md §19)". The Monte-Carlo/CRN scaffolding around these
 is real; the payoffs it averages are placeholders.
 **Fix:** implement the real objectives (EIG via posterior simulation; identifiability via the
-actual identifier on the candidate graph; SE reduction via simulated design analysis), or make the
-API return an explicit `Unimplemented` error until then. Do not ship silent placeholder numbers.
+actual identifier on the candidate graph; SE reduction via simulated design analysis). Do not ship silent placeholder numbers.
 
 ### P2.7 Bayesian validators are permanent no-ops in the suite
 `crates/causal-validate/src/suite.rs:316-332`

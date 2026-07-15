@@ -146,7 +146,12 @@ pub fn cpdag_from_scored_links(
     Ok(cpdag)
 }
 
-/// Build a temporal PAG from scored links (lagged directed, contemporaneous circle-circle).
+/// Build a temporal PAG from scored links.
+///
+/// Contemporaneous pairs are inserted as `o–o`. Lagged links are inserted as `o→`
+/// (circle at the earlier/source node, arrow at the later/target) per LPCMCI
+/// initialization (Gerhardus & Runge 2020) — a tail would assert ancestorship, which
+/// is not yet justified for a mere lagged dependence.
 ///
 /// # Errors
 ///
@@ -185,7 +190,8 @@ pub fn pag_from_scored_links(
                 at_b: causal_graph::Endpoint::Circle,
             })
         } else {
-            pag.insert_directed(src, tgt)
+            // Lagged: o→ with arrow at the later node by time order.
+            pag.insert_circle_arrow(src, tgt)
         };
         insert.map_err(DiscoveryError::from)?;
     }
@@ -205,5 +211,59 @@ pub fn pag_evidence_from_oriented(
         edge_evidence,
         links: Arc::from(links),
         source: EvidenceSource::Discovery { algorithm: Arc::from("lpcmci") },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use causal_graph::Endpoint;
+    use crate::result::LaggedLink;
+
+    #[test]
+    fn lagged_links_initialize_as_circle_arrow() {
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let links = [ScoredLink {
+            link: LaggedLink {
+                source: vars[0],
+                source_lag: Lag::from_raw(1),
+                target: vars[1],
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.5,
+            p_value: 0.01,
+            adjusted_p_value: None,
+        }];
+        let pag = pag_from_scored_links(&links, &vars, 1).unwrap();
+        // Nodes: (v0,0), (v0,1), (v1,0), (v1,1) in nested loop order.
+        let mut src_id = None;
+        let mut tgt_id = None;
+        for i in 0..pag.node_count() {
+            let id = DenseNodeId::from_raw(i as u32);
+            let node = &pag.nodes()[i];
+            match node {
+                causal_graph::NodeRef::Lagged { variable, lag }
+                    if *variable == vars[0] && lag.raw() == 1 =>
+                {
+                    src_id = Some(id);
+                }
+                causal_graph::NodeRef::Lagged { variable, lag }
+                    if *variable == vars[1] && lag.is_contemporaneous() =>
+                {
+                    tgt_id = Some(id);
+                }
+                _ => {}
+            }
+        }
+        let src = src_id.expect("source node");
+        let tgt = tgt_id.expect("target node");
+        let e = pag.edge_between(src, tgt).expect("lagged edge");
+        let (at_src, at_tgt) = if e.a == src {
+            (e.at_a, e.at_b)
+        } else {
+            (e.at_b, e.at_a)
+        };
+        assert!(matches!(at_src, Endpoint::Circle), "circle at earlier node");
+        assert!(matches!(at_tgt, Endpoint::Arrow), "arrow at later node");
     }
 }
