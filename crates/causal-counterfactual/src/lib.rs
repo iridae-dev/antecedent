@@ -10,7 +10,8 @@ pub mod error;
 
 pub use engine::{
     CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualResult, CounterfactualWorld,
-    ExogenousPosterior, NoiseInferenceKind, nested_hard_counterfactual, streaming_matches_retained,
+    ExogenousPosterior, MissingPolicy, NoiseInferenceKind, nested_hard_counterfactual,
+    streaming_matches_retained,
 };
 pub use error::CounterfactualError;
 

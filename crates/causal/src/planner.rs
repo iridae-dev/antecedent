@@ -335,8 +335,8 @@ pub struct StaticAteCompileInput<'a> {
 pub fn compile_logical_static_ate(
     input: StaticAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {
-    let _ = input.graph;
     input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
     validate_static_pair(&input.identifier, &input.estimator)?;
     if &*input.estimator == "linear.adjustment.ate"
         && input.query.target_population != TargetPopulation::AllObserved
@@ -367,6 +367,33 @@ pub fn compile_logical_static_ate(
     };
     plan.validate()?;
     Ok(plan)
+}
+
+fn validate_query_vars_in_dag(
+    dag: &Dag,
+    treatment: causal_core::VariableId,
+    outcome: causal_core::VariableId,
+) -> Result<(), AnalysisError> {
+    let mut has_t = false;
+    let mut has_y = false;
+    for node in dag.nodes() {
+        if let causal_graph::NodeRef::Static(v) = node {
+            if *v == treatment {
+                has_t = true;
+            }
+            if *v == outcome {
+                has_y = true;
+            }
+        }
+    }
+    if !has_t || !has_y {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "query variables not in DAG (treatment present={has_t}, outcome present={has_y})"
+            ),
+        });
+    }
+    Ok(())
 }
 
 /// Compile logical plan for a temporal effect with a supplied temporal graph.

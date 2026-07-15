@@ -64,11 +64,8 @@ impl GeneralizedAdjustmentIdentifier {
     ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
         let t = query.treatment;
         let y = query.outcome;
-        let t_d = DenseNodeId::from_raw(t.raw());
-        let y_d = DenseNodeId::from_raw(y.raw());
-        if t_d.as_usize() >= pag.node_count() || y_d.as_usize() >= pag.node_count() {
-            return Err(IdentificationError::msg("treatment/outcome not in PAG"));
-        }
+        let t_d = pag_var_to_dense(pag, t)?;
+        let y_d = pag_var_to_dense(pag, y)?;
 
         let sampler = CompletionSampler::new(pag.clone(), self.config.max_completions)
             .map_err(IdentificationError::from)?;
@@ -80,6 +77,17 @@ impl GeneralizedAdjustmentIdentifier {
         }
         Ok(IdentificationEnvelope::from_cases(cases))
     }
+}
+
+fn pag_var_to_dense(pag: &Pag, id: VariableId) -> Result<DenseNodeId, IdentificationError> {
+    for (i, node) in pag.nodes().iter().enumerate() {
+        if let causal_graph::NodeRef::Static(v) = node {
+            if *v == id {
+                return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+            }
+        }
+    }
+    Err(IdentificationError::UnknownVariable { id })
 }
 
 fn identify_on_mag_completion(

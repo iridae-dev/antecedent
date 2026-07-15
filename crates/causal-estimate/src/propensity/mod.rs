@@ -23,54 +23,45 @@
     clippy::needless_pass_by_value
 )]
 
-use std::sync::Arc;
+mod prepare;
+mod weighting;
+mod stratification;
+mod matching;
+mod distance;
 
-use causal_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
+pub use distance::DistanceMatching;
+pub use matching::PropensityMatching;
+pub use prepare::{
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
+    default_propensity_overlap,
 };
-use causal_data::TabularData;
-use causal_expr::IdentifiedEstimand;
-use causal_stats::{
-    FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityFit, PropensityWorkspace,
-    fit_propensity,
+pub(crate) use prepare::{
+    clamp_scores, clip_of, gather, prepare_propensity_problem, split_by_treatment, trim_of,
+    trim_retained_rows,
 };
+pub use stratification::PropensityStratification;
+pub use weighting::PropensityWeighting;
 
-use crate::adjustment::{EffectEstimate, intervention_f64};
-use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
-use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
-
-include!("prepare.rs");
-include!("weighting.rs");
-include!("stratification.rs");
-include!("matching.rs");
-include!("distance.rs");
 #[cfg(test)]
 #[allow(clippy::many_single_char_names, clippy::float_cmp)]
 mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet,
-        TargetPopulation, ValueType, VariableId,
+        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
+        RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
     use causal_expr::ExprId;
     use causal_expr::IdentifiedEstimand;
+    use causal_kernels::standard_normal;
 
     use super::*;
+    use crate::error::EstimationError;
     use crate::overlap::OverlapPolicy;
-
-    /// Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(logit(-0.5 + Z))`, `Y = 2T + Z + noise`.
-    /// True ATE = 2.
-    fn standard_normal(rng: &mut causal_core::CausalRng) -> f64 {
-        // Box-Muller.
-        let u1 = rng.next_f64().max(1e-12);
-        let u2 = rng.next_f64();
-        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-    }
+    use crate::propensity::weighting::hajek_difference;
 
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         let (t, y, z) = confounded_columns(n, seed);

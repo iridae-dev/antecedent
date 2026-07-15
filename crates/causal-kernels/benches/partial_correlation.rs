@@ -4,7 +4,7 @@
 
 #![allow(missing_docs, clippy::cast_precision_loss)]
 
-use causal_kernels::{ParCorrQuery, ParCorrWorkspace, partial_correlation_batch};
+use causal_kernels::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn bench_parcorr(c: &mut Criterion) {
@@ -37,7 +37,7 @@ fn bench_parcorr(c: &mut Criterion) {
                 black_box(&z_flat),
                 black_box(&mut out),
                 black_box(&mut ws),
-                true,
+                ParCorrMode::Portable,
             );
         });
     });

@@ -142,21 +142,35 @@ impl EfficientBackdoorIdentifier {
         }
 
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
-        let total_masks = 1usize << m;
         'sizes: for size in 0..=m {
-            for mask in 0..total_masks {
-                if mask.count_ones() as usize != size {
-                    continue;
+            let mut early_stop = false;
+            let mut enum_err: Option<IdentificationError> = None;
+            crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
+                if enum_err.is_some() {
+                    return true;
                 }
                 examined += 1;
-                let z: Vec<DenseNodeId> =
-                    (0..m).filter(|i| (mask & (1 << i)) != 0).map(|i| candidates[i]).collect();
-                if is_backdoor_adjustment(&mutilated, t, y, &z, &mut dsep_ws)? {
-                    valid.push(z);
-                    if valid.len() >= self.config.max_results {
-                        break 'sizes;
+                match is_backdoor_adjustment(&mutilated, t, y, z, &mut dsep_ws) {
+                    Ok(true) => {
+                        valid.push(z.to_vec());
+                        if valid.len() >= self.config.max_results {
+                            early_stop = true;
+                            return true;
+                        }
+                    }
+                    Ok(false) => {}
+                    Err(e) => {
+                        enum_err = Some(e);
+                        return true;
                     }
                 }
+                false
+            });
+            if let Some(e) = enum_err {
+                return Err(e);
+            }
+            if early_stop {
+                break 'sizes;
             }
             if !valid.is_empty() {
                 break;

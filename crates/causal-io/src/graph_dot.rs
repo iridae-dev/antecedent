@@ -126,7 +126,7 @@ pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> String {
     for &(from, to) in &wire.edges {
         if use_names {
             let names = names.expect("checked");
-            out.push_str(" ");
+            out.push(' ');
             push_quoted(&mut out, &names[from as usize]);
             out.push_str(" -> ");
             push_quoted(&mut out, &names[to as usize]);
@@ -145,7 +145,7 @@ pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> String {
         }
         for (i, present) in seen.iter().enumerate() {
             if !*present {
-                out.push_str(" ");
+                out.push(' ');
                 push_quoted(&mut out, &names[i]);
                 out.push_str(";\n");
             }

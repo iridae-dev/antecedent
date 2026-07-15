@@ -58,7 +58,8 @@ impl RandomCommonCause {
                 message: "random common cause requires replicates >= 2",
             });
         }
-        if &*problem.estimand.method != "backdoor.adjustment" {
+        if problem.estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::BackdoorAdjustment)
+        {
             return Err(ValidationError::NotApplicable {
                 message: "random common cause requires backdoor.adjustment estimand",
             });

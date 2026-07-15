@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod admg;
+pub mod algo;
 pub mod ancestry;
 pub mod completion;
 pub mod cpdag;

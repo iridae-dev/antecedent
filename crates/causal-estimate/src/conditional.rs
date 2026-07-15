@@ -20,7 +20,9 @@ use causal_core::{
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
-use causal_stats::{FaerBackend, form_xtx, invert_square};
+use causal_stats::{
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
+};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
@@ -138,23 +140,17 @@ impl ConditionalLinearAdjustment {
             design[base..base + n].copy_from_slice(&zcol);
         }
 
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = self
+            .backend
+            .least_squares(&design, n, ncols, &y, &mut ws)
+            .map_err(crate::util::stats_err)?;
+        let coef = fit.coefficients;
+
         let mut xtx = vec![0.0; ncols * ncols];
-        let mut xty = vec![0.0; ncols];
         form_xtx(&design, n, ncols, &mut xtx);
-        for c in 0..ncols {
-            let col = &design[c * n..(c + 1) * n];
-            xty[c] = col.iter().zip(y.iter()).map(|(a, b)| a * b).sum();
-        }
         let inv = invert_square(&xtx, ncols)
             .ok_or_else(|| EstimationError::stats_msg("singular design in conditional ATE"))?;
-        let mut coef = vec![0.0; ncols];
-        for i in 0..ncols {
-            let mut s = 0.0;
-            for j in 0..ncols {
-                s += inv[i * ncols + j] * xty[j];
-            }
-            coef[i] = s;
-        }
 
         let w_bar: f64 = w.iter().sum::<f64>() / n as f64;
         // Marginal ATE at mean W: (β_T + β_{TW} * Ē[W]) * delta
@@ -167,7 +163,6 @@ impl ConditionalLinearAdjustment {
         g[3] = delta * w_bar;
         let se_analytic = crate::util::delta_method_se(&inv, ncols, &g, sigma2);
 
-        let _ = self.backend;
         let _ = Arc::clone(&estimand.method);
 
         Ok(EffectEstimate {

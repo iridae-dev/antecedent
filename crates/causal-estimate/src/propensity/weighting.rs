@@ -1,3 +1,23 @@
+//! Inverse-probability weighting estimator.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
+use causal_data::TabularData;
+use causal_expr::IdentifiedEstimand;
+use causal_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
+
+use super::prepare::{
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
+    clip_of, default_propensity_overlap, prepare_propensity_problem, restrict_to_rows, trim_of,
+    trim_retained_rows,
+};
+use crate::adjustment::EffectEstimate;
+use crate::error::EstimationError;
+use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::util::{bootstrap_se, BootstrapSeResult};
 
 /// Inverse-probability weighting estimator (ATE/ATT/ATC via `TargetPopulation`).
 ///
@@ -157,86 +177,140 @@ impl PropensityWeighting {
 // Stratification
 // ---------------------------------------------------------------------------------------------
 
-fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
-    let n = scores.len();
-    let k = n_strata.max(1);
-    let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by(|&a, &b| scores[a].partial_cmp(&scores[b]).unwrap_or(std::cmp::Ordering::Equal));
-    let mut stratum = vec![0usize; n];
-    for (rank, &orig) in order.iter().enumerate() {
-        let s = (rank * k) / n.max(1);
-        stratum[orig] = s.min(k - 1);
+
+// IPW weights + Hajek estimator (shared by `PropensityWeighting`)
+// ---------------------------------------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IpwTarget {
+    Ate,
+    Att,
+    Atc,
+}
+
+impl IpwTarget {
+    fn from_population(pop: &TargetPopulation) -> Result<Self, EstimationError> {
+        match pop {
+            TargetPopulation::AllObserved => Ok(Self::Ate),
+            TargetPopulation::Treated => Ok(Self::Att),
+            TargetPopulation::Untreated => Ok(Self::Atc),
+            _ => Err(EstimationError::UnsupportedQuery(
+                "propensity weighting supports AllObserved, Treated, or Untreated target populations".into(),
+            )),
+        }
     }
-    stratum
+
+    fn weight(self, t: f64, e: f64) -> f64 {
+        match self {
+            Self::Ate => {
+                if t > 0.5 {
+                    1.0 / e
+                } else {
+                    1.0 / (1.0 - e)
+                }
+            }
+            Self::Att => {
+                if t > 0.5 {
+                    1.0
+                } else {
+                    e / (1.0 - e)
+                }
+            }
+            Self::Atc => {
+                if t > 0.5 {
+                    (1.0 - e) / e
+                } else {
+                    1.0
+                }
+            }
+        }
+    }
 }
 
-struct StratifiedResult {
-    ate: f64,
-    se_analytic: f64,
-    /// Fraction of input rows that landed in a stratum with both arms represented. Strata
-    /// missing an arm are dropped from the pooled contrast, which redefines the target
-    /// population; callers surface this via the overlap report's support figure.
-    retained_fraction: f64,
+/// `scores_for_weight` feeds the weight formula (typically clipped); `scores_for_trim` feeds
+/// the trim decision (typically the raw, pre-clip scores) — they may be the same slice.
+pub(crate) fn compute_ipw_weights(
+    treatment: &[f64],
+    scores_for_weight: &[f64],
+    scores_for_trim: &[f64],
+    target: IpwTarget,
+    trim: Option<f64>,
+) -> Vec<f64> {
+    treatment
+        .iter()
+        .zip(scores_for_weight)
+        .zip(scores_for_trim)
+        .map(|((&t, &e), &raw)| {
+            if let Some(tr) = trim {
+                if raw < tr || raw > 1.0 - tr {
+                    return 0.0;
+                }
+            }
+            target.weight(t, e)
+        })
+        .collect()
 }
 
-fn stratified_ate(
+pub(crate) fn hajek_difference(
     treatment: &[f64],
     outcome: &[f64],
-    stratum: &[usize],
-    n_strata: usize,
-) -> Result<StratifiedResult, EstimationError> {
-    let mut sum1 = vec![0.0; n_strata];
-    let mut sq1 = vec![0.0; n_strata];
-    let mut cnt1 = vec![0usize; n_strata];
-    let mut sum0 = vec![0.0; n_strata];
-    let mut sq0 = vec![0.0; n_strata];
-    let mut cnt0 = vec![0usize; n_strata];
-    for i in 0..treatment.len() {
-        let s = stratum[i];
-        if treatment[i] > 0.5 {
-            sum1[s] += outcome[i];
-            sq1[s] += outcome[i] * outcome[i];
-            cnt1[s] += 1;
+    weights: &[f64],
+) -> Result<f64, EstimationError> {
+    let (mut num1, mut den1, mut num0, mut den0) = (0.0, 0.0, 0.0, 0.0);
+    for ((&t, &y), &w) in treatment.iter().zip(outcome).zip(weights) {
+        if t > 0.5 {
+            num1 += w * y;
+            den1 += w;
         } else {
-            sum0[s] += outcome[i];
-            sq0[s] += outcome[i] * outcome[i];
-            cnt0[s] += 1;
+            num0 += w * y;
+            den0 += w;
         }
     }
-    let mut diffs = Vec::new();
-    let mut ns = Vec::new();
-    let mut vars = Vec::new();
-    for s in 0..n_strata {
-        if cnt1[s] == 0 || cnt0[s] == 0 {
-            continue;
-        }
-        let n1 = cnt1[s] as f64;
-        let n0 = cnt0[s] as f64;
-        let mean1 = sum1[s] / n1;
-        let mean0 = sum0[s] / n0;
-        // Unbiased sample variances (÷(n−1)); undefined (NaN) for a single-unit arm, which
-        // honestly propagates into `se_analytic` rather than understating it.
-        let var1 = sample_variance_from_moments(sq1[s], mean1, cnt1[s]);
-        let var0 = sample_variance_from_moments(sq0[s], mean0, cnt0[s]);
-        diffs.push(mean1 - mean0);
-        ns.push(n1 + n0);
-        vars.push(var1 / n1 + var0 / n0);
+    if den1 <= 0.0 || den0 <= 0.0 {
+        return Err(EstimationError::data_msg("IPW weighting left an arm with zero total weight (trimming/clipping removed all treated or all control units)"));
     }
-    let total_n: f64 = ns.iter().sum();
-    if total_n <= 0.0 {
-        return Err(EstimationError::data_msg("no strata contain both treated and control units"));
-    }
-    let ate = diffs.iter().zip(&ns).map(|(d, n)| d * n).sum::<f64>() / total_n;
-    let se_var = vars.iter().zip(&ns).map(|(v, n)| v * (n / total_n).powi(2)).sum::<f64>();
-    let retained_fraction = total_n / (treatment.len().max(1) as f64);
-    Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction })
+    Ok(num1 / den1 - num0 / den0)
 }
 
-/// Unbiased sample variance from `Σy²`, the mean, and the count (`NaN` when `count < 2`).
-fn sample_variance_from_moments(sum_sq: f64, mean: f64, count: usize) -> f64 {
-    if count < 2 {
-        return f64::NAN;
+pub(crate) fn hajek_weighted_mean(
+    treatment: &[f64],
+    outcome: &[f64],
+    weights: &[f64],
+    want_treated: bool,
+) -> f64 {
+    let (mut num, mut den) = (0.0, 0.0);
+    for i in 0..treatment.len() {
+        if (treatment[i] > 0.5) == want_treated {
+            num += weights[i] * outcome[i];
+            den += weights[i];
+        }
     }
-    let n = count as f64;
-    ((sum_sq - n * mean * mean) / (n - 1.0)).max(0.0)
+    if den > 0.0 { num / den } else { f64::NAN }
+}
+
+pub(crate) fn hajek_group_variance(
+    treatment: &[f64],
+    outcome: &[f64],
+    weights: &[f64],
+    want_treated: bool,
+    mu: f64,
+) -> f64 {
+    let (mut num, mut den) = (0.0, 0.0);
+    for i in 0..treatment.len() {
+        if (treatment[i] > 0.5) == want_treated {
+            let w = weights[i];
+            num += w * w * (outcome[i] - mu).powi(2);
+            den += w;
+        }
+    }
+    if den > 0.0 { num / (den * den) } else { f64::NAN }
+}
+
+/// Linearized (ratio-estimator) analytic SE of the Hajek ATE/ATT/ATC difference.
+pub(crate) fn hajek_analytic_se(treatment: &[f64], outcome: &[f64], weights: &[f64]) -> f64 {
+    let mu1 = hajek_weighted_mean(treatment, outcome, weights, true);
+    let mu0 = hajek_weighted_mean(treatment, outcome, weights, false);
+    let v1 = hajek_group_variance(treatment, outcome, weights, true, mu1);
+    let v0 = hajek_group_variance(treatment, outcome, weights, false, mu0);
+    (v1 + v0).sqrt()
 }

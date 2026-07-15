@@ -14,6 +14,7 @@ workspace = true
 
 [dependencies]
 causal-core = { path = "../causal-core" }
+causal-kernels = { path = "../causal-kernels" }
 causal-prob = { path = "../causal-prob" }
 causal-stats = { path = "../causal-stats" }
 thiserror = { workspace = true }

@@ -29,7 +29,7 @@ pub mod diagnostics;
 pub mod error;
 pub mod graph_samples;
 pub mod laplace;
-pub mod linalg;
+pub(crate) mod linalg;
 pub mod posterior;
 pub mod prior;
 

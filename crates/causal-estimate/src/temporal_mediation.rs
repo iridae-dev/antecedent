@@ -17,11 +17,11 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, ExecutionContext, Lag, MediationContrast, MediationQuery};
 use causal_data::{LaggedColumn, SampleWorkspace, TimeSeriesData};
 use causal_expr::IdentifiedEstimand;
-use causal_stats::FaerBackend;
+use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
-use crate::util::{coefficient_variance, ols_colmajor, ols_sigma2};
+use crate::util::{coefficient_variance, ols_sigma2};
 
 /// Temporal mediation effect estimate with optional decomposition.
 #[derive(Clone, Debug)]
@@ -200,8 +200,11 @@ fn ols_fit(
     ncols: usize,
     y: &[f64],
 ) -> Result<Vec<f64>, EstimationError> {
-    let _ = backend;
-    ols_colmajor(design_colmajor, y.len(), ncols, y)
+    let mut ws = LeastSquaresWorkspace::default();
+    let fit = backend
+        .least_squares(design_colmajor, y.len(), ncols, y, &mut ws)
+        .map_err(crate::util::stats_err)?;
+    Ok(fit.coefficients)
 }
 
 /// Temporal effect surface aligning with Tigramite (direct / total / mediated / conditional).

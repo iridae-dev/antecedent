@@ -5,7 +5,7 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_lossless)]
 
 use causal_core::{ExecutionContext, KernelPolicy};
-use causal_kernels::{ParCorrQuery, partial_correlation_batch};
+use causal_kernels::{ParCorrMode, ParCorrQuery, partial_correlation_batch};
 
 use super::analytic::{analytic_parcorr_ci, analytic_parcorr_pvalue};
 use super::block_shuffle::block_shuffle_pvalue;
@@ -62,7 +62,7 @@ impl PartialCorrelation {
         }
         workspace.prepare_queries(1);
         let query = ParCorrQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() };
-        let portable = !self.policy.force_scalar;
+        let portable = ParCorrMode::from(!self.policy.force_scalar);
         partial_correlation_batch(
             columns,
             &[query],
@@ -155,7 +155,7 @@ impl ConditionalIndependenceTest for PartialCorrelation {
             .iter()
             .map(|q| ParCorrQuery { x: q.x, y: q.y, z_start: q.z_start, z_len: q.z_len })
             .collect();
-        let portable = !self.policy.force_scalar;
+        let portable = ParCorrMode::from(!self.policy.force_scalar);
         partial_correlation_batch(
             request.columns,
             &queries,

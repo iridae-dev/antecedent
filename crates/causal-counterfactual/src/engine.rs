@@ -21,6 +21,29 @@ use causal_model::{
 
 use crate::error::CounterfactualError;
 
+/// Policy for missing factual columns during abduction.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum MissingPolicy {
+    /// Fail if a required factual column is absent.
+    Error,
+    /// Zero-fill absent columns and mark them as assumed noise.
+    ZeroFill,
+}
+
+impl MissingPolicy {
+    /// Whether absent columns are zero-filled.
+    #[must_use]
+    pub const fn allows_missing(self) -> bool {
+        matches!(self, Self::ZeroFill)
+    }
+}
+
+impl From<bool> for MissingPolicy {
+    fn from(allow_missing: bool) -> Self {
+        if allow_missing { Self::ZeroFill } else { Self::Error }
+    }
+}
+
 /// How exogenous noise was obtained.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum NoiseInferenceKind {
@@ -43,7 +66,7 @@ pub struct ExogenousPosterior {
     pub n_nodes: usize,
     /// Inference kind.
     pub kind: NoiseInferenceKind,
-    /// Per-node flag: factual column was absent and zero-filled under `allow_missing`
+    /// Per-node flag: factual column was absent and zero-filled under [`MissingPolicy::ZeroFill`]
     /// (`true` ⇒ that node's factual values must not be treated as observed).
     pub assumed_columns: Arc<[bool]>,
 }
@@ -94,7 +117,7 @@ impl CounterfactualEngine {
     pub fn abduct(
         &self,
         data: &TabularData,
-        allow_missing: bool,
+        missing: MissingPolicy,
     ) -> Result<ExogenousPosterior, CounterfactualError> {
         let n = data.row_count();
         let n_nodes = self.model.n_nodes();
@@ -109,7 +132,7 @@ impl CounterfactualEngine {
             match data.float64_values(var) {
                 Ok(col) => values[i * n..(i + 1) * n].copy_from_slice(&col[..n]),
                 Err(e) => {
-                    if allow_missing {
+                    if missing.allows_missing() {
                         kind = NoiseInferenceKind::AssumedNoise;
                         assumed_columns[i] = true;
                         values[i * n..(i + 1) * n].fill(0.0);
@@ -380,7 +403,7 @@ pub fn nested_hard_counterfactual(
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<f64, CounterfactualError> {
-    let exo = engine.abduct(data, false)?;
+    let exo = engine.abduct(data, MissingPolicy::Error)?;
     let mut combined = outer.to_vec();
     combined.extend_from_slice(inner);
     let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
@@ -453,7 +476,7 @@ mod tests {
     #[test]
     fn ite_and_streaming_equivalence() {
         let (engine, data) = toy();
-        let exo = engine.abduct(&data, false).unwrap();
+        let exo = engine.abduct(&data, MissingPolicy::Error).unwrap();
         assert_eq!(exo.kind, NoiseInferenceKind::Invertible);
         let mut ws = MechanismWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);

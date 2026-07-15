@@ -51,6 +51,7 @@ impl InterventionOverlay {
             && self.shifts.iter().all(|s| *s == 0.0)
             && self.stochastic.iter().all(Option::is_none)
             && self.soft.iter().all(Option::is_none)
+            && self.active.iter().all(|a| *a)
     }
 
     /// Compile interventions against a model (simultaneous / single-step).

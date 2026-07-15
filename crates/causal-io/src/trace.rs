@@ -24,8 +24,34 @@ pub enum AssumptionTagWire {
     Positivity,
     /// No interference.
     NoInterference,
-    /// Other / extended tag.
-    Other(String),
+    /// Temporal stationarity.
+    Stationarity,
+    /// Piecewise stationarity.
+    PiecewiseStationarity,
+    /// No selection bias.
+    NoSelectionBias,
+    /// Instrument exclusion restriction (`instrument=<raw id>`).
+    ExclusionRestriction {
+        /// Instrument variable raw id.
+        instrument: u32,
+    },
+    /// Monotonicity.
+    Monotonicity,
+    /// Parametric modeling restriction (`id=<stable id>`).
+    ParametricRestriction {
+        /// Restriction family id.
+        id: String,
+    },
+    /// Prior / Bayesian restriction (`id=<stable id>`).
+    PriorRestriction {
+        /// Prior family id.
+        id: String,
+    },
+    /// Custom extension (`id=<stable id>`).
+    Custom {
+        /// Stable custom id.
+        id: String,
+    },
 }
 
 /// One assumption record on the wire.
@@ -86,7 +112,20 @@ fn assumption_to_tag(a: &Assumption) -> AssumptionTagWire {
         Assumption::Consistency => AssumptionTagWire::Consistency,
         Assumption::Positivity => AssumptionTagWire::Positivity,
         Assumption::NoInterference => AssumptionTagWire::NoInterference,
-        other => AssumptionTagWire::Other(format!("{other:?}")),
+        Assumption::Stationarity => AssumptionTagWire::Stationarity,
+        Assumption::PiecewiseStationarity => AssumptionTagWire::PiecewiseStationarity,
+        Assumption::NoSelectionBias => AssumptionTagWire::NoSelectionBias,
+        Assumption::ExclusionRestriction { instrument } => AssumptionTagWire::ExclusionRestriction {
+            instrument: instrument.raw(),
+        },
+        Assumption::Monotonicity => AssumptionTagWire::Monotonicity,
+        Assumption::ParametricRestriction(p) => AssumptionTagWire::ParametricRestriction {
+            id: p.id.to_string(),
+        },
+        Assumption::PriorRestriction(p) => AssumptionTagWire::PriorRestriction {
+            id: p.id.to_string(),
+        },
+        Assumption::Custom { id, .. } => AssumptionTagWire::Custom { id: id.to_string() },
     }
 }
 

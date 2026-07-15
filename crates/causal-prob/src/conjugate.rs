@@ -15,6 +15,7 @@
 use std::sync::Arc;
 
 use causal_core::{CausalRng, ExecutionContext};
+use causal_kernels::standard_normal;
 
 use crate::backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
@@ -321,13 +322,6 @@ fn draw_nig(
         values[ncols * n_draws + d] = sigma2;
     }
     Ok(Arc::from(values))
-}
-
-fn standard_normal(rng: &mut CausalRng) -> f64 {
-    // Box–Muller
-    let u1 = rng.next_f64().max(f64::EPSILON);
-    let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
 }
 
 fn sample_inv_gamma(shape: f64, scale: f64, rng: &mut CausalRng) -> f64 {

@@ -238,7 +238,8 @@ impl ValidationSuite {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<ValidationOutcome, ValidationError> {
-        let linear_ok = &*problem.estimand.method == "backdoor.adjustment"
+        let linear_ok = problem.estimand.method_kind().ok()
+            == Some(causal_expr::EstimandMethod::BackdoorAdjustment)
             && problem.estimator.is_none_or(|e| e == "linear.adjustment.ate");
         match id {
             ValidatorId::Placebo => {

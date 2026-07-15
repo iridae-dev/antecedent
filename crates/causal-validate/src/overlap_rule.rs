@@ -45,7 +45,7 @@ impl OverlapRuleRefuter {
     ///
     /// # Errors
     ///
-    /// Data or GLM failures while building a diagnostic-only propensity fit.
+    /// Data failures while building a diagnostic-only propensity fit.
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,

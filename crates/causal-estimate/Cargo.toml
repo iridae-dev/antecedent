@@ -16,6 +16,7 @@ workspace = true
 causal-core = { path = "../causal-core" }
 causal-data = { path = "../causal-data" }
 causal-expr = { path = "../causal-expr" }
+causal-kernels = { path = "../causal-kernels" }
 causal-prob = { path = "../causal-prob" }
 causal-stats = { path = "../causal-stats" }
 thiserror = { workspace = true }

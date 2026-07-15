@@ -229,7 +229,7 @@ impl KdeDoSampler {
             values: Arc::from(col.to_vec()),
             weights: Arc::from(vec![1.0 / n_draws as f64; n_draws]),
             method: Arc::from("do_kde"),
-            notes: vec![Arc::from(format!("gaussian_kde_bandwidth={bw}"))],
+            notes: Vec::new(),
             accept_rate: None,
             bandwidth: Some(bw),
         })
@@ -317,7 +317,7 @@ impl McmcDoSampler {
             values: Arc::from(pilot_col.to_vec()),
             weights: Arc::from([]),
             method: Arc::from("pilot"),
-            notes: vec![Arc::from(format!("gaussian_kde_bandwidth={pilot_bw}"))],
+            notes: Vec::new(),
             accept_rate: None,
             bandwidth: Some(pilot_bw),
         };

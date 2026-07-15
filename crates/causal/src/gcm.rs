@@ -21,7 +21,8 @@ use causal_core::{
     MechanismChangeQuery, UnitChangeQuery, Value, VariableId,
 };
 use causal_counterfactual::{
-    CounterfactualEngine, CounterfactualError, ExogenousPosterior, NoiseInferenceKind,
+    CounterfactualEngine, CounterfactualError, ExogenousPosterior, MissingPolicy,
+    NoiseInferenceKind,
 };
 use causal_data::TabularData;
 use causal_graph::Dag;
@@ -85,7 +86,7 @@ pub fn counterfactual_ite(
     ctx: &ExecutionContext,
 ) -> Result<IteResult, AnalysisError> {
     let engine = CounterfactualEngine::new(model);
-    let exo = engine.abduct(data, false).map_err(map_cf)?;
+    let exo = engine.abduct(data, MissingPolicy::Error).map_err(map_cf)?;
     let mut ws = MechanismWorkspace::default();
     let ite = engine
         .individual_treatment_effect(
@@ -245,15 +246,15 @@ pub fn rank_root_causes(
 
 #[allow(clippy::needless_pass_by_value)] // map_err adapters
 fn map_model(e: ModelError) -> AnalysisError {
-    AnalysisError::Compile { message: format!("gcm model: {e}") }
+    AnalysisError::from(e)
 }
 
 #[allow(clippy::needless_pass_by_value)] // map_err adapters
 fn map_cf(e: CounterfactualError) -> AnalysisError {
-    AnalysisError::Compile { message: format!("gcm counterfactual: {e}") }
+    AnalysisError::from(e)
 }
 
 #[allow(clippy::needless_pass_by_value)] // map_err adapters
 fn map_attr(e: AttributionError) -> AnalysisError {
-    AnalysisError::Compile { message: format!("gcm attribution: {e}") }
+    AnalysisError::from(e)
 }

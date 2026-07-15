@@ -53,7 +53,8 @@ impl GraphRefuter {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
-        if &*problem.estimand.method != "backdoor.adjustment" {
+        if problem.estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::BackdoorAdjustment)
+        {
             return Err(ValidationError::NotApplicable {
                 message: "graph refutation requires backdoor.adjustment estimand",
             });

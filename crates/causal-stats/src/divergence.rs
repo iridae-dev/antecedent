@@ -27,6 +27,25 @@ pub fn mean_var(xs: &[f64]) -> (f64, f64) {
     (mean, var)
 }
 
+/// Unbiased sample standard deviation; `NaN` if fewer than 2 observations.
+#[must_use]
+pub fn sample_std(values: &[f64]) -> f64 {
+    let n = values.len() as f64;
+    if n < 2.0 {
+        return f64::NAN;
+    }
+    let mean = values.iter().sum::<f64>() / n;
+    let var = values
+        .iter()
+        .map(|v| {
+            let d = v - mean;
+            d * d
+        })
+        .sum::<f64>()
+        / (n - 1.0);
+    var.sqrt()
+}
+
 /// Two-sample mean-difference statistic `|mean(a) − mean(b)|` with a pooled-SE
 /// z-test p-value approximation (normal).
 ///
@@ -45,7 +64,7 @@ pub fn mean_diff_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsErr
     let (mb, vb) = mean_var(b);
     let se = (va / a.len() as f64 + vb / b.len() as f64).sqrt().max(1e-12);
     let z = (ma - mb).abs() / se;
-    let p = erfc_hastings(z / std::f64::consts::SQRT_2);
+    let p = causal_kernels::erfc(z / std::f64::consts::SQRT_2);
     Ok(((ma - mb).abs(), p.clamp(0.0, 1.0)))
 }
 
@@ -96,7 +115,7 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
     let mu = na * nb / 2.0;
     let sigma = ((na * nb * (na + nb + 1.0)) / 12.0).sqrt().max(1e-12);
     let z = (u_a - mu).abs() / sigma;
-    let p = erfc_hastings(z / std::f64::consts::SQRT_2).clamp(0.0, 1.0);
+    let p = causal_kernels::erfc(z / std::f64::consts::SQRT_2).clamp(0.0, 1.0);
     Ok((stat, p))
 }
 
@@ -119,21 +138,8 @@ pub fn residual_likelihood_ratio(
     let v0 = v0.max(1e-12);
     let v1 = v1.max(1e-12);
     let kl = gaussian_kl(m0, v0, m1, v1)?;
-    let p = erfc_hastings((2.0 * kl).sqrt() / std::f64::consts::SQRT_2).clamp(0.0, 1.0);
+    let p = causal_kernels::erfc((2.0 * kl).sqrt() / std::f64::consts::SQRT_2).clamp(0.0, 1.0);
     Ok((kl, p))
-}
-
-/// Complementary error function (Hastings approximation).
-fn erfc_hastings(x: f64) -> f64 {
-    let z = x.abs();
-    let t = 1.0 / (1.0 + 0.327_591_1 * z);
-    let a1 = 0.254_829_592;
-    let a2 = -0.284_496_736;
-    let a3 = 1.421_413_741;
-    let a4 = -1.453_152_027;
-    let a5 = 1.061_405_429;
-    let erf_c = (-z * z).exp() * (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t);
-    if x >= 0.0 { erf_c } else { 2.0 - erf_c }
 }
 
 #[cfg(test)]

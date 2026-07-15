@@ -75,7 +75,8 @@ impl UnobservedCommonCause {
                 message: "unobserved common cause requires replicates > 0",
             });
         }
-        if &*problem.estimand.method != "backdoor.adjustment" {
+        if problem.estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::BackdoorAdjustment)
+        {
             return Err(ValidationError::NotApplicable {
                 message: "unobserved common cause requires backdoor.adjustment estimand",
             });

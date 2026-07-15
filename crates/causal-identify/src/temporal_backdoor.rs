@@ -173,6 +173,9 @@ impl TemporalBackdoorIdentifier {
             history += 1;
         };
 
+        // Unfolded DAGs are built via `Dag::with_variables`, so dense node i is labeled
+        // `VariableId::from_raw(i)`. These synthetic ids are only for the unfolded graph;
+        // `annotate_temporal` remaps results back to `TemporalNodeKey`s.
         let treatment_var = VariableId::from_raw(treatment_dense);
         let outcome_var = VariableId::from_raw(outcome_dense);
 

@@ -5,7 +5,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use causal_core::{ExecutionContext, TemporalEffectQuery};
-use causal_data::{DiscoveryEstimationSplit, TemporalNodeKey, TimeSeriesData};
+use causal_data::{DiscoveryEstimationSplit, TableView, TemporalNodeKey, TimeSeriesData};
 use causal_graph::{DenseNodeId, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPagReview};
 
 use crate::error::AnalysisError;
@@ -82,7 +82,15 @@ impl PendingGraphReview {
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<CompiledAnalysis, AnalysisError> {
-        let _ = self.series_len;
+        if data.row_count() != self.series_len {
+            return Err(AnalysisError::Compile {
+                message: format!(
+                    "review series_len={} does not match data row_count={}",
+                    self.series_len,
+                    data.row_count()
+                ),
+            });
+        }
         if !self.review.is_complete() {
             return Err(AnalysisError::ReviewRequired {
                 message: format!(
@@ -180,7 +188,15 @@ impl PendingCpdagReview {
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<CompiledAnalysis, AnalysisError> {
-        let _ = self.series_len;
+        if data.row_count() != self.series_len {
+            return Err(AnalysisError::Compile {
+                message: format!(
+                    "review series_len={} does not match data row_count={}",
+                    self.series_len,
+                    data.row_count()
+                ),
+            });
+        }
         if !self.review.pending_undirected.is_empty() {
             return Err(AnalysisError::ReviewRequired {
                 message: format!(

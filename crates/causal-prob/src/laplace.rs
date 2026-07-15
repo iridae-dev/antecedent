@@ -16,6 +16,7 @@
 use std::sync::Arc;
 
 use causal_core::{CausalRng, ExecutionContext};
+use causal_kernels::{norm_cdf, standard_normal};
 
 use crate::backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
@@ -488,21 +489,6 @@ fn norm_pdf(x: f64) -> f64 {
     INV_SQRT_2PI * (-0.5 * x * x).exp()
 }
 
-fn norm_cdf(x: f64) -> f64 {
-    // Abramowitz–Stegun approximation
-    const A1: f64 = 0.254_829_592;
-    const A2: f64 = -0.284_496_736;
-    const A3: f64 = 1.421_413_741;
-    const A4: f64 = -1.453_152_027;
-    const A5: f64 = 1.061_405_429;
-    const P: f64 = 0.327_591_1;
-    let sign = if x < 0.0 { -1.0 } else { 1.0 };
-    let xabs = x.abs() / std::f64::consts::SQRT_2;
-    let t = 1.0 / (1.0 + P * xabs);
-    let y = 1.0 - (((((A5 * t + A4) * t) + A3) * t + A2) * t + A1) * t * (-xabs * xabs).exp();
-    0.5 * (1.0 + sign * y)
-}
-
 fn draw_mvn(
     mean: &[f64],
     cov: &[f64],
@@ -528,12 +514,6 @@ fn draw_mvn(
         }
     }
     Ok(Arc::from(values))
-}
-
-fn standard_normal(rng: &mut CausalRng) -> f64 {
-    let u1 = rng.next_f64().max(f64::EPSILON);
-    let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
 }
 
 #[cfg(test)]

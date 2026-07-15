@@ -12,6 +12,7 @@ pub mod discovery_defaults;
 pub mod error;
 pub mod gcm;
 pub mod inference;
+pub mod options;
 pub mod planner;
 pub mod result;
 pub mod review;
@@ -29,6 +30,7 @@ pub use discovery_defaults::{
     contemporaneous_constraints, pcmci_constraints, resolve_ci,
 };
 pub use error::AnalysisError;
+pub use options::{DiscoveryAccept, FdrControl};
 pub use gcm::{
     FittedGcm, IteResult, anomaly_attribution, attribute_distribution_change,
     attribute_distribution_change_robust, attribute_feature_relevance, attribute_paths,
@@ -159,8 +161,8 @@ pub use causal_attribution::{
 };
 pub use causal_counterfactual::{
     CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError, CounterfactualResult,
-    CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind, nested_hard_counterfactual,
-    streaming_matches_retained,
+    CounterfactualWorld, ExogenousPosterior, MissingPolicy, NoiseInferenceKind,
+    nested_hard_counterfactual, streaming_matches_retained,
 };
 pub use causal_model::{
     CompiledCausalModel, DoSampleResult, InvertibleStructuralCausalModel, KdeDoSampler,

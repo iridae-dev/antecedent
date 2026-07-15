@@ -1,14 +1,5 @@
 # TODO
 
-Prioritized backlog from the 2026-07-22 full-repo review (math correctness and DoWhy/Tigramite
-parity, DESIGN.md conformance, code quality). Ranked by order to address: P0 first. DESIGN.md is
-the conceptual roadmap — items in P5 are planned features not yet built, not documentation errors.
-
-P0 (confirmed wrong math), P1.1–P1.11 (graph-layer soundness), P2.1–P2.12
-(honest reporting, including Python bindings), and P3.1–P3.5 (conformance/test strengthening)
-were verified fixed against the code on 2026-07-22 and removed from this backlog. Remaining P1
-item below is interim only.
-
 Items are marked DONE with notes until independently verified and removed. Do not remove an item that you have just finished fixing.
 
 ---
@@ -28,45 +19,11 @@ likelihood-based model comparison for discrete conditionals.
 
 **Related leftover from P1.7 (otherwise fixed):** cycle/collider conflicts are recorded out-of-band
 (`conflict_edges` + `orientation.conflicts` diagnostics) and runs continue, but Tigramite-style
-`x-x` Endpoint marks are still deferred pending an `Endpoint` enum extension (see P4.2).
+`x-x` Endpoint marks are still deferred pending an `Endpoint` enum extension.
 
 ---
 
 ## P4 — Algorithm parity upgrades (bring implementations up to their published names)
-
-### P4.1 PCMCI: full-family MCI phase
-`crates/causal-discovery/src/engine.rs:547-565` only computes MCI statistics for PC-surviving
-parents. Runge et al. 2019 / tigramite `run_mci` test **all** N²·τ_max pairs `(X_{t−τ}, Y_t)`
-conditioning on `pa(Y_t)` and time-shifted `pa(X_{t−τ})`, with significance/FDR over the full
-p-matrix. Consequences today: PC1 false negatives can never be recovered, and the BH family in
-`Pcmci::run` (`pcmci.rs:81-85`) is the survivor family despite the doc comment claiming the full
-MCI family.
-**Fix:** iterate all pairs in the MCI phase; keep the (correct) conditioning-set construction from
-`mci_batch_for_target`. Update the BH family accordingly.
-**Done:** `mci_batch_for_target` iterates the full constrained candidate grid
-(`candidate_sources` + `compiled.allows`); PC survivors supply conditioning only. Empty PC
-parents no longer skip MCI. Docs in `engine.rs` / `pcmci.rs` updated; tests assert family size
-and PC false-negative recovery.
-
-### P4.2 PCMCI+ per Runge 2020
-`crates/causal-discovery/src/pcmci_plus.rs:82-102` is currently one PC1 pass with `min_lag=0` plus
-sepset colliders and Meek. Implement the published structure:
-1. Lagged-only PC1 skeleton `B̂⁻(X_t^j)`.
-2. Contemporaneous phase testing all pairs (τ = 0…τ_max) with conditioning sets S drawn from
-   contemporaneous adjacencies plus `B̂(X_t^j)` and `B̂(X_{t−τ}^i)`.
-3. Collider orientation with majority/conservative rules (tigramite default
-   `contemp_collider_rule='majority'`, re-testing neighbor subsets) and conflict marks
-   (out-of-band `orientation.conflicts` exists; full Tigramite-style `x-x` Endpoint marks still
-   pending — see P1 leftover note).
-4. Meek R1–R3 restricted to contemporaneous links.
-Also fix the direction-asymmetry: X→Y and Y→X at lag 0 are tested as separate links with different
-conditioning and whichever survives inserts one undirected edge
-(`evidence.rs:114-147` `cpdag_from_scored_links`); tigramite symmetrizes.
-**Done:** `PcmciPlus::run` is lagged PC1 (`min_lag≥1`) → contemporaneous MCI phase
-(`contemp_mci_phase`) → FDR/alpha → `symmetrize_contemporaneous_links` (both lag-0
-directions required) → majority collider with neighbor-subset re-tests → Meek R1–R3
-contemp-only (`ContempMeekR1`–`R3`; R4 dropped). Conflicts remain out-of-band;
-`Endpoint::Conflict` / `x-x` still deferred. `parity/ci_deviations.md` §2 updated.
 
 ### P4.3 LPCMCI: from FCI-lite to LPCMCI
 `crates/causal-discovery/src/lpcmci.rs:78-97` runs the PC1+MCI engine plus rules
@@ -248,93 +205,30 @@ roughly by how much current claims/outputs depend on them.
 
 ## P6 — Code quality: DRY / SOLID / idiomatic
 
-### P6.1 Consolidate special functions
-Abramowitz–Stegun erf (7.1.26) is hand-rolled with identical coefficients 4×:
-`crates/causal-stats/src/glm.rs:37`, `crates/causal-stats/src/divergence.rs:85`,
-`crates/causal-prob/src/laplace.rs:457`, `crates/causal-validate/src/common.rs:262`; a fifth family
-(normal_ppf, ln_gamma, incomplete beta, gamma P/Q) lives in `crates/causal-stats/src/ci/analytic.rs`
-and `gsquared.rs`. Create one special-functions module (natural home: causal-stats or
-causal-kernels) and route everything through it.
+### P6.4 Shared sampling primitives — remaining
+Prod Box–Muller is mostly on `causal_kernels::standard_normal`, but duplicates remain:
+`causal-validate/src/common.rs` `fill_gaussian` (paired cos/sin for stream parity), and inline
+Box–Muller in `causal-stats/src/ci/calibration.rs`. Test/bench copies also remain
+(`frontdoor`/`aipw`/`iv` tests, `estimate_conformance`, `propensity_bootstrap` bench). Route
+through kernels (add a paired-draw helper if stream shape must be preserved).
 
-### P6.2 One dense-solver path
-`FaerBackend` (column-pivoted QR behind `DenseLinearAlgebra`, `faer_backend.rs:37` — "not normal
-equations — DESIGN.md §11.6") is the sanctioned path, yet:
-`crates/causal-estimate/src/util.rs:86` `ols_colmajor` does normal equations + Gauss–Jordan and is
-duplicated inline in `conditional.rs:141-157` and `prediction.rs:70-86` (each with a
-`let _ = FaerBackend;` fig leaf); `crates/causal-prob/src/linalg.rs` is an independent
-Cholesky/SPD stack exported `pub` with no external users (crate ADR says backends shouldn't be
-exposed — make it `pub(crate)`); `crates/causal-stats/src/ci/parcorr_variants.rs:468`
-`invert_symmetric` is line-for-line `gram.rs:55` `invert_square`. Route estimator OLS through the
-backend trait; delete the copies.
+### P6.6 Replace stringly-typed dispatch with enums — remaining
+Validate gates and `AssumptionTagWire` are typed. Facade planner still matches identifier /
+estimator ids as strings (`planner.rs` `is_dag_only_identifier`, physical-plan kernel selection,
+bootstrap task labels): a typo silently becomes wrong schedule / kernel. Introduce a closed enum
+(with `Other(String)` escape) so the applicability matrix is compile-checked.
 
-### P6.3 One bootstrap engine
-`crates/causal-data/src/resample.rs` is the canonical engine; `causal-estimate` (which depends on
-causal-data) hand-rolls index draws in `util.rs:70-77` and copy-pastes the
-resample-gather-refit loop 8× (weighting, stratification, matching, distance, aipw, iv, frontdoor,
-rd — only `adjustment.rs:202` uses the shared `bootstrap_se`);
-`crates/causal-validate/src/bootstrap_refute.rs:85-95` hand-rolls again. Failure accounting already
-lives in `causal-estimate`'s shared `bootstrap_se`; consolidate remaining hand-rolled loops onto
-one helper (and unbiased index sampling — P6.4).
-
-### P6.4 Shared sampling primitives
-Box–Muller exists 5× in prod (`crates/causal-kernels/src/rng.rs:9` canonical;
-`laplace.rs:499`, `conjugate.rs:326`, `causal-validate/src/common.rs:374`,
-`bayesian_checks.rs:291`) plus 4 test copies; Fisher–Yates 2×; categorical sampling 3×;
-sample-sd/mean-var 3×; three rank/quantile-binning implementations. Move to causal-kernels' rng and
-a small stats-util module; fix `% n` modulo bias once there.
-
-### P6.5 Graph plumbing dedupe
-Five near-identical BFS reachability implementations (`dag.rs:144`, `admg.rs:195`,
-`temporal.rs:131` — this one allocating a workspace **per edge insertion**, making bulk
-construction O(E·(V+E)); `marked_storage.rs:70`; projection walkers); two Kahn's-algorithm copies;
-duplicated moralization (`dsep.rs` vs `msep.rs` — still worth merging after district-clique
-fix); the 2^m
-enumeration duplicated between `backdoor.rs:114-186` and `efficient.rs:99-164`.
-
-### P6.6 Replace stringly-typed dispatch with enums
-Estimand/estimator ids matched as strings across causal-validate (`suite.rs:172`, `rcc.rs:63`,
-`graph_refute.rs:451`, `unobserved_common_cause.rs:588`) and the facade planner
-(`&*method == "backdoor.adjustment"`): a typo silently becomes permanent `NotApplicable`. Introduce
-a closed enum (with an `Other(String)` escape) so the applicability matrix is compile-checked. Same
-disease elsewhere: KDE bandwidth in a note string (P2.12), and `Assumption` wire-encoded via
-`Debug` formatting into durable artifacts (`crates/causal-io/src/trace.rs:737`) — give it a stable
-serialization.
-
-### P6.7 VariableId ↔ dense-index assumption
-`crates/causal-identify/src/backdoor.rs:304-310` assumes `VariableId.raw() == dense id` — correct
-only for `Dag::with_variables` graphs; otherwise identification silently targets wrong nodes. Same
-in `generalized.rs:67-68`; `temporal_backdoor.rs:176-177` launders dense ids through
-`VariableId::from_raw`. Thread a proper id↔index mapping (the workspace types already exist).
-
-### P6.8 Untangle the `include!`-assembled propensity module
-`crates/causal-estimate/src/propensity/mod.rs:43-47` `include!`s files into one ~1400-line
-effective module; file names no longer match contents (weighting.rs holds stratification math and
-vice versa). Convert to real `mod` items with correct visibility and re-sort code to match file
-names.
-
-### P6.9 API hygiene
-- Boolean parameters → enums/options: `discover_pcmci(max_lag, alpha, fdr: bool, accept: bool)`
-  and siblings (`crates/causal/src/analysis.rs:154-197`), `abduct(data, allow_missing: bool)`,
-  `partial_correlation_batch(..., portable: bool)`.
-- Dead fields/params: `crates/causal/src/review.rs:85,183` (`series_len` unused);
-  `planner.rs:341` (`let _ = input.graph;` — logical compile never validates query variables
-  against the DAG, so errors surface late at run time via `identify_static`; validate at compile);
-  `crates/causal-model/src/overlay.rs:30` (`active` never read);
-  `KnnCmiWorkspace.distances` never used while the hot loop allocates fresh vecs
-  (`crates/causal-stats/src/ci/types.rs:31`);
-  `IdentificationWorkspace { _private: () }` threaded through a trait whose impls also all ignore
-  `assumptions` (`crates/causal-identify/src/identifier.rs:19-22`);
-  `PreparedCiTest` never used — the DESIGN §12 prepare-once contract is currently a shape check
-  (`crates/causal-discovery/src/engine.rs:324-331`).
-- Visibility: test-only raw-pointer exports `series_columnar_ptr`/`columnar_ptr` are `pub`
-  (`crates/causal-data/src/multi_env_plan.rs:142`); `causal-prob::linalg` (P6.2).
-- Error-type consistency: causal-validate alone uses thiserror; the facade stringifies typed errors
-  into `AnalysisError::Compile` despite transparent variants existing
-  (`crates/causal/src/gcm.rs:247-259`).
-
-### P6.10 Trivial clippy
-3× doc-list-indentation in causal-estimate; 2× `push_str(" ")` → `push(' ')` in
-`crates/causal-io/src/graph_dot.rs:129,148`.
+### P6.9 API hygiene — remaining
+Done already: `FdrControl`/`DiscoveryAccept`/`MissingPolicy`/`ParCorrMode`; `series_len` checked;
+planner validates DAG vars; overlay `active` in `is_empty`; ptrs `pub(crate)`; gcm uses
+transparent `AnalysisError`.
+Still open:
+- `KnnCmiWorkspace.distances` never used while the hot loop allocates fresh vecs
+  (`crates/causal-stats/src/ci/types.rs:31` / `advanced.rs`).
+- `IdentificationWorkspace { _private: () }` threaded through a trait whose impls also all ignore
+  `assumptions` (`crates/causal-identify/src/identifier.rs:19-22`).
+- `PreparedCiTest` never used beyond a shape check — DESIGN §12 prepare-once contract
+  (`crates/causal-discovery/src/engine.rs:331-338`).
 
 ---
 

@@ -87,7 +87,7 @@ impl TimeSeriesData {
 
     /// Pointer identity of the columnar Arc (tests: planning must not clone payloads).
     #[must_use]
-    pub fn columnar_ptr(&self) -> *const [OwnedColumn] {
+    pub(crate) fn columnar_ptr(&self) -> *const [OwnedColumn] {
         Arc::as_ptr(self.storage.columns_arc())
     }
 }

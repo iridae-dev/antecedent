@@ -4,6 +4,8 @@
 
 #![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::float_cmp)]
 
+use causal_kernels::norm_cdf;
+
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresWorkspace};
 
@@ -31,21 +33,6 @@ impl GlmFamily {
             Self::PoissonLog => eta.exp(),
         }
     }
-}
-
-/// Standard normal CDF (Abramowitz–Stegun approximation).
-fn norm_cdf(x: f64) -> f64 {
-    const A1: f64 = 0.254_829_592;
-    const A2: f64 = -0.284_496_736;
-    const A3: f64 = 1.421_413_741;
-    const A4: f64 = -1.453_152_027;
-    const A5: f64 = 1.061_405_429;
-    const P: f64 = 0.327_591_1;
-    let sign = if x < 0.0 { -1.0 } else { 1.0 };
-    let xabs = x.abs() / std::f64::consts::SQRT_2;
-    let t = 1.0 / (1.0 + P * xabs);
-    let y = 1.0 - (((((A5 * t + A4) * t) + A3) * t + A2) * t + A1) * t * (-xabs * xabs).exp();
-    0.5 * (1.0 + sign * y)
 }
 
 /// Borrowed column-major design + outcome used by [`fit_glm`].

@@ -160,9 +160,19 @@ impl CausalAnalysisBuilder {
 
     /// Discover with PCMCI (typically yields [`CompiledAnalysis::ReviewRequired`]).
     #[must_use]
-    pub fn discover_pcmci(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
-        self.graph =
-            Some(GraphInput::DiscoverPcmci { max_lag, alpha, fdr, accept_discovered: accept });
+    pub fn discover_pcmci(
+        mut self,
+        max_lag: u32,
+        alpha: f64,
+        fdr: crate::options::FdrControl,
+        accept: crate::options::DiscoveryAccept,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverPcmci {
+            max_lag,
+            alpha,
+            fdr: fdr.enabled(),
+            accept_discovered: accept.auto(),
+        });
         self
     }
 
@@ -175,11 +185,15 @@ impl CausalAnalysisBuilder {
         mut self,
         max_lag: u32,
         alpha: f64,
-        fdr: bool,
-        accept: bool,
+        fdr: crate::options::FdrControl,
+        accept: crate::options::DiscoveryAccept,
     ) -> Self {
-        self.graph =
-            Some(GraphInput::DiscoverPcmciPlus { max_lag, alpha, fdr, accept_discovered: accept });
+        self.graph = Some(GraphInput::DiscoverPcmciPlus {
+            max_lag,
+            alpha,
+            fdr: fdr.enabled(),
+            accept_discovered: accept.auto(),
+        });
         self
     }
 
@@ -189,27 +203,51 @@ impl CausalAnalysisBuilder {
         mut self,
         max_lag: u32,
         alpha: f64,
-        fdr: bool,
-        accept: bool,
+        fdr: crate::options::FdrControl,
+        accept: crate::options::DiscoveryAccept,
     ) -> Self {
-        self.graph =
-            Some(GraphInput::DiscoverJpcmciPlus { max_lag, alpha, fdr, accept_discovered: accept });
+        self.graph = Some(GraphInput::DiscoverJpcmciPlus {
+            max_lag,
+            alpha,
+            fdr: fdr.enabled(),
+            accept_discovered: accept.auto(),
+        });
         self
     }
 
     /// Discover with RPCMCI (regime graphs; typically review-required via Python path).
     #[must_use]
-    pub fn discover_rpcmci(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
-        self.graph =
-            Some(GraphInput::DiscoverRpcmci { max_lag, alpha, fdr, accept_discovered: accept });
+    pub fn discover_rpcmci(
+        mut self,
+        max_lag: u32,
+        alpha: f64,
+        fdr: crate::options::FdrControl,
+        accept: crate::options::DiscoveryAccept,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverRpcmci {
+            max_lag,
+            alpha,
+            fdr: fdr.enabled(),
+            accept_discovered: accept.auto(),
+        });
         self
     }
 
     /// Discover with LPCMCI (temporal PAG; typically [`CompiledAnalysis::ReviewRequiredPag`]).
     #[must_use]
-    pub fn discover_lpcmci(mut self, max_lag: u32, alpha: f64, fdr: bool, accept: bool) -> Self {
-        self.graph =
-            Some(GraphInput::DiscoverLpcmci { max_lag, alpha, fdr, accept_discovered: accept });
+    pub fn discover_lpcmci(
+        mut self,
+        max_lag: u32,
+        alpha: f64,
+        fdr: crate::options::FdrControl,
+        accept: crate::options::DiscoveryAccept,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverLpcmci {
+            max_lag,
+            alpha,
+            fdr: fdr.enabled(),
+            accept_discovered: accept.auto(),
+        });
         self
     }
 

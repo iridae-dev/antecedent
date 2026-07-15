@@ -10,7 +10,10 @@ use causal_estimate::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy, OverlapReport,
 };
 use causal_identify::IdentifiedEstimand;
-use causal_stats::{FaerBackend, GlmOptions, PropensityFit, PropensityWorkspace, fit_propensity};
+use causal_stats::{
+    FaerBackend, GlmOptions, PropensityFit, PropensityWorkspace, fit_propensity_diagnostic,
+};
+use causal_kernels::erfc;
 
 use crate::error::ValidationError;
 
@@ -150,9 +153,10 @@ pub(crate) fn fit_diagnostic_propensity(
     }
     let backend = FaerBackend;
     let mut ws = PropensityWorkspace::default();
-    let fit: PropensityFit =
-        fit_propensity(&design, nrows, ncols, &treatment, &backend, &mut ws, glm_options)
-            .map_err(ValidationError::from)?;
+    let fit: PropensityFit = fit_propensity_diagnostic(
+        &design, nrows, ncols, &treatment, &backend, &mut ws, glm_options,
+    )
+    .map_err(ValidationError::from)?;
     Ok(DiagnosticPropensityColumns { scores: fit.scores, treatment, outcome })
 }
 
@@ -163,7 +167,17 @@ pub(crate) fn diagnostic_overlap_report(
     policy: OverlapPolicy,
 ) -> Result<OverlapReport, ValidationError> {
     let cols = fit_diagnostic_propensity(problem, glm_options, false)?;
-    Ok(OverlapReport::from_propensities(&cols.scores, None, policy))
+    // ATE IPW weights so ESS / extreme-weight fields are defined for the overlap refuter.
+    let weights: Vec<f64> = cols
+        .treatment
+        .iter()
+        .zip(cols.scores.iter())
+        .map(|(&t, &p)| {
+            let p = p.clamp(1e-9, 1.0 - 1e-9);
+            if t > 0.5 { 1.0 / p } else { 1.0 / (1.0 - p) }
+        })
+        .collect();
+    Ok(OverlapReport::from_propensities(&cols.scores, Some(&weights), policy))
 }
 
 /// Linear adjustment with nested bootstrap disabled (refuters / sensitivity grids).
@@ -255,20 +269,7 @@ pub(crate) fn replicate_p_value(samples: &[f64], hypothesized: f64) -> f64 {
         return if (hypothesized - mean).abs() <= 1e-9 * scale { 1.0 } else { 0.0 };
     }
     let z = (hypothesized - mean) / sd;
-    erfc_approx(z.abs() / std::f64::consts::SQRT_2)
-}
-
-// erfc via Abramowitz–Stegun 7.1.26 (max abs error ~1.5e-7, ample for refuter verdicts).
-fn erfc_approx(x: f64) -> f64 {
-    let ax = x.abs();
-    let t = 1.0 / (1.0 + 0.327_591_1 * ax);
-    let poly = t
-        * (0.254_829_592
-            + t * (-0.284_496_736
-                + t * (1.421_413_741 + t * (-1.453_152_027 + t * 1.061_405_429))));
-    let erf = 1.0 - poly * (-ax * ax).exp();
-    let signed = if x < 0.0 { -erf } else { erf };
-    1.0 - signed
+    erfc(z.abs() / std::f64::consts::SQRT_2)
 }
 
 /// Copy a full-length float64 column (unmasked; caller handles missingness).
@@ -352,25 +353,13 @@ pub(crate) fn masked_sample_sd(
 
 /// Sample standard deviation (`NaN` for fewer than 2 values).
 pub(crate) fn sample_sd(values: &[f64]) -> f64 {
-    let n = values.len();
-    if n < 2 {
-        return f64::NAN;
-    }
-    #[allow(clippy::cast_precision_loss)]
-    let n_f = n as f64;
-    let mean = values.iter().sum::<f64>() / n_f;
-    let var = values
-        .iter()
-        .map(|v| {
-            let d = v - mean;
-            d * d
-        })
-        .sum::<f64>()
-        / (n_f - 1.0);
-    var.sqrt()
+    causal_stats::sample_std(values)
 }
 
-/// Standard-normal-ish draws via Box–Muller from [`ExecutionContext`] RNG.
+/// Standard-normal draws via Box–Muller from [`ExecutionContext`] RNG.
+///
+/// Emits both cos/sin components from each uniform pair (same stream use as
+/// historical seeded tests).
 pub(crate) fn fill_gaussian(out: &mut [f64], ctx: &ExecutionContext, stream_id: u64) {
     let mut rng = ctx.rng.stream(stream_id);
     let mut i = 0;

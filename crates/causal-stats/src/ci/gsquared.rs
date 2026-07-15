@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 use causal_core::{CausalRng, ExecutionContext};
 
-use super::analytic::{ln_gamma, normal_ppf};
+use crate::special::{gamma_q, normal_ppf};
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -256,63 +256,6 @@ fn chi2_sf(x: f64, df: f64) -> f64 {
         return 0.0;
     }
     gamma_q(df * 0.5, x * 0.5)
-}
-
-/// Regularized upper incomplete gamma `Q(a, x)`: series for `x < a + 1`, continued
-/// fraction otherwise (Numerical Recipes `gammq` style).
-fn gamma_q(a: f64, x: f64) -> f64 {
-    if x < a + 1.0 {
-        (1.0 - gamma_p_series(a, x)).clamp(0.0, 1.0)
-    } else {
-        gamma_q_cf(a, x).clamp(0.0, 1.0)
-    }
-}
-
-/// Lower regularized incomplete gamma `P(a, x)` by series expansion.
-fn gamma_p_series(a: f64, x: f64) -> f64 {
-    if x <= 0.0 {
-        return 0.0;
-    }
-    let mut ap = a;
-    let mut sum = 1.0 / a;
-    let mut del = sum;
-    for _ in 0..500 {
-        ap += 1.0;
-        del *= x / ap;
-        sum += del;
-        if del.abs() < sum.abs() * 1e-15 {
-            break;
-        }
-    }
-    sum * (-x + a * x.ln() - ln_gamma(a)).exp()
-}
-
-/// Upper regularized incomplete gamma `Q(a, x)` by Lentz continued fraction.
-fn gamma_q_cf(a: f64, x: f64) -> f64 {
-    const TINY: f64 = 1e-300;
-    let mut b = x + 1.0 - a;
-    let mut c = 1.0 / TINY;
-    let mut d = 1.0 / b;
-    let mut h = d;
-    for i in 1..500 {
-        let an = -f64::from(i) * (f64::from(i) - a);
-        b += 2.0;
-        d = an * d + b;
-        if d.abs() < TINY {
-            d = TINY;
-        }
-        c = b + an / c;
-        if c.abs() < TINY {
-            c = TINY;
-        }
-        d = 1.0 / d;
-        let del = d * c;
-        h *= del;
-        if (del - 1.0).abs() < 1e-15 {
-            break;
-        }
-    }
-    (-x + a * x.ln() - ln_gamma(a)).exp() * h
 }
 
 /// Residualize-then-correlate CI — an explicit alias of [`PartialCorrelation`].

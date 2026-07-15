@@ -16,14 +16,16 @@ pub mod parcorr;
 pub mod portable;
 pub mod rng;
 pub mod scalar;
+pub mod special;
 pub mod view;
 
 pub use dispatch::{
     KernelImpl, copy_vec, gather, masked_mean, masked_sum, masked_variance, partial_correlation,
     select_impl,
 };
-pub use parcorr::{ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson};
-pub use rng::standard_normal;
+pub use parcorr::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson};
+pub use rng::{categorical_from_u, sample_categorical, shuffle, standard_normal, unbiased_index};
+pub use special::{erf, erfc, norm_cdf};
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 
 #[cfg(test)]

@@ -152,32 +152,44 @@ impl BackdoorIdentifier {
                 message: "candidate set too large for exact enumeration (>20)",
             });
         }
-        let total_masks = 1usize << m;
         'sizes: for size in 0..=m {
-            for mask in 0..total_masks {
-                if mask.count_ones() as usize != size {
-                    continue;
+            let mut early_stop = false;
+            let mut enum_err: Option<IdentificationError> = None;
+            crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
+                if enum_err.is_some() {
+                    return true;
                 }
                 examined += 1;
-                let z: Vec<DenseNodeId> =
-                    (0..m).filter(|i| (mask & (1 << i)) != 0).map(|i| candidates[i]).collect();
-                if !is_backdoor_adjustment(&mutilated, t, y, &z, &mut dsep_ws)? {
-                    continue;
+                match is_backdoor_adjustment(&mutilated, t, y, z, &mut dsep_ws) {
+                    Ok(false) => return false,
+                    Err(e) => {
+                        enum_err = Some(e);
+                        return true;
+                    }
+                    Ok(true) => {}
                 }
                 if self.config.minimal_only
-                    && valid.iter().any(|prev| is_subset(prev, &z) && prev.len() < z.len())
+                    && valid.iter().any(|prev| is_subset(prev, z) && prev.len() < z.len())
                 {
-                    continue;
+                    return false;
                 }
                 // Also skip if this set is a superset of an already found minimal set.
-                if self.config.minimal_only && valid.iter().any(|prev| is_subset(prev, &z)) {
-                    continue;
+                if self.config.minimal_only && valid.iter().any(|prev| is_subset(prev, z)) {
+                    return false;
                 }
-                valid.push(z);
+                valid.push(z.to_vec());
                 if valid.len() >= self.config.max_results {
                     truncated = true;
-                    break 'sizes;
+                    early_stop = true;
+                    return true;
                 }
+                false
+            });
+            if let Some(e) = enum_err {
+                return Err(e);
+            }
+            if early_stop {
+                break 'sizes;
             }
             // After finishing a size class, if we have minimal sets, stop growing.
             if self.config.minimal_only && !valid.is_empty() {
@@ -302,11 +314,14 @@ pub(crate) fn remove_nodes(dag: &Dag, nodes: &[DenseNodeId]) -> Result<Dag, Iden
 }
 
 pub(crate) fn var_to_dense(id: VariableId, dag: &Dag) -> Result<DenseNodeId, IdentificationError> {
-    let dense = DenseNodeId::from_raw(id.raw());
-    if dense.as_usize() >= dag.node_count() {
-        return Err(IdentificationError::UnknownVariable { id });
+    for (i, node) in dag.nodes().iter().enumerate() {
+        if let causal_graph::NodeRef::Static(v) = node {
+            if *v == id {
+                return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+            }
+        }
     }
-    Ok(dense)
+    Err(IdentificationError::UnknownVariable { id })
 }
 
 pub(crate) fn dense_to_var(id: DenseNodeId, dag: &Dag) -> Result<VariableId, IdentificationError> {
@@ -321,6 +336,33 @@ mod tests {
     use super::*;
     use crate::result::IdentificationStatus;
     use causal_core::AverageEffectQuery;
+
+    #[test]
+    fn var_to_dense_respects_node_labels_not_raw_ids() {
+        // Nodes labeled with non-dense VariableIds (raw 10, 20, 30 at dense 0,1,2).
+        let mut g = Dag::empty();
+        let t = g.add_node(causal_graph::NodeRef::Static(VariableId::from_raw(10))).unwrap();
+        let y = g.add_node(causal_graph::NodeRef::Static(VariableId::from_raw(20))).unwrap();
+        let z = g.add_node(causal_graph::NodeRef::Static(VariableId::from_raw(30))).unwrap();
+        g.insert_directed(z, t).unwrap();
+        g.insert_directed(z, y).unwrap();
+        g.insert_directed(t, y).unwrap();
+
+        assert_eq!(var_to_dense(VariableId::from_raw(10), &g).unwrap(), t);
+        assert_eq!(var_to_dense(VariableId::from_raw(20), &g).unwrap(), y);
+        assert_eq!(var_to_dense(VariableId::from_raw(30), &g).unwrap(), z);
+        assert!(var_to_dense(VariableId::from_raw(0), &g).is_err());
+
+        let id = BackdoorIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(10),
+            VariableId::from_raw(20),
+        ));
+        let res = id.identify(&prep, &q).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(30)]);
+    }
 
     #[test]
     fn confounding_requires_z() {

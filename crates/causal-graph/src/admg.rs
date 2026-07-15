@@ -4,6 +4,7 @@
 
 use causal_core::VariableId;
 
+use crate::algo::{bfs_reaches, is_dag};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
@@ -198,24 +199,7 @@ impl Admg {
         to: DenseNodeId,
         ws: &mut GraphWorkspace,
     ) -> bool {
-        if from == to {
-            return true;
-        }
-        ws.prepare(self.node_count());
-        ws.frontier.push(from);
-        ws.visited.insert(from);
-        while let Some(n) = ws.frontier.pop() {
-            for &c in self.children(n) {
-                if c == to {
-                    return true;
-                }
-                if !ws.visited.contains(c) {
-                    ws.visited.insert(c);
-                    ws.frontier.push(c);
-                }
-            }
-        }
-        false
+        bfs_reaches(&self.children, from, to, ws)
     }
 
     /// Connected components under bidirected edges (districts).
@@ -260,28 +244,7 @@ impl Admg {
     ///
     /// Directed cycle detected.
     pub fn validate(&self) -> Result<(), GraphError> {
-        let n = self.node_count();
-        let mut indeg = vec![0u32; n];
-        for (i, parents) in self.parents.iter().enumerate() {
-            indeg[i] = u32::try_from(parents.len()).map_err(|_| GraphError::TooManyNodes)?;
-        }
-        let mut q: Vec<DenseNodeId> = indeg
-            .iter()
-            .enumerate()
-            .filter(|&(_, &d)| d == 0)
-            .map(|(i, _)| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
-            .collect();
-        let mut seen = 0usize;
-        while let Some(u) = q.pop() {
-            seen += 1;
-            for &v in self.children(u) {
-                indeg[v.as_usize()] -= 1;
-                if indeg[v.as_usize()] == 0 {
-                    q.push(v);
-                }
-            }
-        }
-        if seen != n {
+        if !is_dag(&self.parents, &self.children) {
             return Err(GraphError::Cycle { from: 0, to: 0 });
         }
         Ok(())

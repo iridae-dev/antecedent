@@ -21,6 +21,7 @@ causal-identify = { path = "../causal-identify" }
 causal-discovery = { path = "../causal-discovery" }
 causal-prob = { path = "../causal-prob" }
 causal-stats = { path = "../causal-stats" }
+causal-kernels = { path = "../causal-kernels" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

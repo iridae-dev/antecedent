@@ -8,7 +8,7 @@ use causal_core::{
     AllocationMethod, AttributionComponents, ComponentId, ExecutionContext, UnitChangeQuery,
     VariableId,
 };
-use causal_counterfactual::CounterfactualEngine;
+use causal_counterfactual::{CounterfactualEngine, MissingPolicy};
 use causal_data::{TableView, TabularData};
 use causal_model::{CompiledCausalModel, MechanismWorkspace};
 
@@ -78,7 +78,7 @@ pub fn unit_change(
         parents.iter().copied().map(ComponentId::from_variable).collect();
 
     let engine = CounterfactualEngine::new(model.clone());
-    let exo = engine.abduct(data, false)?;
+    let exo = engine.abduct(data, MissingPolicy::Error)?;
     let _ = exo;
     let _ = MechanismWorkspace::default();
 

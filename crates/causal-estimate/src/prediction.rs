@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use causal_core::{Lag, VariableId};
 use causal_data::{LaggedColumn, SampleWorkspace, TimeSeriesData};
-use causal_stats::{FaerBackend, form_xtx, invert_square};
+use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::error::EstimationError;
 
@@ -67,25 +67,11 @@ impl TemporalLinearPredictor {
                 design[(1 + p) * n + i] = col[i];
             }
         }
-        let mut xtx = vec![0.0; ncols * ncols];
-        let mut xty = vec![0.0; ncols];
-        form_xtx(&design, n, ncols, &mut xtx);
-        for c in 0..ncols {
-            let col = &design[c * n..(c + 1) * n];
-            xty[c] = col.iter().zip(y.iter()).map(|(a, b)| a * b).sum();
-        }
-        let inv = invert_square(&xtx, ncols)
-            .ok_or_else(|| EstimationError::stats_msg("singular design in temporal predictor"))?;
-        let mut coef = vec![0.0; ncols];
-        for i in 0..ncols {
-            let mut s = 0.0;
-            for j in 0..ncols {
-                s += inv[i * ncols + j] * xty[j];
-            }
-            coef[i] = s;
-        }
-        let _ = FaerBackend;
-        Ok(Self { target, parents, coefficients: Arc::from(coef), max_lag })
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = FaerBackend
+            .least_squares(&design, n, ncols, y, &mut ws)
+            .map_err(EstimationError::from)?;
+        Ok(Self { target, parents, coefficients: Arc::from(fit.coefficients), max_lag })
     }
 
     /// Batch-predict under a hard intervention on one parent variable (all horizons).

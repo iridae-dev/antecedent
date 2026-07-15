@@ -152,8 +152,8 @@ fn tigramite_pcmci_plus_lag0_edge_equality() {
         "missing tigramite links: tig={tig_set:?} rust={recovered:?}"
     );
     let extras: BTreeSet<_> = recovered.difference(&tig_set).copied().collect();
-    // P4.2 gap: our PCMCI+ may retain autoregressive self-lags that tigramite drops.
-    // Forbid any other extras so the fixture still pins cross-variable equality.
+    // Autoregressive self-lags may differ from tigramite; forbid any other extras
+    // so the fixture still pins cross-variable equality.
     assert!(
         extras.iter().all(|(s, _slag, t, _)| s == t),
         "unexpected non-self extras vs tigramite: {extras:?}"

@@ -140,7 +140,7 @@ impl PanelSamplePlan {
 
 /// Pointer identity helper for copy-avoidance tests.
 #[must_use]
-pub fn series_columnar_ptr(series: &TimeSeriesData) -> *const [crate::column::OwnedColumn] {
+pub(crate) fn series_columnar_ptr(series: &TimeSeriesData) -> *const [crate::column::OwnedColumn] {
     series.columnar_ptr()
 }
 

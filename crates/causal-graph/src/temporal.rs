@@ -5,6 +5,7 @@
 use causal_core::TemporalNodeKey;
 use causal_core::{Lag, VariableId};
 
+use crate::algo::bfs_reaches;
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
@@ -15,13 +16,19 @@ pub struct TemporalDag {
     nodes: Vec<NodeRef>,
     children: Vec<Vec<DenseNodeId>>,
     parents: Vec<Vec<DenseNodeId>>,
+    insert_ws: GraphWorkspace,
 }
 
 impl TemporalDag {
     /// Empty temporal DAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), children: Vec::new(), parents: Vec::new() }
+        Self {
+            nodes: Vec::new(),
+            children: Vec::new(),
+            parents: Vec::new(),
+            insert_ws: GraphWorkspace::default(),
+        }
     }
 
     /// Node count.
@@ -104,7 +111,10 @@ impl TemporalDag {
         if self.children[from.as_usize()].contains(&to) {
             return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
         }
-        if self.reaches(to, from) {
+        let mut ws = core::mem::take(&mut self.insert_ws);
+        let cycle = bfs_reaches(&self.children, to, from, &mut ws);
+        self.insert_ws = ws;
+        if cycle {
             return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
         }
         self.children[from.as_usize()].push(to);
@@ -129,25 +139,18 @@ impl TemporalDag {
     /// Reachability.
     #[must_use]
     pub fn reaches(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
-        if from == to {
-            return true;
-        }
         let mut ws = GraphWorkspace::default();
-        ws.prepare(self.node_count());
-        ws.frontier.push(from);
-        ws.visited.insert(from);
-        while let Some(n) = ws.frontier.pop() {
-            for &c in self.children(n) {
-                if c == to {
-                    return true;
-                }
-                if !ws.visited.contains(c) {
-                    ws.visited.insert(c);
-                    ws.frontier.push(c);
-                }
-            }
-        }
-        false
+        bfs_reaches(&self.children, from, to, &mut ws)
+    }
+
+    /// Reachability with a reusable workspace.
+    pub fn reaches_with(
+        &self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+        ws: &mut GraphWorkspace,
+    ) -> bool {
+        bfs_reaches(&self.children, from, to, ws)
     }
 
     /// Map dense id to a serializable [`TemporalNodeKey`].

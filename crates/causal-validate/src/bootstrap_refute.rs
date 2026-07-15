@@ -9,6 +9,7 @@ use std::sync::Arc;
 use causal_core::ExecutionContext;
 use causal_data::TableView;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
+use causal_kernels::unbiased_index;
 
 use crate::common::{
     RefutationProblem, RefutationReport, complete_case_rows, fit_once,
@@ -81,7 +82,7 @@ impl BootstrapRefute {
         let mut ates = Vec::with_capacity(self.replicates as usize);
         for _ in 0..self.replicates {
             for slot in &mut row_idx {
-                *slot = valid[(rng.next_u64() as usize) % valid.len()];
+                *slot = valid[unbiased_index(&mut rng, valid.len())];
             }
             let data = with_resampled_rows(problem.data, &resample_ids, &row_idx, &keep)?;
             let est =

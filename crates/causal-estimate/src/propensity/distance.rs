@@ -1,3 +1,26 @@
+//! Covariate-distance matching estimator.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
+use causal_data::TabularData;
+use causal_expr::IdentifiedEstimand;
+use causal_stats::{
+    FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityWorkspace, fit_propensity,
+};
+
+use super::matching::matching_contrast;
+use super::prepare::{
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
+    default_propensity_overlap, prepare_propensity_problem, restrict_to_rows, to_row_major, trim_of,
+    trim_retained_rows,
+};
+use crate::adjustment::EffectEstimate;
+use crate::error::EstimationError;
+use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::util::{bootstrap_se, stats_err, BootstrapSeResult};
 
 /// Distance matching on raw adjustment covariates (Euclidean), not the propensity score.
 ///

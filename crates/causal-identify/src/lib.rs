@@ -7,6 +7,7 @@
 
 pub mod assumptions;
 pub mod backdoor;
+pub(crate) mod enum_masks;
 pub mod efficient;
 pub mod envelope;
 pub mod error;

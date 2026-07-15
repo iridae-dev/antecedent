@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use causal_core::CausalRng;
+use causal_kernels::unbiased_index;
 
 use crate::column::{ColumnView, Float64Column, OwnedColumn};
 use crate::dataset::TimeSeriesData;
@@ -70,7 +71,7 @@ pub fn fill_resample_indexes(
     match plan {
         ResamplingPlan::IidBootstrap => {
             for _ in 0..n {
-                out.push((rng.next_u64() as usize % n) as u32);
+                out.push(unbiased_index(rng, n) as u32);
             }
         }
         ResamplingPlan::BayesianBootstrap => unreachable!("checked above"),
@@ -90,7 +91,7 @@ pub fn fill_resample_indexes(
                 if circular { n } else { n.saturating_sub(length).saturating_add(1) };
             debug_assert!(n_starts >= 1);
             while out.len() < n {
-                let start = (rng.next_u64() as usize) % n_starts;
+                let start = unbiased_index(rng, n_starts);
                 for k in 0..length {
                     if out.len() >= n {
                         break;

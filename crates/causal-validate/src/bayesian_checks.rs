@@ -17,6 +17,7 @@ use causal_estimate::{
     BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, PreparedBayesianProblem,
 };
 use causal_identify::IdentificationStatus;
+use causal_kernels::standard_normal;
 use causal_prob::{PriorSensitivitySummary, PriorSet};
 use causal_stats::GlmFamily;
 
@@ -343,12 +344,6 @@ fn summarize_check(
         p_value: p,
         n_sims,
     }
-}
-
-fn standard_normal(rng: &mut CausalRng) -> f64 {
-    let u1 = rng.next_f64().max(f64::EPSILON);
-    let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
 }
 
 /// Attach prior sensitivity onto a [`CausalPosterior`].

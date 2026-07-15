@@ -14,6 +14,7 @@ use std::sync::Arc;
 use causal_core::{
     CausalRng, ExecutionContext, ModelId, MonteCarloBudget, MonteCarloError, QueryId, VariableId,
 };
+use causal_kernels::sample_categorical;
 use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
 use causal_stats::invert_square;
 
@@ -350,21 +351,6 @@ fn rank_uncertainty_ok(sums: &[f64], stderrs: &[f64], n: u64, threshold: f64) ->
         }
     }
     true
-}
-
-fn sample_categorical(rng: &mut CausalRng, weights: &[f64]) -> usize {
-    let total: f64 = weights.iter().sum();
-    if !(total > 0.0) {
-        return 0;
-    }
-    let mut u = rng.next_f64() * total;
-    for (i, w) in weights.iter().enumerate() {
-        if u <= *w {
-            return i;
-        }
-        u -= *w;
-    }
-    weights.len().saturating_sub(1)
 }
 
 fn shannon_entropy(weights: &[f64]) -> f64 {

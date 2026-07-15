@@ -20,6 +20,7 @@ use super::types::{
     ConfidenceMethod, SignificanceMethod,
 };
 use crate::error::StatsError;
+use crate::gram::invert_square;
 
 pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
     let n = col.len();
@@ -198,7 +199,9 @@ fn weighted_residuals(
             }
         }
     }
-    let g_inv = invert_symmetric(&g, q)?;
+    let g_inv = invert_square(&g, q).ok_or_else(|| StatsError::Shape {
+        message: "singular Z design in multivariate ParCorr",
+    })?;
     let mut beta = vec![0.0; q];
     for i in 0..q {
         for j in 0..q {
@@ -436,7 +439,9 @@ fn residualize_block(
             g[i * q + j] = s;
         }
     }
-    let g_inv = invert_symmetric(&g, q)?;
+    let g_inv = invert_square(&g, q).ok_or_else(|| StatsError::Shape {
+        message: "singular Z design in multivariate ParCorr",
+    })?;
     let mut out = vec![0.0; n * p];
     for (k, &c) in idxs.iter().enumerate() {
         // beta = G^{-1} D' y
@@ -463,52 +468,6 @@ fn residualize_block(
         }
     }
     Ok(out)
-}
-
-fn invert_symmetric(a: &[f64], m: usize) -> Result<Vec<f64>, StatsError> {
-    let mut aug = vec![0.0; m * 2 * m];
-    for i in 0..m {
-        for j in 0..m {
-            aug[i * 2 * m + j] = a[i * m + j];
-        }
-        aug[i * 2 * m + m + i] = 1.0;
-    }
-    for col in 0..m {
-        let mut pivot = col;
-        for r in col..m {
-            if aug[r * 2 * m + col].abs() > aug[pivot * 2 * m + col].abs() {
-                pivot = r;
-            }
-        }
-        if aug[pivot * 2 * m + col].abs() < 1e-14 {
-            return Err(StatsError::Shape { message: "singular Z design in multivariate ParCorr" });
-        }
-        if pivot != col {
-            for j in 0..2 * m {
-                aug.swap(col * 2 * m + j, pivot * 2 * m + j);
-            }
-        }
-        let div = aug[col * 2 * m + col];
-        for j in 0..2 * m {
-            aug[col * 2 * m + j] /= div;
-        }
-        for r in 0..m {
-            if r == col {
-                continue;
-            }
-            let f = aug[r * 2 * m + col];
-            for j in 0..2 * m {
-                aug[r * 2 * m + j] -= f * aug[col * 2 * m + j];
-            }
-        }
-    }
-    let mut inv = vec![0.0; m * m];
-    for i in 0..m {
-        for j in 0..m {
-            inv[i * m + j] = aug[i * 2 * m + m + j];
-        }
-    }
-    Ok(inv)
 }
 
 /// First canonical correlation between residual blocks (col-major `n×px`, `n×py`).
@@ -592,8 +551,12 @@ fn cca_leading(
     for i in 0..py {
         cyy[i * py + i] += 1e-8;
     }
-    let cxx_inv = invert_symmetric(&cxx, px)?;
-    let cyy_inv = invert_symmetric(&cyy, py)?;
+    let cxx_inv = invert_square(&cxx, px).ok_or_else(|| StatsError::Shape {
+        message: "singular Z design in multivariate ParCorr",
+    })?;
+    let cyy_inv = invert_square(&cyy, py).ok_or_else(|| StatsError::Shape {
+        message: "singular Z design in multivariate ParCorr",
+    })?;
 
     // M = Cxx^{-1} Cxy Cyy^{-1} Cyx (px × px)
     // temp = Cxy Cyy^{-1} (px × py)

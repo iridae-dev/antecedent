@@ -1,3 +1,23 @@
+//! Propensity stratification estimator.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
+use causal_data::TabularData;
+use causal_expr::IdentifiedEstimand;
+use causal_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
+
+use super::prepare::{
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
+    clip_of, default_propensity_overlap, prepare_propensity_problem, restrict_to_rows, trim_of,
+    trim_retained_rows,
+};
+use crate::adjustment::EffectEstimate;
+use crate::error::EstimationError;
+use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::util::{bootstrap_se, sample_std, BootstrapSeResult};
 
 /// Propensity stratification estimator: within-stratum difference of means pooled by size.
 ///
@@ -171,167 +191,87 @@ impl PropensityStratification {
 // Matching (shared by PropensityMatching and DistanceMatching)
 // ---------------------------------------------------------------------------------------------
 
-pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) {
-    let mut treated = Vec::new();
-    let mut control = Vec::new();
-    for (i, &t) in treatment.iter().enumerate() {
-        if t > 0.5 {
-            treated.push(i);
-        } else {
-            control.push(i);
-        }
+
+pub(crate) fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
+    let n = scores.len();
+    let k = n_strata.max(1);
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&a, &b| scores[a].partial_cmp(&scores[b]).unwrap_or(std::cmp::Ordering::Equal));
+    let mut stratum = vec![0usize; n];
+    for (rank, &orig) in order.iter().enumerate() {
+        let s = (rank * k) / n.max(1);
+        stratum[orig] = s.min(k - 1);
     }
-    (treated, control)
+    stratum
 }
 
-pub(crate) fn gather(values: &[f64], idx: &[usize]) -> Vec<f64> {
-    idx.iter().map(|&i| values[i]).collect()
-}
-
-fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<f64> {
-    let mut out = Vec::with_capacity(idx.len() * dim);
-    for &i in idx {
-        out.extend_from_slice(&matrix[i * dim..(i + 1) * dim]);
-    }
-    out
-}
-
-/// Match each `query` row to its nearest `donor` row; returns `query_y[q] - donor_y[matched]`
-/// for every query matched within the caliper (caliper-rejected queries are omitted).
-///
-/// Reuses [`PropensityEstimationWorkspace`]'s cached [`MatchingIndex`] when donor geometry
-/// is unchanged.
-fn match_diffs(
-    donor_features: &[f64],
-    donor_outcome: &[f64],
-    dim: usize,
-    distance: MatchingDistance,
-    query_features: &[f64],
-    query_outcome: &[f64],
-    caliper: Option<f64>,
-    workspace: &mut PropensityEstimationWorkspace,
-) -> Result<Vec<f64>, EstimationError> {
-    let n_donors = donor_outcome.len();
-    if n_donors == 0 {
-        return Err(EstimationError::data_msg("matching requires at least one donor row"));
-    }
-    workspace.ensure_matching_index(donor_features, dim, distance)?;
-    let n_queries = query_outcome.len();
-    let mut donor_rows = std::mem::take(&mut workspace.matching_donor_rows);
-    let mut distances = std::mem::take(&mut workspace.matching_distances);
-    donor_rows.clear();
-    donor_rows.resize(n_queries, 0);
-    distances.clear();
-    distances.resize(n_queries, 0.0);
-    {
-        let index = workspace.matching_index.as_ref().expect("ensured");
-        index
-            .match_all(query_features, n_queries, caliper, &mut donor_rows, &mut distances)
-            .map_err(stats_err)?;
-    }
-    let mut diffs = Vec::with_capacity(n_queries);
-    for q in 0..n_queries {
-        let d = donor_rows[q];
-        if d != usize::MAX {
-            diffs.push(query_outcome[q] - donor_outcome[d]);
-        }
-    }
-    workspace.matching_donor_rows = donor_rows;
-    workspace.matching_distances = distances;
-    Ok(diffs)
-}
-
-struct MatchedEstimate {
+struct StratifiedResult {
     ate: f64,
     se_analytic: f64,
+    /// Fraction of input rows that landed in a stratum with both arms represented. Strata
+    /// missing an arm are dropped from the pooled contrast, which redefines the target
+    /// population; callers surface this via the overlap report's support figure.
+    retained_fraction: f64,
 }
 
-/// ATT/ATC/ATE via nearest-neighbor matching on `features` (dim columns, row-major).
-///
-/// ATT matches treated→nearest control; ATC matches control→nearest treated (sign-flipped);
-/// ATE pools both directions' per-unit imputed effects (Abadie–Imbens style).
-fn matching_contrast(
+pub(crate) fn stratified_ate(
     treatment: &[f64],
     outcome: &[f64],
-    features: &[f64],
-    dim: usize,
-    distance: MatchingDistance,
-    target: &TargetPopulation,
-    caliper: Option<f64>,
-    workspace: &mut PropensityEstimationWorkspace,
-) -> Result<MatchedEstimate, EstimationError> {
-    let (treated_idx, control_idx) = split_by_treatment(treatment);
-    if treated_idx.is_empty() || control_idx.is_empty() {
-        return Err(EstimationError::data_msg("matching requires both treated and control rows"));
+    stratum: &[usize],
+    n_strata: usize,
+) -> Result<StratifiedResult, EstimationError> {
+    let mut sum1 = vec![0.0; n_strata];
+    let mut sq1 = vec![0.0; n_strata];
+    let mut cnt1 = vec![0usize; n_strata];
+    let mut sum0 = vec![0.0; n_strata];
+    let mut sq0 = vec![0.0; n_strata];
+    let mut cnt0 = vec![0usize; n_strata];
+    for i in 0..treatment.len() {
+        let s = stratum[i];
+        if treatment[i] > 0.5 {
+            sum1[s] += outcome[i];
+            sq1[s] += outcome[i] * outcome[i];
+            cnt1[s] += 1;
+        } else {
+            sum0[s] += outcome[i];
+            sq0[s] += outcome[i] * outcome[i];
+            cnt0[s] += 1;
+        }
     }
-    let treated_feat = gather_rowmajor(features, dim, &treated_idx);
-    let control_feat = gather_rowmajor(features, dim, &control_idx);
-    let treated_y = gather(outcome, &treated_idx);
-    let control_y = gather(outcome, &control_idx);
+    let mut diffs = Vec::new();
+    let mut ns = Vec::new();
+    let mut vars = Vec::new();
+    for s in 0..n_strata {
+        if cnt1[s] == 0 || cnt0[s] == 0 {
+            continue;
+        }
+        let n1 = cnt1[s] as f64;
+        let n0 = cnt0[s] as f64;
+        let mean1 = sum1[s] / n1;
+        let mean0 = sum0[s] / n0;
+        // Unbiased sample variances (÷(n−1)); undefined (NaN) for a single-unit arm, which
+        // honestly propagates into `se_analytic` rather than understating it.
+        let var1 = sample_variance_from_moments(sq1[s], mean1, cnt1[s]);
+        let var0 = sample_variance_from_moments(sq0[s], mean0, cnt0[s]);
+        diffs.push(mean1 - mean0);
+        ns.push(n1 + n0);
+        vars.push(var1 / n1 + var0 / n0);
+    }
+    let total_n: f64 = ns.iter().sum();
+    if total_n <= 0.0 {
+        return Err(EstimationError::data_msg("no strata contain both treated and control units"));
+    }
+    let ate = diffs.iter().zip(&ns).map(|(d, n)| d * n).sum::<f64>() / total_n;
+    let se_var = vars.iter().zip(&ns).map(|(v, n)| v * (n / total_n).powi(2)).sum::<f64>();
+    let retained_fraction = total_n / (treatment.len().max(1) as f64);
+    Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction })
+}
 
-    let per_unit_effects: Vec<f64> = match target {
-        TargetPopulation::Treated => match_diffs(
-            &control_feat,
-            &control_y,
-            dim,
-            distance,
-            &treated_feat,
-            &treated_y,
-            caliper,
-            workspace,
-        )?,
-        TargetPopulation::Untreated => match_diffs(
-            &treated_feat,
-            &treated_y,
-            dim,
-            distance,
-            &control_feat,
-            &control_y,
-            caliper,
-            workspace,
-        )?
-        .into_iter()
-        .map(|d| -d)
-        .collect(),
-        TargetPopulation::AllObserved => {
-            let mut att_diffs = match_diffs(
-                &control_feat,
-                &control_y,
-                dim,
-                distance,
-                &treated_feat,
-                &treated_y,
-                caliper,
-                workspace,
-            )?;
-            let atc_diffs: Vec<f64> = match_diffs(
-                &treated_feat,
-                &treated_y,
-                dim,
-                distance,
-                &control_feat,
-                &control_y,
-                caliper,
-                workspace,
-            )?
-            .into_iter()
-            .map(|d| -d)
-            .collect();
-            att_diffs.extend(atc_diffs);
-            att_diffs
-        }
-        _ => {
-            return Err(EstimationError::UnsupportedQuery(
-                "matching estimators support AllObserved, Treated, or Untreated target populations"
-                    .into(),
-            ));
-        }
-    };
-    if per_unit_effects.is_empty() {
-        return Err(EstimationError::data_msg("no matched units within caliper"));
+/// Unbiased sample variance from `Σy²`, the mean, and the count (`NaN` when `count < 2`).
+fn sample_variance_from_moments(sum_sq: f64, mean: f64, count: usize) -> f64 {
+    if count < 2 {
+        return f64::NAN;
     }
-    let n = per_unit_effects.len() as f64;
-    let ate = per_unit_effects.iter().sum::<f64>() / n;
-    let se_analytic = sample_std(&per_unit_effects) / n.sqrt();
-    Ok(MatchedEstimate { ate, se_analytic })
+    let n = count as f64;
+    ((sum_sq - n * mean * mean) / (n - 1.0)).max(0.0)
 }

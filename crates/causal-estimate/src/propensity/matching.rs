@@ -1,3 +1,25 @@
+//! Propensity-score nearest-neighbor matching.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
+use causal_data::TabularData;
+use causal_expr::IdentifiedEstimand;
+use causal_stats::{
+    FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityWorkspace, fit_propensity,
+};
+
+use super::prepare::{
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
+    clip_of, default_propensity_overlap, gather, gather_rowmajor, prepare_propensity_problem,
+    restrict_to_rows, split_by_treatment, to_row_major, trim_of, trim_retained_rows,
+};
+use crate::adjustment::EffectEstimate;
+use crate::error::EstimationError;
+use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
 
 /// Propensity-score nearest-neighbor matching (Absolute distance, optional caliper).
 ///
@@ -172,4 +194,144 @@ impl PropensityMatching {
             }
         })
     }
+}
+
+/// Match each `query` row to its nearest `donor` row; returns `query_y[q] - donor_y[matched]`
+/// for every query matched within the caliper (caliper-rejected queries are omitted).
+///
+/// Reuses [`PropensityEstimationWorkspace`]'s cached [`MatchingIndex`] when donor geometry
+/// is unchanged.
+pub(crate) fn match_diffs(
+    donor_features: &[f64],
+    donor_outcome: &[f64],
+    dim: usize,
+    distance: MatchingDistance,
+    query_features: &[f64],
+    query_outcome: &[f64],
+    caliper: Option<f64>,
+    workspace: &mut PropensityEstimationWorkspace,
+) -> Result<Vec<f64>, EstimationError> {
+    let n_donors = donor_outcome.len();
+    if n_donors == 0 {
+        return Err(EstimationError::data_msg("matching requires at least one donor row"));
+    }
+    workspace.ensure_matching_index(donor_features, dim, distance)?;
+    let n_queries = query_outcome.len();
+    let mut donor_rows = std::mem::take(&mut workspace.matching_donor_rows);
+    let mut distances = std::mem::take(&mut workspace.matching_distances);
+    donor_rows.clear();
+    donor_rows.resize(n_queries, 0);
+    distances.clear();
+    distances.resize(n_queries, 0.0);
+    {
+        let index = workspace.matching_index.as_ref().expect("ensured");
+        index
+            .match_all(query_features, n_queries, caliper, &mut donor_rows, &mut distances)
+            .map_err(stats_err)?;
+    }
+    let mut diffs = Vec::with_capacity(n_queries);
+    for q in 0..n_queries {
+        let d = donor_rows[q];
+        if d != usize::MAX {
+            diffs.push(query_outcome[q] - donor_outcome[d]);
+        }
+    }
+    workspace.matching_donor_rows = donor_rows;
+    workspace.matching_distances = distances;
+    Ok(diffs)
+}
+
+pub(crate) struct MatchedEstimate {
+    pub(crate) ate: f64,
+    pub(crate) se_analytic: f64,
+}
+
+/// ATT/ATC/ATE via nearest-neighbor matching on `features` (dim columns, row-major).
+///
+/// ATT matches treated→nearest control; ATC matches control→nearest treated (sign-flipped);
+/// ATE pools both directions' per-unit imputed effects (Abadie–Imbens style).
+pub(crate) fn matching_contrast(
+    treatment: &[f64],
+    outcome: &[f64],
+    features: &[f64],
+    dim: usize,
+    distance: MatchingDistance,
+    target: &TargetPopulation,
+    caliper: Option<f64>,
+    workspace: &mut PropensityEstimationWorkspace,
+) -> Result<MatchedEstimate, EstimationError> {
+    let (treated_idx, control_idx) = split_by_treatment(treatment);
+    if treated_idx.is_empty() || control_idx.is_empty() {
+        return Err(EstimationError::data_msg("matching requires both treated and control rows"));
+    }
+    let treated_feat = gather_rowmajor(features, dim, &treated_idx);
+    let control_feat = gather_rowmajor(features, dim, &control_idx);
+    let treated_y = gather(outcome, &treated_idx);
+    let control_y = gather(outcome, &control_idx);
+
+    let per_unit_effects: Vec<f64> = match target {
+        TargetPopulation::Treated => match_diffs(
+            &control_feat,
+            &control_y,
+            dim,
+            distance,
+            &treated_feat,
+            &treated_y,
+            caliper,
+            workspace,
+        )?,
+        TargetPopulation::Untreated => match_diffs(
+            &treated_feat,
+            &treated_y,
+            dim,
+            distance,
+            &control_feat,
+            &control_y,
+            caliper,
+            workspace,
+        )?
+        .into_iter()
+        .map(|d| -d)
+        .collect(),
+        TargetPopulation::AllObserved => {
+            let mut att_diffs = match_diffs(
+                &control_feat,
+                &control_y,
+                dim,
+                distance,
+                &treated_feat,
+                &treated_y,
+                caliper,
+                workspace,
+            )?;
+            let atc_diffs: Vec<f64> = match_diffs(
+                &treated_feat,
+                &treated_y,
+                dim,
+                distance,
+                &control_feat,
+                &control_y,
+                caliper,
+                workspace,
+            )?
+            .into_iter()
+            .map(|d| -d)
+            .collect();
+            att_diffs.extend(atc_diffs);
+            att_diffs
+        }
+        _ => {
+            return Err(EstimationError::UnsupportedQuery(
+                "matching estimators support AllObserved, Treated, or Untreated target populations"
+                    .into(),
+            ));
+        }
+    };
+    if per_unit_effects.is_empty() {
+        return Err(EstimationError::data_msg("no matched units within caliper"));
+    }
+    let n = per_unit_effects.len() as f64;
+    let ate = per_unit_effects.iter().sum::<f64>() / n;
+    let se_analytic = sample_std(&per_unit_effects) / n.sqrt();
+    Ok(MatchedEstimate { ate, se_analytic })
 }

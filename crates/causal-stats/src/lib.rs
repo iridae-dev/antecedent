@@ -17,6 +17,7 @@ pub mod gram;
 pub mod linalg;
 pub mod matching;
 pub mod propensity;
+pub mod special;
 pub mod twosls;
 
 pub use ci::{
@@ -30,6 +31,7 @@ pub use ci::{
 pub use design::{CompiledDesign, DesignColumnRole};
 pub use divergence::{
     classifier_two_sample, gaussian_kl, mean_diff_two_sample, mean_var, residual_likelihood_ratio,
+    sample_std,
 };
 pub use error::StatsError;
 #[cfg(feature = "faer")]
@@ -41,5 +43,11 @@ pub use linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
 pub use matching::{
     EXACT_MATCHING_ROW_LIMIT, MatchingDistance, MatchingIndex, nearest_euclidean_scalar,
 };
-pub use propensity::{PropensityFit, PropensityWorkspace, fit_propensity, predict_propensity};
+pub use propensity::{
+    PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
+    predict_propensity,
+};
+pub use special::{
+    gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_sf,
+};
 pub use twosls::{TwoSlsFit, fit_2sls, fit_wls};

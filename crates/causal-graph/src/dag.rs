@@ -4,6 +4,7 @@
 
 use causal_core::VariableId;
 
+use crate::algo::{bfs_reaches, kahn_order};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
@@ -147,51 +148,13 @@ impl Dag {
         to: DenseNodeId,
         ws: &mut GraphWorkspace,
     ) -> bool {
-        if from == to {
-            return true;
-        }
-        ws.prepare(self.node_count());
-        ws.frontier.push(from);
-        ws.visited.insert(from);
-        while let Some(n) = ws.frontier.pop() {
-            for &c in self.children(n) {
-                if c == to {
-                    return true;
-                }
-                if !ws.visited.contains(c) {
-                    ws.visited.insert(c);
-                    ws.frontier.push(c);
-                }
-            }
-        }
-        false
+        bfs_reaches(&self.children, from, to, ws)
     }
 
     /// Topological order (Kahn). Returns `None` if a cycle slipped in.
     #[must_use]
     pub fn topological_order(&self) -> Option<Vec<DenseNodeId>> {
-        let n = self.node_count();
-        let mut indeg = vec![0u32; n];
-        for (i, parents) in self.parents.iter().enumerate() {
-            indeg[i] = u32::try_from(parents.len()).ok()?;
-        }
-        let mut q: Vec<DenseNodeId> = indeg
-            .iter()
-            .enumerate()
-            .filter(|&(_, &d)| d == 0)
-            .map(|(i, _)| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
-            .collect();
-        let mut order = Vec::with_capacity(n);
-        while let Some(u) = q.pop() {
-            order.push(u);
-            for &v in self.children(u) {
-                indeg[v.as_usize()] -= 1;
-                if indeg[v.as_usize()] == 0 {
-                    q.push(v);
-                }
-            }
-        }
-        (order.len() == n).then_some(order)
+        kahn_order(&self.parents, &self.children)
     }
 
     /// Validate graph invariants.

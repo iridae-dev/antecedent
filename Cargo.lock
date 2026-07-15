@@ -206,6 +206,7 @@ dependencies = [
  "causal-counterfactual",
  "causal-data",
  "causal-graph",
+ "causal-kernels",
  "causal-model",
  "causal-prob",
  "causal-stats",
@@ -251,6 +252,7 @@ name = "causal-design"
 version = "0.1.0"
 dependencies = [
  "causal-core",
+ "causal-kernels",
  "causal-prob",
  "causal-stats",
  "criterion",
@@ -279,6 +281,7 @@ dependencies = [
  "causal-expr",
  "causal-graph",
  "causal-identify",
+ "causal-kernels",
  "causal-prob",
  "causal-stats",
  "criterion",
@@ -409,6 +412,7 @@ dependencies = [
  "causal-estimate",
  "causal-expr",
  "causal-identify",
+ "causal-kernels",
  "causal-prob",
  "causal-stats",
  "serde_json",

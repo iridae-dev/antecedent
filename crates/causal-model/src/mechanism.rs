@@ -7,7 +7,7 @@
 #![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::many_single_char_names)]
 
 use causal_core::CausalRng;
-use causal_kernels::standard_normal;
+use causal_kernels::{categorical_from_u, standard_normal};
 
 use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatchMut};
 use crate::compile::MechanismSlot;
@@ -340,16 +340,8 @@ fn softmax_row_probs(
 }
 
 fn categorical_draw(support: &[f64], probs: &[f64], u: f64) -> f64 {
-    let sum: f64 = probs.iter().sum::<f64>().max(f64::EPSILON);
-    let mut acc = 0.0;
-    let target = u * sum;
-    for (i, &p) in probs.iter().enumerate() {
-        acc += p;
-        if target <= acc {
-            return support[i];
-        }
-    }
-    *support.last().unwrap_or(&0.0)
+    let idx = categorical_from_u(u, probs);
+    support.get(idx).copied().unwrap_or(0.0)
 }
 
 /// Fill an entire noise batch for all nodes (structural path).

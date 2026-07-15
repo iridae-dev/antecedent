@@ -48,9 +48,8 @@ pub use error::DataError;
 pub use lagged_frame::LaggedFrame;
 pub use materialize::{MaterializationReason, materialization_diagnostic};
 pub use multi_env::MultiEnvironmentData;
-pub use multi_env_plan::{
-    MultiEnvSamplePlan, PanelSamplePlan, plans_for_series_lengths, series_columnar_ptr,
-};
+pub use multi_env_plan::{MultiEnvSamplePlan, PanelSamplePlan, plans_for_series_lengths};
+pub(crate) use multi_env_plan::series_columnar_ptr;
 pub use panel::{PanelData, PanelUnit, PanelUnitView};
 pub use reference::ReferencePointPolicy;
 pub use resample::{

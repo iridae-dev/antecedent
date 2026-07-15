@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use causal_attribution::AttributionError;
 use causal_counterfactual::CounterfactualError;
 use causal_discovery::DiscoveryError;
 use causal_estimate::EstimationError;
@@ -32,6 +33,9 @@ pub enum AnalysisError {
     /// Counterfactual evaluation failed.
     #[error(transparent)]
     Counterfactual(#[from] CounterfactualError),
+    /// Attribution failed.
+    #[error(transparent)]
+    Attribution(#[from] AttributionError),
     /// Artifact serialization / deserialization.
     #[error(transparent)]
     Serialization(#[from] IoError),

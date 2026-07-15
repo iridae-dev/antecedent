@@ -47,8 +47,45 @@ impl PropensityWorkspace {
 ///
 /// # Errors
 ///
-/// Shape mismatch, non-binary treatment, or GLM failure.
+/// Shape mismatch, non-binary treatment, GLM failure, non-convergence, or separation.
 pub fn fit_propensity(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    treatment: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut PropensityWorkspace,
+    options: &GlmOptions,
+) -> Result<PropensityFit, StatsError> {
+    let fit = fit_propensity_inner(
+        x_colmajor, nrows, ncols, treatment, backend, workspace, options,
+    )?;
+    fit.glm.require_ok()?;
+    Ok(fit)
+}
+
+/// Diagnostic propensity fit that keeps soft-clamped scores under separation / non-convergence.
+///
+/// Estimation paths must use [`fit_propensity`]. Overlap / positivity diagnostics use this
+/// path because complete separation *is* the positivity failure signal — refusing the fit
+/// would turn a failed check into a hard error.
+///
+/// # Errors
+///
+/// Shape mismatch, non-binary treatment, or GLM linear-algebra failure.
+pub fn fit_propensity_diagnostic(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    treatment: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut PropensityWorkspace,
+    options: &GlmOptions,
+) -> Result<PropensityFit, StatsError> {
+    fit_propensity_inner(x_colmajor, nrows, ncols, treatment, backend, workspace, options)
+}
+
+fn fit_propensity_inner(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
@@ -68,7 +105,6 @@ pub fn fit_propensity(
         &mut workspace.ols,
         options,
     )?;
-    glm.require_ok()?;
     let mut scores = vec![0.0; nrows];
     predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut scores)?;
     Ok(PropensityFit { coefficients: glm.coefficients.clone(), scores, glm })
@@ -161,5 +197,12 @@ mod tests {
         let mut ws = PropensityWorkspace::default();
         let err = fit_propensity(&x, n, 2, &t, &FaerBackend, &mut ws, &GlmOptions::new(100, 1e-6));
         assert!(err.is_err(), "complete separation must error");
+        let diag = fit_propensity_diagnostic(
+            &x, n, 2, &t, &FaerBackend, &mut ws, &GlmOptions::new(100, 1e-6),
+        )
+        .expect("diagnostics keep scores under separation");
+        let min = diag.scores.iter().copied().fold(f64::INFINITY, f64::min);
+        let max = diag.scores.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        assert!(min < 0.05 && max > 0.95, "min={min} max={max}");
     }
 }

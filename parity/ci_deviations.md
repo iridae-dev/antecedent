@@ -16,8 +16,8 @@ under the run seed.
 PCMCI+ orientation applies Meek R1–R3 on contemporaneous links only
 (`ContempMeekR1`–`ContempMeekR3`). Tigramite likewise applies R1–R3 on
 contemporaneous links and does not run R4. The former intentional R4
-deviation has been removed (TODO P4.2). Black-box edge-set equality is
-pinned in `conformance/tigramite/pcmci_plus_lag0`.
+deviation has been removed. Black-box edge-set equality is pinned in
+`conformance/tigramite/pcmci_plus_lag0`.
 
 ## 3. LPCMCI / J-PCMCI+ / RPCMCI black-box equality deferred (P4)
 
@@ -37,7 +37,9 @@ non-vacuous structure and true-edge subset invariants only.
   conditioning-only (tigramite `run_mci`).
 - PCMCI+ uses lagged-only PC1 then a contemporaneous MCI phase, lag-0
   symmetrization (both directions), majority collider, and Meek R1–R3 on
-  contemporaneous links.
+  contemporaneous links. Cross-variable edge sets match the
+  `pcmci_plus_lag0` pin; autoregressive self-lags may still differ from
+  tigramite and are allowed as extras in that fixture.
 - `weighted_parcorr` accepts observation weights via Python
   `discover_pcmci(_plus)(..., weights=...)`.
 - Pairwise multivariate wrapper is registered as `pairwise_multivariate`.

@@ -447,6 +447,29 @@ pub fn partial_correlation_portable(
 
 /// Run a batch of [`ParCorrQuery`] items against shared columns (deterministic order).
 ///
+/// Kernel path for batch partial correlation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum ParCorrMode {
+    /// Scalar reference implementation.
+    Native,
+    /// Portable-optimized path.
+    Portable,
+}
+
+impl ParCorrMode {
+    /// Whether this selects the portable kernel.
+    #[must_use]
+    pub const fn is_portable(self) -> bool {
+        matches!(self, Self::Portable)
+    }
+}
+
+impl From<bool> for ParCorrMode {
+    fn from(portable: bool) -> Self {
+        if portable { Self::Portable } else { Self::Native }
+    }
+}
+
 /// `z_flat` holds concatenated conditioning indexes for all queries.
 ///
 /// # Panics
@@ -458,7 +481,7 @@ pub fn partial_correlation_batch(
     z_flat: &[usize],
     out: &mut [Option<f64>],
     workspace: &mut ParCorrWorkspace,
-    portable: bool,
+    mode: ParCorrMode,
 ) {
     assert_eq!(out.len(), queries.len());
     let mut z_bufs: Vec<&[f64]> = Vec::new();
@@ -468,7 +491,7 @@ pub fn partial_correlation_batch(
         for &zi in &z_flat[q.z_start..end] {
             z_bufs.push(columns[zi]);
         }
-        let r = if portable {
+        let r = if mode.is_portable() {
             partial_correlation_portable(columns[q.x], columns[q.y], &z_bufs, workspace)
         } else {
             partial_correlation_scalar(columns[q.x], columns[q.y], &z_bufs, workspace)
@@ -534,11 +557,18 @@ mod tests {
         let z_flat = [2usize];
         let mut out = [None; 2];
         let mut ws = ParCorrWorkspace::default();
-        partial_correlation_batch(&columns, &queries, &z_flat, &mut out, &mut ws, false);
+        partial_correlation_batch(&columns, &queries, &z_flat, &mut out, &mut ws, ParCorrMode::Native);
         let cap_n = ws.capacity_n();
         let cap_p = ws.capacity_p();
         for _ in 0..20 {
-            partial_correlation_batch(&columns, &queries, &z_flat, &mut out, &mut ws, true);
+            partial_correlation_batch(
+                &columns,
+                &queries,
+                &z_flat,
+                &mut out,
+                &mut ws,
+                ParCorrMode::Portable,
+            );
             assert_eq!(ws.capacity_n(), cap_n);
             assert_eq!(ws.capacity_p(), cap_p);
         }

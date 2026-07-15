@@ -11,7 +11,7 @@ use causal_core::{
     Value, ValueType, VariableId,
 };
 use causal_counterfactual::{
-    CounterfactualEngine, CounterfactualWorld, streaming_matches_retained,
+    CounterfactualEngine, CounterfactualWorld, MissingPolicy, streaming_matches_retained,
 };
 use causal_data::column::{Float64Column, ValidityBitmap};
 use causal_data::{OwnedColumn, OwnedColumnarStorage, TabularData};
@@ -64,7 +64,7 @@ fn engine() -> (CounterfactualEngine, TabularData) {
 
 fn bench_cf(c: &mut Criterion) {
     let (eng, data) = engine();
-    let exo = eng.abduct(&data, false).unwrap();
+    let exo = eng.abduct(&data, MissingPolicy::Error).unwrap();
     let ctx = ExecutionContext::for_tests(1);
     c.bench_function("counterfactual_predict_n100", |b| {
         b.iter(|| {

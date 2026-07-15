@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal_core::{CausalRng, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode};
+use causal_kernels::shuffle;
 
 use crate::coalition::{CoalitionCache, CoalitionKey};
 use crate::error::AttributionError;
@@ -163,7 +164,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
             let mut phi2 = vec![0.0; n];
             for _ in 0..n_samples {
                 let mut order: Vec<usize> = (0..n).collect();
-                shuffle(&mut order, &mut rng);
+                shuffle(&mut rng, &mut order);
                 let mut mask = 0u64;
                 let mut v_prev = eval(0, payoff, &mut cache, &mut budget)?;
                 let mut sample_phi = vec![0.0; n];
@@ -298,13 +299,6 @@ fn factorial_weights(n: usize) -> Vec<f64> {
         w[s] = fact[s] * fact[n - s - 1] / n_fact;
     }
     w
-}
-
-fn shuffle(xs: &mut [usize], rng: &mut CausalRng) {
-    for i in (1..xs.len()).rev() {
-        let j = (rng.next_u64() as usize) % (i + 1);
-        xs.swap(i, j);
-    }
 }
 
 #[cfg(test)]

@@ -1,3 +1,21 @@
+//! Propensity problem preparation and shared workspace.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use causal_core::{AverageEffectQuery, TargetPopulation, VariableId};
+use causal_data::TabularData;
+use causal_expr::IdentifiedEstimand;
+use causal_stats::{
+    FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityFit, PropensityWorkspace,
+    fit_propensity,
+};
+
+use crate::adjustment::intervention_f64;
+use crate::error::EstimationError;
+use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::util::stats_err;
 
 /// Prepared covariate design + treatment/outcome shared by every propensity estimator.
 ///
@@ -103,7 +121,7 @@ pub struct PropensityEstimationWorkspace {
     /// Matching output buffer: distance to the matched donor per query row.
     pub matching_distances: Vec<f64>,
     /// Cached nearest-neighbor index for the current donor geometry.
-    matching_index: Option<MatchingIndex>,
+    pub(crate) matching_index: Option<MatchingIndex>,
     /// Key of [`Self::matching_index`].
     matching_index_key: MatchingIndexKey,
     /// Number of times a new [`MatchingIndex`] was constructed (reuse diagnostics / benches).
@@ -112,7 +130,7 @@ pub struct PropensityEstimationWorkspace {
 
 impl PropensityEstimationWorkspace {
     /// Ensure a matching index for `donor_features`, rebuilding only when geometry changes.
-    fn ensure_matching_index(
+    pub(crate) fn ensure_matching_index(
         &mut self,
         donor_features: &[f64],
         dim: usize,
@@ -150,7 +168,7 @@ impl PropensityEstimationWorkspace {
     }
 }
 
-fn fnv1a64(bytes_as_f64: &[f64]) -> u64 {
+pub(crate) fn fnv1a64(bytes_as_f64: &[f64]) -> u64 {
     const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
     const PRIME: u64 = 0x0100_0000_01b3;
     let mut hash = OFFSET;
@@ -299,7 +317,7 @@ pub(crate) fn trim_retained_rows(
 
 /// Restrict `(treatment, outcome, features)` to `retained` rows (`features` row-major with
 /// `dim` columns); clones the full slices when `retained` is `None` (no trim configured).
-fn restrict_to_rows(
+pub(crate) fn restrict_to_rows(
     treatment: &[f64],
     outcome: &[f64],
     features: &[f64],
@@ -314,7 +332,7 @@ fn restrict_to_rows(
     }
 }
 
-fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<f64>) {
+pub(crate) fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<f64>) {
     match overlap {
         OverlapPolicy::RequireDiagnostics { clip, trim, .. } => (clip, trim),
         OverlapPolicy::ExplicitOverride => (None, None),
@@ -327,7 +345,7 @@ pub(crate) fn clamp_scores(scores: &mut [f64], clip: f64) {
     }
 }
 
-fn to_row_major(cols: &[Arc<[f64]>], nrows: usize) -> Vec<f64> {
+pub(crate) fn to_row_major(cols: &[Arc<[f64]>], nrows: usize) -> Vec<f64> {
     let dim = cols.len().max(1);
     let mut out = vec![0.0; nrows * dim];
     for (c, col) in cols.iter().enumerate() {
@@ -338,140 +356,27 @@ fn to_row_major(cols: &[Arc<[f64]>], nrows: usize) -> Vec<f64> {
     out
 }
 
-// ---------------------------------------------------------------------------------------------
-// IPW weights + Hajek estimator (shared by `PropensityWeighting`)
-// ---------------------------------------------------------------------------------------------
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum IpwTarget {
-    Ate,
-    Att,
-    Atc,
-}
-
-impl IpwTarget {
-    fn from_population(pop: &TargetPopulation) -> Result<Self, EstimationError> {
-        match pop {
-            TargetPopulation::AllObserved => Ok(Self::Ate),
-            TargetPopulation::Treated => Ok(Self::Att),
-            TargetPopulation::Untreated => Ok(Self::Atc),
-            _ => Err(EstimationError::UnsupportedQuery(
-                "propensity weighting supports AllObserved, Treated, or Untreated target populations".into(),
-            )),
-        }
-    }
-
-    fn weight(self, t: f64, e: f64) -> f64 {
-        match self {
-            Self::Ate => {
-                if t > 0.5 {
-                    1.0 / e
-                } else {
-                    1.0 / (1.0 - e)
-                }
-            }
-            Self::Att => {
-                if t > 0.5 {
-                    1.0
-                } else {
-                    e / (1.0 - e)
-                }
-            }
-            Self::Atc => {
-                if t > 0.5 {
-                    (1.0 - e) / e
-                } else {
-                    1.0
-                }
-            }
-        }
-    }
-}
-
-/// `scores_for_weight` feeds the weight formula (typically clipped); `scores_for_trim` feeds
-/// the trim decision (typically the raw, pre-clip scores) — they may be the same slice.
-fn compute_ipw_weights(
-    treatment: &[f64],
-    scores_for_weight: &[f64],
-    scores_for_trim: &[f64],
-    target: IpwTarget,
-    trim: Option<f64>,
-) -> Vec<f64> {
-    treatment
-        .iter()
-        .zip(scores_for_weight)
-        .zip(scores_for_trim)
-        .map(|((&t, &e), &raw)| {
-            if let Some(tr) = trim {
-                if raw < tr || raw > 1.0 - tr {
-                    return 0.0;
-                }
-            }
-            target.weight(t, e)
-        })
-        .collect()
-}
-
-fn hajek_difference(
-    treatment: &[f64],
-    outcome: &[f64],
-    weights: &[f64],
-) -> Result<f64, EstimationError> {
-    let (mut num1, mut den1, mut num0, mut den0) = (0.0, 0.0, 0.0, 0.0);
-    for ((&t, &y), &w) in treatment.iter().zip(outcome).zip(weights) {
+pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) {
+    let mut treated = Vec::new();
+    let mut control = Vec::new();
+    for (i, &t) in treatment.iter().enumerate() {
         if t > 0.5 {
-            num1 += w * y;
-            den1 += w;
+            treated.push(i);
         } else {
-            num0 += w * y;
-            den0 += w;
+            control.push(i);
         }
     }
-    if den1 <= 0.0 || den0 <= 0.0 {
-        return Err(EstimationError::data_msg("IPW weighting left an arm with zero total weight (trimming/clipping removed all treated or all control units)"));
-    }
-    Ok(num1 / den1 - num0 / den0)
+    (treated, control)
 }
 
-fn hajek_weighted_mean(
-    treatment: &[f64],
-    outcome: &[f64],
-    weights: &[f64],
-    want_treated: bool,
-) -> f64 {
-    let (mut num, mut den) = (0.0, 0.0);
-    for i in 0..treatment.len() {
-        if (treatment[i] > 0.5) == want_treated {
-            num += weights[i] * outcome[i];
-            den += weights[i];
-        }
-    }
-    if den > 0.0 { num / den } else { f64::NAN }
+pub(crate) fn gather(values: &[f64], idx: &[usize]) -> Vec<f64> {
+    idx.iter().map(|&i| values[i]).collect()
 }
 
-fn hajek_group_variance(
-    treatment: &[f64],
-    outcome: &[f64],
-    weights: &[f64],
-    want_treated: bool,
-    mu: f64,
-) -> f64 {
-    let (mut num, mut den) = (0.0, 0.0);
-    for i in 0..treatment.len() {
-        if (treatment[i] > 0.5) == want_treated {
-            let w = weights[i];
-            num += w * w * (outcome[i] - mu).powi(2);
-            den += w;
-        }
+pub(crate) fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<f64> {
+    let mut out = Vec::with_capacity(idx.len() * dim);
+    for &i in idx {
+        out.extend_from_slice(&matrix[i * dim..(i + 1) * dim]);
     }
-    if den > 0.0 { num / (den * den) } else { f64::NAN }
-}
-
-/// Linearized (ratio-estimator) analytic SE of the Hajek ATE/ATT/ATC difference.
-fn hajek_analytic_se(treatment: &[f64], outcome: &[f64], weights: &[f64]) -> f64 {
-    let mu1 = hajek_weighted_mean(treatment, outcome, weights, true);
-    let mu0 = hajek_weighted_mean(treatment, outcome, weights, false);
-    let v1 = hajek_group_variance(treatment, outcome, weights, true, mu1);
-    let v0 = hajek_group_variance(treatment, outcome, weights, false, mu0);
-    (v1 + v0).sqrt()
+    out
 }
