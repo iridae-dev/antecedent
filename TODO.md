@@ -121,33 +121,20 @@ first-regime CPDAG review), `DiscoverLpcmci` / `TemporalPag` → `ReviewRequired
 `Pag` via `reject_dag_only_on_pag` (class-aware execute still not on the facade). Builder helpers:
 `discover_lpcmci`, `pag`, `temporal_pag`.
 
-### P2.9 Fixed seeds / test contexts in production paths
-`crates/causal-model/src/evaluate.rs:200,229`, `crates/causal-attribution/src/distribution_change.rs:273`,
-`crates/causal-attribution/src/feature_relevance.rs:39`, `crates/causal-attribution/src/anomaly.rs:167-169`
-use hardcoded seeds and/or `ExecutionContext::for_tests(1)` internally, defeating the library's
-own no-global-RNG discipline and hiding Monte-Carlo variability from callers.
-**Fix:** thread the caller's `ExecutionContext`/RNG through these paths.
+### P2.9 Fixed seeds / test contexts in production paths — fixed
+Callers' `ExecutionContext` is threaded through `ModelEvaluator::evaluate`, distribution-change
+payoffs, `feature_relevance`, and `intrinsic_influence`. Anomaly residual inference errors now
+propagate instead of zero-filling.
 
-### P2.10 Mislabeled statistics
-- `KnnCmi` (`crates/causal-stats/src/ci/advanced.rs:215-222`) is not CMI/KSG: negative mean k-th NN
-  distance in the joint space; no marginal counts, no digamma, no conditioning correction; `df: n`
-  is meaningless. Valid only as a generic permutation dependence statistic. **Fix:** implement
-  KSG/FP-style CMI (Runge 2018 CMIknn) or rename honestly. Or both - confirm usage.
-- `classifier_two_sample` (`crates/causal-stats/src/divergence.rs:57-59`) is a one-line alias of
-  `mean_diff_two_sample`; `mechanism_change.rs:82-83` stamps `"classifier_two_sample"` into result
-  artifacts — consumers see a classifier test that is blind to variance/shape changes. **Fix:**
-  implement a real C2ST or rename the method id. Confirm usage to determine which.
-- "Mixed regression CI" (`crates/causal-stats/src/ci/gsquared.rs:243-266`) is a trivial wrapper
-  around partial correlation; `weighted_parcorr` in the factory binds a unit-weight variant
-  (`crates/causal-stats/src/ci/factory.rs:48`). Implement.
+### P2.10 Mislabeled statistics — fixed
+- `KnnCmi` docs/factory: honest kNN distance dependence (not KSG); `df=0`; aliases `knn_dependence`.
+- `classifier_two_sample`: Mann–Whitney U / AUC (not a mean-diff alias).
+- `RegressionCi` documented as ParCorr alias; `ci_from_name("weighted_parcorr")` errors (weights required).
 
-### P2.11 CI tests ignore the requested significance/confidence methods
-`crates/causal-stats/src/ci/gsquared.rs:44-63`, `advanced.rs:110,361,481`
-`GSquared`, `KnnCmi`, `SymbolicCmi`, `MixedKnnCmi`, `Gpdc` never read
-`request.significance`/`confidence`; permutation counts are hardcoded at 49 and CI level at 0.95. A
-caller requesting `BlockShuffle` silently gets analytic χ².
-**Fix:** honor the request or return an explicit unsupported-method error; hoist permutation count
-and level from the request. See which actually makes sense - I lean towards honoring the request.
+### P2.11 CI tests ignore the requested significance/confidence methods — fixed
+`GSquared` honors analytic vs `BlockShuffle` and confidence level; nonparametric CI tests
+(`KnnCmi`, `SymbolicCmi`, `Gpdc`, …) take permutation counts from
+`nonparametric_permutation_count(request.significance)`.
 
 ### P2.12 Silent-fallback sweep (each small; fix opportunistically, loudest first)
 - `crates/causal-data/src/transforms.rs`: `equal_width_bin` maps NaN → bin 0; `ordinal_patterns`
@@ -160,6 +147,7 @@ and level from the request. See which actually makes sense - I lean towards hono
   (`crates/causal-validate/src/stability.rs:971`) on short series. Error when `block_size >= n`.
 - `crates/causal-attribution/src/anomaly.rs:81`: noise-inference error discarded →
   `residual_abs = 0.0` for every unit (indistinguishable from perfect fit). Propagate.
+  **Done** (with P2.9): `infer_noise_column` errors propagate.
 - `crates/causal-attribution/src/path.rs:48-51,100-102`: non-linear edges get strength
   `unwrap_or(0.0)` → all-zero path shares with no diagnostic; also uses |β| path products, which
   cannot represent cancelling paths, and `total_change` sums absolute shares. Use signed products;

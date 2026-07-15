@@ -69,6 +69,7 @@ impl ModelEvaluator {
         &self,
         model: &CompiledCausalModel,
         data: &TabularData,
+        ctx: &ExecutionContext,
     ) -> Result<ModelEvaluationReport, ModelError> {
         let n = data.row_count();
         if n == 0 {
@@ -78,9 +79,11 @@ impl ModelEvaluator {
         let held_out_loglik = mean_loglik(model, data)?;
         let (mean_abs_residual, residuals_by_node) = residual_summary(model, data)?;
         let residual_independence_p =
-            residual_independence_tests(model, data, &residuals_by_node, self.alpha)?;
-        let local_markov_p = local_markov_tests(model, data, self.alpha)?;
-        let permutation_loglik = permutation_baseline(model, data, self.n_permutations, self.seed)?;
+            residual_independence_tests(model, data, &residuals_by_node, self.alpha, ctx)?;
+        let local_markov_p = local_markov_tests(model, data, self.alpha, ctx)?;
+        // Prefer the caller's execution seed when the evaluator still has the default seed.
+        let perm_seed = if self.seed == 0 { ctx.rng.master_seed() } else { self.seed };
+        let permutation_loglik = permutation_baseline(model, data, self.n_permutations, perm_seed)?;
 
         let mut falsified = false;
         for &p in &residual_independence_p {
@@ -193,11 +196,11 @@ fn residual_independence_tests(
     data: &TabularData,
     residuals: &[Option<Vec<f64>>],
     _alpha: f64,
+    ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, ModelError> {
     let mut ps = Vec::new();
     let test = PartialCorrelation::new();
     let mut ws = CiWorkspace::default();
-    let ctx = ExecutionContext::for_tests(1);
     let children = child_adjacency(model);
     for (node_i, resid_opt) in residuals.iter().enumerate() {
         let Some(resid) = resid_opt else { continue };
@@ -215,7 +218,7 @@ fn residual_independence_tests(
             let x = data.float64_values(ovar).map_err(ModelError::from)?;
             let cols: [&[f64]; 2] = [resid.as_slice(), x.as_slice()];
             let res = test
-                .test_one(&cols, &[], SignificanceMethod::Analytic, &mut ws, &ctx)
+                .test_one(&cols, &[], SignificanceMethod::Analytic, &mut ws, ctx)
                 .map_err(ModelError::from)?;
             ps.push(res.p_value);
         }
@@ -249,10 +252,10 @@ fn local_markov_tests(
     model: &CompiledCausalModel,
     data: &TabularData,
     _alpha: f64,
+    ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, ModelError> {
     let test = PartialCorrelation::new();
     let mut ws = CiWorkspace::default();
-    let ctx = ExecutionContext::for_tests(1);
     let mut ps = Vec::new();
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
@@ -277,7 +280,7 @@ fn local_markov_tests(
             }
             let z: Vec<usize> = (2..cols.len()).collect();
             let res = test
-                .test_one(&cols, &z, SignificanceMethod::Analytic, &mut ws, &ctx)
+                .test_one(&cols, &z, SignificanceMethod::Analytic, &mut ws, ctx)
                 .map_err(ModelError::from)?;
             ps.push(res.p_value);
         }
@@ -438,7 +441,9 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         let model = compiled.with_mechanisms(store);
-        let rep = ModelEvaluator::default().evaluate(&model, &data).unwrap();
+        let rep = ModelEvaluator::default()
+            .evaluate(&model, &data, &ExecutionContext::for_tests(1))
+            .unwrap();
         assert!(rep.held_out_loglik.is_finite());
         assert!(rep.mean_abs_residual < 1e-6, "resid={}", rep.mean_abs_residual);
     }

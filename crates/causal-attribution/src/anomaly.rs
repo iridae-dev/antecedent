@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use causal_core::{AnomalyAttributionQuery, VariableId};
+use causal_core::{AnomalyAttributionQuery, ExecutionContext, VariableId};
 use causal_data::{TableView, TabularData};
 use causal_model::{
     CompiledCausalModel, MechanismWorkspace, ParentBatch, infer_noise_column, log_prob_column,
@@ -78,7 +78,7 @@ pub fn score_anomalies(
             n_parents: gather.n_parents(),
             values: &parent_mat[..gather.n_parents().saturating_mul(n)],
         };
-        let _ = infer_noise_column(model.mechanisms.get(dense), &y_all, parents2, &mut noise);
+        infer_noise_column(model.mechanisms.get(dense), &y_all, parents2, &mut noise)?;
 
         let mut scores = Vec::with_capacity(rows.len());
         let mut resid = Vec::with_capacity(rows.len());
@@ -152,8 +152,9 @@ pub fn intrinsic_influence(
     child: VariableId,
     delta: f64,
     max_units: usize,
+    ctx: &ExecutionContext,
 ) -> Result<f64, AttributionError> {
-    use causal_core::{ExecutionContext, Intervention, Value};
+    use causal_core::{Intervention, Value};
     use causal_model::sample_interventional;
 
     let n = data.row_count().min(max_units);
@@ -164,9 +165,8 @@ pub fn intrinsic_influence(
             max: max_units,
         });
     }
-    let mut rng = causal_core::CausalRng::from_seed(0);
+    let mut rng = ctx.rng.stream(0x1C1_u64);
     let mut ws = MechanismWorkspace::default();
-    let ctx = ExecutionContext::for_tests(1);
     let child_dense =
         model.dense_of(child).ok_or_else(|| AttributionError::Message("child missing".into()))?;
     let pcol = data.float64_values(parent).map_err(|e| AttributionError::Message(e.to_string()))?;
@@ -177,7 +177,7 @@ pub fn intrinsic_influence(
         n.max(1),
         &mut rng,
         &mut ws,
-        &ctx,
+        ctx,
     )?;
     let lo = sample_interventional(
         model,
@@ -185,7 +185,7 @@ pub fn intrinsic_influence(
         n.max(1),
         &mut rng,
         &mut ws,
-        &ctx,
+        ctx,
     )?;
     let hi_m = hi.column(child_dense.as_usize())?.iter().sum::<f64>() / n.max(1) as f64;
     let lo_m = lo.column(child_dense.as_usize())?.iter().sum::<f64>() / n.max(1) as f64;

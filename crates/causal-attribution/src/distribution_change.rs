@@ -123,6 +123,7 @@ pub fn distribution_change(
         measure: options.measure,
         n_samples: options.n_samples,
         seed: options.seed,
+        ctx,
         ws: MechanismWorkspace::default(),
     };
 
@@ -241,7 +242,7 @@ pub(crate) fn hybrid_mechanisms(
     CompiledMechanismStore { slots: Arc::from(slots) }
 }
 
-struct MechanismSwapPayoff {
+struct MechanismSwapPayoff<'a> {
     template: CompiledCausalModel,
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
@@ -250,10 +251,11 @@ struct MechanismSwapPayoff {
     measure: DifferenceMeasure,
     n_samples: usize,
     seed: u64,
+    ctx: &'a ExecutionContext,
     ws: MechanismWorkspace,
 }
 
-impl CoalitionPayoff for MechanismSwapPayoff {
+impl CoalitionPayoff for MechanismSwapPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let store = hybrid_mechanisms(
             &self.baseline,
@@ -264,13 +266,13 @@ impl CoalitionPayoff for MechanismSwapPayoff {
         );
         // Clone template shape with hybrid mechanisms (CompiledCausalModel is Clone).
         let model = self.template.clone().with_mechanisms(store);
-        let mut rng = causal_core::CausalRng::from_seed(self.seed.wrapping_add(mask));
+        let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(mask).wrapping_add(self.seed));
         let batch = sample_observational(
             &model,
             self.n_samples.max(1),
             &mut rng,
             &mut self.ws,
-            &ExecutionContext::for_tests(self.seed),
+            self.ctx,
         )?;
         let col = batch.column(self.outcome.as_usize())?;
         Ok(match self.measure {

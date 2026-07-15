@@ -49,13 +49,55 @@ pub fn mean_diff_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsErr
     Ok(((ma - mb).abs(), p.clamp(0.0, 1.0)))
 }
 
-/// Classifier two-sample proxy (1-D score separation); see [`mean_diff_two_sample`].
+/// Classifier two-sample test via Mann–Whitney U on 1-D scores (AUC-style).
+///
+/// Unlike [`mean_diff_two_sample`], this is sensitive to stochastic dominance / shape
+/// shifts, not only mean separation. Statistic is `|U / (n_a n_b) − 0.5|` (distance of
+/// AUC from chance); p-value uses the normal approximation to U.
 ///
 /// # Errors
 ///
 /// Empty samples.
 pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsError> {
-    mean_diff_two_sample(a, b)
+    if a.is_empty() || b.is_empty() {
+        return Err(StatsError::Shape {
+            message: "classifier_two_sample requires non-empty samples",
+        });
+    }
+    let na = a.len() as f64;
+    let nb = b.len() as f64;
+    // Rank all observations; average ranks for ties.
+    let mut all: Vec<(f64, u8)> = Vec::with_capacity(a.len() + b.len());
+    all.extend(a.iter().copied().map(|v| (v, 0)));
+    all.extend(b.iter().copied().map(|v| (v, 1)));
+    all.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(std::cmp::Ordering::Equal));
+    let mut ranks = vec![0.0; all.len()];
+    let mut i = 0;
+    while i < all.len() {
+        let mut j = i + 1;
+        while j < all.len() && all[j].0 == all[i].0 {
+            j += 1;
+        }
+        let avg = (i + j + 1) as f64 / 2.0; // 1-based average rank
+        for r in ranks.iter_mut().take(j).skip(i) {
+            *r = avg;
+        }
+        i = j;
+    }
+    let mut rank_sum_a = 0.0;
+    for (k, (_, lab)) in all.iter().enumerate() {
+        if *lab == 0 {
+            rank_sum_a += ranks[k];
+        }
+    }
+    let u_a = rank_sum_a - na * (na + 1.0) / 2.0;
+    let auc = u_a / (na * nb);
+    let stat = (auc - 0.5).abs();
+    let mu = na * nb / 2.0;
+    let sigma = ((na * nb * (na + nb + 1.0)) / 12.0).sqrt().max(1e-12);
+    let z = (u_a - mu).abs() / sigma;
+    let p = erfc_hastings(z / std::f64::consts::SQRT_2).clamp(0.0, 1.0);
+    Ok((stat, p))
 }
 
 /// Likelihood-ratio style residual comparison via KL between residual Gaussians.
@@ -133,5 +175,14 @@ mod tests {
             let kl = gaussian_kl(mu0, var0, mu1, var1).unwrap();
             assert!(kl >= -1e-12, "KL({mu0},{var0}‖{mu1},{var1}) = {kl}");
         }
+    }
+
+    #[test]
+    fn classifier_two_sample_detects_shift() {
+        let a: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.01).collect();
+        let b: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.01 + 3.0).collect();
+        let (stat, p) = classifier_two_sample(&a, &b).unwrap();
+        assert!(stat > 0.4, "stat={stat}");
+        assert!(p < 0.01, "p={p}");
     }
 }

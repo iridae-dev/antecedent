@@ -21,7 +21,7 @@ use causal_core::ExecutionContext;
 
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    KnnCmiWorkspace,
+    KnnCmiWorkspace, nonparametric_permutation_count,
 };
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
@@ -67,7 +67,11 @@ impl ConditionalIndependenceTest for OracleCi {
     }
 }
 
-/// kNN conditional mutual information CI (KSG-style rank proxy).
+/// kNN distance dependence CI (permutation null).
+///
+/// **Not** KSG/CMIknn: the statistic is −(mean k-th NN distance) in the joint
+/// `(X,Y,Z)` space — a generic dependence proxy for permutation testing. Factory
+/// ids `cmi_knn` / `knn_cmi` are retained for Tigramite parity naming.
 #[derive(Clone, Debug)]
 pub struct KnnCmi {
     /// Neighbors.
@@ -107,7 +111,7 @@ impl ConditionalIndependenceTest for KnnCmi {
         if workspace.block_perm.len() != n {
             workspace.block_perm = workspace.knn.perm.clone();
         }
-        let n_perm = 49usize;
+        let n_perm = nonparametric_permutation_count(request.significance);
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
@@ -140,7 +144,8 @@ impl ConditionalIndependenceTest for KnnCmi {
             ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
             debug_assert_eq!(workspace.knn.index_builds, builds_before);
             let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
-            results.push(CiResult { statistic: stat, p_value: p, df: n as f64, ci: None });
+            // df is not defined for this distance statistic; leave 0 rather than claim n.
+            results.push(CiResult { statistic: stat, p_value: p, df: 0.0, ci: None });
         }
         Ok(CiBatchResult { results })
     }
@@ -275,7 +280,7 @@ fn coarse_z_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>>
     sorted_keys.into_iter().filter_map(|k| map.remove(&k)).collect()
 }
 
-/// Mixed-data kNN CMI: ranks discrete-looking columns then runs [`KnnCmi`].
+/// Mixed-data kNN distance dependence: ranks discrete-looking columns then runs [`KnnCmi`].
 #[derive(Clone, Debug, Default)]
 pub struct MixedKnnCmi {
     inner: KnnCmi,
@@ -358,7 +363,7 @@ impl ConditionalIndependenceTest for SymbolicCmi {
             let strata = symbol_strata_sorted(request.columns, z, n);
             let mut y_perm = request.columns[q.y].to_vec();
             let mut rng = ctx.rng.stream(0x51C_u64.wrapping_add(qi as u64));
-            let n_perm = 49usize;
+            let n_perm = nonparametric_permutation_count(request.significance);
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
                 for rows in &strata {
@@ -375,7 +380,7 @@ impl ConditionalIndependenceTest for SymbolicCmi {
                 }
             }
             let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
-            results.push(CiResult { statistic: mi, p_value: p, df: n as f64, ci: None });
+            results.push(CiResult { statistic: mi, p_value: p, df: 0.0, ci: None });
         }
         Ok(CiBatchResult { results })
     }
@@ -478,7 +483,7 @@ impl ConditionalIndependenceTest for Gpdc {
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
-        let n_perm = 49usize;
+        let n_perm = nonparametric_permutation_count(request.significance);
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
@@ -500,7 +505,7 @@ impl ConditionalIndependenceTest for Gpdc {
                 }
             }
             let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
-            results.push(CiResult { statistic: dcor, p_value: p, df: n as f64, ci: None });
+            results.push(CiResult { statistic: dcor, p_value: p, df: 0.0, ci: None });
         }
         Ok(CiBatchResult { results })
     }

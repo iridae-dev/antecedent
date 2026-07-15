@@ -36,7 +36,7 @@ pub fn feature_relevance(
     let outcome_dense = model
         .dense_of(outcome)
         .ok_or_else(|| AttributionError::Message(format!("outcome {outcome} missing")))?;
-    let mut rng = causal_core::CausalRng::from_seed(0);
+    let mut rng = ctx.rng.stream(0xFEA7_u64);
     let mut ws = MechanismWorkspace::default();
     let mut out = Vec::with_capacity(features.len());
     for &feat in features {

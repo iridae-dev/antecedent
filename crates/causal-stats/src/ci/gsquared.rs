@@ -16,12 +16,13 @@
 
 use std::collections::HashMap;
 
-use causal_core::ExecutionContext;
+use causal_core::{CausalRng, ExecutionContext};
 
 use super::analytic::{ln_gamma, normal_ppf};
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    analytic_confidence_level,
 };
 
 #[cfg(test)]
@@ -45,18 +46,51 @@ impl ConditionalIndependenceTest for GSquared {
         &self,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
         let n = request.columns.first().map_or(0, |c| c.len());
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
+        let level = analytic_confidence_level(request.confidence);
         let mut results = Vec::with_capacity(request.queries.len());
-        for q in request.queries {
+        for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
             let (g, df) = g_squared_statistic(request.columns, q.x, q.y, z, n, workspace)?;
-            let p = chi2_sf(g, df);
-            let ci = Some(analytic_gsquared_ci(g, df, 0.95));
+            let (p, ci) = match request.significance {
+                super::types::SignificanceMethod::Analytic => {
+                    let p = chi2_sf(g, df);
+                    let ci = level.map(|lv| analytic_gsquared_ci(g, df, lv));
+                    (p, ci)
+                }
+                super::types::SignificanceMethod::BlockShuffle { replicates, block_size } => {
+                    let n_perm = replicates.max(1) as usize;
+                    let strata = gsq_strata(request.columns, z, n);
+                    let mut y_perm = request.columns[q.y].to_vec();
+                    let mut rng = ctx.rng.stream(0x65C0_u64.wrapping_add(qi as u64));
+                    let mut null_ge = 0u32;
+                    for _ in 0..n_perm {
+                        if block_size > 1 && z.is_empty() {
+                            block_shuffle_y(&mut y_perm, block_size, &mut rng);
+                        } else {
+                            for rows in &strata {
+                                for i in (1..rows.len()).rev() {
+                                    let j = (rng.next_u64() as usize) % (i + 1);
+                                    y_perm.swap(rows[i], rows[j]);
+                                }
+                            }
+                        }
+                        let mut cols: Vec<&[f64]> = request.columns.to_vec();
+                        cols[q.y] = &y_perm;
+                        let (g_null, _) = g_squared_statistic(&cols, q.x, q.y, z, n, workspace)?;
+                        if g_null >= g {
+                            null_ge = null_ge.saturating_add(1);
+                        }
+                    }
+                    let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
+                    (p, None)
+                }
+            };
             results.push(CiResult { statistic: g, p_value: p, df, ci });
         }
         Ok(CiBatchResult { results })
@@ -69,6 +103,47 @@ fn analytic_gsquared_ci(g: f64, df: f64, level: f64) -> (f64, f64) {
     let z = normal_ppf(0.5 + 0.5 * level.clamp(0.0, 1.0));
     let se = (2.0 * df.max(1.0)).sqrt();
     ((g - z * se).max(0.0), g + z * se)
+}
+
+fn gsq_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
+    let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
+    for r in 0..n {
+        let key = if z.is_empty() {
+            0u64
+        } else {
+            let mut h = 0xcbf2_9ce4_8422_2325_u64;
+            for &zc in z {
+                let v = columns[zc][r].round() as i32;
+                h ^= u64::from(v as u32);
+                h = h.wrapping_mul(0x0100_0000_01b3);
+            }
+            h
+        };
+        strata.entry(key).or_default().push(r);
+    }
+    let mut keys: Vec<u64> = strata.keys().copied().collect();
+    keys.sort_unstable();
+    keys.into_iter().filter_map(|k| strata.remove(&k)).collect()
+}
+
+fn block_shuffle_y(y: &mut [f64], block_size: usize, rng: &mut CausalRng) {
+    let n = y.len();
+    let bs = block_size.max(1).min(n);
+    let n_blocks = n.div_ceil(bs);
+    let mut order: Vec<usize> = (0..n_blocks).collect();
+    for i in (1..order.len()).rev() {
+        let j = (rng.next_u64() as usize) % (i + 1);
+        order.swap(i, j);
+    }
+    let original = y.to_vec();
+    let mut dest = 0;
+    for &bi in &order {
+        let start = bi * bs;
+        let end = (start + bs).min(n);
+        let len = end - start;
+        y[dest..dest + len].copy_from_slice(&original[start..end]);
+        dest += len;
+    }
 }
 
 fn g_squared_statistic(
@@ -240,7 +315,10 @@ fn gamma_q_cf(a: f64, x: f64) -> f64 {
     (-x + a * x.ln() - ln_gamma(a)).exp() * h
 }
 
-/// Regression CI: residualize X,Y on Z via OLS then correlate residuals (same as ParCorr).
+/// Residualize-then-correlate CI — an explicit alias of [`PartialCorrelation`].
+///
+/// Kept as a named entry point for callers who think in regression terms; the
+/// statistic is identical to ParCorr (DESIGN.md §12).
 #[derive(Clone, Debug, Default)]
 pub struct RegressionCi {
     inner: PartialCorrelation,

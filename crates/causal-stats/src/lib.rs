@@ -24,8 +24,8 @@ pub use ci::{
     CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, GSquared,
     Gpdc, KnnCmi, KnnCmiWorkspace, MixedKnnCmi, MultivariatePartialCorrelation, OracleCi,
     PartialCorrelation, PreparedCiTest, RegressionCi, RobustPartialCorrelation, SignificanceMethod,
-    SymbolicCmi, WeightedPartialCorrelation, analytic_parcorr_ci, calibrate_parcorr_like,
-    ci_from_name,
+    SymbolicCmi, WeightedPartialCorrelation, analytic_confidence_level, analytic_parcorr_ci,
+    calibrate_parcorr_like, ci_from_name, nonparametric_permutation_count,
 };
 pub use design::{CompiledDesign, DesignColumnRole};
 pub use divergence::{

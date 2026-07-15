@@ -28,7 +28,7 @@ pub use parcorr_variants::{
 pub use types::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, KnnCmiWorkspace,
-    PreparedCiTest, SignificanceMethod,
+    PreparedCiTest, SignificanceMethod, analytic_confidence_level, nonparametric_permutation_count,
 };
 
 #[cfg(test)]

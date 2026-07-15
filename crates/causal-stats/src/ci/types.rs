@@ -63,6 +63,28 @@ impl Default for ConfidenceMethod {
     }
 }
 
+/// How many null replicates a nonparametric CI test should draw.
+///
+/// [`SignificanceMethod::Analytic`] has no closed-form null for distance / MI proxies;
+/// those tests use a documented default of 49. [`SignificanceMethod::BlockShuffle`]
+/// honors the caller's `replicates`.
+#[must_use]
+pub fn nonparametric_permutation_count(significance: SignificanceMethod) -> usize {
+    match significance {
+        SignificanceMethod::Analytic => 49,
+        SignificanceMethod::BlockShuffle { replicates, .. } => replicates.max(1) as usize,
+    }
+}
+
+/// Confidence level for analytic intervals, if requested.
+#[must_use]
+pub fn analytic_confidence_level(confidence: ConfidenceMethod) -> Option<f64> {
+    match confidence {
+        ConfidenceMethod::None => None,
+        ConfidenceMethod::Analytic { level } => Some(level),
+    }
+}
+
 /// Preparation plan for a CI session (DESIGN.md §12 `prepare`).
 #[derive(Clone, Debug)]
 pub struct CiPreparationPlan {
