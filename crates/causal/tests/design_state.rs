@@ -64,6 +64,8 @@ fn rank_candidates_eig_conformance() {
         model_loglik: None,
         decisions: None,
         query_id_unlock: None,
+        identified_under_intervention: None,
+        graph_features: None,
     };
     let ranking =
         rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
@@ -75,7 +77,7 @@ fn rank_candidates_eig_conformance() {
         CandidateDesign::IncreaseSamplingRate(_) => "sampling",
         _ => "other",
     };
-    // Measuring with informative tag should rank at least as high as tiny sampling.
+    // Informative Measure should rank at least as high as tiny sampling.
     assert!(
         ranking.ranked[0].score + 1e-9 >= ranking.ranked[1].score,
         "scores not ordered: {} vs {}",

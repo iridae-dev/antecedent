@@ -175,7 +175,7 @@ pub use causal_design::{
     CandidateDesign, ConstraintViolation, DecisionConstraint, DecisionEvaluation, DecisionProblem,
     DecisionProblemId, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
     DesignObjective, DesignRankConfig, DesignRanker, DesignRanking, EffectWidthContext,
-    EnvironmentPlan, ExperimentPlan, MeasurementPlan, ModelLoglikDraws, RankedCandidate,
+    EnvironmentPlan, ExperimentPlan, InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, RankedCandidate,
     SamplingPlan, Utility, evaluate_decision,
 };
 pub use causal_prob::{GraphIdentFlag, WeightedGraphSamples};

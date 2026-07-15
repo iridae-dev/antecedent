@@ -10,7 +10,7 @@ notes = "Measure / Intervene / ObserveEnvironment / IncreaseSamplingRate plans"
 [[capabilities]]
 id = "design_state.eig"
 status = "done"
-notes = "Discrete graph-posterior expected information gain"
+notes = "Discrete graph-posterior EIG via observation sampling + reweight; ID via unlock/identifier flags; SE via Gram/design analysis"
 
 [[capabilities]]
 id = "design_state.id_probability"

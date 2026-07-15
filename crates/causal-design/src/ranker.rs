@@ -62,6 +62,34 @@ pub struct EffectWidthContext {
     pub treatment_col: usize,
     /// Current sample size.
     pub n: u64,
+    /// Optional Gram updates when measuring listed variables (from a design analysis).
+    pub measure_columns: Option<Arc<[MeasureColumnSpec]>>,
+    /// Optional post-intervention Gram / σ² / n from a simulated experiment design.
+    pub intervention_design: Option<InterventionDesignEffect>,
+}
+
+/// Column that would be added to the OLS design matrix if a variable is measured.
+#[derive(Clone, Debug)]
+pub struct MeasureColumnSpec {
+    /// Variable this column corresponds to.
+    pub variable: VariableId,
+    /// Cross-products with existing columns: length `p`, entry `j` is `x_new · x_j`.
+    pub cross: Arc<[f64]>,
+    /// `x_new · x_new`.
+    pub self_dot: f64,
+    /// Residual variance after including this column (`None` = keep current σ²).
+    pub sigma2_after: Option<f64>,
+}
+
+/// Simulated post-intervention OLS design used for SE reduction under [`CandidateDesign::Intervene`].
+#[derive(Clone, Debug)]
+pub struct InterventionDesignEffect {
+    /// Gram after the planned intervention design (row-major `p×p`, same `p` as baseline).
+    pub xtx: Arc<[f64]>,
+    /// Residual variance under the intervention design.
+    pub sigma2: f64,
+    /// Effective sample size under the intervention design.
+    pub n: u64,
 }
 
 /// Per-model log-likelihood draws for [`DesignObjective::DistinguishModels`].
@@ -95,8 +123,15 @@ pub struct DesignEvaluationContext<'a, A = (), O = ()> {
     pub model_loglik: Option<&'a ModelLoglikDraws>,
     /// Optional decision registry.
     pub decisions: Option<&'a DecisionRegistry<A, O>>,
-    /// Query → variables that unlock identification when measured (bitmask via var raw ids).
+    /// Query → variables that unlock identification when measured / intervened on.
     pub query_id_unlock: Option<&'a [(QueryId, Arc<[VariableId]>)]>,
+    /// Per-graph identification after intervention (length `graphs.n_samples`), from running an
+    /// identifier on the mutilated / experimental graph. Required for Intervene candidates to
+    /// gain identification mass beyond unlock-variable matches.
+    pub identified_under_intervention: Option<&'a [GraphIdentFlag]>,
+    /// Optional per-graph discrete features for EIG observation models. When `None`, graph keys
+    /// are used as categorical labels (soft observation of which posterior atom is true).
+    pub graph_features: Option<&'a [u32]>,
 }
 
 /// Rank candidate designs under an objective with batched MC and CRN.
@@ -359,11 +394,15 @@ where
     O: Clone,
 {
     match objective {
-        DesignObjective::ReduceGraphEntropy => {
-            Ok(eig_graph_entropy(candidate, ctx.graphs, graph_idx, rng))
-        }
+        DesignObjective::ReduceGraphEntropy => Ok(eig_graph_entropy(
+            candidate,
+            ctx.graphs,
+            graph_idx,
+            ctx.graph_features,
+            rng,
+        )),
         DesignObjective::IncreaseIdentificationProbability { query } => {
-            Ok(id_prob_gain(candidate, ctx, *query, graph_idx))
+            Ok(id_prob_gain(candidate, ctx, *query))
         }
         DesignObjective::ReduceEffectPosteriorWidth { query: _ } => {
             let Some(ew) = ctx.effect_width else {
@@ -392,56 +431,107 @@ where
     }
 }
 
-/// Expected information gain ≈ prior entropy − expected posterior entropy under soft evidence.
+/// Expected information gain via one posterior-simulation draw:
+/// sample observation `y ~ P(y | G★, design)`, then `H(prior) − H(p(G|y))`.
 fn eig_graph_entropy(
     candidate: &CandidateDesign,
     graphs: &WeightedGraphSamples,
     graph_idx: usize,
+    graph_features: Option<&[u32]>,
     rng: &mut CausalRng,
 ) -> f64 {
+    let n = graphs.n_samples;
+    if n == 0 {
+        return 0.0;
+    }
+    if let Some(feat) = graph_features {
+        if feat.len() != n {
+            return 0.0;
+        }
+    }
+
+    let labels: Vec<u32> = if let Some(feat) = graph_features {
+        feat.to_vec()
+    } else {
+        graphs.graph_keys.iter().map(|k| *k as u32).collect()
+    };
+
+    let mut categories: Vec<u32> = labels.clone();
+    categories.sort_unstable();
+    categories.dedup();
+    let k = categories.len();
+    if k < 2 {
+        return 0.0;
+    }
+
+    let cat_index = |label: u32| -> usize {
+        categories.binary_search(&label).unwrap_or(0)
+    };
+
     let prior_h = shannon_entropy(&graphs.weights);
-    // Soft evidence: reweight graphs whose keys interact with measured/intervened vars.
-    let strength = evidence_strength(candidate);
-    let focus = focus_key(candidate, graphs.graph_keys[graph_idx]);
+    let reliability = observation_reliability(candidate);
+    let true_cat = cat_index(labels[graph_idx]);
+
+    // Sample soft observation of the true graph's categorical feature.
+    let y = if rng.next_f64() < reliability {
+        true_cat
+    } else {
+        let mut u = (rng.next_f64() * (k - 1) as f64).floor() as usize;
+        if u >= true_cat {
+            u += 1;
+        }
+        u.min(k - 1)
+    };
+
+    let off = (1.0 - reliability) / (k - 1) as f64;
     let mut post = graphs.weights.to_vec();
     for (i, w) in post.iter_mut().enumerate() {
-        let key = graphs.graph_keys[i];
-        let agree = if key == focus { 1.0 } else { 0.35 + 0.15 * rng.next_f64() };
-        *w *= (1.0 - strength) + strength * agree;
+        let lik = if cat_index(labels[i]) == y { reliability } else { off };
+        *w *= lik;
     }
     let post_h = shannon_entropy(&post);
     (prior_h - post_h).max(0.0)
 }
 
-fn evidence_strength(candidate: &CandidateDesign) -> f64 {
+/// Deterministic observation reliability for the discrete graph-feature channel.
+fn observation_reliability(candidate: &CandidateDesign) -> f64 {
     match candidate {
-        CandidateDesign::Measure(p) => (0.15 * p.variables.len() as f64).clamp(0.05, 0.85),
-        CandidateDesign::Intervene(p) => (0.25 * p.targets.len() as f64).clamp(0.1, 0.9),
+        CandidateDesign::Measure(p) => {
+            let k = p.variables.len() as f64;
+            (1.0 - (-0.75 * k).exp()).clamp(0.05, 0.99)
+        }
+        CandidateDesign::Intervene(p) => {
+            let k = p.targets.len() as f64;
+            (1.0 - (-1.0 * k).exp()).clamp(0.05, 0.99)
+        }
         CandidateDesign::ObserveEnvironment(p) => {
-            (0.0005 * p.additional_rows as f64).clamp(0.05, 0.7)
+            let n = p.additional_rows as f64;
+            (1.0 - (1.0 + n / 50.0).recip()).clamp(0.05, 0.95)
         }
         CandidateDesign::IncreaseSamplingRate(p) => {
-            (0.0004 * p.additional_samples as f64).clamp(0.05, 0.6)
+            let n = p.additional_samples as f64;
+            (1.0 - (1.0 + n / 50.0).recip()).clamp(0.05, 0.95)
         }
     }
 }
 
-fn focus_key(candidate: &CandidateDesign, fallback: u64) -> u64 {
-    let tag = candidate.tag();
-    if tag == 0 { fallback } else { tag }
+fn evidence_strength(candidate: &CandidateDesign) -> f64 {
+    // Used only for DistinguishModels / decision scaling (not EIG / ID / SE).
+    observation_reliability(candidate)
 }
 
 fn id_prob_gain<A, O>(
     candidate: &CandidateDesign,
     ctx: &DesignEvaluationContext<'_, A, O>,
     query: QueryId,
-    graph_idx: usize,
 ) -> f64 {
     let baseline = ctx.graphs.identified_mass() / ctx.graphs.total_weight().max(1e-15);
     let unlock = ctx
         .query_id_unlock
         .and_then(|m| m.iter().find(|(q, _)| *q == query).map(|(_, v)| v.as_ref()))
         .unwrap_or(&[]);
+
+    let intervene_flags = ctx.identified_under_intervention.filter(|f| f.len() == ctx.graphs.n_samples);
 
     let mut identified = 0.0;
     let mut total = 0.0;
@@ -450,14 +540,12 @@ fn id_prob_gain<A, O>(
         total += w;
         let mut is_id = ctx.graphs.identified[i] == GraphIdentFlag::Identified;
         if !is_id {
-            is_id = candidate_unlocks(candidate, unlock)
-                || (candidate_unlocks_any(candidate) && i == graph_idx);
+            is_id = candidate_unlocks(candidate, unlock);
         }
-        // Interventions can identify by breaking backdoors on matching draws.
         if !is_id {
-            if let CandidateDesign::Intervene(p) = candidate {
-                if !p.targets.is_empty() && (ctx.graphs.graph_keys[i] % 2 == 0) {
-                    is_id = true;
+            if let CandidateDesign::Intervene(_) = candidate {
+                if let Some(flags) = intervene_flags {
+                    is_id = flags[i] == GraphIdentFlag::Identified;
                 }
             }
         }
@@ -480,44 +568,112 @@ fn candidate_unlocks(candidate: &CandidateDesign, unlock: &[VariableId]) -> bool
     }
 }
 
-fn candidate_unlocks_any(candidate: &CandidateDesign) -> bool {
-    matches!(candidate, CandidateDesign::Measure(p) if !p.variables.is_empty())
+fn treatment_se(xtx: &[f64], p: usize, treatment_col: usize, sigma2: f64) -> Option<f64> {
+    if p == 0 || treatment_col >= p || !(sigma2 > 0.0) || xtx.len() != p * p {
+        return None;
+    }
+    let inv = invert_square(xtx, p)?;
+    Some((sigma2 * inv[treatment_col * p + treatment_col].max(0.0)).sqrt())
+}
+
+fn gram_side_len(xtx: &[f64]) -> usize {
+    let n2 = xtx.len();
+    let mut k = 0usize;
+    while k * k < n2 {
+        k += 1;
+    }
+    if k * k == n2 { k } else { 0 }
+}
+
+/// Expand `p×p` Gram by appending one column with given cross-products.
+fn expand_gram(xtx: &[f64], p: usize, cross: &[f64], self_dot: f64) -> Option<Vec<f64>> {
+    if cross.len() != p || xtx.len() != p * p {
+        return None;
+    }
+    let p1 = p + 1;
+    let mut out = vec![0.0; p1 * p1];
+    for i in 0..p {
+        for j in 0..p {
+            out[i * p1 + j] = xtx[i * p + j];
+        }
+        out[i * p1 + p] = cross[i];
+        out[p * p1 + i] = cross[i];
+    }
+    out[p * p1 + p] = self_dot;
+    Some(out)
 }
 
 fn effect_width_reduction(candidate: &CandidateDesign, ew: &EffectWidthContext) -> f64 {
-    let p = {
-        let n2 = ew.xtx.len();
-        // p×p
-        let mut k = 0usize;
-        while k * k < n2 {
-            k += 1;
+    let p = gram_side_len(&ew.xtx);
+    let Some(se0) = treatment_se(&ew.xtx, p, ew.treatment_col, ew.sigma2) else {
+        return 0.0;
+    };
+
+    match candidate {
+        CandidateDesign::IncreaseSamplingRate(s) => {
+            if s.additional_samples == 0 {
+                return 0.0;
+            }
+            // XtX scales with n; SE scales as 1/sqrt(n).
+            let n1 = (ew.n + s.additional_samples) as f64;
+            let n0 = ew.n.max(1) as f64;
+            let se1 = se0 * (n0 / n1).sqrt();
+            (se0 - se1).max(0.0)
         }
-        k
-    };
-    if p == 0 || ew.treatment_col >= p || ew.sigma2 <= 0.0 {
-        return 0.0;
-    }
-    let Some(inv) = invert_square(ew.xtx.as_ref(), p) else {
-        return 0.0;
-    };
-    let se0 = (ew.sigma2 * inv[ew.treatment_col * p + ew.treatment_col].max(0.0)).sqrt();
-    let add_n = match candidate {
-        CandidateDesign::IncreaseSamplingRate(s) => s.additional_samples,
-        CandidateDesign::ObserveEnvironment(e) => e.additional_rows,
-        CandidateDesign::Measure(_) => {
-            // Measuring a confounder ≈ adding one orthogonal column: shrink SE mildly.
-            return se0 * 0.15;
+        CandidateDesign::ObserveEnvironment(e) => {
+            if e.additional_rows == 0 {
+                return 0.0;
+            }
+            let n1 = (ew.n + e.additional_rows) as f64;
+            let n0 = ew.n.max(1) as f64;
+            let se1 = se0 * (n0 / n1).sqrt();
+            (se0 - se1).max(0.0)
         }
-        CandidateDesign::Intervene(_) => return se0 * 0.1,
-    };
-    if add_n == 0 {
-        return 0.0;
+        CandidateDesign::Measure(plan) => {
+            let Some(specs) = ew.measure_columns.as_ref() else {
+                // No design-analysis columns → cannot claim SE reduction.
+                return 0.0;
+            };
+            let mut xtx = ew.xtx.to_vec();
+            let mut cur_p = p;
+            let mut sigma2 = ew.sigma2;
+            let mut matched = 0usize;
+            for v in plan.variables.iter() {
+                let Some(spec) = specs.iter().find(|s| s.variable == *v) else {
+                    continue;
+                };
+                let Some(expanded) = expand_gram(&xtx, cur_p, &spec.cross, spec.self_dot) else {
+                    return 0.0;
+                };
+                xtx = expanded;
+                cur_p += 1;
+                if let Some(s2) = spec.sigma2_after {
+                    sigma2 = s2;
+                }
+                matched += 1;
+            }
+            if matched == 0 {
+                return 0.0;
+            }
+            let Some(se1) = treatment_se(&xtx, cur_p, ew.treatment_col, sigma2) else {
+                return 0.0;
+            };
+            (se0 - se1).max(0.0)
+        }
+        CandidateDesign::Intervene(_) => {
+            let Some(design) = ew.intervention_design.as_ref() else {
+                return 0.0;
+            };
+            let p1 = gram_side_len(&design.xtx);
+            if p1 != p {
+                return 0.0;
+            }
+            let Some(se1) = treatment_se(&design.xtx, p1, ew.treatment_col, design.sigma2) else {
+                return 0.0;
+            };
+            (se0 - se1).max(0.0)
+        }
     }
-    // Approximate: XtX scales with n; SE scales as 1/sqrt(n).
-    let n1 = (ew.n + add_n) as f64;
-    let n0 = ew.n.max(1) as f64;
-    let se1 = se0 * (n0 / n1).sqrt();
-    (se0 - se1).max(0.0)
 }
 
 fn model_distinguish_score(
@@ -641,13 +797,15 @@ mod tests {
             model_loglik: None,
             decisions: None,
             query_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
         };
         let ranking = ranker
             .rank(&DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
             .expect("rank");
         assert_eq!(ranking.ranked.len(), 2);
         assert!(ranking.budget.samples > 0);
-        // Measuring with matching tag should not score below tiny sampling on average.
+        // Higher-reliability Measure should not score below tiny sampling on average.
         assert!(ranking.ranked[0].score >= ranking.ranked[1].score - 1e-9);
     }
 
@@ -668,6 +826,8 @@ mod tests {
             model_loglik: None,
             decisions: None,
             query_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
         };
         let ranking = ranker
             .rank(&DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
@@ -700,6 +860,8 @@ mod tests {
             model_loglik: None,
             decisions: None,
             query_id_unlock: Some(&unlock),
+            identified_under_intervention: None,
+            graph_features: None,
         };
         let ranking = ranker
             .rank(
@@ -710,5 +872,148 @@ mod tests {
             )
             .expect("rank");
         assert!(ranking.ranked[0].score > 0.0);
+    }
+
+    #[test]
+    fn intervene_without_identifier_flags_does_not_fabricate_id() {
+        use crate::candidate::ExperimentPlan;
+        let graphs = toy_graphs();
+        let q = QueryId::from_raw(0);
+        let candidates = vec![CandidateDesign::Intervene(ExperimentPlan {
+            targets: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 1,
+        })];
+        let ranker = DesignRanker::new().with_config(DesignRankConfig {
+            min_batches: 2,
+            max_batches: 4,
+            batch_size: 4,
+            rank_uncertainty_threshold: 1.0,
+        });
+        let ctx = ExecutionContext::for_tests(3);
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let ranking = ranker
+            .rank(
+                &DesignObjective::IncreaseIdentificationProbability { query: q },
+                &candidates,
+                &eval,
+                &ctx,
+            )
+            .expect("rank");
+        assert!(ranking.ranked[0].score.abs() < 1e-12);
+    }
+
+    #[test]
+    fn intervene_uses_identifier_flags() {
+        use crate::candidate::ExperimentPlan;
+        let graphs = toy_graphs();
+        let q = QueryId::from_raw(0);
+        let flags = [
+            GraphIdentFlag::Identified,
+            GraphIdentFlag::Identified,
+            GraphIdentFlag::Identified,
+        ];
+        let candidates = vec![CandidateDesign::Intervene(ExperimentPlan {
+            targets: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 1,
+        })];
+        let ranker = DesignRanker::new().with_config(DesignRankConfig {
+            min_batches: 2,
+            max_batches: 4,
+            batch_size: 4,
+            rank_uncertainty_threshold: 1.0,
+        });
+        let ctx = ExecutionContext::for_tests(3);
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            identified_under_intervention: Some(&flags),
+            graph_features: None,
+        };
+        let ranking = ranker
+            .rank(
+                &DesignObjective::IncreaseIdentificationProbability { query: q },
+                &candidates,
+                &eval,
+                &ctx,
+            )
+            .expect("rank");
+        // Baseline identified mass 0.5 → post 1.0 → gain 0.5
+        assert!((ranking.ranked[0].score - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn measure_se_reduction_requires_column_spec() {
+        // Baseline: X = [1, T] with orthogonal columns.
+        let xtx = Arc::from([10.0_f64, 0.0, 0.0, 10.0]);
+        let ew_bare = EffectWidthContext {
+            xtx: Arc::clone(&xtx),
+            sigma2: 1.0,
+            treatment_col: 1,
+            n: 10,
+            measure_columns: None,
+            intervention_design: None,
+        };
+        let measure = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(2)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        assert_eq!(effect_width_reduction(&measure, &ew_bare), 0.0);
+
+        let spec = MeasureColumnSpec {
+            variable: VariableId::from_raw(2),
+            cross: Arc::from([0.0, 0.0]),
+            self_dot: 10.0,
+            sigma2_after: Some(0.5),
+        };
+        let ew = EffectWidthContext {
+            xtx,
+            sigma2: 1.0,
+            treatment_col: 1,
+            n: 10,
+            measure_columns: Some(Arc::from([spec])),
+            intervention_design: None,
+        };
+        let red = effect_width_reduction(&measure, &ew);
+        assert!(red > 0.0, "expected positive SE reduction, got {red}");
+    }
+
+    #[test]
+    fn eig_is_nonnegative_and_measure_beats_weak_sampling() {
+        let graphs = toy_graphs();
+        let mut rng = ExecutionContext::for_tests(99).rng.stream(1);
+        let measure = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(1), VariableId::from_raw(2)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        let sampling = CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+            additional_samples: 1,
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        let mut eig_m = 0.0;
+        let mut eig_s = 0.0;
+        for g in 0..graphs.n_samples {
+            let em = eig_graph_entropy(&measure, &graphs, g, None, &mut rng);
+            let es = eig_graph_entropy(&sampling, &graphs, g, None, &mut rng);
+            assert!(em >= 0.0 && es >= 0.0);
+            eig_m += em;
+            eig_s += es;
+        }
+        assert!(eig_m > eig_s);
     }
 }

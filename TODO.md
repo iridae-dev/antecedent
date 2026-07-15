@@ -4,7 +4,7 @@ Prioritized backlog from the 2026-07-22 full-repo review (math correctness and D
 parity, DESIGN.md conformance, code quality). Ranked by order to address: P0 first. DESIGN.md is
 the conceptual roadmap — items in P5 are planned features not yet built, not documentation errors.
 
-P0 (confirmed wrong math), P1.1–P1.11 (graph-layer soundness), and P2.1–P2.4 / P2.7–P2.11
+P0 (confirmed wrong math), P1.1–P1.11 (graph-layer soundness), and P2.1–P2.4 / P2.6–P2.11
 (honest reporting) were verified fixed against the code on 2026-07-22 and removed from this
 backlog. Remaining P1 item below is interim only.
 
@@ -55,14 +55,11 @@ likelihood-based model comparison for discrete conditionals.
 **Status:** Honesty subset done earlier; `ExecutionContext::production` + `threads=` kwargs wired on
 bindings that run native work. Remaining: rich returns, stubs, exception taxonomy.
 
-### P2.6 `causal-design` ranker objectives are fabricated
-`crates/causal-design/src/ranker.rs:409,459,507-511`
-"Expected information gain" = `0.35 + 0.15 * rng.next_f64()`; identifiability decided by
-`graph_keys[i] % 2 == 0` (parity of an opaque key); hardcoded SE reductions `se0 * 0.15` / `* 0.1`.
-Exported as `causal::rank_designs` "(DESIGN.md §19)". The Monte-Carlo/CRN scaffolding around these
-is real; the payoffs it averages are placeholders.
-**Fix:** implement the real objectives (EIG via posterior simulation; identifiability via the
-actual identifier on the candidate graph; SE reduction via simulated design analysis). Do not ship silent placeholder numbers.
+### P2.6 `causal-design` ranker objectives — fixed
+EIG uses discrete observation sampling + posterior reweight (no RNG likelihood noise).
+Identification uses unlock vars and caller-supplied `identified_under_intervention` flags
+(no graph-key parity). Effect-width SE uses Gram expansion / intervention design analysis
+(no hardcoded `0.15`/`0.1` fractions); missing analysis → score 0.
 
 ### P2.12 Silent-fallback sweep — fixed
 All listed sites addressed: NaN rejection in transforms; block bootstrap errors when

@@ -55,6 +55,8 @@ fn bench_rank(c: &mut Criterion) {
         model_loglik: None,
         decisions: None,
         query_id_unlock: None,
+        identified_under_intervention: None,
+        graph_features: None,
     };
     c.bench_function("design_rank_eig_8_candidates", |b| {
         b.iter(|| {

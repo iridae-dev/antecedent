@@ -1239,6 +1239,8 @@ fn rank_design_eig(
         model_loglik: None,
         decisions: None,
         query_id_unlock: None,
+        identified_under_intervention: None,
+        graph_features: None,
     };
     let ranking =
         rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
