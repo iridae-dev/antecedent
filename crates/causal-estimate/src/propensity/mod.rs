@@ -38,7 +38,7 @@ use causal_stats::{
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
-use crate::util::{sample_std, stats_err};
+use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
 
 include!("prepare.rs");
 include!("weighting.rs");

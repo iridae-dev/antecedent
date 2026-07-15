@@ -79,7 +79,7 @@ impl PropensityWeighting {
         let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
         let se_analytic = hajek_analytic_se(&problem.treatment, &problem.outcome, &weights);
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
             Some(self.bootstrap_se(problem, target, trim, workspace, ctx)?)
@@ -94,12 +94,15 @@ impl PropensityWeighting {
         Ok(EffectEstimate {
             ate,
             se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report,
             retained_memory_bytes: Some(workspace.retained_memory_bytes()),
-        })
+        }
+        .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -109,7 +112,7 @@ impl PropensityWeighting {
         trim: Option<f64>,
         workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<f64, EstimationError> {
+    ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
         let mut rng = ctx.rng.stream(0x9A17_u64);
         let n = problem.nrows;
@@ -117,17 +120,15 @@ impl PropensityWeighting {
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                t_boot[r] = problem.treatment[idx];
-                y_boot[r] = problem.outcome[idx];
+        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                t_boot[r] = problem.treatment[src];
+                y_boot[r] = problem.outcome[src];
                 for c in 0..ncols {
-                    x_boot[c * n + r] = problem.design_matrix[c * n + idx];
+                    x_boot[c * n + r] = problem.design_matrix[c * n + src];
                 }
             }
-            let fit = fit_propensity(
+            let Ok(fit) = fit_propensity(
                 &x_boot,
                 n,
                 ncols,
@@ -135,22 +136,20 @@ impl PropensityWeighting {
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
-            )
-            .map_err(stats_err)?;
+            ) else {
+                return Ok(None);
+            };
             let raw = fit.scores;
             let mut clipped = raw.clone();
             if let Some(c) = clip {
                 clamp_scores(&mut clipped, c);
             }
             let w = compute_ipw_weights(&t_boot, &clipped, &raw, target, trim);
-            if let Ok(a) = hajek_difference(&t_boot, &y_boot, &w) {
-                estimates.push(a);
+            match hajek_difference(&t_boot, &y_boot, &w) {
+                Ok(a) => Ok(Some(a)),
+                Err(_) => Ok(None),
             }
-        }
-        if estimates.len() < 2 {
-            return Ok(f64::NAN);
-        }
-        Ok(sample_std(&estimates))
+        })
     }
 }
 

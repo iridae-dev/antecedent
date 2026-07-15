@@ -104,10 +104,10 @@ impl DistanceMatching {
             workspace,
         )?;
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
-            Some(self.bootstrap_se(problem, dim, &features, trim, workspace, ctx))
+            Some(self.bootstrap_se(problem, dim, &features, trim, workspace, ctx)?)
         };
 
         let overlap_report =
@@ -116,12 +116,15 @@ impl DistanceMatching {
         Ok(EffectEstimate {
             ate: result.ate,
             se_analytic: result.se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report,
             retained_memory_bytes: Some(workspace.retained_memory_bytes()),
-        })
+        }
+        .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -132,7 +135,7 @@ impl DistanceMatching {
         trim: Option<f64>,
         workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
-    ) -> f64 {
+    ) -> Result<BootstrapSeResult, EstimationError> {
         let mut rng = ctx.rng.stream(0x7C11_u64);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
@@ -141,18 +144,16 @@ impl DistanceMatching {
         let mut x_boot = if trim.is_some() { vec![0.0; n * ncols] } else { Vec::new() };
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                t_boot[r] = problem.treatment[idx];
-                y_boot[r] = problem.outcome[idx];
+        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                t_boot[r] = problem.treatment[src];
+                y_boot[r] = problem.outcome[src];
                 for d in 0..dim {
-                    feat_boot[r * dim + d] = features[idx * dim + d];
+                    feat_boot[r * dim + d] = features[src * dim + d];
                 }
                 if trim.is_some() {
                     for c in 0..ncols {
-                        x_boot[c * n + r] = problem.design_matrix[c * n + idx];
+                        x_boot[c * n + r] = problem.design_matrix[c * n + src];
                     }
                 }
             }
@@ -166,18 +167,18 @@ impl DistanceMatching {
                     &mut workspace.propensity,
                     &self.glm_options,
                 ) else {
-                    continue;
+                    return Ok(None);
                 };
                 match trim_retained_rows(&fit.scores, trim) {
                     Ok(r) => r,
-                    Err(_) => continue,
+                    Err(_) => return Ok(None),
                 }
             } else {
                 None
             };
             let (t_used, y_used, f_used) =
                 restrict_to_rows(&t_boot, &y_boot, &feat_boot, dim, retained.as_deref());
-            if let Ok(m) = matching_contrast(
+            match matching_contrast(
                 &t_used,
                 &y_used,
                 &f_used,
@@ -187,12 +188,9 @@ impl DistanceMatching {
                 self.caliper,
                 workspace,
             ) {
-                estimates.push(m.ate);
+                Ok(m) => Ok(Some(m.ate)),
+                Err(_) => Ok(None),
             }
-        }
-        if estimates.len() < 2 {
-            return f64::NAN;
-        }
-        sample_std(&estimates)
+        })
     }
 }

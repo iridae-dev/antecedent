@@ -46,8 +46,12 @@ pub struct EffectEstimate {
     pub ate: f64,
     /// Analytic IID standard error (homoskedastic).
     pub se_analytic: f64,
-    /// Bootstrap standard error (if requested).
+    /// Bootstrap standard error (if requested and enough survivors).
     pub se_bootstrap: Option<f64>,
+    /// Successful bootstrap replicates when bootstrap was requested.
+    pub bootstrap_replicates_ok: Option<u32>,
+    /// Soft-failed bootstrap replicates when bootstrap was requested.
+    pub bootstrap_replicates_failed: Option<u32>,
     /// Assumptions carried from identification.
     pub assumptions: AssumptionSet,
     /// Overlap policy recorded on the artifact.
@@ -56,6 +60,26 @@ pub struct EffectEstimate {
     pub overlap_report: Option<OverlapReport>,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,
+}
+
+impl EffectEstimate {
+    /// Attach bootstrap SE accounting (or clear when bootstrap was skipped).
+    #[must_use]
+    pub fn with_bootstrap(mut self, boot: Option<crate::util::BootstrapSeResult>) -> Self {
+        match boot {
+            None => {
+                self.se_bootstrap = None;
+                self.bootstrap_replicates_ok = None;
+                self.bootstrap_replicates_failed = None;
+            }
+            Some(b) => {
+                self.se_bootstrap = b.se;
+                self.bootstrap_replicates_ok = Some(b.replicates_ok);
+                self.bootstrap_replicates_failed = Some(b.replicates_failed);
+            }
+        }
+        self
+    }
 }
 
 /// Linear adjustment estimator for backdoor ATE.
@@ -170,7 +194,7 @@ impl LinearAdjustmentAte {
         );
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
             Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
@@ -179,12 +203,15 @@ impl LinearAdjustmentAte {
         Ok(EffectEstimate {
             ate,
             se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
             retained_memory_bytes: None,
-        })
+        }
+        .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -193,26 +220,24 @@ impl LinearAdjustmentAte {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
         t_col: usize,
-    ) -> Result<f64, EstimationError> {
+    ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
         let mut rng = ctx.rng.stream(0xA7E_u64);
         let n = problem.design.nrows;
         let p = problem.design.ncols;
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
-        let se = crate::util::bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        crate::util::bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 y_boot[r] = problem.design.outcome[src];
                 for c in 0..p {
                     x_boot[c * n + r] = problem.design.matrix[c * n + src];
                 }
             }
-            let fit = self
-                .backend
-                .least_squares(&x_boot, n, p, &y_boot, &mut workspace.ols)
-                .map_err(EstimationError::from)?;
-            Ok(Some(fit.coefficients[t_col] * problem.treatment_delta))
-        })?;
-        Ok(se.unwrap_or(f64::NAN))
+            match self.backend.least_squares(&x_boot, n, p, &y_boot, &mut workspace.ols) {
+                Ok(fit) => Ok(Some(fit.coefficients[t_col] * problem.treatment_delta)),
+                Err(_) => Ok(None),
+            }
+        })
     }
 }
 

@@ -35,7 +35,7 @@ use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::gcomp::gcomp_diffs;
 use crate::overlap::OverlapPolicy;
-use crate::util::{sample_std, stats_err};
+use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -258,21 +258,24 @@ impl GlmAdjustmentAte {
             glm_fit.deviance,
         );
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
-            Some(self.bootstrap_se(problem, workspace, ctx, t_col))
+            Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
         };
 
         Ok(EffectEstimate {
             ate,
             se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
             retained_memory_bytes: None,
-        })
+        }
+        .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -281,19 +284,17 @@ impl GlmAdjustmentAte {
         workspace: &mut GlmAdjustmentWorkspace,
         ctx: &ExecutionContext,
         t_col: usize,
-    ) -> f64 {
+    ) -> Result<BootstrapSeResult, EstimationError> {
         let mut rng = ctx.rng.stream(0xC17A_u64);
         let n = problem.design.nrows;
         let p = problem.design.ncols;
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
-        let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                y_boot[r] = problem.design.outcome[idx];
+        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                y_boot[r] = problem.design.outcome[src];
                 for c in 0..p {
-                    x_boot[c * n + r] = problem.design.matrix[c * n + idx];
+                    x_boot[c * n + r] = problem.design.matrix[c * n + src];
                 }
             }
             let Ok(fit) = fit_glm(
@@ -303,10 +304,10 @@ impl GlmAdjustmentAte {
                 &mut workspace.ols,
                 &self.glm_options,
             ) else {
-                continue;
+                return Ok(None);
             };
             if fit.require_ok().is_err() {
-                continue;
+                return Ok(None);
             };
             let diffs = gcomp_diffs(
                 problem.family,
@@ -319,12 +320,8 @@ impl GlmAdjustmentAte {
                 problem.control,
             );
             let m = diffs.len() as f64;
-            estimates.push(diffs.iter().sum::<f64>() / m);
-        }
-        if estimates.len() < 2 {
-            return f64::NAN;
-        }
-        sample_std(&estimates)
+            Ok(Some(diffs.iter().sum::<f64>() / m))
+        })
     }
 }
 

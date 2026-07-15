@@ -91,7 +91,7 @@ impl PropensityMatching {
             workspace,
         )?;
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
             Some(self.bootstrap_se(problem, trim, workspace, ctx)?)
@@ -103,12 +103,15 @@ impl PropensityMatching {
         Ok(EffectEstimate {
             ate: result.ate,
             se_analytic: result.se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report,
             retained_memory_bytes: Some(workspace.retained_memory_bytes()),
-        })
+        }
+        .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -117,7 +120,7 @@ impl PropensityMatching {
         trim: Option<f64>,
         workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<f64, EstimationError> {
+    ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
         let mut rng = ctx.rng.stream(0x51E7_u64);
         let n = problem.nrows;
@@ -125,17 +128,15 @@ impl PropensityMatching {
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                t_boot[r] = problem.treatment[idx];
-                y_boot[r] = problem.outcome[idx];
+        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                t_boot[r] = problem.treatment[src];
+                y_boot[r] = problem.outcome[src];
                 for c in 0..ncols {
-                    x_boot[c * n + r] = problem.design_matrix[c * n + idx];
+                    x_boot[c * n + r] = problem.design_matrix[c * n + src];
                 }
             }
-            let fit = fit_propensity(
+            let Ok(fit) = fit_propensity(
                 &x_boot,
                 n,
                 ncols,
@@ -143,19 +144,20 @@ impl PropensityMatching {
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
-            )
-            .map_err(stats_err)?;
+            ) else {
+                return Ok(None);
+            };
             let raw = fit.scores;
             let mut scores = raw.clone();
             if let Some(c) = clip {
                 clamp_scores(&mut scores, c);
             }
             let Ok(retained) = trim_retained_rows(&raw, trim) else {
-                continue;
+                return Ok(None);
             };
             let (t_used, y_used, s_used) =
                 restrict_to_rows(&t_boot, &y_boot, &scores, 1, retained.as_deref());
-            if let Ok(m) = matching_contrast(
+            match matching_contrast(
                 &t_used,
                 &y_used,
                 &s_used,
@@ -165,12 +167,9 @@ impl PropensityMatching {
                 self.caliper,
                 workspace,
             ) {
-                estimates.push(m.ate);
+                Ok(m) => Ok(Some(m.ate)),
+                Err(_) => Ok(None),
             }
-        }
-        if estimates.len() < 2 {
-            return Ok(f64::NAN);
-        }
-        Ok(sample_std(&estimates))
+        })
     }
 }

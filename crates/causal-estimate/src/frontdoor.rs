@@ -58,7 +58,7 @@ use causal_stats::{
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::util::{sample_std, stats_err};
+use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
 
 /// Stage-1 design column count: `[1, T]`.
 const STAGE1_NCOLS: usize = 2;
@@ -253,21 +253,24 @@ impl FrontDoorTwoStage {
             * problem.treatment_delta;
         let se_analytic = var_ate.max(0.0).sqrt();
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
-            Some(self.bootstrap_se(problem, workspace, ctx))
+            Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
         Ok(EffectEstimate {
             ate,
             se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
             retained_memory_bytes: None,
-        })
+        }
+        .with_bootstrap(boot))
     }
 
     fn fit_stage1(
@@ -302,33 +305,29 @@ impl FrontDoorTwoStage {
         problem: &PreparedFrontDoorProblem,
         workspace: &mut FrontDoorWorkspace,
         ctx: &ExecutionContext,
-    ) -> f64 {
+    ) -> Result<BootstrapSeResult, EstimationError> {
         let mut rng = ctx.rng.stream(0xF80D_u64);
         let n = problem.nrows;
         let mut t_boot = vec![0.0; n];
         let mut m_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                t_boot[r] = problem.treatment[idx];
-                m_boot[r] = problem.mediator[idx];
-                y_boot[r] = problem.outcome[idx];
+        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                t_boot[r] = problem.treatment[src];
+                m_boot[r] = problem.mediator[src];
+                y_boot[r] = problem.outcome[src];
             }
-            let Ok(stage1) = self.fit_stage1(&t_boot, &m_boot, workspace) else { continue };
+            let Ok(stage1) = self.fit_stage1(&t_boot, &m_boot, workspace) else {
+                return Ok(None);
+            };
             let Ok(stage2) = self.fit_stage2(&t_boot, &m_boot, &y_boot, workspace) else {
-                continue;
+                return Ok(None);
             };
             let ate = stage1.coefficients[STAGE1_TREATMENT_COL]
                 * stage2.coefficients[STAGE2_MEDIATOR_COL]
                 * problem.treatment_delta;
-            estimates.push(ate);
-        }
-        if estimates.len() < 2 {
-            return f64::NAN;
-        }
-        sample_std(&estimates)
+            Ok(Some(ate))
+        })
     }
 }
 

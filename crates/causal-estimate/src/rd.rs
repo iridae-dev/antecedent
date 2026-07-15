@@ -34,7 +34,7 @@ use causal_stats::{
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::util::{sample_std, stats_err};
+use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
 
 /// Local-linear RD design column count: `[1, T, (R-c), T·(R-c)]`.
 const RD_NCOLS: usize = 4;
@@ -234,21 +234,24 @@ impl SharpRegressionDiscontinuity {
         let sigma2 = fit.rss / (n - p).max(1.0);
         let se_analytic = analytic_se_treatment(&problem.matrix, problem.nrows, sigma2);
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
-            Some(self.bootstrap_se(problem, workspace, ctx))
+            Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
         Ok(EffectEstimate {
             ate,
             se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
             retained_memory_bytes: None,
-        })
+        }
+        .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -256,31 +259,23 @@ impl SharpRegressionDiscontinuity {
         problem: &PreparedRdProblem,
         workspace: &mut RdWorkspace,
         ctx: &ExecutionContext,
-    ) -> f64 {
+    ) -> Result<BootstrapSeResult, EstimationError> {
         let mut rng = ctx.rng.stream(0x5D0C_u64);
         let n = problem.nrows;
         let mut x_boot = vec![0.0; n * RD_NCOLS];
         let mut y_boot = vec![0.0; n];
-        let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                y_boot[r] = problem.outcome[idx];
+        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                y_boot[r] = problem.outcome[src];
                 for c in 0..RD_NCOLS {
-                    x_boot[c * n + r] = problem.matrix[c * n + idx];
+                    x_boot[c * n + r] = problem.matrix[c * n + src];
                 }
             }
-            let Ok(fit) =
-                self.backend.least_squares(&x_boot, n, RD_NCOLS, &y_boot, &mut workspace.ols)
-            else {
-                continue;
-            };
-            estimates.push(fit.coefficients[RD_TREATMENT_COL]);
-        }
-        if estimates.len() < 2 {
-            return f64::NAN;
-        }
-        sample_std(&estimates)
+            match self.backend.least_squares(&x_boot, n, RD_NCOLS, &y_boot, &mut workspace.ols) {
+                Ok(fit) => Ok(Some(fit.coefficients[RD_TREATMENT_COL])),
+                Err(_) => Ok(None),
+            }
+        })
     }
 }
 

@@ -56,15 +56,60 @@ pub(crate) fn sample_std(values: &[f64]) -> f64 {
     var.sqrt()
 }
 
-/// IID bootstrap standard error: draw `replicates` estimates via `estimate`, then [`sample_std`].
+/// Outcome of an IID bootstrap SE computation with failure accounting.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BootstrapSeResult {
+    /// Sample SD of successful replicate ATEs; `None` if too few survivors or too many failures.
+    pub se: Option<f64>,
+    /// Replicates that produced a finite estimate.
+    pub replicates_ok: u32,
+    /// Replicates that soft-failed (skipped) or did not yield an estimate.
+    pub replicates_failed: u32,
+}
+
+impl BootstrapSeResult {
+    /// Empty / skipped bootstrap (zero replicates requested).
+    #[must_use]
+    pub const fn skipped() -> Self {
+        Self { se: None, replicates_ok: 0, replicates_failed: 0 }
+    }
+}
+
+/// Maximum allowed soft-failure fraction before refusing to report an SE.
+pub(crate) const BOOTSTRAP_MAX_FAILURE_FRAC: f64 = 0.5;
+
+/// Finalize a bootstrap SE from successful replicate ATEs.
+#[must_use]
+pub(crate) fn finalize_bootstrap_se(ates: &[f64], replicates: u32) -> BootstrapSeResult {
+    let ok = u32::try_from(ates.len()).unwrap_or(u32::MAX);
+    let failed = replicates.saturating_sub(ok);
+    let too_few = ates.len() < 2;
+    let fail_frac = if replicates == 0 {
+        0.0
+    } else {
+        f64::from(failed) / f64::from(replicates)
+    };
+    let se = if too_few || fail_frac > BOOTSTRAP_MAX_FAILURE_FRAC {
+        None
+    } else {
+        let s = sample_std(ates);
+        if s.is_finite() { Some(s) } else { None }
+    };
+    BootstrapSeResult { se, replicates_ok: ok, replicates_failed: failed }
+}
+
+/// IID bootstrap standard error with failure accounting.
+///
+/// `estimate` should return `Ok(Some(ate))` on success, `Ok(None)` for a soft-failed replicate
+/// (counted as failed, bootstrap continues), or `Err` to abort the whole bootstrap.
 pub(crate) fn bootstrap_se(
     replicates: u32,
     rng: &mut CausalRng,
     n: usize,
     mut estimate: impl FnMut(&[usize]) -> Result<Option<f64>, EstimationError>,
-) -> Result<Option<f64>, EstimationError> {
+) -> Result<BootstrapSeResult, EstimationError> {
     if replicates == 0 || n == 0 {
-        return Ok(None);
+        return Ok(BootstrapSeResult::skipped());
     }
     let mut ates = Vec::with_capacity(replicates as usize);
     let mut idx = vec![0usize; n];
@@ -76,10 +121,25 @@ pub(crate) fn bootstrap_se(
             ates.push(ate);
         }
     }
-    if ates.len() < 2 {
-        return Ok(Some(f64::NAN));
+    Ok(finalize_bootstrap_se(&ates, replicates))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finalize_refuses_se_when_too_few_or_too_many_failures() {
+        assert!(finalize_bootstrap_se(&[], 10).se.is_none());
+        assert!(finalize_bootstrap_se(&[1.0], 10).se.is_none());
+        let many_fail = finalize_bootstrap_se(&[1.0, 1.1], 10);
+        assert_eq!(many_fail.replicates_ok, 2);
+        assert_eq!(many_fail.replicates_failed, 8);
+        assert!(many_fail.se.is_none(), "80% failure must refuse SE");
+        let ok = finalize_bootstrap_se(&[1.0, 1.2, 0.9, 1.1], 4);
+        assert!(ok.se.is_some());
+        assert_eq!(ok.replicates_failed, 0);
     }
-    Ok(Some(sample_std(&ates)))
 }
 
 /// OLS via normal equations on a column-major design matrix.

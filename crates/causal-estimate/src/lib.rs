@@ -23,11 +23,12 @@ pub mod propensity;
 pub mod rd;
 pub mod temporal_adjustment;
 pub mod temporal_mediation;
-mod util;
+pub mod util;
 
 pub use adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem,
 };
+pub use util::BootstrapSeResult;
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,

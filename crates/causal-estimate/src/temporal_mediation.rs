@@ -144,6 +144,8 @@ impl TemporalMediationEstimator {
                 ate: point,
                 se_analytic,
                 se_bootstrap: None,
+                bootstrap_replicates_ok: None,
+                bootstrap_replicates_failed: None,
                 assumptions: AssumptionSet::default(),
                 overlap: crate::overlap::OverlapPolicy::ExplicitOverride,
                 overlap_report: None,

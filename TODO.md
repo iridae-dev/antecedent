@@ -65,7 +65,7 @@ site; consider an optional ridge penalty as a separation fallback (ties into P5 
 **Status:** Fixed — `GlmFit.separated` + `require_ok()`; hard-fail in `fit_propensity`,
 `PropensityModel::fit`, and `GlmAdjustmentAte::fit`. Ridge fallback remains P5.
 
-### P2.4 Systemic silent bootstrap replicate-dropping in causal-estimate
+### P2.4 Systemic silent bootstrap replicate-dropping in causal-estimate — DONE
 Failed replicates are skipped uncounted, so `se_bootstrap` is a `sample_std` over a
 selection-biased survivor set, and <2 survivors yields `Some(NaN)` — callers can't distinguish
 "bootstrap failed" from "ran". Sites:
@@ -75,8 +75,11 @@ selection-biased survivor set, and <2 survivors yields `Some(NaN)` — callers c
 **Fix:** count failures, expose `replicates_failed` in the result, and error (or return `None` with
 a diagnostic) above a failure threshold. Best done together with P6.3 (consolidate the 8 copy-pasted
 bootstrap loops onto one shared helper so the fix lands once).
+**Status:** Fixed — shared `bootstrap_se` + `BootstrapSeResult`; `se=None` when <2 survivors or
+>50% soft-failures (never `Some(NaN)`); `EffectEstimate.bootstrap_replicates_{ok,failed}` exposed.
+Full P6.3 resample engine still open.
 
-### P2.5 Python bindings: suppressed refuters, swallowed errors, test execution context
+### P2.5 Python bindings: suppressed refuters, swallowed errors, test execution context — partial
 `python/src/lib.rs`
 - Line 307: Bayesian mode overwrites the user's `refute=True` with `RefuteSuite::None`; lines
   327-328 then compute `refutation_passed = result.refutations.is_empty() || …` → reports
@@ -95,6 +98,9 @@ bootstrap loops onto one shared helper so the fix lands once).
 - `load_float64_columns` (lib.rs:186-199) loads, counts bytes, and drops the data; exists only to
   satisfy the copy-gate test. Make it feed the real ingestion path or fold the gate into it.
 - All errors collapse to `ValueError` — map error categories to distinct exception types.
+**Status (honesty subset):** Bayesian no longer forces `RefuteSuite::None`; `refutation_ran` /
+`refutation_passed=false` when none ran; posterior encode/`probability_below` errors raise.
+Remaining: real `ExecutionContext`/`threads=`, rich returns, stubs, exception taxonomy.
 
 ### P2.6 `causal-design` ranker objectives are fabricated
 `crates/causal-design/src/ranker.rs:409,459,507-511`
@@ -572,24 +578,3 @@ document contradicts itself and reality in places that aren't roadmap:
    `portable-optimized` feature, and `CausalQuery::MechanismChange`/`UnitChange`.
 7. Add a status marker per DESIGN section (built / partial / planned) so the roadmap-vs-done
    distinction is explicit for readers who don't have this file.
-
----
-
-## Verified correct (for confidence — no action needed)
-
-PC1 condition selection (faithful to tigramite `run_pc_stable`, `max_combinations=1`); MCI
-conditioning sets and 2τ_max frame; lag alignment in `lagged_frame.rs`; ParCorr statistic/p-value
-(df, t-transform, Fisher-z CI); Benjamini–Hochberg; Meek R1–R3 and the collider rule; DAG
-d-separation; PAG definite-status classification; FCI R3; marked-edge endpoint bookkeeping; AIPW
-influence function and SE; 2SLS (full first-stage instrument set, structural residuals for SEs —
-with regression tests pinning both); IPW/ATT/ATC weights with Hajek normalization and linearized
-SEs; GLM IRLS (logit/Poisson) and deviances; GLM g-computation with delta-method SEs; sharp RD
-local-linear; frontdoor product-of-coefficients with Sobel SE; Wald IV; E-value formula; backdoor
-criterion; Henckel O-set; frontdoor and IV graphical criteria; refuter replicate p-values; exact
-and permutation-MC Shapley; coalition cache; SCM ancestral sampling and do-mutilation;
-abduction–action–prediction (exact for additive mechanisms, refuses non-invertible);
-distribution-change attribution skeleton (Budhathoki 2021); NIG/known-σ² posterior moments; Laplace
-approximation (all four links, damped Newton, curvature diagnostics); container format (CBOR
-manifest, Arrow IPC sections, BLAKE3, version fields); workspace layering (all dependency edges
-point downward); `#![forbid(unsafe_code)]` in semantic crates; no-panic discipline (two unwraps
-noted in P4.12); pinned DoWhy/Tigramite provenance.

@@ -76,12 +76,18 @@ struct AteAnalysisResult {
     se_analytic: f64,
     #[pyo3(get)]
     se_bootstrap: Option<f64>,
+    /// Soft-failed bootstrap replicates (None if bootstrap was not requested).
+    #[pyo3(get)]
+    bootstrap_replicates_failed: Option<u32>,
     #[pyo3(get)]
     adjustment_set: Vec<String>,
     #[pyo3(get)]
     identification_status: String,
     #[pyo3(get)]
     refutation_passed: bool,
+    /// Whether any refutation validators were actually run.
+    #[pyo3(get)]
+    refutation_ran: bool,
     #[pyo3(get)]
     refutation_count: usize,
     #[pyo3(get)]
@@ -296,7 +302,7 @@ fn analyze_ate(
                     let analysis = builder.build().map_err(py_err)?;
                     let ctx = ExecutionContext::for_tests(seed);
                     let result = analysis.run(&ctx).map_err(py_err)?;
-                    return Ok(ate_result_from_analysis(&names, result));
+                    return ate_result_from_analysis(&names, result);
                 }
                 other => {
                     return Err(PyValueError::new_err(format!(
@@ -304,19 +310,21 @@ fn analyze_ate(
                     )));
                 }
             };
-            builder = builder.inference(InferenceMode::Bayesian(cfg)).refute(RefuteSuite::None);
+            builder = builder.inference(InferenceMode::Bayesian(cfg));
+            // Keep the caller's refute suite. Overwriting with None previously made
+            // `refutation_passed=True` for checks that never ran.
         }
         let analysis = builder.build().map_err(py_err)?;
         let ctx = ExecutionContext::for_tests(seed);
         let result = analysis.run(&ctx).map_err(py_err)?;
-        Ok(ate_result_from_analysis(&names, result))
+        ate_result_from_analysis(&names, result)
     })
 }
 
 fn ate_result_from_analysis(
     names: &[String],
     result: causal::CausalAnalysisResult,
-) -> AteAnalysisResult {
+) -> PyResult<AteAnalysisResult> {
     let adjustment_set: Vec<String> = result
         .estimand
         .adjustment_set
@@ -324,8 +332,13 @@ fn ate_result_from_analysis(
         .map(|id| names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw())))
         .collect();
 
-    let refutation_passed =
-        result.refutations.is_empty() || result.refutations.iter().all(|r| r.passed);
+    let refutation_ran = !result.refutations.is_empty();
+    let refutation_passed = if refutation_ran {
+        result.refutations.iter().all(|r| r.passed)
+    } else {
+        // Do not claim pass when no validators ran (e.g. refute=False or empty suite).
+        false
+    };
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
     let overlap_ess = result.estimate.overlap_report.as_ref().map(|r| r.ess);
     let overlap_propensity_min = result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
@@ -341,28 +354,31 @@ fn ate_result_from_analysis(
         posterior_artifact,
     ) = if let Some(post) = result.posterior.as_ref() {
         let eq = post.effect_column().unwrap_or(0);
-        let artifact = encode_causal_posterior_bytes(post, "ate-analysis").ok();
+        let artifact = encode_causal_posterior_bytes(post, "ate-analysis").map_err(py_err)?;
+        let p_below = post.probability_below(0.0).map_err(py_err)?;
         (
             Some(post.summaries.mean[eq]),
             Some(post.summaries.sd[eq]),
             Some(post.summaries.q025[eq]),
             Some(post.summaries.q975[eq]),
             Some(post.draws.n_draws),
-            post.probability_below(0.0).ok(),
+            Some(p_below),
             Some(post.diagnostics.backend_id.to_string()),
-            artifact,
+            Some(artifact),
         )
     } else {
         (None, None, None, None, None, None, None, None)
     };
 
-    AteAnalysisResult {
+    Ok(AteAnalysisResult {
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
+        bootstrap_replicates_failed: result.estimate.bootstrap_replicates_failed,
         adjustment_set,
         identification_status: format!("{:?}", result.identification.status),
         refutation_passed,
+        refutation_ran,
         refutation_count: result.refutations.len(),
         assumption_count: result.estimate.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
@@ -378,7 +394,7 @@ fn ate_result_from_analysis(
         posterior_p_below_zero,
         posterior_backend,
         posterior_artifact,
-    }
+    })
 }
 
 /// One discovered lagged link for Python.

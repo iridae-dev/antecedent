@@ -44,7 +44,7 @@ use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
     gather, prepare_propensity_problem, split_by_treatment, trim_of, trim_retained_rows,
 };
-use crate::util::{sample_std, stats_err};
+use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -192,7 +192,7 @@ impl AipwAte {
         let ate = workspace.psi.iter().sum::<f64>() / n;
         let se_analytic = sample_std(&workspace.psi) / n.sqrt();
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
@@ -204,12 +204,15 @@ impl AipwAte {
         Ok(EffectEstimate {
             ate,
             se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report,
             retained_memory_bytes: None,
-        })
+        }
+        .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -217,7 +220,7 @@ impl AipwAte {
         problem: &PreparedPropensityProblem,
         workspace: &mut AipwWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<f64, EstimationError> {
+    ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
         let trim = trim_of(problem.overlap);
         let mut rng = ctx.rng.stream(0xA1D0_u64);
@@ -226,17 +229,15 @@ impl AipwAte {
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                t_boot[r] = problem.treatment[idx];
-                y_boot[r] = problem.outcome[idx];
+        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                t_boot[r] = problem.treatment[src];
+                y_boot[r] = problem.outcome[src];
                 for c in 0..ncols {
-                    x_boot[c * n + r] = problem.design_matrix[c * n + idx];
+                    x_boot[c * n + r] = problem.design_matrix[c * n + src];
                 }
             }
-            let fit = fit_propensity(
+            let Ok(fit) = fit_propensity(
                 &x_boot,
                 n,
                 ncols,
@@ -244,21 +245,22 @@ impl AipwAte {
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
-            )
-            .map_err(stats_err)?;
+            ) else {
+                return Ok(None);
+            };
             let raw = fit.scores;
             let mut e = raw.clone();
             if let Some(c) = clip {
                 clamp_scores(&mut e, c);
             }
             let Ok(retained) = trim_retained_rows(&raw, trim) else {
-                continue;
+                return Ok(None);
             };
             let (design_used, t_used, y_used, e_used) = match &retained {
-                Some(idx) => {
+                Some(rows) => {
                     let mut design = Vec::new();
-                    select_rows_colmajor(&x_boot, n, ncols, idx, &mut design);
-                    (design, gather(&t_boot, idx), gather(&y_boot, idx), gather(&e, idx))
+                    select_rows_colmajor(&x_boot, n, ncols, rows, &mut design);
+                    (design, gather(&t_boot, rows), gather(&y_boot, rows), gather(&e, rows))
                 }
                 None => (x_boot.clone(), t_boot.clone(), y_boot.clone(), e),
             };
@@ -272,18 +274,14 @@ impl AipwAte {
                 self.backend,
                 workspace,
             ) else {
-                continue;
+                return Ok(None);
             };
             predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
             predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
             aipw_psi(&t_used, &y_used, &e_used, &workspace.mu0, &workspace.mu1, &mut workspace.psi);
             let m = workspace.psi.len() as f64;
-            estimates.push(workspace.psi.iter().sum::<f64>() / m);
-        }
-        if estimates.len() < 2 {
-            return Ok(f64::NAN);
-        }
-        Ok(sample_std(&estimates))
+            Ok(Some(workspace.psi.iter().sum::<f64>() / m))
+        })
     }
 }
 

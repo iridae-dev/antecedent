@@ -33,7 +33,7 @@ use causal_stats::{FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx, inver
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::util::{sample_std, stats_err};
+use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
 /// [`WaldIv`] and [`TwoStageLeastSquares`].
@@ -232,45 +232,48 @@ impl WaldIv {
         let ate = wald.ratio * problem.treatment_delta;
         let se_analytic = wald.se * problem.treatment_delta.abs();
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
-            Some(self.bootstrap_se(problem, &z, ctx))
+            Some(self.bootstrap_se(problem, &z, ctx)?)
         };
 
         Ok(EffectEstimate {
             ate,
             se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
             retained_memory_bytes: None,
-        })
+        }
+        .with_bootstrap(boot))
     }
 
-    fn bootstrap_se(&self, problem: &PreparedIvProblem, z: &[f64], ctx: &ExecutionContext) -> f64 {
+    fn bootstrap_se(
+        &self,
+        problem: &PreparedIvProblem,
+        z: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<BootstrapSeResult, EstimationError> {
         let mut rng = ctx.rng.stream(0x5A1D_u64);
         let n = problem.nrows;
         let mut z_boot = vec![0.0; n];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                z_boot[r] = z[idx];
-                t_boot[r] = problem.treatment[idx];
-                y_boot[r] = problem.outcome[idx];
+        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                z_boot[r] = z[src];
+                t_boot[r] = problem.treatment[src];
+                y_boot[r] = problem.outcome[src];
             }
-            if let Ok(w) = wald_ratio(&z_boot, &t_boot, &y_boot) {
-                estimates.push(w.ratio * problem.treatment_delta);
+            match wald_ratio(&z_boot, &t_boot, &y_boot) {
+                Ok(w) => Ok(Some(w.ratio * problem.treatment_delta)),
+                Err(_) => Ok(None),
             }
-        }
-        if estimates.len() < 2 {
-            return f64::NAN;
-        }
-        sample_std(&estimates)
+        })
     }
 }
 
@@ -419,21 +422,24 @@ impl TwoStageLeastSquares {
         );
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
-        let se_bootstrap = if self.bootstrap_replicates == 0 {
+        let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
-            Some(self.bootstrap_se(problem, workspace, ctx))
+            Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
         Ok(EffectEstimate {
             ate,
             se_analytic,
-            se_bootstrap,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
             retained_memory_bytes: None,
-        })
+        }
+        .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -441,7 +447,7 @@ impl TwoStageLeastSquares {
         problem: &PreparedIvProblem,
         workspace: &mut TwoStageLeastSquaresWorkspace,
         ctx: &ExecutionContext,
-    ) -> f64 {
+    ) -> Result<BootstrapSeResult, EstimationError> {
         let mut rng = ctx.rng.stream(0x25D5_u64);
         let n = problem.nrows;
         let zc = problem.z_ncols;
@@ -450,20 +456,18 @@ impl TwoStageLeastSquares {
         let mut x_boot = vec![0.0; n * xc];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        let mut estimates = Vec::with_capacity(self.bootstrap_replicates as usize);
-        for _ in 0..self.bootstrap_replicates {
-            for r in 0..n {
-                let idx = (rng.next_u64() as usize) % n;
-                t_boot[r] = problem.treatment[idx];
-                y_boot[r] = problem.outcome[idx];
+        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+            for (r, &src) in idx.iter().enumerate() {
+                t_boot[r] = problem.treatment[src];
+                y_boot[r] = problem.outcome[src];
                 for c in 0..zc {
-                    z_boot[c * n + r] = problem.instruments_matrix[c * n + idx];
+                    z_boot[c * n + r] = problem.instruments_matrix[c * n + src];
                 }
                 for c in 0..xc {
-                    x_boot[c * n + r] = problem.exogenous_matrix[c * n + idx];
+                    x_boot[c * n + r] = problem.exogenous_matrix[c * n + src];
                 }
             }
-            let Ok(fit) = fit_2sls(
+            match fit_2sls(
                 &z_boot[n..],
                 n,
                 zc - 1,
@@ -473,15 +477,11 @@ impl TwoStageLeastSquares {
                 &y_boot,
                 &self.backend,
                 &mut workspace.ols,
-            ) else {
-                continue;
-            };
-            estimates.push(fit.second_stage.coefficients[0] * problem.treatment_delta);
-        }
-        if estimates.len() < 2 {
-            return f64::NAN;
-        }
-        sample_std(&estimates)
+            ) {
+                Ok(fit) => Ok(Some(fit.second_stage.coefficients[0] * problem.treatment_delta)),
+                Err(_) => Ok(None),
+            }
+        })
     }
 }
 
