@@ -167,6 +167,9 @@ impl CoalitionPayoff for RobustPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let n = self.baseline.row_count();
         let mut pred_out = vec![0.0; n];
+        let mut outcome_seen = false;
+        // Predictions are linear structural means; the payoff equals the
+        // interventional mean of the outcome only under linear mechanisms.
         let mut node_pred: Vec<Vec<f64>> = Vec::with_capacity(self.players.len());
         for (i, &comp) in self.players.iter().enumerate() {
             let fit = &self.fitted[i];
@@ -187,13 +190,14 @@ impl CoalitionPayoff for RobustPayoff<'_> {
             }
             if comp.variable() == self.outcome {
                 pred_out.clone_from(&col);
+                outcome_seen = true;
             }
             node_pred.push(col);
         }
-        if pred_out.iter().all(|&x| x == 0.0) {
-            if let Some(last) = node_pred.last() {
-                pred_out.clone_from(last);
-            }
+        if !outcome_seen {
+            return Err(AttributionError::Message(
+                "robust payoff: outcome is not among Shapley players".into(),
+            ));
         }
         Ok(pred_out.iter().sum::<f64>() / n.max(1) as f64)
     }

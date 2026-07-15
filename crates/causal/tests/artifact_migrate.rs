@@ -76,7 +76,7 @@ fn schema_graph_artifact() -> EncodedArtifact {
             format_version: STABLE_FORMAT,
             minimum_reader_version: STABLE_FORMAT,
             artifact_kind: ArtifactKind::SchemaGraph,
-            library_version: SemanticVersion::from_crate_version(VERSION),
+            library_version: SemanticVersion::from_crate_version(VERSION).expect("CARGO_PKG_VERSION"),
             artifact_id: "p12-schema".into(),
             sections: vec![
                 section_descriptor("schema", "application/cbor", &schema_bytes),
@@ -114,7 +114,7 @@ fn analysis_trace_artifact() -> EncodedArtifact {
             format_version: STABLE_FORMAT,
             minimum_reader_version: STABLE_FORMAT,
             artifact_kind: ArtifactKind::AnalysisTrace,
-            library_version: SemanticVersion::from_crate_version(VERSION),
+            library_version: SemanticVersion::from_crate_version(VERSION).expect("CARGO_PKG_VERSION"),
             artifact_id: "p12-trace".into(),
             sections: vec![section_descriptor("analysis.trace", "application/cbor", &bytes)],
             provenance: ProvenanceWire { note: "release".into() },

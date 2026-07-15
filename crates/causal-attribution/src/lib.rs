@@ -28,8 +28,10 @@ mod root_cause;
 mod shapley;
 mod unit_change;
 
+#[allow(deprecated)]
 pub use anomaly::{
-    AnomalyScores, ArrowStrength, arrow_strengths, intrinsic_influence, score_anomalies,
+    AnomalyScores, ArrowStrength, arrow_strengths, intrinsic_influence, population_do_contrast,
+    score_anomalies,
 };
 pub use builder::ChangeAttribution;
 pub use coalition::{CoalitionCache, CoalitionKey};

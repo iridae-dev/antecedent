@@ -97,7 +97,7 @@ pub fn encode_posterior_artifact(
             format_version: FormatVersion { major: 0, minor: 1 },
             minimum_reader_version: FormatVersion { major: 0, minor: 1 },
             artifact_kind: ArtifactKind::CausalPosterior,
-            library_version: SemanticVersion::from_crate_version(library_version),
+            library_version: SemanticVersion::from_crate_version(library_version)?,
             artifact_id: artifact_id.into(),
             sections: vec![meta_desc, draw_desc],
             provenance: ProvenanceWire { note: "causal_posterior".into() },

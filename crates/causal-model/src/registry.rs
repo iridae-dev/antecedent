@@ -72,6 +72,8 @@ pub struct MechanismAssignment {
     pub selected: MechanismFamily,
     /// Fitted slot.
     pub fitted: MechanismSlot,
+    /// Families that failed to score/fit, with error messages.
+    pub failed_families: Arc<[(MechanismFamily, String)]>,
 }
 
 /// Registry of mechanism families.
@@ -129,15 +131,23 @@ impl MechanismRegistry {
                 if is_discrete { &self.discrete } else { &self.continuous };
 
             let mut candidates = Vec::new();
+            let mut failed = Vec::new();
             for &family in families {
                 match score_family(family, gather, model, data, &y, backend, &mut ls_ws) {
                     Ok(c) => candidates.push(c),
-                    Err(_) => continue,
+                    Err(e) => failed.push((family, e.to_string())),
                 }
             }
             if candidates.is_empty() {
+                let detail = failed
+                    .iter()
+                    .map(|(f, e)| format!("{f:?}: {e}"))
+                    .collect::<Vec<_>>()
+                    .join("; ");
                 return Err(ModelError::Unsupported {
-                    message: format!("no mechanism candidates for variable {var}"),
+                    message: format!(
+                        "no mechanism candidates for variable {var} (failures: {detail})"
+                    ),
                 });
             }
             candidates
@@ -153,6 +163,7 @@ impl MechanismRegistry {
                 candidates: Arc::from(candidates),
                 selected,
                 fitted,
+                failed_families: Arc::from(failed),
             });
         }
 

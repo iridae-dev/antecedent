@@ -24,8 +24,8 @@ use crate::mechanism::{infer_noise_column, log_prob_column};
 /// Model falsification / evaluation report.
 #[derive(Clone, Debug)]
 pub struct ModelEvaluationReport {
-    /// Held-out mean log-likelihood (higher better).
-    pub held_out_loglik: f64,
+    /// In-sample mean log-likelihood (higher better). No holdout split is performed.
+    pub in_sample_loglik: f64,
     /// Mean absolute residual for invertible nodes.
     pub mean_abs_residual: f64,
     /// Residual independence p-values vs non-parent covariates (empty if none).
@@ -76,7 +76,7 @@ impl ModelEvaluator {
             return Err(ModelError::Shape { message: "empty data for evaluation".into() });
         }
         let mut notes = Vec::new();
-        let held_out_loglik = mean_loglik(model, data)?;
+        let in_sample_loglik = mean_loglik(model, data)?;
         let (mean_abs_residual, residuals_by_node) = residual_summary(model, data)?;
         let residual_independence_p =
             residual_independence_tests(model, data, &residuals_by_node, self.alpha, ctx)?;
@@ -100,13 +100,13 @@ impl ModelEvaluator {
                 break;
             }
         }
-        if held_out_loglik + 1.0 < permutation_loglik {
+        if in_sample_loglik + 1.0 < permutation_loglik {
             // Model worse than noise baseline by a wide margin.
-            notes.push(Arc::from("held-out loglik near or below permutation baseline"));
+            notes.push(Arc::from("in-sample loglik near or below permutation baseline"));
         }
 
         Ok(ModelEvaluationReport {
-            held_out_loglik,
+            in_sample_loglik,
             mean_abs_residual,
             residual_independence_p: Arc::from(residual_independence_p),
             local_markov_p: Arc::from(local_markov_p),
@@ -444,7 +444,7 @@ mod tests {
         let rep = ModelEvaluator::default()
             .evaluate(&model, &data, &ExecutionContext::for_tests(1))
             .unwrap();
-        assert!(rep.held_out_loglik.is_finite());
+        assert!(rep.in_sample_loglik.is_finite());
         assert!(rep.mean_abs_residual < 1e-6, "resid={}", rep.mean_abs_residual);
     }
 }

@@ -74,18 +74,25 @@ pub fn graph_evidence_from_scored_with_sepsets(
     sepsets: &PcSepsets,
 ) -> Result<DagGraphEvidence, DiscoveryError> {
     let mut graph = TemporalDag::empty();
+    let mut kept = Vec::with_capacity(links.len());
     for s in &links {
         let from = ensure_lagged(&mut graph, s.link.source, s.link.source_lag)
             .map_err(DiscoveryError::from)?;
         let to = ensure_lagged(&mut graph, s.link.target, s.link.target_lag)
             .map_err(DiscoveryError::from)?;
-        let _ = graph.insert_directed(from, to);
+        match graph.insert_directed(from, to) {
+            Ok(()) => kept.push(*s),
+            Err(causal_graph::GraphError::Cycle { .. } | causal_graph::GraphError::DuplicateEdge { .. }) => {
+                // Keep links/graph aligned: cycle-forming or duplicate edges stay out of both.
+            }
+            Err(e) => return Err(DiscoveryError::from(e)),
+        }
     }
-    let edge_evidence = edge_evidence_from_scored(&links, sepsets);
+    let edge_evidence = edge_evidence_from_scored(&kept, sepsets);
     Ok(DagGraphEvidence {
         graph,
         edge_evidence,
-        links: Arc::from(links),
+        links: Arc::from(kept),
         source: EvidenceSource::Discovery { algorithm: Arc::from("pcmci") },
     })
 }

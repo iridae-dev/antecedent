@@ -80,9 +80,15 @@ pub fn fill_resample_indexes(
                     message: "block length must be > 0".into(),
                 });
             }
+            if length > n {
+                return Err(DataError::InvalidArgument {
+                    message: format!("block length {length} exceeds series length {n}"),
+                });
+            }
             let circular = matches!(plan, ResamplingPlan::CircularBlock { .. });
             let n_starts =
-                if circular { n } else { n.saturating_sub(length).saturating_add(1).max(1) };
+                if circular { n } else { n.saturating_sub(length).saturating_add(1) };
+            debug_assert!(n_starts >= 1);
             while out.len() < n {
                 let start = (rng.next_u64() as usize) % n_starts;
                 for k in 0..length {
@@ -91,10 +97,9 @@ pub fn fill_resample_indexes(
                     }
                     let idx = if circular {
                         (start + k) % n
-                    } else if start + k < n {
-                        start + k
                     } else {
-                        n - 1
+                        // length <= n and start <= n-length, so start+k < n.
+                        start + k
                     };
                     out.push(idx as u32);
                 }

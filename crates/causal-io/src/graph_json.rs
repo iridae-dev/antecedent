@@ -28,13 +28,21 @@ impl From<&DagWire> for DagJson {
 }
 
 impl DagJson {
-    /// Attach schema names when lengths match.
-    #[must_use]
-    pub fn with_schema(mut self, schema: &SchemaWire) -> Self {
-        if schema.variable_names.len() == self.node_count as usize {
-            self.variable_names = Some(schema.variable_names.clone());
+    /// Attach schema names; errors if length mismatches `node_count`.
+    ///
+    /// # Errors
+    ///
+    /// Name count ≠ node count.
+    pub fn with_schema(mut self, schema: &SchemaWire) -> Result<Self, IoError> {
+        if schema.variable_names.len() != self.node_count as usize {
+            return Err(IoError::Convert(format!(
+                "variable_names length {} must equal node_count {}",
+                schema.variable_names.len(),
+                self.node_count
+            )));
         }
-        self
+        self.variable_names = Some(schema.variable_names.clone());
+        Ok(self)
     }
 
     /// Convert to wire form (names are not part of [`DagWire`]).
@@ -69,9 +77,14 @@ pub fn dag_to_json(dag: &Dag, names: Option<&[String]>) -> Result<String, IoErro
     let wire = dag_to_wire(dag)?;
     let mut doc = DagJson::from(&wire);
     if let Some(n) = names {
-        if n.len() == wire.node_count as usize {
-            doc.variable_names = Some(n.to_vec());
+        if n.len() != wire.node_count as usize {
+            return Err(IoError::Convert(format!(
+                "variable_names length {} must equal node_count {}",
+                n.len(),
+                wire.node_count
+            )));
         }
+        doc.variable_names = Some(n.to_vec());
     }
     serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
 }

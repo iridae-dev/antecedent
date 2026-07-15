@@ -347,7 +347,7 @@ fn ate_result_from_analysis(
         false
     };
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
-    let overlap_ess = result.estimate.overlap_report.as_ref().map(|r| r.ess);
+    let overlap_ess = result.estimate.overlap_report.as_ref().and_then(|r| r.ess);
     let overlap_propensity_min = result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
 
     let (

@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use causal_core::{ExecutionContext, VariableId};
-use causal_data::{ResamplingPlan, TimeSeriesData, resample_timeseries};
+use causal_data::{ResamplingPlan, TableView, TimeSeriesData, resample_timeseries};
 use causal_discovery::{DiscoveryWorkspace, LaggedLink, Pcmci};
 
 use crate::error::ValidationError;
@@ -72,6 +72,11 @@ impl BlockBootstrapStability {
         if self.replicates == 0 || self.block_size == 0 {
             return Err(ValidationError::NotApplicable {
                 message: "stability requires positive replicates and block_size",
+            });
+        }
+        if self.block_size > data.row_count() {
+            return Err(ValidationError::NotApplicable {
+                message: "block_size exceeds series length",
             });
         }
         let mut counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();

@@ -35,6 +35,8 @@ pub struct DoSampleResult {
     pub notes: Vec<Arc<str>>,
     /// MCMC accept rate when applicable.
     pub accept_rate: Option<f64>,
+    /// Gaussian KDE bandwidth when the result carries a density estimate.
+    pub bandwidth: Option<f64>,
 }
 
 /// Weighting do-sampler: reweight observational rows by P(do(T=t)|parents) / P(T|parents)
@@ -104,6 +106,7 @@ impl WeightingDoSampler {
                 method: Arc::from("do_weighting"),
                 notes,
                 accept_rate: None,
+                bandwidth: None,
             });
         }
 
@@ -165,6 +168,7 @@ impl WeightingDoSampler {
             method: Arc::from("do_weighting"),
             notes,
             accept_rate: None,
+            bandwidth: None,
         })
     }
 
@@ -227,18 +231,14 @@ impl KdeDoSampler {
             method: Arc::from("do_kde"),
             notes: vec![Arc::from(format!("gaussian_kde_bandwidth={bw}"))],
             accept_rate: None,
+            bandwidth: Some(bw),
         })
     }
 
     /// Evaluate KDE density at `x` given sampler values.
     #[must_use]
     pub fn density(result: &DoSampleResult, x: f64) -> f64 {
-        let bw: f64 = result
-            .notes
-            .iter()
-            .find_map(|n| n.strip_prefix("gaussian_kde_bandwidth=")?.parse().ok())
-            .unwrap_or(1.0);
-        let bw = bw.max(1e-8);
+        let bw = result.bandwidth.unwrap_or(1.0).max(1e-8);
         let n = result.values.len() as f64;
         let inv = 1.0 / (bw * (2.0 * std::f64::consts::PI).sqrt());
         let mut dens = 0.0;
@@ -312,15 +312,14 @@ impl McmcDoSampler {
             .dense_of(self.outcome)
             .ok_or_else(|| ModelError::Shape { message: "outcome not in model".into() })?;
         let pilot_col = pilot.column(dense.as_usize())?;
+        let pilot_bw = silverman_bandwidth(pilot_col);
         let kde = DoSampleResult {
             values: Arc::from(pilot_col.to_vec()),
             weights: Arc::from([]),
             method: Arc::from("pilot"),
-            notes: vec![Arc::from(format!(
-                "gaussian_kde_bandwidth={}",
-                silverman_bandwidth(pilot_col)
-            ))],
+            notes: vec![Arc::from(format!("gaussian_kde_bandwidth={pilot_bw}"))],
             accept_rate: None,
+            bandwidth: Some(pilot_bw),
         };
 
         let mut current = pilot_col[0];
@@ -354,6 +353,7 @@ impl McmcDoSampler {
             method: Arc::from("do_mcmc"),
             notes: vec![Arc::from(format!("mh_accept_rate={rate}"))],
             accept_rate: Some(rate),
+            bandwidth: kde.bandwidth,
         })
     }
 }

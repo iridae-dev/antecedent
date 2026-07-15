@@ -295,7 +295,14 @@ fn attach_context_nodes(
                 && s.link.target != cv
             {
                 if let Some(&tgt) = lag0.get(&s.link.target) {
-                    let _ = cpdag.insert_directed(ctx_id, tgt);
+                    match cpdag.insert_directed(ctx_id, tgt) {
+                        Ok(()) => {}
+                        Err(
+                            causal_graph::GraphError::Cycle { .. }
+                            | causal_graph::GraphError::DuplicateEdge { .. },
+                        ) => {}
+                        Err(e) => return Err(DiscoveryError::from(e)),
+                    }
                 }
             }
         }

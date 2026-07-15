@@ -48,9 +48,13 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
             if directed_path_through_latents(dag, u, v, &observed_set, &mut ws) {
                 let from = map[u.as_usize()].expect("mapped");
                 let to = map[v.as_usize()].expect("mapped");
-                // Ignore cycle errors from redundant longer paths by trying insert;
-                // if cycle, skip (shorter structure should already exist).
-                let _ = admg.insert_directed(from, to);
+                // Longer latent paths can propose edges that cycle with shorter ones already
+                // inserted; skip only those conflicts.
+                match admg.insert_directed(from, to) {
+                    Ok(()) => {}
+                    Err(GraphError::Cycle { .. } | GraphError::DuplicateEdge { .. }) => {}
+                    Err(e) => return Err(e),
+                }
             }
         }
     }
@@ -63,7 +67,11 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
             if share_latent_common_ancestor(dag, u, v, &observed_set, &mut ws) {
                 let a = map[u.as_usize()].expect("mapped");
                 let b = map[v.as_usize()].expect("mapped");
-                let _ = admg.insert_bidirected(a, b);
+                match admg.insert_bidirected(a, b) {
+                    Ok(()) => {}
+                    Err(GraphError::Cycle { .. } | GraphError::DuplicateEdge { .. }) => {}
+                    Err(e) => return Err(e),
+                }
             }
         }
     }

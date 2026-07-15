@@ -43,6 +43,9 @@ pub struct ExogenousPosterior {
     pub n_nodes: usize,
     /// Inference kind.
     pub kind: NoiseInferenceKind,
+    /// Per-node flag: factual column was absent and zero-filled under `allow_missing`
+    /// (`true` ⇒ that node's factual values must not be treated as observed).
+    pub assumed_columns: Arc<[bool]>,
 }
 
 /// One counterfactual world request.
@@ -80,12 +83,14 @@ impl CounterfactualEngine {
 
     /// Abduce exogenous noise once from factual data (shared across worlds).
     ///
-    /// Missing factual entries are filled with 0 and recorded as assumed for that cell
-    /// only when `allow_missing` is true; otherwise an error is returned.
+    /// When `allow_missing` is true and a **whole variable column** is absent from
+    /// `data`, that node's factual values are filled with zeros and
+    /// [`NoiseInferenceKind::AssumedNoise`] is set for the posterior (column-level,
+    /// not per-cell — tabular float columns are all-or-nothing here).
     ///
     /// # Errors
     ///
-    /// Missing data or non-invertible mechanisms.
+    /// Missing data (when not allowed) or non-invertible mechanisms.
     pub fn abduct(
         &self,
         data: &TabularData,
@@ -95,6 +100,7 @@ impl CounterfactualEngine {
         let n_nodes = self.model.n_nodes();
         let mut noise = vec![0.0; n * n_nodes];
         let mut kind = NoiseInferenceKind::Invertible;
+        let mut assumed_columns = vec![false; n_nodes];
         let mut ws = MechanismWorkspace::default();
 
         // Load factual values.
@@ -105,6 +111,7 @@ impl CounterfactualEngine {
                 Err(e) => {
                     if allow_missing {
                         kind = NoiseInferenceKind::AssumedNoise;
+                        assumed_columns[i] = true;
                         values[i * n..(i + 1) * n].fill(0.0);
                         let _ = e;
                     } else {
@@ -138,7 +145,13 @@ impl CounterfactualEngine {
             }
         }
 
-        Ok(ExogenousPosterior { noise: Arc::from(noise), n_units: n, n_nodes, kind })
+        Ok(ExogenousPosterior {
+            noise: Arc::from(noise),
+            n_units: n,
+            n_nodes,
+            kind,
+            assumed_columns: Arc::from(assumed_columns),
+        })
     }
 
     /// Predict counterfactual outcomes for worlds sharing abduced noise.

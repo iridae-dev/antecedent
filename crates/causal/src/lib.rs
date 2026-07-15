@@ -148,12 +148,14 @@ pub fn decode_causal_posterior_bytes(
 }
 
 // GCM / counterfactual / attribution surfaces.
+#[allow(deprecated)]
 pub use causal_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
     MechanismChangeMethod, RobustChangeOptions, RootCauseRank, UnitChangeResult, arrow_strengths,
     detect_mechanism_changes, distribution_change, distribution_change_robust, feature_relevance,
-    intrinsic_influence, path_decompose, root_cause_rank, score_anomalies, unit_change,
+    intrinsic_influence, path_decompose, population_do_contrast, root_cause_rank, score_anomalies,
+    unit_change,
 };
 pub use causal_counterfactual::{
     CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError, CounterfactualResult,

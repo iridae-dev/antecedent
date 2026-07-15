@@ -74,7 +74,7 @@ mod tests {
                 format_version: fmt,
                 minimum_reader_version: FormatVersion { major: 0, minor: 1 },
                 artifact_kind: ArtifactKind::Other("note".into()),
-                library_version: SemanticVersion::from_crate_version(VERSION),
+                library_version: SemanticVersion::from_crate_version(VERSION).expect("CARGO_PKG_VERSION"),
                 artifact_id: "migrate-test".into(),
                 sections: vec![desc],
                 provenance: ProvenanceWire { note: "migrate".into() },

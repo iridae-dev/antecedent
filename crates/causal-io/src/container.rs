@@ -118,6 +118,11 @@ impl EncodedArtifact {
         r.read_exact(&mut ver_buf)?;
         let manifest_len =
             usize::try_from(u32::from_le_bytes(ver_buf)).map_err(|_| IoError::TooLarge)?;
+        // Cap before allocating: manifest is CBOR metadata, not multi-GiB.
+        const MAX_MANIFEST_BYTES: usize = 16 * 1024 * 1024;
+        if manifest_len > MAX_MANIFEST_BYTES {
+            return Err(IoError::TooLarge);
+        }
         let mut manifest_buf = vec![0u8; manifest_len];
         r.read_exact(&mut manifest_buf)?;
         let manifest: ArtifactManifest = ciborium::from_reader(manifest_buf.as_slice())
@@ -128,16 +133,17 @@ impl EncodedArtifact {
             r.read_exact(&mut ver_buf)?;
             let len =
                 usize::try_from(u32::from_le_bytes(ver_buf)).map_err(|_| IoError::TooLarge)?;
+            let expected =
+                usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
+            // Reject before allocating so a forged length prefix cannot ask for ~4 GiB.
+            if len != expected {
+                return Err(IoError::ManifestMismatch { message: "section size mismatch" });
+            }
             let mut data = vec![0u8; len];
             r.read_exact(&mut data)?;
             let hash = blake3::hash(&data);
             if hash.as_bytes() != &desc.blake3 {
                 return Err(IoError::ChecksumMismatch { section: desc.id.clone() });
-            }
-            let expected =
-                usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
-            if data.len() != expected {
-                return Err(IoError::ManifestMismatch { message: "section size mismatch" });
             }
             sections.push(SectionBytes { id: desc.id.clone(), data });
         }

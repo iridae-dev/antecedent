@@ -2,15 +2,26 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::all, clippy::pedantic, clippy::restriction)]
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
 use crate::error::DataError;
 
+fn require_finite(col: &[f64], what: &str) -> Result<(), DataError> {
+    if let Some(i) = col.iter().position(|v| !v.is_finite()) {
+        return Err(DataError::InvalidArgument {
+            message: format!("{what}: non-finite value at index {i}"),
+        });
+    }
+    Ok(())
+}
+
 /// Equal-width binning of a float column into `n_bins` integer codes in `0..n_bins`.
+///
+/// Non-finite values are rejected (no silent map to bin 0).
 ///
 /// # Errors
 ///
-/// Empty input or `n_bins == 0`.
+/// Empty `n_bins`, length mismatch, or non-finite input.
 pub fn equal_width_bin(col: &[f64], n_bins: usize, out: &mut [f64]) -> Result<(), DataError> {
     if n_bins == 0 {
         return Err(DataError::InvalidArgument { message: "n_bins must be > 0".into() });
@@ -21,6 +32,7 @@ pub fn equal_width_bin(col: &[f64], n_bins: usize, out: &mut [f64]) -> Result<()
     if col.is_empty() {
         return Ok(());
     }
+    require_finite(col, "equal_width_bin")?;
     let mut min_v = f64::INFINITY;
     let mut max_v = f64::NEG_INFINITY;
     for &v in col {
@@ -38,10 +50,11 @@ pub fn equal_width_bin(col: &[f64], n_bins: usize, out: &mut [f64]) -> Result<()
 /// Ordinal pattern of embedding dimension `m` with delay `tau` (Bandt–Pompe).
 ///
 /// Writes one pattern code per valid window into `out` (length `col.len() - (m-1)*tau`).
+/// Non-finite values in any window are rejected (no silent tie treatment of NaN).
 ///
 /// # Errors
 ///
-/// Bad shape.
+/// Bad shape or non-finite input.
 pub fn ordinal_patterns(
     col: &[f64],
     m: usize,
@@ -55,13 +68,16 @@ pub fn ordinal_patterns(
     if out.len() < need {
         return Err(DataError::InvalidArgument { message: "out buffer too short".into() });
     }
+    require_finite(col, "ordinal_patterns")?;
     let mut idx = vec![0usize; m];
     for t in 0..need {
         for (k, slot) in idx.iter_mut().enumerate() {
             *slot = k;
         }
         idx.sort_by(|&a, &b| {
-            col[t + a * tau].partial_cmp(&col[t + b * tau]).unwrap_or(std::cmp::Ordering::Equal)
+            col[t + a * tau]
+                .partial_cmp(&col[t + b * tau])
+                .expect("finite values checked")
         });
         // Lehmer code
         let mut code = 0usize;
@@ -83,7 +99,7 @@ pub fn ordinal_patterns(
 ///
 /// # Errors
 ///
-/// Even/zero window or shape mismatch.
+/// Even/zero window, shape mismatch, or non-finite input.
 pub fn moving_average(col: &[f64], window: usize, out: &mut [f64]) -> Result<(), DataError> {
     if window == 0 || window % 2 == 0 {
         return Err(DataError::InvalidArgument { message: "window must be odd and > 0".into() });
@@ -91,6 +107,7 @@ pub fn moving_average(col: &[f64], window: usize, out: &mut [f64]) -> Result<(),
     if col.len() != out.len() {
         return Err(DataError::InvalidArgument { message: "out length != col length".into() });
     }
+    require_finite(col, "moving_average")?;
     let half = window / 2;
     let n = col.len();
     for i in 0..n {
@@ -116,10 +133,24 @@ mod tests {
     }
 
     #[test]
+    fn binning_rejects_nan() {
+        let col = [0.0, f64::NAN, 2.0];
+        let mut out = [0.0; 3];
+        assert!(equal_width_bin(&col, 2, &mut out).is_err());
+    }
+
+    #[test]
     fn ordinal_runs() {
         let col: Vec<f64> = (0..20).map(|i| (i as f64).sin()).collect();
         let mut out = vec![0.0; 20];
         let n = ordinal_patterns(&col, 3, 1, &mut out).unwrap();
         assert!(n > 0);
+    }
+
+    #[test]
+    fn ordinal_rejects_nan() {
+        let col = [0.0, 1.0, f64::NAN, 3.0, 4.0];
+        let mut out = vec![0.0; 5];
+        assert!(ordinal_patterns(&col, 3, 1, &mut out).is_err());
     }
 }

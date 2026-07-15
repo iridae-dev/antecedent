@@ -14,11 +14,14 @@ use crate::result::{
 };
 
 /// Decompose outcome influence into directed-path shares using arrow strengths
-/// along each path (product of |β| on linear edges, DP-aggregated).
+/// along each path (product of signed β on linear-Gaussian edges).
+///
+/// Signed products preserve cancelling paths; `total_change` is the sum of signed
+/// path shares (not absolute shares). Non-linear mechanisms are refused.
 ///
 /// # Errors
 ///
-/// Missing nodes or path enumeration limits.
+/// Missing nodes, path enumeration limits, or non-linear mechanisms on a path.
 pub fn path_decompose(
     model: &CompiledCausalModel,
     sources: &[VariableId],
@@ -30,7 +33,7 @@ pub fn path_decompose(
     let outcome_dense = model
         .dense_of(outcome)
         .ok_or_else(|| AttributionError::Message(format!("outcome {outcome} missing")))?;
-    let strengths = edge_strength_map(model);
+    let strengths = edge_strength_map(model)?;
 
     let mut path_breakdown = Vec::new();
     let mut component_scores: Vec<(ComponentId, f64)> = Vec::new();
@@ -47,7 +50,13 @@ pub fn path_decompose(
             let mut vars = Vec::with_capacity(path.len());
             for w in path.windows(2) {
                 let key = (w[0], w[1]);
-                share *= strengths.get(&key).copied().unwrap_or(0.0);
+                let Some(&beta) = strengths.get(&key) else {
+                    return Err(AttributionError::Message(format!(
+                        "missing linear-Gaussian coefficient on edge {:?}→{:?}",
+                        w[0], w[1]
+                    )));
+                };
+                share *= beta;
             }
             for &n in &path {
                 vars.push(model.output_layout.variables[n.as_usize()]);
@@ -92,24 +101,32 @@ pub fn path_decompose(
 
 fn edge_strength_map(
     model: &CompiledCausalModel,
-) -> std::collections::HashMap<(DenseNodeId, DenseNodeId), f64> {
+) -> Result<std::collections::HashMap<(DenseNodeId, DenseNodeId), f64>, AttributionError> {
     let mut m = std::collections::HashMap::new();
     for gather in model.parent_gathers.iter() {
         let child = gather.child;
         match model.mechanisms.get(child) {
             causal_model::MechanismSlot::LinearGaussian { coeffs, .. } => {
+                if coeffs.len() < gather.parents.len() {
+                    return Err(AttributionError::Message(format!(
+                        "linear-Gaussian coeffs shorter than parents for node {}",
+                        child.as_usize()
+                    )));
+                }
                 for (i, &p) in gather.parents.iter().enumerate() {
-                    m.insert((p, child), coeffs.get(i).copied().unwrap_or(0.0).abs());
+                    m.insert((p, child), coeffs[i]);
                 }
             }
-            _ => {
-                for &p in gather.parents.iter() {
-                    m.insert((p, child), 0.0);
-                }
+            other if !gather.parents.is_empty() => {
+                return Err(AttributionError::Message(format!(
+                    "path_decompose requires linear-Gaussian mechanisms; node {} has {other:?}",
+                    child.as_usize()
+                )));
             }
+            _ => {}
         }
     }
-    m
+    Ok(m)
 }
 
 #[cfg(test)]

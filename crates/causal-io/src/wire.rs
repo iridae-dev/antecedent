@@ -25,14 +25,29 @@ pub struct SemanticVersion {
 }
 
 impl SemanticVersion {
-    /// From crate version string `x.y.z`.
-    #[must_use]
-    pub fn from_crate_version(v: &str) -> Self {
+    /// Parse crate version string `x.y.z`.
+    ///
+    /// # Errors
+    ///
+    /// Non-semver `major.minor.patch` with three unsigned integers.
+    pub fn from_crate_version(v: &str) -> Result<Self, crate::error::IoError> {
         let mut parts = v.split('.');
-        let major = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-        let minor = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-        let patch = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-        Self { major, minor, patch }
+        let parse = |s: Option<&str>| -> Result<u32, crate::error::IoError> {
+            s.and_then(|p| p.parse().ok()).ok_or_else(|| {
+                crate::error::IoError::Convert(format!(
+                    "invalid semantic version {v:?}; expected major.minor.patch"
+                ))
+            })
+        };
+        let major = parse(parts.next())?;
+        let minor = parse(parts.next())?;
+        let patch = parse(parts.next())?;
+        if parts.next().is_some() {
+            return Err(crate::error::IoError::Convert(format!(
+                "invalid semantic version {v:?}; expected major.minor.patch"
+            )));
+        }
+        Ok(Self { major, minor, patch })
     }
 }
 

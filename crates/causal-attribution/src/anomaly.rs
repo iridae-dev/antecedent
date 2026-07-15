@@ -137,15 +137,16 @@ pub fn arrow_strengths(
     Ok(out)
 }
 
-/// Intrinsic causal influence of parent on child via do-contrast on a unit
-/// (difference in child prediction when parent is set to observed ± delta).
+/// Population do-contrast of parent on child: `|E[Y|do(X=μ+δ/2)] − E[Y|do(X=μ−δ/2)]|`.
+///
+/// This is **not** intrinsic (noise-based) causal influence; see P4.8 for that.
 ///
 /// Hard size limit on units.
 ///
 /// # Errors
 ///
 /// Size / model failures.
-pub fn intrinsic_influence(
+pub fn population_do_contrast(
     model: &CompiledCausalModel,
     data: &TabularData,
     parent: VariableId,
@@ -190,6 +191,20 @@ pub fn intrinsic_influence(
     let hi_m = hi.column(child_dense.as_usize())?.iter().sum::<f64>() / n.max(1) as f64;
     let lo_m = lo.column(child_dense.as_usize())?.iter().sum::<f64>() / n.max(1) as f64;
     Ok((hi_m - lo_m).abs())
+}
+
+/// Deprecated alias for [`population_do_contrast`] (name was misleading).
+#[deprecated(note = "renamed to population_do_contrast; this is not intrinsic influence")]
+pub fn intrinsic_influence(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    parent: VariableId,
+    child: VariableId,
+    delta: f64,
+    max_units: usize,
+    ctx: &ExecutionContext,
+) -> Result<f64, AttributionError> {
+    population_do_contrast(model, data, parent, child, delta, max_units, ctx)
 }
 
 #[cfg(test)]

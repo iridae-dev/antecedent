@@ -4,8 +4,9 @@ Prioritized backlog from the 2026-07-22 full-repo review (math correctness and D
 parity, DESIGN.md conformance, code quality). Ranked by order to address: P0 first. DESIGN.md is
 the conceptual roadmap — items in P5 are planned features not yet built, not documentation errors.
 
-P0 (confirmed wrong math) and P1.1–P1.11 (graph-layer soundness) were verified fixed against the
-code on 2026-07-22 and removed from this backlog. Remaining P1 item below is interim only.
+P0 (confirmed wrong math), P1.1–P1.11 (graph-layer soundness), and P2.1–P2.4 / P2.7–P2.11
+(honest reporting) were verified fixed against the code on 2026-07-22 and removed from this
+backlog. Remaining P1 item below is interim only.
 
 Items are marked DONE with notes until independently verified and removed. Do not remove an item that you have just finished fixing.
 
@@ -30,54 +31,7 @@ likelihood-based model comparison for discrete conditionals.
 
 ---
 
-## P2 — Honest reporting / silent failures
-
-### P2.1 Hard-coded `se_analytic: 0.0` in two estimators — DONE
-- `crates/causal-estimate/src/conditional.rs:165-173` (`ConditionalLinearAdjustment`): zero SE with
-  `se_bootstrap: None` is a claim of exact certainty. Implement the delta-method SE
-  `sqrt(gᵀ σ²(XᵀX)⁻¹ g)` with `g = e_T + w̄·e_{T×W}` — `invert_square` and `form_xtx` are already
-  imported in this file.
-- `crates/causal-estimate/src/temporal_mediation.rs:124-132`: same; reuse the Sobel SE
-  implementation that already exists in `frontdoor.rs:234-254`.
-If an SE genuinely can't be computed, report `None`/NaN — never 0.0.
-**Status:** Fixed — conditional ATE uses delta-method SE; mediation uses shared
-`coefficient_variance` + Sobel/OLS SE by contrast; singular Gram → NaN.
-
-### P2.2 Bayesian facade SE is wrong by ~√n_draws; Laplace fixes σ²=1 — DONE
-- `crates/causal/src/analysis.rs:1021` reports `sd/√n_draws` (Monte-Carlo error of the posterior
-  mean, ~31× too small at 1000 draws) where every other estimator reports a sampling SE. Report the
-  posterior sd itself.
-- `crates/causal-prob/src/laplace.rs:327-330` fixes the working variance σ²=1 for GaussianIdentity,
-  so the posterior scale is wrong unless residual variance ≈ 1. Estimate the residual variance and
-  scale the curvature.
-**Status:** Fixed — facade reports posterior SD; Laplace final Hessian/loglik use residual σ².
-
-### P2.3 GLM convergence flag is never checked (separation goes undiagnosed) — DONE
-`crates/causal-stats/src/glm.rs:209-272` has no separation detection; under complete separation the
-fit returns `converged: false` — but no caller checks it: `fit_propensity`
-(`crates/causal-stats/src/propensity.rs:64-73`), `PropensityModel::fit`
-(`crates/causal-estimate/src/prepare.rs:57-72`), `GlmAdjustmentAte::fit`
-(`crates/causal-estimate/src/glm_adjustment.rs:218-230`). A separated propensity model yields scores
-pinned at the 1e-9 clamp and IPW/AIPW run on degenerate weights silently. DoWhy inherits sklearn's
-L2-regularized logistic here, so behavior diverges from DoWhy exactly in the separation regime.
-**Fix:** propagate `converged: false` as an error or a loud overlap-report diagnostic at every call
-site; consider an optional ridge penalty as a separation fallback (ties into P5 GLM work).
-**Status:** Fixed — `GlmFit.separated` + `require_ok()`; hard-fail in `fit_propensity`,
-`PropensityModel::fit`, and `GlmAdjustmentAte::fit`. Ridge fallback remains P5.
-
-### P2.4 Systemic silent bootstrap replicate-dropping in causal-estimate — DONE
-Failed replicates are skipped uncounted, so `se_bootstrap` is a `sample_std` over a
-selection-biased survivor set, and <2 survivors yields `Some(NaN)` — callers can't distinguish
-"bootstrap failed" from "ran". Sites:
-`propensity/weighting.rs:146`, `propensity/stratification.rs:154`, `propensity/matching.rs:153`,
-`propensity/distance.rs:159-176`, `aipw.rs:254`, `iv.rs:266,466-476`, `frontdoor.rs:319-321`,
-`rd.rs:273`, `util.rs:79-82` (all under `crates/causal-estimate/src/`).
-**Fix:** count failures, expose `replicates_failed` in the result, and error (or return `None` with
-a diagnostic) above a failure threshold. Best done together with P6.3 (consolidate the 8 copy-pasted
-bootstrap loops onto one shared helper so the fix lands once).
-**Status:** Fixed — shared `bootstrap_se` + `BootstrapSeResult`; `se=None` when <2 survivors or
->50% soft-failures (never `Some(NaN)`); `EffectEstimate.bootstrap_replicates_{ok,failed}` exposed.
-Full P6.3 resample engine still open.
+## P2 — Honest reporting / silent failures (remaining)
 
 ### P2.5 Python bindings: suppressed refuters, swallowed errors, test execution context — partial
 `python/src/lib.rs`
@@ -110,80 +64,13 @@ is real; the payoffs it averages are placeholders.
 **Fix:** implement the real objectives (EIG via posterior simulation; identifiability via the
 actual identifier on the candidate graph; SE reduction via simulated design analysis). Do not ship silent placeholder numbers.
 
-### P2.7 Bayesian validators are permanent no-ops in the suite — fixed
-`ValidationSuite::run_bayesian` + `BayesianSuiteContext` run Prior/Posterior PPC and PriorSensitivity;
-plain `run()` still returns honest `NotApplicable` for those ids. `PriorSensitivity::to_report` uses
-`max_relative_range` (default 0.5). `execute_bayesian` runs `bayesian_diagnostics()` when refute ≠ None.
-
-### P2.8 Dead-end facade builder APIs — fixed
-`compile()` wires `DiscoverJpcmciPlus` (single-env wrap), `DiscoverRpcmci` (half-split regimes →
-first-regime CPDAG review), `DiscoverLpcmci` / `TemporalPag` → `ReviewRequiredPag`, and
-`Pag` via `reject_dag_only_on_pag` (class-aware execute still not on the facade). Builder helpers:
-`discover_lpcmci`, `pag`, `temporal_pag`.
-
-### P2.9 Fixed seeds / test contexts in production paths — fixed
-Callers' `ExecutionContext` is threaded through `ModelEvaluator::evaluate`, distribution-change
-payoffs, `feature_relevance`, and `intrinsic_influence`. Anomaly residual inference errors now
-propagate instead of zero-filling.
-
-### P2.10 Mislabeled statistics — fixed
-- `KnnCmi` docs/factory: honest kNN distance dependence (not KSG); `df=0`; aliases `knn_dependence`.
-- `classifier_two_sample`: Mann–Whitney U / AUC (not a mean-diff alias).
-- `RegressionCi` documented as ParCorr alias; `ci_from_name("weighted_parcorr")` errors (weights required).
-
-### P2.11 CI tests ignore the requested significance/confidence methods — fixed
-`GSquared` honors analytic vs `BlockShuffle` and confidence level; nonparametric CI tests
-(`KnnCmi`, `SymbolicCmi`, `Gpdc`, …) take permutation counts from
-`nonparametric_permutation_count(request.significance)`.
-
-### P2.12 Silent-fallback sweep (each small; fix opportunistically, loudest first)
-- `crates/causal-data/src/transforms.rs`: `equal_width_bin` maps NaN → bin 0; `ordinal_patterns`
-  treats NaN as tied (`unwrap_or(Equal)`). The file carries
-  `#![allow(clippy::all, clippy::pedantic, clippy::restriction)]` — remove the blanket allow and
-  handle NaN explicitly (error or dedicated missing bin).
-- `crates/causal-data/src/resample.rs:83-98`: block bootstrap clamps indices to n−1 when
-  `block_size > n`, padding replicates with the last row; reachable via
-  `BlockBootstrapStability::new()` default `block_size: 20`
-  (`crates/causal-validate/src/stability.rs:971`) on short series. Error when `block_size >= n`.
-- `crates/causal-attribution/src/anomaly.rs:81`: noise-inference error discarded →
-  `residual_abs = 0.0` for every unit (indistinguishable from perfect fit). Propagate.
-  **Done** (with P2.9): `infer_noise_column` errors propagate.
-- `crates/causal-attribution/src/path.rs:48-51,100-102`: non-linear edges get strength
-  `unwrap_or(0.0)` → all-zero path shares with no diagnostic; also uses |β| path products, which
-  cannot represent cancelling paths, and `total_change` sums absolute shares. Use signed products;
-  error on unsupported mechanisms.
-- `crates/causal-attribution/src/robust.rs:193-197`: all-zero prediction column triggers a silent
-  substitution of the last node's predictions (a legitimate all-zero prediction is clobbered).
-  Replace the sentinel with an explicit flag. Document that the payoff equals the interventional
-  mean only for linear models.
-- `crates/causal-model/src/registry.rs:133-137`: per-family fit errors swallowed during model
-  selection — record which candidates failed and why.
-- `crates/causal-model/src/do_sampler.rs:235-241`: KDE bandwidth recovered by parsing a note
-  string; parse failure → silent 1.0 feeding MCMC. Store bandwidth in a typed field.
-- `crates/causal-counterfactual/src/engine.rs:104-115`: `abduct(allow_missing=true)` zero-fills a
-  whole missing column and treats the zeros as observed when inferring children's noise, flagged
-  only by a global `AssumedNoise` kind (doc claims per-cell granularity). Track missingness
-  per-cell or restrict the flag's scope honestly.
-- `crates/causal-io/src/wire.rs:268-274`: version parse failure → `0.0.0` written into durable
-  artifacts. Error instead.
-- `crates/causal-io/src/graph_json.rs:575-617`: encoder silently drops names on length mismatch
-  while the decoder rejects the same mismatch. Make the encoder error.
-- `crates/causal-io/src/container.rs:891-903`: up-to-4-GiB allocations from untrusted length
-  prefixes before plausibility checks — memory-DoS in an interchange format. Validate lengths
-  against remaining input size before allocating.
-- `crates/causal-estimate/src/overlap.rs:124-127`: missing weights → ESS reported as n. Report
-  `None`.
-- `crates/causal-discovery/src/evidence.rs:82`: `let _ = graph.insert_directed(...)` drops
-  cycle-forming links from `evidence.graph` while they remain in `evidence.links`, though the doc
-  says the two are aligned. Similar swallows at `jpcmci_plus.rs:288`,
-  `crates/causal-graph/src/projection.rs:53,66`. Record dropped links in diagnostics.
-- `crates/causal-discovery/src/engine.rs:272`: public `mci_test` discards the conditioning-set
-  truncation count that the batch path reports as a diagnostic. Return it.
-- `crates/causal-model/src/evaluate.rs:78,118-147`: `held_out_loglik` is computed in-sample — no
-  split exists. Implement a real holdout or rename.
-- `crates/causal-attribution/src/anomaly.rs:148-193`: `intrinsic_influence` is a population
-  do-contrast with a hardcoded seed, not intrinsic (noise-based) influence. Rename or implement
-  (see P4.8).
+### P2.12 Silent-fallback sweep — fixed
+All listed sites addressed: NaN rejection in transforms; block bootstrap errors when
+`block_size > n`; signed path products / refuse non-linear; robust outcome-player check;
+registry records failed families; typed KDE `bandwidth`; column-level `assumed_columns` on
+abduction; version/name/length validation in io; `OverlapReport.ess: Option`; evidence/jpcmci/
+projection skip only Cycle/Duplicate; `mci_test` returns truncation count; `in_sample_loglik`
+rename; `population_do_contrast` (deprecated `intrinsic_influence` alias).
 
 ---
 
@@ -399,8 +286,8 @@ roughly by how much current claims/outputs depend on them.
    missing `IdentificationStatus` variants (`IdentifiedUnderParametricRestrictions`,
    `IdentifiedUnderPriorRestrictions` — `crates/causal-core/src/identification.rs:11-20`).
 4. **Statistical layer** (DESIGN.md:1000-1061): multinomial logistic (unblocks P1.12), negative
-   binomial, probit IRLS (unblocks P4.12), robust M-estimation, ridge/lasso (helps P2.3
-   separation); **robust covariance §11.3** — HC0–HC3, cluster, multiway, HAC/Newey-West (zero hits
+   binomial, probit IRLS (unblocks P4.12), robust M-estimation, ridge/lasso (optional
+   separation fallback; hard-fail already shipped); **robust covariance §11.3** — HC0–HC3, cluster, multiway, HAC/Newey-West (zero hits
    repo-wide today; SEs are homoskedastic-analytic or bootstrap); shared resampling engine §11.4
    additions — cluster and stationary-block bootstrap, permutation resampling; multiple testing
    beyond BH (P4.6).
@@ -465,9 +352,9 @@ backend trait; delete the copies.
 causal-data) hand-rolls index draws in `util.rs:70-77` and copy-pastes the
 resample-gather-refit loop 8× (weighting, stratification, matching, distance, aipw, iv, frontdoor,
 rd — only `adjustment.rs:202` uses the shared `bootstrap_se`);
-`crates/causal-validate/src/bootstrap_refute.rs:85-95` hand-rolls again. Every copy re-invites the
-P2.4 silent-drop bug. Consolidate onto one helper that also carries the failure accounting from
-P2.4 and unbiased index sampling (P6.4).
+`crates/causal-validate/src/bootstrap_refute.rs:85-95` hand-rolls again. Failure accounting already
+lives in `causal-estimate`'s shared `bootstrap_se`; consolidate remaining hand-rolled loops onto
+one helper (and unbiased index sampling — P6.4).
 
 ### P6.4 Shared sampling primitives
 Box–Muller exists 5× in prod (`crates/causal-kernels/src/rng.rs:9` canonical;

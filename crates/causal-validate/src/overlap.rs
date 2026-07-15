@@ -58,7 +58,21 @@ impl OverlapRefuter {
             None => (self.diagnostic_report(problem)?, 1),
         };
         let nrows = estimation_row_count(problem)? as f64;
-        let ess_fraction = if nrows > 0.0 { report.ess / nrows } else { 0.0 };
+        let Some(ess) = report.ess else {
+            return Ok(RefutationReport {
+                refuter: Arc::from("overlap.assessment"),
+                original_ate: problem.original.ate,
+                refuted_ate: problem.original.ate,
+                comparison: f64::NAN,
+                informative: false,
+                passed: false,
+                failure_condition: Some(Arc::from(
+                    "overlap report has no weights; ESS is undefined",
+                )),
+                replicates,
+            });
+        };
+        let ess_fraction = if nrows > 0.0 { ess / nrows } else { 0.0 };
         let bounds_ok =
             report.propensity_min >= self.eps && report.propensity_max <= 1.0 - self.eps;
         let ess_ok = ess_fraction >= self.min_ess_fraction;

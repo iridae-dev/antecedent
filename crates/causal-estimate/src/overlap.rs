@@ -55,8 +55,8 @@ pub struct OverlapReport {
     pub propensity_min: f64,
     /// Maximum fitted propensity (before clipping).
     pub propensity_max: f64,
-    /// Kish effective sample size of the applied weights.
-    pub ess: f64,
+    /// Kish effective sample size of the applied weights (`None` when weights were not supplied).
+    pub ess: Option<f64>,
     /// Count of weights above the extreme-weight threshold (default 10).
     pub extreme_weight_count: u32,
     /// Fraction of rows excluded by trimming (0 if no trim).
@@ -122,8 +122,11 @@ impl OverlapReport {
             _ => Arc::from([]),
         };
         let (ess, extreme_weight_count) = match weights {
-            Some(w) if !w.is_empty() => weight_summary(w),
-            _ => (f64::from(u32::try_from(propensities.len()).unwrap_or(u32::MAX)), 0),
+            Some(w) if !w.is_empty() => {
+                let (e, c) = weight_summary(w);
+                (Some(e), c)
+            }
+            _ => (None, 0),
         };
         let clip_sensitivity = clip.map(|c| clip_sensitivity_grid(propensities, c));
         Self {

@@ -257,6 +257,9 @@ impl PcmciEngine {
     /// lag τ so the conditioning set is `pa(X_{t−τ})`, matching tigramite's MCI phase. The
     /// frame must therefore materialize lags up to `2 · max_lag`.
     ///
+    /// Returns the scored link and the number of conditioning parents truncated by
+    /// the MCI size cap (same count the batch path surfaces as `mci.conditioning_truncated`).
+    ///
     /// # Errors
     ///
     /// Data or CI failures.
@@ -268,8 +271,8 @@ impl PcmciEngine {
         parents_source: &[(VariableId, Lag)],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<ScoredLink, DiscoveryError> {
-        let _truncated =
+    ) -> Result<(ScoredLink, u64), DiscoveryError> {
+        let truncated =
             mci_conditioning(link, parents_target, parents_source, &mut workspace.others);
         let cond = std::mem::take(&mut workspace.others);
         let result = self.ci_statistic(
@@ -284,7 +287,10 @@ impl PcmciEngine {
         );
         workspace.others = cond;
         let (stat, p) = result?;
-        Ok(ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None })
+        Ok((
+            ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None },
+            truncated,
+        ))
     }
 
     /// Run PC parents for all targets then MCI on surviving links.
