@@ -13,6 +13,7 @@ use causal_core::{
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
 use causal_graph::{Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview};
+use causal_stats::FdrAdjustment;
 
 use crate::error::AnalysisError;
 use crate::strategy_table::validate_static_pair;
@@ -30,8 +31,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
-        /// Apply FDR.
-        fdr: bool,
+        /// Multiple-testing adjustment (`None` = off).
+        fdr: Option<FdrAdjustment>,
         /// Auto-accept discovered edges (skip review).
         accept_discovered: bool,
     },
@@ -41,8 +42,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
-        /// Apply FDR.
-        fdr: bool,
+        /// Multiple-testing adjustment (`None` = off).
+        fdr: Option<FdrAdjustment>,
         /// Auto-accept directed edges when no undirected marks remain.
         ///
         /// If undirected contemporaneous edges remain after orientation, compile still
@@ -59,8 +60,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
-        /// Apply FDR.
-        fdr: bool,
+        /// Multiple-testing adjustment (`None` = off).
+        fdr: Option<FdrAdjustment>,
         /// Auto-accept when no circle marks remain.
         accept_discovered: bool,
     },
@@ -70,8 +71,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
-        /// Apply FDR.
-        fdr: bool,
+        /// Multiple-testing adjustment (`None` = off).
+        fdr: Option<FdrAdjustment>,
         /// Auto-accept when no undirected marks remain.
         accept_discovered: bool,
     },
@@ -81,8 +82,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
-        /// Apply FDR.
-        fdr: bool,
+        /// Multiple-testing adjustment (`None` = off).
+        fdr: Option<FdrAdjustment>,
         /// Auto-accept when each regime graph is fully oriented.
         accept_discovered: bool,
     },

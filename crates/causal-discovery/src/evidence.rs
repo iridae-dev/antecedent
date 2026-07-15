@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use causal_core::{Lag, VariableId};
 use causal_graph::{DenseNodeId, TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
-use causal_stats::benjamini_hochberg;
+use causal_stats::{FdrAdjustment, adjust_pvalues};
 
 use crate::error::DiscoveryError;
 use crate::result::{
@@ -18,23 +18,47 @@ use crate::result::{
 /// Optionally FDR-adjust then retain links whose (adjusted) p-value is `<= alpha`.
 ///
 /// Matches tigramite's significance boundary (`p <= alpha` kept). Raw p-values are
-/// preserved on [`ScoredLink::p_value`]; BH-adjusted values are recorded on
-/// [`ScoredLink::adjusted_p_value`] and drive retention when `fdr` is set.
+/// preserved on [`ScoredLink::p_value`]; adjusted values are recorded on
+/// [`ScoredLink::adjusted_p_value`] and drive retention when FDR is configured.
+///
+/// When `fdr.exclude_contemporaneous` is set (tigramite default), lag-0 links are
+/// left unadjusted and thresholded on their raw p-values — only lagged tests enter
+/// the correction family (`get_corrected_pvalues`).
 #[must_use]
 pub fn threshold_scored_links(
     mut scored: Vec<ScoredLink>,
-    fdr: bool,
+    fdr: Option<FdrAdjustment>,
     alpha: f64,
 ) -> Vec<ScoredLink> {
-    if fdr && !scored.is_empty() {
-        let pvals: Vec<f64> = scored.iter().map(|l| l.p_value).collect();
-        let adj = benjamini_hochberg(&pvals);
-        for (link, &p_adj) in scored.iter_mut().zip(adj.iter()) {
-            link.adjusted_p_value = Some(p_adj);
+    if let Some(cfg) = fdr {
+        if !scored.is_empty() {
+            let mut family_idx = Vec::new();
+            let mut family_p = Vec::new();
+            for (i, link) in scored.iter().enumerate() {
+                let contemp = link.link.source_lag.is_contemporaneous()
+                    && link.link.target_lag.is_contemporaneous();
+                if cfg.exclude_contemporaneous && contemp {
+                    continue;
+                }
+                family_idx.push(i);
+                family_p.push(link.p_value);
+            }
+            if !family_p.is_empty() {
+                let adj = adjust_pvalues(&family_p, cfg.method);
+                for (slot, &i) in family_idx.iter().enumerate() {
+                    scored[i].adjusted_p_value = Some(adj[slot]);
+                }
+            }
         }
     }
     scored.retain(|s| s.adjusted_p_value.unwrap_or(s.p_value) <= alpha);
     scored
+}
+
+/// Backward-compatible BH toggle (excludes contemporaneous links, matching tigramite).
+#[must_use]
+pub fn threshold_scored_links_bh(scored: Vec<ScoredLink>, fdr: bool, alpha: f64) -> Vec<ScoredLink> {
+    threshold_scored_links(scored, fdr.then(FdrAdjustment::bh), alpha)
 }
 
 /// Keep a contemporaneous undirected adjacency only when **both** directed tests survive.
@@ -399,5 +423,63 @@ mod tests {
         let out = symmetrize_contemporaneous_links(vec![link]);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].link.source_lag.raw(), 1);
+    }
+
+    #[test]
+    fn exclude_contemporaneous_leaves_lag0_unadjusted() {
+        let lagged = ScoredLink {
+            link: LaggedLink {
+                source: VariableId::from_raw(0),
+                source_lag: Lag::from_raw(1),
+                target: VariableId::from_raw(1),
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.5,
+            p_value: 0.01,
+            adjusted_p_value: None,
+        };
+        let contemp = ScoredLink {
+            link: LaggedLink {
+                source: VariableId::from_raw(0),
+                source_lag: Lag::CONTEMPORANEOUS,
+                target: VariableId::from_raw(1),
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.4,
+            p_value: 0.02,
+            adjusted_p_value: None,
+        };
+        let out = threshold_scored_links(
+            vec![lagged, contemp],
+            Some(FdrAdjustment::bh()),
+            1.0, // keep all
+        );
+        assert_eq!(out.len(), 2);
+        let lagged_out = out.iter().find(|s| s.link.source_lag.raw() == 1).unwrap();
+        let contemp_out = out
+            .iter()
+            .find(|s| s.link.source_lag.is_contemporaneous())
+            .unwrap();
+        assert!(lagged_out.adjusted_p_value.is_some());
+        assert!(contemp_out.adjusted_p_value.is_none());
+    }
+
+    #[test]
+    fn include_contemporaneous_adjusts_lag0() {
+        let contemp = ScoredLink {
+            link: LaggedLink {
+                source: VariableId::from_raw(0),
+                source_lag: Lag::CONTEMPORANEOUS,
+                target: VariableId::from_raw(1),
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.4,
+            p_value: 0.02,
+            adjusted_p_value: None,
+        };
+        let cfg = FdrAdjustment::bh().with_exclude_contemporaneous(false);
+        let out = threshold_scored_links(vec![contemp], Some(cfg), 1.0);
+        assert_eq!(out.len(), 1);
+        assert!(out[0].adjusted_p_value.is_some());
     }
 }

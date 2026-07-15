@@ -107,7 +107,7 @@ pub struct ScoredLink {
     pub statistic: f64,
     /// Raw (unadjusted) p-value.
     pub p_value: f64,
-    /// Benjamini–Hochberg adjusted p-value when FDR ran over the MCI family.
+    /// Adjusted p-value when multiple-testing correction ran over the MCI family.
     pub adjusted_p_value: Option<f64>,
 }
 

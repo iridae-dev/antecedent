@@ -29,6 +29,8 @@ non-vacuous structure and true-edge subset invariants only.
 
 - Alpha boundary: independence when `p > alpha`; retain links with `p <= alpha`
   (matches tigramite).
+- FDR: BH/BY/Bonferroni/Holm via `FdrAdjustment`; `exclude_contemporaneous=true` by
+  default (tigramite `get_corrected_pvalues`).
 - ParCorr residualization: no intercept column; plain least-squares on Z only
   (matches tigramite `lstsq`). Analytic df remains `n − 2 − |Z|`.
 - PC and MCI lagged frames both use depth `2 · max_lag` (tigramite

@@ -2,26 +2,73 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// Whether Benjamini–Hochberg FDR is applied after CI tests.
+use causal_stats::{FdrAdjustment, MultipleTestingMethod};
+
+/// Whether / how FDR (or FWER) adjustment is applied after CI tests.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum FdrControl {
-    /// No FDR adjustment.
+    /// No multiple-testing adjustment.
     Off,
-    /// Benjamini–Hochberg FDR.
-    Bh,
+    /// Adjust with the given procedure / family options.
+    On(FdrAdjustment),
 }
 
 impl FdrControl {
-    /// Whether FDR is enabled.
+    /// Benjamini–Hochberg with tigramite's contemporaneous exclusion.
+    #[must_use]
+    pub const fn bh() -> Self {
+        Self::On(FdrAdjustment::bh())
+    }
+
+    /// Benjamini–Yekutieli with contemporaneous exclusion.
+    #[must_use]
+    pub const fn by() -> Self {
+        Self::On(FdrAdjustment::by())
+    }
+
+    /// Bonferroni FWER.
+    #[must_use]
+    pub const fn bonferroni() -> Self {
+        Self::On(FdrAdjustment {
+            method: MultipleTestingMethod::Bonferroni,
+            exclude_contemporaneous: true,
+        })
+    }
+
+    /// Holm–Bonferroni FWER.
+    #[must_use]
+    pub const fn holm() -> Self {
+        Self::On(FdrAdjustment {
+            method: MultipleTestingMethod::Holm,
+            exclude_contemporaneous: true,
+        })
+    }
+
+    /// Whether any adjustment is enabled.
     #[must_use]
     pub const fn enabled(self) -> bool {
-        matches!(self, Self::Bh)
+        matches!(self, Self::On(_))
+    }
+
+    /// Adjustment config when enabled.
+    #[must_use]
+    pub const fn adjustment(self) -> Option<FdrAdjustment> {
+        match self {
+            Self::Off => None,
+            Self::On(cfg) => Some(cfg),
+        }
     }
 }
 
 impl From<bool> for FdrControl {
     fn from(value: bool) -> Self {
-        if value { Self::Bh } else { Self::Off }
+        if value { Self::bh() } else { Self::Off }
+    }
+}
+
+impl From<FdrAdjustment> for FdrControl {
+    fn from(value: FdrAdjustment) -> Self {
+        Self::On(value)
     }
 }
 

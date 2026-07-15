@@ -30,8 +30,8 @@ pub struct DiscoverParams {
     pub max_lag: u32,
     /// Significance level.
     pub alpha: f64,
-    /// Apply FDR control when the algorithm supports it.
-    pub fdr: bool,
+    /// Multiple-testing adjustment (`None` = off).
+    pub fdr: Option<causal_stats::FdrAdjustment>,
     /// Conditional-independence test (resolved via [`crate::discovery_defaults::resolve_ci`]).
     pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
 }
@@ -59,7 +59,7 @@ pub fn discover_pcmci(
     ctx: &ExecutionContext,
 ) -> Result<DagDiscoveryResult, AnalysisError> {
     let pcmci = Pcmci::new()
-        .with_fdr(params.fdr)
+        .with_fdr_adjustment(params.fdr)
         .with_constraints(pcmci_constraints(params.max_lag, params.alpha))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
@@ -78,7 +78,7 @@ pub fn discover_pcmci_plus(
     ctx: &ExecutionContext,
 ) -> Result<CpdagDiscoveryResult, AnalysisError> {
     let plus = PcmciPlus::new()
-        .with_fdr(params.fdr)
+        .with_fdr_adjustment(params.fdr)
         .with_constraints(contemporaneous_constraints(params.max_lag, params.alpha))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
@@ -97,7 +97,7 @@ pub fn discover_lpcmci(
     ctx: &ExecutionContext,
 ) -> Result<PagDiscoveryResult, AnalysisError> {
     let alg = Lpcmci::new()
-        .with_fdr(params.fdr)
+        .with_fdr_adjustment(params.fdr)
         .with_constraints(contemporaneous_constraints(params.max_lag, params.alpha))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
@@ -116,7 +116,7 @@ pub fn discover_jpcmci_plus(
     ctx: &ExecutionContext,
 ) -> Result<CpdagDiscoveryResult, AnalysisError> {
     let alg = JpcmciPlus::new()
-        .with_fdr(params.fdr)
+        .with_fdr_adjustment(params.fdr)
         .with_constraints(contemporaneous_constraints(params.max_lag, params.alpha))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
@@ -137,7 +137,7 @@ pub fn discover_rpcmci(
     ctx: &ExecutionContext,
 ) -> Result<RpcmciDiscoveryResult, AnalysisError> {
     let plus = PcmciPlus::new()
-        .with_fdr(params.fdr)
+        .with_fdr_adjustment(params.fdr)
         .with_constraints(contemporaneous_constraints(params.max_lag, params.alpha))
         .with_ci(Arc::clone(&params.ci));
     let alg = Rpcmci::new()

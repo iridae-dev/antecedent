@@ -9,7 +9,7 @@ use std::sync::Arc;
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::TimeSeriesData;
 use causal_graph::TemporalGraphReview;
-use causal_stats::ConditionalIndependence;
+use causal_stats::{ConditionalIndependence, FdrAdjustment};
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
@@ -22,8 +22,8 @@ use crate::result::{AlgorithmRecord, DagDiscoveryResult};
 pub struct Pcmci {
     /// Engine.
     pub engine: PcmciEngine,
-    /// Apply Benjamini–Hochberg FDR to the full MCI family before alpha keep.
-    pub fdr: bool,
+    /// Multiple-testing adjustment over the MCI family (`None` = off).
+    pub fdr: Option<FdrAdjustment>,
 }
 
 impl Default for Pcmci {
@@ -33,10 +33,10 @@ impl Default for Pcmci {
 }
 
 impl Pcmci {
-    /// Default PCMCI (FDR on, alpha 0.05).
+    /// Default PCMCI (BH FDR on, alpha 0.05).
     #[must_use]
     pub fn new() -> Self {
-        Self { engine: PcmciEngine::new(), fdr: true }
+        Self { engine: PcmciEngine::new(), fdr: Some(FdrAdjustment::bh()) }
     }
 
     /// Configure constraints.
@@ -46,9 +46,16 @@ impl Pcmci {
         self
     }
 
-    /// Enable / disable FDR.
+    /// Enable / disable BH FDR (tigramite contemporaneous exclusion).
     #[must_use]
     pub fn with_fdr(mut self, fdr: bool) -> Self {
+        self.fdr = fdr.then(FdrAdjustment::bh);
+        self
+    }
+
+    /// Full FDR / FWER configuration.
+    #[must_use]
+    pub fn with_fdr_adjustment(mut self, fdr: Option<FdrAdjustment>) -> Self {
         self.fdr = fdr;
         self
     }
@@ -64,8 +71,7 @@ impl Pcmci {
     ///
     /// MCI scores the full constrained candidate family (all allowed
     /// `(X_{t−τ}, Y_t)` pairs); PC parent sets supply conditioning only. When
-    /// `fdr` is set, Benjamini–Hochberg adjusts that family, then alpha retains
-    /// links.
+    /// FDR is set, that family is adjusted, then alpha retains links.
     ///
     /// # Errors
     ///
@@ -90,7 +96,7 @@ impl Pcmci {
         result.algorithm = AlgorithmRecord {
             id: Arc::from("pcmci"),
             config: Arc::from(format!(
-                "alpha={},max_lag={},fdr={}",
+                "alpha={},max_lag={},fdr={:?}",
                 alpha,
                 self.engine.constraints.temporal.max_lag.raw(),
                 self.fdr

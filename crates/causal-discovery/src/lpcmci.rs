@@ -9,7 +9,7 @@ use std::sync::Arc;
 use causal_core::{ExecutionContext, Lag, VariableId};
 use causal_data::TimeSeriesData;
 use causal_graph::TemporalPagReview;
-use causal_stats::ConditionalIndependence;
+use causal_stats::{ConditionalIndependence, FdrAdjustment};
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
@@ -30,8 +30,8 @@ use crate::rule_scheduling::{
 pub struct Lpcmci {
     /// Shared PCMCI engine (`min_lag` typically 0).
     pub engine: PcmciEngine,
-    /// Apply FDR before alpha keep.
-    pub fdr: bool,
+    /// Multiple-testing adjustment (`None` = off).
+    pub fdr: Option<FdrAdjustment>,
 }
 
 impl Default for Lpcmci {
@@ -46,7 +46,10 @@ impl Lpcmci {
     pub fn new() -> Self {
         let mut constraints = DiscoveryConstraints::default();
         constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
-        Self { engine: PcmciEngine::new().with_constraints(constraints), fdr: true }
+        Self {
+            engine: PcmciEngine::new().with_constraints(constraints),
+            fdr: Some(FdrAdjustment::bh()),
+        }
     }
 
     /// Configure constraints.
@@ -56,9 +59,16 @@ impl Lpcmci {
         self
     }
 
-    /// Enable / disable FDR.
+    /// Enable / disable BH FDR.
     #[must_use]
     pub fn with_fdr(mut self, fdr: bool) -> Self {
+        self.fdr = fdr.then(FdrAdjustment::bh);
+        self
+    }
+
+    /// Full FDR / FWER configuration.
+    #[must_use]
+    pub fn with_fdr_adjustment(mut self, fdr: Option<FdrAdjustment>) -> Self {
         self.fdr = fdr;
         self
     }
@@ -99,7 +109,7 @@ impl Lpcmci {
         let algorithm = algorithm_record(
             "lpcmci",
             format!(
-                "alpha={},max_lag={},fdr={},min_lag={}",
+                "alpha={},max_lag={},fdr={:?},min_lag={}",
                 alpha,
                 self.engine.constraints.temporal.max_lag.raw(),
                 self.fdr,

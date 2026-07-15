@@ -31,6 +31,7 @@ pub use discovery_defaults::{
 };
 pub use error::AnalysisError;
 pub use options::{DiscoveryAccept, FdrControl};
+pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use gcm::{
     FittedGcm, IteResult, anomaly_attribution, attribute_distribution_change,
     attribute_distribution_change_robust, attribute_feature_relevance, attribute_paths,

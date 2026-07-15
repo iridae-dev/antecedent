@@ -170,7 +170,7 @@ impl CausalAnalysisBuilder {
         self.graph = Some(GraphInput::DiscoverPcmci {
             max_lag,
             alpha,
-            fdr: fdr.enabled(),
+            fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
         });
         self
@@ -191,7 +191,7 @@ impl CausalAnalysisBuilder {
         self.graph = Some(GraphInput::DiscoverPcmciPlus {
             max_lag,
             alpha,
-            fdr: fdr.enabled(),
+            fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
         });
         self
@@ -209,7 +209,7 @@ impl CausalAnalysisBuilder {
         self.graph = Some(GraphInput::DiscoverJpcmciPlus {
             max_lag,
             alpha,
-            fdr: fdr.enabled(),
+            fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
         });
         self
@@ -227,7 +227,7 @@ impl CausalAnalysisBuilder {
         self.graph = Some(GraphInput::DiscoverRpcmci {
             max_lag,
             alpha,
-            fdr: fdr.enabled(),
+            fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
         });
         self
@@ -245,7 +245,7 @@ impl CausalAnalysisBuilder {
         self.graph = Some(GraphInput::DiscoverLpcmci {
             max_lag,
             alpha,
-            fdr: fdr.enabled(),
+            fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
         });
         self
@@ -1158,7 +1158,7 @@ fn run_pcmci_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
-    fdr: bool,
+    fdr: Option<causal_stats::FdrAdjustment>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalGraphReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -1171,7 +1171,7 @@ fn run_pcmci_plus_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
-    fdr: bool,
+    fdr: Option<causal_stats::FdrAdjustment>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -1184,7 +1184,7 @@ fn run_jpcmci_plus_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
-    fdr: bool,
+    fdr: Option<causal_stats::FdrAdjustment>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -1200,7 +1200,7 @@ fn run_rpcmci_discovery(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
-    fdr: bool,
+    fdr: Option<causal_stats::FdrAdjustment>,
     ctx: &ExecutionContext,
 ) -> Result<causal_discovery::RpcmciDiscoveryResult, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -1213,7 +1213,7 @@ fn run_lpcmci_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
-    fdr: bool,
+    fdr: Option<causal_stats::FdrAdjustment>,
     ctx: &ExecutionContext,
 ) -> Result<causal_graph::TemporalPagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();

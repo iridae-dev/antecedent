@@ -21,11 +21,11 @@ use arrow_schema::{DataType, Field, Schema};
 use causal::{
     AnalysisError, BayesianConfig, CandidateDesign, CausalAnalysis, DataBatchRef, DesignCost,
     DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, DifferenceMeasure,
-    DiscoverParams, DiscoveryPerformanceRecord, DistributionChangeOptions, GraphIdentFlag,
-    InferenceMode, MeasurementPlan, RefuteSuite, SamplingPlan, ScoredLink, StateEvent,
-    TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples, apply_state_event,
-    attribute_distribution_change, counterfactual_ite, dag_from_dot, dag_to_dot, dag_to_json,
-    decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    DiscoverParams, DiscoveryPerformanceRecord, DistributionChangeOptions, FdrAdjustment,
+    GraphIdentFlag, InferenceMode, MeasurementPlan, RefuteSuite, SamplingPlan, ScoredLink,
+    StateEvent, TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples,
+    apply_state_event, attribute_distribution_change, counterfactual_ite, dag_from_dot, dag_to_dot,
+    dag_to_json, decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
     encode_causal_posterior_bytes, fit_gcm, new_causal_state, pag_definite_directed_edge_count,
@@ -96,6 +96,7 @@ impl IntoCausalPyErr for AnalysisError {
             Self::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
             Self::Model(e) => CausalModelError::new_err(e.to_string()),
             Self::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
+            Self::Attribution(e) => CausalEstimateError::new_err(e.to_string()),
             Self::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
             Self::Compile { message } => CausalCompileError::new_err(message),
             Self::Resource { message } => CausalResourceError::new_err(message),
@@ -725,7 +726,12 @@ fn discover_pcmci(
 
     py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
+        let params = DiscoverParams {
+            max_lag,
+            alpha,
+            fdr: fdr.then(FdrAdjustment::bh),
+            ci: ci_impl,
+        };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_pcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
         Ok(discovery_result_fields(
@@ -766,7 +772,12 @@ fn discover_pcmci_plus(
 
     py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
+        let params = DiscoverParams {
+            max_lag,
+            alpha,
+            fdr: fdr.then(FdrAdjustment::bh),
+            ci: ci_impl,
+        };
         let ctx = py_execution_context(seed, threads);
         let result =
             facade_discover_pcmci_plus(&series, &variables, &params, &ctx).map_err(py_err)?;
@@ -816,7 +827,12 @@ fn discover_lpcmci(
 
     py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
+        let params = DiscoverParams {
+            max_lag,
+            alpha,
+            fdr: fdr.then(FdrAdjustment::bh),
+            ci: ci_impl,
+        };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_lpcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
 
@@ -880,7 +896,12 @@ fn discover_jpcmci_plus(
             series_list.push(series);
         }
         let multi = MultiEnvironmentData::try_new(Arc::from(series_list)).map_err(py_err)?;
-        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
+        let params = DiscoverParams {
+            max_lag,
+            alpha,
+            fdr: fdr.then(FdrAdjustment::bh),
+            ci: ci_impl,
+        };
         let ctx = py_execution_context(seed, threads);
         let result =
             facade_discover_jpcmci_plus(&multi, &variables, &params, &ctx).map_err(py_err)?;
@@ -923,7 +944,12 @@ fn discover_rpcmci(
     py.detach(move || {
         let (series, variables) = series_from_batch(&batch)?;
         let assign = two_regime_half_split(series.row_count());
-        let params = DiscoverParams { max_lag, alpha, fdr, ci: ci_impl };
+        let params = DiscoverParams {
+            max_lag,
+            alpha,
+            fdr: fdr.then(FdrAdjustment::bh),
+            ci: ci_impl,
+        };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)
             .map_err(py_err)?;

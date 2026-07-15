@@ -10,7 +10,7 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::{LaggedColumn, MultiEnvSamplePlan, MultiEnvironmentData, TableView};
 use causal_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
-use causal_stats::ConditionalIndependence;
+use causal_stats::{ConditionalIndependence, FdrAdjustment};
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
@@ -40,8 +40,8 @@ pub type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
 pub struct JpcmciPlus {
     /// Shared engine (`min_lag` typically 0).
     pub engine: PcmciEngine,
-    /// Apply FDR before alpha keep on the pooled link set.
-    pub fdr: bool,
+    /// Multiple-testing adjustment on the pooled link set (`None` = off).
+    pub fdr: Option<FdrAdjustment>,
 }
 
 impl Default for JpcmciPlus {
@@ -57,7 +57,10 @@ impl JpcmciPlus {
         let mut constraints = DiscoveryConstraints::default();
         constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
         constraints.multi_dataset.pool_lagged_ci = true;
-        Self { engine: PcmciEngine::new().with_constraints(constraints), fdr: true }
+        Self {
+            engine: PcmciEngine::new().with_constraints(constraints),
+            fdr: Some(FdrAdjustment::bh()),
+        }
     }
 
     /// Configure constraints (caller should keep `min_lag = 0` for contemporaneous discovery).
@@ -67,9 +70,16 @@ impl JpcmciPlus {
         self
     }
 
-    /// Enable / disable FDR.
+    /// Enable / disable BH FDR.
     #[must_use]
     pub fn with_fdr(mut self, fdr: bool) -> Self {
+        self.fdr = fdr.then(FdrAdjustment::bh);
+        self
+    }
+
+    /// Full FDR / FWER configuration.
+    #[must_use]
+    pub fn with_fdr_adjustment(mut self, fdr: Option<FdrAdjustment>) -> Self {
         self.fdr = fdr;
         self
     }
@@ -185,7 +195,7 @@ impl JpcmciPlus {
         let algorithm = algorithm_record(
             "jpcmci_plus",
             format!(
-                "alpha={},max_lag={},fdr={},envs={},pool={},context={}",
+                "alpha={},max_lag={},fdr={:?},envs={},pool={},context={}",
                 alpha,
                 max_lag,
                 self.fdr,

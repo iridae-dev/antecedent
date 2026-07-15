@@ -57,6 +57,9 @@ one regime), then the alternating assignment loop.
 `crates/causal-stats/src/fdr.rs` implements BH only (correctly). Add Benjamini–Yekutieli and
 Bonferroni/Holm (DESIGN.md:1061), plus tigramite's `exclude_contemporaneous` family handling in
 `get_corrected_pvalues`.
+**DONE:** `MultipleTestingMethod` {BH, BY, Bonferroni, Holm}; `FdrAdjustment` with
+`exclude_contemporaneous` (tigramite default true); wired through discovery thresholding and
+facade `FdrControl`.
 
 ### P4.7 Generalized/PAG identification beyond the empty set
 `crates/causal-identify/src/generalized.rs:98-121` tests only `Z = ∅` per MAG completion; any

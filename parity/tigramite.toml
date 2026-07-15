@@ -188,7 +188,7 @@ group = "discovery"
 description = "FDR and confidence intervals"
 status = "done"
 owner = "discovery"
-notes = "BH over full MCI family; Fisher-z analytic CIs on ParCorr results (95%)."
+notes = "BH/BY/Bonferroni/Holm; exclude_contemporaneous family (tigramite default); Fisher-z analytic CIs on ParCorr results (95%)."
 
 [[capabilities]]
 id = "tigramite.graphs.ts_graph"

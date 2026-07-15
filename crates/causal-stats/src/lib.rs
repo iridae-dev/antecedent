@@ -36,7 +36,10 @@ pub use divergence::{
 pub use error::StatsError;
 #[cfg(feature = "faer")]
 pub use faer_backend::FaerBackend;
-pub use fdr::benjamini_hochberg;
+pub use fdr::{
+    FdrAdjustment, MultipleTestingMethod, adjust_pvalues, benjamini_hochberg, benjamini_yekutieli,
+    bonferroni, holm,
+};
 pub use glm::{GlmDesignRef, GlmFamily, GlmFit, GlmOptions, fit_glm};
 pub use gram::{accumulate_xtx, accumulate_xtx_xty_row, form_xtx, invert_square};
 pub use linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};

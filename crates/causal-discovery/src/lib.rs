@@ -40,8 +40,9 @@ pub use error::DiscoveryError;
 pub use evidence::{
     cpdag_evidence_from_oriented, cpdag_from_scored_links, graph_evidence_from_scored,
     graph_evidence_from_scored_with_sepsets, pag_evidence_from_oriented, pag_from_scored_links,
-    symmetrize_contemporaneous_links, threshold_scored_links,
+    symmetrize_contemporaneous_links, threshold_scored_links, threshold_scored_links_bh,
 };
+pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lpcmci::Lpcmci;
 pub use orientation::{
