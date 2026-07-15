@@ -80,10 +80,11 @@ impl Pag {
     }
 
     /// Whether marks are legal for a PAG (any Tail/Arrow/Circle pair on distinct nodes).
+    ///
+    /// Structural constraints (duplicates, directed cycles) are checked on insert.
     #[must_use]
-    pub const fn is_pag_legal(_edge: MarkedEdge) -> bool {
-        // All endpoint combinations are mark-legal; structural constraints checked on insert.
-        true
+    pub const fn is_pag_legal(edge: MarkedEdge) -> bool {
+        edge.a.raw() != edge.b.raw()
     }
 
     /// Insert a PAG-legal marked edge.
@@ -92,7 +93,9 @@ impl Pag {
     ///
     /// Unknown nodes, duplicates, self-loops, or directed cycles from arrowheads.
     pub fn insert_marked(&mut self, edge: MarkedEdge) -> Result<(), GraphError> {
-        let _ = Self::is_pag_legal(edge);
+        if !Self::is_pag_legal(edge) {
+            return Err(GraphError::InvalidEndpoints { message: "Pag rejects self-loops" });
+        }
         self.validate_node(edge.a)?;
         self.validate_node(edge.b)?;
         if edge.a == edge.b {
@@ -203,14 +206,15 @@ impl Pag {
         }
         let edge = MarkedEdge { a, b, at_a, at_b };
         if let Some((from, to)) = edge.parent_child() {
-            // Temporarily remove to test cycle on remaining directed part.
+            let previous =
+                marked_storage::edge_between(&self.adj, a, b).expect("edge present after has_edge");
             marked_storage::remove_edge(&mut self.adj, a, b);
             let cycle = self.reaches_directed(to, from);
-            // Re-insert with new marks either way.
-            marked_storage::push_marked_pair(&mut self.adj, edge);
             if cycle {
+                marked_storage::push_marked_pair(&mut self.adj, previous);
                 return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
             }
+            marked_storage::push_marked_pair(&mut self.adj, edge);
             return Ok(());
         }
         marked_storage::set_marks(&mut self.adj, a, b, at_a, at_b)

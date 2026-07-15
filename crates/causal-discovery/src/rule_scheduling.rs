@@ -85,24 +85,38 @@ impl LpcmciOrientationRule for LpcmciOrientCollider {
                         continue; // non-collider
                     }
                     // Orient a *→ b ←* c
-                    if let Some(e) = graph.edge_between(a, b) {
-                        let at_a = e.at_a;
-                        let at_b = Endpoint::Arrow;
-                        if !matches!(e.at_b, Endpoint::Arrow) {
-                            graph.set_marks(a, b, at_a, at_b).map_err(OrientationError::from)?;
-                            delta.edges_changed += 1;
+                    if let Some((at_a, at_b)) = marks_between(graph, a, b) {
+                        if !matches!(at_b, Endpoint::Arrow)
+                            && set_marks_oriented(
+                                graph,
+                                state,
+                                &mut delta,
+                                a,
+                                b,
+                                at_a,
+                                Endpoint::Arrow,
+                            )?
+                        {
                             enqueue_local(graph, a, queue);
                             enqueue_local(graph, b, queue);
+                            delta.edges_changed += 1;
                         }
                     }
-                    if let Some(e) = graph.edge_between(c, b) {
-                        let at_c = e.at_a;
-                        let at_b = Endpoint::Arrow;
-                        if !matches!(e.at_b, Endpoint::Arrow) {
-                            graph.set_marks(c, b, at_c, at_b).map_err(OrientationError::from)?;
-                            delta.edges_changed += 1;
+                    if let Some((at_c, at_b)) = marks_between(graph, c, b) {
+                        if !matches!(at_b, Endpoint::Arrow)
+                            && set_marks_oriented(
+                                graph,
+                                state,
+                                &mut delta,
+                                c,
+                                b,
+                                at_c,
+                                Endpoint::Arrow,
+                            )?
+                        {
                             enqueue_local(graph, c, queue);
                             enqueue_local(graph, b, queue);
+                            delta.edges_changed += 1;
                         }
                     }
                 }
@@ -126,7 +140,7 @@ impl LpcmciOrientationRule for LpcmciR1 {
     fn apply(
         &self,
         graph: &mut TemporalPag,
-        _state: &mut OrientationState,
+        state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
@@ -153,10 +167,19 @@ impl LpcmciOrientationRule for LpcmciR1 {
                         continue;
                     }
                     // Orient b → c (both endpoints).
-                    set_marks_oriented(graph, b, c, Endpoint::Tail, Endpoint::Arrow)?;
-                    delta.edges_changed += 1;
-                    enqueue_local(graph, b, queue);
-                    enqueue_local(graph, c, queue);
+                    if set_marks_oriented(
+                        graph,
+                        state,
+                        &mut delta,
+                        b,
+                        c,
+                        Endpoint::Tail,
+                        Endpoint::Arrow,
+                    )? {
+                        delta.edges_changed += 1;
+                        enqueue_local(graph, b, queue);
+                        enqueue_local(graph, c, queue);
+                    }
                 }
             }
         }
@@ -178,7 +201,7 @@ impl LpcmciOrientationRule for LpcmciR2 {
     fn apply(
         &self,
         graph: &mut TemporalPag,
-        _state: &mut OrientationState,
+        state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
@@ -214,10 +237,12 @@ impl LpcmciOrientationRule for LpcmciR2 {
                     if !matches!(at_c_ac, Endpoint::Circle) {
                         continue;
                     }
-                    set_marks_oriented(graph, a, c, at_a_ac, Endpoint::Arrow)?;
-                    delta.edges_changed += 1;
-                    enqueue_local(graph, a, queue);
-                    enqueue_local(graph, c, queue);
+                    if set_marks_oriented(graph, state, &mut delta, a, c, at_a_ac, Endpoint::Arrow)?
+                    {
+                        delta.edges_changed += 1;
+                        enqueue_local(graph, a, queue);
+                        enqueue_local(graph, c, queue);
+                    }
                 }
             }
         }
@@ -238,7 +263,7 @@ impl LpcmciOrientationRule for LpcmciR3 {
     fn apply(
         &self,
         graph: &mut TemporalPag,
-        _state: &mut OrientationState,
+        state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
@@ -288,10 +313,19 @@ impl LpcmciOrientationRule for LpcmciR3 {
                         {
                             continue;
                         }
-                        set_marks_oriented(graph, d, b, at_d_db, Endpoint::Arrow)?;
-                        delta.edges_changed += 1;
-                        enqueue_local(graph, d, queue);
-                        enqueue_local(graph, b, queue);
+                        if set_marks_oriented(
+                            graph,
+                            state,
+                            &mut delta,
+                            d,
+                            b,
+                            at_d_db,
+                            Endpoint::Arrow,
+                        )? {
+                            delta.edges_changed += 1;
+                            enqueue_local(graph, d, queue);
+                            enqueue_local(graph, b, queue);
+                        }
                     }
                 }
             }
@@ -312,19 +346,44 @@ fn marks_between(
 
 fn set_marks_oriented(
     graph: &mut TemporalPag,
+    state: &mut OrientationState,
+    delta: &mut RuleDelta,
     a: DenseNodeId,
     b: DenseNodeId,
     at_a: Endpoint,
     at_b: Endpoint,
-) -> Result<(), OrientationError> {
+) -> Result<bool, OrientationError> {
     let Some(e) = graph.edge_between(a, b) else {
         return Err(OrientationError::msg("missing edge in set_marks_oriented"));
     };
-    if e.a == a {
-        graph.set_marks(a, b, at_a, at_b).map_err(OrientationError::from)
+    let result = if e.a == a {
+        graph.set_marks(a, b, at_a, at_b)
     } else {
-        graph.set_marks(b, a, at_b, at_a).map_err(OrientationError::from)
+        graph.set_marks(b, a, at_b, at_a)
+    };
+    match result {
+        Ok(()) => Ok(true),
+        Err(causal_graph::GraphError::Cycle { .. }) => {
+            state.record_conflict(delta, a, b, "cycle");
+            Ok(false)
+        }
+        Err(err) => Err(OrientationError::from(err)),
     }
+}
+
+/// Set the mark at `at` on edge `{at, other}` to [`Endpoint::Arrow`], keeping the far mark.
+fn set_arrow_at(
+    graph: &mut TemporalPag,
+    state: &mut OrientationState,
+    delta: &mut RuleDelta,
+    at: DenseNodeId,
+    other: DenseNodeId,
+) -> Result<bool, OrientationError> {
+    let e = graph.edge_between(at, other).ok_or(OrientationError::Precondition {
+        message: "discriminating path missing edge",
+    })?;
+    let at_other = if e.a == other { e.at_a } else { e.at_b };
+    set_marks_oriented(graph, state, delta, at, other, Endpoint::Arrow, at_other)
 }
 
 /// Apply discriminating-path orientations (Zhang FCI R4).
@@ -370,13 +429,28 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
             }
             if collider {
                 // dₖ *→ c ←* b (arrows into c on both edges; keep far-end marks).
-                set_arrow_at(graph, c, d_k)?;
-                set_arrow_at(graph, c, b)?;
-            } else {
+                let mut changed = false;
+                if set_arrow_at(graph, state, &mut delta, c, d_k)? {
+                    changed = true;
+                }
+                if set_arrow_at(graph, state, &mut delta, c, b)? {
+                    changed = true;
+                }
+                if !changed {
+                    continue;
+                }
+            } else if set_marks_oriented(
+                graph,
+                state,
+                &mut delta,
+                c,
+                b,
+                Endpoint::Tail,
+                Endpoint::Arrow,
+            )? {
                 // c → b (non-collider at c).
-                graph
-                    .set_marks(c, b, Endpoint::Tail, Endpoint::Arrow)
-                    .map_err(OrientationError::from)?;
+            } else {
+                continue;
             }
             delta.edges_changed += 1;
             enqueue_local(graph, c, queue);
@@ -386,19 +460,6 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
         delta.fixed_point = delta.edges_changed == 0;
         Ok(delta)
     }
-}
-
-/// Set the mark at `at` on edge `{at, other}` to [`Endpoint::Arrow`], keeping the far mark.
-fn set_arrow_at(
-    graph: &mut TemporalPag,
-    at: DenseNodeId,
-    other: DenseNodeId,
-) -> Result<(), OrientationError> {
-    let e = graph.edge_between(at, other).ok_or(OrientationError::Precondition {
-        message: "discriminating path missing edge",
-    })?;
-    let at_other = if e.a == other { e.at_a } else { e.at_b };
-    graph.set_marks(at, other, Endpoint::Arrow, at_other).map_err(OrientationError::from)
 }
 
 /// Schedule LPCMCI rules to a fixed point using a local delta queue.
@@ -428,6 +489,7 @@ pub fn run_lpcmci_orientation(
             let d = rule.apply(graph, state, &mut queue)?;
             total.edges_changed += d.edges_changed;
             total.enqueued += d.enqueued;
+            total.conflicts += d.conflicts;
             if d.edges_changed > 0 {
                 any = true;
             }

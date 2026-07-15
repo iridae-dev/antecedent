@@ -128,6 +128,13 @@ fn apply_intervention(
         }
         Intervention::Soft { variable, mechanism } => {
             let dense = require_dense(model, *variable)?;
+            // Unify with `Intervention::Shift`: additive soft overrides are shifts, so
+            // ancestral and structural sampling share the same noise semantics.
+            if mechanism.family_id.as_ref() == "additive_shift" {
+                let d = mechanism.parameters.first().copied().unwrap_or(0.0);
+                overlay.shifts[dense.as_usize()] += d;
+                return Ok(());
+            }
             overlay.soft[dense.as_usize()] = Some(mechanism.clone());
             Ok(())
         }

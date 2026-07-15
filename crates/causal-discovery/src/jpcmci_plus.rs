@@ -180,7 +180,7 @@ impl JpcmciPlus {
 
         let rules: [&dyn OrientationRule; 5] =
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
-        let _delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
+        let delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 
         let algorithm = algorithm_record(
             "jpcmci_plus",
@@ -206,6 +206,16 @@ impl JpcmciPlus {
                 evidence.graph.node_count()
             ),
         );
+        if state.conflicts > 0 || delta.conflicts > 0 {
+            push_diagnostic(
+                &mut diagnostics,
+                "orientation.conflicts",
+                format!(
+                    "{} orientation conflict(s) recorded (cycle or opposite direction)",
+                    state.conflicts
+                ),
+            );
+        }
         performance.links_retained = links_retained;
 
         Ok(CpdagDiscoveryResult {

@@ -268,7 +268,9 @@ fn fit_family(
                     logit_coeffs: None,
                 });
             }
-            // Parent-conditional: one-vs-rest least squares on category indicators → softmax logits.
+            // Parent-conditional: one-vs-rest least squares on category indicators.
+            // Coefficients are linear-probability scale; `softmax_row_probs` applies
+            // ln(clip(π)) until multinomial IRLS lands (P5).
             let ncols = 1 + p;
             let mut x = vec![0.0; n * ncols];
             for r in 0..n {

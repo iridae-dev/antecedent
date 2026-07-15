@@ -309,14 +309,18 @@ fn softmax_row_probs(
     row: usize,
     out: &mut [f64],
 ) -> Result<(), ModelError> {
+    // Interim until multinomial IRLS (P5): registry stores one-vs-rest linear-probability
+    // coefficients. Applying ln(clip(π)) before softmax recovers ≈π (softmax(π) ≠ π).
+    const EPS: f64 = 1e-6;
     let mut max_eta = f64::NEG_INFINITY;
     let mut etas = vec![0.0; k];
     for cat in 0..k {
         let base = cat * width;
-        let mut eta = logits[base];
+        let mut pred = logits[base];
         for p in 0..parents.n_parents {
-            eta += logits[base + 1 + p] * parents.column(p)?[row];
+            pred += logits[base + 1 + p] * parents.column(p)?[row];
         }
+        let eta = pred.clamp(EPS, 1.0 - EPS).ln();
         etas[cat] = eta;
         if eta > max_eta {
             max_eta = eta;

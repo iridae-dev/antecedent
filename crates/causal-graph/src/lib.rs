@@ -23,7 +23,7 @@ pub mod unfold;
 pub mod workspace;
 
 pub use admg::Admg;
-pub use completion::{CompletionSampler, PagCompletion};
+pub use completion::{is_mag_completion, CompletionSampler, PagCompletion};
 pub use cpdag::{Cpdag, TemporalCpdag};
 pub use dag::Dag;
 pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};

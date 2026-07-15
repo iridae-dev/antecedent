@@ -1,13 +1,16 @@
 //! Streamed / bounded PAG completion sampling (DESIGN.md §6.5).
 //!
 //! Completions are never retained without bound: the sampler yields at most
-//! `max_completions` MAGs (circle-free ancestral graphs).
+//! `max_completions` **valid MAG** completions (circle-free ancestral graphs).
+//! Invalid orientations (directed cycles, almost-directed cycles, undirected
+//! Tail–Tail marks) are skipped and do not count toward the yield cap.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::GraphError;
 use crate::pag::Pag;
-use crate::types::{DenseNodeId, Endpoint, MarkedEdge};
+use crate::types::{DenseNodeId, Endpoint};
+use crate::workspace::GraphWorkspace;
 
 /// One circle-free completion of a PAG (MAG marks only).
 #[derive(Clone, Debug)]
@@ -22,7 +25,7 @@ pub struct PagCompletion {
 #[derive(Clone, Debug)]
 pub struct CompletionSampler {
     base: Pag,
-    circle_sites: Vec<(DenseNodeId, DenseNodeId, bool)>, // (a,b, at_a_is_circle) — one site per circle endpoint
+    circle_sites: Vec<(DenseNodeId, DenseNodeId, bool)>, // (a,b, at_a_is_circle)
     max_completions: usize,
     next_index: usize,
     /// Bitmask assignment for circle sites (site i uses bit i); advances as a counter.
@@ -30,7 +33,7 @@ pub struct CompletionSampler {
 }
 
 impl CompletionSampler {
-    /// Build a sampler that yields at most `max_completions` completions.
+    /// Build a sampler that yields at most `max_completions` **valid** MAG completions.
     ///
     /// # Errors
     ///
@@ -60,7 +63,7 @@ impl CompletionSampler {
         Ok(Self { base: pag, circle_sites: sites, max_completions, next_index: 0, assign: 0 })
     }
 
-    /// Hard cap.
+    /// Hard cap on yielded valid completions.
     #[must_use]
     pub fn max_completions(&self) -> usize {
         self.max_completions
@@ -80,26 +83,45 @@ impl CompletionSampler {
             let edge = g.edge_between(a, b)?;
             let (at_a, at_b) =
                 if at_a_circle { (new_mark, edge.at_b) } else { (edge.at_a, new_mark) };
-            // Skip illegal directed cycles.
+            // Skip illegal directed cycles at insertion time.
             if g.set_marks(a, b, at_a, at_b).is_err() {
                 return None;
             }
         }
-        // Verify no circles remain.
-        for i in 0..g.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
-            for (b, at_a, at_b) in g.neighbors(a) {
-                if b.raw() < a.raw() {
-                    continue;
+        if is_mag_completion(&g) { Some(g) } else { None }
+    }
+}
+
+/// Whether `g` is a legal directed MAG completion: no circles, no Tail–Tail undirected
+/// edges, no directed cycles (assumed from construction), and no almost-directed cycles
+/// (bidirected edge `a ↔ b` with a directed path either way).
+#[must_use]
+pub fn is_mag_completion(g: &Pag) -> bool {
+    let n = g.node_count();
+    let mut ws = GraphWorkspace::default();
+    for i in 0..n {
+        let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+        for (b, at_a, at_b) in g.neighbors(a) {
+            if b.raw() < a.raw() {
+                continue;
+            }
+            if matches!(at_a, Endpoint::Circle) || matches!(at_b, Endpoint::Circle) {
+                return false;
+            }
+            // Directed MAGs (Zhang) allow → and ↔ only — not undirected —o—.
+            if matches!((at_a, at_b), (Endpoint::Tail, Endpoint::Tail)) {
+                return false;
+            }
+            if matches!((at_a, at_b), (Endpoint::Arrow, Endpoint::Arrow)) {
+                // Almost-directed cycle: bidirected + directed path either way.
+                if g.reaches_directed_with(&mut ws, a, b) || g.reaches_directed_with(&mut ws, b, a)
+                {
+                    return false;
                 }
-                if matches!(at_a, Endpoint::Circle) || matches!(at_b, Endpoint::Circle) {
-                    return None;
-                }
-                let _ = MarkedEdge { a, b, at_a, at_b };
             }
         }
-        Some(g)
     }
+    true
 }
 
 impl Iterator for CompletionSampler {
@@ -119,10 +141,7 @@ impl Iterator for CompletionSampler {
                 self.next_index += 1;
                 return Some(PagCompletion { graph, index });
             }
-            // Invalid orientation — try next mask without counting against...
-            // Actually invalid ones shouldn't count toward max? Plan says max completions
-            // yielded. Skip invalid without incrementing next_index — but still need to
-            // avoid infinite loop. assign already advanced.
+            // Invalid MAG — skip without counting against the yield cap.
         }
         None
     }
@@ -143,10 +162,13 @@ mod tests {
         assert!(collected.len() <= 2);
         assert!(!collected.is_empty());
         for c in &collected {
+            assert!(is_mag_completion(&c.graph));
             let e =
                 c.graph.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
             assert!(!matches!(e.at_a, Endpoint::Circle));
             assert!(!matches!(e.at_b, Endpoint::Circle));
+            // No undirected Tail–Tail in directed MAG completions.
+            assert!(!matches!((e.at_a, e.at_b), (Endpoint::Tail, Endpoint::Tail)));
         }
     }
 
@@ -156,5 +178,26 @@ mod tests {
         pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let collected: Vec<_> = CompletionSampler::new(pag, 10).unwrap().collect();
         assert_eq!(collected.len(), 1);
+        assert!(is_mag_completion(&collected[0].graph));
+    }
+
+    #[test]
+    fn rejects_almost_directed_cycle() {
+        // a → b → c with a ↔ c: directed path a ⇝ c plus bidirected a ↔ c.
+        let mut g = Pag::with_variables(3);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let c = DenseNodeId::from_raw(2);
+        g.insert_directed(a, b).unwrap();
+        g.insert_directed(b, c).unwrap();
+        g.insert_bidirected(a, c).unwrap();
+        assert!(!is_mag_completion(&g));
+    }
+
+    #[test]
+    fn accepts_bidirected_without_directed_path() {
+        let mut g = Pag::with_variables(2);
+        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        assert!(is_mag_completion(&g));
     }
 }

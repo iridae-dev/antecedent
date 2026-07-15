@@ -198,13 +198,17 @@ fn residual_independence_tests(
     let test = PartialCorrelation::new();
     let mut ws = CiWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
+    let children = child_adjacency(model);
     for (node_i, resid_opt) in residuals.iter().enumerate() {
         let Some(resid) = resid_opt else { continue };
         let gather = model.gather_for(DenseNodeId::from_raw(node_i as u32)).unwrap();
         let parent_set: std::collections::HashSet<usize> =
             gather.parents.iter().map(|p| p.as_usize()).collect();
+        let descendants = descendants_of(&children, node_i);
         for other in 0..model.n_nodes() {
-            if other == node_i || parent_set.contains(&other) {
+            // ANM residuals are independent of non-descendants (parents already skipped).
+            // Dependence on descendants is expected and must not falsify a correct model.
+            if other == node_i || parent_set.contains(&other) || descendants.contains(&other) {
                 continue;
             }
             let ovar = model.output_layout.variables[other];
@@ -217,6 +221,28 @@ fn residual_independence_tests(
         }
     }
     Ok(ps)
+}
+
+fn child_adjacency(model: &CompiledCausalModel) -> Vec<Vec<usize>> {
+    let mut children = vec![Vec::new(); model.n_nodes()];
+    for gather in model.parent_gathers.iter() {
+        let child = gather.child.as_usize();
+        for &p in gather.parents.iter() {
+            children[p.as_usize()].push(child);
+        }
+    }
+    children
+}
+
+fn descendants_of(children: &[Vec<usize>], node: usize) -> std::collections::HashSet<usize> {
+    let mut out = std::collections::HashSet::new();
+    let mut stack = children.get(node).cloned().unwrap_or_default();
+    while let Some(v) = stack.pop() {
+        if out.insert(v) {
+            stack.extend(children.get(v).into_iter().flatten().copied());
+        }
+    }
+    out
 }
 
 fn local_markov_tests(

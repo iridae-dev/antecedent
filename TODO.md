@@ -157,7 +157,7 @@ node by time order, circle at the earlier).
 to tails.
 **Status:** Fixed — lagged inserts use `insert_circle_arrow(src, tgt)`.
 
-### P1.7 Orientation conflicts abort the run or are silently first-writer-wins
+### P1.7 Orientation conflicts abort the run or are silently first-writer-wins — DONE
 `crates/causal-discovery/src/orientation.rs:406-475`, `crates/causal-graph/src/cpdag.rs:168-188`
 `orient_undirected` returns `GraphError::Cycle` when an orientation would create a directed cycle,
 which propagates as a hard error and fails the whole PCMCI+ run; conflicting collider orientations
@@ -166,14 +166,19 @@ are silently skipped. Tigramite records conflicts (`x-x` marks) and continues.
 (`orientation.rs:98` — `RuleDelta.conflicts` is never written).
 **Fix:** convert cycle/collider conflicts into recorded conflict marks (populate the existing
 `conflicts` machinery), keep the run alive, and surface the conflicts in the result diagnostics.
+**Status:** Fixed — cycle/opposite-direction conflicts recorded out-of-band (`conflict_edges` +
+counters); runs continue; PCMCI+/LPCMCI/J-PCMCI+ emit `orientation.conflicts` diagnostics.
+(Full `x-x` Endpoint marks deferred pending Endpoint enum extension.)
 
-### P1.8 `TemporalPag::set_marks` skips the acyclicity check
+### P1.8 `TemporalPag::set_marks` skips the acyclicity check — DONE
 `crates/causal-graph/src/temporal_pag.rs:191-204`
 Unlike `Pag::set_marks`, the temporal variant does not run the acyclicity check, so LPCMCI rules
 can introduce (almost-)cycles silently.
 **Fix:** apply the same validation as `Pag::set_marks`.
+**Status:** Fixed — TemporalPag (and Pag) restore prior marks and return `Cycle` on illegal
+directed orientations; LPCMCI rules treat `Cycle` as a recorded conflict.
 
-### P1.9 `CompletionSampler` produces non-MAG "MAG" completions
+### P1.9 `CompletionSampler` produces non-MAG "MAG" completions — DONE
 `crates/causal-graph/src/completion.rs:75-126`
 Enumerates all 2^k circle assignments rejecting only directed cycles; ancestral-graph legality
 (no almost-directed cycles; tails implying ancestorship) is not checked, so downstream consumers
@@ -183,8 +188,10 @@ clean up while in there. Related: `crates/causal-graph/src/pag.rs:84-95` `is_pag
 `const fn(_) -> bool { true }` and its call site discards the result — implement or remove.
 **Fix:** add MAG legality checks (ancestrality + no almost-directed cycles) to the completion
 filter; implement `is_pag_legal` for the invariants it names.
+**Status:** Fixed — `is_mag_completion` rejects circles, Tail–Tail, and almost-directed cycles;
+invalid masks skip without counting toward the yield cap; `Pag::is_pag_legal` rejects self-loops.
 
-### P1.10 Counterfactual `predict` silently ignores Soft and Stochastic interventions
+### P1.10 Counterfactual `predict` silently ignores Soft and Stochastic interventions — DONE
 `crates/causal-counterfactual/src/engine.rs:204-221`
 The world loop consults only `overlay.hard_set` and `overlay.shifts`; `overlay.soft` and
 `overlay.stochastic` are populated without error by `InterventionOverlay::from_interventions`
@@ -194,8 +201,10 @@ one silently uses the factual mechanism.
 `sample_structural_with_overlay`) or reject them with an explicit error in `predict`. Note the
 related semantics inconsistency: `soft_to_slot` gives soft interventions different noise semantics
 on the two sampling paths (`crates/causal-model/src/sample.rs:159-167`) — unify while fixing.
+**Status:** Fixed — Soft/Stochastic applied in `predict` (structural evaluate + stochastic sample);
+`additive_shift` soft overrides fold into overlay shifts so paths share noise semantics.
 
-### P1.11 Model falsification tests residual independence against descendants
+### P1.11 Model falsification tests residual independence against descendants — DONE
 `crates/causal-model/src/evaluate.rs:201-219` (`residual_independence_tests`)
 Each node's inferred noise is tested against every non-parent, including the node's own
 descendants. In a true ANM, Y's noise causes Y's descendants, so this dependence is expected — the
@@ -203,15 +212,17 @@ test sets `falsified = true` (evaluate.rs:86-92) for correctly specified models 
 structure (X→Y: X's residual vs Y correlates perfectly).
 **Fix:** restrict the test set to non-descendants (compute descendants per node; the topo-order
 predecessor logic in `local_markov_tests`, evaluate.rs:236-241, is the model to follow).
+**Status:** Fixed — residual independence skips graph descendants via child-adjacency BFS.
 
-### P1.12 Discrete conditional mechanism: linear-probability fits used as softmax logits
+### P1.12 Discrete conditional mechanism: linear-probability fits used as softmax logits — DONE (interim)
 `crates/causal-model/src/registry.rs:283-297`, `crates/causal-model/src/mechanism.rs:304-336`
 One-vs-rest least squares on category indicators produces predicted probabilities in [0,1]; these
 are stored as `logit_coeffs` and passed through softmax at evaluation. softmax(π) ≠ π — true
 (0.9, 0.1) becomes ≈ (0.69, 0.31); all parent-conditional discrete sampling and `log_prob_column`
 values are biased toward uniform.
-**Fix:** fit multinomial-logit coefficients via IRLS (blocked on P5 multinomial GLM), or as an
-interim fix apply `ln(clip(π, ε, 1−ε))` before storing so softmax recovers ≈π.
+**Fix:** fit multinomial-logit coefficients via IRLS (blocked on P5 multinomial GLM).
+**Status:** Interim — evaluation applies `ln(clip(π))` before softmax so recovered probs ≈π;
+true multinomial logit IRLS remains P5.
 
 ---
 
@@ -300,8 +311,7 @@ threshold on the sensitivity range.
 `discover_rpcmci`, and `GraphInput::Pag`/`TemporalPag`/`DiscoverLpcmci` always hit
 `Err(Unsupported)` in `compile()`. `reject_dag_only_on_pag` (`planner.rs:299`) is never called
 outside a test.
-**Fix:** wire them through (the underlying crates exist) or remove the builder methods until the
-paths are backed; a builder method that can never succeed is worse than absence.
+**Fix:** wire them through (the underlying crates exist).
 
 ### P2.9 Fixed seeds / test contexts in production paths
 `crates/causal-model/src/evaluate.rs:200,229`, `crates/causal-attribution/src/distribution_change.rs:273`,
@@ -321,7 +331,7 @@ own no-global-RNG discipline and hiding Monte-Carlo variability from callers.
   implement a real C2ST or rename the method id.
 - "Mixed regression CI" (`crates/causal-stats/src/ci/gsquared.rs:243-266`) is a trivial wrapper
   around partial correlation; `weighted_parcorr` in the factory binds a unit-weight variant
-  (`crates/causal-stats/src/ci/factory.rs:48`). Implement or relabel.
+  (`crates/causal-stats/src/ci/factory.rs:48`). Implement.
 
 ### P2.11 CI tests ignore the requested significance/confidence methods
 `crates/causal-stats/src/ci/gsquared.rs:44-63`, `advanced.rs:110,361,481`

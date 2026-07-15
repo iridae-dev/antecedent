@@ -150,21 +150,24 @@ fn apply_shift(out: &mut [f64], shift: f64) {
     }
 }
 
-fn soft_to_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismSlot, ModelError> {
+/// Convert a soft [`MechanismOverride`] into a concrete mechanism slot.
+///
+/// `additive_shift` is rejected here — [`InterventionOverlay::from_interventions`] maps it
+/// onto overlay shifts so sampling paths share noise semantics.
+///
+/// # Errors
+///
+/// Unknown family or shape mismatches.
+pub fn soft_to_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismSlot, ModelError> {
     match soft.family_id.as_ref() {
         "constant" => {
             let v = soft.parameters.first().copied().unwrap_or(0.0);
             Ok(MechanismSlot::Constant { value: v })
         }
-        "additive_shift" => {
-            // Represented as constant 0 evaluated then shifted by overlay — here use
-            // intercept-only linear with zero noise for structural base.
-            Ok(MechanismSlot::LinearGaussian {
-                intercept: soft.parameters.first().copied().unwrap_or(0.0),
-                coeffs: std::sync::Arc::from(vec![0.0; n_parents]),
-                sigma: 1e-12,
-            })
-        }
+        "additive_shift" => Err(ModelError::Unsupported {
+            message: "additive_shift soft overrides must be applied as Intervention::Shift / overlay shifts"
+                .into(),
+        }),
         "linear_gaussian" => {
             if soft.parameters.len() < 2 + n_parents {
                 return Err(ModelError::Shape {
@@ -182,7 +185,12 @@ fn soft_to_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismS
     }
 }
 
-fn sample_stochastic(
+/// Draw values from a stochastic intervention policy into `out`.
+///
+/// # Errors
+///
+/// Unsupported policy variants.
+pub fn sample_stochastic(
     policy: &StochasticPolicy,
     n_rows: usize,
     rng: &mut CausalRng,

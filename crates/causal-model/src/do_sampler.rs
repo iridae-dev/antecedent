@@ -452,7 +452,54 @@ mod tests {
 
     #[test]
     fn kde_and_mcmc_run() {
-        let (model, _) = binary_treatment_scm();
+        let n = 40;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            t[i] = if i % 2 == 0 { 1.0 } else { 0.0 };
+            // Continuous noise keeps Y off the discrete auto-path and gives KDE spread for MH.
+            y[i] = 2.0 * t[i] + 0.05 * ((i as f64) - 20.0);
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(t), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let model = compiled.with_mechanisms(store);
+
         let ctx = ExecutionContext::for_tests(1);
         let mut rng = CausalRng::from_seed(3);
         let mut ws = MechanismWorkspace::default();

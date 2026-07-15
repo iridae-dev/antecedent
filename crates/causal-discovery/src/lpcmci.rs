@@ -93,7 +93,7 @@ impl Lpcmci {
 
         let rules: [&dyn crate::rule_scheduling::LpcmciOrientationRule; 5] =
             [&LpcmciOrientCollider, &LpcmciR1, &LpcmciR2, &LpcmciR3, &LpcmciDiscriminatingPathRule];
-        let _delta =
+        let delta =
             run_lpcmci_orientation(&mut pag, &rules, &mut state).map_err(DiscoveryError::from)?;
 
         let algorithm = algorithm_record(
@@ -119,6 +119,16 @@ impl Lpcmci {
                 review.pending_circles.len()
             ),
         );
+        if state.conflicts > 0 || delta.conflicts > 0 {
+            push_diagnostic(
+                &mut diagnostics,
+                "orientation.conflicts",
+                format!(
+                    "{} orientation conflict(s) recorded (cycle or opposite direction)",
+                    state.conflicts
+                ),
+            );
+        }
 
         Ok(PagDiscoveryResult {
             evidence,

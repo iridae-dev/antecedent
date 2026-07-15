@@ -185,9 +185,13 @@ impl TemporalPag {
 
     /// Set marks on existing edge.
     ///
+    /// When the new marks form a definite directed edge, rejects orientations that
+    /// would create a directed cycle (same check as [`crate::pag::Pag::set_marks`]).
+    /// On cycle, previous marks are restored and [`GraphError::Cycle`] is returned.
+    ///
     /// # Errors
     ///
-    /// Missing edge.
+    /// Missing edge or directed cycle after orientation.
     pub fn set_marks(
         &mut self,
         a: DenseNodeId,
@@ -197,8 +201,19 @@ impl TemporalPag {
     ) -> Result<(), GraphError> {
         self.validate_node(a)?;
         self.validate_node(b)?;
-        if !self.has_edge(a, b) {
+        let Some(previous) = self.edge_between(a, b) else {
             return Err(GraphError::UnknownNode { id: a.raw() });
+        };
+        let edge = MarkedEdge { a, b, at_a, at_b };
+        if let Some((from, to)) = edge.parent_child() {
+            marked_storage::remove_edge(&mut self.adj, a, b);
+            let cycle = self.reaches_directed(to, from);
+            if cycle {
+                marked_storage::push_marked_pair(&mut self.adj, previous);
+                return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
+            }
+            marked_storage::push_marked_pair(&mut self.adj, edge);
+            return Ok(());
         }
         marked_storage::set_marks(&mut self.adj, a, b, at_a, at_b)
     }
@@ -280,6 +295,25 @@ mod tests {
         let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(0)).unwrap();
         g.insert_circle_arrow(a, b).unwrap();
         assert!(g.has_edge(a, b));
+    }
+
+    #[test]
+    fn set_marks_rejects_directed_cycle_and_restores() {
+        // c → b → a with a o→ c; completing a → c would cycle (c already reaches a).
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(c, b).unwrap();
+        g.insert_directed(b, a).unwrap();
+        g.insert_circle_arrow(a, c).unwrap();
+        let err = g.set_marks(a, c, Endpoint::Tail, Endpoint::Arrow).unwrap_err();
+        assert!(matches!(err, GraphError::Cycle { .. }));
+        // Previous circle-arrow marks restored.
+        let e = g.edge_between(a, c).unwrap();
+        let (at_a, at_c) = if e.a == a { (e.at_a, e.at_b) } else { (e.at_b, e.at_a) };
+        assert!(matches!(at_a, Endpoint::Circle));
+        assert!(matches!(at_c, Endpoint::Arrow));
     }
 }
 

@@ -16,7 +16,7 @@ use causal_data::{TableView, TabularData};
 use causal_graph::DenseNodeId;
 use causal_model::{
     CompiledCausalModel, InterventionOverlay, MechanismSlot, MechanismWorkspace, ParentBatch,
-    ValueBatchMut, infer_noise_column,
+    ValueBatchMut, evaluate_column, infer_noise_column, sample_stochastic, soft_to_slot,
 };
 
 use crate::error::CounterfactualError;
@@ -153,7 +153,7 @@ impl CounterfactualEngine {
         outcomes: &[VariableId],
         allow_nested: bool,
         ws: &mut MechanismWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<CounterfactualResult, CounterfactualError> {
         if worlds.is_empty() {
             return Err(CounterfactualError::model_msg("no worlds"));
@@ -172,6 +172,7 @@ impl CounterfactualEngine {
         let mut all = vec![0.0; n_worlds * n_nodes * n_units];
         let mut notes = Vec::new();
         notes.push(Arc::from(format!("noise_inference={:?}", exo.kind)));
+        let mut rng = ctx.rng.stream(0xCF_01);
 
         for (wi, world) in worlds.iter().enumerate() {
             if !allow_nested {
@@ -205,14 +206,22 @@ impl CounterfactualEngine {
                     out.fill(v);
                     continue;
                 }
+                if let Some(policy) = &overlay.stochastic[idx] {
+                    sample_stochastic(policy, n_units, &mut rng, out)?;
+                    if overlay.shifts[idx] != 0.0 {
+                        for x in out.iter_mut() {
+                            *x += overlay.shifts[idx];
+                        }
+                    }
+                    continue;
+                }
                 let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
-                causal_model::evaluate_column(
-                    self.model.mechanisms.get(node),
-                    parents,
-                    noise_col,
-                    out,
-                    ws,
-                )?;
+                let slot = if let Some(soft) = &overlay.soft[idx] {
+                    soft_to_slot(soft, gather.n_parents())?
+                } else {
+                    self.model.mechanisms.get(node).clone()
+                };
+                evaluate_column(&slot, parents, noise_col, out, ws)?;
                 if overlay.shifts[idx] != 0.0 {
                     for x in out.iter_mut() {
                         *x += overlay.shifts[idx];

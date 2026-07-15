@@ -9,7 +9,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use causal_graph::{DenseNodeId, TemporalCpdag};
+use causal_graph::{DenseNodeId, GraphError, TemporalCpdag};
 
 use crate::error::DiscoveryError;
 
@@ -94,8 +94,13 @@ impl OrientationQueue {
 pub struct OrientationState {
     /// Sepset for unordered pair `(min(a,b), max(a,b))`.
     pub sepsets: HashMap<(u32, u32), Arc<[DenseNodeId]>>,
-    /// Whether a conflict was recorded.
+    /// Number of orientation conflicts recorded this run.
     pub conflicts: u32,
+    /// Unordered edge keys `(min,max)` that participated in a conflict.
+    ///
+    /// Full Tigramite `x-x` endpoint marks are deferred (Endpoint has no Conflict
+    /// variant yet); conflicts are tracked out-of-band and surfaced as diagnostics.
+    pub conflict_edges: HashSet<(u32, u32)>,
 }
 
 impl OrientationState {
@@ -110,6 +115,45 @@ impl OrientationState {
     pub fn sepset(&self, a: DenseNodeId, b: DenseNodeId) -> Option<&[DenseNodeId]> {
         let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
         self.sepsets.get(&key).map(AsRef::as_ref)
+    }
+
+    /// Record an orientation conflict on `{a,b}` (cycle or opposite direction).
+    pub fn record_conflict(&mut self, delta: &mut RuleDelta, a: DenseNodeId, b: DenseNodeId, kind: &str) {
+        let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
+        self.conflict_edges.insert(key);
+        self.conflicts = self.conflicts.saturating_add(1);
+        delta.conflicts = delta.conflicts.saturating_add(1);
+        delta.premises.push(Arc::from(format!(
+            "conflict({kind}): {}—{}",
+            key.0, key.1
+        )));
+    }
+}
+
+/// Try to orient an undirected edge `from → to`.
+///
+/// Cycle conflicts are recorded and the run continues (edge stays undirected).
+/// Other graph errors propagate.
+fn try_orient_undirected(
+    graph: &mut TemporalCpdag,
+    state: &mut OrientationState,
+    delta: &mut RuleDelta,
+    from: DenseNodeId,
+    to: DenseNodeId,
+    premise: impl Into<Arc<str>>,
+) -> Result<bool, OrientationError> {
+    match graph.orient_undirected(from, to) {
+        Ok(()) => {
+            delta.edges_changed += 1;
+            delta.fixed_point = false;
+            delta.premises.push(premise.into());
+            Ok(true)
+        }
+        Err(GraphError::Cycle { .. }) => {
+            state.record_conflict(delta, from, to, "cycle");
+            Ok(false)
+        }
+        Err(e) => Err(OrientationError::from(e)),
     }
 }
 
@@ -188,7 +232,7 @@ impl OrientationRule for MeekR1 {
     fn apply(
         &self,
         graph: &mut TemporalCpdag,
-        _state: &mut OrientationState,
+        state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
@@ -198,19 +242,18 @@ impl OrientationRule for MeekR1 {
             for a in graph.parents(b) {
                 for c in graph.undirected_neighbors(b) {
                     if !graph.has_edge(a, c) {
-                        graph.orient_undirected(b, c).map_err(OrientationError::from)?;
-                        delta.edges_changed += 1;
-                        delta.fixed_point = false;
-                        delta.premises.push(Arc::from(format!(
+                        let premise = format!(
                             "meek.r1: {}→{}—{} and {} not adj {}",
                             a.raw(),
                             b.raw(),
                             c.raw(),
                             a.raw(),
                             c.raw()
-                        )));
-                        changed_nodes.push(b);
-                        changed_nodes.push(c);
+                        );
+                        if try_orient_undirected(graph, state, &mut delta, b, c, premise)? {
+                            changed_nodes.push(b);
+                            changed_nodes.push(c);
+                        }
                     }
                 }
             }
@@ -234,7 +277,7 @@ impl OrientationRule for MeekR2 {
     fn apply(
         &self,
         graph: &mut TemporalCpdag,
-        _state: &mut OrientationState,
+        state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
@@ -244,19 +287,18 @@ impl OrientationRule for MeekR2 {
             for b in graph.children(*a) {
                 for c in graph.children(b) {
                     if graph.edge_between(*a, c).is_some_and(|e| e.is_undirected()) {
-                        graph.orient_undirected(*a, c).map_err(OrientationError::from)?;
-                        delta.edges_changed += 1;
-                        delta.fixed_point = false;
-                        delta.premises.push(Arc::from(format!(
+                        let premise = format!(
                             "meek.r2: {}→{}→{} and {}—{}",
                             a.raw(),
                             b.raw(),
                             c.raw(),
                             a.raw(),
                             c.raw()
-                        )));
-                        changed.push(*a);
-                        changed.push(c);
+                        );
+                        if try_orient_undirected(graph, state, &mut delta, *a, c, premise)? {
+                            changed.push(*a);
+                            changed.push(c);
+                        }
                     }
                 }
             }
@@ -280,7 +322,7 @@ impl OrientationRule for MeekR3 {
     fn apply(
         &self,
         graph: &mut TemporalCpdag,
-        _state: &mut OrientationState,
+        state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
@@ -309,16 +351,15 @@ impl OrientationRule for MeekR3 {
                     }
                 }
                 if orient {
-                    graph.orient_undirected(*a, b).map_err(OrientationError::from)?;
-                    delta.edges_changed += 1;
-                    delta.fixed_point = false;
-                    delta.premises.push(Arc::from(format!(
+                    let premise = format!(
                         "meek.r3: {}—{} via nonadjacent mediators",
                         a.raw(),
                         b.raw()
-                    )));
-                    changed.push(*a);
-                    changed.push(b);
+                    );
+                    if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
+                        changed.push(*a);
+                        changed.push(b);
+                    }
                 }
             }
         }
@@ -341,7 +382,7 @@ impl OrientationRule for MeekR4 {
     fn apply(
         &self,
         graph: &mut TemporalCpdag,
-        _state: &mut OrientationState,
+        state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
@@ -372,16 +413,15 @@ impl OrientationRule for MeekR4 {
                     }
                 }
                 if orient {
-                    graph.orient_undirected(*a, b).map_err(OrientationError::from)?;
-                    delta.edges_changed += 1;
-                    delta.fixed_point = false;
-                    delta.premises.push(Arc::from(format!(
+                    let premise = format!(
                         "meek.r4: {}—{} via discriminating path",
                         a.raw(),
                         b.raw()
-                    )));
-                    changed.push(*a);
-                    changed.push(b);
+                    );
+                    if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
+                        changed.push(*a);
+                        changed.push(b);
+                    }
                 }
             }
         }
@@ -418,15 +458,18 @@ impl OrientationRule for OrientCollider {
         let focus = focus_nodes(graph, queue);
         let mut changed = Vec::new();
         for c in &focus {
-            // Legs eligible to point into c: undirected neighbors and existing parents.
-            let mut legs: Vec<(DenseNodeId, bool)> =
-                graph.undirected_neighbors(*c).into_iter().map(|n| (n, true)).collect();
-            legs.extend(graph.parents(*c).into_iter().map(|n| (n, false)));
+            // Adjacent endpoints that could form a→c←b: undirected, already into c,
+            // or already out of c (opposite — conflict if sepset wants a collider).
+            let mut legs: Vec<(DenseNodeId, LegKind)> =
+                graph.undirected_neighbors(*c).into_iter().map(|n| (n, LegKind::Undirected)).collect();
+            legs.extend(graph.parents(*c).into_iter().map(|n| (n, LegKind::IntoC)));
+            legs.extend(graph.children(*c).into_iter().map(|n| (n, LegKind::OutOfC)));
             for i in 0..legs.len() {
                 for j in (i + 1)..legs.len() {
-                    let (a, a_undirected) = legs[i];
-                    let (b, b_undirected) = legs[j];
-                    if !a_undirected && !b_undirected {
+                    let (a, a_kind) = legs[i];
+                    let (b, b_kind) = legs[j];
+                    // Need at least one leg still open or conflicting.
+                    if matches!(a_kind, LegKind::IntoC) && matches!(b_kind, LegKind::IntoC) {
                         continue;
                     }
                     if graph.has_edge(a, b) {
@@ -438,31 +481,33 @@ impl OrientationRule for OrientCollider {
                     if sep.iter().any(|x| *x == *c) {
                         continue;
                     }
-                    // Orient a→c←b (only undirected legs need work).
-                    let mut oriented = 0u32;
-                    if a_undirected && graph.edge_between(a, *c).is_some_and(|e| e.is_undirected())
-                    {
-                        graph.orient_undirected(a, *c).map_err(OrientationError::from)?;
-                        oriented += 1;
-                        changed.push(a);
-                        changed.push(*c);
-                    }
-                    if b_undirected && graph.edge_between(b, *c).is_some_and(|e| e.is_undirected())
-                    {
-                        graph.orient_undirected(b, *c).map_err(OrientationError::from)?;
-                        oriented += 1;
-                        changed.push(b);
-                        changed.push(*c);
-                    }
-                    if oriented > 0 {
-                        delta.edges_changed += oriented;
-                        delta.fixed_point = false;
-                        delta.premises.push(Arc::from(format!(
-                            "collider: {}→{}←{} (c not in sepset)",
-                            a.raw(),
-                            c.raw(),
-                            b.raw()
-                        )));
+                    // Orient / conflict each leg toward c.
+                    for &(endpoint, kind) in &[(a, a_kind), (b, b_kind)] {
+                        match kind {
+                            LegKind::OutOfC => {
+                                state.record_conflict(
+                                    &mut delta,
+                                    endpoint,
+                                    *c,
+                                    "opposite_direction",
+                                );
+                            }
+                            LegKind::Undirected => {
+                                let premise = format!(
+                                    "collider: {}→{}←{} (c not in sepset)",
+                                    a.raw(),
+                                    c.raw(),
+                                    b.raw()
+                                );
+                                if try_orient_undirected(
+                                    graph, state, &mut delta, endpoint, *c, premise,
+                                )? {
+                                    changed.push(endpoint);
+                                    changed.push(*c);
+                                }
+                            }
+                            LegKind::IntoC => {}
+                        }
                     }
                 }
             }
@@ -472,6 +517,13 @@ impl OrientationRule for OrientCollider {
         }
         Ok(delta)
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum LegKind {
+    Undirected,
+    IntoC,
+    OutOfC,
 }
 
 /// Run rules to a fixed point, seeding the queue with all nodes once.
@@ -528,6 +580,44 @@ mod tests {
     use causal_graph::TemporalCpdag;
 
     use super::*;
+
+    #[test]
+    fn meek_r1_cycle_records_conflict_and_continues() {
+        // a → b — c with c → d → a so c reaches b; orienting b→c would cycle.
+        let mut g = TemporalCpdag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let d = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_undirected(b, c).unwrap();
+        g.insert_directed(c, d).unwrap();
+        g.insert_directed(d, a).unwrap();
+        let mut state = OrientationState::default();
+        let rules: [&dyn OrientationRule; 1] = [&MeekR1];
+        let delta = run_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
+        assert!(state.conflicts >= 1, "conflicts={}", state.conflicts);
+        assert!(delta.conflicts >= 1);
+        assert!(g.edge_between(b, c).unwrap().is_undirected());
+    }
+
+    #[test]
+    fn collider_opposite_direction_records_conflict() {
+        // Pre-orient c→a; sepset says collider a→c←b → conflict on a—c.
+        let mut g = TemporalCpdag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(c, a).unwrap();
+        g.insert_undirected(c, b).unwrap();
+        let mut state = OrientationState::default();
+        state.set_sepset(a, b, Arc::from([]));
+        let mut queue = OrientationQueue::new();
+        let d = OrientCollider.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert!(state.conflicts >= 1 || d.conflicts >= 1);
+        assert_eq!(g.edge_between(c, a).unwrap().parent_child(), Some((c, a)));
+        assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
+    }
 
     #[test]
     fn meek_r1_orients_chain() {
