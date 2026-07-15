@@ -4,225 +4,27 @@ Prioritized backlog from the 2026-07-22 full-repo review (math correctness and D
 parity, DESIGN.md conformance, code quality). Ranked by order to address: P0 first. DESIGN.md is
 the conceptual roadmap — items in P5 are planned features not yet built, not documentation errors.
 
-Review baseline: 423 tests passing, clippy clean (5 trivial warnings, see P6.14), zero
-`todo!`/`unimplemented!`/TODO markers. All findings below were verified against the code by the
-reviewing agents; P0.1, P0.2, and P1.1 were additionally confirmed by direct numerical simulation
-or execution of a counterexample.
+P0 (confirmed wrong math) and P1.1–P1.11 (graph-layer soundness) were verified fixed against the
+code on 2026-07-22 and removed from this backlog. Remaining P1 item below is interim only.
 
 ---
 
-## P0 — Confirmed wrong math (small diffs, fix immediately)
+## P1 — Graph-layer soundness (remaining)
 
-### P0.1 `gaussian_kl` log term inverted — DONE
-`crates/causal-stats/src/divergence.rs:18`
-```rust
-Ok(0.5 * ((var0 / var1).ln() + (var0 + (mu0 - mu1).powi(2)) / var1 - 1.0))
-```
-KL(N(μ0,σ0²)‖N(μ1,σ1²)) = ½[ln(**σ1²/σ0²**) + (σ0²+(μ0−μ1)²)/σ1² − 1]; the code has
-`ln(var0/var1)`. Confirmed by simulation: μ0=μ1=0, var0=1, var1=2 returns −0.597 (KL must be ≥ 0);
-truth is 0.0966. Negative KL propagates into `residual_likelihood_ratio` (same file, line 79) where
-`sqrt(2·KL)` becomes NaN, and thence into `MechanismChangeMethod::LikelihoodRatio`
-(`crates/causal-attribution/src/mechanism_change.rs:70`).
-**Fix:** flip to `(var1 / var0).ln()`. Add a unit test with unequal variances (the existing test
-only covers identical distributions, where the flipped term vanishes) and a non-negativity
-property test.
-**Status:** Fixed — log term flipped; unequal-variance + non-negativity tests added.
-
-### P0.2 `sample_inv_gamma` inverts the scale parameter — DONE
-`crates/causal-prob/src/conjugate.rs:333-337`
-```rust
-let g = sample_gamma(shape, 1.0 / scale, rng);
-1.0 / g.max(f64::MIN_POSITIVE)
-```
-If G ~ Gamma(α, rate=β) then 1/G ~ InvGamma(α, β); the code passes `rate = 1/β`, so σ² draws are
-off by a factor β². Confirmed by simulation: α=5, β=4 (true mean 1.0) gives sampler mean 0.0626 =
-(1/β)/(α−1). Every NIG posterior draw in `draw_nig` (conjugate.rs:295-324) has wrong σ² and wrong
-coefficient spread (`sigma * scale_chol`); posterior means are unaffected (computed separately),
-which is why `nig_draws_include_sigma2` (positivity-only assertion) passes.
-**Fix:** pass `scale` as the gamma rate directly. Add a moment test (empirical mean ≈ β/(α−1)).
-**Status:** Fixed — InvGamma now uses rate=β; moment test `α=5,β=4` → mean ≈ 1.0.
-
-### P0.3 `StreamingCovariance::append` computes wrong cross-covariances — DONE
-`crates/causal-state/src/suff_stats.rs:166-171`
-```rust
-for j in 0..self.dim { self.m2[i * self.dim + j] += delta[i] * di; }  // j never used
-```
-Every entry of row i gets `delta[i]*di`; correct Welford cross-covariance update is
-`delta[i] * (x[j] − mean_new[j])`. Off-diagonals are wrong and the matrix is not symmetric.
-Re-exported by the facade as `causal::StreamingCovariance`. The test at suff_stats.rs:241-252 uses
-perfectly correlated equal-variance data for which the bug is invisible.
-**Fix:** use `delta[i] * d[j]` where `d[j] = x[j] − mean_new[j]`. Replace the test data with
-distinct-variance, partially correlated columns and assert against a batch covariance computation.
-**Status:** Fixed — Welford uses `delta[i]*d[j]`; batch-reference test with partial correlation.
-
-### P0.4 Block-shuffle permutation p-values anti-conservatively biased — DONE
-`crates/causal-stats/src/ci/block_shuffle.rs:61-68`
-Failed null replicates are counted via `partial_correlation(...).unwrap_or(0.0)` — i.e. as
-"never extreme" — deflating p-values. Mass replicate failure still reports significance.
-**Fix:** propagate replicate errors (the weighted variant at
-`crates/causal-stats/src/ci/parcorr_variants.rs:291` already does this correctly — mirror it), or
-at minimum count failures and error above a threshold.
-**Status:** Fixed — `block_shuffle_pvalue` returns `Result`; replicate `None` → `Err`; wired through `parcorr.rs`.
-
-### P0.5 E-value validator is vacuous under the default config — DONE
-`crates/causal-validate/src/evalue.rs:35,59,77-80`
-The E-value formula `rr + sqrt(rr*(rr−1))` is mathematically ≥ 1.0 for every input, and the default
-`threshold: 1.0` with `passed = e_value >= threshold` means every estimate — including exactly zero
-effect — passes. `ValidationSuite::full_effect()` uses this default, so the suite's E-value verdict
-is unconditionally "passed". (The E-value formula itself is correct — exact VanderWeele–Ding with
-the `exp(0.91·d)` continuous-outcome conversion.)
-**Fix:** require an explicit threshold (no default), or default to a meaningful value (commonly
-E ≥ 2 is read as "moderate robustness") and document the interpretation. Add a test that a zero
-effect fails.
-**Status:** Fixed — default threshold 2.0 (moderate robustness); documented that DoWhy has no
-pass/fail gate; zero-effect test asserts failure under the default.
-
----
-
-## P1 — Graph-layer soundness (wrong separations / unsound orientations)
-
-These make the latent-variable stack (LPCMCI, PAG identification, refuters that consult
-m-separation) return wrong answers, not just weaker ones.
-
-### P1.1 ADMG m-separation misses collider-connected augmentation — DONE
-`crates/causal-graph/src/msep.rs:126-195` (`build_moral_ancestral`)
-Moralization only converts directed/bidirected edges to undirected and marries direct co-parents.
-Correct m-separation (Richardson) requires the augmented graph: for each bidirected-connected
-district C in the ancestral subgraph, `C ∪ pa(C)` must form a clique (equivalently: marry any two
-nodes joined by a collider-connecting path through bidirected chains). Confirmed by execution:
-`X → A ↔ B ← Y`, query `X ⟂ Y | {A,B}` wrongly returns separated.
-**Fix:** after restricting to the ancestral set, compute bidirected-connected districts and clique
-`C ∪ pa(C)` per district before the co-parent marriage step. Add the counterexample above as a test.
-**Status:** Fixed — ancestral districts clique `C ∪ pa(C)`; counterexample test added.
-
-### P1.2 PAG m-separation drops the collider-descendant rule; truncation returns "separated" — DONE
-`crates/causal-graph/src/pag.rs:340-365` (`path_active_given`), `msep.rs:309-361`
-A collider on a path is treated as open only if the collider itself is in Z; the m-connection
-criterion opens a collider if it *or any descendant* is in Z (e.g. `X → C ← Y`, `C → D`, Z = {D}
-is connected; code says separated). Separately, the `max_paths`/`max_len` budget truncation in
-`is_m_separated` returns `Ok(true)` ("separated") with no flag when the only active path was
-dropped.
-**Fix:** precompute "possible descendants in Z" per node (using definite-status descent for PAGs)
-and open colliders accordingly; on budget exhaustion return an explicit indeterminate/error rather
-than "separated".
-**Status:** Fixed — colliders open via definite directed descendants; truncated searches return
-`GraphError::SearchBudgetExhausted` instead of claiming separation.
-
-### P1.3 Discriminating-path rule does not implement discriminating paths — DONE
-`crates/causal-discovery/src/discriminating_paths.rs:20-94`,
-`crates/causal-discovery/src/rule_scheduling.rs:346-407`
-Three compounding bugs vs FCI R4 / LPCMCI:
-1. The path finder only requires a chain of definite directed edges ending in a circle at c; the
-   definition requires a path ⟨a, d₁,…,d_k, c, b⟩ where **a and b are non-adjacent** and **every
-   intermediate d_i is a collider on the path AND a parent of b**. None of this is checked, so the
-   rule fires on non-discriminating triples.
-2. The sepset test is inverted: `rule_scheduling.rs:373-377` asks whether `b ∈ Sep(a,c)`; R4 asks
-   whether **c ∈ Sep(a,b)** (a, b are the non-adjacent pair). `discriminating_paths.rs:98-102`
-   hardcodes the inverted convention.
-3. The collider branch should orient both edges at c (`d_k *→ c ←* b`); the code only sets an
-   arrow at b on the c–b edge.
-**Fix:** implement the full path definition (non-adjacency + collider-and-parent-of-b intermediates),
-correct the sepset lookup to `Sep(a,b)`, and orient both endpoints in the collider branch. Add
-fixture tests from the FCI literature (e.g. Zhang 2008 examples).
-**Status:** Fixed — Zhang discriminating-path definition; `c ∈ Sep(a,b)` gate; collider orients
-`dₖ *→ c ←* b`; non-collider orients `c → b`. Zhang minimal fixture + R4 rule tests added.
-
-### P1.4 LPCMCI R1 under-orients and requires too-strong premises — DONE
-`crates/causal-discovery/src/rule_scheduling.rs:120-178`
-FCI R1: if `a *→ b o–* c` (any mark at a, arrow at b) and a,c non-adjacent, orient `b → c` (tail at
-b **and** arrow at c). The code (i) requires the a–b edge to be fully directed tail→arrow, missing
-`a o→ b` / `a ↔ b` premises, and (ii) sets only the tail at b (line 163 keeps `mark_at_c`
-unchanged), producing `b —o c` where the literature derives `b → c`.
-**Fix:** relax the premise to arrow-at-b, and set both endpoint marks in the conclusion.
-**Status:** Fixed — premise is arrow-at-b; conclusion sets Tail at b and Arrow at c.
-
-### P1.5 LPCMCI R2 checks the circle on the wrong endpoint and can overwrite tails — DONE
-`crates/causal-discovery/src/rule_scheduling.rs:211-231`
-FCI R2: if `a → b *→ c` or `a *→ b → c` and `a *–o c` (circle **at c**), orient arrow at c. The
-code requires `at_a_ac == Circle` (circle at a), and only skips when at_c is already Arrow — so it
-can overwrite a Tail at c with an Arrow (unsound) and fails to fire when at_c is Circle but at_a is
-Tail. Its chain cases also require specific circle marks at b, missing e.g. `a → b → c`.
-**Fix:** fire only when the mark at c on the a–c edge is Circle; never overwrite a Tail; cover both
-chain forms per the rule.
-**Status:** Fixed — circle-at-c gate; both chain forms (`a→b *→c`, `a*→b →c` incl. fully directed);
-Tail at c is never overwritten.
-
-### P1.6 LPCMCI inserts lagged links as tail–arrow directed edges — DONE
-`crates/causal-discovery/src/evidence.rs:154-193` (`pag_from_scored_links`)
-Contemporaneous pairs get o–o (correct) but lagged links get `insert_directed` (tail at source). In
-a PAG a tail asserts ancestorship; a dependent lagged pair may be `X_{t−τ} ↔ Y_t` (lagged latent
-confounding). LPCMCI (Gerhardus & Runge 2020) initializes lagged links as `o→` (arrow at the later
-node by time order, circle at the earlier).
-**Fix:** insert lagged links with circle-at-source, arrow-at-target; let the rules upgrade circles
-to tails.
-**Status:** Fixed — lagged inserts use `insert_circle_arrow(src, tgt)`.
-
-### P1.7 Orientation conflicts abort the run or are silently first-writer-wins — DONE
-`crates/causal-discovery/src/orientation.rs:406-475`, `crates/causal-graph/src/cpdag.rs:168-188`
-`orient_undirected` returns `GraphError::Cycle` when an orientation would create a directed cycle,
-which propagates as a hard error and fails the whole PCMCI+ run; conflicting collider orientations
-are silently skipped. Tigramite records conflicts (`x-x` marks) and continues.
-`OrientationState.conflicts` exists but is never incremented by any rule
-(`orientation.rs:98` — `RuleDelta.conflicts` is never written).
-**Fix:** convert cycle/collider conflicts into recorded conflict marks (populate the existing
-`conflicts` machinery), keep the run alive, and surface the conflicts in the result diagnostics.
-**Status:** Fixed — cycle/opposite-direction conflicts recorded out-of-band (`conflict_edges` +
-counters); runs continue; PCMCI+/LPCMCI/J-PCMCI+ emit `orientation.conflicts` diagnostics.
-(Full `x-x` Endpoint marks deferred pending Endpoint enum extension.)
-
-### P1.8 `TemporalPag::set_marks` skips the acyclicity check — DONE
-`crates/causal-graph/src/temporal_pag.rs:191-204`
-Unlike `Pag::set_marks`, the temporal variant does not run the acyclicity check, so LPCMCI rules
-can introduce (almost-)cycles silently.
-**Fix:** apply the same validation as `Pag::set_marks`.
-**Status:** Fixed — TemporalPag (and Pag) restore prior marks and return `Cycle` on illegal
-directed orientations; LPCMCI rules treat `Cycle` as a recorded conflict.
-
-### P1.9 `CompletionSampler` produces non-MAG "MAG" completions — DONE
-`crates/causal-graph/src/completion.rs:75-126`
-Enumerates all 2^k circle assignments rejecting only directed cycles; ancestral-graph legality
-(no almost-directed cycles; tails implying ancestorship) is not checked, so downstream consumers
-(generalized identification, P4.7) iterate over illegal completions. Also contains a committed
-stream-of-consciousness comment ("Actually invalid ones shouldn't count toward max? Plan says…") —
-clean up while in there. Related: `crates/causal-graph/src/pag.rs:84-95` `is_pag_legal` is
-`const fn(_) -> bool { true }` and its call site discards the result — implement or remove.
-**Fix:** add MAG legality checks (ancestrality + no almost-directed cycles) to the completion
-filter; implement `is_pag_legal` for the invariants it names.
-**Status:** Fixed — `is_mag_completion` rejects circles, Tail–Tail, and almost-directed cycles;
-invalid masks skip without counting toward the yield cap; `Pag::is_pag_legal` rejects self-loops.
-
-### P1.10 Counterfactual `predict` silently ignores Soft and Stochastic interventions — DONE
-`crates/causal-counterfactual/src/engine.rs:204-221`
-The world loop consults only `overlay.hard_set` and `overlay.shifts`; `overlay.soft` and
-`overlay.stochastic` are populated without error by `InterventionOverlay::from_interventions`
-(`crates/causal-model/src/overlay.rs:123-132`) but never read, so a counterfactual world requesting
-one silently uses the factual mechanism.
-**Fix:** either implement them (mirror `sample.rs::sample_with_overlay` /
-`sample_structural_with_overlay`) or reject them with an explicit error in `predict`. Note the
-related semantics inconsistency: `soft_to_slot` gives soft interventions different noise semantics
-on the two sampling paths (`crates/causal-model/src/sample.rs:159-167`) — unify while fixing.
-**Status:** Fixed — Soft/Stochastic applied in `predict` (structural evaluate + stochastic sample);
-`additive_shift` soft overrides fold into overlay shifts so paths share noise semantics.
-
-### P1.11 Model falsification tests residual independence against descendants — DONE
-`crates/causal-model/src/evaluate.rs:201-219` (`residual_independence_tests`)
-Each node's inferred noise is tested against every non-parent, including the node's own
-descendants. In a true ANM, Y's noise causes Y's descendants, so this dependence is expected — the
-test sets `falsified = true` (evaluate.rs:86-92) for correctly specified models with any chain
-structure (X→Y: X's residual vs Y correlates perfectly).
-**Fix:** restrict the test set to non-descendants (compute descendants per node; the topo-order
-predecessor logic in `local_markov_tests`, evaluate.rs:236-241, is the model to follow).
-**Status:** Fixed — residual independence skips graph descendants via child-adjacency BFS.
-
-### P1.12 Discrete conditional mechanism: linear-probability fits used as softmax logits — DONE (interim)
+### P1.12 Discrete conditional mechanism: linear-probability fits used as softmax logits — incomplete
 `crates/causal-model/src/registry.rs:283-297`, `crates/causal-model/src/mechanism.rs:304-336`
 One-vs-rest least squares on category indicators produces predicted probabilities in [0,1]; these
 are stored as `logit_coeffs` and passed through softmax at evaluation. softmax(π) ≠ π — true
 (0.9, 0.1) becomes ≈ (0.69, 0.31); all parent-conditional discrete sampling and `log_prob_column`
 values are biased toward uniform.
-**Fix:** fit multinomial-logit coefficients via IRLS (blocked on P5 multinomial GLM).
-**Status:** Interim — evaluation applies `ln(clip(π))` before softmax so recovered probs ≈π;
-true multinomial logit IRLS remains P5.
+**Done (interim):** evaluation applies `ln(clip(π))` before softmax so recovered probs ≈π.
+**Still open:** fit true multinomial-logit coefficients via IRLS (blocked on P5 multinomial GLM).
+The interim recover-π trick is numerically close but is not a proper MLE and does not unblock
+likelihood-based model comparison for discrete conditionals.
+
+**Related leftover from P1.7 (otherwise fixed):** cycle/collider conflicts are recorded out-of-band
+(`conflict_edges` + `orientation.conflicts` diagnostics) and runs continue, but Tigramite-style
+`x-x` Endpoint marks are still deferred pending an `Endpoint` enum extension (see P4.2).
 
 ---
 
@@ -393,8 +195,8 @@ and level from the request.
 
 ## P3 — Conformance/test strengthening
 
-Do this before (or alongside) the P4 parity work — the current fixtures are why every P0/P1 bug
-shipped green.
+Do this before (or alongside) the P4 parity work — weak fixtures are why graph/math bugs
+shipped green historically.
 
 ### P3.1 Strengthen DoWhy conformance fixtures
 `conformance/dowhy/linear_gaussian_ate` is real (pinned DoWhy 0.14, black-box estimate) but the SCM
@@ -411,13 +213,12 @@ with a subset (not equality) assertion — it passes under substantial over-conn
 edge-set **equality**; any fixture at all for LPCMCI, J-PCMCI+, RPCMCI, and the CI-test statistics
 (GPDC, CMIknn, G²) against tigramite outputs.
 
-### P3.3 Fix the three vacuous tests
-- `crates/causal-state/src/suff_stats.rs:241-252` — test data (perfectly correlated, equal
-  variance) cannot see the P0.3 bug; use distinct-variance partially correlated columns.
+### P3.3 Fix the remaining vacuous tests
 - `crates/causal-graph/src/unfold.rs:421` — `let _ = ...is_d_separated(...)` in
   `unfold_dsep_on_chain`: the test named for d-separation asserts nothing about it.
 - `crates/causal-stats/src/ci/calibration.rs:223-226` — `assert!(within_two_se || rate < 0.12)`:
   the escape hatch (2.4× nominal) means the calibration claim is never enforced.
+  (StreamingCovariance batch-reference test was fixed with former P0.3.)
 
 ### P3.4 Small tigramite-alignment deltas (decide and document, or align)
 - Alpha boundary: engine removes at `p >= alpha` (`engine.rs:218`) / retains at `p < alpha`
@@ -458,7 +259,9 @@ sepset colliders and Meek. Implement the published structure:
 2. Contemporaneous phase testing all pairs (τ = 0…τ_max) with conditioning sets S drawn from
    contemporaneous adjacencies plus `B̂(X_t^j)` and `B̂(X_{t−τ}^i)`.
 3. Collider orientation with majority/conservative rules (tigramite default
-   `contemp_collider_rule='majority'`, re-testing neighbor subsets) and conflict marks (needs P1.7).
+   `contemp_collider_rule='majority'`, re-testing neighbor subsets) and conflict marks
+   (out-of-band `orientation.conflicts` exists; full Tigramite-style `x-x` Endpoint marks still
+   pending — see P1 leftover note).
 4. Meek R1–R3 restricted to contemporaneous links.
 Also fix the direction-asymmetry: X→Y and Y→X at lag 0 are tested as separate links with different
 conditioning and whichever survives inserts one undirected edge
@@ -466,8 +269,8 @@ conditioning and whichever survives inserts one undirected edge
 
 ### P4.3 LPCMCI: from FCI-lite to LPCMCI
 `crates/causal-discovery/src/lpcmci.rs:78-97` runs the PC1+MCI engine plus rules
-{collider, R1, R2, R3, disc-path}. After the P1 rule fixes, close the algorithmic gap: o–o
-initialization (P1.6), middle marks, weakly-minimal separating sets, interleaved ancestral
+{collider, R1, R2, R3, disc-path}. R1/R2/R4 and lagged `o→` init are fixed; close the remaining
+algorithmic gap: middle marks, weakly-minimal separating sets, interleaved ancestral
 edge-removal/orientation phases, and rules R8, R9, R10 (uncovered potentially directed paths) —
 required for FCI-style completeness.
 
@@ -500,9 +303,9 @@ Bonferroni/Holm (DESIGN.md:1061), plus tigramite's `exclude_contemporaneous` fam
 ### P4.7 Generalized/PAG identification beyond the empty set
 `crates/causal-identify/src/generalized.rs:98-121` tests only `Z = ∅` per MAG completion; any
 confounded-but-adjustable completion reports NotIdentified. Implement generalized adjustment-set
-search per completion (candidate sets from possible ancestors, m-separation check after P1.1/P1.2),
+search per completion (candidate sets from possible ancestors, m-separation on legal MAGs),
 and document the current limitation loudly in the module docs until then (frontdoor.rs:3-16 is the
-model for honest limitation docs). Depends on P1.9 (legal completions). The full ID/IDC algorithm
+model for honest limitation docs). MAG completion filter is in place (`is_mag_completion`). The full ID/IDC algorithm
 is roadmap — see P5.3.
 
 ### P4.8 GCM attribution parity (DoWhy-GCM)
@@ -524,7 +327,8 @@ is roadmap — see P5.3.
   marginal/conditional randomization (the Shapley engine in `shapley.rs` is verified correct;
   reuse it).
 - `distribution_change` (`crates/causal-attribution/src/distribution_change.rs:30-35`): structure
-  is correct Budhathoki 2021; add the KL-based target functional (DoWhy's default) after P0.1, and
+  is correct Budhathoki 2021; add the KL-based target functional (DoWhy's default; `gaussian_kl`
+  is fixed), and
   use common random numbers across coalition payoffs (seed is currently `seed + mask`, line 267 —
   extra MC variance; exact-mode efficiency is unaffected but sampled modes pay for it).
 
@@ -682,7 +486,8 @@ a small stats-util module; fix `% n` modulo bias once there.
 Five near-identical BFS reachability implementations (`dag.rs:144`, `admg.rs:195`,
 `temporal.rs:131` — this one allocating a workspace **per edge insertion**, making bulk
 construction O(E·(V+E)); `marked_storage.rs:70`; projection walkers); two Kahn's-algorithm copies;
-duplicated moralization (`dsep.rs` vs `msep.rs:126-195` — merge when fixing P1.1); the 2^m
+duplicated moralization (`dsep.rs` vs `msep.rs` — still worth merging after district-clique
+fix); the 2^m
 enumeration duplicated between `backdoor.rs:114-186` and `efficient.rs:99-164`.
 
 ### P6.6 Replace stringly-typed dispatch with enums
