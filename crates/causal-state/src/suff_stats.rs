@@ -163,10 +163,14 @@ impl StreamingCovariance {
             delta[i] = x[i] - self.mean[i];
             self.mean[i] += delta[i] / n;
         }
+        // Welford: m2[i,j] += delta[i] * (x[j] - mean_new[j])
+        let mut d = vec![0.0; self.dim];
+        for j in 0..self.dim {
+            d[j] = x[j] - self.mean[j];
+        }
         for i in 0..self.dim {
-            let di = x[i] - self.mean[i];
             for j in 0..self.dim {
-                self.m2[i * self.dim + j] += delta[i] * di;
+                self.m2[i * self.dim + j] += delta[i] * d[j];
             }
         }
         Ok(())
@@ -239,15 +243,47 @@ mod tests {
 
     #[test]
     fn streaming_cov_matches_batch() {
-        let data = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]];
+        // Distinct variances, partial correlation: x2 = 0.5*x1 + noise
+        let data: Vec<[f64; 2]> = (0..20)
+            .map(|i| {
+                let x1 = f64::from(i) - 9.5;
+                let x2 = 0.5 * x1 + f64::from(i % 3) - 1.0;
+                [x1, x2 * 2.0]
+            })
+            .collect();
         let mut s = StreamingCovariance::new(2);
         for row in &data {
             s.append(row).expect("append");
         }
         let cov = s.sample_covariance().expect("cov");
-        // Manual: means (3,4); deviations (-2,-2),(0,0),(2,2); M2 var = 8 → s²=4
-        assert!((cov[0] - 4.0).abs() < 1e-10);
-        assert!((cov[1] - 4.0).abs() < 1e-10);
-        assert!((cov[3] - 4.0).abs() < 1e-10);
+
+        let n = data.len() as f64;
+        let mut mean = [0.0, 0.0];
+        for row in &data {
+            mean[0] += row[0];
+            mean[1] += row[1];
+        }
+        mean[0] /= n;
+        mean[1] /= n;
+        let mut batch = [0.0; 4];
+        for row in &data {
+            let d0 = row[0] - mean[0];
+            let d1 = row[1] - mean[1];
+            batch[0] += d0 * d0;
+            batch[1] += d0 * d1;
+            batch[2] += d1 * d0;
+            batch[3] += d1 * d1;
+        }
+        let denom = n - 1.0;
+        for v in &mut batch {
+            *v /= denom;
+        }
+
+        for i in 0..4 {
+            assert!((cov[i] - batch[i]).abs() < 1e-10, "cov[{i}]={} batch={}", cov[i], batch[i]);
+        }
+        assert!((cov[1] - cov[2]).abs() < 1e-12, "covariance must be symmetric");
+        // Off-diagonal must be non-trivial (catches the old delta[i]*di bug)
+        assert!(cov[1].abs() > 1.0);
     }
 }

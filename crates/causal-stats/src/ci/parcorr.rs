@@ -133,7 +133,7 @@ impl PartialCorrelation {
                     workspace,
                     ctx,
                     stream_id,
-                );
+                )?;
                 Ok(CiResult { statistic: r, p_value: p, df, ci: None })
             }
         }

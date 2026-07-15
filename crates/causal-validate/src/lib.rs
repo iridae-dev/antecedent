@@ -33,7 +33,7 @@ pub use common::{RefutationProblem, RefutationReport};
 pub use data_subset::DataSubsetRefuter;
 pub use dummy_outcome::DummyOutcome;
 pub use error::ValidationError;
-pub use evalue::EValue;
+pub use evalue::{DEFAULT_EVALUE_THRESHOLD, EValue};
 pub use graph_refute::GraphRefuter;
 pub use overlap::OverlapRefuter;
 pub use overlap_rule::OverlapRuleRefuter;

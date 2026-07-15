@@ -15,7 +15,7 @@ pub fn gaussian_kl(mu0: f64, var0: f64, mu1: f64, var1: f64) -> Result<f64, Stat
     if var0 <= 0.0 || var1 <= 0.0 {
         return Err(StatsError::Shape { message: "gaussian_kl requires positive variances" });
     }
-    Ok(0.5 * ((var0 / var1).ln() + (var0 + (mu0 - mu1).powi(2)) / var1 - 1.0))
+    Ok(0.5 * ((var1 / var0).ln() + (var0 + (mu0 - mu1).powi(2)) / var1 - 1.0))
 }
 
 /// Mean and variance of a slice.
@@ -110,5 +110,28 @@ mod tests {
     #[test]
     fn gaussian_kl_zero_for_same() {
         assert!(gaussian_kl(0.0, 1.0, 0.0, 1.0).unwrap().abs() < 1e-12);
+    }
+
+    #[test]
+    fn gaussian_kl_unequal_variances() {
+        // KL(N(0,1) ‖ N(0,2)) = ½[ln(2) + ½ − 1] ≈ 0.09657
+        let kl = gaussian_kl(0.0, 1.0, 0.0, 2.0).unwrap();
+        let expected = 0.5 * (2.0_f64.ln() + 0.5 - 1.0);
+        assert!(kl >= 0.0);
+        assert!((kl - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn gaussian_kl_non_negative() {
+        let cases = [
+            (0.0, 1.0, 0.0, 2.0),
+            (1.0, 1.0, 0.0, 1.0),
+            (-2.0, 0.5, 3.0, 4.0),
+            (0.0, 4.0, 0.0, 0.25),
+        ];
+        for (mu0, var0, mu1, var1) in cases {
+            let kl = gaussian_kl(mu0, var0, mu1, var1).unwrap();
+            assert!(kl >= -1e-12, "KL({mu0},{var0}‖{mu1},{var1}) = {kl}");
+        }
     }
 }

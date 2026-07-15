@@ -331,8 +331,8 @@ fn standard_normal(rng: &mut CausalRng) -> f64 {
 }
 
 fn sample_inv_gamma(shape: f64, scale: f64, rng: &mut CausalRng) -> f64 {
-    // InvGamma(α, β) = 1 / Gamma(α, rate=1/β) with mean β/(α-1)
-    let g = sample_gamma(shape, 1.0 / scale, rng);
+    // InvGamma(α, β) = 1 / Gamma(α, rate=β); mean β/(α-1) for α>1
+    let g = sample_gamma(shape, scale, rng);
     1.0 / g.max(f64::MIN_POSITIVE)
 }
 
@@ -444,5 +444,18 @@ mod tests {
         assert_eq!(fit.draws.n_quantities(), 3);
         let sig = fit.draws.column(2).unwrap();
         assert!(sig.iter().all(|&s| s > 0.0));
+    }
+
+    #[test]
+    fn inv_gamma_moment_matches_mean() {
+        // InvGamma(α=5, β=4) has mean β/(α−1) = 1.0
+        let mut rng = CausalRng::from_seed(42);
+        let n = 20_000usize;
+        let mut sum = 0.0;
+        for _ in 0..n {
+            sum += sample_inv_gamma(5.0, 4.0, &mut rng);
+        }
+        let mean = sum / n as f64;
+        assert!((mean - 1.0).abs() < 0.05, "empirical mean {mean} far from 1.0");
     }
 }

@@ -97,6 +97,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(3);
         let out = PartialCorrelation::new().test_batch(&req, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out.results[0].p_value));
+        assert!(out.results[0].p_value > 0.0);
     }
 
     #[test]

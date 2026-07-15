@@ -14,6 +14,7 @@ use causal_core::{ExecutionContext, KernelPolicy};
 use causal_kernels::partial_correlation;
 
 use super::types::{CiQuery, CiWorkspace};
+use crate::error::StatsError;
 
 pub(crate) fn block_shuffle_pvalue(
     policy: &KernelPolicy,
@@ -26,7 +27,7 @@ pub(crate) fn block_shuffle_pvalue(
     workspace: &mut CiWorkspace,
     ctx: &ExecutionContext,
     stream_salt: u64,
-) -> f64 {
+) -> Result<f64, StatsError> {
     let n = columns[0].len();
     let x = columns[query.x];
     let y = columns[query.y];
@@ -65,10 +66,42 @@ pub(crate) fn block_shuffle_pvalue(
             &z_refs,
             &mut workspace.parcorr,
         )
-        .unwrap_or(0.0);
+        .ok_or(StatsError::Shape {
+            message: "block-shuffle replicate: partial correlation failed",
+        })?;
         if r.abs() >= abs_obs {
             extreme += 1;
         }
     }
-    ((extreme as f64) + 1.0) / ((replicates as f64) + 1.0)
+    Ok(((extreme as f64) + 1.0) / ((replicates as f64) + 1.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use causal_core::ExecutionContext;
+
+    #[test]
+    fn replicate_failure_propagates() {
+        // n < 3 → partial_correlation returns None; must not be treated as r=0.
+        let x = [1.0, 2.0];
+        let y = [3.0, 4.0];
+        let cols: [&[f64]; 2] = [&x, &y];
+        let query = CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let err = block_shuffle_pvalue(
+            &KernelPolicy::default_policy(),
+            &cols,
+            query,
+            &[],
+            0.5,
+            5,
+            1,
+            &mut ws,
+            &ctx,
+            0,
+        );
+        assert!(err.is_err());
+    }
 }

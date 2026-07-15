@@ -7,6 +7,13 @@ use std::sync::Arc;
 use crate::common::{RefutationProblem, RefutationReport, complete_case_rows, masked_sample_sd};
 use crate::error::ValidationError;
 
+/// Default pass threshold: E ≥ 2 is commonly read as moderate robustness to unmeasured
+/// confounding (VanderWeele & Ding). DoWhy reports the E-value as a continuous diagnostic
+/// without a pass/fail gate; this library uses 2.0 so `ValidationSuite` verdicts are not
+/// vacuous (the formula always yields E ≥ 1, so threshold 1.0 would pass every estimate,
+/// including a true null).
+pub const DEFAULT_EVALUE_THRESHOLD: f64 = 2.0;
+
 /// E-value for the point estimate: the minimum strength of association, on the risk-ratio
 /// scale, that an unmeasured confounder would need with both treatment and outcome to fully
 /// explain away the observed effect.
@@ -17,6 +24,10 @@ use crate::error::ValidationError;
 #[derive(Clone, Debug)]
 pub struct EValue {
     /// Pass if the computed E-value is at least this large.
+    ///
+    /// Default [`DEFAULT_EVALUE_THRESHOLD`] (2.0) marks moderate robustness. Override via
+    /// [`EValue::with_threshold`] when a different convention is needed; the E-value itself
+    /// is always reported in [`RefutationReport::comparison`] regardless of the gate.
     pub threshold: f64,
 }
 
@@ -27,11 +38,17 @@ impl Default for EValue {
 }
 
 impl EValue {
-    /// Default threshold: 1.0 (any confounder-explainable effect fails; a true null trivially
-    /// has E-value 1.0).
+    /// Default threshold [`DEFAULT_EVALUE_THRESHOLD`] (2.0 ≈ moderate robustness).
     #[must_use]
     pub fn new() -> Self {
-        Self { threshold: 1.0 }
+        Self { threshold: DEFAULT_EVALUE_THRESHOLD }
+    }
+
+    /// Explicit pass threshold (DoWhy-style: report-only use `threshold = 0.0` or ignore
+    /// `passed` and read [`RefutationReport::comparison`]).
+    #[must_use]
+    pub fn with_threshold(threshold: f64) -> Self {
+        Self { threshold }
     }
 
     /// Compute the E-value for `problem.original.ate`.

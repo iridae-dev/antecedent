@@ -241,7 +241,7 @@ fn bootstrap_refute_contains_original_ate() {
 }
 
 #[test]
-fn evalue_exceeds_one_for_nonnull_effect() {
+fn evalue_passes_moderate_threshold_for_nonnull_effect() {
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -259,8 +259,33 @@ fn evalue_exceeds_one_for_nonnull_effect() {
         estimator: Some("linear.adjustment.ate"),
     };
     let report = EValue::new().refute(&problem).unwrap();
-    assert!(report.comparison > 1.0, "e_value={}", report.comparison);
+    assert!(report.comparison >= DEFAULT_EVALUE_THRESHOLD, "e_value={}", report.comparison);
     assert!(report.passed, "{:?}", report.failure_condition);
+}
+
+#[test]
+fn evalue_zero_effect_fails_default_threshold() {
+    let (data, estimand, _) = toy_confounded();
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let ctx = ExecutionContext::for_tests(32);
+    let mut original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    original.ate = 0.0;
+
+    let problem = RefutationProblem {
+        data: &data,
+        estimand: &estimand,
+        query: &query,
+        original: &original,
+        estimator: Some("linear.adjustment.ate"),
+    };
+    let report = EValue::new().refute(&problem).unwrap();
+    // Null effect → RR = 1 → E = 1, below moderate-robustness default of 2.
+    assert!((report.comparison - 1.0).abs() < 1e-12, "e_value={}", report.comparison);
+    assert!(!report.passed, "null effect must fail default threshold");
 }
 
 #[test]
