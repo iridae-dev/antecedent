@@ -10,9 +10,11 @@ pub mod error;
 
 pub use engine::{
     CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualResult, CounterfactualWorld,
-    ExogenousPosterior, MissingPolicy, NoiseInferenceKind, nested_hard_counterfactual,
+    ExogenousPosterior, MissingPolicy, NoiseInferenceKind, simultaneous_hard_counterfactual,
     streaming_matches_retained,
 };
+#[allow(deprecated)]
+pub use engine::nested_hard_counterfactual;
 pub use error::CounterfactualError;
 
 /// Crate version.

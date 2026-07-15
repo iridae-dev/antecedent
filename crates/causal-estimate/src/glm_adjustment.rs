@@ -130,6 +130,13 @@ impl GlmAdjustmentAte {
             });
         }
         query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+        if matches!(self.family, GlmFamily::BinomialProbit) {
+            return Err(EstimationError::UnsupportedQuery(
+                "BinomialProbit frequentist IRLS is not implemented; use Bayesian Laplace \
+                 or BinomialLogit"
+                    .into(),
+            ));
+        }
         if !query.effect_modifiers.is_empty() {
             return Err(EstimationError::UnsupportedQuery(
                 "GLM adjustment does not support effect modifiers".into(),
@@ -325,8 +332,7 @@ impl GlmAdjustmentAte {
     }
 }
 
-/// Response-scale derivative `dμ/dη` at `eta` (equal to the variance function for these
-/// canonical links, up to the dispersion).
+/// Response-scale derivative `dμ/dη` at `eta`.
 fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
     match family {
         GlmFamily::BinomialLogit => {
@@ -334,7 +340,7 @@ fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
             mu * (1.0 - mu)
         }
         GlmFamily::BinomialProbit => {
-            // φ(η) for probit (dμ/dη); Fisher weight uses φ²/(μ(1-μ)) elsewhere.
+            // φ(η) = dμ/dη for probit.
             const INV_SQRT_2PI: f64 = 0.398_942_280_401_432_7;
             INV_SQRT_2PI * (-0.5 * eta * eta).exp()
         }
@@ -343,14 +349,32 @@ fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
     }
 }
 
+/// IRLS / Fisher information weight `W_ii` at `eta`.
+///
+/// For canonical Bernoulli/logit and Poisson this equals `dμ/dη`. For probit the
+/// Bernoulli Fisher weight is `φ(η)² / (μ(1−μ))`, not `φ(η)`.
+fn fisher_weight(family: GlmFamily, eta: f64) -> f64 {
+    match family {
+        GlmFamily::BinomialProbit => {
+            let phi = mean_derivative(GlmFamily::BinomialProbit, eta);
+            // Φ(η) via erf; clamp away from {0,1} for numerical stability.
+            let mu = (0.5 * (1.0 + causal_kernels::erf(eta / std::f64::consts::SQRT_2)))
+                .clamp(1e-12, 1.0 - 1e-12);
+            (phi * phi) / (mu * (1.0 - mu))
+        }
+        other => mean_derivative(other, eta),
+    }
+}
+
 /// Delta-method standard error for the g-computation ATE, **conditional on the observed
 /// covariate rows** (standard g-computation practice).
 ///
 /// With gradient `g = (1/n) Σ_i [μ'(η_i1)·x_i1 − μ'(η_i0)·x_i0]` over the coefficient vector
 /// (where `x_i1`/`x_i0` are row `i` with the treatment column set to `active`/`control`) and
-/// `Cov(β̂) = φ·(XᵀWX)⁻¹` — the inverse Fisher information at the fit, `W = diag(μ'(η_i))`
-/// for these canonical links, dispersion `φ = RSS/(n−p)` for Gaussian and `1` otherwise —
-/// the SE is `sqrt(gᵀ Cov(β̂) g)`. Returns `NaN` when the information matrix is singular.
+/// `Cov(β̂) = φ·(XᵀWX)⁻¹` — the inverse Fisher information at the fit, `W = diag(w(η_i))`
+/// with Bernoulli/logit / Poisson `w = μ'` and probit `w = φ²/(μ(1−μ))`, dispersion
+/// `φ = RSS/(n−p)` for Gaussian and `1` otherwise — the SE is `sqrt(gᵀ Cov(β̂) g)`.
+/// Returns `NaN` when the information matrix is singular.
 #[allow(clippy::too_many_arguments)]
 fn gcomp_delta_method_se(
     family: GlmFamily,
@@ -370,7 +394,7 @@ fn gcomp_delta_method_se(
         for c in 0..ncols {
             eta += x_colmajor[c * nrows + r] * coefficients[c];
         }
-        let sqrt_w = mean_derivative(family, eta).max(0.0).sqrt();
+        let sqrt_w = fisher_weight(family, eta).max(0.0).sqrt();
         for c in 0..ncols {
             x_w[c * nrows + r] = x_colmajor[c * nrows + r] * sqrt_w;
         }
@@ -672,6 +696,22 @@ mod tests {
             effect.se_analytic < 3.0 * boot && effect.se_analytic > boot / 3.0,
             "se_analytic={} se_bootstrap={boot}",
             effect.se_analytic
+        );
+    }
+
+    #[test]
+    fn rejects_probit_early_in_prepare() {
+        let (data, estimand) = binary_scm(200, 7);
+        let est = GlmAdjustmentAte {
+            family: GlmFamily::BinomialProbit,
+            ..GlmAdjustmentAte::new()
+        };
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let err = est.prepare(&data, &estimand, &query).unwrap_err();
+        assert!(
+            matches!(err, EstimationError::UnsupportedQuery(ref m) if m.contains("BinomialProbit")),
+            "{err:?}"
         );
     }
 

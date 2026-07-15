@@ -37,7 +37,7 @@ pub use evalue::{DEFAULT_EVALUE_THRESHOLD, EValue};
 pub use graph_refute::GraphRefuter;
 pub use overlap::OverlapRefuter;
 pub use overlap_rule::OverlapRuleRefuter;
-pub use placebo::PlaceboTreatment;
+pub use placebo::{PlaceboMode, PlaceboTreatment};
 pub use rcc::RandomCommonCause;
 pub use reisz::ReiszSensitivity;
 pub use sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};

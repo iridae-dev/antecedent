@@ -207,8 +207,9 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
 
 /// Sequential (path-dependent) allocation along a fixed order.
 ///
-/// Returns contributions and explicit pairwise consecutive interaction residuals
-/// relative to the Shapley-incomparable sequential path (nonadditive marker).
+/// Returns ordered path contributions (successive marginals) and consecutive
+/// pairwise interaction residuals
+/// `v(S∪{a,b}) − v(S∪{a}) − v(S∪{b}) + v(S)` along that path.
 ///
 /// # Errors
 ///
@@ -224,57 +225,50 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
     }
     let mut cache = CoalitionCache::from_policy(ctx.cache_policy);
     let mut budget = ComputeBudget::default();
-    let mut mask = 0u64;
-    let mut v_prev = {
-        let key = CoalitionKey { mask: 0, tag: 0 };
+    let eval = |mask: u64,
+                payoff: &mut P,
+                cache: &mut CoalitionCache,
+                budget: &mut ComputeBudget|
+     -> Result<f64, AttributionError> {
+        let key = CoalitionKey { mask, tag: 0 };
         if let Some(v) = cache.get(key) {
-            v
-        } else {
-            let v = payoff.value(0)?;
-            budget.evaluations += 1;
-            cache.insert(key, v);
-            v
+            return Ok(v);
         }
+        let v = payoff.value(mask)?;
+        budget.evaluations += 1;
+        cache.insert(key, v);
+        Ok(v)
     };
+    let mut mask = 0u64;
+    let mut v_prev = eval(0, payoff, &mut cache, &mut budget)?;
     let mut values = Vec::with_capacity(order.len());
     let mut interactions = Vec::new();
-    let mut prev_component: Option<ComponentId> = None;
+    let mut prev_component: Option<(ComponentId, usize)> = None;
     for &comp in order {
         let idx = player_index(comp).ok_or_else(|| {
             AttributionError::Message(format!("component {comp} not in player set"))
         })?;
         let bit = 1u64 << idx;
+        let s_mask = mask; // coalition before adding `comp`
+        let v_s = v_prev;
         mask |= bit;
-        let key = CoalitionKey { mask, tag: 0 };
-        let v_new = if let Some(v) = cache.get(key) {
-            v
-        } else {
-            let v = payoff.value(mask)?;
-            budget.evaluations += 1;
-            cache.insert(key, v);
-            v
-        };
+        let v_new = eval(mask, payoff, &mut cache, &mut budget)?;
         let marginal = v_new - v_prev;
         values.push(marginal);
-        if let Some(a) = prev_component {
-            // Residual vs independent sum is zero for pure sequential; record
-            // consecutive pair with the marginal as an explicit nonadditive path term.
-            interactions.push(InteractionTerm { a, b: comp, value: 0.0 });
+        if let Some((a, a_idx)) = prev_component {
+            // Interaction residual for consecutive path pair (a, comp):
+            // v(S∪{a,b}) - v(S∪{a}) - v(S∪{b}) + v(S), with S before a.
+            let bit_a = 1u64 << a_idx;
+            let s_before_a = s_mask & !bit_a;
+            let v_s_before_a = eval(s_before_a, payoff, &mut cache, &mut budget)?;
+            let v_sb = eval(s_before_a | bit, payoff, &mut cache, &mut budget)?;
+            let residual = v_new - v_s - v_sb + v_s_before_a;
+            interactions.push(InteractionTerm { a, b: comp, value: residual });
         }
-        prev_component = Some(comp);
+        prev_component = Some((comp, idx));
         v_prev = v_new;
-        let _ = interactions; // keep interactions vec for API; values stay 0 for additive path
+        let _ = v_s;
     }
-    // Re-enable interaction recording meaningfully: store consecutive marginals as path terms.
-    let interactions: Vec<InteractionTerm> = order
-        .windows(2)
-        .enumerate()
-        .map(|(i, w)| InteractionTerm {
-            a: w[0],
-            b: w[1],
-            value: values[i + 1], // next marginal along the ordered path
-        })
-        .collect();
 
     Ok(ShapleyEstimate {
         players: order.to_vec(),
@@ -360,5 +354,51 @@ mod tests {
         for (v, w) in est.values.iter().zip([1.0, 1.0, 1.0, 1.0]) {
             assert!((v - w).abs() < 0.15, "v={v}");
         }
+    }
+
+    #[test]
+    fn sequential_interactions_zero_for_additive() {
+        let players: Vec<_> = (0..3).map(ComponentId::from_raw).collect();
+        let mut payoff = AdditivePayoff { weights: vec![1.0, 2.0, 3.0] };
+        let ctx = ExecutionContext::for_tests(1);
+        let est = sequential_allocate(
+            &players,
+            &|c| players.iter().position(|&p| p == c),
+            &mut payoff,
+            &ctx,
+        )
+        .unwrap();
+        assert!((est.values[0] - 1.0).abs() < 1e-12);
+        assert!((est.values[1] - 2.0).abs() < 1e-12);
+        assert!((est.values[2] - 3.0).abs() < 1e-12);
+        assert_eq!(est.interactions.len(), 2);
+        for term in &est.interactions {
+            assert!(term.value.abs() < 1e-12, "residual={}", term.value);
+        }
+    }
+
+    struct XorPayoff;
+
+    impl CoalitionPayoff for XorPayoff {
+        fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+            // Non-additive: value is 1 iff both bit0 and bit1 are set.
+            Ok(f64::from((mask & 0b11) == 0b11))
+        }
+    }
+
+    #[test]
+    fn sequential_records_nonzero_interaction_for_xor() {
+        let players: Vec<_> = (0..2).map(ComponentId::from_raw).collect();
+        let mut payoff = XorPayoff;
+        let ctx = ExecutionContext::for_tests(1);
+        let est = sequential_allocate(
+            &players,
+            &|c| players.iter().position(|&p| p == c),
+            &mut payoff,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(est.interactions.len(), 1);
+        assert!((est.interactions[0].value - 1.0).abs() < 1e-12);
     }
 }

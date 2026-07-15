@@ -111,40 +111,6 @@ Implement the Abadie–Imbens (2006) variance with donor-usage counts K_i, add t
 adjustment, and document that the bootstrap is invalid for NN matching (Abadie–Imbens 2008). This
 is DoWhy-parity-level today but — unlike the library's other simplifications — undocumented.
 
-### P4.11 Backdoor `minimal_only` semantics
-`crates/causal-identify/src/backdoor.rs:183-186`: the loop breaks after the first size class with a
-valid set, returning minimum-cardinality sets only; the subset-filter at 167-175 is dead code
-(within one size class no proper subsets exist). Docstring says "inclusion-minimal".
-**Fix:** either continue enumerating sizes with the subset filter live (true inclusion-minimal), or
-change the doc to "minimum cardinality". Roadmap also lists maximal adjustment sets (P5.3).
-
-### P4.12 Smaller correctness parity items
-- Wald IV per-arm variances divide by n, not n−1 (`crates/causal-estimate/src/iv.rs:319-320`).
-- Probit Fisher weight in the g-computation delta method is wrong
-  (`crates/causal-estimate/src/glm_adjustment.rs:365-378` uses μ′(η) for all families; probit needs
-  φ(η)²/(μ(1−μ))). Unreachable today only because `fit_glm` rejects probit
-  (`crates/causal-stats/src/glm.rs:114-116`) — and `GlmAdjustmentAte::prepare` accepts probit then
-  fails late in `fit`; validate early. Fix the weight when probit IRLS lands (P5.4).
-- Placebo refuter offers only random-data replacement (`placebo.rs:16`, `common.rs:191`), matching
-  DoWhy's default, but the "permute" mode (preserves the treatment marginal — relevant for binary
-  treatments) is missing.
-- `nested_hard_counterfactual` (`crates/causal-counterfactual/src/engine.rs:352-368`) concatenates
-  outer+inner interventions into one simultaneous world (later duplicates override earlier) — not
-  nested-counterfactual semantics; correct only for disjoint hard sets. Rename or implement.
-- `residual_likelihood_ratio` p-value (`divergence.rs:80`) is `erfc(sqrt(2·KL)/√2)` — an ad-hoc
-  calibration with no sample-size dependence, not an LR test. Derive a real test (e.g. asymptotic
-  χ² on 2n·KL) or label it a heuristic score.
-- Conjugate known-σ² prior scaling (`crates/causal-prob/src/conjugate.rs:174-186`): the supplied
-  prior variance is silently reinterpreted as σ²·V0, contradicting `GaussianCoefficientPrior`'s own
-  docs. Pick one convention and align code + docs.
-- `sequential_allocate` "interaction" terms (`crates/causal-attribution/src/shapley.rs:258-276`)
-  are just the next marginal along the path (plus a dead first loop) — rename or compute real
-  interaction residuals.
-- Modulo bias: `rng.next_u64() % n` in Fisher–Yates (`shapley.rs:303-308`) and every bootstrap
-  index draw. Negligible in practice; fix once in a shared sampling helper (P6.4).
-- Two `.unwrap()` calls in library code: `crates/causal-counterfactual/src/engine.rs:271,366` —
-  the only non-test unwraps in the workspace; replace with proper errors.
-
 ---
 
 ## P5 — Roadmap features from DESIGN.md not yet built

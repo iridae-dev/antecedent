@@ -319,8 +319,17 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
         ));
     }
     let ratio = (mean_y1 - mean_y0) / denom;
-    let var_y1 = (sy1sq / n1f - mean_y1 * mean_y1).max(0.0);
-    let var_y0 = (sy0sq / n0f - mean_y0 * mean_y0).max(0.0);
+    // Bessel-corrected per-arm sample variances (divide by n−1).
+    let var_y1 = if n1 > 1 {
+        ((sy1sq - n1f * mean_y1 * mean_y1) / (n1f - 1.0)).max(0.0)
+    } else {
+        0.0
+    };
+    let var_y0 = if n0 > 1 {
+        ((sy0sq - n0f * mean_y0 * mean_y0) / (n0f - 1.0)).max(0.0)
+    } else {
+        0.0
+    };
     let se = (var_y1 / n1f + var_y0 / n0f).sqrt() / denom.abs();
     Ok(WaldResult { ratio, se })
 }

@@ -96,6 +96,32 @@ fn placebo_near_zero_on_null() {
 }
 
 #[test]
+fn placebo_permute_near_zero_on_null() {
+    let (data, estimand, _) = toy_confounded();
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let ctx = ExecutionContext::for_tests(19);
+    let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+
+    let problem = RefutationProblem {
+        data: &data,
+        estimand: &estimand,
+        query: &query,
+        original: &original,
+        estimator: Some("linear.adjustment.ate"),
+    };
+    let mut placebo = PlaceboTreatment::new();
+    placebo.mode = PlaceboMode::Permute;
+    placebo.replicates = 40;
+    let report = placebo.refute(&problem, &mut ws, &ctx).unwrap();
+    assert!(report.passed, "{:?}", report.failure_condition);
+    assert!(report.refuted_ate.abs() < 0.35, "mean placebo ate={}", report.refuted_ate);
+}
+
+#[test]
 fn rcc_preserves_ate() {
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();

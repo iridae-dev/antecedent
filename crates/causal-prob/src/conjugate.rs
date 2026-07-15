@@ -171,8 +171,9 @@ fn posterior_known_sigma2(
     xty: &[f64],
     sigma2: f64,
 ) -> Result<(Vec<f64>, Vec<f64>), ProbError> {
-    // Classic conjugate: prior Cov(β|σ²) = σ² V0 with Λ0 = V0^{-1} = prec.
-    // Λn = (Λ0 + X'X) / σ² ; mn = Λn^{-1} (Λ0 μ0 + X'y) / σ²
+    // Conjugate known-σ²: Cov(β|σ²) = σ² V0 with V0 = diag(prior.variance),
+    // so prior.precision() = V0^{-1}. Matches [`GaussianCoefficientPrior`] docs.
+    // Λn = (V0^{-1} + X'X) / σ² ; mn = Λn^{-1} (V0^{-1} μ0 + X'y) / σ²
     let mut lam = vec![0.0; ncols * ncols];
     let prec = prior.precision();
     for i in 0..ncols {

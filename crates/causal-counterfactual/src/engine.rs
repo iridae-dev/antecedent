@@ -313,7 +313,9 @@ impl CounterfactualEngine {
             CounterfactualWorld { unit_rows: None, interventions: Arc::from([control]) },
         ];
         let res = self.predict(exo, &worlds, &[outcome], false, ws, ctx)?;
-        let o = self.model.dense_of(outcome).unwrap();
+        let o = self.model.dense_of(outcome).ok_or_else(|| {
+            CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
+        })?;
         let mut ite = vec![0.0; exo.n_units];
         for u in 0..exo.n_units {
             let ya = res.get(0, o, u);
@@ -388,12 +390,56 @@ pub fn streaming_matches_retained(
     (stream - retained).abs() < 1e-12
 }
 
-/// Nested hard interventions under invertible additive-noise SCMs: apply an outer
-/// abduction, then an inner do inside the counterfactual world.
+/// Simultaneous hard interventions under invertible additive-noise SCMs.
+///
+/// Outer and inner intervention lists are **concatenated into one world**
+/// (later assignments to the same variable override earlier ones). This is
+/// correct nested-counterfactual semantics only when the two lists target
+/// **disjoint** variables; overlapping targets are rejected.
 ///
 /// # Errors
 ///
-/// Engine failures.
+/// Engine failures, unknown outcome, or overlapping intervention targets.
+pub fn simultaneous_hard_counterfactual(
+    engine: &CounterfactualEngine,
+    data: &TabularData,
+    outer: &[Intervention],
+    inner: &[Intervention],
+    outcome: VariableId,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, CounterfactualError> {
+    for o in outer {
+        let Some(ov) = o.primary_variable() else {
+            continue;
+        };
+        for i in inner {
+            if i.primary_variable() == Some(ov) {
+                return Err(CounterfactualError::model_msg(format!(
+                    "overlapping hard intervention on {ov}: simultaneous composition requires \
+                     disjoint targets (true nested counterfactuals are not implemented)"
+                )));
+            }
+        }
+    }
+    let exo = engine.abduct(data, MissingPolicy::Error)?;
+    let mut combined = outer.to_vec();
+    combined.extend_from_slice(inner);
+    let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
+    let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
+    let o = engine.model.dense_of(outcome).ok_or_else(|| {
+        CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
+    })?;
+    Ok(res.streaming_outcome_mean(0, o))
+}
+
+/// Deprecated alias for [`simultaneous_hard_counterfactual`].
+///
+/// The historical name suggested nested twin-network semantics; the
+/// implementation composes disjoint hard interventions simultaneously.
+#[deprecated(
+    note = "renamed to simultaneous_hard_counterfactual — nested CF semantics are not implemented"
+)]
 pub fn nested_hard_counterfactual(
     engine: &CounterfactualEngine,
     data: &TabularData,
@@ -403,13 +449,7 @@ pub fn nested_hard_counterfactual(
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<f64, CounterfactualError> {
-    let exo = engine.abduct(data, MissingPolicy::Error)?;
-    let mut combined = outer.to_vec();
-    combined.extend_from_slice(inner);
-    let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
-    let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
-    let o = engine.model.dense_of(outcome).unwrap();
-    Ok(res.streaming_outcome_mean(0, o))
+    simultaneous_hard_counterfactual(engine, data, outer, inner, outcome, ws, ctx)
 }
 
 #[cfg(test)]

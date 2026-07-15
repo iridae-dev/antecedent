@@ -121,6 +121,11 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
 
 /// Likelihood-ratio style residual comparison via KL between residual Gaussians.
 ///
+/// Statistic is the KL; the p-value is an asymptotic χ² survival
+/// `P(χ²_{df=2} > 2 n KL)` with `n = min(|r₀|, |r₁|)` — a Wilks-style
+/// approximation for a two-parameter (mean, variance) Gaussian residual model,
+/// not an exact LR test under misspecification.
+///
 /// # Errors
 ///
 /// Empty residuals or non-positive variance.
@@ -138,7 +143,10 @@ pub fn residual_likelihood_ratio(
     let v0 = v0.max(1e-12);
     let v1 = v1.max(1e-12);
     let kl = gaussian_kl(m0, v0, m1, v1)?;
-    let p = causal_kernels::erfc((2.0 * kl).sqrt() / std::f64::consts::SQRT_2).clamp(0.0, 1.0);
+    let n = resid_baseline.len().min(resid_comparison.len()) as f64;
+    let lr = (2.0 * n * kl).max(0.0);
+    // χ²_2 survival via Q(1, lr/2); df=2 → a = df/2 = 1.
+    let p = crate::special::gamma_q(1.0, lr * 0.5).clamp(0.0, 1.0);
     Ok((kl, p))
 }
 
@@ -189,6 +197,23 @@ mod tests {
         let b: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.01 + 3.0).collect();
         let (stat, p) = classifier_two_sample(&a, &b).unwrap();
         assert!(stat > 0.4, "stat={stat}");
+        assert!(p < 0.01, "p={p}");
+    }
+
+    #[test]
+    fn residual_lr_identical_residuals_have_unit_p() {
+        let r: Vec<f64> = (0..40).map(|i| (i as f64) * 0.01 - 0.2).collect();
+        let (kl, p) = residual_likelihood_ratio(&r, &r).unwrap();
+        assert!(kl.abs() < 1e-12, "kl={kl}");
+        assert!((p - 1.0).abs() < 1e-9, "p={p}");
+    }
+
+    #[test]
+    fn residual_lr_detects_scale_shift() {
+        let a: Vec<f64> = (0..80).map(|i| (i as f64) * 0.01).collect();
+        let b: Vec<f64> = a.iter().map(|x| x * 3.0).collect();
+        let (kl, p) = residual_likelihood_ratio(&a, &b).unwrap();
+        assert!(kl > 0.1, "kl={kl}");
         assert!(p < 0.01, "p={p}");
     }
 }

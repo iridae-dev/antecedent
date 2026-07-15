@@ -162,8 +162,10 @@ pub use causal_attribution::{
 pub use causal_counterfactual::{
     CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError, CounterfactualResult,
     CounterfactualWorld, ExogenousPosterior, MissingPolicy, NoiseInferenceKind,
-    nested_hard_counterfactual, streaming_matches_retained,
+    simultaneous_hard_counterfactual, streaming_matches_retained,
 };
+#[allow(deprecated)]
+pub use causal_counterfactual::nested_hard_counterfactual;
 pub use causal_model::{
     CompiledCausalModel, DoSampleResult, InvertibleStructuralCausalModel, KdeDoSampler,
     McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismWorkspace,

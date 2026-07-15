@@ -168,12 +168,8 @@ impl BackdoorIdentifier {
                     }
                     Ok(true) => {}
                 }
-                if self.config.minimal_only
-                    && valid.iter().any(|prev| is_subset(prev, z) && prev.len() < z.len())
-                {
-                    return false;
-                }
-                // Also skip if this set is a superset of an already found minimal set.
+                // Inclusion-minimal: skip any set that has a previously accepted
+                // valid subset (filter is live across size classes).
                 if self.config.minimal_only && valid.iter().any(|prev| is_subset(prev, z)) {
                     return false;
                 }
@@ -191,10 +187,8 @@ impl BackdoorIdentifier {
             if early_stop {
                 break 'sizes;
             }
-            // After finishing a size class, if we have minimal sets, stop growing.
-            if self.config.minimal_only && !valid.is_empty() {
-                break;
-            }
+            // Continue larger sizes when `minimal_only`: distinct inclusion-minimal
+            // sets need not share a cardinality (e.g. {A} and {B,C}).
         }
 
         let mut assumptions = AssumptionSet::new();
@@ -414,6 +408,43 @@ mod tests {
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands.len(), 2);
         assert!(res.derivation.steps.iter().any(|s| s.rule.as_ref() == "backdoor.enumeration"));
+    }
+
+    #[test]
+    fn inclusion_minimal_keeps_distinct_cardinalities() {
+        // Two disjoint backdoor paths: T <- A -> Y and T <- B <- C -> Y.
+        // {A,B}, {A,C} are min-cardinality; with minimal_only we still want only
+        // inclusion-minimal sets. Here singletons fail, so {A,B} and {A,C} both
+        // qualify at size 2 — and continuing sizes must not add their supersets.
+        let mut g = Dag::with_variables(5);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let a = DenseNodeId::from_raw(2);
+        let b = DenseNodeId::from_raw(3);
+        let c = DenseNodeId::from_raw(4);
+        g.insert_directed(a, t).unwrap();
+        g.insert_directed(a, y).unwrap();
+        g.insert_directed(b, t).unwrap();
+        g.insert_directed(c, b).unwrap();
+        g.insert_directed(c, y).unwrap();
+        g.insert_directed(t, y).unwrap();
+
+        let id = BackdoorIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let res = id.identify(&prep, &q).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        let sets: Vec<Vec<VariableId>> = res
+            .estimands
+            .iter()
+            .map(|e| e.adjustment_set.iter().copied().collect())
+            .collect();
+        // Inclusion-minimal: {A,B} and {A,C} (size 2). Supersets like {A,B,C} excluded.
+        assert!(sets.iter().all(|s| s.len() == 2), "sets={sets:?}");
+        assert_eq!(sets.len(), 2, "sets={sets:?}");
     }
 
     #[test]

@@ -20,24 +20,30 @@ pub enum ContrastCoding {
     Sum,
 }
 
-/// Gaussian coefficient prior: β ~ N(mean, σ² I) or diagonal variance.
+/// Gaussian coefficient prior for conjugate / NIG linear models.
+///
+/// Under the conjugate Normal–Inv-Gamma (and known-σ² Normal) backends,
+/// `variance[i]` is the diagonal entry of the *scale* matrix `V0` in
+/// `β | σ² ~ N(mean, σ² · diag(V0))` — not an absolute prior variance of `β`.
+/// Absolute prior variance of coefficient `i` is therefore `σ² · variance[i]`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GaussianCoefficientPrior {
     /// Prior mean per coefficient (length = p), or a single shared mean.
     pub mean: Arc<[f64]>,
-    /// Prior variance per coefficient (length = p), or a single shared variance.
+    /// Diagonal of conjugate scale `V0` (length = p); see struct docs.
     pub variance: Arc<[f64]>,
 }
 
 impl GaussianCoefficientPrior {
-    /// Isotropic weakly informative prior: mean 0, variance `scale²`.
+    /// Isotropic weakly informative prior: mean 0, V0 diagonal `scale²`
+    /// (absolute prior variance of β is `σ² · scale²` under conjugate models).
     #[must_use]
     pub fn isotropic(n_coef: usize, scale: f64) -> Self {
         let var = scale * scale;
         Self { mean: Arc::from(vec![0.0; n_coef]), variance: Arc::from(vec![var; n_coef]) }
     }
 
-    /// Shared mean/variance broadcast to `n_coef` coefficients.
+    /// Shared mean / V0-diagonal broadcast to `n_coef` coefficients.
     ///
     /// # Errors
     ///
