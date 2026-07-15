@@ -7,11 +7,19 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
+# Standalone package for cargo-fuzz (not a workspace member).
+[workspace]
+
 [dependencies]
 libfuzzer-sys = "0.4"
 causal-core = { path = "../crates/causal-core" }
 causal-graph = { path = "../crates/causal-graph" }
 causal-kernels = { path = "../crates/causal-kernels" }
+causal-io = { path = "../crates/causal-io" }
+causal-expr = { path = "../crates/causal-expr" }
+causal-data = { path = "../crates/causal-data", features = ["arrow"] }
+arrow-array = { version = "54", default-features = false }
+arrow-schema = { version = "54", default-features = false }
 
 [[bin]]
 name = "schema_names"
@@ -30,6 +38,41 @@ bench = false
 [[bin]]
 name = "kernel_reductions"
 path = "fuzz_targets/kernel_reductions.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "artifact_container"
+path = "fuzz_targets/artifact_container.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "expression_arena"
+path = "fuzz_targets/expression_arena.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sample_plan"
+path = "fuzz_targets/sample_plan.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "python_boundary"
+path = "fuzz_targets/python_boundary.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "arrow_metadata"
+path = "fuzz_targets/arrow_metadata.rs"
 test = false
 doc = false
 bench = false

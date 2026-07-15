@@ -4,9 +4,10 @@ Prioritized backlog from the 2026-07-22 full-repo review (math correctness and D
 parity, DESIGN.md conformance, code quality). Ranked by order to address: P0 first. DESIGN.md is
 the conceptual roadmap — items in P5 are planned features not yet built, not documentation errors.
 
-P0 (confirmed wrong math), P1.1–P1.11 (graph-layer soundness), and P2.1–P2.4 / P2.6–P2.11
-(honest reporting) were verified fixed against the code on 2026-07-22 and removed from this
-backlog. Remaining P1 item below is interim only.
+P0 (confirmed wrong math), P1.1–P1.11 (graph-layer soundness), P2.1–P2.12
+(honest reporting, including Python bindings), and P3.1–P3.5 (conformance/test strengthening)
+were verified fixed against the code on 2026-07-22 and removed from this backlog. Remaining P1
+item below is interim only.
 
 Items are marked DONE with notes until independently verified and removed. Do not remove an item that you have just finished fixing.
 
@@ -31,93 +32,6 @@ likelihood-based model comparison for discrete conditionals.
 
 ---
 
-## P2 — Honest reporting / silent failures (remaining)
-
-### P2.5 Python bindings: suppressed refuters, swallowed errors, test execution context — partial
-`python/src/lib.rs`
-- Line 307: Bayesian mode overwrites the user's `refute=True` with `RefuteSuite::None`; lines
-  327-328 then compute `refutation_passed = result.refutations.is_empty() || …` → reports
-  `refutation_passed=True` for checks that never ran. **Fix:** run the refuters, or error, or
-  report `refutation_ran: false` explicitly.
-- Lines 344, 351: posterior encode/probability errors are `.ok()`-swallowed to `None`,
-  indistinguishable from "not requested". Raise instead.
-- Every binding runs under `ExecutionContext::for_tests` (line 297 et al.): serial, scalar-only
-  kernels, cache disabled — causal-kernels and parallel discovery are unreachable from Python.
-  **Fix:** construct a real `ExecutionContext` and expose a `threads=` kwarg.
-- Results are lossy scalars: per-unit ITEs, interventional draws, and the oriented CPDAG/PAG are
-  computed then discarded — return them.
-- `python/causal/` is missing `py.typed` and `.pyi` stubs (DESIGN.md:2337 claims py.typed);
-  `identification.py`/`query.py`/`validation.py` are empty `__all__ = []` placeholders; a stale
-  in-tree `_native.so` makes `import causal` fail on a fresh checkout — remove from tree.
-- `load_float64_columns` (lib.rs:186-199) loads, counts bytes, and drops the data; exists only to
-  satisfy the copy-gate test. Make it feed the real ingestion path or fold the gate into it.
-- All errors collapse to `ValueError` — map error categories to distinct exception types.
-**Status:** Honesty subset done earlier; `ExecutionContext::production` + `threads=` kwargs wired on
-bindings that run native work. Remaining: rich returns, stubs, exception taxonomy.
-
-### P2.6 `causal-design` ranker objectives — fixed
-EIG uses discrete observation sampling + posterior reweight (no RNG likelihood noise).
-Identification uses unlock vars and caller-supplied `identified_under_intervention` flags
-(no graph-key parity). Effect-width SE uses Gram expansion / intervention design analysis
-(no hardcoded `0.15`/`0.1` fractions); missing analysis → score 0.
-
-### P2.12 Silent-fallback sweep — fixed
-All listed sites addressed: NaN rejection in transforms; block bootstrap errors when
-`block_size > n`; signed path products / refuse non-linear; robust outcome-player check;
-registry records failed families; typed KDE `bandwidth`; column-level `assumed_columns` on
-abduction; version/name/length validation in io; `OverlapReport.ess: Option`; evidence/jpcmci/
-projection skip only Cycle/Duplicate; `mci_test` returns truncation count; `in_sample_loglik`
-rename; `population_do_contrast` (deprecated `intrinsic_influence` alias).
-
----
-
-## P3 — Conformance/test strengthening
-
-Do this before (or alongside) the P4 parity work — weak fixtures are why graph/math bugs
-shipped green historically.
-
-### P3.1 Strengthen DoWhy conformance fixtures
-`conformance/dowhy/linear_gaussian_ate` is real (pinned DoWhy 0.14, black-box estimate) but the SCM
-is noiseless, so any consistent estimator matches to 1e-14 — it proves plumbing, not numerics.
-**Add:** noisy SCM fixtures recording DoWhy's point estimates **and SEs** for linear regression,
-IPW (ATE/ATT, with clipping), AIPW, 2SLS, and frontdoor; assert against `val`/`se` with tolerances.
-
-### P3.2 Strengthen Tigramite conformance fixtures
-`tests/tigramite_pcmci_lag1.rs` is real (tigramite 5.2.1.30) but trivial (2 vars, one lag-1 edge)
-and compares edge sets only. `tests/tigramite_pcmci_plus_lag0.rs` is self-referential clean-room
-with a subset (not equality) assertion — it passes under substantial over-connection.
-**Add:** fixtures with ≥4 variables, contemporaneous + lagged links, comparing `val_matrix` and
-`p_matrix` (not just edge sets) and FDR-adjusted p-values; a real tigramite PCMCI+ fixture with
-edge-set **equality**; any fixture at all for LPCMCI, J-PCMCI+, RPCMCI, and the CI-test statistics
-(GPDC, CMIknn, G²) against tigramite outputs.
-
-### P3.3 Fix the remaining vacuous tests
-- `crates/causal-graph/src/unfold.rs:421` — `let _ = ...is_d_separated(...)` in
-  `unfold_dsep_on_chain`: the test named for d-separation asserts nothing about it.
-- `crates/causal-stats/src/ci/calibration.rs:223-226` — `assert!(within_two_se || rate < 0.12)`:
-  the escape hatch (2.4× nominal) means the calibration claim is never enforced.
-  (StreamingCovariance batch-reference test was fixed with former P0.3.)
-
-### P3.4 Small tigramite-alignment deltas (decide and document, or align)
-- Alpha boundary: engine removes at `p >= alpha` (`engine.rs:218`) / retains at `p < alpha`
-  (`evidence.rs:35`); tigramite keeps `p <= alpha`. Measure-zero; align for fixture exactness.
-- ParCorr residualization includes an intercept (`crates/causal-kernels/src/parcorr.rs:115-123`)
-  while tigramite does plain `lstsq` with no intercept, but df (`n − 2 − |Z|`,
-  `ci/parcorr.rs:106`) doesn't count it — statistics differ slightly on non-centered data. Either
-  drop the intercept (tigramite parity) or count it in df, and document the choice.
-- PC-phase frame built at `max_lag` (`engine.rs:308-309`, T−τ_max samples) vs tigramite's default
-  `cut_off='2xtau_max'`; MCI already matches. Align or document.
-- Meek R4 is applied in PCMCI+ orientation (`orientation.rs:332-393`); the logic is sound but
-  tigramite applies only R1–R3 — harmless extra orientation; document as a deviation.
-- `parity/dowhy.toml:9` cites "DESIGN.md §35.9", which doesn't exist (34 sections). Fix the
-  reference.
-
-### P3.5 Fuzzing coverage (DESIGN.md:2816-2827 lists 8 areas; 3 targets exist)
-Missing targets: artifact/container deserialization (highest value — see the P2.12 4-GiB
-allocation), expression parsing, temporal sample requests, Python boundary, Arrow metadata.
-
----
-
 ## P4 — Algorithm parity upgrades (bring implementations up to their published names)
 
 ### P4.1 PCMCI: full-family MCI phase
@@ -129,6 +43,10 @@ p-matrix. Consequences today: PC1 false negatives can never be recovered, and th
 MCI family.
 **Fix:** iterate all pairs in the MCI phase; keep the (correct) conditioning-set construction from
 `mci_batch_for_target`. Update the BH family accordingly.
+**Done:** `mci_batch_for_target` iterates the full constrained candidate grid
+(`candidate_sources` + `compiled.allows`); PC survivors supply conditioning only. Empty PC
+parents no longer skip MCI. Docs in `engine.rs` / `pcmci.rs` updated; tests assert family size
+and PC false-negative recovery.
 
 ### P4.2 PCMCI+ per Runge 2020
 `crates/causal-discovery/src/pcmci_plus.rs:82-102` is currently one PC1 pass with `min_lag=0` plus
@@ -144,6 +62,11 @@ sepset colliders and Meek. Implement the published structure:
 Also fix the direction-asymmetry: X→Y and Y→X at lag 0 are tested as separate links with different
 conditioning and whichever survives inserts one undirected edge
 (`evidence.rs:114-147` `cpdag_from_scored_links`); tigramite symmetrizes.
+**Done:** `PcmciPlus::run` is lagged PC1 (`min_lag≥1`) → contemporaneous MCI phase
+(`contemp_mci_phase`) → FDR/alpha → `symmetrize_contemporaneous_links` (both lag-0
+directions required) → majority collider with neighbor-subset re-tests → Meek R1–R3
+contemp-only (`ContempMeekR1`–`R3`; R4 dropped). Conflicts remain out-of-band;
+`Endpoint::Conflict` / `x-x` still deferred. `parity/ci_deviations.md` §2 updated.
 
 ### P4.3 LPCMCI: from FCI-lite to LPCMCI
 `crates/causal-discovery/src/lpcmci.rs:78-97` runs the PC1+MCI engine plus rules
@@ -317,9 +240,9 @@ roughly by how much current claims/outputs depend on them.
 11. **Core query model** (DESIGN.md:727-739): `CausalQuery::Distribution` and `PathSpecific`
     variants (code has undocumented `MechanismChange`/`UnitChange` instead — reconcile the roadmap
     with what emerged).
-12. **Python packaging** (DESIGN.md:2321-2338): `py.typed` + stubs (also in P2.5), wheel matrix
-    verification, explicit `catch_unwind` at the FFI boundary rather than relying on PyO3's
-    PanicException.
+12. **Python packaging** (DESIGN.md:2321-2338): wheel matrix verification and explicit
+    `catch_unwind` at the FFI boundary rather than relying on PyO3's PanicException
+    (`py.typed` + stubs landed with P2.5).
 
 ---
 

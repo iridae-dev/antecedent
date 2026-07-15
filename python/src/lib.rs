@@ -19,7 +19,7 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
-    BayesianConfig, CandidateDesign, CausalAnalysis, DataBatchRef, DesignCost,
+    AnalysisError, BayesianConfig, CandidateDesign, CausalAnalysis, DataBatchRef, DesignCost,
     DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, DifferenceMeasure,
     DiscoverParams, DiscoveryPerformanceRecord, DistributionChangeOptions, GraphIdentFlag,
     InferenceMode, MeasurementPlan, RefuteSuite, SamplingPlan, ScoredLink, StateEvent,
@@ -34,27 +34,111 @@ use causal::{
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CacheBudget, CachePolicy,
     CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention, Lag, MediationContrast,
-    MediationQuery, PopulationSelector, ShapleyConfig, TemporalEffectQuery, TemporalPolicy,
-    VERSION, Value, VariableId,
+    MediationQuery, PopulationSelector, SchemaError, ShapleyConfig, TemporalEffectQuery,
+    TemporalPolicy, VERSION, Value, VariableId,
 };
 use causal_data::{
-    MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
+    DataError, MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
     tabular_from_record_batch,
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
-use causal_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
-use causal_io::{
-    CausalPosteriorWire, PosteriorQuantityWire, encode_posterior_artifact as encode_posterior_wire,
+use causal_graph::{
+    Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, NodeRef, TemporalCpdag, TemporalDag,
+    TemporalPag, ensure_lagged,
 };
-use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
+use causal_io::{
+    CausalPosteriorWire, IoError, PosteriorQuantityWire,
+    encode_posterior_artifact as encode_posterior_wire,
+};
+use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
+use pyo3::create_exception;
+use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 
-fn py_err(e: impl ToString) -> PyErr {
-    PyValueError::new_err(e.to_string())
+create_exception!(causal._native, CausalError, PyException);
+create_exception!(causal._native, CausalIdentifyError, CausalError);
+create_exception!(causal._native, CausalEstimateError, CausalError);
+create_exception!(causal._native, CausalValidateError, CausalError);
+create_exception!(causal._native, CausalDiscoveryError, CausalError);
+create_exception!(causal._native, CausalModelError, CausalError);
+create_exception!(causal._native, CausalCounterfactualError, CausalError);
+create_exception!(causal._native, CausalDataError, CausalError);
+create_exception!(causal._native, CausalGraphError, CausalError);
+create_exception!(causal._native, CausalSerializationError, CausalError);
+create_exception!(causal._native, CausalCompileError, CausalError);
+create_exception!(causal._native, CausalResourceError, CausalError);
+create_exception!(causal._native, CausalReviewError, CausalError);
+create_exception!(causal._native, CausalUnsupportedError, CausalError);
+
+trait IntoCausalPyErr {
+    fn into_causal_py_err(self) -> PyErr;
 }
 
-/// Result of loading columns into the Rust data layer.
+fn py_err<E: IntoCausalPyErr>(e: E) -> PyErr {
+    e.into_causal_py_err()
+}
+
+/// Fallback for domain errors not re-exported at the binding crate boundary.
+fn py_msg(e: impl ToString) -> PyErr {
+    CausalError::new_err(e.to_string())
+}
+
+fn py_estimate(e: impl ToString) -> PyErr {
+    CausalEstimateError::new_err(e.to_string())
+}
+
+impl IntoCausalPyErr for AnalysisError {
+    fn into_causal_py_err(self) -> PyErr {
+        match self {
+            Self::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
+            Self::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
+            Self::Validate(e) => CausalValidateError::new_err(e.to_string()),
+            Self::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
+            Self::Model(e) => CausalModelError::new_err(e.to_string()),
+            Self::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
+            Self::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
+            Self::Compile { message } => CausalCompileError::new_err(message),
+            Self::Resource { message } => CausalResourceError::new_err(message),
+            Self::ReviewRequired { message } => CausalReviewError::new_err(message),
+            Self::Unsupported { message } => CausalUnsupportedError::new_err(message),
+            Self::Missing { field } => {
+                CausalCompileError::new_err(format!("missing required field: {field}"))
+            }
+        }
+    }
+}
+
+impl IntoCausalPyErr for DataError {
+    fn into_causal_py_err(self) -> PyErr {
+        CausalDataError::new_err(self.to_string())
+    }
+}
+
+impl IntoCausalPyErr for GraphError {
+    fn into_causal_py_err(self) -> PyErr {
+        CausalGraphError::new_err(self.to_string())
+    }
+}
+
+impl IntoCausalPyErr for IoError {
+    fn into_causal_py_err(self) -> PyErr {
+        CausalSerializationError::new_err(self.to_string())
+    }
+}
+
+impl IntoCausalPyErr for SchemaError {
+    fn into_causal_py_err(self) -> PyErr {
+        CausalDataError::new_err(self.to_string())
+    }
+}
+
+impl IntoCausalPyErr for arrow_schema::ArrowError {
+    fn into_causal_py_err(self) -> PyErr {
+        CausalDataError::new_err(self.to_string())
+    }
+}
+
+/// Result of the DESIGN §25.6 conversion probe (same Arrow→tabular path as analyze/discover).
 #[pyclass]
 struct ArrowLoadInfo {
     #[pyo3(get)]
@@ -65,6 +149,9 @@ struct ArrowLoadInfo {
     bytes_copied: u64,
     #[pyo3(get)]
     diagnostic_count: usize,
+    /// Schema names after library-owned ingestion (proves the batch was parsed).
+    #[pyo3(get)]
+    column_names: Vec<String>,
 }
 
 /// Coarse-grained ATE analysis result (single boundary crossing).
@@ -188,7 +275,10 @@ fn columns_to_batch(
     RecordBatch::try_new(Arc::new(schema), arrays).map_err(py_err)
 }
 
-/// Load float64 NumPy columns (copied into Arrow, then into library-owned storage).
+/// Conversion probe: NumPy → Arrow → library-owned tabular storage (DESIGN.md §25.6).
+///
+/// Shares the same ingestion path as `analyze*` / `discover_*`. The loaded table is not
+/// retained across the FFI boundary; call analysis APIs with the original NumPy columns.
 #[pyfunction]
 fn load_float64_columns(
     names: Vec<String>,
@@ -196,11 +286,14 @@ fn load_float64_columns(
 ) -> PyResult<ArrowLoadInfo> {
     let batch = columns_to_batch(&names, &columns)?;
     let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+    let column_names: Vec<String> =
+        loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
     Ok(ArrowLoadInfo {
         row_count: loaded.data.row_count(),
         column_count: loaded.data.schema().len(),
         bytes_copied: loaded.bytes_copied,
         diagnostic_count: loaded.diagnostics.len(),
+        column_names,
     })
 }
 
@@ -270,11 +363,11 @@ fn analyze_ate(
             let from_id = data
                 .schema()
                 .id_of(from)
-                .map_err(|e| PyValueError::new_err(format!("edge from: {e}")))?;
+                .map_err(|e| CausalDataError::new_err(format!("edge from: {e}")))?;
             let to_id = data
                 .schema()
                 .id_of(to)
-                .map_err(|e| PyValueError::new_err(format!("edge to: {e}")))?;
+                .map_err(|e| CausalDataError::new_err(format!("edge to: {e}")))?;
             dag.insert_directed(
                 DenseNodeId::from_raw(from_id.raw()),
                 DenseNodeId::from_raw(to_id.raw()),
@@ -362,7 +455,7 @@ fn ate_result_from_analysis(
     ) = if let Some(post) = result.posterior.as_ref() {
         let eq = post.effect_column().unwrap_or(0);
         let artifact = encode_causal_posterior_bytes(post, "ate-analysis").map_err(py_err)?;
-        let p_below = post.probability_below(0.0).map_err(py_err)?;
+        let p_below = post.probability_below(0.0).map_err(py_estimate)?;
         (
             Some(post.summaries.mean[eq]),
             Some(post.summaries.sd[eq]),
@@ -402,6 +495,90 @@ fn ate_result_from_analysis(
         posterior_backend,
         posterior_artifact,
     })
+}
+
+/// One marked edge from an oriented temporal CPDAG/PAG.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct GraphEdge {
+    #[pyo3(get)]
+    a: String,
+    #[pyo3(get)]
+    a_lag: u32,
+    #[pyo3(get)]
+    b: String,
+    #[pyo3(get)]
+    b_lag: u32,
+    /// Endpoint mark at `a`: `tail` | `arrow` | `circle`.
+    #[pyo3(get)]
+    at_a: String,
+    /// Endpoint mark at `b`: `tail` | `arrow` | `circle`.
+    #[pyo3(get)]
+    at_b: String,
+}
+
+fn endpoint_name(e: Endpoint) -> &'static str {
+    match e {
+        Endpoint::Tail => "tail",
+        Endpoint::Arrow => "arrow",
+        Endpoint::Circle => "circle",
+    }
+}
+
+fn node_ref_parts(names: &[String], node: NodeRef) -> (String, u32) {
+    match node {
+        NodeRef::Lagged { variable, lag } => (
+            names
+                .get(variable.as_usize())
+                .cloned()
+                .unwrap_or_else(|| format!("var{}", variable.raw())),
+            lag.raw(),
+        ),
+        NodeRef::Static(variable) | NodeRef::Context { variable, .. } => (
+            names
+                .get(variable.as_usize())
+                .cloned()
+                .unwrap_or_else(|| format!("var{}", variable.raw())),
+            0,
+        ),
+    }
+}
+
+fn graph_edge_from_marked(names: &[String], nodes: &[NodeRef], edge: MarkedEdge) -> GraphEdge {
+    let (a, a_lag) = node_ref_parts(names, nodes[edge.a.as_usize()]);
+    let (b, b_lag) = node_ref_parts(names, nodes[edge.b.as_usize()]);
+    GraphEdge {
+        a,
+        a_lag,
+        b,
+        b_lag,
+        at_a: endpoint_name(edge.at_a).to_string(),
+        at_b: endpoint_name(edge.at_b).to_string(),
+    }
+}
+
+fn cpdag_graph_edges(names: &[String], cpdag: &TemporalCpdag) -> Vec<GraphEdge> {
+    let nodes = cpdag.nodes();
+    cpdag.edges().into_iter().map(|e| graph_edge_from_marked(names, nodes, e)).collect()
+}
+
+fn pag_graph_edges(names: &[String], pag: &TemporalPag) -> Vec<GraphEdge> {
+    let nodes = pag.nodes();
+    let mut out = Vec::new();
+    for i in 0..pag.node_count() {
+        let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+        for (b, at_a, at_b) in pag.neighbors(a) {
+            if b.raw() < a.raw() {
+                continue;
+            }
+            out.push(graph_edge_from_marked(
+                names,
+                nodes,
+                MarkedEdge { a, b, at_a, at_b },
+            ));
+        }
+    }
+    out
 }
 
 /// One discovered lagged link for Python.
@@ -454,6 +631,9 @@ struct PcmciDiscoveryResult {
     cpdag_directed_edges: u64,
     #[pyo3(get)]
     cpdag_undirected_edges: u64,
+    /// Oriented graph body (CPDAG/PAG marks); empty for lagged-only PCMCI.
+    #[pyo3(get)]
+    graph_edges: Vec<GraphEdge>,
 }
 
 fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<VariableId>)> {
@@ -501,6 +681,7 @@ fn discovery_result_fields(
     cpdag_nodes: u64,
     cpdag_directed_edges: u64,
     cpdag_undirected_edges: u64,
+    graph_edges: Vec<GraphEdge>,
 ) -> PcmciDiscoveryResult {
     PcmciDiscoveryResult {
         links: discovered_links(names, links),
@@ -515,6 +696,7 @@ fn discovery_result_fields(
         cpdag_nodes,
         cpdag_directed_edges,
         cpdag_undirected_edges,
+        graph_edges,
     }
 }
 
@@ -557,6 +739,7 @@ fn discover_pcmci(
             0,
             0,
             0,
+            Vec::new(),
         ))
     })
 }
@@ -593,6 +776,7 @@ fn discover_pcmci_plus(
         let undirected = cpdag.undirected_edge_count() as u64;
         let pending = result.review.pending_edges.len() as u64
             + result.review.pending_undirected.len() as u64;
+        let graph_edges = cpdag_graph_edges(&names, cpdag);
 
         Ok(discovery_result_fields(
             &names,
@@ -605,6 +789,7 @@ fn discover_pcmci_plus(
             cpdag.node_count() as u64,
             directed,
             undirected,
+            graph_edges,
         ))
     })
 }
@@ -638,6 +823,7 @@ fn discover_lpcmci(
         let pag = &result.evidence.graph;
         let pending = result.review.pending_circles.len() as u64;
         let directed = pag_definite_directed_edge_count(pag);
+        let graph_edges = pag_graph_edges(&names, pag);
 
         Ok(discovery_result_fields(
             &names,
@@ -650,6 +836,7 @@ fn discover_lpcmci(
             pag.node_count() as u64,
             directed,
             pending, // undirected field reused as circle-pending count
+            graph_edges,
         ))
     })
 }
@@ -698,6 +885,7 @@ fn discover_jpcmci_plus(
         let result =
             facade_discover_jpcmci_plus(&multi, &variables, &params, &ctx).map_err(py_err)?;
         let cpdag = &result.evidence.graph;
+        let graph_edges = cpdag_graph_edges(&names, cpdag);
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
@@ -709,6 +897,7 @@ fn discover_jpcmci_plus(
             cpdag.node_count() as u64,
             cpdag.directed_edge_count() as u64,
             cpdag.undirected_edge_count() as u64,
+            graph_edges,
         ))
     })
 }
@@ -777,7 +966,7 @@ fn mediation_effects_summary(
             series
                 .schema()
                 .id_of(nm)
-                .map_err(|e| PyValueError::new_err(format!("unknown variable {nm}: {e}")))
+                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
         };
         let t = id(&treatment)?;
         let m = id(&mediator)?;
@@ -790,7 +979,7 @@ fn mediation_effects_summary(
         let ctx = py_execution_context(seed, threads);
         let surface = TemporalMediationEstimator::new()
             .effect_surface(&series, &estimand, &q, &ctx)
-            .map_err(py_err)?;
+            .map_err(py_estimate)?;
         Ok(MediationEffectsSummary {
             total: surface.total,
             direct: surface.direct,
@@ -819,7 +1008,7 @@ fn predict_intervened_summary(
             series
                 .schema()
                 .id_of(nm)
-                .map_err(|e| PyValueError::new_err(format!("unknown variable {nm}: {e}")))
+                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
         };
         let y = id(&target)?;
         let x = id(&parent)?;
@@ -828,8 +1017,8 @@ fn predict_intervened_summary(
             y,
             [causal_data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
         )
-        .map_err(py_err)?;
-        let yhat = pred.predict_intervened(&series, x, level).map_err(py_err)?;
+        .map_err(py_estimate)?;
+        let yhat = pred.predict_intervened(&series, x, level).map_err(py_estimate)?;
         let mean = yhat.iter().sum::<f64>() / yhat.len().max(1) as f64;
         Ok(PredictSummary { mean_prediction: mean, n: yhat.len() as u64 })
     })
@@ -941,7 +1130,7 @@ fn analyze(
             series
                 .schema()
                 .id_of(nm)
-                .map_err(|e| PyValueError::new_err(format!("unknown variable {nm}: {e}")))
+                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
         };
         let t_id = name_to_id(&treatment)?;
         let y_id = name_to_id(&outcome)?;
@@ -994,9 +1183,12 @@ struct GcmIteResult {
     noise_inference: String,
     #[pyo3(get)]
     n_assignments: usize,
+    /// Per-unit treatment effects (float64 NumPy array).
+    #[pyo3(get)]
+    unit_effects: Py<PyArray1<f64>>,
 }
 
-/// Interventional sample summary under hard `do` (means only; no per-draw GIL).
+/// Interventional samples under hard `do` (means + full draws).
 #[pyclass]
 struct GcmSampleResult {
     #[pyo3(get)]
@@ -1005,14 +1197,18 @@ struct GcmSampleResult {
     n_draws: usize,
     #[pyo3(get)]
     n_nodes: usize,
+    /// Column-major draws shaped `(n_nodes, n_draws)`.
+    #[pyo3(get)]
+    draws: Py<PyArray2<f64>>,
 }
 
 /// Fit a linear-Gaussian GCM and return mean ITE under hard interventions.
 ///
-/// Crosses the Python boundary once: NumPy columns + edges in, summary out.
+/// Crosses the Python boundary once: NumPy columns + edges in, arrays out.
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, treatment, outcome, active, control, seed=0, threads=1))]
 fn gcm_counterfactual_ite(
+    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
     edges: Vec<(String, String)>,
@@ -1023,8 +1219,9 @@ fn gcm_counterfactual_ite(
     seed: u64,
     threads: u32,
 ) -> PyResult<GcmIteResult> {
-    Python::attach(|_py| {
-        let batch = columns_to_batch(&names, &columns)?;
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    let (mean_ite, n_units, noise_inference, n_assignments, unit_vec) = py.detach(move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -1046,19 +1243,28 @@ fn gcm_counterfactual_ite(
         let ctx = py_execution_context(seed, threads);
         let ite = counterfactual_ite(fitted.model, &data, t_id, y_id, active, control, &ctx)
             .map_err(py_err)?;
-        Ok(GcmIteResult {
-            mean_ite: ite.mean_ite,
-            n_units: ite.unit_effects.len(),
-            noise_inference: format!("{:?}", ite.noise_inference),
+        Ok::<_, PyErr>((
+            ite.mean_ite,
+            ite.unit_effects.len(),
+            format!("{:?}", ite.noise_inference),
             n_assignments,
-        })
+            ite.unit_effects.as_ref().to_vec(),
+        ))
+    })?;
+    Ok(GcmIteResult {
+        mean_ite,
+        n_units,
+        noise_inference,
+        n_assignments,
+        unit_effects: PyArray1::from_vec(py, unit_vec).unbind(),
     })
 }
 
-/// Fit GCM and return interventional column means under hard `do(treatment=value)`.
+/// Fit GCM and return interventional column means + draws under hard `do(treatment=value)`.
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, seed=0, threads=1))]
 fn gcm_sample_do(
+    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
     edges: Vec<(String, String)>,
@@ -1068,8 +1274,9 @@ fn gcm_sample_do(
     seed: u64,
     threads: u32,
 ) -> PyResult<GcmSampleResult> {
-    Python::attach(|_py| {
-        let batch = columns_to_batch(&names, &columns)?;
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    let (means, n_rows, n_nodes, flat) = py.detach(move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -1098,15 +1305,19 @@ fn gcm_sample_do(
         .map_err(py_err)?;
         let mut means = Vec::with_capacity(samples.n_nodes);
         for i in 0..samples.n_nodes {
-            let col = samples.column(i).map_err(py_err)?;
+            let start = i * samples.n_rows;
+            let col = &samples.values[start..start + samples.n_rows];
             let m = col.iter().sum::<f64>() / col.len().max(1) as f64;
             means.push(m);
         }
-        Ok(GcmSampleResult {
-            column_means: means,
-            n_draws: samples.n_rows,
-            n_nodes: samples.n_nodes,
-        })
+        Ok::<_, PyErr>((means, samples.n_rows, samples.n_nodes, samples.values.as_ref().to_vec()))
+    })?;
+    let draws = PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind();
+    Ok(GcmSampleResult {
+        column_means: means,
+        n_draws: n_rows,
+        n_nodes,
+        draws,
     })
 }
 
@@ -1128,6 +1339,7 @@ fn quantity_wire_name(q: &PosteriorQuantityWire) -> String {
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, n_samples=500, seed=0, threads=1))]
 fn gcm_distribution_change(
+    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
     edges: Vec<(String, String)>,
@@ -1140,8 +1352,9 @@ fn gcm_distribution_change(
     seed: u64,
     threads: u32,
 ) -> PyResult<(f64, Vec<(String, f64)>)> {
-    Python::attach(|_py| {
-        let batch = columns_to_batch(&names, &columns)?;
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    py.detach(move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -1207,7 +1420,7 @@ fn rank_design_eig(
         .into_iter()
         .map(|v| if v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified })
         .collect();
-    let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_err)?;
+    let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_msg)?;
     let mut candidates = Vec::new();
     for (i, vid) in measure_var_ids.into_iter().enumerate() {
         candidates.push(CandidateDesign::Measure(MeasurementPlan {
@@ -1380,6 +1593,20 @@ fn format_dag_json(
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("CausalError", m.py().get_type::<CausalError>())?;
+    m.add("CausalIdentifyError", m.py().get_type::<CausalIdentifyError>())?;
+    m.add("CausalEstimateError", m.py().get_type::<CausalEstimateError>())?;
+    m.add("CausalValidateError", m.py().get_type::<CausalValidateError>())?;
+    m.add("CausalDiscoveryError", m.py().get_type::<CausalDiscoveryError>())?;
+    m.add("CausalModelError", m.py().get_type::<CausalModelError>())?;
+    m.add("CausalCounterfactualError", m.py().get_type::<CausalCounterfactualError>())?;
+    m.add("CausalDataError", m.py().get_type::<CausalDataError>())?;
+    m.add("CausalGraphError", m.py().get_type::<CausalGraphError>())?;
+    m.add("CausalSerializationError", m.py().get_type::<CausalSerializationError>())?;
+    m.add("CausalCompileError", m.py().get_type::<CausalCompileError>())?;
+    m.add("CausalResourceError", m.py().get_type::<CausalResourceError>())?;
+    m.add("CausalReviewError", m.py().get_type::<CausalReviewError>())?;
+    m.add("CausalUnsupportedError", m.py().get_type::<CausalUnsupportedError>())?;
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
@@ -1406,6 +1633,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PosteriorArtifact>()?;
     m.add_class::<AnalysisResult>()?;
     m.add_class::<DiscoveredLink>()?;
+    m.add_class::<GraphEdge>()?;
     m.add_class::<PcmciDiscoveryResult>()?;
     m.add_class::<RpcmciDiscoverySummary>()?;
     m.add_class::<MediationEffectsSummary>()?;

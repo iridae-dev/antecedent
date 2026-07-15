@@ -62,8 +62,10 @@ impl Pcmci {
 
     /// Run lagged PCMCI on `variables` in `data`.
     ///
-    /// MCI scores the full candidate family from PC parents. When `fdr` is set,
-    /// Benjamini–Hochberg adjusts that family, then alpha retains links.
+    /// MCI scores the full constrained candidate family (all allowed
+    /// `(X_{t−τ}, Y_t)` pairs); PC parent sets supply conditioning only. When
+    /// `fdr` is set, Benjamini–Hochberg adjusts that family, then alpha retains
+    /// links.
     ///
     /// # Errors
     ///

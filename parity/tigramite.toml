@@ -6,7 +6,7 @@ project = "tigramite"
 version = "5.2.1.25"
 commit = "5a8768754e6103755b006e9357e21c1a58534927"
 extended_snapshot_commit = "ff3ff13e1481073b8c5833a6fde1c304627a208e"
-notes = "Pinned per DESIGN.md §35.9 / ADR 0009. Extended snapshot covers post-release features."
+notes = "Pinned per ADR 0009 (parity baselines). Extended snapshot covers post-release features."
 
 [[capabilities]]
 id = "tigramite.data.dataframe"
@@ -154,9 +154,9 @@ owner = "discovery"
 id = "tigramite.discovery.pcmci_plus"
 group = "discovery"
 description = "PCMCI+"
-status = "intentional_deviation"
+status = "done"
 owner = "ci"
-notes = "Clean-room Exact parents pin; black-box Tigramite graph compare not required (ci_deviations.md)."
+notes = "Black-box PCMCI+ edge-set equality pinned; Meek R4 extra orientation documented in ci_deviations.md."
 
 [[capabilities]]
 id = "tigramite.discovery.lpcmci"

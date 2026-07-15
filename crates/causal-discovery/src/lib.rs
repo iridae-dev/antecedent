@@ -40,13 +40,14 @@ pub use error::DiscoveryError;
 pub use evidence::{
     cpdag_evidence_from_oriented, cpdag_from_scored_links, graph_evidence_from_scored,
     graph_evidence_from_scored_with_sepsets, pag_evidence_from_oriented, pag_from_scored_links,
-    threshold_scored_links,
+    symmetrize_contemporaneous_links, threshold_scored_links,
 };
 pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lpcmci::Lpcmci;
 pub use orientation::{
-    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationError, OrientationQueue,
-    OrientationRule, OrientationState, RuleDelta, run_orientation_to_fixed_point,
+    ContempMeekR1, ContempMeekR2, ContempMeekR3, MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider,
+    OrientationError, OrientationQueue, OrientationRule, OrientationState, RuleDelta,
+    run_orientation_to_fixed_point,
 };
 pub use pcmci::Pcmci;
 pub use pcmci_plus::PcmciPlus;

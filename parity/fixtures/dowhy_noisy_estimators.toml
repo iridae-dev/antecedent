@@ -1,0 +1,14 @@
+# Pointer into conformance/ for the DoWhy noisy multi-estimator fixture.
+
+id = "dowhy.noisy_estimators"
+capability_ids = [
+  "dowhy.estimate.linear_regression",
+  "dowhy.estimate.propensity",
+  "dowhy.estimate.doubly_robust",
+  "dowhy.estimate.iv",
+  "dowhy.estimate.two_stage",
+]
+fixture_dir = "conformance/dowhy/noisy_estimators"
+tolerance_class = "StableFloat"
+generator = "scripts/conformance/generate_dowhy_noisy_estimators.py"
+baseline_pin = "parity/dowhy.toml"

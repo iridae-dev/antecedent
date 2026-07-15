@@ -104,7 +104,7 @@ fn pcmci_alpha_filters_unthresholded_engine() {
     let pcmci = Pcmci::new().with_fdr(false).with_constraints(constraints());
     let filtered = pcmci.run(&data, &vars, &mut ws, &ctx).unwrap();
     assert!(raw.evidence.links.len() >= filtered.evidence.links.len());
-    assert!(filtered.evidence.links.iter().all(|s| s.p_value < 0.05));
+    assert!(filtered.evidence.links.iter().all(|s| s.p_value <= 0.05));
 }
 
 #[test]
@@ -112,8 +112,23 @@ fn fdr_adjusts_full_mci_family() {
     let (data, vars) = var_series();
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(11);
-    let with_fdr = Pcmci::new().with_fdr(true).with_constraints(constraints());
-    let without = Pcmci::new().with_fdr(false).with_constraints(constraints());
+    let cons = constraints();
+    let engine = PcmciEngine::new().with_constraints(cons.clone());
+    let raw = engine.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
+    // Full family: N targets × candidates per target (min_lag..=max_lag, skip self@0).
+    let mut expected = 0usize;
+    for &t in &vars {
+        expected += cons.candidate_sources(&vars, t).len();
+    }
+    assert_eq!(
+        raw.evidence.links.len(),
+        expected,
+        "MCI must score the full constrained family, got {:?}",
+        raw.evidence.links.len()
+    );
+
+    let with_fdr = Pcmci::new().with_fdr(true).with_constraints(cons.clone());
+    let without = Pcmci::new().with_fdr(false).with_constraints(cons);
     let a = with_fdr.run(&data, &vars, &mut ws, &ctx).unwrap();
     let b = without.run(&data, &vars, &mut ws, &ctx).unwrap();
     // FDR is more conservative; retained set is a subset (or equal) of alpha-only.
@@ -123,6 +138,95 @@ fn fdr_adjusts_full_mci_family() {
     assert!(a.evidence.links.iter().all(|s| s.adjusted_p_value.is_some()));
     assert!(b.evidence.links.iter().all(|s| s.adjusted_p_value.is_none()));
     assert!(a.evidence.edge_evidence.iter().all(|e| e.adjusted_p_value.is_some()));
+}
+
+#[test]
+fn mci_recovers_pc_false_negative() {
+    // Three vars: Y ← X_{t-1} strongly, Z independent noise. Force PC to drop X→Y by
+    // requiring a decoy parent that crowds out via max_parents=1, then confirm MCI still
+    // scores X→Y (full family) and recovers it after alpha keep.
+    let n = 500usize;
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["x", "y", "z"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let mut x = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    for t in 1..n {
+        x[t] = ((t as f64) * 0.017).sin();
+        z[t] = ((t as f64) * 0.113).cos();
+        y[t] = 0.9 * x[t - 1] + 0.01 * ((t as f64) * 0.03).cos();
+    }
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(x), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let data = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let vars = vec![VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let x_id = VariableId::from_raw(0);
+    let y_id = VariableId::from_raw(1);
+    let z_id = VariableId::from_raw(2);
+
+    let constraints = DiscoveryConstraints {
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+        alpha: 0.05,
+        max_cond_size: 2,
+        max_parents: Some(1),
+        required: Arc::from([LaggedLink {
+            source: z_id,
+            source_lag: Lag::from_raw(1),
+            target: y_id,
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]),
+        ..DiscoveryConstraints::default()
+    };
+    let engine = PcmciEngine::new().with_constraints(constraints.clone());
+    let mut ws = DiscoveryWorkspace::default();
+    let ctx = ExecutionContext::for_tests(31);
+    let raw = engine.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
+    let true_link = LaggedLink {
+        source: x_id,
+        source_lag: Lag::from_raw(1),
+        target: y_id,
+        target_lag: Lag::CONTEMPORANEOUS,
+    };
+    assert!(
+        raw.evidence.links.iter().any(|s| s.link == true_link),
+        "MCI must still score PC-dropped X→Y; links={:?}",
+        raw.evidence.links
+    );
+    let pcmci = Pcmci::new().with_fdr(false).with_constraints(constraints);
+    let kept = pcmci.run(&data, &vars, &mut ws, &ctx).unwrap();
+    assert!(
+        kept.evidence.links.iter().any(|s| s.link == true_link && s.p_value <= 0.05),
+        "alpha keep should recover X→Y after full-family MCI; kept={:?}",
+        kept.evidence.links
+    );
 }
 
 #[test]
@@ -215,17 +319,35 @@ fn engine_accepts_oracle_ci() {
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
     let result = engine.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
+    // Full-family MCI still emits scores; independence ⇒ all p > alpha.
     assert!(
-        result.evidence.links.is_empty(),
-        "oracle with no deps should drop all links, got {:?}",
+        !result.evidence.links.is_empty(),
+        "full-family MCI must score candidates even when PC finds no parents"
+    );
+    assert!(
+        result.evidence.links.iter().all(|s| s.p_value > 0.05),
+        "oracle with no deps should mark every pair independent, got {:?}",
         result.evidence.links
+    );
+    let pcmci = Pcmci::new()
+        .with_fdr(false)
+        .with_constraints(constraints())
+        .with_ci(Arc::new(OracleCi::new([])));
+    let filtered = pcmci.run(&data, &vars, &mut ws, &ctx).unwrap();
+    assert!(
+        filtered.evidence.links.is_empty(),
+        "alpha keep should drop all independent links, got {:?}",
+        filtered.evidence.links
     );
 
     let engine_dep = PcmciEngine::new()
         .with_constraints(constraints())
         .with_ci(Arc::new(OracleCi::new([(0usize, 1usize)])));
     let kept = engine_dep.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
-    assert!(!kept.evidence.links.is_empty(), "oracle marking (0,1) dependent should retain links");
+    assert!(
+        kept.evidence.links.iter().any(|s| s.p_value <= 0.05),
+        "oracle marking (0,1) dependent should retain significant links"
+    );
 }
 
 #[test]

@@ -15,10 +15,11 @@ use crate::result::{
     PcSepsets, ScoredLink,
 };
 
-/// Optionally FDR-adjust then retain links whose (adjusted) p-value is below `alpha`.
+/// Optionally FDR-adjust then retain links whose (adjusted) p-value is `<= alpha`.
 ///
-/// Raw p-values are preserved on [`ScoredLink::p_value`]; the BH-adjusted values are
-/// recorded on [`ScoredLink::adjusted_p_value`] and drive retention when `fdr` is set.
+/// Matches tigramite's significance boundary (`p <= alpha` kept). Raw p-values are
+/// preserved on [`ScoredLink::p_value`]; BH-adjusted values are recorded on
+/// [`ScoredLink::adjusted_p_value`] and drive retention when `fdr` is set.
 #[must_use]
 pub fn threshold_scored_links(
     mut scored: Vec<ScoredLink>,
@@ -32,8 +33,68 @@ pub fn threshold_scored_links(
             link.adjusted_p_value = Some(p_adj);
         }
     }
-    scored.retain(|s| s.adjusted_p_value.unwrap_or(s.p_value) < alpha);
+    scored.retain(|s| s.adjusted_p_value.unwrap_or(s.p_value) <= alpha);
     scored
+}
+
+/// Keep a contemporaneous undirected adjacency only when **both** directed tests survive.
+///
+/// Tigramite symmetrizes lag-0 links: X—Y at τ=0 requires both X→Y and Y→X adjacency
+/// survivors (intersection). Lagged links pass through unchanged. When both directions
+/// survive, the retained score uses the more conservative (max) p-value and the
+/// corresponding statistic.
+#[must_use]
+pub fn symmetrize_contemporaneous_links(links: Vec<ScoredLink>) -> Vec<ScoredLink> {
+    let mut lagged = Vec::new();
+    let mut contemp: HashMap<(u32, u32), (Option<ScoredLink>, Option<ScoredLink>)> = HashMap::new();
+    for s in links {
+        let contemp_pair = s.link.source_lag.is_contemporaneous()
+            && s.link.target_lag.is_contemporaneous();
+        if !contemp_pair {
+            lagged.push(s);
+            continue;
+        }
+        let a = s.link.source.raw();
+        let b = s.link.target.raw();
+        let key = if a <= b { (a, b) } else { (b, a) };
+        let entry = contemp.entry(key).or_insert((None, None));
+        if a <= b {
+            // source is lower id → "forward" slot when key ordered by ids
+            if s.link.source.raw() == key.0 {
+                entry.0 = Some(s);
+            } else {
+                entry.1 = Some(s);
+            }
+        } else if s.link.source.raw() == key.0 {
+            entry.0 = Some(s);
+        } else {
+            entry.1 = Some(s);
+        }
+    }
+    let mut out = lagged;
+    for ((lo, hi), (fwd, rev)) in contemp {
+        let (Some(mut a), Some(b)) = (fwd, rev) else {
+            continue;
+        };
+        // Conservative p across both directions.
+        let (p_a, p_b) = (
+            a.adjusted_p_value.unwrap_or(a.p_value),
+            b.adjusted_p_value.unwrap_or(b.p_value),
+        );
+        if p_b > p_a {
+            a.p_value = b.p_value;
+            a.adjusted_p_value = b.adjusted_p_value;
+            a.statistic = b.statistic;
+        }
+        // Canonicalize source = lower variable id for stable CPDAG insertion.
+        if a.link.source.raw() != lo {
+            a.link.source = VariableId::from_raw(lo);
+            a.link.target = VariableId::from_raw(hi);
+        }
+        let _ = hi;
+        out.push(a);
+    }
+    out
 }
 
 fn edge_evidence_from_scored(links: &[ScoredLink], sepsets: &PcSepsets) -> Arc<[EdgeEvidence]> {
@@ -272,5 +333,71 @@ mod tests {
         };
         assert!(matches!(at_src, Endpoint::Circle), "circle at earlier node");
         assert!(matches!(at_tgt, Endpoint::Arrow), "arrow at later node");
+    }
+
+    #[test]
+    fn symmetrize_requires_both_contemporaneous_directions() {
+        let x = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let one_way = vec![ScoredLink {
+            link: LaggedLink {
+                source: x,
+                source_lag: Lag::CONTEMPORANEOUS,
+                target: y,
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.9,
+            p_value: 0.01,
+            adjusted_p_value: None,
+        }];
+        assert!(symmetrize_contemporaneous_links(one_way).is_empty());
+
+        let both = vec![
+            ScoredLink {
+                link: LaggedLink {
+                    source: x,
+                    source_lag: Lag::CONTEMPORANEOUS,
+                    target: y,
+                    target_lag: Lag::CONTEMPORANEOUS,
+                },
+                statistic: 0.9,
+                p_value: 0.01,
+                adjusted_p_value: None,
+            },
+            ScoredLink {
+                link: LaggedLink {
+                    source: y,
+                    source_lag: Lag::CONTEMPORANEOUS,
+                    target: x,
+                    target_lag: Lag::CONTEMPORANEOUS,
+                },
+                statistic: 0.4,
+                p_value: 0.04,
+                adjusted_p_value: None,
+            },
+        ];
+        let out = symmetrize_contemporaneous_links(both);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].p_value, 0.04); // conservative max-p
+        assert_eq!(out[0].link.source, x);
+        assert_eq!(out[0].link.target, y);
+    }
+
+    #[test]
+    fn symmetrize_passes_lagged_unchanged() {
+        let link = ScoredLink {
+            link: LaggedLink {
+                source: VariableId::from_raw(0),
+                source_lag: Lag::from_raw(1),
+                target: VariableId::from_raw(1),
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.5,
+            p_value: 0.01,
+            adjusted_p_value: None,
+        };
+        let out = symmetrize_contemporaneous_links(vec![link]);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].link.source_lag.raw(), 1);
     }
 }

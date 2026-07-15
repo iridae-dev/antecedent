@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ._native import (
     DiscoveredLink,
+    GraphEdge,
     PcmciDiscoveryResult,
     RpcmciDiscoverySummary,
     discover_jpcmci_plus,
@@ -15,6 +16,7 @@ from ._native import (
 
 __all__ = [
     "DiscoveredLink",
+    "GraphEdge",
     "PcmciDiscoveryResult",
     "RpcmciDiscoverySummary",
     "discover_jpcmci_plus",

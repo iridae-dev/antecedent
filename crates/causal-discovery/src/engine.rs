@@ -215,7 +215,8 @@ impl PcmciEngine {
                 // Always record |stat| so required edges that fail independence still rank by
                 // observed association (not as +∞ / strongest).
                 min_stat[pi] = min_stat[pi].min(stat.abs());
-                if p >= self.constraints.alpha {
+                // Tigramite retains links with p <= alpha (independence when p > alpha).
+                if p > self.constraints.alpha {
                     let link = LaggedLink {
                         source: src,
                         source_lag: slag,
@@ -293,10 +294,12 @@ impl PcmciEngine {
         ))
     }
 
-    /// Run PC parents for all targets then MCI on surviving links.
+    /// Run PC parents for all targets then MCI on the full constrained candidate family.
     ///
-    /// Returns **unthresholded** MCI scores (full MCI family). Callers apply
-    /// alpha and optional FDR.
+    /// PC parent sets are used only for MCI conditioning (`pa(Y_t)` and time-shifted
+    /// `pa(X_{t−τ})`). MCI scores every allowed `(X_{t−τ}, Y_t)` pair (Runge et al. 2019 /
+    /// tigramite `run_mci`), not only PC survivors. Returns **unthresholded** scores;
+    /// callers apply alpha and optional FDR over that full family.
     ///
     /// # Errors
     ///
@@ -309,14 +312,13 @@ impl PcmciEngine {
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
         let max_lag = self.constraints.temporal.max_lag.raw();
-        // PC phase frame at max_lag; MCI conditions on pa(X_{t−τ}) with lags up to 2·max_lag
-        // (tigramite's `2xtau_max` cut-off), so it needs a deeper frame.
+        // Align with tigramite's default `cut_off='2xtau_max'`: both PC and MCI use a
+        // frame materializing lags up to 2·max_lag (same effective sample count).
+        let frame_depth = 2 * max_lag;
         let frame =
-            LaggedFrame::from_series(data, variables, max_lag).map_err(DiscoveryError::from)?;
-        let mci_frame =
-            LaggedFrame::from_series(data, variables, 2 * max_lag).map_err(DiscoveryError::from)?;
+            LaggedFrame::from_series(data, variables, frame_depth).map_err(DiscoveryError::from)?;
         if let Some(hard) = ctx.memory.hard_limit_bytes {
-            if frame.values_bytes() + mci_frame.values_bytes() > hard {
+            if frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
                     message: "lagged frames exceed ExecutionContext memory hard limit",
                 });
@@ -340,8 +342,16 @@ impl PcmciEngine {
             self.select_parents_all(&frame, variables, &compiled, workspace, ctx, threads)?;
 
         let mut scored = Vec::new();
-        let (mci_tests, truncated) =
-            self.mci_all(&mci_frame, &all_parents, &mut scored, workspace, ctx, threads)?;
+        let (mci_tests, truncated) = self.mci_all(
+            &frame,
+            variables,
+            &compiled,
+            &all_parents,
+            &mut scored,
+            workspace,
+            ctx,
+            threads,
+        )?;
         ci_tests += mci_tests;
 
         let sepsets = std::mem::take(&mut workspace.sepsets);
@@ -378,14 +388,14 @@ impl PcmciEngine {
                 ci_tests,
                 links_retained: n_links,
                 targets: variables.len() as u64,
-                lagged_frame_bytes: frame.values_bytes() + mci_frame.values_bytes(),
+                lagged_frame_bytes: frame.values_bytes(),
                 worker_threads: threads,
             },
             sepsets,
         })
     }
 
-    fn select_parents_all(
+    pub(crate) fn select_parents_all(
         &self,
         frame: &LaggedFrame,
         variables: &[VariableId],
@@ -469,9 +479,12 @@ impl PcmciEngine {
         Ok((all_parents, iterations, ci_tests))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn mci_all(
         &self,
         frame: &LaggedFrame,
+        variables: &[VariableId],
+        compiled: &CompiledConstraints,
         all_parents: &[TargetParents],
         scored: &mut Vec<ScoredLink>,
         workspace: &mut DiscoveryWorkspace,
@@ -484,6 +497,8 @@ impl PcmciEngine {
             for (target, parents) in all_parents {
                 let (batch, trunc) = self.mci_batch_for_target(
                     frame,
+                    variables,
+                    compiled,
                     *target,
                     parents,
                     all_parents,
@@ -515,6 +530,8 @@ impl PcmciEngine {
                     for (target, parents) in chunk_parents {
                         let (batch, trunc) = engine.mci_batch_for_target(
                             frame,
+                            variables,
+                            compiled,
                             *target,
                             parents,
                             all_parents,
@@ -546,29 +563,38 @@ impl PcmciEngine {
         Ok((tests, truncated))
     }
 
-    /// MCI-test all parents of one target in a single CI batch (DESIGN.md §12.1).
+    /// MCI-test the full constrained candidate family for one target (DESIGN.md §12.1).
+    ///
+    /// `parents` are the PC-estimated parents of `target` and are used only for
+    /// conditioning, together with PC parents of each candidate source. Candidates are
+    /// every allowed `(src, τ)` from [`DiscoveryConstraints::candidate_sources`].
     ///
     /// Returns the scored links and the number of conditioning columns dropped by the
     /// `MAX_CI_COLS` cap (0 in the common case).
+    #[allow(clippy::too_many_arguments)]
     fn mci_batch_for_target(
         &self,
         frame: &LaggedFrame,
+        variables: &[VariableId],
+        compiled: &CompiledConstraints,
         target: VariableId,
         parents: &[(VariableId, Lag)],
         all_parents: &[TargetParents],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<ScoredLink>, u64), DiscoveryError> {
-        if parents.is_empty() {
+        let mut candidates = self.constraints.candidate_sources(variables, target);
+        candidates.retain(|&(src, slag)| compiled.allows(link_to_target(src, slag, target)));
+        if candidates.is_empty() {
             return Ok((Vec::new(), 0));
         }
         let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
-        let mut queries = Vec::with_capacity(parents.len());
+        let mut queries = Vec::with_capacity(candidates.len());
         let mut z_flat = Vec::new();
-        let mut links = Vec::with_capacity(parents.len());
+        let mut links = Vec::with_capacity(candidates.len());
 
         let mut truncated = 0u64;
-        for &(src, slag) in parents {
+        for &(src, slag) in &candidates {
             let link = link_to_target(src, slag, target);
             let src_parents = parents_of(all_parents, src);
             truncated += mci_conditioning(link, parents, src_parents, &mut workspace.others);
@@ -617,7 +643,7 @@ impl PcmciEngine {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn ci_statistic(
+    pub(crate) fn ci_statistic(
         &self,
         frame: &LaggedFrame,
         x: VariableId,
@@ -685,6 +711,13 @@ fn parents_of(all_parents: &[TargetParents], src: VariableId) -> &[(VariableId, 
     all_parents.iter().find(|(t, _)| *t == src).map_or(&[][..], |(_, p)| p.as_slice())
 }
 
+pub(crate) fn parents_of_target(
+    all_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
+    src: VariableId,
+) -> &[(VariableId, Lag)] {
+    parents_of(all_parents, src)
+}
+
 /// Sort candidates by descending min |statistic|, tie-broken by (variable, lag) for
 /// determinism across runs and thread counts.
 fn sort_by_strength(parents: &mut Vec<(VariableId, Lag)>, min_stat: &mut Vec<f64>) {
@@ -708,7 +741,7 @@ fn link_to_target(src: VariableId, slag: Lag, target: VariableId) -> LaggedLink 
 /// link endpoints, then parents of the source *time-shifted by the source lag* (a parent
 /// `(v, l)` of `X_t` is `(v, l+τ)` for `X_{t−τ}`). Both inputs are strongest-first, so the
 /// `MAX_CI_COLS` truncation keeps the strongest conditions; returns how many were dropped.
-fn mci_conditioning(
+pub(crate) fn mci_conditioning(
     link: LaggedLink,
     parents_target: &[(VariableId, Lag)],
     parents_source: &[(VariableId, Lag)],

@@ -418,7 +418,17 @@ mod tests {
                 .dense_id(TemporalNodeKey { variable: VariableId::from_raw(2), offset: 0 })
                 .unwrap(),
         );
-        let _ = unfolded.dag.is_d_separated(y, z, &[], &mut ws);
+        let x = DenseNodeId::from_raw(
+            unfolded
+                .indexer
+                .dense_id(TemporalNodeKey { variable: VariableId::from_raw(0), offset: -1 })
+                .unwrap(),
+        );
+        // Chain X→Y→Z: Y and Z are d-connected unconditionally; conditioning on Y
+        // d-separates X from Z.
+        assert!(!unfolded.dag.is_d_separated(y, z, &[], &mut ws).unwrap());
+        assert!(unfolded.dag.is_d_separated(x, z, &[y], &mut ws).unwrap());
+        assert!(!unfolded.dag.is_d_separated(x, z, &[], &mut ws).unwrap());
     }
 
     #[test]

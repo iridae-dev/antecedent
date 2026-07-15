@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""Black-box Tigramite PCMCI+ lag-0 conformance fixture (edge-set equality).
+
+Usage:
+    uv run --python 3.12 --with numpy --with 'tigramite==5.2.1.30' \\
+      python scripts/conformance/generate_tigramite_pcmci_plus_lag0.py
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+from pathlib import Path
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / "conformance" / "tigramite" / "pcmci_plus_lag0"
+
+N = 500
+ALPHA = 0.05
+MAX_LAG = 1
+VAR_NAMES = ["x", "y"]
+SEED = 0
+
+
+def synthesize() -> tuple[np.ndarray, np.ndarray]:
+    rng = np.random.default_rng(SEED)
+    x = rng.normal(size=N)
+    y = np.zeros(N)
+    eps = rng.normal(size=N)
+    for t in range(1, N):
+        y[t] = 0.8 * x[t - 1] + 0.5 * x[t] + 0.2 * eps[t]
+    return x, y
+
+
+def links_from_graph(graph, var_names: list[str]) -> list[dict]:
+    """Extract non-empty graph links; contemporaneous may be undirected ('o-o'/'--')."""
+    g = np.asarray(graph)
+    n_vars, _, n_taus = g.shape
+    out = []
+    for i in range(n_vars):
+        for j in range(n_vars):
+            for tau in range(n_taus):
+                mark = g[i, j, tau]
+                if mark is None or mark == "" or mark == "":
+                    continue
+                s = str(mark)
+                if s in ("", "''"):
+                    continue
+                # Skip empty string marks
+                if len(s) == 0:
+                    continue
+                out.append(
+                    {
+                        "source": var_names[i],
+                        "source_lag": int(tau),
+                        "target": var_names[j],
+                        "target_lag": 0,
+                        "mark": s,
+                    }
+                )
+    return out
+
+
+def parents_from_pcmciplus(results, pcmci, var_names: list[str]) -> list[dict]:
+    # Prefer parents_dict when available; also keep graph link list.
+    try:
+        parents_dict = pcmci.return_parents_dict(
+            graph=results["graph"], val_matrix=results["val_matrix"]
+        )
+    except Exception:
+        parents_dict = {}
+    out: list[dict] = []
+    for target_i, parents in parents_dict.items():
+        for source_i, lag in parents:
+            out.append(
+                {
+                    "source": var_names[int(source_i)],
+                    "source_lag": abs(int(lag)),
+                    "target": var_names[int(target_i)],
+                    "target_lag": 0,
+                }
+            )
+    return out
+
+
+def try_tigramite(x: np.ndarray, y: np.ndarray) -> dict:
+    try:
+        import tigramite  # type: ignore
+        from tigramite import data_processing as pp  # type: ignore
+        from tigramite.independence_tests.parcorr import ParCorr  # type: ignore
+        from tigramite.pcmci import PCMCI  # type: ignore
+    except ImportError:
+        return {"available": False, "note": "Tigramite not installed"}
+
+    data = np.column_stack([x, y])
+    dataframe = pp.DataFrame(data, var_names=VAR_NAMES)
+    pcmci = PCMCI(dataframe=dataframe, cond_ind_test=ParCorr())
+    results = pcmci.run_pcmciplus(tau_min=0, tau_max=MAX_LAG, pc_alpha=ALPHA)
+    recovered = parents_from_pcmciplus(results, pcmci, VAR_NAMES)
+    version = getattr(tigramite, "__version__", None) or "5.2.1.30"
+    return {
+        "available": True,
+        "tigramite_version": version,
+        "note": "black-box PCMCI+; Meek R4 may add extra orientations on our side",
+        "graph_shape": list(np.asarray(results["graph"]).shape),
+        "recovered_parents": recovered,
+        "graph_links": links_from_graph(results["graph"], VAR_NAMES),
+        "alpha": ALPHA,
+        "max_lag": MAX_LAG,
+        "pin_note": "PyPI 5.2.1.30",
+    }
+
+
+def main() -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    x, y = synthesize()
+    with (OUT / "data.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["x", "y"])
+        w.writeheader()
+        for xi, yi in zip(x, y, strict=True):
+            w.writerow({"x": float(xi), "y": float(yi)})
+
+    tig = try_tigramite(x, y)
+    expected = {
+        "true_parents": [
+            {"source": "x", "source_lag": 1, "target": "y", "target_lag": 0},
+            {"source": "x", "source_lag": 0, "target": "y", "target_lag": 0},
+        ],
+        "tolerance_class": "Exact",
+        "max_lag": MAX_LAG,
+        "min_lag": 0,
+        "alpha": ALPHA,
+        "fdr": False,
+        "n": N,
+        "scm": "x_t ~ N(0,1); y_t = 0.8*x_{t-1} + 0.5*x_t + 0.2*N(0,1); seed=0",
+        "tigramite": tig,
+        "generation": {
+            "script": "scripts/conformance/generate_tigramite_pcmci_plus_lag0.py",
+            "baseline_pin": "parity/tigramite.toml",
+            "env": "uv run --python 3.12 --with numpy --with tigramite==5.2.1.30",
+        },
+    }
+    (OUT / "expected.json").write_text(json.dumps(expected, indent=2) + "\n")
+    (OUT / "README.md").write_text(
+        "# Tigramite PCMCI+ lag-0 conformance\n\n"
+        "# Generated by scripts/conformance/generate_tigramite_pcmci_plus_lag0.py\n\n"
+        "Black-box edge-set equality vs pinned Tigramite PCMCI+.\n"
+    )
+    print(f"wrote {OUT}")
+    print("available", tig.get("available"), "parents", tig.get("recovered_parents"))
+
+
+if __name__ == "__main__":
+    main()

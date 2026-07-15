@@ -216,13 +216,12 @@ mod tests {
 
     #[test]
     fn parcorr_calibration_type_i_near_alpha_and_power() {
-        let trials = 200u32;
+        let trials = 800u32;
         let alpha = 0.05;
         let report =
             calibrate_parcorr_like(&PartialCorrelation::new(), 250, trials, alpha, 7).unwrap();
         assert!(
-            type_i_within_two_se(report.type_i_rate(), alpha, trials)
-                || report.type_i_rate() < 0.12,
+            type_i_within_two_se(report.type_i_rate(), alpha, trials),
             "type I off nominal: {} (2SE band around {})",
             report.type_i_rate(),
             alpha

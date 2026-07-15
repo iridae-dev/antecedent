@@ -26,5 +26,6 @@ def test_arrow_load_reports_measured_copy():
     info = causal.load_float64_columns(names, columns)
     assert info.row_count == payload["row_count"]
     assert info.column_count == len(names)
+    assert info.column_names == names
     assert info.bytes_copied > 0
     assert info.diagnostic_count > 0

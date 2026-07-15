@@ -134,7 +134,7 @@ impl OrientationState {
 ///
 /// Cycle conflicts are recorded and the run continues (edge stays undirected).
 /// Other graph errors propagate.
-fn try_orient_undirected(
+pub(crate) fn try_orient_undirected(
     graph: &mut TemporalCpdag,
     state: &mut OrientationState,
     delta: &mut RuleDelta,
@@ -432,6 +432,175 @@ impl OrientationRule for MeekR4 {
     }
 }
 
+fn is_contemporaneous_node(graph: &TemporalCpdag, id: DenseNodeId) -> bool {
+    match graph.nodes().get(id.raw() as usize) {
+        Some(causal_graph::NodeRef::Lagged { lag, .. }) => lag.is_contemporaneous(),
+        _ => false,
+    }
+}
+
+/// Meek R1 restricted to contemporaneous undirected edges (PCMCI+ / tigramite).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ContempMeekR1;
+
+impl OrientationRule for ContempMeekR1 {
+    fn name(&self) -> &'static str {
+        "meek.r1.contemp"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalCpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+        let focus = focus_nodes(graph, queue);
+        let mut changed_nodes = Vec::new();
+        for b in focus {
+            for a in graph.parents(b) {
+                for c in graph.undirected_neighbors(b) {
+                    if !is_contemporaneous_node(graph, b) || !is_contemporaneous_node(graph, c) {
+                        continue;
+                    }
+                    if !graph.has_edge(a, c) {
+                        let premise = format!(
+                            "meek.r1.contemp: {}→{}—{} and {} not adj {}",
+                            a.raw(),
+                            b.raw(),
+                            c.raw(),
+                            a.raw(),
+                            c.raw()
+                        );
+                        if try_orient_undirected(graph, state, &mut delta, b, c, premise)? {
+                            changed_nodes.push(b);
+                            changed_nodes.push(c);
+                        }
+                    }
+                }
+            }
+        }
+        for n in changed_nodes {
+            delta.enqueued += enqueue_neighbors(graph, n, queue);
+        }
+        Ok(delta)
+    }
+}
+
+/// Meek R2 restricted to contemporaneous undirected edges (PCMCI+ / tigramite).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ContempMeekR2;
+
+impl OrientationRule for ContempMeekR2 {
+    fn name(&self) -> &'static str {
+        "meek.r2.contemp"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalCpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+        let focus = focus_nodes(graph, queue);
+        let mut changed = Vec::new();
+        for a in &focus {
+            for b in graph.children(*a) {
+                for c in graph.children(b) {
+                    if !is_contemporaneous_node(graph, *a) || !is_contemporaneous_node(graph, c) {
+                        continue;
+                    }
+                    if graph.edge_between(*a, c).is_some_and(|e| e.is_undirected()) {
+                        let premise = format!(
+                            "meek.r2.contemp: {}→{}→{} and {}—{}",
+                            a.raw(),
+                            b.raw(),
+                            c.raw(),
+                            a.raw(),
+                            c.raw()
+                        );
+                        if try_orient_undirected(graph, state, &mut delta, *a, c, premise)? {
+                            changed.push(*a);
+                            changed.push(c);
+                        }
+                    }
+                }
+            }
+        }
+        for n in changed {
+            delta.enqueued += enqueue_neighbors(graph, n, queue);
+        }
+        Ok(delta)
+    }
+}
+
+/// Meek R3 restricted to contemporaneous undirected edges (PCMCI+ / tigramite).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ContempMeekR3;
+
+impl OrientationRule for ContempMeekR3 {
+    fn name(&self) -> &'static str {
+        "meek.r3.contemp"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalCpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+        let focus = focus_nodes(graph, queue);
+        let mut changed = Vec::new();
+        for a in &focus {
+            if !is_contemporaneous_node(graph, *a) {
+                continue;
+            }
+            let und_a: Vec<DenseNodeId> = graph
+                .undirected_neighbors(*a)
+                .into_iter()
+                .filter(|&n| is_contemporaneous_node(graph, n))
+                .collect();
+            for &b in &und_a {
+                let mut mediators = Vec::new();
+                for &c in &und_a {
+                    if c == b {
+                        continue;
+                    }
+                    if graph.children(c).contains(&b) {
+                        mediators.push(c);
+                    }
+                }
+                let mut orient = false;
+                'pairs: for i in 0..mediators.len() {
+                    for j in (i + 1)..mediators.len() {
+                        if !graph.has_edge(mediators[i], mediators[j]) {
+                            orient = true;
+                            break 'pairs;
+                        }
+                    }
+                }
+                if orient {
+                    let premise = format!(
+                        "meek.r3.contemp: {}—{} via nonadjacent mediators",
+                        a.raw(),
+                        b.raw()
+                    );
+                    if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
+                        changed.push(*a);
+                        changed.push(b);
+                    }
+                }
+            }
+        }
+        for n in changed {
+            delta.enqueued += enqueue_neighbors(graph, n, queue);
+        }
+        Ok(delta)
+    }
+}
+
 /// Collider orientation when sepset is known: for an unshielded triple `a * c * b` with both
 /// legs *into or undirected at* `c` (undirected legs, or legs already directed into `c`, e.g.
 /// lagged edges auto-oriented by time), `a` not adj `b`, `c ∉ Sep(a,b)` → orient the
@@ -693,6 +862,40 @@ mod tests {
         let delta = MeekR3.apply(&mut g, &mut state, &mut queue).unwrap();
         assert!(delta.edges_changed >= 1);
         assert_eq!(g.edge_between(a, b).unwrap().parent_child(), Some((a, b)));
+    }
+
+    #[test]
+    fn contemp_meek_r1_skips_lagged_undirected() {
+        // Lagged undirected should not be oriented by ContempMeekR1.
+        let mut g = TemporalCpdag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+        g.insert_directed(a, b).unwrap();
+        // Force an undirected between b and lagged c (unusual but guards the gate).
+        g.insert_undirected(b, c).unwrap();
+        let mut state = OrientationState::default();
+        let mut queue = OrientationQueue::new();
+        queue.push(b);
+        let d = ContempMeekR1.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert_eq!(d.edges_changed, 0);
+        assert!(g.edge_between(b, c).unwrap().is_undirected());
+    }
+
+    #[test]
+    fn contemp_meek_r1_orients_contemporaneous_chain() {
+        let mut g = TemporalCpdag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_undirected(b, c).unwrap();
+        let mut state = OrientationState::default();
+        let mut queue = OrientationQueue::new();
+        queue.push(b);
+        let d = ContempMeekR1.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert!(d.edges_changed >= 1);
+        assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
     }
 
     #[test]

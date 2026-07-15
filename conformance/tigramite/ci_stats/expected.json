@@ -1,0 +1,47 @@
+{
+  "tolerance_class": "StableFloat",
+  "atol_stat": 0.15,
+  "rtol_stat": 0.35,
+  "atol_p": 0.15,
+  "rtol_p": 0.5,
+  "gpdc_atol_stat": 0.5,
+  "gpdc_rtol_stat": 1.0,
+  "n": 200,
+  "seed": 11,
+  "tigramite": {
+    "available": true,
+    "tigramite_version": "unknown",
+    "methods": {
+      "gpdc_dep": {
+        "statistic": 0.5062475970523599,
+        "p_value": 0.0,
+        "note": "native vs torch GPDC may differ; tolerance band in fixture"
+      },
+      "gpdc_ind": {
+        "statistic": 0.10621577613632355,
+        "p_value": 0.472
+      },
+      "cmiknn_dep": {
+        "statistic": 0.285366330045951,
+        "p_value": 0.0
+      },
+      "cmiknn_ind": {
+        "statistic": 0.04343822154526267,
+        "p_value": 0.74
+      },
+      "gsquared_dep": {
+        "statistic": 162.85644841228367,
+        "p_value": 3.566543290296529e-34
+      },
+      "gsquared_ind": {
+        "statistic": 3.5434760045849742,
+        "p_value": 0.47129858791814006
+      }
+    }
+  },
+  "generation": {
+    "script": "scripts/conformance/generate_tigramite_ci_stats.py",
+    "baseline_pin": "parity/tigramite.toml",
+    "env": "uv run --python 3.10 --with numpy --with scipy --with dcor --with scikit-learn --with tigramite==5.2.1.30"
+  }
+}

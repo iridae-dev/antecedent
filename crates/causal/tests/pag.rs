@@ -104,6 +104,24 @@ fn lpcmci_chain() {
     assert_eq!(rules.len(), 5);
     assert!(rules.iter().any(|r| r.as_str() == Some("lpcmci.r2")));
     assert!(rules.iter().any(|r| r.as_str() == Some("lpcmci.r3")));
+    if expected["require_true_edge_subset"].as_bool() == Some(true) {
+        let recovered: std::collections::BTreeSet<(u32, u32, u32)> = result
+            .evidence
+            .links
+            .iter()
+            .map(|s| (s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw()))
+            .collect();
+        for edge in expected["true_links"].as_array().unwrap() {
+            let src = edge["source"].as_u64().unwrap() as u32;
+            let slag = edge["source_lag"].as_u64().unwrap() as u32;
+            let tgt = edge["target"].as_u64().unwrap() as u32;
+            let forward = (src, slag, tgt);
+            let reverse = (tgt, slag, src);
+            let ok = recovered.contains(&forward)
+                || (slag == 0 && recovered.contains(&reverse));
+            assert!(ok, "missing true link {forward:?} in {recovered:?}");
+        }
+    }
 }
 
 #[test]

@@ -7,11 +7,11 @@
 /// Scratch for residualization and Pearson correlation.
 #[derive(Clone, Debug, Default)]
 pub struct ParCorrWorkspace {
-    /// Design matrix column-major `[1 | Z…]` (`n * (1+p)`).
+    /// Design matrix column-major `[Z…]` (`n * p`); no intercept (tigramite parity).
     pub design: Vec<f64>,
-    /// `XtX` / Gram (`(1+p)^2`).
+    /// `XtX` / Gram (`p^2`).
     pub gram: Vec<f64>,
-    /// RHS / coefficients (`1+p`).
+    /// RHS / coefficients (`p`).
     pub beta: Vec<f64>,
     /// Residual of X.
     pub rx: Vec<f64>,
@@ -22,9 +22,9 @@ pub struct ParCorrWorkspace {
 }
 
 impl ParCorrWorkspace {
-    /// Ensure capacity for `n` rows and `p` covariates (excluding intercept).
+    /// Ensure capacity for `n` rows and `p` covariates (no intercept column).
     pub fn prepare(&mut self, n: usize, p: usize) {
-        let ncols = 1 + p;
+        let ncols = p.max(1);
         let need_design = n.saturating_mul(ncols);
         if self.design.len() < need_design {
             self.design.resize(need_design, 0.0);
@@ -113,11 +113,9 @@ fn constant_column(css: f64, mean: f64, nf: f64) -> bool {
 }
 
 fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) {
-    for r in 0..n {
-        design[r] = 1.0;
-    }
+    // No intercept: matches tigramite ParCorr `numpy.linalg.lstsq` on Z only.
     for (j, z) in z_cols.iter().enumerate() {
-        let base = (j + 1) * n;
+        let base = j * n;
         design[base..base + n].copy_from_slice(z);
     }
 }
@@ -249,7 +247,7 @@ fn residualize_into_scalar(
             return false;
         }
     }
-    let ncols = 1 + p;
+    let ncols = p;
     build_design(z_cols, n, design);
     if !solve_normal_equations(design, y, n, ncols, gram, beta) {
         return false;
@@ -279,7 +277,7 @@ fn partial_correlation_scalar_impl(
         return pearson(x, y);
     }
     workspace.prepare(n, z_cols.len());
-    let ncols = 1 + z_cols.len();
+    let ncols = z_cols.len();
     let design = &mut workspace.design[..n * ncols];
     let gram = &mut workspace.gram[..ncols * ncols];
     let beta = &mut workspace.beta[..ncols];
@@ -321,7 +319,7 @@ fn partial_correlation_portable_impl(
         }
     }
     workspace.prepare(n, z_cols.len());
-    let ncols = 1 + z_cols.len();
+    let ncols = z_cols.len();
     {
         let design = &mut workspace.design[..n * ncols];
         build_design(z_cols, n, design);
@@ -496,11 +494,12 @@ mod tests {
 
     #[test]
     fn parcorr_removes_confounder() {
-        // x = z + e1, y = z + e2 → raw corr high, partial ~0
+        // Mean-zero confounder: without an intercept column (tigramite parity),
+        // residualization matches classical ParCorr on centered series.
         let n = 200usize;
-        let z: Vec<f64> = (0..n).map(|i| i as f64).collect();
-        let x: Vec<f64> = (0..n).map(|i| z[i] + (i % 3) as f64).collect();
-        let y: Vec<f64> = (0..n).map(|i| z[i] + (i % 5) as f64).collect();
+        let z: Vec<f64> = (0..n).map(|i| ((i as f64) - 99.5) / 50.0).collect();
+        let x: Vec<f64> = (0..n).map(|i| z[i] + ((i % 3) as f64 - 1.0) * 0.1).collect();
+        let y: Vec<f64> = (0..n).map(|i| z[i] + ((i % 5) as f64 - 2.0) * 0.1).collect();
         let mut ws = ParCorrWorkspace::default();
         let raw = pearson(&x, &y).unwrap();
         let partial = partial_correlation_scalar(&x, &y, &[&z], &mut ws).unwrap();

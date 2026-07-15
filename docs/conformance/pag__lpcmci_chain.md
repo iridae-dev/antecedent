@@ -7,4 +7,4 @@ and algorithm id `lpcmci`.
 
 ## Expected summary
 
-Top-level keys: `algorithm_id, max_pending_circles, min_links_retained, min_nodes, orientation_rule_ids, tolerance_class` (6 fields).
+Top-level keys: `algorithm_id, max_pending_circles, min_links_retained, min_nodes, notes, orientation_rule_ids, require_true_edge_subset, tolerance_class, true_links` (9 fields).

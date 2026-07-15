@@ -101,6 +101,29 @@ fn jpcmci_plus_two_env_pin() {
     assert_eq!(result.algorithm.id.as_ref(), expected["algorithm_id"].as_str().unwrap());
     assert!(result.evidence.graph.node_count() >= expected["min_nodes"].as_u64().unwrap() as usize);
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "jpcmci_plus.multi_env_plan"));
+    assert!(
+        result.evidence.links.len() >= expected["min_links"].as_u64().unwrap_or(1) as usize,
+        "expected at least one retained link, got {}",
+        result.evidence.links.len()
+    );
+    if expected["require_true_edge_subset"].as_bool() == Some(true) {
+        let recovered: std::collections::BTreeSet<(u32, u32, u32)> = result
+            .evidence
+            .links
+            .iter()
+            .map(|s| (s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw()))
+            .collect();
+        for edge in expected["true_links"].as_array().unwrap() {
+            let src = edge["source"].as_u64().unwrap() as u32;
+            let slag = edge["source_lag"].as_u64().unwrap() as u32;
+            let tgt = edge["target"].as_u64().unwrap() as u32;
+            let forward = (src, slag, tgt);
+            let reverse = (tgt, slag, src);
+            let ok = recovered.contains(&forward)
+                || (slag == 0 && recovered.contains(&reverse));
+            assert!(ok, "missing true link {forward:?} in {recovered:?}");
+        }
+    }
 }
 
 #[test]
@@ -123,7 +146,14 @@ fn rpcmci_two_regime_pin() {
     let mut ws = DiscoveryWorkspace::default();
     let result = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2)).unwrap();
     assert_eq!(result.algorithm.id.as_ref(), expected["algorithm_id"].as_str().unwrap());
-    assert_eq!(result.graphs.len(), expected["n_regimes"].as_u64().unwrap() as usize);
+    assert_eq!(result.graphs.graphs.len(), expected["n_regimes"].as_u64().unwrap() as usize);
+    let min_nodes = expected["min_nodes_per_regime"].as_u64().unwrap_or(2) as usize;
+    for (i, (_regime, g)) in result.graphs.graphs.iter().enumerate() {
+        assert!(
+            g.node_count() >= min_nodes,
+            "regime {i} node_count too small"
+        );
+    }
 }
 
 #[test]

@@ -7,4 +7,4 @@ with at least two environments and a context-aware temporal CPDAG (≥2 nodes).
 
 ## Expected summary
 
-Top-level keys: `algorithm_id, min_envs, min_nodes, tolerance_class` (4 fields).
+Top-level keys: `algorithm_id, min_envs, min_links, min_nodes, notes, require_true_edge_subset, tolerance_class, true_links` (8 fields).

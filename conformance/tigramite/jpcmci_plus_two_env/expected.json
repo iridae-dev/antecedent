@@ -1,6 +1,16 @@
 {
- "algorithm_id": "jpcmci_plus",
- "min_envs": 2,
- "min_nodes": 2,
- "tolerance_class": "Exact"
+  "algorithm_id": "jpcmci_plus",
+  "min_envs": 2,
+  "min_nodes": 2,
+  "min_links": 1,
+  "require_true_edge_subset": true,
+  "true_links": [
+    {
+      "source": 0,
+      "source_lag": 0,
+      "target": 1
+    }
+  ],
+  "tolerance_class": "Exact",
+  "notes": "Honest structure pin only; full tigramite edge-set equality blocked on P4.4 (J-PCMCI+)."
 }

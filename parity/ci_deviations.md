@@ -11,21 +11,37 @@ are expected under the native backend. Tracked as `intentional_deviation` on
 distance correlation (add-one p-value over 49 Y-residual shuffles), deterministic
 under the run seed.
 
-## 2. PCMCI+ conformance is clean-room Exact parents
+## 2. PCMCI+ Meek R4 removed (aligned with tigramite)
 
-`conformance/tigramite/pcmci_plus_lag0` pins a synthetic SCM with lagged +
-contemporaneous parents. Black-box Tigramite PCMCI+ graph comparison is not
-pinned in this fixture (`tigramite.available = false`). Tracked as
-`intentional_deviation` on `tigramite.discovery.pcmci_plus`.
+PCMCI+ orientation applies Meek R1–R3 on contemporaneous links only
+(`ContempMeekR1`–`ContempMeekR3`). Tigramite likewise applies R1–R3 on
+contemporaneous links and does not run R4. The former intentional R4
+deviation has been removed (TODO P4.2). Black-box edge-set equality is
+pinned in `conformance/tigramite/pcmci_plus_lag0`.
 
-## Notes (not deviations)
+## 3. LPCMCI / J-PCMCI+ / RPCMCI black-box equality deferred (P4)
 
+Full tigramite edge-set equality for LPCMCI, J-PCMCI+, and RPCMCI is blocked on
+algorithm parity upgrades (TODO P4.3–P4.5). Conformance fixtures assert
+non-vacuous structure and true-edge subset invariants only.
+
+## Notes (aligned with tigramite; not deviations)
+
+- Alpha boundary: independence when `p > alpha`; retain links with `p <= alpha`
+  (matches tigramite).
+- ParCorr residualization: no intercept column; plain least-squares on Z only
+  (matches tigramite `lstsq`). Analytic df remains `n − 2 − |Z|`.
+- PC and MCI lagged frames both use depth `2 · max_lag` (tigramite
+  `cut_off='2xtau_max'`).
+- PCMCI MCI scores the full constrained candidate family; PC parents are
+  conditioning-only (tigramite `run_mci`).
+- PCMCI+ uses lagged-only PC1 then a contemporaneous MCI phase, lag-0
+  symmetrization (both directions), majority collider, and Meek R1–R3 on
+  contemporaneous links.
 - `weighted_parcorr` accepts observation weights via Python
- `discover_pcmci(_plus)(..., weights=...)`.
+  `discover_pcmci(_plus)(..., weights=...)`.
 - Pairwise multivariate wrapper is registered as `pairwise_multivariate`.
 - Multivariate ParCorr uses block residualization + first canonical correlation
- (scalar blocks reduce to ordinary ParCorr).
-- PC1 + shifted MCI conditioning: the engine uses PC1 (`run_pc_stable`,
- `max_combinations = 1`) and MCI conditions on `pa(X_{t−τ})` over a
- `2·max_lag` frame. Boundary convention `p >= alpha` for independence (vs
- Tigramite's `p > alpha`) is retained.
+  (scalar blocks reduce to ordinary ParCorr).
+- The engine uses PC1 (`run_pc_stable`, `max_combinations = 1`) and MCI
+  conditions on `pa(X_{t−τ})` over the shared `2·max_lag` frame.

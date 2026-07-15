@@ -395,6 +395,7 @@ dependencies = [
  "causal-kernels",
  "criterion",
  "faer",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 

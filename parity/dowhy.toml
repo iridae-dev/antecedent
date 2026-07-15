@@ -6,7 +6,7 @@
 project = "dowhy"
 version = "0.14"
 commit = "178ecc9c690a02f2801c1f70da2695f5744186cc"
-notes = "Pinned per DESIGN.md §35.9 / ADR 0009"
+notes = "Pinned per ADR 0009 (parity baselines)"
 
 [[capabilities]]
 id = "dowhy.model_graph.construction"

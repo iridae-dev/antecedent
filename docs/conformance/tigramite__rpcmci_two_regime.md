@@ -6,4 +6,4 @@ Typed regime assignments yield exactly one graph per regime (no single-graph col
 
 ## Expected summary
 
-Top-level keys: `algorithm_id, n_regimes, tolerance_class` (3 fields).
+Top-level keys: `algorithm_id, min_links_per_regime, min_nodes_per_regime, n_regimes, notes, tolerance_class` (6 fields).

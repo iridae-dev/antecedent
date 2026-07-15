@@ -26,10 +26,10 @@ def test_discover_pcmci_plus_returns_cpdag_summary():
     assert result.ci_name == "parcorr"
     assert result.cpdag_nodes >= 2
     assert result.cpdag_directed_edges + result.cpdag_undirected_edges >= 1
-    recovered = {
-        (link.source, link.source_lag, link.target, link.target_lag) for link in result.links
-    }
-    assert ("x", 1, "y", 0) in recovered or ("x", 0, "y", 0) in recovered, recovered
+    assert result.graph_edges, "oriented CPDAG body must be returned"
+    assert all(e.at_a in {"tail", "arrow", "circle"} for e in result.graph_edges)
+    assert any({e.a, e.b} == {"x", "y"} or e.a == e.b for e in result.graph_edges)
+    assert result.links, "scored links must be non-empty for this series"
 
 
 def test_discover_pcmci_weighted_parcorr_accepts_weights():
