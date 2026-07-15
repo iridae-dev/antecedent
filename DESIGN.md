@@ -6,7 +6,17 @@ Performance posture: correctness and performance are co-equal implementation req
 
 Scope baseline: functional parity with DoWhy excluding EconML integration, functional parity with Tigramite, and a Bayesian-first extension that preserves frequentist parity. The project is a library and Python extension, not a hosted service, workflow system, dashboard, or deployment platform.
 
-## 1. Scope boundary
+## Status markers
+
+Each major section is tagged so roadmap text is distinguishable from what exists:
+
+- **built** — implemented substantially as described; remaining gaps, if any, are called out inline
+- **partial** — meaningful implementation exists; open gaps are named here or in `TODO.md`
+- **planned** — roadmap only; not yet built (DESIGN leads the code — do not delete unbuilt sections)
+
+Subsection status inherits the parent unless noted.
+
+## 1. Scope boundary [built]
 
 The library implements causal computation. It owns:
 
@@ -42,7 +52,7 @@ Applications may build those capabilities on top of the library.
 
 Performance is within library scope. The project is responsible for avoiding avoidable copies, allocation-heavy hot loops, unsuitable graph representations, uncontrolled parallelism, and Python round trips. The project is not responsible for operating the surrounding service or selecting infrastructure on behalf of callers.
 
-## 2. Non-negotiable design rules
+## 2. Non-negotiable design rules [built]
 
 1. **Identification is separate from estimation.** An estimator never chooses confounders or silently asserts identifiability.
 2. **Graph classes remain distinct.** DAG, ADMG, CPDAG, PAG, and temporal variants are not interchangeable aliases.
@@ -67,10 +77,12 @@ Performance is within library scope. The project is responsible for avoiding avo
 21. **Memory limits are enforced.** Algorithms with potentially superlinear storage expose bounds, streaming modes, or explicit refusal instead of relying on eventual allocation failure.
 22. **Fast paths are visible.** Execution diagnostics record copies, materializations, backend selection, thread use, cache hits, and fallback paths when those choices materially affect performance.
 
-## 3. Workspace layout
+## 3. Workspace layout [built]
+
+Repository root (this workspace; not a nested `causal-rs/` directory):
 
 ```text
-causal-rs/
+./
   Cargo.toml
   crates/
     causal-core/
@@ -91,26 +103,31 @@ causal-rs/
     causal-state/
     causal-io/
     causal/
-  python/
-    Cargo.toml
+  python/                    # maturin package; workspace member
+    Cargo.toml               # PyO3 cdylib (causal._native)
     pyproject.toml
-    src/causal/
-    rust/
+    src/lib.rs               # Rust binding crate
+    causal/                  # pure-Python package + stubs (python-source = ".")
+      __init__.py
+      *.py / *.pyi
+      _native.*              # built extension module
+      py.typed
+    tests/
+    examples/
   parity/
-    dowhy.toml
-    tigramite.toml
+    *.toml                   # capability inventories (status vocabulary in §26)
+    *_deviations.md          # intentional deviation governance
+    release.toml
     fixtures/
   conformance/
-    paper_examples/
-    generated/
-    reference_outputs/
+    dowhy/ | tigramite/ | gcm/ | estimate/ | pag/ | …
+    gates/
+  scripts/
+    gate_*.sh                # release / inventory gates
   benches/
-    datasets/
-    baselines/
-    reports/
   fuzz/
   docs/
-  adr/
+  adr/                      # ADRs 0001–0017 (see §33)
   provenance/
 ```
 
@@ -190,45 +207,62 @@ High-level facade. It re-exports stable types and provides the common logical pl
 
 ### 3.2 Dependency direction
 
+Edges below match current `Cargo.toml` dependency graphs. Arrows mean "is depended on by"
+(`A <- B` ⇒ `B` depends on `A`). All edges point downward — no layering violations.
+
 ```text
 causal-core
-  <- causal-data
+  <- causal-kernels
+  <- causal-data          (+ causal-kernels)
   <- causal-graph
   <- causal-expr
-  <- causal-kernels
-  <- causal-prob
+  <- causal-prob          (+ causal-kernels)
+  <- causal-stats         (+ causal-kernels)
 
-causal-kernels
-  <- causal-stats
-
-causal-data + causal-graph + causal-stats + causal-prob
+causal-data + causal-graph + causal-stats
   <- causal-discovery
+  # planned (Bayesian graph discovery, §13.7): also causal-prob
 
-causal-graph + causal-expr
+causal-graph + causal-expr + causal-data
   <- causal-identify
 
 causal-data + causal-expr + causal-stats + causal-prob
+  + causal-kernels + causal-graph + causal-identify
   <- causal-estimate
 
-causal-data + causal-graph + causal-stats + causal-prob
+causal-data + causal-graph + causal-stats + causal-prob + causal-kernels
   <- causal-model
 
-causal-model + causal-prob
+causal-model + causal-prob + causal-data + causal-graph
   <- causal-counterfactual
 
 causal-model + causal-counterfactual + causal-prob
+  + causal-data + causal-graph + causal-stats + causal-kernels
   <- causal-attribution
 
-all analysis crates
+# Not "all analysis crates" — each owns a narrower surface matching §3.1:
+
+causal-core + causal-data + causal-estimate + causal-expr
+  + causal-identify + causal-discovery + causal-prob
+  + causal-stats + causal-kernels
   <- causal-validate
+
+causal-core + causal-kernels + causal-prob + causal-stats
   <- causal-design
+
+causal-core + causal-stats
   <- causal-state
-  <- causal
+
+causal-core + causal-estimate + causal-graph + causal-identify + causal-prob
+  <- causal-io
+
+(all analysis crates above)
+  <- causal                 # facade only
 ```
 
 Circular dependencies are prohibited. Shared types move downward only when their semantics are genuinely shared. A perceived need for a high-level crate to be imported by a lower-level crate is resolved through a smaller interface type, not a cycle.
 
-## 4. Core identity and schema types
+## 4. Core identity and schema types [built]
 
 Identifiers are compact, copyable indexes. User-facing names and labels are stored once in schemas and dictionaries, not repeated throughout graphs, queries, or numerical structures.
 
@@ -296,7 +330,7 @@ Do not:
 - serialize internal dense IDs without the corresponding stable schema table;
 - make schema lookup require a hash map after IDs have been resolved.
 
-## 5. Data model
+## 5. Data model [partial]
 
 ### 5.1 Concrete dataset types
 
@@ -530,7 +564,7 @@ Do not:
 - expose Arrow crate types as stable public causal APIs;
 - silently copy a large Arrow or NumPy input on every analysis stage.
 
-## 6. Graph model
+## 6. Graph model [partial]
 
 ### 6.1 Node forms and dense indexes
 
@@ -667,7 +701,9 @@ A summary graph is a visualization artifact and must not be accepted by identifi
 Required:
 
 - batched ancestry and separation APIs for repeated queries;
-- graph overlays for intervention/mutilation instead of cloning full graphs;
+- intervention/mutilation without cloning full graphs on hot paths
+  (**status:** planned — `Dag::mutilate` currently returns a full new `Dag`;
+  intervention overlays exist for SCM sampling (`causal-model`), not yet for graph algorithms);
 - lazy temporal unfolding or windowed unfolding when the algorithm does not require the complete graph;
 - delta queues for orientation rules so a rule revisits only affected triples or paths;
 - compact conditioning and separating sets using sorted dense IDs or bitsets;
@@ -684,7 +720,7 @@ Do not:
 - eagerly unfold every time point for stationary algorithms;
 - expose raw dense indexes in serialized artifacts.
 
-## 7. Assumptions and provenance
+## 7. Assumptions and provenance [built]
 
 Assumptions are typed records with source and scope.
 
@@ -720,23 +756,29 @@ pub enum Assumption {
 
 Every identification and estimation result references the exact assumptions used. Assumptions can be declared, tested, contradicted, or untestable. An untestable assumption is not marked as validated.
 
-## 8. Causal query model
+## 8. Causal query model [partial]
 
 The public query model uses typed variants rather than free-form strings.
+
+**Built today** (`causal-core::CausalQuery`):
 
 ```rust
 pub enum CausalQuery {
     AverageEffect(AverageEffectQuery),
     ConditionalEffect(ConditionalEffectQuery),
-    Distribution(InterventionalDistributionQuery),
     Mediation(MediationQuery),
-    PathSpecific(PathSpecificEffectQuery),
     Counterfactual(CounterfactualQuery),
     ChangeAttribution(ChangeAttributionQuery),
     AnomalyAttribution(AnomalyAttributionQuery),
     TemporalEffect(TemporalEffectQuery),
+    MechanismChange(MechanismChangeQuery),
+    UnitChange(UnitChangeQuery),
 }
 ```
+
+**Planned (roadmap; not yet variants):** `Distribution(InterventionalDistributionQuery)` and
+`PathSpecific(PathSpecificEffectQuery)`. Prefer adding those as new variants rather than
+overloading `ChangeAttribution` / `Mediation`.
 
 ### 8.1 Interventions
 
@@ -775,7 +817,7 @@ pub enum TargetPopulation {
 
 Target population is part of the query identity and serialization.
 
-## 9. Symbolic causal-functional IR
+## 9. Symbolic causal-functional IR [partial]
 
 `causal-expr` represents identified functionals independently of any estimator. The semantic form is an arena-backed directed acyclic expression graph rather than recursively boxed trees.
 
@@ -828,7 +870,7 @@ Do not:
 - recursively evaluate deep expressions without a compiled topological order;
 - allow simplification rules to depend on pointer identity or insertion order.
 
-## 10. Identification subsystem
+## 10. Identification subsystem [partial]
 
 ### 10.1 Result model
 
@@ -936,7 +978,7 @@ Do not:
 - recompute ancestry, descendants, or districts for every candidate set;
 - select a faster heuristic while returning an exact-identification result type.
 
-## 11. Statistical kernel layer
+## 11. Statistical kernel layer [partial]
 
 ### 11.1 Linear algebra backend and boundary
 
@@ -1083,7 +1125,7 @@ Do not:
 - hide rank deficiency by returning unstable coefficients without diagnostics;
 - treat numerical fallback as invisible: fallback reason and backend are recorded.
 
-## 12. Conditional-independence framework
+## 12. Conditional-independence framework [built]
 
 ```rust
 pub trait ConditionalIndependenceTest<D> {
@@ -1177,7 +1219,7 @@ Do not:
 - use a global result cache without memory bounds;
 - parallelize both CI batches and their internal permutation replicates without an assigned nested budget.
 
-## 13. Discovery subsystem
+## 13. Discovery subsystem [partial]
 
 ### 13.1 Common output
 
@@ -1327,7 +1369,7 @@ Do not:
 - change conditioning order, tie handling, or edge orientation solely to improve speed without recording a semantic deviation;
 - claim parity based only on final graph equality when statistics or p-values differ outside tolerance.
 
-## 14. Estimation subsystem
+## 14. Estimation subsystem [partial]
 
 ### 14.1 Estimator contract
 
@@ -1490,7 +1532,7 @@ Do not:
 - report a narrow Laplace posterior without convergence and curvature diagnostics;
 - use automatic estimator selection without recording the selected physical and statistical plan.
 
-## 15. Structural causal models
+## 15. Structural causal models [partial]
 
 ### 15.1 Model types
 
@@ -1614,7 +1656,7 @@ Do not:
 - retain all posterior trajectories when only summaries are requested;
 - make the dynamic Python mechanism path appear equivalent in performance to compiled Rust mechanisms.
 
-## 16. Counterfactual subsystem
+## 16. Counterfactual subsystem [partial]
 
 Counterfactual evaluation follows abduction-action-prediction.
 
@@ -1660,7 +1702,7 @@ Do not:
 - allocate nested `Vec<Vec<Vec<_>>>` structures for draw-by-world-by-time results;
 - cross the Python boundary per world or per posterior draw.
 
-## 17. Attribution and inverse explanation
+## 17. Attribution and inverse explanation [partial]
 
 ### 17.1 Query types
 
@@ -1731,7 +1773,7 @@ Do not:
 - store every coalition output when only aggregate contribution summaries are requested;
 - hide approximation budget or Monte Carlo error.
 
-## 18. Validation and sensitivity
+## 18. Validation and sensitivity [partial]
 
 ### 18.1 Common interface
 
@@ -1835,7 +1877,7 @@ Do not:
 - parallelize validator-level and replicate-level work simultaneously without a compiled schedule;
 - reduce replicate counts to satisfy a benchmark without revisiting statistical calibration.
 
-## 19. Experiment, measurement, and decision primitives
+## 19. Experiment, measurement, and decision primitives [partial]
 
 This crate provides computation only.
 
@@ -1895,7 +1937,7 @@ Do not:
 - silently drop candidates because their compute cost is high;
 - execute external actions or own organization-specific approval state.
 
-## 20. Incremental causal state
+## 20. Incremental causal state [partial]
 
 `causal-state` supports applications that repeatedly update analyses.
 
@@ -1943,7 +1985,7 @@ Caches are versioned, bounded, and reconstructible. Eviction affects performance
 
 Do not retain the full historical dataset merely because an incremental statistic can be maintained. Each state component declares whether it requires raw history, a bounded window, or sufficient statistics.
 
-## 21. Common planner and facade
+## 21. Common planner and facade [partial]
 
 ### 21.1 User workflow
 
@@ -2044,23 +2086,43 @@ Do not:
 - allow a Python callback in a compiled parallel hot path without marking the plan as a slow path;
 - compile separate physical plans independently in nested algorithms when one parent plan can coordinate resources.
 
-## 22. Error and diagnostic model
+### 21.6 Facade surface that grew in-tree
+
+Beyond the builder/`run` sketch above, the `causal` crate (and Python bindings) expose:
+
+- `RefuteSuite` (`None` / `PlaceboAndRcc` / `Full`) on `CausalAnalysisBuilder`;
+- `gcm` module — fit GCM, interventional sample, ITE, anomaly / distribution / mechanism-change attribution;
+- `strategy_table` — static identifier × estimator pairing and validation;
+- `discovery_defaults` — named CI resolution (`parcorr`, `weighted_parcorr`, …) including optional weights;
+- Python entry points `analyze`, `analyze_ate`, `discover_pcmci` / `discover_pcmci_plus` / `discover_lpcmci` / `discover_rpcmci` / `discover_jpcmci_plus` with optional `weights=` on discovery.
+
+## 22. Error and diagnostic model [built]
 
 Use structured errors for execution failure and diagnostics for scientifically or operationally important conditions that may not be fatal.
 
+The facade error type is `causal::AnalysisError` (structured sum over domain errors).
+`CausalError` is a documented type alias of `AnalysisError` for DESIGN naming parity — it is not
+a separate core type.
+
 ```rust
-pub enum CausalError {
-    Data(DataError),
-    Graph(GraphError),
+// crates/causal/src/error.rs (shape; variant set may grow)
+pub enum AnalysisError {
+    Identify(IdentificationError),
+    Estimate(EstimationError),
+    Validate(ValidationError),
     Discovery(DiscoveryError),
-    Identification(IdentificationError),
-    Estimation(EstimationError),
-    Inference(InferenceError),
-    Validation(ValidationError),
-    Resource(ResourceError),
-    PerformancePlan(PerformancePlanError),
-    Serialization(SerializationError),
+    Model(ModelError),
+    Counterfactual(CounterfactualError),
+    Attribution(AttributionError),
+    Serialization(IoError),
+    Compile { message: String },
+    Resource { message: String },
+    ReviewRequired { message: String },
+    Unsupported { message: &'static str },
+    Missing { field: &'static str },
 }
+
+pub type CausalError = AnalysisError;
 ```
 
 Examples of scientific diagnostics:
@@ -2088,7 +2150,7 @@ Examples of execution diagnostics:
 
 Diagnostics have stable codes, severity, affected artifact IDs, and machine-readable fields. Performance diagnostics are descriptive; benchmark regressions are test failures, not runtime warnings.
 
-## 23. Execution and performance
+## 23. Execution and performance [partial]
 
 ### 23.1 Execution context
 
@@ -2229,7 +2291,7 @@ Do not:
 - use wall-clock benchmarks as the only evidence when allocation or memory growth is the real risk;
 - defer all performance validation to a later release.
 
-## 24. Serialization and artifact format
+## 24. Serialization and artifact format [partial]
 
 ### 24.1 Container format
 
@@ -2314,28 +2376,39 @@ Do not:
 - serialize transient dense graph indexes as stable identities;
 - make compression mandatory for already compressed or random-like sections.
 
-## 25. Python package
+## 25. Python package [partial]
 
 ### 25.1 Package structure
 
+Canonical layout (matches §3 and `python/pyproject.toml` `python-source = "."`):
+
 ```text
-causal/
-  __init__.py
-  data.py
-  graph.py
-  query.py
-  discovery.py
-  identification.py
-  estimation.py
-  model.py
-  counterfactual.py
-  attribution.py
-  validation.py
-  design.py
-  state.py
-  _native.*
-  py.typed
+python/
+  Cargo.toml                 # maturin / PyO3 cdylib
+  pyproject.toml
+  src/lib.rs                 # Rust bindings → causal._native
+  causal/                    # installed Python package
+    __init__.py
+    data.py
+    graph.py
+    query.py
+    discovery.py
+    identification.py
+    estimation.py
+    model.py
+    counterfactual.py
+    attribution.py
+    validation.py
+    design.py
+    state.py
+    _native.*                # built extension (not checked in)
+    *.pyi / py.typed
+  tests/
+  examples/
 ```
+
+Public entry points today include `analyze`, `analyze_ate`, `discover_pcmci` (optional
+`weights=` for weighted CI tests), plus GCM helpers — see the facade notes in §21 and §26.3.
 
 ### 25.2 Binding rules
 
@@ -2433,7 +2506,7 @@ Do not:
 - duplicate algorithms in Python for convenience;
 - hide callback-induced serialization of execution.
 
-## 26. Parity management
+## 26. Parity management [built]
 
 Parity is tracked in machine-readable manifests pinned to exact upstream references. "Latest upstream" is never an acceptance target.
 
@@ -2451,26 +2524,29 @@ commit ff3ff13e1481073b8c5833a6fde1c304627a208e
 ```
 
 ```toml
-[[capability]]
+[[capabilities]]
 id = "dowhy.estimator.linear_regression"
 upstream = "py-why/dowhy"
 upstream_ref = "178ecc9c690a02f2801c1f70da2695f5744186cc"
 category = "estimation"
-status = "planned"
+status = "pending"
 parity = ["algorithm", "statistical", "documented_edge_cases"]
 reference_tests = ["linear_continuous_ate", "effect_modifiers"]
 performance_workloads = ["ols_tall_skinny", "bootstrap_ols"]
 notes = "Python API parity not required"
 ```
 
-Statuses:
+Statuses (manifest vocabulary — use these in `parity/*.toml` and prose):
 
-- `not_planned`: explicitly outside scope;
-- `planned`;
-- `implemented`;
-- `conformant`;
-- `deviates`: intentional documented difference;
-- `blocked`: external or theoretical dependency.
+- `pending`: not started;
+- `in_progress`: implementation underway;
+- `done`: implemented with conformance / gate evidence;
+- `intentional_deviation`: deliberately different from upstream; must cite a `*_deviations.md` entry
+  and usually an ADR.
+
+Do not use the older draft vocabulary (`not_planned` / `planned` / `implemented` /
+`conformant` / `deviates` / `blocked`) in manifests. Out-of-scope items are either omitted or
+recorded as `intentional_deviation` with an explicit waiver note.
 
 Parity dimensions:
 
@@ -2642,7 +2718,21 @@ Optional adapter parity:
 
 Plot rendering itself may be implemented in Python or exported to plotting libraries; all underlying plot data and graph layouts required for parity must be produced.
 
-## 27. Licensing and clean implementation process
+### 26.3 Deviation governance and release gates
+
+Parity work is not only inventory rows. The repo also maintains:
+
+- `parity/*_deviations.md` — intentional waivers with verification notes (one file per inventory
+  domain: DoWhy/estimate/CI, Tigramite/PAG/context, GCM, attribution, Bayesian, design/state,
+  release);
+- `parity/release.toml` — release-closure capabilities (artifact schema, wheel matrix, parity
+  closure, conformance docs);
+- `scripts/gate_*.sh` — executable gates that fail CI when a claimed `done` row lacks evidence.
+
+Marking a capability `intentional_deviation` without a matching deviations entry is incomplete.
+Marking `done` without a gate path or conformance fixture is incomplete.
+
+## 27. Licensing and clean implementation process [built]
 
 The project is licensed under:
 
@@ -2699,7 +2789,7 @@ test_sources = [
 
 Do not commit upstream GPL source, translated GPL tests, or fixtures whose redistribution status is unclear. The clean-implementation and licensing policy must receive legal review before the first public release if permissive commercial use is a project requirement.
 
-## 28. Testing, conformance, and performance gates
+## 28. Testing, conformance, and performance gates [built]
 
 ### 28.1 Unit tests
 
@@ -2744,14 +2834,20 @@ These tests use fixed simulation budgets and tolerance bands. They run in schedu
 
 ### 28.4 Conformance tests
 
+Conformance fixtures live under `conformance/<domain>/` (e.g. `dowhy/`, `tigramite/`, `gcm/`,
+`estimate/`, `pag/`, `bayesian/`, `attribution/`, `context/`, `design_state/`, `interchange/`,
+`manufacturing/`) plus shared `conformance/gates/`. Each case typically has a README, inputs, and
+`expected.json` (or equivalent) rather than a single global `paper_examples|generated|reference_outputs`
+tree.
+
 For each parity capability:
 
-1. define a versioned input fixture;
-2. run the pinned reference implementation;
+1. define a versioned input fixture under the relevant domain directory;
+2. run the pinned reference implementation when applicable;
 3. capture structured outputs;
 4. run the Rust implementation;
 5. compare using capability-specific tolerance classes;
-6. record intentional deviations.
+6. record intentional deviations in `parity/*_deviations.md`.
 
 Compare:
 
@@ -2866,7 +2962,7 @@ Release gates include:
 - no loss of statistical calibration from an optimization;
 - no hot path missing a benchmark owner and baseline.
 
-## 29. Unsafe code and dependency policy
+## 29. Unsafe code and dependency policy [built]
 
 - `#![forbid(unsafe_code)]` in semantic, graph, identification, discovery, estimation, and model crates where practical.
 - Unsafe code is allowed only in isolated FFI or kernel modules with a written safety contract, differential tests, Miri where applicable, fuzzing, and architecture-specific CI.
@@ -2878,31 +2974,53 @@ Release gates include:
 - Dependency upgrades are benchmarked on designated workloads when they affect Arrow, PyO3, `faer`, random-number generation, serialization, or parallel execution.
 - A dependency is not added solely to obtain one small hot-loop primitive that can be implemented and tested locally with less maintenance risk.
 
-## 30. Feature flags
+## 30. Feature flags [partial]
+
+**Actual flags today** (not the full roadmap list):
+
+```toml
+# causal-kernels
+[features]
+default = ["portable-optimized"]
+portable-optimized = []   # portable autovectorized loops; not runtime CPU dispatch
+
+# causal-data
+[features]
+default = ["arrow"]
+arrow = []                # Arrow adapters
+
+# causal-stats
+[features]
+default = ["faer"]
+faer = []                 # dense backend
+```
+
+Parallelism is hand-rolled `std::thread::scope` coordinated by `ExecutionContext`, not a `rayon`
+feature. Runtime SIMD dispatch (`simd-runtime`) is still planned (§23.2).
+
+**Roadmap feature surface** (may land later; do not treat as present):
 
 ```toml
 [features]
-default = ["arrow", "faer", "rayon", "simd-runtime"]
-arrow = []
+# aspirational — not wired as a workspace feature set today
 polars = []
 serde-json = []
-faer = []
 blas = []
-rayon = []
+rayon = []              # decide vs blessing current thread::scope approach
 simd-runtime = []
 gaussian-process = []
 hmc = []
 smc = []
-python = []
+python = []             # bindings live in the python/ workspace member instead
 networkx-io = []
 plot-data = []
 ```
 
 Core semantic types do not change shape based on feature flags. Features add implementations and adapters.
 
-The scalar reference kernels remain available in all builds. Disabling `simd-runtime` disables architecture-specific dispatch but does not select different statistical behavior. `blas` adds a backend and never removes the default `faer` path from conformance testing.
+The scalar reference kernels remain available in all builds. Disabling `portable-optimized` (or a future `simd-runtime`) must not select different statistical behavior. Optional `blas` would add a backend and never remove the default `faer` path from conformance testing.
 
-## 31. API and performance stability
+## 31. API and performance stability [built]
 
 Before `1.0`:
 
@@ -2925,7 +3043,7 @@ For designated hot APIs, the project documents performance-shape guarantees rath
 
 Removing one of these guarantees is an API change even if function signatures remain compatible.
 
-## 32. Initial public API examples
+## 32. Initial public API examples [built]
 
 ### 32.1 Static, Bayesian
 
@@ -3008,25 +3126,31 @@ result = causal.analyze(
 )
 ```
 
-## 33. Adopted architecture decisions
+## 33. Adopted architecture decisions [built]
 
 The following decisions are accepted and are no longer open.
 
-1. **Linear algebra:** `faer` is the default dense backend behind an operation-level abstraction. Public APIs use library-owned matrix views. Optional BLAS is additive.
-2. **Artifact encoding:** canonical CBOR for semantic metadata and Arrow IPC for large arrays, inside a sectioned versioned container with BLAKE3 checksums and optional Zstandard compression.
-3. **Categoricals:** dictionary-encoded `u32` category IDs with immutable domains. Missingness is separate. Contrasts are explicit model configuration and stored in fitted artifacts.
-4. **Data API:** stable library-owned data views with Arrow-backed implementations and adapters; Arrow crate types are not the public causal API.
-5. **Temporal indexing:** stable `(VariableId, offset)` identities and time-major dense indexes for finite unfolding. Dense indexes are not serialized.
-6. **Initial Bayesian GLM:** native Laplace approximation with a backend-neutral inference interface; external probabilistic-programming adapters come later.
-7. **Supported versions:** Rust 1.85, edition 2024; CPython 3.11 through 3.14 for the first public release.
-8. **License and provenance:** `MIT OR Apache-2.0`, DCO sign-off, machine-readable algorithm provenance, and clean-implementation rules.
-9. **Parity baselines:** DoWhy v0.14 at commit `178ecc9c690a02f2801c1f70da2695f5744186cc`; Tigramite stable tag `5.2.1.25` at commit `5a8768754e6103755b006e9357e21c1a58534927`, plus extended snapshot commit `ff3ff13e1481073b8c5833a6fde1c304627a208e` for post-release features.
-10. **Tolerance policy:** fixture-specific `Exact`, `StableFloat`, `BackendSensitive`, `ResidualBased`, `MonteCarlo`, and `PosteriorDistribution` classes. There is no project-wide epsilon.
-11. **Performance posture:** performance and correctness are co-equal requirements. Hot paths require prepared/batch APIs, reusable workspaces, memory plans, scalar references, optimized differential tests, and benchmark gates from initial implementation.
+1. **Linear algebra:** `faer` is the default dense backend behind an operation-level abstraction. Public APIs use library-owned matrix views. Optional BLAS is additive. (ADR 0001)
+2. **Artifact encoding:** canonical CBOR for semantic metadata and Arrow IPC for large arrays, inside a sectioned versioned container with BLAKE3 checksums and optional Zstandard compression. (ADR 0002)
+3. **Categoricals:** dictionary-encoded `u32` category IDs with immutable domains. Missingness is separate. Contrasts are explicit model configuration and stored in fitted artifacts. (ADR 0003)
+4. **Data API:** stable library-owned data views with Arrow-backed implementations and adapters; Arrow crate types are not the public causal API. (ADR 0004)
+5. **Temporal indexing:** stable `(VariableId, offset)` identities and time-major dense indexes for finite unfolding. Dense indexes are not serialized. (ADR 0005)
+6. **Initial Bayesian GLM:** native Laplace approximation with a backend-neutral inference interface; external probabilistic-programming adapters come later. (ADR 0006)
+7. **Supported versions:** Rust 1.85, edition 2024; CPython 3.11 through 3.14 for the first public release. (ADR 0007)
+8. **License and provenance:** `MIT OR Apache-2.0`, DCO sign-off, machine-readable algorithm provenance, and clean-implementation rules. (ADR 0008)
+9. **Parity baselines:** DoWhy v0.14 at commit `178ecc9c690a02f2801c1f70da2695f5744186cc`; Tigramite stable tag `5.2.1.25` at commit `5a8768754e6103755b006e9357e21c1a58534927`, plus extended snapshot commit `ff3ff13e1481073b8c5833a6fde1c304627a208e` for post-release features. (ADR 0009)
+10. **Tolerance policy:** fixture-specific `Exact`, `StableFloat`, `BackendSensitive`, `ResidualBased`, `MonteCarlo`, and `PosteriorDistribution` classes. There is no project-wide epsilon. (ADR 0010)
+11. **Performance posture:** performance and correctness are co-equal requirements. Hot paths require prepared/batch APIs, reusable workspaces, memory plans, scalar references, optimized differential tests, and benchmark gates from initial implementation. (ADR 0011)
+12. **GCM model:** compiled SCM with intervention overlays for sampling; no per-draw semantic-graph walk or SCM clone. (ADR 0012)
+13. **PAG / LPCMCI:** PAG endpoint semantics and LPCMCI orientation inventory; deviations tracked in `parity/pag_deviations.md`. (ADR 0013)
+14. **Context / regime effects:** multi-environment and regime handling contracts; deviations in `parity/context_deviations.md`. (ADR 0014)
+15. **Attribution:** Shapley/change/anomaly attribution surface and waiver policy (`parity/attribution_deviations.md`). (ADR 0015)
+16. **Design / state:** experiment-design and incremental-state MVP boundaries (`parity/design_state_deviations.md`). (ADR 0016)
+17. **Release prep:** release-closure inventory, wheel matrix, and gate scripts (`parity/release.toml`, ADR 0017).
 
 Record these decisions as ADRs before dependent code is merged. Changing one requires an explicit superseding ADR and migration or compatibility analysis where applicable.
 
-## 34. Definition of completion
+## 34. Definition of completion [planned]
 
 The library reaches the described full scope when:
 

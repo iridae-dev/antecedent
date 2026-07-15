@@ -160,34 +160,3 @@ roughly by how much current claims/outputs depend on them.
 12. **Python packaging** (DESIGN.md:2321-2338): wheel matrix verification and explicit
     `catch_unwind` at the FFI boundary rather than relying on PyO3's PanicException
     (`py.typed` + stubs landed with P2.5).
-
----
-
-## P7 — DESIGN.md maintenance (roadmap stays; fix internal inconsistencies and stale facts)
-
-Per project convention, DESIGN.md leads the code — do **not** delete unbuilt sections. But the
-document contradicts itself and reality in places that aren't roadmap:
-
-1. Two different Python layouts described (§3 lines 96-98: `python/src/causal/` + `rust/`; §25.1
-   lines 2321-2338: flat `causal/` + `_native.*`); code matches neither exactly. Pick one.
-2. §3.2 (lines 222-227) requires validate/design/state to depend on "all analysis crates" while
-   §3.1's own responsibility statements (lines 171-181) imply far fewer; code followed §3.1.
-   Reconcile.
-3. Parity status vocabulary (lines 2466-2473: `not_planned/planned/implemented/conformant/
-   deviates/blocked`) vs actual manifests using `pending/in_progress/done/intentional_deviation`
-   (`parity/dowhy.toml:2`). Standardize one vocabulary and use it in both.
-4. Dependency diagram (lines 191-227) stale in both directions (e.g. discovery lacks the documented
-   causal-prob edge; undocumented data→kernels, prob→kernels, identify→data, model→kernels,
-   counterfactual→data+graph, attribution→data+graph+stats, io→estimate+identify). All real edges
-   point downward — no layering violations — so this is purely a diagram refresh.
-5. Stale facts: root dir named `causal-rs/` (line 73); conformance layout
-   (`paper_examples|generated|reference_outputs`, lines 103-106) vs actual per-domain dirs;
-   `CausalError` described as a core type (it's a facade alias of `AnalysisError`); "graph overlays
-   instead of cloning" (line 671) vs cloning `mutilate`.
-6. Document the systems the repo grew that DESIGN doesn't know about: the deviation-governance
-   flow (`parity/*_deviations.md`, `parity/release.toml`, `scripts/gate_*.sh`), ADRs 0012-0017,
-   the facade surface (`RefuteSuite`, `gcm` module, `strategy_table`, `discovery_defaults`,
-   `analyze_ate`/`analyze` Python entry points, weights on `discover_pcmci`), the
-   `portable-optimized` feature, and `CausalQuery::MechanismChange`/`UnitChange`.
-7. Add a status marker per DESIGN section (built / partial / planned) so the roadmap-vs-done
-   distinction is explicit for readers who don't have this file.
