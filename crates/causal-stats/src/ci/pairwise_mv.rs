@@ -9,8 +9,7 @@ use causal_core::ExecutionContext;
 use super::parcorr_variants::MultivariatePartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    SignificanceMethod,
-};
+    SignificanceMethod, PreparedCiTest};
 use crate::error::StatsError;
 
 /// Pairwise multivariate wrapper: for each scalar query `(x,y|Z)`, treats configured
@@ -53,10 +52,13 @@ impl PairwiseMultivariateCi {
 impl ConditionalIndependenceTest for PairwiseMultivariateCi {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];

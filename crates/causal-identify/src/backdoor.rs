@@ -8,9 +8,10 @@ use std::sync::Arc;
 
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use causal_expr::CausalExprArena;
-use causal_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace};
+use causal_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId};
 
 use crate::error::IdentificationError;
+use crate::identifier::IdentificationWorkspace;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
 };
@@ -36,19 +37,33 @@ impl Default for AdjustmentSearchConfig {
 #[derive(Clone, Debug)]
 pub struct PreparedIdentificationGraph {
     dag: Dag,
+    /// Caller-declared assumptions captured at [`BackdoorIdentifier::prepare_with_assumptions`].
+    declared_assumptions: AssumptionSet,
 }
 
 impl PreparedIdentificationGraph {
-    /// Wrap a DAG.
+    /// Wrap a DAG with no extra declared assumptions.
     #[must_use]
     pub fn new(dag: Dag) -> Self {
-        Self { dag }
+        Self { dag, declared_assumptions: AssumptionSet::new() }
+    }
+
+    /// Wrap a DAG together with caller-declared assumptions.
+    #[must_use]
+    pub fn with_assumptions(dag: Dag, declared_assumptions: AssumptionSet) -> Self {
+        Self { dag, declared_assumptions }
     }
 
     /// Borrow the DAG.
     #[must_use]
     pub fn dag(&self) -> &Dag {
         &self.dag
+    }
+
+    /// Assumptions declared at prepare time (merged into identification results).
+    #[must_use]
+    pub fn declared_assumptions(&self) -> &AssumptionSet {
+        &self.declared_assumptions
     }
 }
 
@@ -66,13 +81,26 @@ impl BackdoorIdentifier {
         Self::default()
     }
 
-    /// Prepare a graph .
+    /// Prepare a graph with no extra declared assumptions.
     ///
     /// # Errors
     ///
     /// Currently infallible; reserved for validation.
     pub fn prepare(&self, graph: &Dag) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        Ok(PreparedIdentificationGraph::new(graph.clone()))
+        self.prepare_with_assumptions(graph, AssumptionSet::new())
+    }
+
+    /// Prepare a graph, retaining caller-declared assumptions for the result.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; reserved for validation.
+    pub fn prepare_with_assumptions(
+        &self,
+        graph: &Dag,
+        assumptions: AssumptionSet,
+    ) -> Result<PreparedIdentificationGraph, IdentificationError> {
+        Ok(PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions))
     }
 
     /// Identify an average-effect query via backdoor adjustment.
@@ -89,6 +117,7 @@ impl BackdoorIdentifier {
         &self,
         prepared: &PreparedIdentificationGraph,
         query: &CausalQuery,
+        workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let CausalQuery::AverageEffect(ate) = query else {
             return Err(IdentificationError::UnsupportedQuery {
@@ -98,7 +127,7 @@ impl BackdoorIdentifier {
         ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid average-effect query",
         })?;
-        self.identify_ate(prepared, ate, query.clone())
+        self.identify_ate(prepared, ate, query.clone(), workspace)
     }
 
     #[allow(clippy::too_many_lines)]
@@ -107,6 +136,7 @@ impl BackdoorIdentifier {
         prepared: &PreparedIdentificationGraph,
         ate: &AverageEffectQuery,
         query: CausalQuery,
+        workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let dag = prepared.dag();
         let t = var_to_dense(ate.treatment, dag)?;
@@ -120,8 +150,7 @@ impl BackdoorIdentifier {
 
         // Descendants of T cannot be in Z.
         let mut desc = BitSet::with_len(dag.node_count());
-        let mut gws = GraphWorkspace::default();
-        dag.descendants_of(&[t], &mut desc, &mut gws);
+        dag.descendants_of(&[t], &mut desc, &mut workspace.graph);
         for i in 0..dag.node_count() {
             let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
             if desc.contains(id) {
@@ -137,7 +166,6 @@ impl BackdoorIdentifier {
             .filter(|id| !forbidden.contains(*id))
             .collect();
 
-        let mut dsep_ws = DSeparationWorkspace::default();
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
         let mut examined = 0u64;
         let mut truncated = false;
@@ -160,7 +188,7 @@ impl BackdoorIdentifier {
                     return true;
                 }
                 examined += 1;
-                match is_backdoor_adjustment(&mutilated, t, y, z, &mut dsep_ws) {
+                match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
                     Ok(false) => return false,
                     Err(e) => {
                         enum_err = Some(e);
@@ -193,6 +221,9 @@ impl BackdoorIdentifier {
 
         let mut assumptions = AssumptionSet::new();
         assumptions.push(crate::assumptions::causal_markov("backdoor"));
+        for record in &prepared.declared_assumptions().entries {
+            assumptions.push(record.clone());
+        }
 
         let mut derivation = DerivationTrace::default();
         derivation.push(
@@ -353,7 +384,8 @@ mod tests {
             VariableId::from_raw(10),
             VariableId::from_raw(20),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(30)]);
     }
@@ -375,7 +407,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands.len(), 1);
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
@@ -404,7 +437,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands.len(), 2);
         assert!(res.derivation.steps.iter().any(|s| s.rule.as_ref() == "backdoor.enumeration"));
@@ -435,7 +469,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         let sets: Vec<Vec<VariableId>> = res
             .estimands
@@ -458,7 +493,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(res.estimands[0].adjustment_set.is_empty());
     }

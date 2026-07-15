@@ -21,7 +21,7 @@ use causal_expr::IdentifiedEstimand;
 use causal_graph::Dag;
 use causal_identify::{
     BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier, IdentificationError,
-    IdentificationResult, IdentificationStatus, InstrumentalVariableIdentifier,
+    IdentificationResult, IdentificationStatus, IdentificationWorkspace, InstrumentalVariableIdentifier,
 };
 
 use crate::error::AnalysisError;
@@ -295,26 +295,27 @@ pub fn identify_static(
 ) -> Result<IdentificationResult, AnalysisError> {
     let identifier = identifier.into();
     let q = CausalQuery::AverageEffect(query.clone());
+    let mut id_ws = IdentificationWorkspace::default();
     let result = match identifier {
         IdentifierId::BackdoorAdjustment => {
             let id = BackdoorIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q).map_err(identify_err)?
+            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::BackdoorEfficient => {
             let id = EfficientBackdoorIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q).map_err(identify_err)?
+            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::Frontdoor => {
             let id = FrontDoorIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q).map_err(identify_err)?
+            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::Iv => {
             let id = InstrumentalVariableIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q).map_err(identify_err)?
+            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
         }
         _ => {
             return Err(AnalysisError::Unsupported { message: "unknown static identifier" });

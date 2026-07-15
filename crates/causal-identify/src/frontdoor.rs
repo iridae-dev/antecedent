@@ -30,6 +30,7 @@ use crate::backdoor::{
     var_to_dense,
 };
 use crate::error::IdentificationError;
+use crate::identifier::IdentificationWorkspace;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
 };
@@ -67,7 +68,20 @@ impl FrontDoorIdentifier {
     ///
     /// Currently infallible; reserved for validation.
     pub fn prepare(&self, graph: &Dag) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        Ok(PreparedIdentificationGraph::new(graph.clone()))
+        self.prepare_with_assumptions(graph, AssumptionSet::new())
+    }
+
+    /// Prepare a graph, retaining caller-declared assumptions for the result.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; reserved for validation.
+    pub fn prepare_with_assumptions(
+        &self,
+        graph: &Dag,
+        assumptions: AssumptionSet,
+    ) -> Result<PreparedIdentificationGraph, IdentificationError> {
+        Ok(PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions))
     }
 
     /// Identify an average-effect query via the front-door criterion.
@@ -83,6 +97,7 @@ impl FrontDoorIdentifier {
         &self,
         prepared: &PreparedIdentificationGraph,
         query: &CausalQuery,
+        workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let CausalQuery::AverageEffect(ate) = query else {
             return Err(IdentificationError::UnsupportedQuery {
@@ -92,7 +107,7 @@ impl FrontDoorIdentifier {
         ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid average-effect query",
         })?;
-        self.identify_ate(prepared, ate, query.clone())
+        self.identify_ate(prepared, ate, query.clone(), workspace)
     }
 
     fn identify_ate(
@@ -100,6 +115,7 @@ impl FrontDoorIdentifier {
         prepared: &PreparedIdentificationGraph,
         ate: &AverageEffectQuery,
         query: CausalQuery,
+        workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let dag = prepared.dag();
         let t = var_to_dense(ate.treatment, dag)?;
@@ -124,13 +140,12 @@ impl FrontDoorIdentifier {
             candidates.push(children_of_t);
         }
 
-        let mut dsep_ws = DSeparationWorkspace::default();
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
         let mut examined = 0u64;
 
         for m in &candidates {
             examined += 1;
-            if is_frontdoor_set(dag, t, y, m, &mut dsep_ws)? {
+            if is_frontdoor_set(dag, t, y, m, &mut workspace.dsep)? {
                 valid.push(m.clone());
                 if valid.len() >= self.config.max_results {
                     break;
@@ -140,6 +155,9 @@ impl FrontDoorIdentifier {
 
         let mut assumptions = AssumptionSet::new();
         assumptions.push(crate::assumptions::causal_markov("frontdoor"));
+        for record in &prepared.declared_assumptions().entries {
+            assumptions.push(record.clone());
+        }
 
         let mut derivation = DerivationTrace::default();
         derivation.push(
@@ -260,7 +278,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(2),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(res.estimands.iter().any(|e| e.mediators.as_ref() == [VariableId::from_raw(1)]));
     }
@@ -281,7 +300,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(2),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(res.estimands.iter().any(|e| e.mediators.as_ref() == [VariableId::from_raw(1)]));
     }
@@ -302,7 +322,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NotIdentified);
         assert!(res.estimands.is_empty());
     }

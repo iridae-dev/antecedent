@@ -19,6 +19,7 @@ use causal_data::{LaggedFrame, TimeSeriesData};
 use causal_graph::TemporalGraphReview;
 use causal_stats::{
     CiBatchRequest, CiQuery, CiResult, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
+    PreparedCiTest,
     PartialCorrelation,
 };
 
@@ -52,6 +53,8 @@ struct MciChunkOut {
 /// Reusable target-local discovery workspace.
 #[derive(Clone, Debug, Default)]
 pub struct DiscoveryWorkspace {
+    /// Prepare-once CI session for the active lagged frame (DESIGN.md §12).
+    pub prepared_ci: Option<PreparedCiTest>,
     /// CI workspace (parcorr residuals / shuffle scratch).
     pub ci: CiWorkspace,
     /// Scratch parents list.
@@ -335,7 +338,8 @@ impl PcmciEngine {
                 significance: self.constraints.significance,
                 confidence: ConfidenceMethod::default(),
             };
-            let _prepared = self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
+            workspace.prepared_ci =
+                Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
         }
 
         let (all_parents, iterations, mut ci_tests) =
@@ -425,6 +429,7 @@ impl PcmciEngine {
         let mut slots: Vec<Option<Result<ParentSelectOut, DiscoveryError>>> =
             (0..n).map(|_| None).collect();
 
+        let prepared_ci = workspace.prepared_ci.clone();
         std::thread::scope(|scope| {
             let mut rest = slots.as_mut_slice();
             let mut cursor = 0usize;
@@ -433,8 +438,12 @@ impl PcmciEngine {
                 debug_assert_eq!(cursor, start);
                 let chunk_vars = &variables[start..end];
                 let engine = self;
+                let prepared_ci = prepared_ci.clone();
                 scope.spawn(move || {
-                    let mut local_ws = DiscoveryWorkspace::default();
+                    let mut local_ws = DiscoveryWorkspace {
+                        prepared_ci,
+                        ..DiscoveryWorkspace::default()
+                    };
                     for (i, &target) in chunk_vars.iter().enumerate() {
                         this[i] = Some(
                             engine
@@ -517,13 +526,18 @@ impl PcmciEngine {
         let mut partials: Vec<Option<Result<MciChunkOut, DiscoveryError>>> =
             Vec::with_capacity(ranges.len());
 
+        let prepared_ci = workspace.prepared_ci.clone();
         std::thread::scope(|scope| {
             let mut handles = Vec::with_capacity(ranges.len());
             for &(start, end) in &ranges {
                 let chunk_parents = &all_parents[start..end];
                 let engine = self;
+                let prepared_ci = prepared_ci.clone();
                 handles.push(scope.spawn(move || {
-                    let mut local_ws = DiscoveryWorkspace::default();
+                    let mut local_ws = DiscoveryWorkspace {
+                        prepared_ci,
+                        ..DiscoveryWorkspace::default()
+                    };
                     let mut local_scored = Vec::new();
                     let mut tests = 0u64;
                     let mut truncated = 0u64;
@@ -589,6 +603,7 @@ impl PcmciEngine {
             return Ok((Vec::new(), 0));
         }
         let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
+        self.ensure_prepared_ci(frame, workspace, ctx)?;
         let mut queries = Vec::with_capacity(candidates.len());
         let mut z_flat = Vec::new();
         let mut links = Vec::with_capacity(candidates.len());
@@ -623,7 +638,13 @@ impl PcmciEngine {
             significance: self.constraints.significance,
             confidence: ConfidenceMethod::default(),
         };
-        let out = self.ci.test_batch(&req, &mut workspace.ci, ctx).map_err(DiscoveryError::from)?;
+        let prepared = workspace.prepared_ci.as_ref().ok_or_else(|| {
+            DiscoveryError::Unsupported { message: "CI test used before prepare()" }
+        })?;
+        let out = self
+            .ci
+            .test_batch(prepared, &req, &mut workspace.ci, ctx)
+            .map_err(DiscoveryError::from)?;
         if out.results.len() != links.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
@@ -640,6 +661,31 @@ impl PcmciEngine {
             });
         }
         Ok((scored, truncated))
+    }
+
+    /// Ensure [`DiscoveryWorkspace::prepared_ci`] matches `frame` (DESIGN.md §12).
+    fn ensure_prepared_ci(
+        &self,
+        frame: &LaggedFrame,
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<(), DiscoveryError> {
+        let n = frame.n_effective();
+        let ncols = frame.ncols();
+        let needs = match workspace.prepared_ci.as_ref() {
+            None => true,
+            Some(p) => p.n != n || p.ncols != ncols,
+        };
+        if needs {
+            let cols: Vec<&[f64]> = (0..ncols).map(|i| frame.column(i)).collect();
+            let plan = causal_stats::CiPreparationPlan {
+                significance: self.constraints.significance,
+                confidence: ConfidenceMethod::default(),
+            };
+            workspace.prepared_ci =
+                Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+        }
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -659,42 +705,43 @@ impl PcmciEngine {
                 message: "conditioning set exceeds MAX_CI_COLS",
             });
         }
-        workspace.col_idxs.clear();
         let xi = frame.column_index(x, x_lag).ok_or_else(|| {
             DiscoveryError::data_msg(format!("missing lagged column for {x:?} lag {x_lag:?}"))
         })?;
         let yi = frame.column_index(y, y_lag).ok_or_else(|| {
             DiscoveryError::data_msg(format!("missing lagged column for {y:?} lag {y_lag:?}"))
         })?;
-        workspace.col_idxs.push(xi);
-        workspace.col_idxs.push(yi);
+        workspace.z_flat.clear();
         for &(v, l) in cond {
             let zi = frame.column_index(v, l).ok_or_else(|| {
                 DiscoveryError::data_msg(format!("missing lagged column for {v:?} lag {l:?}"))
             })?;
-            workspace.col_idxs.push(zi);
+            workspace.z_flat.push(zi);
         }
-        workspace.z_flat.clear();
-        workspace.z_flat.extend(2..workspace.col_idxs.len());
 
-        let mut col_buf: [&[f64]; MAX_CI_COLS] = [&[]; MAX_CI_COLS];
-        let ncols = workspace.col_idxs.len();
-        for (i, &idx) in workspace.col_idxs.iter().enumerate() {
-            col_buf[i] = frame.column(idx);
-        }
-        let col_refs = &col_buf[..ncols];
-
+        let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
+        self.ensure_prepared_ci(frame, workspace, ctx)?;
         let result: CiResult = {
-            let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: workspace.z_flat.len() }];
+            let queries = [CiQuery {
+                x: xi,
+                y: yi,
+                z_start: 0,
+                z_len: workspace.z_flat.len(),
+            }];
             let req = CiBatchRequest {
-                columns: col_refs,
+                columns: &cols,
                 queries: &queries,
                 z_flat: &workspace.z_flat,
                 significance: self.constraints.significance,
                 confidence: ConfidenceMethod::default(),
             };
-            let out =
-                self.ci.test_batch(&req, &mut workspace.ci, ctx).map_err(DiscoveryError::from)?;
+            let prepared = workspace.prepared_ci.as_ref().ok_or_else(|| {
+                DiscoveryError::Unsupported { message: "CI test used before prepare()" }
+            })?;
+            let out = self
+                .ci
+                .test_batch(prepared, &req, &mut workspace.ci, ctx)
+                .map_err(DiscoveryError::from)?;
             out.results
                 .into_iter()
                 .next()

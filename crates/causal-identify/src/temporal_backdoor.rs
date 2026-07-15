@@ -31,6 +31,7 @@ use causal_graph::{
     BitSet, DenseNodeId, GraphWorkspace, NodeRef, TemporalDag, UnfoldedTemporalGraph,
 };
 
+use crate::identifier::IdentificationWorkspace;
 use crate::backdoor::BackdoorIdentifier;
 use crate::error::IdentificationError;
 use crate::result::IdentificationResult;
@@ -189,7 +190,8 @@ impl TemporalBackdoorIdentifier {
         };
 
         let prepared = self.inner.prepare(&unfolded.dag)?;
-        let mut result = self.inner.identify(&prepared, &CausalQuery::average_effect(ate))?;
+        let mut id_ws = IdentificationWorkspace::default();
+        let mut result = self.inner.identify(&prepared, &CausalQuery::average_effect(ate), &mut id_ws)?;
         annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
 
         Ok(TemporalIdentificationResult {

@@ -79,7 +79,7 @@ pub fn calibrate_parcorr_like(
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let out = ci.test_batch(&req, &mut ws, &ctx)?;
+        let out = ci.test_batch_adhoc(&req, &mut ws, &ctx)?;
         if out.results[0].p_value < alpha {
             null_rej += 1;
         }
@@ -99,7 +99,7 @@ pub fn calibrate_parcorr_like(
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let out_alt = ci.test_batch(&req_alt, &mut ws, &ctx)?;
+        let out_alt = ci.test_batch_adhoc(&req_alt, &mut ws, &ctx)?;
         if out_alt.results[0].p_value < alpha {
             alt_rej += 1;
         }
@@ -147,7 +147,7 @@ pub fn calibrate_gsquared(
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let out = ci.test_batch(&req, &mut ws, &ctx)?;
+        let out = ci.test_batch_adhoc(&req, &mut ws, &ctx)?;
         if out.results[0].p_value < alpha {
             null_rej += 1;
         }
@@ -170,7 +170,7 @@ pub fn calibrate_gsquared(
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let out_alt = ci.test_batch(&req_alt, &mut ws, &ctx)?;
+        let out_alt = ci.test_batch_adhoc(&req_alt, &mut ws, &ctx)?;
         if out_alt.results[0].p_value < alpha {
             alt_rej += 1;
         }
@@ -259,7 +259,7 @@ mod tests {
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let out = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out.results[0].p_value));
         let cols_alt: [&[f64]; 2] = [&x, &x];
         let req_alt = CiBatchRequest {
@@ -269,7 +269,7 @@ mod tests {
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let out_alt = KnnCmi::new(3).test_batch(&req_alt, &mut ws, &ctx).unwrap();
+        let out_alt = KnnCmi::new(3).test_batch_adhoc(&req_alt, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out_alt.results[0].p_value));
         assert!(
             out_alt.results[0].p_value <= out.results[0].p_value + 1e-12,
@@ -324,8 +324,8 @@ mod tests {
             ("symbolic", &SymbolicCmi::new() as &dyn ConditionalIndependence),
             ("gpdc", &Gpdc::new() as &dyn ConditionalIndependence),
         ] {
-            let null = ci.test_batch(&req, &mut ws, &ctx).unwrap().results[0].p_value;
-            let alt = ci.test_batch(&req_alt, &mut ws, &ctx).unwrap().results[0].p_value;
+            let null = ci.test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0].p_value;
+            let alt = ci.test_batch_adhoc(&req_alt, &mut ws, &ctx).unwrap().results[0].p_value;
             assert!((0.0..=1.0).contains(&null), "{name} null p={null}");
             assert!((0.0..=1.0).contains(&alt), "{name} alt p={alt}");
             assert!(alt <= null + 1e-12, "{name}: alt p={alt} null p={null}");

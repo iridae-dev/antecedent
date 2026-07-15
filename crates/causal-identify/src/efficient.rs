@@ -26,13 +26,14 @@ use std::sync::Arc;
 
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use causal_expr::CausalExprArena;
-use causal_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace};
+use causal_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::backdoor::{
     AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph, dense_to_var,
     is_backdoor_adjustment, remove_outgoing, var_to_dense,
 };
 use crate::error::IdentificationError;
+use crate::identifier::IdentificationWorkspace;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
 };
@@ -60,7 +61,21 @@ impl EfficientBackdoorIdentifier {
         &self,
         graph: &causal_graph::Dag,
     ) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        BackdoorIdentifier { config: self.config.clone() }.prepare(graph)
+        self.prepare_with_assumptions(graph, AssumptionSet::new())
+    }
+
+    /// Prepare a graph, retaining caller-declared assumptions for the result.
+    ///
+    /// # Errors
+    ///
+    /// Propagates prepare failures.
+    pub fn prepare_with_assumptions(
+        &self,
+        graph: &causal_graph::Dag,
+        assumptions: AssumptionSet,
+    ) -> Result<PreparedIdentificationGraph, IdentificationError> {
+        BackdoorIdentifier { config: self.config.clone() }
+            .prepare_with_assumptions(graph, assumptions)
     }
 
     /// Identify via efficient backdoor; at most one estimand is returned,
@@ -75,6 +90,7 @@ impl EfficientBackdoorIdentifier {
         &self,
         prepared: &PreparedIdentificationGraph,
         query: &CausalQuery,
+        workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let CausalQuery::AverageEffect(ate) = query else {
             return Err(IdentificationError::UnsupportedQuery {
@@ -84,7 +100,7 @@ impl EfficientBackdoorIdentifier {
         ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid average-effect query",
         })?;
-        self.identify_ate(prepared, ate, query.clone())
+        self.identify_ate(prepared, ate, query.clone(), workspace)
     }
 
     fn identify_ate(
@@ -92,6 +108,7 @@ impl EfficientBackdoorIdentifier {
         prepared: &PreparedIdentificationGraph,
         ate: &AverageEffectQuery,
         query: CausalQuery,
+        workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let dag = prepared.dag();
         let t = var_to_dense(ate.treatment, dag)?;
@@ -104,8 +121,7 @@ impl EfficientBackdoorIdentifier {
         forbidden.insert(y);
 
         let mut desc = BitSet::with_len(dag.node_count());
-        let mut gws = GraphWorkspace::default();
-        dag.descendants_of(&[t], &mut desc, &mut gws);
+        dag.descendants_of(&[t], &mut desc, &mut workspace.graph);
         for i in 0..dag.node_count() {
             let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
             if desc.contains(id) {
@@ -119,16 +135,15 @@ impl EfficientBackdoorIdentifier {
             .filter(|id| !forbidden.contains(*id))
             .collect();
 
-        let mut dsep_ws = DSeparationWorkspace::default();
         let mut examined = 0u64;
 
         // Primary rule: the O-set (optimal adjustment set, Henckel et al.).
-        let o_set = optimal_adjustment_set(dag, t, y);
+        let o_set = optimal_adjustment_set(dag, t, y, &mut workspace.graph);
         examined += 1;
         if o_set.iter().all(|v| !forbidden.contains(*v))
-            && is_backdoor_adjustment(&mutilated, t, y, &o_set, &mut dsep_ws)?
+            && is_backdoor_adjustment(&mutilated, t, y, &o_set, &mut workspace.dsep)?
         {
-            return Self::finish(ate, query, dag, &[o_set], examined, "optimal (O-set)");
+            return Self::finish(ate, query, prepared, dag, &[o_set], examined, "optimal (O-set)");
         }
 
         // Fallback: minimum-cardinality search, sizes ascending, stopping at
@@ -150,7 +165,7 @@ impl EfficientBackdoorIdentifier {
                     return true;
                 }
                 examined += 1;
-                match is_backdoor_adjustment(&mutilated, t, y, z, &mut dsep_ws) {
+                match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
                     Ok(true) => {
                         valid.push(z.to_vec());
                         if valid.len() >= self.config.max_results {
@@ -178,6 +193,10 @@ impl EfficientBackdoorIdentifier {
         }
 
         if valid.is_empty() {
+            let mut assumptions = default_assumptions();
+            for record in &prepared.declared_assumptions().entries {
+                assumptions.push(record.clone());
+            }
             return Ok(IdentificationResult::not_identified(
                 query,
                 {
@@ -185,7 +204,7 @@ impl EfficientBackdoorIdentifier {
                     d.push("backdoor.efficient", "no valid adjustment set");
                     d
                 },
-                default_assumptions(),
+                assumptions,
                 IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
             ));
         }
@@ -209,12 +228,13 @@ impl EfficientBackdoorIdentifier {
             })
         });
         let best = vec![valid.into_iter().next().expect("non-empty")];
-        Self::finish(ate, query, dag, &best, examined, "min_cardinality")
+        Self::finish(ate, query, prepared, dag, &best, examined, "min_cardinality")
     }
 
     fn finish(
         ate: &AverageEffectQuery,
         query: CausalQuery,
+        prepared: &PreparedIdentificationGraph,
         dag: &causal_graph::Dag,
         chosen: &[Vec<DenseNodeId>],
         examined: u64,
@@ -238,12 +258,16 @@ impl EfficientBackdoorIdentifier {
         let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
         let mut derivation = DerivationTrace::default();
         derivation.push("backdoor.efficient", format!("selected via {rule}; |Z|={}", vars.len()));
+        let mut assumptions = default_assumptions();
+        for record in &prepared.declared_assumptions().entries {
+            assumptions.push(record.clone());
+        }
         Ok(IdentificationResult::identified(
             query,
             vec![IdentifiedEstimand::backdoor("backdoor.efficient", Arc::from(vars), functional)],
             arena,
             derivation,
-            default_assumptions(),
+            assumptions,
             IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 1 },
         ))
     }
@@ -253,13 +277,17 @@ impl EfficientBackdoorIdentifier {
 /// where `cn = de(T) ∩ an(Y) \ {T}` are the nodes on proper causal paths from
 /// `T` to `Y` (including `Y` itself). In a fully observed DAG this is the
 /// valid backdoor set with the smallest asymptotic variance.
-fn optimal_adjustment_set(dag: &Dag, t: DenseNodeId, y: DenseNodeId) -> Vec<DenseNodeId> {
+fn optimal_adjustment_set(
+    dag: &Dag,
+    t: DenseNodeId,
+    y: DenseNodeId,
+    gws: &mut GraphWorkspace,
+) -> Vec<DenseNodeId> {
     let n = dag.node_count();
-    let mut gws = GraphWorkspace::default();
     let mut de_t = BitSet::with_len(n);
-    dag.descendants_of(&[t], &mut de_t, &mut gws);
+    dag.descendants_of(&[t], &mut de_t, gws);
     let mut an_y = BitSet::with_len(n);
-    dag.ancestors_of(&[y], &mut an_y, &mut gws);
+    dag.ancestors_of(&[y], &mut an_y, gws);
 
     let cn: Vec<DenseNodeId> = (0..n)
         .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
@@ -267,7 +295,7 @@ fn optimal_adjustment_set(dag: &Dag, t: DenseNodeId, y: DenseNodeId) -> Vec<Dens
         .collect();
 
     let mut forb = BitSet::with_len(n);
-    dag.descendants_of(&cn, &mut forb, &mut gws);
+    dag.descendants_of(&cn, &mut forb, gws);
     forb.insert(t);
 
     let mut seen = BitSet::with_len(n);
@@ -313,7 +341,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands.len(), 1);
         assert_eq!(&*res.estimands[0].method, "backdoor.efficient");
@@ -340,7 +369,8 @@ mod tests {
             VariableId::from_raw(1),
             VariableId::from_raw(2),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(3)]);
         assert!(res.derivation.steps.iter().any(|s| s.detail.contains("optimal")));
@@ -360,7 +390,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(res.estimands[0].adjustment_set.is_empty());
     }
@@ -387,7 +418,8 @@ mod tests {
             VariableId::from_raw(1),
             VariableId::from_raw(2),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(0)]);
         assert!(res.derivation.steps.iter().any(|s| s.detail.contains("min_cardinality")));
@@ -403,7 +435,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert!(res.estimands[0].adjustment_set.is_empty());
         assert_eq!(&*res.estimands[0].method, "backdoor.efficient");
     }

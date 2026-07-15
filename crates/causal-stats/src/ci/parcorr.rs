@@ -11,8 +11,7 @@ use super::analytic::{analytic_parcorr_ci, analytic_parcorr_pvalue};
 use super::block_shuffle::block_shuffle_pvalue;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod, SignificanceMethod,
-};
+    ConfidenceMethod, SignificanceMethod, PreparedCiTest};
 use crate::error::StatsError;
 
 /// Partial-correlation CI test.
@@ -143,10 +142,13 @@ impl PartialCorrelation {
 impl ConditionalIndependenceTest for PartialCorrelation {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let n = request.nrows()?;
         let nq = request.queries.len();
         workspace.prepare_queries(nq);

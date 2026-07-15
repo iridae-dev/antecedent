@@ -138,8 +138,9 @@ impl PcmciPlus {
                 significance: self.engine.constraints.significance,
                 confidence: ConfidenceMethod::default(),
             };
-            let _prepared =
-                self.engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
+            workspace.prepared_ci = Some(
+                self.engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?,
+            );
         }
 
         // --- Step 1: lagged-only PC1 → B̂⁻ ---

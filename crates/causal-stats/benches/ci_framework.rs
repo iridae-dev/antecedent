@@ -97,7 +97,7 @@ fn bench_one_ci<C: ConditionalIndependence>(
                 significance: SignificanceMethod::Analytic,
                 confidence: ConfidenceMethod::default(),
             };
-            let _ = black_box(ci.test_batch(&req, &mut ws, &ctx));
+            let _ = black_box(ci.test_batch_adhoc(&req, &mut ws, &ctx));
         });
     });
 }
@@ -158,7 +158,7 @@ fn bench_knn_reuse(c: &mut Criterion) {
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let _ = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx);
+        let _ = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx);
         let gen0 = ws.knn.index_generation;
         b.iter(|| {
             let req = CiBatchRequest {
@@ -168,7 +168,7 @@ fn bench_knn_reuse(c: &mut Criterion) {
                 significance: SignificanceMethod::Analytic,
                 confidence: ConfidenceMethod::default(),
             };
-            let _ = black_box(KnnCmi::new(3).test_batch(&req, &mut ws, &ctx));
+            let _ = black_box(KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx));
             assert_eq!(ws.knn.index_generation, gen0, "kNN must not rebuild index per query batch");
         });
     });

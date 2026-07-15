@@ -22,8 +22,7 @@ use crate::special::{gamma_q, normal_ppf};
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    analytic_confidence_level,
-};
+    analytic_confidence_level, PreparedCiTest};
 
 #[cfg(test)]
 use super::types::{CiQuery, ConfidenceMethod, SignificanceMethod};
@@ -44,10 +43,13 @@ impl GSquared {
 impl ConditionalIndependenceTest for GSquared {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let n = request.columns.first().map_or(0, |c| c.len());
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
@@ -278,11 +280,14 @@ impl RegressionCi {
 impl ConditionalIndependenceTest for RegressionCi {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
-        self.inner.test_batch(request, workspace, ctx)
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
+        self.inner.test_batch(prepared, request, workspace, ctx)
     }
 }
 
@@ -306,7 +311,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let out = GSquared::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value > 0.01, "p={}", out.results[0].p_value);
     }
 
@@ -326,7 +331,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
-        let out = GSquared::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value < 1e-6);
         let ci = out.results[0].ci.expect("G² analytic CI");
         assert!(ci.0 <= out.results[0].statistic && out.results[0].statistic <= ci.1);
@@ -360,7 +365,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(3);
-        let out = GSquared::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!((out.results[0].df - 1.0).abs() < 1e-12, "df={}", out.results[0].df);
         assert!((out.results[0].p_value - 1.0).abs() < 1e-9);
     }

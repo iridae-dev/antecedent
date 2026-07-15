@@ -68,7 +68,7 @@ fn run_ci(
         confidence: ConfidenceMethod::default(),
     };
     let mut ws = CiWorkspace::default();
-    let out = test.test_batch(&req, &mut ws, &ExecutionContext::for_tests(seed)).unwrap();
+    let out = test.test_batch_adhoc(&req, &mut ws, &ExecutionContext::for_tests(seed)).unwrap();
     (out.results[0].statistic, out.results[0].p_value)
 }
 

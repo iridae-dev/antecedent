@@ -21,8 +21,7 @@ use causal_core::ExecutionContext;
 
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    KnnCmiWorkspace, nonparametric_permutation_count,
-};
+    KnnCmiWorkspace, nonparametric_permutation_count, PreparedCiTest};
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
 
@@ -49,10 +48,13 @@ impl OracleCi {
 impl ConditionalIndependenceTest for OracleCi {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         _workspace: &mut CiWorkspace,
         _ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let mut results = Vec::with_capacity(request.queries.len());
         for q in request.queries {
             let dep = self.is_dependent(q.x, q.y);
@@ -95,10 +97,13 @@ impl KnnCmi {
 impl ConditionalIndependenceTest for KnnCmi {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let n = request.columns.first().map_or(0, |c| c.len());
         if n < self.k + 2 {
             return Err(StatsError::Shape { message: "n too small for kNN CMI" });
@@ -118,7 +123,7 @@ impl ConditionalIndependenceTest for KnnCmi {
             let dim = 2 + z.len();
             ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
             let builds_before = workspace.knn.index_builds;
-            let stat = knn_stat_from_index(&workspace.knn, self.k)?;
+            let stat = knn_stat_from_index(&mut workspace.knn, self.k)?;
             // Null: permute Y within coarse Z strata so the Y–Z link is preserved under
             // H0 (a full unconditional shuffle would inflate type-I error when Y depends
             // on Z). See `coarse_z_strata`.
@@ -217,12 +222,16 @@ fn ensure_knn_index(
     Ok(())
 }
 
-fn knn_stat_from_index(knn: &KnnCmiWorkspace, k: usize) -> Result<f64, StatsError> {
+fn knn_stat_from_index(knn: &mut KnnCmiWorkspace, k: usize) -> Result<f64, StatsError> {
     let n = knn.last_n;
+    if knn.distances.len() < n {
+        knn.distances.resize(n, 0.0);
+    } else {
+        knn.distances.truncate(n);
+    }
     let idx = knn.index.as_ref().ok_or(StatsError::Shape { message: "missing kNN index" })?;
-    let mut dists = vec![0.0; n];
-    idx.kth_distances(&knn.features, n, k, &mut dists)?;
-    let mean = dists.iter().sum::<f64>() / n as f64;
+    idx.kth_distances(&knn.features, n, k, &mut knn.distances)?;
+    let mean = knn.distances.iter().sum::<f64>() / n as f64;
     Ok(-mean)
 }
 
@@ -297,10 +306,13 @@ impl MixedKnnCmi {
 impl ConditionalIndependenceTest for MixedKnnCmi {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let n = request.columns.first().map_or(0, |c| c.len());
         let mut owned: Vec<Vec<f64>> = request.columns.iter().map(|c| c.to_vec()).collect();
         for col in &mut owned {
@@ -318,7 +330,7 @@ impl ConditionalIndependenceTest for MixedKnnCmi {
             confidence: request.confidence,
         };
         let _ = n;
-        self.inner.test_batch(&ranked_req, workspace, ctx)
+        self.inner.test_batch(prepared, &ranked_req, workspace, ctx)
     }
 }
 
@@ -348,10 +360,13 @@ impl SymbolicCmi {
 impl ConditionalIndependenceTest for SymbolicCmi {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         _workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let n = request.columns[q.x].len();
@@ -475,10 +490,13 @@ impl Gpdc {
 impl ConditionalIndependenceTest for Gpdc {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         _workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let n = request.columns.first().map_or(0, |c| c.len());
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
@@ -636,7 +654,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let out = oracle.test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = oracle.test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!((out.results[0].p_value - 0.0).abs() < f64::EPSILON);
     }
 
@@ -655,7 +673,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let out = SymbolicCmi::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].statistic > 0.5);
     }
 
@@ -677,7 +695,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let out = Gpdc::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].statistic.is_finite());
         assert!((0.0..=1.0).contains(&out.results[0].p_value));
     }
@@ -735,7 +753,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(11);
-        let out = Gpdc::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value < 0.05, "dependent p={}", out.results[0].p_value);
         assert!(out.results[1].p_value > 0.1, "independent p={}", out.results[1].p_value);
     }
@@ -760,7 +778,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(12);
-        let out = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         let s1 = out.results[0].statistic;
         let s2 = out.results[1].statistic;
         assert!(
@@ -790,7 +808,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(13);
-        let out = SymbolicCmi::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value > 0.5, "p={}", out.results[0].p_value);
     }
 
@@ -815,7 +833,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(14);
-        let out = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value > 0.05, "p={}", out.results[0].p_value);
     }
 }

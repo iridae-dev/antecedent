@@ -54,7 +54,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let out = PartialCorrelation::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = PartialCorrelation::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value > 0.01, "p={}", out.results[0].p_value);
     }
 
@@ -74,7 +74,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
-        let out = PartialCorrelation::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = PartialCorrelation::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value < 1e-6);
         assert!(out.results[0].statistic > 0.99);
     }
@@ -95,7 +95,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(3);
-        let out = PartialCorrelation::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = PartialCorrelation::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out.results[0].p_value));
         assert!(out.results[0].p_value > 0.0);
     }
@@ -122,11 +122,11 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(9);
-        let _ = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        let _ = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         let gen_after_first = ws.knn.index_generation;
         let builds_after_first = ws.knn.index_builds;
         let perm_ptr = ws.knn.perm.as_ptr();
-        let _ = KnnCmi::new(3).test_batch(&req, &mut ws, &ctx).unwrap();
+        let _ = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert_eq!(ws.knn.index_generation, gen_after_first, "index must not rebuild per batch");
         assert_eq!(ws.knn.index_builds, builds_after_first, "MatchingIndex builds must stay flat");
         assert_eq!(ws.knn.perm.as_ptr(), perm_ptr, "permutation plan buffer must be reused");

@@ -163,22 +163,6 @@ roughly by how much current claims/outputs depend on them.
 
 ---
 
-## P6 — Code quality: DRY / SOLID / idiomatic
-
-### P6.9 API hygiene — remaining
-Done already: `FdrControl`/`DiscoveryAccept`/`MissingPolicy`/`ParCorrMode`; `series_len` checked;
-planner validates DAG vars; overlay `active` in `is_empty`; ptrs `pub(crate)`; gcm uses
-transparent `AnalysisError`.
-Still open:
-- `KnnCmiWorkspace.distances` never used while the hot loop allocates fresh vecs
-  (`crates/causal-stats/src/ci/types.rs:31` / `advanced.rs`).
-- `IdentificationWorkspace { _private: () }` threaded through a trait whose impls also all ignore
-  `assumptions` (`crates/causal-identify/src/identifier.rs:19-22`).
-- `PreparedCiTest` never used beyond a shape check — DESIGN §12 prepare-once contract
-  (`crates/causal-discovery/src/engine.rs:331-338`).
-
----
-
 ## P7 — DESIGN.md maintenance (roadmap stays; fix internal inconsistencies and stale facts)
 
 Per project convention, DESIGN.md leads the code — do **not** delete unbuilt sections. But the

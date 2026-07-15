@@ -15,6 +15,7 @@ use causal_graph::{DSeparationWorkspace, Dag, DenseNodeId};
 
 use crate::backdoor::{PreparedIdentificationGraph, dense_to_var, remove_outgoing, var_to_dense};
 use crate::error::IdentificationError;
+use crate::identifier::IdentificationWorkspace;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
 };
@@ -52,7 +53,20 @@ impl InstrumentalVariableIdentifier {
     ///
     /// Currently infallible; reserved for validation.
     pub fn prepare(&self, graph: &Dag) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        Ok(PreparedIdentificationGraph::new(graph.clone()))
+        self.prepare_with_assumptions(graph, AssumptionSet::new())
+    }
+
+    /// Prepare a graph, retaining caller-declared assumptions for the result.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; reserved for validation.
+    pub fn prepare_with_assumptions(
+        &self,
+        graph: &Dag,
+        assumptions: AssumptionSet,
+    ) -> Result<PreparedIdentificationGraph, IdentificationError> {
+        Ok(PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions))
     }
 
     /// Identify an average-effect query via a valid instrument.
@@ -64,6 +78,7 @@ impl InstrumentalVariableIdentifier {
         &self,
         prepared: &PreparedIdentificationGraph,
         query: &CausalQuery,
+        workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let CausalQuery::AverageEffect(ate) = query else {
             return Err(IdentificationError::UnsupportedQuery {
@@ -73,7 +88,7 @@ impl InstrumentalVariableIdentifier {
         ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid average-effect query",
         })?;
-        self.identify_ate(prepared, ate, query.clone())
+        self.identify_ate(prepared, ate, query.clone(), workspace)
     }
 
     fn identify_ate(
@@ -81,6 +96,7 @@ impl InstrumentalVariableIdentifier {
         prepared: &PreparedIdentificationGraph,
         ate: &AverageEffectQuery,
         query: CausalQuery,
+        workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let dag = prepared.dag();
         let t = var_to_dense(ate.treatment, dag)?;
@@ -98,13 +114,12 @@ impl InstrumentalVariableIdentifier {
             candidates.push(v);
         }
 
-        let mut dsep_ws = DSeparationWorkspace::default();
-        let mut valid: Vec<DenseNodeId> = Vec::new();
+                let mut valid: Vec<DenseNodeId> = Vec::new();
         let mut examined = 0u64;
 
         for &z in &candidates {
             examined += 1;
-            if is_valid_instrument(dag, z, t, y, &mut dsep_ws)? {
+            if is_valid_instrument(dag, z, t, y, &mut workspace.dsep)? {
                 valid.push(z);
                 if valid.len() >= self.config.max_results {
                     break;
@@ -114,6 +129,9 @@ impl InstrumentalVariableIdentifier {
 
         let mut assumptions = AssumptionSet::new();
         assumptions.push(crate::assumptions::causal_markov("iv"));
+        for record in &prepared.declared_assumptions().entries {
+            assumptions.push(record.clone());
+        }
 
         let mut derivation = DerivationTrace::default();
         derivation.push(
@@ -224,7 +242,8 @@ mod tests {
             VariableId::from_raw(1),
             VariableId::from_raw(2),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(0)]));
         // The confounder U itself must never be reported as a valid instrument.
@@ -251,7 +270,8 @@ mod tests {
             VariableId::from_raw(1),
             VariableId::from_raw(2),
         ));
-        let res = id.identify(&prep, &q).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NotIdentified);
         assert!(res.estimands.is_empty());
     }

@@ -17,8 +17,7 @@ use causal_core::ExecutionContext;
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod, SignificanceMethod,
-};
+    ConfidenceMethod, SignificanceMethod, PreparedCiTest};
 use crate::error::StatsError;
 use crate::gram::invert_square;
 
@@ -59,10 +58,13 @@ impl RobustPartialCorrelation {
 impl ConditionalIndependenceTest for RobustPartialCorrelation {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let n = request.nrows()?;
         let mut ranked: Vec<Vec<f64>> = request.columns.iter().map(|_| vec![0.0; n]).collect();
         for (c, col) in request.columns.iter().enumerate() {
@@ -76,7 +78,7 @@ impl ConditionalIndependenceTest for RobustPartialCorrelation {
             significance: request.significance,
             confidence: request.confidence,
         };
-        self.inner.test_batch(&req, workspace, ctx)
+        self.inner.test_batch(prepared, &req, workspace, ctx)
     }
 }
 
@@ -105,10 +107,13 @@ impl WeightedPartialCorrelation {
 impl ConditionalIndependenceTest for WeightedPartialCorrelation {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         _workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         let n = request.nrows()?;
         if self.weights.len() < n {
             return Err(StatsError::Shape { message: "weights length < nrows" });
@@ -401,12 +406,15 @@ impl MultivariatePartialCorrelation {
 impl ConditionalIndependenceTest for MultivariatePartialCorrelation {
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        let request = &prepared.bind_request(request);
         // Scalar queries: exact ParCorr. Block queries go through test_blocks via pairwise wrapper.
-        self.inner.test_batch(request, workspace, ctx)
+        self.inner.test_batch(prepared, request, workspace, ctx)
     }
 }
 
@@ -654,7 +662,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let out = RobustPartialCorrelation::new().test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = RobustPartialCorrelation::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value < 1e-3);
     }
 
@@ -675,8 +683,8 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
-        let a = PartialCorrelation::new().test_batch(&req, &mut ws, &ctx).unwrap();
-        let b = WeightedPartialCorrelation::new(w).test_batch(&req, &mut ws, &ctx).unwrap();
+        let a = PartialCorrelation::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        let b = WeightedPartialCorrelation::new(w).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!((a.results[0].statistic - b.results[0].statistic).abs() < 1e-9);
     }
 
@@ -699,7 +707,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(7);
-        let out = WeightedPartialCorrelation::new(w).test_batch(&req, &mut ws, &ctx).unwrap();
+        let out = WeightedPartialCorrelation::new(w).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(
             out.results[0].statistic.abs() < 0.2,
             "spurious weighted correlation: {}",

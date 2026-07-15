@@ -111,6 +111,40 @@ pub struct PreparedCiTest {
     pub plan: CiPreparationPlan,
 }
 
+impl PreparedCiTest {
+    /// Ensure a batch request matches this prepare (row/column counts).
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch vs prepare-time `n` / `ncols`.
+    pub fn ensure_compatible(&self, request: &CiBatchRequest<'_>) -> Result<(), StatsError> {
+        let n = request.nrows()?;
+        if n != self.n {
+            return Err(StatsError::Shape {
+                message: "CI batch row count differs from prepare()",
+            });
+        }
+        if request.columns.len() != self.ncols {
+            return Err(StatsError::Shape {
+                message: "CI batch column count differs from prepare()",
+            });
+        }
+        Ok(())
+    }
+
+    /// Copy of `request` with significance/confidence taken from this prepare plan.
+    #[must_use]
+    pub fn bind_request<'a>(&self, request: &CiBatchRequest<'a>) -> CiBatchRequest<'a> {
+        CiBatchRequest {
+            columns: request.columns,
+            queries: request.queries,
+            z_flat: request.z_flat,
+            significance: self.plan.significance,
+            confidence: self.plan.confidence,
+        }
+    }
+}
+
 /// One CI query over column indexes into a shared matrix.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct CiQuery {
@@ -208,24 +242,49 @@ pub trait ConditionalIndependenceTest {
             significance: prepared.plan.significance,
             confidence: prepared.plan.confidence,
         };
-        let out = self.test_batch(&req, workspace, ctx)?;
+        let out = self.test_batch(prepared, &req, workspace, ctx)?;
         out.results
             .into_iter()
             .next()
             .ok_or(StatsError::Shape { message: "CI test returned no results" })
     }
 
-    /// Evaluate a batch of queries (deterministic output order).
+    /// Evaluate a batch against a prior [`Self::prepare`] (DESIGN.md §12).
+    ///
+    /// Implementations must call [`PreparedCiTest::ensure_compatible`] and should
+    /// honor `prepared.plan` for significance / confidence.
     ///
     /// # Errors
     ///
     /// Shape / numerical failures.
     fn test_batch(
         &self,
+        prepared: &PreparedCiTest,
         request: &CiBatchRequest<'_>,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError>;
+
+    /// Ad-hoc batch: prepare from the request plan, then [`Self::test_batch`].
+    ///
+    /// Prefer an explicit prepare-once session for discovery / repeated queries.
+    ///
+    /// # Errors
+    ///
+    /// Shape / numerical failures.
+    fn test_batch_adhoc(
+        &self,
+        request: &CiBatchRequest<'_>,
+        workspace: &mut CiWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<CiBatchResult, StatsError> {
+        let plan = CiPreparationPlan {
+            significance: request.significance,
+            confidence: request.confidence,
+        };
+        let prepared = self.prepare(request.columns, &plan, ctx)?;
+        self.test_batch(&prepared, request, workspace, ctx)
+    }
 }
 
 /// Conditional independence test (DESIGN.md §12).
