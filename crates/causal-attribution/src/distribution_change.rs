@@ -18,6 +18,7 @@ use causal_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
     MechanismWorkspace, SelectionPolicy, sample_observational,
 };
+use causal_stats::{gaussian_kl, mean_var};
 
 use crate::error::AttributionError;
 use crate::population::{resolve_rows, subset_table};
@@ -32,6 +33,9 @@ pub enum DifferenceMeasure {
     MeanDiff,
     /// Variance difference.
     VarianceDiff,
+    /// Gaussian KL `KL(N(μ_S, σ_S²) ‖ N(μ₀, σ₀²))` of the hybrid outcome law vs the
+    /// all-baseline coalition (DoWhy's default target functional).
+    GaussianKl,
 }
 
 /// Options for distribution-change attribution.
@@ -125,13 +129,17 @@ pub fn distribution_change(
         seed: options.seed,
         ctx,
         ws: MechanismWorkspace::default(),
+        baseline_law: None,
     };
 
     // Total change: full comparison mechanisms vs full baseline.
     let v0 = payoff.value(0)?;
     let full_mask = (1u64 << players.len()) - 1;
     let v_full = payoff.value(full_mask)?;
-    let total_change = v_full - v0;
+    let total_change = match options.measure {
+        DifferenceMeasure::GaussianKl => v_full,
+        _ => v_full - v0,
+    };
 
     let estimate = match &query.allocation {
         AllocationMethod::Shapley { approximation } => {
@@ -253,10 +261,38 @@ struct MechanismSwapPayoff<'a> {
     seed: u64,
     ctx: &'a ExecutionContext,
     ws: MechanismWorkspace,
+    /// Cached `(μ₀, σ₀²)` of the all-baseline outcome law for KL payoffs.
+    baseline_law: Option<(f64, f64)>,
 }
 
 impl CoalitionPayoff for MechanismSwapPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+        if matches!(self.measure, DifferenceMeasure::GaussianKl) && self.baseline_law.is_none() {
+            let (mu0, var0) = self.sample_outcome_law(0)?;
+            self.baseline_law = Some((mu0, var0));
+            if mask == 0 {
+                return Ok(0.0);
+            }
+        }
+        let (mu, var) = self.sample_outcome_law(mask)?;
+        Ok(match self.measure {
+            DifferenceMeasure::MeanDiff => mu,
+            DifferenceMeasure::VarianceDiff => var,
+            DifferenceMeasure::GaussianKl => {
+                if mask == 0 {
+                    0.0
+                } else {
+                    let (mu0, var0) = self.baseline_law.expect("cached above");
+                    gaussian_kl(mu, var, mu0, var0)
+                        .map_err(|e| AttributionError::Message(format!("gaussian_kl: {e}")))?
+                }
+            }
+        })
+    }
+}
+
+impl MechanismSwapPayoff<'_> {
+    fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
         let store = hybrid_mechanisms(
             &self.baseline,
             &self.comparison,
@@ -264,9 +300,9 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
             &self.players,
             mask,
         );
-        // Clone template shape with hybrid mechanisms (CompiledCausalModel is Clone).
         let model = self.template.clone().with_mechanisms(store);
-        let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(mask).wrapping_add(self.seed));
+        // Common random numbers across coalitions (seed independent of mask).
+        let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(self.seed));
         let batch = sample_observational(
             &model,
             self.n_samples.max(1),
@@ -275,14 +311,8 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
             self.ctx,
         )?;
         let col = batch.column(self.outcome.as_usize())?;
-        Ok(match self.measure {
-            DifferenceMeasure::MeanDiff => col.iter().sum::<f64>() / col.len().max(1) as f64,
-            DifferenceMeasure::VarianceDiff => {
-                let n = col.len().max(1) as f64;
-                let mean = col.iter().sum::<f64>() / n;
-                col.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n
-            }
-        })
+        let (mu, var) = mean_var(col);
+        Ok((mu, var.max(1e-12)))
     }
 }
 

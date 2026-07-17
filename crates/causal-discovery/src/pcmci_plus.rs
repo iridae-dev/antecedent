@@ -117,11 +117,27 @@ impl PcmciPlus {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
-        let alpha = self.engine.constraints.alpha;
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
         let frame_depth = 2 * max_lag;
         let frame =
             LaggedFrame::from_series(data, variables, frame_depth).map_err(DiscoveryError::from)?;
+        self.run_on_frame(&frame, variables, workspace, ctx)
+    }
+
+    /// Run PCMCI+ on a pre-built (optionally row-filtered) lagged frame.
+    ///
+    /// # Errors
+    ///
+    /// Engine / orientation failures.
+    pub fn run_on_frame(
+        &self,
+        frame: &LaggedFrame,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
+        let alpha = self.engine.constraints.alpha;
+        let max_lag = self.engine.constraints.temporal.max_lag.raw();
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {

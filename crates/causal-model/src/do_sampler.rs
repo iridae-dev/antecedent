@@ -17,7 +17,7 @@ use causal_data::{TableView, TabularData};
 use causal_kernels::standard_normal;
 
 use crate::batch::{MechanismWorkspace, ParentBatch};
-use crate::compile::{CompiledCausalModel, MechanismSlot};
+use crate::compile::CompiledCausalModel;
 use crate::error::ModelError;
 use crate::mechanism::log_prob_column;
 use crate::sample::sample_interventional;
@@ -39,9 +39,16 @@ pub struct DoSampleResult {
     pub bandwidth: Option<f64>,
 }
 
-/// Weighting do-sampler: reweight observational rows by P(do(T=t)|parents) / P(T|parents)
-/// using fitted propensity from the treatment mechanism when available; for hard do on a
-/// root treatment, returns the empirical outcome among rows matching the set value.
+/// Weighting do-sampler for hard `do(T=t)`.
+///
+/// - **Root treatment:** empirical outcomes among units with `T ≈ t`.
+/// - **Confounded continuous treatment:** Horvitz–Thompson with a **shrinking** Gaussian
+///   kernel on the treatment margin (Silverman bandwidth) over the fitted conditional
+///   density `f(T∣parents)`: `wᵢ ∝ Kₕ(Tᵢ − t) / f(Tᵢ∣parents)`. Hard interventions have a
+///   Dirac interventional law, so the kernel is the localization numerator (there is no
+///   separate `lp_do` term).
+/// - **Non-density / discrete mechanisms:** kernel localization alone (exact match when the
+///   bandwidth collapses on tied support).
 #[derive(Clone, Debug)]
 pub struct WeightingDoSampler {
     /// Treatment variable.
@@ -126,32 +133,21 @@ impl WeightingDoSampler {
         }
         let parents = ParentBatch { n_rows: n, n_parents: n_par, values: &parent_mat };
         let mut lp_obs = vec![0.0; n];
-        log_prob_column(slot, &t, parents, &mut lp_obs)?;
-
-        let lp_do = vec![0.0; n];
-        // Interventional density at do-value: same parents, value fixed.
-        let t_do = vec![treatment_value; n];
-        match slot {
-            MechanismSlot::LinearGaussian { sigma, .. } => {
-                for i in 0..n {
-                    let w = (-lp_obs[i]).exp().min(1e6);
-                    // Stabilize with Gaussian kernel around treatment_value.
-                    let d = (t[i] - treatment_value) / sigma.max(1e-6);
-                    let k = (-0.5 * d * d).exp();
-                    weights[i] = w * k;
-                    values.push(y[i]);
-                    let _ = lp_do[i];
-                }
-            }
-            _ => {
-                for i in 0..n {
-                    let d = (t[i] - treatment_value).abs();
-                    weights[i] = if d < 1e-6 { 1.0 } else { 0.0 };
-                    values.push(y[i]);
-                }
-            }
+        let has_density = log_prob_column(slot, &t, parents, &mut lp_obs).is_ok();
+        let bw = silverman_bandwidth(&t).max(1e-8);
+        let inv_norm = 1.0 / (bw * (2.0 * std::f64::consts::PI).sqrt());
+        for i in 0..n {
+            let z = (t[i] - treatment_value) / bw;
+            let kernel = inv_norm * (-0.5 * z * z).exp();
+            let w = if has_density && lp_obs[i].is_finite() {
+                let dens = lp_obs[i].exp().max(1e-300);
+                (kernel / dens).min(1e6)
+            } else {
+                kernel
+            };
+            weights[i] = w;
+            values.push(y[i]);
         }
-        let _ = t_do;
         let wsum: f64 = weights.iter().sum();
         if wsum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return Err(ModelError::Numerical {
@@ -161,14 +157,16 @@ impl WeightingDoSampler {
         for w in &mut weights {
             *w /= wsum;
         }
-        notes.push(Arc::from("IPW / kernel-stabilized weighting"));
+        notes.push(Arc::from(format!(
+            "IPW / Silverman-kernel weighting (bandwidth={bw:.6})"
+        )));
         Ok(DoSampleResult {
             values: Arc::from(values),
             weights: Arc::from(weights),
             method: Arc::from("do_weighting"),
             notes,
             accept_rate: None,
-            bandwidth: None,
+            bandwidth: Some(bw),
         })
     }
 
@@ -261,7 +259,13 @@ fn silverman_bandwidth(x: &[f64]) -> f64 {
     1.06 * sd * n.powf(-0.2)
 }
 
-/// Metropolis–Hastings do-sampler on the intervened joint (Gaussian proposals).
+/// Random-walk Metropolis–Hastings on the **outcome margin**.
+///
+/// The chain targets a Silverman Gaussian KDE fitted to a pilot batch of interventional
+/// ancestral draws — a smoothed proxy of the interventional law of `outcome`, not the
+/// joint mechanism density. Proposals are Gaussian random walks (`proposal_sd`); this is
+/// **not** independent MH, and is exact for the interventional law only in the large-pilot
+/// / vanishing-bandwidth limit of that KDE proxy.
 #[derive(Clone, Debug)]
 pub struct McmcDoSampler {
     /// Outcome variable to record.
@@ -287,13 +291,7 @@ impl McmcDoSampler {
         Self { outcome, ..Self::default() }
     }
 
-    /// Run MH using interventional ancestral samples as the target measure proxy:
-    /// proposals are new interventional draws; accept with min(1, 1) i.e. independent MH
-    /// from the SCM interventional distribution (exact when the proposal is the target).
-    ///
-    /// For a non-trivial MH demo on continuous free variables under soft interventions,
-    /// we walk a chain on the outcome margin with Gaussian random-walk proposals and
-    /// accept via KDE density ratio estimated from a bootstrap interventional batch.
+    /// Run random-walk MH against a KDE of interventional pilot draws (see type docs).
     ///
     /// # Errors
     ///
@@ -327,17 +325,29 @@ impl McmcDoSampler {
         let mut total = 0usize;
         let mut out = Vec::with_capacity(n_samples);
         let iters = self.burn_in + n_samples * self.thin.max(1);
+        // Degenerate pilot (near-zero bandwidth) → independent draws from the pilot
+        // empirical measure (random-walk MH cannot move).
+        let degenerate = pilot_bw < 1e-6
+            || pilot_col.iter().all(|&v| (v - pilot_col[0]).abs() < 1e-12);
 
         for i in 0..iters {
-            let z = standard_normal(rng);
-            let prop = current + self.proposal_sd * z;
-            let p_cur = KdeDoSampler::density(&kde, current).max(1e-300);
-            let p_prop = KdeDoSampler::density(&kde, prop).max(1e-300);
-            let accept = (p_prop / p_cur).min(1.0);
-            total += 1;
-            if rng.next_f64() < accept {
-                current = prop;
+            if degenerate {
+                let idx = (rng.next_f64() * pilot_col.len() as f64).floor() as usize
+                    % pilot_col.len().max(1);
+                current = pilot_col[idx];
                 accepted += 1;
+                total += 1;
+            } else {
+                let z = standard_normal(rng);
+                let prop = current + self.proposal_sd * z;
+                let p_cur = KdeDoSampler::density(&kde, current).max(1e-300);
+                let p_prop = KdeDoSampler::density(&kde, prop).max(1e-300);
+                let accept = (p_prop / p_cur).min(1.0);
+                total += 1;
+                if rng.next_f64() < accept {
+                    current = prop;
+                    accepted += 1;
+                }
             }
             if i >= self.burn_in && (i - self.burn_in) % self.thin.max(1) == 0 {
                 out.push(current);

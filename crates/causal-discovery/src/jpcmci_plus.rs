@@ -1,5 +1,17 @@
 //! J-PCMCI+: multi-environment PCMCI+ with context nodes (DESIGN.md §13.4–13.5).
 //!
+//! # Current scope (honest limitations)
+//!
+//! This implementation runs PCMCI **independently per environment**, pools surviving
+//! links by **intersection** (`p = max` across envs), merges per-env sepsets, then applies
+//! Meek orientation. Context variables listed in constraints are attached as decoration
+//! nodes after pooling — they do **not** enter CI tests. The published Günther et al.
+//! algorithm (pooled PCMCI+ once with observed context + dataset/time dummies under link
+//! assumptions) is not yet implemented.
+//!
+//! [`MultiEnvSamplePlan`] validates shared lagged-column geometry across environments;
+//! each environment still materializes its own lagged frame inside the PCMCI engine.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
@@ -25,7 +37,7 @@ use crate::pipeline::{
     algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
 };
 use crate::result::{
-    CpdagDiscoveryResult, DiscoveryPerformanceRecord, LaggedLink, PcSepsets, ScoredLink,
+    CpdagDiscoveryResult, DiscoveryPerformanceRecord, LaggedLink, PcSepsets, ScoredLink, SepsetKey,
 };
 
 /// Alias for J-PCMCI+ discovery output (context-augmented temporal CPDAG).
@@ -33,9 +45,7 @@ pub type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
 
 /// J-PCMCI+ discovery over [`MultiEnvironmentData`].
 ///
-/// Own type (not a PCMCI+ flag). Pools per-environment MCI evidence without
-/// cloning sibling environment series payloads; sample planning shares column
-/// geometry via [`MultiEnvSamplePlan`].
+/// Own type (not a PCMCI+ flag). See module docs for pooling / context limitations.
 #[derive(Clone, Debug)]
 pub struct JpcmciPlus {
     /// Shared engine (`min_lag` typically 0).
@@ -110,8 +120,7 @@ impl JpcmciPlus {
         self.engine.constraints.validate()?;
 
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
-        // Plan once across environments: shared columns Arc + LagMap reuse by length.
-        // Never clone sibling environment series payloads.
+        // Validate shared lagged-column geometry across environments (no sibling series clone).
         let mut plan_cols: Vec<LaggedColumn> =
             Vec::with_capacity(variables.len() * (max_lag as usize + 1));
         for &variable in variables {
@@ -123,16 +132,11 @@ impl JpcmciPlus {
             .map_err(|e| DiscoveryError::data_msg(format!("multi-env sample plan failed: {e}")))?;
 
         let mut per_env_scored: Vec<Vec<ScoredLink>> = Vec::with_capacity(data.env_count());
-        let mut last_sepsets = PcSepsets::default();
+        let mut per_env_sepsets: Vec<PcSepsets> = Vec::with_capacity(data.env_count());
         let mut assumptions = AssumptionSet::default();
         let mut iterations = Vec::new();
         let mut diagnostics = Vec::new();
         let mut performance = DiscoveryPerformanceRecord::default();
-
-        // Record shared-geometry cost once (not per-env full series bytes).
-        let plan_bytes =
-            plan.columns.len().saturating_mul(16) + plan.env_count().saturating_mul(64);
-        performance.lagged_frame_bytes = plan_bytes as u64;
 
         for i in 0..data.env_count() {
             let env_plan = plan
@@ -148,11 +152,9 @@ impl JpcmciPlus {
                     series.row_count()
                 )));
             }
-            // Borrow-only env access; shared columns Arc across equal plans.
-            let _shared_cols = env_plan.columns_arc();
             let engine_result = self.engine.run_pc_mci(series, variables, workspace, ctx)?;
             per_env_scored.push(engine_result.evidence.links.to_vec());
-            last_sepsets = engine_result.sepsets;
+            per_env_sepsets.push(engine_result.sepsets);
             assumptions = engine_result.assumptions;
             iterations = engine_result.iterations;
             diagnostics.extend(engine_result.diagnostics);
@@ -165,16 +167,24 @@ impl JpcmciPlus {
         diagnostics.push(crate::result::DiscoveryDiagnostic {
             code: Arc::from("jpcmci_plus.multi_env_plan"),
             message: Arc::from(format!(
-                "MultiEnvSamplePlan: {} envs, {} shared lagged columns (no sibling series clone)",
+                "MultiEnvSamplePlan validated {} envs / {} lagged columns; per-env frames built by engine",
                 plan.env_count(),
                 plan.columns.len()
             )),
         });
+        if !self.engine.constraints.multi_dataset.context_variables.is_empty() {
+            push_diagnostic(
+                &mut diagnostics,
+                "jpcmci_plus.context_decoration",
+                "context_variables are attached post-hoc and do not enter CI tests (Günther pooled redesign pending)",
+            );
+        }
 
         let pooled = pool_scored_links(
             &per_env_scored,
             self.engine.constraints.multi_dataset.pool_lagged_ci,
         );
+        let pooled_sepsets = merge_sepsets(&per_env_sepsets);
         let alpha = self.engine.constraints.alpha;
         let scored = threshold_scored_links(pooled, self.fdr, alpha);
 
@@ -186,7 +196,7 @@ impl JpcmciPlus {
         )?;
 
         let node_ids = lagged_node_index(cpdag.nodes());
-        let mut state = orientation_state_from_sepsets(&node_ids, &last_sepsets);
+        let mut state = orientation_state_from_sepsets(&node_ids, &pooled_sepsets);
 
         let rules: [&dyn OrientationRule; 5] =
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
@@ -204,7 +214,7 @@ impl JpcmciPlus {
                 self.engine.constraints.multi_dataset.context_variables.len()
             ),
         );
-        let evidence = cpdag_evidence_from_oriented(cpdag.clone(), scored, &last_sepsets);
+        let evidence = cpdag_evidence_from_oriented(cpdag.clone(), scored, &pooled_sepsets);
         let review = TemporalCpdagReview::from_cpdag(cpdag, algorithm.id.clone());
         let links_retained = evidence.links.len() as u64;
         push_diagnostic(
@@ -236,13 +246,13 @@ impl JpcmciPlus {
             iterations,
             diagnostics,
             performance,
-            sepsets: last_sepsets,
+            sepsets: pooled_sepsets,
         })
     }
 }
 
-/// Conservative pool: keep a link if it appears in any env; p-value = max across envs;
-/// statistic = mean of absolute values (signed by first env).
+/// Intersection pool when `pool` is set: keep a link only if it appears in **every** env;
+/// p-value = max across envs; statistic = mean across envs.
 fn pool_scored_links(per_env: &[Vec<ScoredLink>], pool: bool) -> Vec<ScoredLink> {
     if per_env.is_empty() {
         return Vec::new();
@@ -262,7 +272,6 @@ fn pool_scored_links(per_env: &[Vec<ScoredLink>], pool: bool) -> Vec<ScoredLink>
     let n_env = per_env.len();
     let mut out = Vec::with_capacity(by_link.len());
     for (link, (stat_sum, p_max, count)) in by_link {
-        // Shared-skeleton style: require presence in all environments when pooling.
         if count < n_env {
             continue;
         }
@@ -274,6 +283,34 @@ fn pool_scored_links(per_env: &[Vec<ScoredLink>], pool: bool) -> Vec<ScoredLink>
         });
     }
     out.sort_by(|a, b| a.link.cmp(&b.link));
+    out
+}
+
+/// Merge per-environment sepsets: keep keys present in every environment; value is the
+/// intersection of sepset members (conservative for collider orientation).
+fn merge_sepsets(per_env: &[PcSepsets]) -> PcSepsets {
+    if per_env.is_empty() {
+        return PcSepsets::default();
+    }
+    if per_env.len() == 1 {
+        return per_env[0].clone();
+    }
+    let mut keys: Vec<SepsetKey> = per_env[0].keys().copied().collect();
+    keys.retain(|k| per_env.iter().all(|s| s.contains_key(k)));
+    let mut out = PcSepsets::default();
+    for key in keys {
+        let mut inter: Option<Vec<_>> = None;
+        for sep in per_env {
+            let members = sep.get(&key).map(|s| s.to_vec()).unwrap_or_default();
+            inter = Some(match inter {
+                None => members,
+                Some(prev) => prev.into_iter().filter(|m| members.contains(m)).collect(),
+            });
+        }
+        if let Some(members) = inter {
+            out.insert(key, Arc::from(members));
+        }
+    }
     out
 }
 
@@ -297,7 +334,6 @@ fn attach_context_nodes(
         let ctx_id = cpdag
             .add_context(cv, None)
             .map_err(|e| DiscoveryError::data_msg(format!("add context node: {e}")))?;
-        // Direct context → contemporaneous system target when a lag-0 link was retained.
         for s in scored {
             if s.link.source == cv
                 && s.link.source_lag.is_contemporaneous()
@@ -413,5 +449,56 @@ mod tests {
         let result = algo.run(&multi, &vars, &mut ws, &ctx).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "jpcmci_plus");
         assert!(result.evidence.graph.node_count() >= 2);
+    }
+
+    #[test]
+    fn merge_sepsets_intersects_members() {
+        let key: SepsetKey = (
+            VariableId::from_raw(0),
+            Lag::from_raw(1),
+            VariableId::from_raw(1),
+            Lag::CONTEMPORANEOUS,
+        );
+        let a = (VariableId::from_raw(2), Lag::from_raw(1));
+        let b = (VariableId::from_raw(3), Lag::from_raw(1));
+        let mut s0 = PcSepsets::default();
+        s0.insert(key, Arc::from([a, b]));
+        let mut s1 = PcSepsets::default();
+        s1.insert(key, Arc::from([a]));
+        let merged = merge_sepsets(&[s0, s1]);
+        let members = merged.get(&key).unwrap();
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0], a);
+    }
+
+    #[test]
+    fn pool_requires_all_environments() {
+        let link = LaggedLink {
+            source: VariableId::from_raw(0),
+            source_lag: Lag::from_raw(1),
+            target: VariableId::from_raw(1),
+            target_lag: Lag::CONTEMPORANEOUS,
+        };
+        let only_first = vec![ScoredLink {
+            link,
+            statistic: 1.0,
+            p_value: 0.01,
+            adjusted_p_value: None,
+        }];
+        let second_empty = [only_first.clone(), Vec::new()];
+        assert!(pool_scored_links(&second_empty, true).is_empty());
+        let both = [
+            only_first,
+            vec![ScoredLink {
+                link,
+                statistic: 2.0,
+                p_value: 0.02,
+                adjusted_p_value: None,
+            }],
+        ];
+        let pooled = pool_scored_links(&both, true);
+        assert_eq!(pooled.len(), 1);
+        assert!((pooled[0].statistic - 1.5).abs() < 1e-12);
+        assert!((pooled[0].p_value - 0.02).abs() < 1e-12);
     }
 }

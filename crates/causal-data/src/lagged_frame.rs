@@ -150,6 +150,52 @@ impl LaggedFrame {
         let n = self.n_effective;
         &self.values[idx * n..(idx + 1) * n]
     }
+
+    /// Compact to effective rows where `keep[i]` is true.
+    ///
+    /// Used for regime-masked CI: the full series is materialized first so lag
+    /// alignment is correct, then only windows wholly inside a regime are retained.
+    ///
+    /// # Errors
+    ///
+    /// Length mismatch or empty keep set.
+    pub fn retain_effective(&self, keep: &[bool]) -> Result<Self, DataError> {
+        if keep.len() != self.n_effective {
+            return Err(DataError::InvalidArgument {
+                message: format!(
+                    "retain_effective keep length {} != n_effective {}",
+                    keep.len(),
+                    self.n_effective
+                ),
+            });
+        }
+        let n_new = keep.iter().filter(|&&k| k).count();
+        if n_new == 0 {
+            return Err(DataError::InvalidArgument {
+                message: "retain_effective: no effective rows retained".into(),
+            });
+        }
+        let n_cols = self.ncols();
+        let mut values = vec![0.0; n_cols.saturating_mul(n_new)];
+        for c in 0..n_cols {
+            let src = self.column(c);
+            let dst = &mut values[c * n_new..(c + 1) * n_new];
+            let mut j = 0;
+            for (i, &k) in keep.iter().enumerate() {
+                if k {
+                    dst[j] = src[i];
+                    j += 1;
+                }
+            }
+        }
+        Ok(Self {
+            variables: Arc::clone(&self.variables),
+            max_lag: self.max_lag,
+            n_effective: n_new,
+            n_lags: self.n_lags,
+            values,
+        })
+    }
 }
 
 #[cfg(test)]

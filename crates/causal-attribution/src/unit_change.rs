@@ -10,7 +10,10 @@ use causal_core::{
 };
 use causal_counterfactual::{CounterfactualEngine, MissingPolicy};
 use causal_data::{TableView, TabularData};
-use causal_model::{CompiledCausalModel, MechanismWorkspace};
+use causal_graph::DenseNodeId;
+use causal_model::{
+    CompiledCausalModel, MechanismWorkspace, ParentBatch, evaluate_column,
+};
 
 use crate::error::AttributionError;
 use crate::result::{ComputeBudget, UnitChangeResult};
@@ -18,8 +21,10 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 
 /// Attribute per-unit outcome change to input / mechanism components.
 ///
-/// Uses abduction once, then evaluates coalition worlds that swap factual parent
-/// values toward a reference (mean) for input attribution.
+/// Abduces exogenous noise once, then evaluates the outcome mechanism on
+/// coalition-mixed parent values with that fixed noise (Budhathoki-style factual
+/// vs reference decomposition). Shapley values therefore attribute the real
+/// mechanism payoff, not a linear surrogate.
 ///
 /// # Errors
 ///
@@ -79,8 +84,6 @@ pub fn unit_change(
 
     let engine = CounterfactualEngine::new(model.clone());
     let exo = engine.abduct(data, MissingPolicy::Error)?;
-    let _ = exo;
-    let _ = MechanismWorkspace::default();
 
     // Reference parent means.
     let mut parent_means = Vec::with_capacity(parents.len());
@@ -93,22 +96,26 @@ pub fn unit_change(
     let mut mean_phi = vec![0.0; players.len()];
     let mut budget = ComputeBudget::default();
     let mut cache_stats = crate::result::CacheStats::default();
-    let mut mc_stderr = None;
+    let mut sum_se2 = 0.0;
+    let mut n_se = 0usize;
 
     for (ui, &row) in rows.iter().enumerate() {
         let factual: Vec<f64> = parents
             .iter()
             .map(|&p| data.float64_values(p).map(|c| c[row]))
             .collect::<Result<Vec<_>, _>>()?;
-        let y_fact = data.float64_values(query.outcome)?[row];
+        let noise = exo.noise[outcome_dense.as_usize() * exo.n_units + row];
 
         let mut payoff = UnitPayoff {
-            factual: factual.clone(),
+            model,
+            outcome: outcome_dense,
+            factual,
             reference: parent_means.clone(),
-            y_fact,
-            // Linear local model: Δy ≈ Σ β_i (x_i − ref_i); recover β from
-            // one-at-a-time contrasts using the fitted mechanism coeffs when available.
-            betas: outcome_betas(model, outcome_dense, gather.n_parents()),
+            noise,
+            parent_buf: vec![0.0; parents.len().max(1)],
+            out_buf: vec![0.0; 1],
+            noise_buf: vec![0.0; 1],
+            ws: MechanismWorkspace::default(),
         };
 
         let AllocationMethod::Shapley { approximation } = &query.allocation else {
@@ -122,7 +129,8 @@ pub fn unit_change(
         cache_stats.hits += est.cache_stats.hits;
         cache_stats.misses += est.cache_stats.misses;
         if let Some(se) = est.monte_carlo_stderr {
-            mc_stderr = Some(mc_stderr.map_or(se, |m: f64| m + se));
+            sum_se2 += se * se;
+            n_se += 1;
         }
         for (j, v) in est.values.iter().enumerate() {
             all_contrib[ui * players.len() + j] = *v;
@@ -134,9 +142,8 @@ pub fn unit_change(
     for v in &mut mean_phi {
         *v /= nu;
     }
-    if let Some(se) = mc_stderr.as_mut() {
-        *se /= nu;
-    }
+    // SE of the mean of independent per-unit estimates: √(Σ se_u²) / n.
+    let mc_stderr = if n_se > 0 { Some(sum_se2.sqrt() / nu) } else { None };
     cache_stats.entries = cache_stats.hits + cache_stats.misses;
 
     Ok(UnitChangeResult {
@@ -151,34 +158,39 @@ pub fn unit_change(
     })
 }
 
-fn outcome_betas(
-    model: &CompiledCausalModel,
-    outcome: causal_graph::DenseNodeId,
-    n_parents: usize,
-) -> Vec<f64> {
-    match model.mechanisms.get(outcome) {
-        causal_model::MechanismSlot::LinearGaussian { coeffs, .. } => coeffs.to_vec(),
-        _ => vec![1.0; n_parents],
-    }
-}
-
-struct UnitPayoff {
+struct UnitPayoff<'a> {
+    model: &'a CompiledCausalModel,
+    outcome: DenseNodeId,
     factual: Vec<f64>,
     reference: Vec<f64>,
-    y_fact: f64,
-    betas: Vec<f64>,
+    noise: f64,
+    parent_buf: Vec<f64>,
+    out_buf: Vec<f64>,
+    noise_buf: Vec<f64>,
+    ws: MechanismWorkspace,
 }
 
-impl CoalitionPayoff for UnitPayoff {
+impl CoalitionPayoff for UnitPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        // Value = predicted Δy under hybrid parents relative to all-reference.
-        let mut pred = 0.0;
-        for i in 0..self.factual.len() {
-            let x = if mask & (1u64 << i) != 0 { self.factual[i] } else { self.reference[i] };
-            pred += self.betas.get(i).copied().unwrap_or(0.0) * (x - self.reference[i]);
+        let n_par = self.factual.len();
+        for i in 0..n_par {
+            self.parent_buf[i] =
+                if mask & (1u64 << i) != 0 { self.factual[i] } else { self.reference[i] };
         }
-        let _ = self.y_fact;
-        Ok(pred)
+        self.noise_buf[0] = self.noise;
+        let parents = ParentBatch {
+            n_rows: 1,
+            n_parents: n_par,
+            values: &self.parent_buf[..n_par],
+        };
+        evaluate_column(
+            self.model.mechanisms.get(self.outcome),
+            parents,
+            &self.noise_buf,
+            &mut self.out_buf,
+            &mut self.ws,
+        )?;
+        Ok(self.out_buf[0])
     }
 }
 

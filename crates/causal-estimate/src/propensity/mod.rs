@@ -5,11 +5,15 @@
 //! because positivity is mandatory for propensity/matching methods (DESIGN.md §14.3).
 //!
 //! Bootstrap standard errors **refit the propensity model on every resample** rather than
-//! reusing the point-estimate propensity scores. This is more expensive than reusing scores,
-//! but it is the honest choice: it propagates first-stage estimation uncertainty into the
-//! second-stage effect, which score-reuse would understate. [`causal_stats::PropensityWorkspace`]
-//! scratch (IRLS design/Cholesky buffers) is reused across all replicates to keep the
-//! per-replicate cost to a single GLM refit with no additional heap churn.
+//! reusing the point-estimate propensity scores. This is more expensive than score-reuse,
+//! but it propagates first-stage estimation uncertainty into the second-stage effect.
+//! [`causal_stats::PropensityWorkspace`] scratch (IRLS design/Cholesky buffers) is reused
+//! across replicates to keep per-replicate cost to a single GLM refit.
+//!
+//! **Matching caveat:** for nearest-neighbor matching with a fixed number of matches, the
+//! nonparametric bootstrap is asymptotically invalid (Abadie–Imbens 2008). Matching
+//! estimators expose Abadie–Imbens (2006) analytic SEs with donor-reuse counts; treat any
+//! matching bootstrap SE as diagnostic only.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,31 +1,43 @@
-//! Basic anomaly attribution and arrow strength (DESIGN.md §17 slice).
+//! Anomaly attribution via ancestor-noise Shapley (Janzing et al. 2020; DESIGN.md §17).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use causal_core::{AnomalyAttributionQuery, ExecutionContext, VariableId};
+use causal_core::{
+    AnomalyAttributionQuery, ComponentId, ExecutionContext, ShapleyConfig, VariableId,
+};
+use causal_counterfactual::{CounterfactualEngine, MissingPolicy};
 use causal_data::{TableView, TabularData};
+use causal_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use causal_model::{
-    CompiledCausalModel, MechanismWorkspace, ParentBatch, infer_noise_column, log_prob_column,
+    CompiledCausalModel, MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatchMut,
+    evaluate_batch_topo, log_prob_column,
 };
 
 use crate::error::AttributionError;
+use crate::shapley::{CoalitionPayoff, estimate_shapley};
 
-/// Per-unit anomaly score for a target variable.
+/// Per-unit anomaly score for a target variable, with noise-term attribution.
 #[derive(Clone, Debug)]
 pub struct AnomalyScores {
     /// Target variable.
     pub target: VariableId,
     /// Row indices scored.
     pub rows: Arc<[usize]>,
-    /// Anomaly scores (−log p under the fitted mechanism; higher = more anomalous).
+    /// Anomaly scores (−log p under the fitted mechanism at factual parents; higher = more anomalous).
     pub scores: Arc<[f64]>,
-    /// Parent contribution magnitudes |noise| attributed via residual (same length).
+    /// Sum of absolute Shapley noise attributions per row (legacy residual magnitude).
     pub residual_abs: Arc<[f64]>,
+    /// Ancestor (incl. target) components used as Shapley players.
+    pub noise_components: Arc<[ComponentId]>,
+    /// Row-major Shapley attributions: `rows.len() * noise_components.len()`.
+    pub noise_contributions: Arc<[f64]>,
 }
 
-/// Score anomalies for query targets under a fitted model.
+/// Score anomalies and attribute them to ancestor noise terms via Shapley
+/// (Janzing et al. 2020): replace noise coordinates outside the coalition with
+/// reference draws (0 for additive noise) and redistribute the target −log p.
 ///
 /// # Errors
 ///
@@ -48,52 +60,146 @@ pub fn score_anomalies(
             max: query.max_units,
         });
     }
+
+    let engine = CounterfactualEngine::new(model.clone());
+    let exo = engine.abduct(data, MissingPolicy::Error)?;
+    let ctx = ExecutionContext::for_tests(0xA10A);
+    let shapley = ShapleyConfig::exact();
+
     let mut out = Vec::with_capacity(query.targets.len());
     for &target in query.targets.iter() {
         let dense = model
             .dense_of(target)
             .ok_or_else(|| AttributionError::Message(format!("target {target} not in model")))?;
-        let gather = model
-            .gather_for(dense)
-            .ok_or_else(|| AttributionError::Message("missing gather".into()))?;
-        let y_all =
-            data.float64_values(target).map_err(|e| AttributionError::Message(e.to_string()))?;
-        let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
-        for (pi, &p) in gather.parents.iter().enumerate() {
-            let pv = model.output_layout.variables[p.as_usize()];
-            let col =
-                data.float64_values(pv).map_err(|e| AttributionError::Message(e.to_string()))?;
-            parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
+        let players_dense = ancestor_nodes(model, dense)?;
+        if players_dense.len() > 64 {
+            return Err(AttributionError::SizeLimit {
+                kind: "components",
+                requested: players_dense.len(),
+                max: 64,
+            });
         }
-        let parents = ParentBatch {
-            n_rows: n,
-            n_parents: gather.n_parents(),
-            values: &parent_mat[..gather.n_parents().saturating_mul(n)],
-        };
-        let mut lp = vec![0.0; n];
-        log_prob_column(model.mechanisms.get(dense), &y_all, parents, &mut lp)?;
-        let mut noise = vec![0.0; n];
-        let parents2 = ParentBatch {
-            n_rows: n,
-            n_parents: gather.n_parents(),
-            values: &parent_mat[..gather.n_parents().saturating_mul(n)],
-        };
-        infer_noise_column(model.mechanisms.get(dense), &y_all, parents2, &mut noise)?;
+        let players: Vec<ComponentId> = players_dense
+            .iter()
+            .map(|&d| ComponentId::from_variable(model.output_layout.variables[d.as_usize()]))
+            .collect();
 
+        let y_all = data.float64_values(target)?;
         let mut scores = Vec::with_capacity(rows.len());
         let mut resid = Vec::with_capacity(rows.len());
-        for &r in &rows {
-            scores.push(-lp[r]);
-            resid.push(noise[r].abs());
+        let mut contrib = vec![0.0; rows.len() * players.len()];
+
+        for (ui, &row) in rows.iter().enumerate() {
+            let mut payoff = NoiseShapleyPayoff {
+                model,
+                target: dense,
+                players: &players_dense,
+                exo_noise: &exo.noise,
+                n_units: exo.n_units,
+                row,
+                noise_buf: vec![0.0; model.n_nodes()],
+                value_buf: vec![0.0; model.n_nodes()],
+                ws: MechanismWorkspace::default(),
+            };
+            // Factual anomaly score: −log p(y|parents) under observed parents.
+            let gather = model
+                .gather_for(dense)
+                .ok_or_else(|| AttributionError::Message("missing gather".into()))?;
+            let n_par = gather.n_parents();
+            let mut parent_mat = vec![0.0; n_par.max(1)];
+            for (pi, &p) in gather.parents.iter().enumerate() {
+                let pv = model.output_layout.variables[p.as_usize()];
+                parent_mat[pi] = data.float64_values(pv)?[row];
+            }
+            let parents =
+                ParentBatch { n_rows: 1, n_parents: n_par, values: &parent_mat[..n_par] };
+            let mut lp = [0.0];
+            log_prob_column(model.mechanisms.get(dense), &[y_all[row]], parents, &mut lp)?;
+            scores.push(-lp[0]);
+            let est = estimate_shapley(&players, &shapley, &mut payoff, &ctx)?;
+            let mut abs_sum = 0.0;
+            for (j, v) in est.values.iter().enumerate() {
+                contrib[ui * players.len() + j] = *v;
+                abs_sum += v.abs();
+            }
+            resid.push(abs_sum);
         }
+
         out.push(AnomalyScores {
             target,
             rows: Arc::from(rows.clone()),
             scores: Arc::from(scores),
             residual_abs: Arc::from(resid),
+            noise_components: Arc::from(players),
+            noise_contributions: Arc::from(contrib),
         });
     }
     Ok(out)
+}
+
+fn ancestor_nodes(
+    model: &CompiledCausalModel,
+    target: DenseNodeId,
+) -> Result<Vec<DenseNodeId>, AttributionError> {
+    let mut ws = GraphWorkspace::default();
+    let mut anc = BitSet::with_len(model.n_nodes());
+    model.graph.ancestors_of(&[target], &mut anc, &mut ws);
+    let mut nodes = Vec::new();
+    for gather in model.parent_gathers.iter() {
+        if anc.contains(gather.child) {
+            nodes.push(gather.child);
+        }
+    }
+    if nodes.is_empty() {
+        nodes.push(target);
+    }
+    Ok(nodes)
+}
+
+struct NoiseShapleyPayoff<'a> {
+    model: &'a CompiledCausalModel,
+    target: DenseNodeId,
+    players: &'a [DenseNodeId],
+    exo_noise: &'a [f64],
+    n_units: usize,
+    row: usize,
+    noise_buf: Vec<f64>,
+    value_buf: Vec<f64>,
+    ws: MechanismWorkspace,
+}
+
+impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
+    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+        let n_nodes = self.model.n_nodes();
+        self.noise_buf.fill(0.0);
+        for (i, &node) in self.players.iter().enumerate() {
+            let factual = self.exo_noise[node.as_usize() * self.n_units + self.row];
+            self.noise_buf[node.as_usize()] =
+                if mask & (1u64 << i) != 0 { factual } else { 0.0 };
+        }
+        for node in 0..n_nodes {
+            let dense = DenseNodeId::from_raw(node as u32);
+            if !self.players.contains(&dense) {
+                self.noise_buf[node] = self.exo_noise[node * self.n_units + self.row];
+            }
+        }
+
+        self.value_buf.fill(0.0);
+        let noise = NoiseBatchMut::new(1, n_nodes, &mut self.noise_buf)?;
+        let mut values = ValueBatchMut::new(1, n_nodes, &mut self.value_buf)?;
+        evaluate_batch_topo(
+            &self.model.node_order,
+            &self.model.parent_gathers,
+            &self.model.mechanisms.slots,
+            &noise,
+            &mut values,
+            &mut self.ws,
+        )?;
+        // Payoff = reconstructed target under coalition noises. Shapley then attributes
+        // which noise terms move Y away from the all-reference reconstruction (Janzing:
+        // distribute the target outlier over ancestor noise coordinates).
+        Ok(self.value_buf[self.target.as_usize()])
+    }
 }
 
 /// Direct arrow strength: |β| for linear Gaussian edge parent→child, else 0.
@@ -139,9 +245,7 @@ pub fn arrow_strengths(
 
 /// Population do-contrast of parent on child: `|E[Y|do(X=μ+δ/2)] − E[Y|do(X=μ−δ/2)]|`.
 ///
-/// This is **not** intrinsic (noise-based) causal influence; see P4.8 for that.
-///
-/// Hard size limit on units.
+/// This is **not** intrinsic (noise-based) causal influence.
 ///
 /// # Errors
 ///
@@ -170,7 +274,7 @@ pub fn population_do_contrast(
     let mut ws = MechanismWorkspace::default();
     let child_dense =
         model.dense_of(child).ok_or_else(|| AttributionError::Message("child missing".into()))?;
-    let pcol = data.float64_values(parent).map_err(|e| AttributionError::Message(e.to_string()))?;
+    let pcol = data.float64_values(parent)?;
     let pmean = pcol.iter().sum::<f64>() / pcol.len().max(1) as f64;
     let hi = sample_interventional(
         model,
@@ -264,6 +368,15 @@ mod tests {
         let q = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
         let scores = score_anomalies(&model, &data, &q).unwrap();
         assert!(scores[0].scores[n - 1] > scores[0].scores[0]);
+        assert!(!scores[0].noise_components.is_empty());
+        // Anomalous unit should attribute primarily to Y's own noise.
+        let y_idx = scores[0]
+            .noise_components
+            .iter()
+            .position(|c| c.variable() == VariableId::from_raw(1))
+            .expect("y player");
+        let y_phi = scores[0].noise_contributions[(n - 1) * scores[0].noise_components.len() + y_idx];
+        assert!(y_phi.abs() > 0.0, "y attribution={y_phi}");
         let arrows = arrow_strengths(&model).unwrap();
         assert!(!arrows.is_empty());
         assert!(arrows.iter().any(|a| a.strength > 0.5), "arrows={arrows:?}");

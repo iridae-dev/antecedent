@@ -44,7 +44,7 @@ data with link assumptions.
 Also: the `MultiEnvSamplePlan` built and validated at lines 105-143 is discarded (each env rebuilds
 its own frame) while its byte counts are reported in diagnostics — wire it in or drop it.
 
-### P4.5 RPCMCI: masking, not row-splicing
+### P4.5 RPCMCI: masking, not row-splicing — DONE
 `crates/causal-discovery/src/rpcmci.rs:283-309` (`subset_series`) gathers regime rows by index and
 re-declares them a contiguous series, so lagged pairs span regime gaps — statistically wrong CI
 tests for interleaved regimes. Saggioro et al. mask samples instead and alternate between regime
@@ -53,7 +53,7 @@ assignment and per-regime discovery; the alternating optimization is entirely ab
 **Fix:** implement masked CI evaluation (only use effective rows whose full lag window lies within
 one regime), then the alternating assignment loop.
 
-### P4.7 Generalized/PAG identification beyond the empty set
+### P4.7 Generalized/PAG identification beyond the empty set — DONE
 `crates/causal-identify/src/generalized.rs:98-121` tests only `Z = ∅` per MAG completion; any
 confounded-but-adjustable completion reports NotIdentified. Implement generalized adjustment-set
 search per completion (candidate sets from possible ancestors, m-separation on legal MAGs),
@@ -61,7 +61,7 @@ and document the current limitation loudly in the module docs until then (frontd
 model for honest limitation docs). MAG completion filter is in place (`is_mag_completion`). The full ID/IDC algorithm
 is roadmap — see P5.3.
 
-### P4.8 GCM attribution parity (DoWhy-GCM)
+### P4.8 GCM attribution parity (DoWhy-GCM) — DONE
 - `attribute_unit_change` (`crates/causal-attribution/src/unit_change.rs:80-83,154-183`): abduction
   runs and is discarded (`let _ = exo;`); the payoff is the linear surrogate `Σβᵢ(xᵢ−refᵢ)` — for
   an additive game the Shapley loop is a tautology (φᵢ = βᵢ(xᵢ−refᵢ) exactly), and non-LinearGaussian
@@ -85,7 +85,7 @@ is roadmap — see P5.3.
   use common random numbers across coalition payoffs (seed is currently `seed + mask`, line 267 —
   extra MC variance; exact-mode efficiency is unaffected but sampled modes pay for it).
 
-### P4.9 do-samplers: bias and dead code
+### P4.9 do-samplers: bias and dead code — DONE
 `crates/causal-model/src/do_sampler.rs`
 - `WeightingDoSampler` (lines 128-151): the IPW numerator was never implemented (`lp_do` computed
   as zeros then `let _ = lp_do[i]; let _ = t_do;`); the kernel bandwidth is the mechanism residual
@@ -99,7 +99,7 @@ is roadmap — see P5.3.
   independent MH, not the random-walk implemented. MH mechanics are correct; fix the docs and
   consider targeting the mechanism density directly.
 
-### P4.10 Matching: variance and bias correction
+### P4.10 Matching: variance and bias correction — DONE
 `crates/causal-estimate/src/propensity/stratification.rs:334-337` treats matched differences as
 i.i.d. (`sample_std/√n`); with-replacement donor reuse makes them correlated → understated SE.
 Implement the Abadie–Imbens (2006) variance with donor-usage counts K_i, add the regression bias
