@@ -14,7 +14,14 @@ workspace = true
 
 [features]
 default = ["arrow"]
-arrow = ["dep:arrow-array", "dep:arrow-schema", "dep:arrow-buffer"]
+arrow = [
+    "dep:arrow-array",
+    "dep:arrow-schema",
+    "dep:arrow-buffer",
+    "dep:arrow-data",
+    "arrow-array/ffi",
+    "arrow-schema/ffi",
+]
 
 [dependencies]
 causal-core = { path = "../causal-core" }
@@ -22,6 +29,7 @@ causal-kernels = { path = "../causal-kernels" }
 arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
+arrow-data = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

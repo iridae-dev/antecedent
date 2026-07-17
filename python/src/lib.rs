@@ -44,8 +44,8 @@ use causal_core::{
     Value, VariableId,
 };
 use causal_data::{
-    DataError, MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
-    tabular_from_record_batch,
+    ArrowCColumn, DataError, MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex,
+    TimeSeriesData, tabular_from_arrow_c_columns, tabular_from_record_batch,
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{
@@ -187,6 +187,8 @@ struct ArrowLoadInfo {
     column_count: usize,
     #[pyo3(get)]
     bytes_copied: u64,
+    #[pyo3(get)]
+    bytes_borrowed: u64,
     #[pyo3(get)]
     diagnostic_count: usize,
     /// Schema names after library-owned ingestion (proves the batch was parsed).
@@ -333,10 +335,85 @@ fn load_float64_columns(
             row_count: loaded.data.row_count(),
             column_count: loaded.data.schema().len(),
             bytes_copied: loaded.bytes_copied,
+            bytes_borrowed: loaded.bytes_borrowed,
             diagnostic_count: loaded.diagnostics.len(),
             column_names,
         })
     })
+}
+
+/// Load float64 columns from Arrow C Data Interface exporters (PyArrow / `__arrow_c_array__`).
+///
+/// Prefers zero-copy borrow of contiguous float64 value buffers (DESIGN.md §5.2 / §25.2).
+#[pyfunction]
+fn load_float64_arrow_c_columns(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+) -> PyResult<ArrowLoadInfo> {
+    catch_ffi(|| {
+        if names.len() != columns.len() {
+            return Err(CausalDataError::new_err("names and columns length mismatch"));
+        }
+        let mut cdi_cols = Vec::with_capacity(columns.len());
+        for (name, obj) in names.into_iter().zip(columns) {
+            let (array, schema) = take_arrow_c_array(py, &obj)?;
+            cdi_cols.push(ArrowCColumn { name, array, schema });
+        }
+        let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
+        let column_names: Vec<String> =
+            loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
+        Ok(ArrowLoadInfo {
+            row_count: loaded.data.row_count(),
+            column_count: loaded.data.schema().len(),
+            bytes_copied: loaded.bytes_copied,
+            bytes_borrowed: loaded.bytes_borrowed,
+            diagnostic_count: loaded.diagnostics.len(),
+            column_names,
+        })
+    })
+}
+
+/// Extract CDI structs from an object exporting `__arrow_c_array__`.
+fn take_arrow_c_array(
+    py: Python<'_>,
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<(causal_data::FfiArrowArray, causal_data::FfiArrowSchema)> {
+    use std::ffi::CStr;
+
+    use pyo3::types::PyCapsule;
+
+    let export = obj.call_method0("__arrow_c_array__")?;
+    let tuple = export.cast::<pyo3::types::PyTuple>()?;
+    if tuple.len() != 2 {
+        return Err(CausalDataError::new_err(
+            "__arrow_c_array__ must return (schema_capsule, array_capsule)",
+        ));
+    }
+    let schema_cap = tuple.get_item(0)?.cast_into::<PyCapsule>()?;
+    let array_cap = tuple.get_item(1)?.cast_into::<PyCapsule>()?;
+
+    let schema_name = CStr::from_bytes_with_nul(b"arrow_schema\0").unwrap();
+    let array_name = CStr::from_bytes_with_nul(b"arrow_array\0").unwrap();
+
+    let schema_ptr = schema_cap.pointer_checked(Some(schema_name))?.as_ptr()
+        as *mut causal_data::FfiArrowSchema;
+    let array_ptr =
+        array_cap.pointer_checked(Some(array_name))?.as_ptr() as *mut causal_data::FfiArrowArray;
+    if schema_ptr.is_null() || array_ptr.is_null() {
+        return Err(CausalDataError::new_err("null Arrow C Data capsule pointer"));
+    }
+
+    // SAFETY: capsules export valid CDI structs; we move them out and leave released empties
+    // so the capsule destructor is a no-op.
+    let schema = unsafe { std::ptr::read(schema_ptr) };
+    let array = unsafe { std::ptr::read(array_ptr) };
+    unsafe {
+        std::ptr::write(schema_ptr, causal_data::FfiArrowSchema::empty());
+        std::ptr::write(array_ptr, causal_data::FfiArrowArray::empty());
+    }
+    let _ = py;
+    Ok((array, schema))
 }
 
 
@@ -2025,6 +2102,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CausalReviewError", m.py().get_type::<CausalReviewError>())?;
     m.add("CausalUnsupportedError", m.py().get_type::<CausalUnsupportedError>())?;
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
+    m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;

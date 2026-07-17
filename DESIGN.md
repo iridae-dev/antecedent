@@ -116,7 +116,6 @@ Repository root (this workspace; not a nested `causal-rs/` directory):
     examples/
   parity/
     *.toml                   # capability inventories (status vocabulary in §26)
-    *_deviations.md          # intentional deviation governance
     release.toml
     fixtures/
   conformance/
@@ -330,7 +329,12 @@ Do not:
 - serialize internal dense IDs without the corresponding stable schema table;
 - make schema lookup require a hash map after IDs have been resolved.
 
-## 5. Data model [partial]
+## 5. Data model [built]
+
+Completion criteria for this chapter: masked temporal MCI (`tigramite.data.masks`) and
+Tigramite-style vector-variable CI grouping (`tigramite.data.vector_variables`) are shipped
+and gated. Remaining data-path polish (Arrow fixed-size-list ingest, full Tigramite
+`mask_type` enum) is incremental and does not reopen this chapter.
 
 ### 5.1 Concrete dataset types
 
@@ -788,9 +792,9 @@ wrappers sample interventional distributions (`sample_interventional_distributio
 and path *contribution* (`attribute_path_specific` → `path_decompose`). Minimal
 IO wire forms exist for those two queries. **Identify / estimate algorithms** for
 interventional distributions (IDC) and path-restricted natural effects remain
-deferred — coordinate with deep identification (§10); do not fork a second
-`AutoIdentifier`. Nonparametric path-specific natural effects stay waived under
-`parity/context.toml` (`context.mediation.nonparametric`).
+planned — coordinate with deep identification (§10); do not fork a second
+`AutoIdentifier`. Nonparametric path-specific natural effects are `pending` on
+`context.mediation.nonparametric` (see `TODO.md`).
 
 ### 8.1 Interventions
 
@@ -1306,7 +1310,8 @@ Public algorithms:
 - `PcmciPlus`;
 - `Lpcmci`;
 - `JpcmciPlus`;
-- `Rpcmci`.
+- `Rpcmci` (caller-supplied `RegimeAssignment` per regime; unsupervised regime
+  search is out of scope).
 
 Do not implement them as option flags on one giant function. Each owns its assumptions, graph output type, and orientation rules.
 
@@ -1528,7 +1533,10 @@ Implementation:
 6. expose a multivariate-normal approximation and batched draws;
 7. return convergence, separation, conditioning, and approximation diagnostics.
 
-External Stan/PyMC-style adapters may be added after the model IR stabilizes. They are validation and advanced-inference routes, not the initial canonical implementation.
+External Stan/PyMC-style adapters may be added after the model IR stabilizes as
+optional validation / advanced-inference routes. They are **not** required for
+completion or parity; the native Laplace backend is the canonical Bayesian GLM
+implementation and the only Bayesian GLM surface tracked in `parity/bayesian.toml`.
 
 ### 14.6 Estimation performance requirements
 
@@ -1765,12 +1773,15 @@ Outputs include posterior or sampling distributions over contributions, interact
 
 ### 17.3 Mechanism-change detection
 
-Compare conditional mechanisms between environments/regimes using:
+Compare conditional mechanisms between environments/regimes. **Shipped detectors:**
 
-- likelihood-ratio or divergence measures;
+- likelihood-ratio or mean-difference proxies;
 - classifier two-sample tests;
-- kernel tests;
-- posterior parameter or predictive differences;
+- posterior parameter or predictive differences where a posterior is available.
+
+**Planned extensions** (`TODO.md`):
+
+- kernel two-sample tests;
 - change-point models for temporal mechanisms.
 
 Detection and causal attribution are separate. A changed mechanism is not necessarily responsible for the target outcome change.
@@ -1926,6 +1937,10 @@ pub enum CandidateDesign {
 
 Ranking evaluates expected utility, information gain, cost, constraints, and model uncertainty. Returned plans include Monte Carlo error, assumptions, compute budget, and any approximation method.
 
+**Shipped production models (not stubs):** EIG uses a discrete graph-posterior
+soft-evidence model; effect-width reduction uses linear-Gaussian / OLS Gram
+scaling. These are the algorithms for the current design surface.
+
 ### 19.3 Decision analysis
 
 ```rust
@@ -1936,7 +1951,7 @@ pub struct DecisionProblem<A, O> {
 }
 ```
 
-The library returns expected utility, posterior regret, chance-constraint probabilities, and sensitivity to priors/graphs. It does not dispatch the selected action.
+The library returns expected utility, posterior regret, chance-constraint probabilities, and sensitivity to priors/graphs. It does not dispatch the selected action or own approval workflows.
 
 ### 19.4 Design computation requirements
 
@@ -1994,11 +2009,11 @@ Applying an event computes invalidation dependencies. It does not automatically 
 
 Incremental algorithms may maintain:
 
-- sufficient statistics for linear models;
-- streaming covariance matrices;
-- cached lagged sample indexes;
-- particle-filter state;
-- graph-score caches;
+- sufficient statistics for linear models (**shipped**);
+- streaming covariance matrices (**shipped**);
+- cached lagged sample indexes (**shipped**);
+- particle-filter state (**planned** — `TODO.md`);
+- graph-score caches (**planned** — `TODO.md`);
 - rolling mechanism diagnostics.
 
 Caches are versioned, bounded, and reconstructible. Eviction affects performance only, never semantics. Serialized state contains no process handles, thread pools, callbacks, borrowed buffers, or Python objects.
@@ -2193,14 +2208,20 @@ No core algorithm creates a global thread pool, uses an implicit global RNG, or 
 
 `causal-kernels` provides:
 
-- a scalar reference implementation;
-- a portable optimized implementation where stable Rust permits it;
-- architecture-specific implementations behind runtime feature detection when justified by benchmarks;
+- a scalar reference implementation (correctness gold standard);
+- a portable optimized implementation where stable Rust permits it (always compiled; selected via `KernelPolicy`);
+- architecture-specific implementations behind runtime feature detection **only when justified by benchmarks**;
 - one public semantic entry point per kernel.
 
-Dispatch occurs once per batch or compiled plan. It does not occur per element.
+Dispatch occurs once per batch or compiled plan. It does not occur per element. Users do not choose SIMD; default `KernelPolicy` allows portable and arch paths. `force_scalar` is the debugging / differential-test escape hatch.
 
-Candidate initial SIMD kernels:
+**Sequencing decision:** implement missing kernels as scalar + portable first. Add arch-specific SIMD only for kernels where portable leaves measurable performance on the table (typical candidates: masked reductions, contingency accumulation, bootstrap weighted accumulation). Contiguous `copy` / `gather` often will not justify `unsafe`.
+
+**Semantic contract:** scalar, portable, and arch SIMD share one statistical contract. Optimized paths must pass the same property, conformance, and tolerance-class tests (ADR 0010 / 0011). SIMD and optional BLAS must not change statistical defaults. Silent numerical drift (for example discovery edges flipping from reduction-order or NaN-handling differences) is a release blocker.
+
+**Reduction policy:** prefer deterministic reductions on CI-test and discovery hot paths even when slightly slower. Non-associative / nondeterministic reductions are allowed only when explicitly selected, recorded in execution provenance, and refused under `Determinism::Strict` when no deterministic path exists.
+
+Candidate kernels (scalar + portable required; arch SIMD optional after benches):
 
 - masked sums, means, variances, and covariance accumulation;
 - standardization and residual updates;
@@ -2227,6 +2248,8 @@ Every repeated high-frequency operation with nontrivial scratch space has a work
 Designated hot paths must have allocation tests covering steady-state execution after preparation. A hot path may allocate for output growth, but repeated scratch allocation is a regression.
 
 ### 23.4 Parallel work units
+
+**Decision:** parallelism is owned by `ExecutionContext` and implemented with hand-rolled `std::thread::scope` (as in discovery `engine.rs`). Do **not** introduce `rayon` or any global thread pool. Thread count is a runtime budget (`Parallelism::max_threads`), not a Cargo feature. Nested or irregular work (for example graph MCMC, attribution coalitions) may use a thin library-owned helper; it must still honor `ExecutionContext` budgets and must not expose a third-party pool API.
 
 Parallelize at coarse, deterministic boundaries:
 
@@ -2277,7 +2300,7 @@ If expected peak memory exceeds the budget, the planner selects a smaller batch,
 - deterministic task partitioning where supported;
 - seeded independent RNG streams derived from operation IDs;
 - stable tie breaking;
-- deterministic reductions where a supported path exists;
+- deterministic reductions where a supported path exists (nondeterministic / non-associative kernel reductions are refused — see §23.2);
 - recorded floating-point and kernel backend.
 
 It does not guarantee bitwise equality across CPU architectures or alternative BLAS backends unless a backend explicitly provides that guarantee.
@@ -2516,7 +2539,7 @@ Initial wheel matrix (**status:** shipped in CI):
 - macOS x86-64 and arm64;
 - Windows x86-64.
 
-The default wheel includes the pure-Rust `faer` path and must not require system BLAS. `abi3`, free-threaded Python, PyPy, and optional BLAS wheel variants are experimental until NumPy/Arrow compatibility and performance are measured (see `parity/release_deviations.md`).
+The default wheel includes the pure-Rust `faer` path and must not require system BLAS. `abi3`, free-threaded Python, PyPy, and optional BLAS wheel variants are experimental until NumPy/Arrow compatibility and performance are measured. Package and crate versions remain `0.1.0` until an explicit 1.0.0 release decision (ADR 0017); artifact format `0.1` is frozen.
 
 ### 25.6 Python performance requirements
 
@@ -2568,15 +2591,15 @@ notes = "Python API parity not required"
 
 Statuses (manifest vocabulary — use these in `parity/*.toml` and prose):
 
-- `pending`: not started;
+- `pending`: not started (must appear on `TODO.md` when it is a DESIGN chapter);
 - `in_progress`: implementation underway;
-- `done`: implemented with conformance / gate evidence;
-- `intentional_deviation`: deliberately different from upstream; must cite a `*_deviations.md` entry
-  and usually an ADR.
+- `done`: implemented with conformance / gate evidence.
 
 Do not use the older draft vocabulary (`not_planned` / `planned` / `implemented` /
-`conformant` / `deviates` / `blocked`) in manifests. Out-of-scope items are either omitted or
-recorded as `intentional_deviation` with an explicit waiver note.
+`conformant` / `deviates` / `blocked` / `intentional_deviation`) in manifests.
+Out-of-scope items are omitted from inventories (see excluded / optional notes in
+the relevant `parity/*.toml`) or documented as permanent product contracts in this
+file and marked `done` when the shipped surface matches that contract.
 
 Parity dimensions:
 
@@ -2674,12 +2697,10 @@ Optional adapter parity:
 
 #### Secondary surfaces
 
-- graph learners;
-- causal prediction;
-- data transformers;
-- interpreters;
-- time-series shift helpers;
-- plotting/export helpers where they represent analysis behavior rather than UI styling.
+DoWhy’s secondary package (graph learners, transformers, interpreters, time-series
+helpers as one grab-bag) is **not mirrored**. Equivalent capabilities are tracked
+as dedicated inventory IDs under discovery, transforms, effects, and facade
+workflows. `dowhy.secondary` is `done` under that contract.
 
 ### 26.2 Tigramite parity inventory
 
@@ -2698,8 +2719,7 @@ Optional adapter parity:
 - CMI kNN;
 - mixed CMI kNN;
 - symbolic CMI;
-- GPDC;
-- GPDC torch-equivalent behavior through a native or optional backend;
+- GPDC (native RBF-GP + distance correlation; torch backend is not in scope);
 - G-squared;
 - oracle CI;
 - pairwise multivariate wrapper;
@@ -2748,19 +2768,20 @@ Optional adapter parity:
 
 Plot rendering itself may be implemented in Python or exported to plotting libraries; all underlying plot data and graph layouts required for parity must be produced.
 
-### 26.3 Deviation governance and release gates
+### 26.3 Inventory honesty and release gates
 
-Parity work is not only inventory rows. The repo also maintains:
+Parity work is inventory + evidence, not a waiver registry:
 
-- `parity/*_deviations.md` — intentional waivers with verification notes (one file per inventory
-  domain: DoWhy/estimate/CI, Tigramite/PAG/context, GCM, attribution, Bayesian, design/state,
-  release);
-- `parity/release.toml` — release-closure capabilities (artifact schema, wheel matrix, parity
-  closure, conformance docs);
-- `scripts/gate_*.sh` — executable gates that fail CI when a claimed `done` row lacks evidence.
+- `parity/*.toml` — capability inventories (`pending` / `in_progress` / `done`);
+- `TODO.md` — unfinished DESIGN chapters corresponding to `pending` rows;
+- `parity/release.toml` — release-closure capabilities (artifact schema, wheel matrix,
+  conformance docs);
+- `scripts/gate_*.sh` — executable gates that fail CI when a claimed `done` row
+  lacks evidence.
 
-Marking a capability `intentional_deviation` without a matching deviations entry is incomplete.
 Marking `done` without a gate path or conformance fixture is incomplete.
+`pending` rows must cite `TODO.md` (or an inline DESIGN note) so roadmap work is
+not lost. There is no `intentional_deviation` status.
 
 ## 27. Licensing and clean implementation process [built]
 
@@ -2789,7 +2810,7 @@ Repository rules:
 - DoWhy code is also not translated line by line despite its permissive license;
 - reference libraries may be executed as black-box comparators in isolated conformance tooling;
 - reference outputs are generated from public APIs and stored with version, command, environment, and fixture metadata;
-- unusual parity quirks require a written decision on whether to match or intentionally differ;
+- unusual parity quirks require a written decision: match upstream, or accept a permanent product contract in DESIGN and mark the inventory row `done`;
 - contributor documentation states that "port" is project shorthand, not a source translation.
 
 A provenance record includes:
@@ -2877,7 +2898,7 @@ For each parity capability:
 3. capture structured outputs;
 4. run the Rust implementation;
 5. compare using capability-specific tolerance classes;
-6. record intentional deviations in `parity/*_deviations.md`.
+6. leave unfinished DESIGN chapters as `pending` in inventories and on `TODO.md`.
 
 Compare:
 
@@ -3006,7 +3027,9 @@ Release gates include:
 
 ## 30. Feature flags [partial]
 
-**Actual flags today** (not the full roadmap list):
+**Policy:** Cargo features mean “bring a heavy or optional *implementation / adapter*.” They never change which statistical numbers the default path produces. Performance selection lives in `KernelPolicy` and `ExecutionContext`, default-optimized, with minimal user configuration.
+
+**Actual flags today:**
 
 ```toml
 # causal-data
@@ -3015,37 +3038,32 @@ default = ["arrow"]
 arrow = []                # Arrow ingest adapters (library-owned tables remain core)
 ```
 
-`faer` is a required dependency of `causal-stats` (ADR 0001), not a feature.
-Portable-optimized kernels are always compiled into `causal-kernels`; scalar
-selection is runtime-only via `KernelPolicy` (force-scalar / disallow-portable).
+**Required / always-on (not features):**
 
-Parallelism is hand-rolled `std::thread::scope` coordinated by `ExecutionContext`, not a `rayon`
-feature. Runtime SIMD dispatch (`simd-runtime`) is still planned (§23.2).
+- `faer` — required dependency of `causal-stats` (ADR 0001).
+- Portable-optimized kernels — always compiled into `causal-kernels`; scalar is selected only via `KernelPolicy` (`force_scalar` / disallow-portable).
+- Parallelism — `std::thread::scope` coordinated by `ExecutionContext` (**`rayon` rejected**; do not add a `rayon` feature).
 
-**Roadmap feature surface** (may land later; do not treat as present):
+**Allowed optional features** (may land later; adapters / heavy backends only):
 
 ```toml
 [features]
-# aspirational — not wired as a workspace feature set today
-polars = []
-serde-json = []
-blas = []
-rayon = []              # decide vs blessing current thread::scope approach
-simd-runtime = []
-gaussian-process = []
-hmc = []
-smc = []
-python = []             # bindings live in the python/ workspace member instead
-networkx-io = []
-plot-data = []
+# not wired as a workspace feature set today
+polars = []               # ingest adapter
+serde-json = []           # exchange adapter
+blas = []                 # additive LA backend; never removes faer from conformance
+simd-runtime = []         # compile-in arch SIMD code size / unsafe surface only;
+                          # default KernelPolicy still selects it when present (§23.2)
+gaussian-process = []     # heavy mechanism backend
+hmc = []                  # heavy sampling backend
+smc = []                  # heavy sampling backend
+networkx-io = []          # graph exchange adapter
+plot-data = []            # visualization data export
 ```
 
-Core semantic types do not change shape based on feature flags. Features add implementations and adapters.
+`python` bindings live in the `python/` workspace member, not a crate feature.
 
-Scalar reference kernels remain available in all builds and are selected via
-`KernelPolicy`, not by omitting a compile-time feature. A future `simd-runtime`
-must not select different statistical behavior. Optional `blas` would add a
-backend and never remove the required `faer` path from conformance testing.
+Core semantic types do not change shape based on feature flags. A future `simd-runtime` must not select different statistical behavior. Optional `blas` adds a backend and never removes the required `faer` path from conformance testing.
 
 ## 31. API and performance stability [built]
 
@@ -3162,18 +3180,18 @@ The following decisions are accepted and are no longer open.
 3. **Categoricals:** dictionary-encoded `u32` category IDs with immutable domains. Missingness is separate. Contrasts are explicit model configuration and stored in fitted artifacts. (ADR 0003)
 4. **Data API:** stable library-owned data views with Arrow-backed implementations and adapters; Arrow crate types are not the public causal API. (ADR 0004)
 5. **Temporal indexing:** stable `(VariableId, offset)` identities and time-major dense indexes for finite unfolding. Dense indexes are not serialized. (ADR 0005)
-6. **Initial Bayesian GLM:** native Laplace approximation with a backend-neutral inference interface; external probabilistic-programming adapters come later. (ADR 0006)
+6. **Initial Bayesian GLM:** native Laplace approximation with a backend-neutral inference interface; external probabilistic-programming adapters are optional forever and not required for completion. (ADR 0006)
 7. **Supported versions:** Rust 1.85, edition 2024; CPython 3.11 through 3.14 for the first public release. (ADR 0007)
 8. **License and provenance:** `MIT OR Apache-2.0`, DCO sign-off, machine-readable algorithm provenance, and clean-implementation rules. (ADR 0008)
 9. **Parity baselines:** DoWhy v0.14 at commit `178ecc9c690a02f2801c1f70da2695f5744186cc`; Tigramite stable tag `5.2.1.25` at commit `5a8768754e6103755b006e9357e21c1a58534927`, plus extended snapshot commit `ff3ff13e1481073b8c5833a6fde1c304627a208e` for post-release features. (ADR 0009)
 10. **Tolerance policy:** fixture-specific `Exact`, `StableFloat`, `BackendSensitive`, `ResidualBased`, `MonteCarlo`, and `PosteriorDistribution` classes. There is no project-wide epsilon. (ADR 0010)
 11. **Performance posture:** performance and correctness are co-equal requirements. Hot paths require prepared/batch APIs, reusable workspaces, memory plans, scalar references, optimized differential tests, and benchmark gates from initial implementation. (ADR 0011)
 12. **GCM model:** compiled SCM with intervention overlays for sampling; no per-draw semantic-graph walk or SCM clone. (ADR 0012)
-13. **PAG / LPCMCI:** PAG endpoint semantics and LPCMCI orientation inventory; deviations tracked in `parity/pag_deviations.md`. (ADR 0013)
-14. **Context / regime effects:** multi-environment and regime handling contracts; deviations in `parity/context_deviations.md`. (ADR 0014)
-15. **Attribution:** Shapley/change/anomaly attribution surface and waiver policy (`parity/attribution_deviations.md`). (ADR 0015)
-16. **Design / state:** experiment-design and incremental-state MVP boundaries (`parity/design_state_deviations.md`). (ADR 0016)
-17. **Release prep:** release-closure inventory, wheel matrix, and gate scripts (`parity/release.toml`, ADR 0017).
+13. **PAG / LPCMCI:** PAG endpoint semantics and LPCMCI orientation inventory (`parity/pag.toml`). (ADR 0013)
+14. **Context / regime effects:** multi-environment and regime handling; RPCMCI uses caller-supplied regime labels (`parity/context.toml`). (ADR 0014)
+15. **Attribution:** Shapley/change/anomaly attribution surface (`parity/attribution.toml`). (ADR 0015)
+16. **Design / state:** experiment-design and incremental-state surface; OLS / streaming cov shipped, particle/graph-score caches planned (`parity/design_state.toml`, `TODO.md`). (ADR 0016)
+17. **Release prep:** release-closure inventory, wheel matrix, and gate scripts (`parity/release.toml`, ADR 0017). Package version remains 0.1.0 until an explicit 1.0.0 bump.
 
 Record these decisions as ADRs before dependent code is merged. Changing one requires an explicit superseding ADR and migration or compatibility analysis where applicable.
 
@@ -3181,8 +3199,9 @@ Record these decisions as ADRs before dependent code is merged. Changing one req
 
 The library reaches the described full scope when:
 
-- all required DoWhy capabilities except EconML integration are implemented or intentionally documented as semantic deviations;
-- all required Tigramite capabilities are implemented or intentionally documented as semantic deviations;
+- all required DoWhy capabilities except EconML integration are `done` in inventories (or omitted as permanently out of scope in DESIGN);
+- all required Tigramite capabilities are `done` in inventories (or omitted as permanently out of scope in DESIGN);
+- every remaining DESIGN chapter is either `done` or explicitly `pending` on `TODO.md`;
 - static, temporal, panel, and multi-environment data use the same facade workflow;
 - every causal query passes through explicit identification;
 - frequentist and Bayesian evaluators consume the same identified-functional IR where mathematically applicable;
@@ -3190,7 +3209,7 @@ The library reaches the described full scope when:
 - Python wheels expose the same Rust implementation without algorithm duplication;
 - serialized artifacts contain enough information to reproduce or audit an analysis;
 - incremental state and decision/design primitives remain embeddable library components rather than hosted-product features;
-- conformance manifests contain no unresolved required items;
+- conformance manifests contain no unresolved required items beyond documented `pending` roadmap rows;
 - every designated hot path has a documented data layout, preparation path, reusable workspace, batch API, memory complexity, benchmark fixture, regression budget, and responsible owner;
 - scalar reference and optimized implementations pass the same semantic, property, conformance, and tolerance tests;
 - no supported workflow depends on per-row, per-test, per-draw, or per-sample Python callbacks in its native fast path;

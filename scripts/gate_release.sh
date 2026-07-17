@@ -39,14 +39,25 @@ def caps(path: Path):
 
 missing = []
 
-# No required pending/planned/blocked in DoWhy / Tigramite capability tables.
-for manifest in ["parity/dowhy.toml", "parity/tigramite.toml"]:
+# Inventories: allow pending/in_progress (TODO.md roadmap); forbid retired waiver status.
+for manifest in [
+    "parity/dowhy.toml",
+    "parity/tigramite.toml",
+    "parity/bayesian.toml",
+    "parity/pag.toml",
+    "parity/context.toml",
+    "parity/design_state.toml",
+    "parity/gcm.toml",
+    "parity/attribution.toml",
+]:
     for c in caps(Path(manifest)):
-        if c["status"] in ("pending", "planned", "blocked", "in_progress"):
+        if c["status"] == "intentional_deviation":
+            missing.append(f"{manifest}: {c['id']} still intentional_deviation (retired)")
+        if c["status"] in ("planned", "blocked"):
             missing.append(f"{manifest}: {c['id']} still {c['status']}")
 
 EVIDENCE = {
-    "release.parity_closure": "parity/release_deviations.md",
+    "release.parity_closure": "TODO.md",
     "release.graph_dot_json": "crates/causal-io/src/graph_gml.rs",
     "release.artifact_schema": "crates/causal-io/src/migrate.rs",
     "release.wheel_matrix": ".github/workflows/ci.yml",
@@ -56,7 +67,7 @@ EVIDENCE = {
 }
 
 for c in caps(Path("parity/release.toml")):
-    if c["status"] not in ("done", "intentional_deviation"):
+    if c["status"] != "done":
         missing.append(f"release.toml {c['id']} status={c['status']}")
         continue
     ev = EVIDENCE.get(c["id"])
@@ -68,7 +79,8 @@ for c in caps(Path("parity/release.toml")):
 for path in [
     "adr/0017-release-prep.md",
     "parity/release.toml",
-    "parity/release_deviations.md",
+    "parity/README.md",
+    "TODO.md",
     "docs/artifacts.md",
     "docs/hot_paths.md",
     "docs/security_review.md",

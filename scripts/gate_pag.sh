@@ -37,13 +37,14 @@ EVIDENCE = {
     "pag.identify.generalized_adjustment": "crates/causal/tests/pag.rs",
     "pag.discovery.lpcmci": "crates/causal/tests/pag.rs",
     "pag.facade.dag_only_reject": "crates/causal/tests/pag.rs",
-    "pag.discovery.fci_rfci": "parity/pag_deviations.md",
-    "pag.identify.full_id_idc": "parity/pag_deviations.md",
 }
 
 missing = []
 for c in caps(text):
-    if c["status"] not in ("done", "intentional_deviation"):
+    if c["status"] == "intentional_deviation":
+        missing.append(f"{c['id']}: intentional_deviation is retired; use pending (TODO.md) or done")
+        continue
+    if c["status"] != "done":
         continue
     ev = EVIDENCE.get(c["id"])
     if not ev:
@@ -60,8 +61,8 @@ for path in [
     "crates/causal-graph/benches/mseparation.rs",
     "crates/causal-discovery/benches/pag_orientation.rs",
     "benches/baselines/pag.md",
-    "parity/pag_deviations.md",
     "parity/pag.toml",
+    "TODO.md",
 ]:
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")

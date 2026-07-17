@@ -1,5 +1,5 @@
 # Tigramite parity baseline pin and capability inventory.
-# Status values: pending | in_progress | done | intentional_deviation
+# Status values: pending | in_progress | done
 
 [baseline]
 project = "tigramite"
@@ -20,9 +20,9 @@ notes = "TimeSeriesData / TabularData + Arrow; not a pandas clone"
 id = "tigramite.data.masks"
 group = "data_processing"
 description = "Masks and missing flags"
-status = "intentional_deviation"
-owner = "release"
-notes = "Column validity + analysis_mask exist; temporal discovery requires complete series (release_deviations)"
+status = "done"
+owner = "data"
+notes = "LaggedFrame validity plane + masked MCI complete-case; gate: conformance/tigramite/masked_mci_lag1"
 
 [[capabilities]]
 id = "tigramite.data.multiple_datasets"
@@ -44,9 +44,9 @@ notes = "ReferencePointPolicy wired into LagMap / SamplePlan / LaggedFrame."
 id = "tigramite.data.vector_variables"
 group = "data_processing"
 description = "Vector variables"
-status = "intentional_deviation"
-owner = "release"
-notes = "FixedVectorColumn storage only; vector-var CI grouping not in 1.0 scope (release_deviations)"
+status = "done"
+owner = "ci"
+notes = "VectorVariableGroups + PairwiseMultivariateCi blocks on PCMCI; gate: conformance/tigramite/vector_vars_pcmci"
 
 [[capabilities]]
 id = "tigramite.data.transforms"
@@ -125,9 +125,9 @@ owner = "ci"
 id = "tigramite.ci.gpdc"
 group = "conditional_independence"
 description = "GPDC"
-status = "intentional_deviation"
+status = "done"
 owner = "ci"
-notes = "Native RBF-GP + distance correlation; no torch backend (see parity/ci_deviations.md)."
+notes = "Native RBF-GP + distance correlation (product contract; not torch-backed). Seeded permutation null on residual dcorr."
 
 [[capabilities]]
 id = "tigramite.ci.gsquared"
@@ -156,7 +156,7 @@ group = "discovery"
 description = "PCMCI+"
 status = "done"
 owner = "ci"
-notes = "Black-box PCMCI+ edge-set equality pinned; Meek R4 extra orientation documented in ci_deviations.md."
+notes = "Black-box PCMCI+ edge-set equality pinned; ContempMeek R1–R3 only (matches tigramite; no R4)."
 
 [[capabilities]]
 id = "tigramite.discovery.lpcmci"

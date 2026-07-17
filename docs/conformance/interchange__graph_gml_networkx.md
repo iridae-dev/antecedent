@@ -1,4 +1,10 @@
-# interchange / graph_gml_networkx
+# GML / NetworkX graph interchange
 
-GML and NetworkX `node_link_data` string interchange for static DAGs.
-Round-trip recovers `node_count` and directed edges.
+**Suite path:** `conformance/interchange/graph_gml_networkx`
+
+DoWhy-style GML and NetworkX `node_link_data` JSON round-trip to the same
+DAG (`node_count`, directed edges).
+
+## Expected summary
+
+Top-level keys: `expected_node_count, fixture, gml, networkx_node_link` (4 fields).

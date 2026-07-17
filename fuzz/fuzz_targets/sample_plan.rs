@@ -1,4 +1,4 @@
-//! Fuzz temporal SamplePlan / LaggedFrame construction.
+//! Fuzz temporal LaggedSamplePlan / LaggedFrame construction.
 #![no_main]
 
 use std::sync::Arc;

@@ -299,7 +299,11 @@ pub(crate) fn lagged_pc1_parents(
         return Ok((empty, Vec::new(), 0, PcSepsets::default()));
     }
     let lagged_engine =
-        PcmciEngine { constraints: lagged_constraints, ci: Arc::clone(&engine.ci) };
+        PcmciEngine {
+            constraints: lagged_constraints,
+            ci: Arc::clone(&engine.ci),
+            column_blocks: Arc::clone(&engine.column_blocks),
+        };
     let lagged_compiled = lagged_engine.constraints.compile(variables)?;
     let (parents, iters, tests) = lagged_engine.select_parents_all(
         frame,

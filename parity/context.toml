@@ -1,4 +1,5 @@
 # Context / regime / effects capability inventory
+# Status: pending | in_progress | done
 # Fine-grained rows for gate evidence. Coarse Tigramite/DoWhy flips live in
 # `tigramite.toml` / `dowhy.toml`.
 
@@ -31,7 +32,7 @@ group = "discovery"
 description = "Rpcmci regime assignments + per-regime graphs"
 status = "done"
 owner = "context"
-notes = "conformance/tigramite/rpcmci_two_regime"
+notes = "Caller-supplied RegimeAssignment (e.g. two_regime_half_split); unsupervised regime search is out of scope — DESIGN §13.4"
 
 [[capabilities]]
 id = "context.mediation"
@@ -61,6 +62,6 @@ notes = "conformance/context/prediction_smoke"
 id = "context.mediation.nonparametric"
 group = "identify_estimate"
 description = "Nonparametric / path-specific natural-effect ID beyond linear SEM"
-status = "intentional_deviation"
+status = "pending"
 owner = "context"
-notes = "Linear temporal NDE/NIE shipped; exotic variants waived — context_deviations.md"
+notes = "Linear temporal NDE/NIE shipped; nonparametric path-specific natural effects — TODO.md item 7"

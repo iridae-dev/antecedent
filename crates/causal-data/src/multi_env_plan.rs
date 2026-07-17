@@ -10,10 +10,10 @@ use crate::error::DataError;
 use crate::multi_env::MultiEnvironmentData;
 use crate::panel::PanelData;
 use crate::reference::ReferencePointPolicy;
-use crate::sample::{LagMap, LaggedColumn, SamplePlan};
+use crate::sample::{LagMap, LaggedColumn, LaggedSamplePlan};
 use crate::table::TableView;
 
-/// Build one [`SamplePlan`] per series length, sharing [`LagMap`] Arcs for equal lengths.
+/// Build one [`LaggedSamplePlan`] per series length, sharing [`LagMap`] Arcs for equal lengths.
 ///
 /// # Errors
 ///
@@ -22,7 +22,7 @@ pub fn plans_for_series_lengths(
     lengths: impl IntoIterator<Item = usize>,
     max_lag: u32,
     columns: &Arc<[LaggedColumn]>,
-) -> Result<Vec<SamplePlan>, DataError> {
+) -> Result<Vec<LaggedSamplePlan>, DataError> {
     if columns.is_empty() {
         return Err(DataError::InvalidArgument { message: "sample plan needs ≥1 column".into() });
     }
@@ -40,7 +40,7 @@ pub fn plans_for_series_lengths(
             by_len.insert(series_len, Arc::clone(&m));
             m
         };
-        plans.push(SamplePlan::with_shared(lag_map, Arc::clone(columns))?);
+        plans.push(LaggedSamplePlan::with_shared(lag_map, Arc::clone(columns))?);
     }
     Ok(plans)
 }
@@ -54,7 +54,7 @@ pub struct MultiEnvSamplePlan {
     /// Shared lagged-column specification.
     pub columns: Arc<[LaggedColumn]>,
     /// One plan per environment (index-aligned with the parent container).
-    pub plans: Arc<[SamplePlan]>,
+    pub plans: Arc<[LaggedSamplePlan]>,
 }
 
 impl MultiEnvSamplePlan {
@@ -92,7 +92,7 @@ impl MultiEnvSamplePlan {
     /// # Errors
     ///
     /// Out of range.
-    pub fn plan(&self, i: usize) -> Result<&SamplePlan, DataError> {
+    pub fn plan(&self, i: usize) -> Result<&LaggedSamplePlan, DataError> {
         self.plans.get(i).ok_or(DataError::InvalidArgument {
             message: "multi-env plan index out of range".into(),
         })
@@ -105,7 +105,7 @@ pub struct PanelSamplePlan {
     /// Shared lagged-column specification.
     pub columns: Arc<[LaggedColumn]>,
     /// One plan per panel unit.
-    pub plans: Arc<[SamplePlan]>,
+    pub plans: Arc<[LaggedSamplePlan]>,
 }
 
 impl PanelSamplePlan {

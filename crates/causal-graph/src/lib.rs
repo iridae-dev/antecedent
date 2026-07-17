@@ -35,7 +35,8 @@ pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag};
 pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use temporal::TemporalDag;
 pub use temporal_pag::{TemporalPag, TemporalPagReview};
-pub use types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
+pub use causal_core::NodeRef;
+pub use types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};
 pub use unfold::{
     LazyUnfoldedTemporalGraph, TemporalCpdagReview, TemporalGraphReview, UnfoldedTemporalGraph,
     ensure_lagged,

@@ -11,8 +11,8 @@ use causal_core::{
     RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 use causal_data::{
-    Float64Column, LaggedFrame, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
-    TimeSeriesData, ValidityBitmap,
+    Float64Column, LaggedFrame, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView,
+    TimeIndex, TimeSeriesData, ValidityBitmap,
 };
 
 use super::*;
@@ -92,6 +92,32 @@ fn recovers_lagged_parent() {
     assert!(has, "links={:?}", result.evidence.links);
     assert_eq!(result.review.pending_edges.len(), result.evidence.links.len());
     assert_eq!(result.review.algorithm.as_ref(), "pcmci.engine.pc_mci");
+}
+
+#[test]
+fn recovers_lagged_parent_with_analysis_mask() {
+    let (data, vars) = var_series();
+    let n = data.row_count();
+    // Hide every 7th row via analysis mask; masked MCI must still recover X→Y@1.
+    let mut bytes = vec![0xFFu8; n.div_ceil(8)];
+    for row in (0..n).step_by(7) {
+        bytes[row / 8] &= !(1 << (row % 8));
+    }
+    let mask = ValidityBitmap::from_bytes(bytes, n).unwrap();
+    let data = data.with_analysis_mask(mask).unwrap();
+    assert!(!LaggedFrame::from_series(&data, &vars, 2).unwrap().is_fully_valid());
+
+    let engine = PcmciEngine::new().with_constraints(constraints());
+    let mut ws = DiscoveryWorkspace::default();
+    let ctx = ExecutionContext::for_tests(9);
+    let result = engine.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
+    let has = result.evidence.links.iter().any(|s| {
+        s.link.source == VariableId::from_raw(0)
+            && s.link.target == VariableId::from_raw(1)
+            && s.link.source_lag.raw() == 1
+    });
+    assert!(has, "masked links={:?}", result.evidence.links);
+    assert!(!ws.keep_cache.is_empty(), "keep-mask cache should be populated");
 }
 
 #[test]

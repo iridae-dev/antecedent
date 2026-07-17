@@ -125,14 +125,14 @@ fn tigramite_ci_stats_gpdc_cmiknn_gsquared() {
     );
     assert!(p_dep < 0.15, "CMIknn dep should be significant, p={p_dep}");
 
-    // GPDC — intentional deviation band vs tigramite; check ordering + loose magnitude.
+    // GPDC — native backend vs tigramite torch; check ordering + loose magnitude.
     let gpdc = Gpdc::new();
     let (s_dep, p_dep) = run_ci(&gpdc, &[&x, &y_dep, &z], &z_flat, 1, 5);
     let (s_ind, p_ind) = run_ci(&gpdc, &[&x, &y_ind, &z], &z_flat, 1, 6);
     let ref_g = methods["gpdc_dep"]["statistic"].as_f64().unwrap();
     assert!(
         close(s_dep, ref_g, gpdc_atol, gpdc_rtol),
-        "GPDC dep stat {s_dep} vs {ref_g} (wide intentional_deviation band)"
+        "GPDC dep stat {s_dep} vs {ref_g} (wide native-backend band)"
     );
     assert!(s_dep > s_ind, "GPDC dep > ind ({s_dep} vs {s_ind})");
     assert!(p_dep <= p_ind + 1e-9, "GPDC dep p <= ind p ({p_dep} vs {p_ind})");

@@ -1,5 +1,5 @@
 # PAG / LPCMCI capability inventory
-# Status: pending | in_progress | done | intentional_deviation
+# Status: pending | in_progress | done
 
 library = "causal"
 
@@ -45,10 +45,10 @@ notes = "reject_dag_only_on_pag"
 
 [[capabilities]]
 id = "pag.discovery.fci_rfci"
-status = "intentional_deviation"
-notes = "Static FCI/RFCI not delivered; LPCMCI is the PAG discovery surface"
+status = "pending"
+notes = "Static FCI/RFCI — TODO.md item 3; LPCMCI is the current PAG discovery surface"
 
 [[capabilities]]
 id = "pag.identify.full_id_idc"
-status = "intentional_deviation"
-notes = "Full recursive semi-Markovian ID/IDC deferred; PAG uses generalized adjustment envelopes"
+status = "pending"
+notes = "Full recursive semi-Markovian ID/IDC — TODO.md item 4; PAG uses generalized adjustment envelopes today"

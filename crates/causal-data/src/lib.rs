@@ -5,15 +5,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod aligned_buffer;
 #[cfg(feature = "arrow")]
 pub mod arrow_adapter;
+#[cfg(feature = "arrow")]
+pub mod arrow_ffi;
+pub mod buffer;
 pub mod categorical;
 pub mod column;
 pub mod dataset;
 pub mod error;
+pub mod event;
 pub mod lagged_frame;
 pub mod materialize;
 pub mod multi_env;
@@ -23,6 +28,8 @@ pub mod pooled_frame;
 pub mod reference;
 pub mod resample;
 pub mod sample;
+pub mod sample_policy;
+pub mod sample_request;
 pub mod selection;
 pub mod sim;
 pub mod split;
@@ -30,12 +37,19 @@ pub mod storage;
 pub mod table;
 pub mod temporal;
 pub mod transforms;
+pub mod vector_vars;
 
 #[cfg(test)]
 mod testing;
 
 #[cfg(feature = "arrow")]
-pub use arrow_adapter::{ArrowLoadResult, tabular_from_record_batch};
+pub use arrow_adapter::{
+    ArrowLoadResult, tabular_from_arrow_c_columns, tabular_from_record_batch,
+};
+#[cfg(feature = "arrow")]
+pub use arrow_ffi::{ArrowCColumn, FfiArrowArray, FfiArrowSchema};
+pub use aligned_buffer::AlignedBuffer;
+pub use buffer::{F64Buffer, ForeignBufferOwner, ForeignF64Buffer};
 pub use categorical::{
     CategoricalColumn, CategoricalView, CategoryCode, CategoryDomain, CategoryLevel, Contrast,
     ContrastMatrix, UnknownCategoryPolicy, compile_contrast_matrix,
@@ -46,11 +60,11 @@ pub use column::{
 };
 pub use dataset::{TabularData, TimeSeriesData};
 pub use error::DataError;
-pub use lagged_frame::LaggedFrame;
+pub use event::EventData;
+pub use lagged_frame::{LaggedFrame, LaggedFrameOptions};
 pub use materialize::{MaterializationReason, materialization_diagnostic};
 pub use multi_env::MultiEnvironmentData;
 pub use multi_env_plan::{MultiEnvSamplePlan, PanelSamplePlan, plans_for_series_lengths};
-pub(crate) use multi_env_plan::series_columnar_ptr;
 pub use panel::{PanelData, PanelUnit, PanelUnitView};
 pub use pooled_frame::{DummyOptions, PooledLaggedFrame, pool_multi_env_lagged_frame};
 pub use reference::ReferencePointPolicy;
@@ -59,13 +73,27 @@ pub use resample::{
     fill_resample_indexes_grouped, fill_resample_weight_batch, fill_resample_weights,
     resample_timeseries, resample_timeseries_grouped,
 };
-pub use sample::{DropSummary, LagMap, LaggedColumn, PreparedSample, SamplePlan, SampleWorkspace};
+pub use sample::{
+    DropSummary, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan, LaggedSampleWorkspace,
+};
+pub use sample_policy::{MaskPolicy, MissingPolicy, WeightPolicy};
+pub use sample_request::{
+    MatrixRef, PreparedColumn, PreparedRowSelector, PreparedSample, RowSelectionRef, SampleCacheKey,
+    SampleLayout, SamplePartitions, SamplePlan, SampleRequest, SampleWorkspace,
+};
 pub use sim::{KnownLaggedParent, LaggedLinearPair};
-pub use split::{DiscoveryEstimationSplit, EnvHoldoutSplit, RegimeHoldoutSplit, TimeRange};
+pub use split::{
+    BlockedTemporalSplit, ClusterSplit, DiscoveryEstimationSplit, EnvHoldoutSplit, GroupedSplit,
+    RandomIidSplit, RegimeHoldoutSplit, RollingOriginSplit, RowSplit, TemporalFold,
+    TemporalRandomPolicy, TimeRange, ensure_random_allowed_on_temporal,
+};
 pub use storage::OwnedColumnarStorage;
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
 pub use transforms::{equal_width_bin, moving_average, ordinal_patterns};
+pub use vector_vars::{
+    VectorVariableGroups, column_blocks_for_frame, expand_fixed_vector_columns,
+};
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss)]

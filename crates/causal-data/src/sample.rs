@@ -1,5 +1,9 @@
 //! Lag-aligned sample planning for temporal discovery (DESIGN.md §5.5).
 //!
+//! General x/y/z [`SampleRequest`](crate::SampleRequest) planning lives in
+//! [`sample_request`](crate::sample_request). This module owns the lag-gather
+//! hot path ([`LaggedSamplePlan`]).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation)]
@@ -149,12 +153,12 @@ pub struct LaggedColumn {
 
 /// Reusable plan for gathering a fixed set of lagged columns.
 #[derive(Clone, Debug)]
-pub struct SamplePlan {
+pub struct LaggedSamplePlan {
     columns: Arc<[LaggedColumn]>,
     lag_map: Arc<LagMap>,
 }
 
-impl SamplePlan {
+impl LaggedSamplePlan {
     /// Plan lagged columns for a series length / max lag (series-origin reference).
     ///
     /// # Errors
@@ -258,8 +262,8 @@ impl SamplePlan {
     pub fn prepare<'a>(
         &'a self,
         data: &TimeSeriesData,
-        workspace: &'a mut SampleWorkspace,
-    ) -> Result<PreparedSample<'a>, DataError> {
+        workspace: &'a mut LaggedSampleWorkspace,
+    ) -> Result<LaggedPreparedSample<'a>, DataError> {
         if data.row_count() != self.lag_map.series_len {
             return Err(DataError::LengthMismatch {
                 expected: self.lag_map.series_len,
@@ -282,13 +286,13 @@ impl SamplePlan {
             let dst = &mut workspace.values[c * n..(c + 1) * n];
             gather(
                 &policy,
-                F64VectorView::contiguous(&src.values),
+                F64VectorView::contiguous(src.values.as_slice()),
                 &workspace.row_indexes[..n],
                 dst,
             );
         }
 
-        Ok(PreparedSample {
+        Ok(LaggedPreparedSample {
             n,
             ncols,
             values: &workspace.values[..n * ncols],
@@ -298,9 +302,9 @@ impl SamplePlan {
     }
 }
 
-/// Caller-owned scratch for repeated [`SamplePlan::prepare`] calls.
+/// Caller-owned scratch for repeated [`LaggedSamplePlan::prepare`] calls.
 #[derive(Clone, Debug, Default)]
-pub struct SampleWorkspace {
+pub struct LaggedSampleWorkspace {
     /// Reused row-index buffer (length = `n_effective`).
     pub row_indexes: Vec<usize>,
     /// Column-major gathered values (`ncols * n`).
@@ -309,7 +313,7 @@ pub struct SampleWorkspace {
     capacity_cols: usize,
 }
 
-impl SampleWorkspace {
+impl LaggedSampleWorkspace {
     /// Ensure capacity for `n` rows and `ncols` columns (grows, never shrinks).
     pub fn prepare(&mut self, n: usize, ncols: usize) {
         if self.row_indexes.len() < n {
@@ -345,9 +349,9 @@ pub struct DropSummary {
     pub retained: usize,
 }
 
-/// Borrowed prepared sample (views into a [`SampleWorkspace`]).
+/// Borrowed prepared sample (views into a [`LaggedSampleWorkspace`]).
 #[derive(Clone, Copy, Debug)]
-pub struct PreparedSample<'a> {
+pub struct LaggedPreparedSample<'a> {
     /// Effective sample size.
     pub n: usize,
     /// Number of lagged columns.
@@ -360,7 +364,7 @@ pub struct PreparedSample<'a> {
     pub dropped: DropSummary,
 }
 
-impl PreparedSample<'_> {
+impl LaggedPreparedSample<'_> {
     /// Borrow column `c` as a contiguous slice of length `n`.
     #[must_use]
     pub fn column(&self, c: usize) -> &[f64] {
@@ -373,13 +377,13 @@ impl TimeSeriesData {
     ///
     /// # Errors
     ///
-    /// Propagates [`SamplePlan::new`] errors.
+    /// Propagates [`LaggedSamplePlan::new`] errors.
     pub fn plan_lagged_sample(
         &self,
         max_lag: u32,
         columns: impl Into<Arc<[LaggedColumn]>>,
-    ) -> Result<SamplePlan, DataError> {
-        SamplePlan::new(self.row_count(), max_lag, columns)
+    ) -> Result<LaggedSamplePlan, DataError> {
+        LaggedSamplePlan::new(self.row_count(), max_lag, columns)
     }
 }
 
@@ -401,7 +405,7 @@ mod tests {
             lag: Lag::CONTEMPORANEOUS,
         }]);
         let plan = data.plan_lagged_sample(2, cols).unwrap();
-        let mut ws = SampleWorkspace::default();
+        let mut ws = LaggedSampleWorkspace::default();
         let err = plan.prepare(&data, &mut ws).unwrap_err();
         assert!(matches!(
             err,
@@ -417,7 +421,7 @@ mod tests {
             lag: Lag::CONTEMPORANEOUS,
         }]);
         let plan = data.plan_lagged_sample(2, cols).unwrap();
-        let mut ws = SampleWorkspace::default();
+        let mut ws = LaggedSampleWorkspace::default();
         let err = plan.prepare(&data, &mut ws).unwrap_err();
         assert!(matches!(err, DataError::IncompleteSeries { id: None, .. }));
     }
@@ -440,7 +444,7 @@ mod tests {
             LaggedColumn { variable: VariableId::from_raw(1), lag: Lag::from_raw(1) },
         ]);
         let plan = data.plan_lagged_sample(2, cols).unwrap();
-        let mut ws = SampleWorkspace::default();
+        let mut ws = LaggedSampleWorkspace::default();
         let prep = plan.prepare(&data, &mut ws).unwrap();
         assert_eq!(prep.n, 18);
         assert!((prep.column(0)[0] - 2.0).abs() < 1e-12);
@@ -457,7 +461,7 @@ mod tests {
             LaggedColumn { variable: VariableId::from_raw(2), lag: Lag::from_raw(1) },
         ]);
         let plan = data.plan_lagged_sample(3, cols).unwrap();
-        let mut ws = SampleWorkspace::default();
+        let mut ws = LaggedSampleWorkspace::default();
         let _ = plan.prepare(&data, &mut ws).unwrap();
         let cap_n = ws.capacity_n();
         let cap_c = ws.capacity_cols();

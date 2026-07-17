@@ -15,7 +15,7 @@
 use std::sync::Arc;
 
 use causal_core::{Lag, VariableId};
-use causal_data::{LaggedColumn, SampleWorkspace, TimeSeriesData};
+use causal_data::{LaggedColumn, LaggedSampleWorkspace, TimeSeriesData};
 use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::error::EstimationError;
@@ -52,7 +52,7 @@ impl TemporalLinearPredictor {
         let plan = data
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut ws = SampleWorkspace::default();
+        let mut ws = LaggedSampleWorkspace::default();
         let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
         let n = prep.n;
         let y = prep.column(0);
@@ -94,7 +94,7 @@ impl TemporalLinearPredictor {
         let plan = data
             .plan_lagged_sample(self.max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut ws = SampleWorkspace::default();
+        let mut ws = LaggedSampleWorkspace::default();
         let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
         let n = prep.n;
         let mut out = vec![0.0; n];

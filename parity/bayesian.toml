@@ -1,5 +1,5 @@
 # Bayesian core capability inventory
-# Status: pending | in_progress | done | intentional_deviation
+# Status: pending | in_progress | done
 
 library = "causal"
 
@@ -65,25 +65,23 @@ notes = "causal-model MechanismRegistry + CompiledCausalModel"
 
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
-status = "intentional_deviation"
-notes = "Bayesian DAG/DBN posterior search (§13.7) out of scope; envelopes over supplied WeightedGraphSamples only"
-
-[[capabilities]]
-id = "bayes.backend.stan_pymc"
-status = "intentional_deviation"
-notes = "External adapters deferred per ADR 0006"
+status = "pending"
+notes = "Bayesian DAG/DBN posterior search (§13.7) — TODO.md item 5; envelopes over supplied WeightedGraphSamples ship"
 
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"
-status = "intentional_deviation"
-notes = "After base Laplace/conjugate backend is stable (DESIGN §14.4)"
+status = "pending"
+notes = "Hierarchical / BVAR / state-space / GP after base Laplace/conjugate — TODO.md item 6 / DESIGN §14.4"
 
 [[capabilities]]
 id = "bayes.validate.mcmc_diagnostics"
-status = "intentional_deviation"
-notes = "Chain ESS / divergences / SBC wait for HMC/SMC"
+status = "pending"
+notes = "Chain ESS / divergences / SBC wait for HMC/SMC — TODO.md item 6"
 
 [[capabilities]]
 id = "bayes.ci.tests"
-status = "intentional_deviation"
-notes = "Bayesian CI tests (§12) not delivered; see bayesian_deviations.md"
+status = "pending"
+notes = "Bayes-factor CI / posterior dependence (§12) — TODO.md item 6"
+
+# External Stan/PyMC adapters are optional forever (native Laplace is canonical;
+# DESIGN §14.5). Not tracked as a required inventory row.

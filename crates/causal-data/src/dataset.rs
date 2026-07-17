@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use causal_core::{CausalSchema, VariableId};
 
-use crate::column::{ColumnView, OwnedColumn};
+use crate::column::{ColumnView, OwnedColumn, ValidityBitmap};
 use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
@@ -89,6 +89,43 @@ impl TimeSeriesData {
     #[must_use]
     pub(crate) fn columnar_ptr(&self) -> *const [OwnedColumn] {
         Arc::as_ptr(self.storage.columns_arc())
+    }
+
+    /// Restrict analysis to rows where `mask` is valid, intersected (AND) with any existing
+    /// analysis mask; preserves columns, validity, weights, and time index.
+    ///
+    /// # Errors
+    ///
+    /// Mask length mismatch.
+    pub fn with_analysis_mask(&self, mask: ValidityBitmap) -> Result<Self, DataError> {
+        let storage = &self.storage;
+        let n = storage.row_count();
+        if mask.len() != n {
+            return Err(DataError::LengthMismatch {
+                expected: n,
+                actual: mask.len(),
+                context: "analysis mask",
+            });
+        }
+        let combined = match storage.analysis_mask() {
+            Some(existing) => {
+                let mut bytes = vec![0u8; n.div_ceil(8)];
+                for i in 0..n {
+                    if existing.is_valid(i) && mask.is_valid(i) {
+                        bytes[i / 8] |= 1 << (i % 8);
+                    }
+                }
+                ValidityBitmap::from_bytes(bytes, n)?
+            }
+            None => mask,
+        };
+        let new_storage = OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            storage.columns().to_vec(),
+            Some(combined),
+            storage.weights().map(Arc::from),
+        )?;
+        Self::try_new(new_storage, self.time_index.clone())
     }
 }
 

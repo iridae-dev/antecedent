@@ -47,7 +47,7 @@ for cid, ev in EVIDENCE.items():
     if c is None:
         missing.append(f"{cid} missing from gcm.toml")
         continue
-    if c["status"] not in ("done", "intentional_deviation"):
+    if c["status"] != "done":
         missing.append(f"{cid} status={c['status']}")
         continue
     p = root / ev
@@ -63,7 +63,6 @@ for path in [
     "conformance/gcm/do_sampling_mcmc/expected.json",
     "crates/causal-model/benches/sample_overlay.rs",
     "crates/causal-counterfactual/benches/counterfactual_batch.rs",
-    "parity/gcm_deviations.md",
     "parity/gcm.toml",
 ]:
     if not (root / path).exists():

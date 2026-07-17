@@ -1,29 +1,11 @@
-//! Node references, dense ids, and edge endpoints (DESIGN.md §6).
+//! Dense ids and edge endpoints (DESIGN.md §6).
+//!
+//! [`NodeRef`] lives in `causal-core` so sample planning can use it without
+//! depending on this crate.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_core::{EnvironmentId, Lag, VariableId};
-
-/// Stable node identity before dense indexing.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum NodeRef {
-    /// Static graph node.
-    Static(VariableId),
-    /// Lagged temporal node (`variable` at `t - lag`).
-    Lagged {
-        /// Variable.
-        variable: VariableId,
-        /// Non-negative lag (`0` = contemporaneous).
-        lag: Lag,
-    },
-    /// Context-aware node.
-    Context {
-        /// Variable.
-        variable: VariableId,
-        /// Optional environment.
-        environment: Option<EnvironmentId>,
-    },
-}
+pub use causal_core::NodeRef;
 
 /// Compact dense node index used in algorithmic paths.
 #[repr(transparent)]

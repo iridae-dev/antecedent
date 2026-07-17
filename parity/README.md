@@ -1,8 +1,7 @@
 # Parity manifests
 
 Pinned reference baselines and assignable capability inventories for DoWhy and
-Tigramite. See DESIGN.md §26 and ADR 0009. Feature-area inventories and
-intentional waivers are tracked separately.
+Tigramite. See DESIGN.md §26 and ADR 0009.
 
 - [dowhy.toml](dowhy.toml) — DoWhy v0.14 pin and inventory
 - [tigramite.toml](tigramite.toml) — Tigramite 5.2.1.25 pin and inventory
@@ -13,17 +12,13 @@ intentional waivers are tracked separately.
 - [attribution.toml](attribution.toml) — Attribution inventory
 - [design_state.toml](design_state.toml) — Design / incremental-state inventory
 - [release.toml](release.toml) — Release-prep / parity-closure inventory
-- [estimate_deviations.md](estimate_deviations.md) — Estimate waivers
-- [ci_deviations.md](ci_deviations.md) — CI / PCMCI waivers
-- [bayesian_deviations.md](bayesian_deviations.md) — Bayesian waivers
-- [gcm_deviations.md](gcm_deviations.md) — GCM waivers
-- [pag_deviations.md](pag_deviations.md) — PAG / ID waivers
-- [context_deviations.md](context_deviations.md) — Context / mediation waivers
-- [attribution_deviations.md](attribution_deviations.md) — Attribution notes
-- [design_state_deviations.md](design_state_deviations.md) — Design / state waivers
-- [release_deviations.md](release_deviations.md) — Release scope decisions
 
-Status values: `pending`, `in_progress`, `done`, `intentional_deviation`.
+Status values: `pending`, `in_progress`, `done`.
+
+Unfinished DESIGN chapters stay `pending` and must appear on `TODO.md`. Permanent
+product contracts (for example native GPDC, no DoWhy secondary package mirror)
+are documented in DESIGN.md and marked `done`. There is no waiver / deviation
+status.
 
 Do not mark a capability `done` without conformance fixtures under
 `conformance/` **or** a named calibration/unit harness recorded in the
@@ -44,11 +39,12 @@ bash scripts/gate_release.sh
 ```
 
 PAG: inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
-DAG-only-reject conformance; FCI/RFCI and full ID/IDC waived
-(`pag_deviations.md`).
+DAG-only-reject conformance; FCI/RFCI and full ID/IDC remain `pending`
+(`TODO.md`).
 
 Context: J/RPCMCI, effects, conditional ATE gated by `gate_context.sh`.
+RPCMCI uses caller-supplied regime labels.
 
-Release: parity closure, DOT+JSON interchange, artifact format 0.1 freeze,
-wheel matrix, conformance docs, hot-path baselines, security review
-(`release_deviations.md`, ADR 0017). Package version remains 0.1.0.
+Release: artifact format 0.1 freeze, wheel matrix, conformance docs, hot-path
+baselines, security review (`release.toml`, ADR 0017). Package version remains
+0.1.0. Remaining DESIGN chapters are `pending` + `TODO.md`.

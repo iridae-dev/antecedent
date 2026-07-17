@@ -12,15 +12,15 @@
     clippy::too_many_lines
 )]
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
-use causal_data::{LaggedFrame, TimeSeriesData};
+use causal_data::{LaggedFrame, TimeSeriesData, VectorVariableGroups, column_blocks_for_frame};
 use causal_graph::TemporalGraphReview;
 use causal_stats::{
-    CiBatchRequest, CiQuery, CiResult, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
-    PreparedCiTest,
-    PartialCorrelation,
+    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
+    PairwiseMultivariateCi, PreparedCiTest, PartialCorrelation,
 };
 
 use crate::constraints::{CompiledConstraints, DiscoveryConstraints};
@@ -74,6 +74,12 @@ pub struct DiscoveryWorkspace {
     /// Key: `(source, source_lag, target, target_lag)` with `target_lag` contemporaneous
     /// in the PC phase. Value: conditioning set that rendered the pair independent.
     pub sepsets: PcSepsets,
+    /// Compacted column-major values for masked CI (`ncols * n_keep`).
+    pub compact_values: Vec<f64>,
+    /// Involved-column scratch for keep-mask construction.
+    pub involved_cols: Vec<usize>,
+    /// Cache: sorted involved column indexes → keep mask (DESIGN.md §5.7).
+    pub keep_cache: HashMap<Vec<usize>, Arc<[bool]>>,
 }
 
 /// Shared PCMCI engine core.
@@ -83,6 +89,9 @@ pub struct PcmciEngine {
     pub constraints: DiscoveryConstraints,
     /// Pluggable CI test (defaults to partial correlation).
     pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
+    /// Optional pairwise-MV column blocks (tigramite `vector_vars` / space-dummy MV).
+    /// Empty ⇒ no block expansion when building masked keep masks.
+    pub column_blocks: Arc<[Arc<[usize]>]>,
 }
 
 impl std::fmt::Debug for PcmciEngine {
@@ -106,6 +115,7 @@ impl PcmciEngine {
         Self {
             constraints: DiscoveryConstraints::default(),
             ci: Arc::new(PartialCorrelation::new()),
+            column_blocks: Arc::from([]),
         }
     }
 
@@ -120,6 +130,13 @@ impl PcmciEngine {
     #[must_use]
     pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
         self.ci = ci;
+        self
+    }
+
+    /// Install pairwise-MV column blocks used for masked keep-mask expansion.
+    #[must_use]
+    pub fn with_column_blocks(mut self, column_blocks: Arc<[Arc<[usize]>]>) -> Self {
+        self.column_blocks = column_blocks;
         self
     }
 
@@ -304,6 +321,10 @@ impl PcmciEngine {
     /// tigramite `run_mci`), not only PC survivors. Returns **unthresholded** scores;
     /// callers apply alpha and optional FDR over that full family.
     ///
+    /// When [`DiscoveryConstraints::vector_groups`] is non-empty, the lagged frame still
+    /// materializes all component columns, search runs over logical nodes only, and CI
+    /// uses pairwise multivariate expansion.
+    ///
     /// # Errors
     ///
     /// Data / CI / graph construction / memory-budget failures.
@@ -328,27 +349,38 @@ impl PcmciEngine {
             }
         }
 
-        let threads = ctx.parallelism.max_threads.get().max(1);
-        let compiled = self.constraints.compile(variables)?;
+        let (ci, column_blocks, search_vars) =
+            resolve_vector_ci(&self.ci, &self.column_blocks, &self.constraints.vector_groups, &frame, variables)?;
+        let engine = PcmciEngine {
+            constraints: self.constraints.clone(),
+            ci,
+            column_blocks,
+        };
 
-        // DESIGN.md §12: prepare CI once for the lagged frame.
-        {
+        let threads = ctx.parallelism.max_threads.get().max(1);
+        let compiled = engine.constraints.compile(&search_vars)?;
+
+        // DESIGN.md §12: prepare CI once for the lagged frame (unmasked fast path).
+        if frame.is_fully_valid() {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             let plan = causal_stats::CiPreparationPlan {
-                significance: self.constraints.significance,
+                significance: engine.constraints.significance,
                 confidence: ConfidenceMethod::default(),
             };
             workspace.prepared_ci =
-                Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+                Some(engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+        } else {
+            workspace.prepared_ci = None;
+            workspace.keep_cache.clear();
         }
 
         let (all_parents, iterations, mut ci_tests) =
-            self.select_parents_all(&frame, variables, &compiled, workspace, ctx, threads)?;
+            engine.select_parents_all(&frame, &search_vars, &compiled, workspace, ctx, threads)?;
 
         let mut scored = Vec::new();
-        let (mci_tests, truncated) = self.mci_all(
+        let (mci_tests, truncated) = engine.mci_all(
             &frame,
-            variables,
+            &search_vars,
             &compiled,
             &all_parents,
             &mut scored,
@@ -391,7 +423,7 @@ impl PcmciEngine {
             performance: DiscoveryPerformanceRecord {
                 ci_tests,
                 links_retained: n_links,
-                targets: variables.len() as u64,
+                targets: search_vars.len() as u64,
                 lagged_frame_bytes: frame.values_bytes(),
                 worker_threads: threads,
             },
@@ -602,6 +634,22 @@ impl PcmciEngine {
         if candidates.is_empty() {
             return Ok((Vec::new(), 0));
         }
+
+        // Masked frames: per-query keep masks differ, so fall back to serial ci_statistic.
+        if !frame.is_fully_valid() {
+            let mut scored = Vec::with_capacity(candidates.len());
+            let mut truncated = 0u64;
+            for &(src, slag) in &candidates {
+                let link = link_to_target(src, slag, target);
+                let src_parents = parents_of(all_parents, src);
+                let (s, trunc) =
+                    self.mci_test(frame, link, parents, src_parents, workspace, ctx)?;
+                truncated += trunc;
+                scored.push(s);
+            }
+            return Ok((scored, truncated));
+        }
+
         let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
         self.ensure_prepared_ci(frame, workspace, ctx)?;
         let mut queries = Vec::with_capacity(candidates.len());
@@ -719,9 +767,9 @@ impl PcmciEngine {
             workspace.z_flat.push(zi);
         }
 
-        let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
-        self.ensure_prepared_ci(frame, workspace, ctx)?;
-        let result: CiResult = {
+        if frame.is_fully_valid() {
+            let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
+            self.ensure_prepared_ci(frame, workspace, ctx)?;
             let queries = [CiQuery {
                 x: xi,
                 y: yi,
@@ -742,15 +790,150 @@ impl PcmciEngine {
                 .ci
                 .test_batch(prepared, &req, &mut workspace.ci, ctx)
                 .map_err(DiscoveryError::from)?;
-            out.results
+            let result = out
+                .results
                 .into_iter()
                 .next()
-                .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?
+                .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
+            if !result.statistic.is_finite() || !result.p_value.is_finite() {
+                return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
+            }
+            return Ok((result.statistic, result.p_value));
+        }
+
+        // Masked / incomplete series: complete-case over involved columns (xyz),
+        // expanding through pairwise-MV blocks when configured.
+        workspace.involved_cols.clear();
+        expand_into(&mut workspace.involved_cols, xi, &self.column_blocks);
+        expand_into(&mut workspace.involved_cols, yi, &self.column_blocks);
+        let z_copy: Vec<usize> = workspace.z_flat.clone();
+        for &zi in &z_copy {
+            expand_into(&mut workspace.involved_cols, zi, &self.column_blocks);
+        }
+        workspace.involved_cols.sort_unstable();
+        workspace.involved_cols.dedup();
+
+        let keep = {
+            let key = workspace.involved_cols.clone();
+            if let Some(cached) = workspace.keep_cache.get(&key) {
+                Arc::clone(cached)
+            } else {
+                let mask = frame
+                    .keep_mask_for_columns(&workspace.involved_cols)
+                    .map_err(DiscoveryError::from)?;
+                let arc: Arc<[bool]> = Arc::from(mask);
+                workspace.keep_cache.insert(key, Arc::clone(&arc));
+                arc
+            }
         };
+        let n_keep = keep.iter().filter(|&&k| k).count();
+        if n_keep < 3 {
+            return Err(DiscoveryError::stats_msg(
+                "insufficient complete-case samples after mask/missingness",
+            ));
+        }
+
+        let ncols = frame.ncols();
+        let need = ncols.saturating_mul(n_keep);
+        if workspace.compact_values.len() < need {
+            workspace.compact_values.resize(need, 0.0);
+        }
+        for c in 0..ncols {
+            let src = frame.column(c);
+            let dst = &mut workspace.compact_values[c * n_keep..(c + 1) * n_keep];
+            let mut j = 0usize;
+            for (i, &k) in keep.iter().enumerate() {
+                if k {
+                    dst[j] = src[i];
+                    j += 1;
+                }
+            }
+        }
+        let plan = causal_stats::CiPreparationPlan {
+            significance: self.constraints.significance,
+            confidence: ConfidenceMethod::default(),
+        };
+        {
+            let cols: Vec<&[f64]> = (0..ncols)
+                .map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep])
+                .collect();
+            workspace.prepared_ci =
+                Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+        }
+        let cols: Vec<&[f64]> = (0..ncols)
+            .map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep])
+            .collect();
+        let queries = [CiQuery {
+            x: xi,
+            y: yi,
+            z_start: 0,
+            z_len: workspace.z_flat.len(),
+        }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &workspace.z_flat,
+            significance: self.constraints.significance,
+            confidence: ConfidenceMethod::default(),
+        };
+        let prepared = workspace.prepared_ci.as_ref().ok_or_else(|| {
+            DiscoveryError::Unsupported { message: "CI test used before prepare()" }
+        })?;
+        let out = self
+            .ci
+            .test_batch(prepared, &req, &mut workspace.ci, ctx)
+            .map_err(DiscoveryError::from)?;
+        let result = out
+            .results
+            .into_iter()
+            .next()
+            .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
         if !result.statistic.is_finite() || !result.p_value.is_finite() {
             return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
         }
         Ok((result.statistic, result.p_value))
+    }
+}
+
+fn resolve_vector_ci(
+    base_ci: &Arc<dyn ConditionalIndependence + Send + Sync>,
+    base_blocks: &Arc<[Arc<[usize]>]>,
+    groups: &VectorVariableGroups,
+    frame: &LaggedFrame,
+    variables: &[VariableId],
+) -> Result<
+    (Arc<dyn ConditionalIndependence + Send + Sync>, Arc<[Arc<[usize]>]>, Vec<VariableId>),
+    DiscoveryError,
+> {
+    let search_vars = groups.filter_search_variables(variables);
+    let group_blocks = column_blocks_for_frame(groups, frame).map_err(DiscoveryError::from)?;
+    if group_blocks.is_empty() {
+        return Ok((Arc::clone(base_ci), Arc::clone(base_blocks), search_vars));
+    }
+    // Prefer explicit vector-group blocks; merge with any pre-installed blocks.
+    let mut merged: Vec<Arc<[usize]>> = group_blocks.iter().cloned().collect();
+    for b in base_blocks.iter() {
+        merged.push(Arc::clone(b));
+    }
+    let blocks: Arc<[Arc<[usize]>]> = Arc::from(merged);
+    let ci: Arc<dyn ConditionalIndependence + Send + Sync> =
+        Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::clone(&blocks)));
+    Ok((ci, blocks, search_vars))
+}
+
+fn expand_into(out: &mut Vec<usize>, col: usize, blocks: &[Arc<[usize]>]) {
+    for block in blocks {
+        if block.iter().any(|&c| c == col) {
+            for &m in block.iter() {
+                if !out.contains(&m) {
+                    out.push(m);
+                }
+            }
+            return;
+        }
+    }
+    if !out.contains(&col) {
+        out.push(col);
     }
 }
 

@@ -1,0 +1,20 @@
+{
+  "true_parents": [
+    {
+      "source": "x",
+      "source_lag": 1,
+      "target": "y",
+      "target_lag": 0
+    }
+  ],
+  "tolerance_class": "Exact",
+  "max_lag": 2,
+  "alpha": 0.05,
+  "fdr": false,
+  "n": 500,
+  "mask": "hide every 7th row (analysis_mask)",
+  "scm": "x_t ~ U(-1,1); y_t = 0.8 * x_{t-1} + 0.2*noise; seed=0 LCG",
+  "generation": {
+    "note": "synthetic Exact pin; masked MCI complete-case over xyz"
+  }
+}

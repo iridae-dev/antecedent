@@ -1,11 +1,11 @@
-# Status: pending | in_progress | done | intentional_deviation
+# Status: pending | in_progress | done
 
 library = "causal"
 
 [[capabilities]]
 id = "release.parity_closure"
 status = "done"
-notes = "Every required DoWhy/Tigramite item done or intentional_deviation with ADR"
+notes = "Shipped DoWhy/Tigramite rows are done; remaining DESIGN chapters are pending + TODO.md (no waiver vocabulary)"
 
 [[capabilities]]
 id = "release.graph_dot_json"

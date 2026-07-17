@@ -56,11 +56,13 @@ EVIDENCE = {
     "tigramite.ci.cmi_knn": "crates/causal-stats/src/ci/calibration.rs",
     "tigramite.ci.mixed_cmi_knn": "crates/causal-stats/src/ci/calibration.rs",
     "tigramite.ci.symbolic_cmi": "crates/causal-stats/src/ci/calibration.rs",
-    "tigramite.ci.gpdc": "parity/ci_deviations.md",
+    "tigramite.ci.gpdc": "crates/causal-stats/src/ci/advanced.rs",
     "tigramite.ci.gsquared": "crates/causal-stats/src/ci/calibration.rs",
     "tigramite.ci.oracle": "crates/causal-discovery/src/engine_tests.rs",
     "tigramite.discovery.pcmci_plus": "conformance/tigramite/pcmci_plus_lag0",
     "tigramite.graphs.endpoints": "crates/causal-graph/src/cpdag.rs",
+    "tigramite.data.masks": "conformance/tigramite/masked_mci_lag1",
+    "tigramite.data.vector_variables": "conformance/tigramite/vector_vars_pcmci",
 }
 
 missing = []
@@ -71,8 +73,8 @@ for cid, ev in EVIDENCE.items():
     if c is None:
         missing.append(f"{cid} missing from parity manifests")
         continue
-    if c["status"] not in ("done", "intentional_deviation"):
-        missing.append(f"{cid} status={c['status']} (expected done or intentional_deviation)")
+    if c["status"] != "done":
+        missing.append(f"{cid} status={c['status']} (expected done)")
         continue
     p = root / ev
     if not p.exists():
@@ -89,7 +91,7 @@ PY
 echo "== conformance / calibration =="
 cargo test -p causal --test estimate_conformance --test dowhy_linear_gaussian_ate
 cargo test -p causal-validate --test refuters
-cargo test -p causal-discovery --test tigramite_pcmci_lag1 --test tigramite_pcmci_plus_lag0
+cargo test -p causal-discovery --test tigramite_pcmci_lag1 --test tigramite_pcmci_plus_lag0 --test tigramite_masked_mci_lag1 --test tigramite_vector_vars_pcmci
 cargo test -p causal-stats --lib ci::calibration
 bash scripts/gate_estimate_reuse.sh
 echo "estimate_ci parity gate: ok"

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use causal_core::VariableId;
 use causal_kernels::{BitMaskView, F64VectorView};
 
+use crate::buffer::F64Buffer;
 use crate::categorical::CategoricalColumn;
 use crate::error::DataError;
 
@@ -92,28 +93,96 @@ impl ValidityBitmap {
         }
         Self::from_bytes(bytes, n)
     }
+
+    /// Gather bits through a `usize` row map.
+    ///
+    /// # Errors
+    ///
+    /// When a mapped row is out of range.
+    pub fn gather_rows(&self, row_map: &[usize]) -> Result<Self, DataError> {
+        let mask = self.as_mask_view()?;
+        let n = row_map.len();
+        let mut bytes = vec![0u8; n.div_ceil(8)];
+        for (i, &r) in row_map.iter().enumerate() {
+            if r >= self.len {
+                return Err(DataError::InvalidValidity { message: "row map exceeds bitmap" });
+            }
+            if mask.get(r) {
+                bytes[i / 8] |= 1 << (i % 8);
+            }
+        }
+        Self::from_bytes(bytes, n)
+    }
+
+    /// Compact to rows where `keep[i]` is true.
+    ///
+    /// # Errors
+    ///
+    /// Length mismatch.
+    pub fn compact(&self, keep: &[bool]) -> Result<Self, DataError> {
+        if keep.len() != self.len {
+            return Err(DataError::LengthMismatch {
+                expected: self.len,
+                actual: keep.len(),
+                context: "validity compact keep",
+            });
+        }
+        let n_new = keep.iter().filter(|&&k| k).count();
+        let mut bytes = vec![0u8; n_new.div_ceil(8)];
+        let mut j = 0usize;
+        for (i, &k) in keep.iter().enumerate() {
+            if k {
+                if self.is_valid(i) {
+                    bytes[j / 8] |= 1 << (j % 8);
+                }
+                j += 1;
+            }
+        }
+        Self::from_bytes(bytes, n_new)
+    }
+
+    /// Concatenate bitmaps end-to-end.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bitmap construction errors.
+    pub fn concat(parts: &[&Self]) -> Result<Self, DataError> {
+        let n: usize = parts.iter().map(|p| p.len).sum();
+        let mut bytes = vec![0u8; n.div_ceil(8)];
+        let mut offset = 0usize;
+        for part in parts {
+            for i in 0..part.len {
+                if part.is_valid(i) {
+                    let j = offset + i;
+                    bytes[j / 8] |= 1 << (j % 8);
+                }
+            }
+            offset += part.len;
+        }
+        Self::from_bytes(bytes, n)
+    }
 }
 
-/// Owned float64 column.
+/// Float64 column (owned or foreign-backed values).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Float64Column {
     /// Variable id.
     pub id: VariableId,
     /// Values (sentinel-free; use validity for missing).
-    pub values: Arc<[f64]>,
+    pub values: F64Buffer,
     /// Validity bitmap.
     pub validity: ValidityBitmap,
 }
 
 impl Float64Column {
-    /// Construct a column; lengths must match.
+    /// Construct a column from owned values; lengths must match.
     ///
     /// # Errors
     ///
     /// [`DataError::LengthMismatch`] when validity length differs.
     pub fn new(
         id: VariableId,
-        values: impl Into<Arc<[f64]>>,
+        values: impl Into<F64Buffer>,
         validity: ValidityBitmap,
     ) -> Result<Self, DataError> {
         let values = values.into();
@@ -142,7 +211,7 @@ impl Float64Column {
     /// Borrowed contiguous view (no allocation).
     #[must_use]
     pub fn as_f64_view(&self) -> F64VectorView<'_> {
-        F64VectorView::contiguous(&self.values)
+        F64VectorView::contiguous(self.values.as_slice())
     }
 }
 

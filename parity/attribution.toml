@@ -1,4 +1,4 @@
-# Status: pending | in_progress | done | intentional_deviation
+# Status: pending | in_progress | done
 
 library = "causal"
 

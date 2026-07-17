@@ -1,7 +1,9 @@
 //! Pre-materialized lagged columns for temporal discovery (DESIGN.md §5.5 / §12.1).
 //!
 //! Built once per discovery run so candidate CI tests index columns without
-//! rebuilding lag alignment or re-gathering series.
+//! rebuilding lag alignment or re-gathering series. Optional analysis masks and
+//! column missingness are recorded per lagged column so masked MCI can keep
+//! complete-case windows without requiring a fully contiguous unmasked series.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -12,16 +14,34 @@ use std::sync::Arc;
 use causal_core::{KernelPolicy, Lag, VariableId};
 use causal_kernels::{F64VectorView, gather};
 
-use crate::column::ColumnView;
+use crate::column::{ColumnView, ValidityBitmap};
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
 use crate::reference::ReferencePointPolicy;
-use crate::sample::{LagMap, ensure_complete_float, ensure_unmasked};
+use crate::sample::LagMap;
+use crate::sample_policy::{MaskPolicy, MissingPolicy};
 use crate::table::TableView;
+
+/// Options for lag-aligned frame materialization.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct LaggedFrameOptions {
+    /// How the optional analysis mask is applied when recording column validity.
+    pub mask: MaskPolicy,
+    /// How column missingness is recorded (CompleteCase marks invalid; ErrorOnMissing fails).
+    pub missing: MissingPolicy,
+}
+
+impl Default for LaggedFrameOptions {
+    fn default() -> Self {
+        Self { mask: MaskPolicy::Honor, missing: MissingPolicy::CompleteCase }
+    }
+}
 
 /// Pre-materialized lagged frame: one contiguous column per `(variable, lag)`.
 ///
 /// Layout is column-major over slots `variable_slot * (max_lag + 1) + lag`.
+/// Per-column [`ValidityBitmap`]s record whether each effective row's source
+/// sample passed analysis-mask ∩ column-validity (under the build options).
 #[derive(Clone, Debug)]
 pub struct LaggedFrame {
     variables: Arc<[VariableId]>,
@@ -30,25 +50,30 @@ pub struct LaggedFrame {
     n_lags: usize,
     /// Column-major values: `n_cols * n_effective`.
     values: Vec<f64>,
+    /// Per lagged-column validity (`ncols` bitmaps, each length `n_effective`).
+    validity: Vec<ValidityBitmap>,
 }
 
 impl LaggedFrame {
     /// Materialize all lags `0..=max_lag` for `variables` from `data`.
     ///
+    /// Uses [`LaggedFrameOptions::default`] (Honor analysis mask + CompleteCase).
+    ///
     /// # Errors
     ///
     /// Empty variable list, invalid lag map, missing/non-float64 columns, or
-    /// incomplete series (missing values or a row-hiding analysis mask).
+    /// `ErrorOnMissing` when a source column has nulls.
     pub fn from_series(
         data: &TimeSeriesData,
         variables: &[VariableId],
         max_lag: u32,
     ) -> Result<Self, DataError> {
-        Self::from_series_with_reference(
+        Self::from_series_with_options(
             data,
             variables,
             max_lag,
             ReferencePointPolicy::SeriesOrigin,
+            LaggedFrameOptions::default(),
         )
     }
 
@@ -57,24 +82,46 @@ impl LaggedFrame {
     /// # Errors
     ///
     /// Empty variable list, invalid lag map, missing/non-float64 columns, or
-    /// incomplete series (missing values or a row-hiding analysis mask).
+    /// `ErrorOnMissing` when a source column has nulls.
     pub fn from_series_with_reference(
         data: &TimeSeriesData,
         variables: &[VariableId],
         max_lag: u32,
         reference: ReferencePointPolicy,
     ) -> Result<Self, DataError> {
+        Self::from_series_with_options(
+            data,
+            variables,
+            max_lag,
+            reference,
+            LaggedFrameOptions::default(),
+        )
+    }
+
+    /// Materialize lagged columns with explicit mask / missingness policies.
+    ///
+    /// # Errors
+    ///
+    /// Empty variable list, invalid lag map, missing/non-float64 columns, or
+    /// `ErrorOnMissing` when a source column has nulls.
+    pub fn from_series_with_options(
+        data: &TimeSeriesData,
+        variables: &[VariableId],
+        max_lag: u32,
+        reference: ReferencePointPolicy,
+        options: LaggedFrameOptions,
+    ) -> Result<Self, DataError> {
         if variables.is_empty() {
             return Err(DataError::InvalidArgument {
                 message: "lagged frame needs ≥1 variable".into(),
             });
         }
-        ensure_unmasked(data)?;
         let lag_map = LagMap::with_reference(data.row_count(), max_lag, reference)?;
         let n_effective = lag_map.n_effective();
         let n_lags = max_lag as usize + 1;
         let n_cols = variables.len().saturating_mul(n_lags);
         let mut values = vec![0.0; n_cols.saturating_mul(n_effective)];
+        let mut validity = Vec::with_capacity(n_cols);
         let policy = KernelPolicy::default_policy();
 
         // Row indexes depend only on the lag: compute each lag's gather once.
@@ -83,20 +130,47 @@ impl LaggedFrame {
             lag_map.fill_row_indexes(Lag::from_raw(lag as u32), rows)?;
         }
 
+        let analysis = data.storage().analysis_mask();
         for (slot, &var) in variables.iter().enumerate() {
             let ColumnView::Float64(src) = data.column(var)? else {
                 return Err(DataError::TypeMismatch { id: var, expected: "float64" });
             };
-            ensure_complete_float(src)?;
-            let src_view = F64VectorView::contiguous(&src.values);
+            if options.missing == MissingPolicy::ErrorOnMissing && !src.validity.is_all_valid() {
+                return Err(DataError::IncompleteSeries {
+                    id: Some(src.id),
+                    message: "missing values under ErrorOnMissing policy".into(),
+                });
+            }
+            if options.mask == MaskPolicy::Honor
+                && options.missing == MissingPolicy::ErrorOnMissing
+            {
+                if let Some(mask) = analysis {
+                    if !mask.is_all_valid() {
+                        return Err(DataError::IncompleteSeries {
+                            id: None,
+                            message: "analysis mask hides rows under ErrorOnMissing policy".into(),
+                        });
+                    }
+                }
+            }
+            let src_view = F64VectorView::contiguous(src.values.as_slice());
             for (lag, rows) in lag_rows.iter().enumerate() {
                 let col = slot * n_lags + lag;
                 let dst = &mut values[col * n_effective..(col + 1) * n_effective];
                 gather(&policy, src_view, rows, dst);
+                let col_valid = gather_column_validity(src, analysis, options.mask, rows)?;
+                validity.push(col_valid);
             }
         }
 
-        Ok(Self { variables: Arc::from(variables), max_lag, n_effective, n_lags, values })
+        Ok(Self {
+            variables: Arc::from(variables),
+            max_lag,
+            n_effective,
+            n_lags,
+            values,
+            validity,
+        })
     }
 
     /// Variables in slot order.
@@ -121,6 +195,12 @@ impl LaggedFrame {
     #[must_use]
     pub fn ncols(&self) -> usize {
         self.variables.len().saturating_mul(self.n_lags)
+    }
+
+    /// Whether every lagged column is fully valid (fast path for unmasked series).
+    #[must_use]
+    pub fn is_fully_valid(&self) -> bool {
+        self.validity.iter().all(ValidityBitmap::is_all_valid)
     }
 
     /// Byte size of the gathered value buffer.
@@ -151,6 +231,44 @@ impl LaggedFrame {
         &self.values[idx * n..(idx + 1) * n]
     }
 
+    /// Borrow per-row validity for lagged column `idx`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `idx >= ncols`.
+    #[must_use]
+    pub fn column_valid(&self, idx: usize) -> &ValidityBitmap {
+        &self.validity[idx]
+    }
+
+    /// Keep-mask for a set of lagged column indexes: AND of their validity bitmaps.
+    ///
+    /// # Errors
+    ///
+    /// Empty column list or out-of-range index.
+    pub fn keep_mask_for_columns(&self, cols: &[usize]) -> Result<Vec<bool>, DataError> {
+        if cols.is_empty() {
+            return Err(DataError::InvalidArgument {
+                message: "keep_mask_for_columns needs ≥1 column".into(),
+            });
+        }
+        let mut keep = vec![true; self.n_effective];
+        for &c in cols {
+            if c >= self.ncols() {
+                return Err(DataError::InvalidArgument {
+                    message: format!("keep_mask_for_columns: column {c} out of range"),
+                });
+            }
+            let v = &self.validity[c];
+            for (i, slot) in keep.iter_mut().enumerate() {
+                if *slot && !v.is_valid(i) {
+                    *slot = false;
+                }
+            }
+        }
+        Ok(keep)
+    }
+
     /// Compact to effective rows where `keep[i]` is true.
     ///
     /// Used for regime-masked CI: the full series is materialized first so lag
@@ -177,6 +295,7 @@ impl LaggedFrame {
         }
         let n_cols = self.ncols();
         let mut values = vec![0.0; n_cols.saturating_mul(n_new)];
+        let mut validity = Vec::with_capacity(n_cols);
         for c in 0..n_cols {
             let src = self.column(c);
             let dst = &mut values[c * n_new..(c + 1) * n_new];
@@ -187,6 +306,7 @@ impl LaggedFrame {
                     j += 1;
                 }
             }
+            validity.push(self.validity[c].compact(keep)?);
         }
         Ok(Self {
             variables: Arc::clone(&self.variables),
@@ -194,6 +314,7 @@ impl LaggedFrame {
             n_effective: n_new,
             n_lags: self.n_lags,
             values,
+            validity,
         })
     }
 
@@ -230,6 +351,7 @@ impl LaggedFrame {
         }
         let n_cols = first.ncols();
         let mut values = vec![0.0; n_cols.saturating_mul(n_eff)];
+        let mut validity = Vec::with_capacity(n_cols);
         for c in 0..n_cols {
             let mut offset = 0usize;
             for f in frames {
@@ -238,6 +360,8 @@ impl LaggedFrame {
                 dst.copy_from_slice(src);
                 offset += f.n_effective;
             }
+            let parts: Vec<&ValidityBitmap> = frames.iter().map(|f| &f.validity[c]).collect();
+            validity.push(ValidityBitmap::concat(&parts)?);
         }
         Ok(Self {
             variables: Arc::clone(&first.variables),
@@ -245,6 +369,7 @@ impl LaggedFrame {
             n_effective: n_eff,
             n_lags: first.n_lags,
             values,
+            validity,
         })
     }
 
@@ -253,6 +378,7 @@ impl LaggedFrame {
     /// Each entry is `(variable_id, contemporaneous column)` of length `n_effective`.
     /// The same values are copied into every lag slot so MCI can index any lag;
     /// link assumptions should still forbid lagged parents of space/time dummies.
+    /// Appended columns are marked all-valid.
     ///
     /// # Errors
     ///
@@ -289,10 +415,12 @@ impl LaggedFrame {
         let n_cols = old_cols + new_slots * n_lags;
         let mut values = vec![0.0; n_cols.saturating_mul(n_eff)];
         values[..old_cols * n_eff].copy_from_slice(&self.values);
+        let mut validity = self.validity.clone();
         for (s, (_id, col)) in columns.iter().enumerate() {
             for lag in 0..n_lags {
                 let c = old_cols + s * n_lags + lag;
                 values[c * n_eff..(c + 1) * n_eff].copy_from_slice(col);
+                validity.push(ValidityBitmap::all_valid(n_eff));
             }
         }
         Ok(Self {
@@ -301,7 +429,31 @@ impl LaggedFrame {
             n_effective: n_eff,
             n_lags,
             values,
+            validity,
         })
+    }
+}
+
+fn gather_column_validity(
+    src: &crate::column::Float64Column,
+    analysis: Option<&ValidityBitmap>,
+    mask_policy: MaskPolicy,
+    rows: &[usize],
+) -> Result<ValidityBitmap, DataError> {
+    let col_valid = src.validity.gather_rows(rows)?;
+    match (mask_policy, analysis) {
+        (MaskPolicy::Ignore, _) | (MaskPolicy::Honor, None) => Ok(col_valid),
+        (MaskPolicy::Honor, Some(mask)) => {
+            let mask_valid = mask.gather_rows(rows)?;
+            let n = rows.len();
+            let mut bytes = vec![0u8; n.div_ceil(8)];
+            for i in 0..n {
+                if col_valid.is_valid(i) && mask_valid.is_valid(i) {
+                    bytes[i / 8] |= 1 << (i % 8);
+                }
+            }
+            ValidityBitmap::from_bytes(bytes, n)
+        }
     }
 }
 
@@ -311,25 +463,69 @@ mod tests {
     use causal_core::{Lag, VariableId};
 
     use super::*;
+    use crate::sample_policy::{MaskPolicy, MissingPolicy};
     use crate::testing::{float_series, float_series_with_gap, float_series_with_mask};
 
     #[test]
-    fn rejects_missing_values() {
+    fn builds_with_missing_values_marking_invalid() {
         let data = float_series_with_gap(20, 2, 5);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let err = LaggedFrame::from_series(&data, &vars, 2).unwrap_err();
+        let frame = LaggedFrame::from_series(&data, &vars, 2).unwrap();
+        assert_eq!(frame.n_effective(), 18);
+        // Row index 5 in the series is invalid for v0; lag-0 effective index = 5 - 2 = 3.
+        let i0 = frame.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
+        assert!(!frame.column_valid(i0).is_valid(3));
+        assert!(frame.column_valid(i0).is_valid(0));
+        let i1 = frame.column_index(vars[1], Lag::CONTEMPORANEOUS).unwrap();
+        assert!(frame.column_valid(i1).is_all_valid());
+    }
+
+    #[test]
+    fn builds_with_analysis_mask_marking_invalid() {
+        let data = float_series_with_mask(20, 2, 5);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let frame = LaggedFrame::from_series(&data, &vars, 2).unwrap();
+        let i0 = frame.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
+        assert!(!frame.column_valid(i0).is_valid(3));
+        let keep = frame.keep_mask_for_columns(&[i0]).unwrap();
+        assert!(!keep[3]);
+        assert!(keep[0]);
+    }
+
+    #[test]
+    fn ignore_mask_keeps_analysis_hidden_rows_valid() {
+        let data = float_series_with_mask(20, 2, 5);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let frame = LaggedFrame::from_series_with_options(
+            &data,
+            &vars,
+            2,
+            ReferencePointPolicy::SeriesOrigin,
+            LaggedFrameOptions { mask: MaskPolicy::Ignore, missing: MissingPolicy::CompleteCase },
+        )
+        .unwrap();
+        assert!(frame.is_fully_valid());
+    }
+
+    #[test]
+    fn error_on_missing_rejects_gaps() {
+        let data = float_series_with_gap(20, 2, 5);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let err = LaggedFrame::from_series_with_options(
+            &data,
+            &vars,
+            2,
+            ReferencePointPolicy::SeriesOrigin,
+            LaggedFrameOptions {
+                mask: MaskPolicy::Honor,
+                missing: MissingPolicy::ErrorOnMissing,
+            },
+        )
+        .unwrap_err();
         assert!(matches!(
             err,
             DataError::IncompleteSeries { id: Some(v), .. } if v == VariableId::from_raw(0)
         ));
-    }
-
-    #[test]
-    fn rejects_row_hiding_analysis_mask() {
-        let data = float_series_with_mask(20, 2, 5);
-        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let err = LaggedFrame::from_series(&data, &vars, 2).unwrap_err();
-        assert!(matches!(err, DataError::IncompleteSeries { id: None, .. }));
     }
 
     #[test]
@@ -339,9 +535,22 @@ mod tests {
         let frame = LaggedFrame::from_series(&data, &vars, 2).unwrap();
         assert_eq!(frame.n_effective(), 18);
         assert_eq!(frame.ncols(), 6);
+        assert!(frame.is_fully_valid());
         let i = frame.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
         assert!((frame.column(i)[0] - 2.0).abs() < 1e-12);
         let j = frame.column_index(vars[1], Lag::from_raw(1)).unwrap();
         assert!((frame.column(j)[0] - 101.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn retain_effective_compacts_validity() {
+        let data = float_series_with_mask(20, 2, 5);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let frame = LaggedFrame::from_series(&data, &vars, 2).unwrap();
+        let cols: Vec<usize> = (0..frame.ncols()).collect();
+        let keep = frame.keep_mask_for_columns(&cols).unwrap();
+        let compacted = frame.retain_effective(&keep).unwrap();
+        assert!(compacted.is_fully_valid());
+        assert_eq!(compacted.n_effective(), keep.iter().filter(|&&k| k).count());
     }
 }

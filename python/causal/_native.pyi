@@ -28,6 +28,7 @@ class ArrowLoadInfo:
     row_count: int
     column_count: int
     bytes_copied: int
+    bytes_borrowed: int
     diagnostic_count: int
     column_names: list[str]
 
@@ -144,6 +145,11 @@ class GcmSampleResult:
 def load_float64_columns(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
+) -> ArrowLoadInfo: ...
+
+def load_float64_arrow_c_columns(
+    names: list[str],
+    columns: Sequence[object],
 ) -> ArrowLoadInfo: ...
 
 def analyze_ate(

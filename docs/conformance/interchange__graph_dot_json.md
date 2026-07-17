@@ -3,8 +3,8 @@
 **Suite path:** `conformance/interchange/graph_dot_json`
 
 fixture: parse the pinned DOT and JSON documents and confirm the
-same DAG (`node_count`, directed edges) is recovered. GML/NetworkX are waived
-(`parity/release_deviations.md`).
+same DAG (`node_count`, directed edges) is recovered. GML and NetworkX
+interchange also ship in `causal-io` (separate fixtures).
 
 ## Expected summary
 

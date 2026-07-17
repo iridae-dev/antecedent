@@ -43,7 +43,10 @@ EVIDENCE = {
 
 missing = []
 for c in caps(text):
-    if c["status"] not in ("done", "intentional_deviation"):
+    if c["status"] == "intentional_deviation":
+        missing.append(f"{c['id']}: intentional_deviation is retired; use pending (TODO.md) or done")
+        continue
+    if c["status"] != "done":
         continue
     ev = EVIDENCE.get(c["id"])
     if not ev:
@@ -57,8 +60,8 @@ for path in [
     "conformance/attribution/mechanism_change_detect/expected.json",
     "crates/causal-attribution/benches/shapley.rs",
     "benches/baselines/shapley.md",
-    "parity/attribution_deviations.md",
     "parity/attribution.toml",
+    "TODO.md",
 ]:
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")

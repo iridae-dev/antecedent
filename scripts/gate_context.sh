@@ -36,12 +36,14 @@ EVIDENCE = {
     "context.mediation": "crates/causal/tests/context_effects.rs",
     "context.conditional": "crates/causal/tests/context_effects.rs",
     "context.prediction": "crates/causal/tests/context_effects.rs",
-    "context.mediation.nonparametric": "parity/context_deviations.md",
 }
 
 missing = []
 for c in caps(text):
-    if c["status"] not in ("done", "intentional_deviation"):
+    if c["status"] == "intentional_deviation":
+        missing.append(f"{c['id']}: intentional_deviation is retired; use pending (TODO.md) or done")
+        continue
+    if c["status"] != "done":
         continue
     ev = EVIDENCE.get(c["id"])
     if not ev:
@@ -59,8 +61,8 @@ for path in [
     "crates/causal-discovery/benches/rpcmci.rs",
     "crates/causal-estimate/benches/temporal_mediation.rs",
     "benches/baselines/regime_mediation.md",
-    "parity/context_deviations.md",
     "parity/context.toml",
+    "TODO.md",
 ]:
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")

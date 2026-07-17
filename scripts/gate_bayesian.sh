@@ -40,18 +40,15 @@ EVIDENCE = {
     "bayes.data.bayesian_bootstrap": "provenance/data.bayesian_bootstrap.toml",
     "bayes.io.posterior_artifact": "crates/causal-io/src/posterior.rs",
     "bayes.facade.inference_mode": "crates/causal/src/inference.rs",
-    # intentional_deviation rows need the deviations doc as evidence
     "bayes.model.pcm_scm_registry": "crates/causal-model/src/lib.rs",
-    "bayes.discovery.dag_posterior": "parity/bayesian_deviations.md",
-    "bayes.backend.stan_pymc": "parity/bayesian_deviations.md",
-    "bayes.backend.hierarchical_bvar_gp": "parity/bayesian_deviations.md",
-    "bayes.validate.mcmc_diagnostics": "parity/bayesian_deviations.md",
-    "bayes.ci.tests": "parity/bayesian_deviations.md",
 }
 
 missing = []
 for c in caps(text):
-    if c["status"] not in ("done", "intentional_deviation"):
+    if c["status"] == "intentional_deviation":
+        missing.append(f"{c['id']}: intentional_deviation is retired; use pending (TODO.md) or done")
+        continue
+    if c["status"] != "done":
         continue
     ev = EVIDENCE.get(c["id"])
     if not ev:
@@ -68,7 +65,7 @@ for path in [
     "conformance/bayesian/laplace_glm/expected.json",
     "crates/causal-prob/benches/laplace_glm.rs",
     "crates/causal-estimate/benches/posterior_functional.rs",
-    "parity/bayesian_deviations.md",
+    "TODO.md",
 ]:
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")

@@ -16,6 +16,7 @@ pub mod execution;
 pub mod identification;
 pub mod ids;
 pub mod intervention;
+pub mod node;
 pub mod plan;
 pub mod provenance;
 pub mod query;
@@ -44,6 +45,7 @@ pub use intervention::{
     Intervention, InterventionError, InterventionSequence, MechanismOverride,
     SequencedIntervention, StochasticPolicy, TemporalPolicy,
 };
+pub use node::NodeRef;
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
     LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,

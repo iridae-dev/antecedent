@@ -61,6 +61,7 @@ faer = "0.21"
 arrow-array = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }
 arrow-buffer = { version = "54", default-features = false }
+arrow-data = { version = "54", default-features = false }
 pyo3 = { version = "0.29", features = ["extension-module"] }
 numpy = { version = "0.29", default-features = false }
 criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }

@@ -20,7 +20,7 @@ the semantic graph per draw. DESIGN.md §15.6 / §16.1 forbid both on the hot pa
 - Counterfactuals abduce exogenous noise once, then reuse it across action
  overlays (AAP), recording `NoiseInferenceKind` on results.
 - Shapley / distribution-change attribution live in the attribution inventory
- (`parity/gcm_deviations.md`).
+ (`parity/attribution.toml`).
 
 ## Consequences
 

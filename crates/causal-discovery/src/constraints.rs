@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use causal_core::{Lag, VariableId};
+use causal_data::VectorVariableGroups;
 use causal_graph::{BitSet, DenseNodeId};
 use causal_stats::SignificanceMethod;
 
@@ -236,6 +237,8 @@ pub struct DiscoveryConstraints {
     pub significance: SignificanceMethod,
     /// Optional multi-dataset / context constraints (ignored by single-series PCMCI).
     pub multi_dataset: MultiDatasetConstraints,
+    /// Tigramite-style vector-variable groups (logical node = first component).
+    pub vector_groups: VectorVariableGroups,
 }
 
 impl Default for DiscoveryConstraints {
@@ -250,6 +253,7 @@ impl Default for DiscoveryConstraints {
             alpha: 0.05,
             significance: SignificanceMethod::Analytic,
             multi_dataset: MultiDatasetConstraints::default(),
+            vector_groups: VectorVariableGroups::empty(),
         }
     }
 }

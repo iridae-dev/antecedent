@@ -15,7 +15,7 @@
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, ExecutionContext, Lag, MediationContrast, MediationQuery};
-use causal_data::{LaggedColumn, SampleWorkspace, TimeSeriesData};
+use causal_data::{LaggedColumn, LaggedSampleWorkspace, TimeSeriesData};
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
@@ -94,7 +94,7 @@ impl TemporalMediationEstimator {
             LaggedColumn { variable: query.outcome, lag: Lag::CONTEMPORANEOUS },
         ]);
         let plan = data.plan_lagged_sample(1, cols).map_err(EstimationError::from)?;
-        let mut ws = SampleWorkspace::default();
+        let mut ws = LaggedSampleWorkspace::default();
         let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
         let t = prep.column(0);
         let m = prep.column(1);

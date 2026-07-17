@@ -204,18 +204,13 @@ impl JpcmciPlus {
         }
 
         let ci: Arc<dyn ConditionalIndependence + Send + Sync> = if use_mv_space_dummy {
-            let mut block = Vec::with_capacity(space_ids_full.len());
-            for &id in space_ids_full.iter() {
-                let Some(idx) = frame.column_index(id, Lag::CONTEMPORANEOUS) else {
-                    return Err(DiscoveryError::data_msg(format!(
-                        "space-dummy column missing from pooled frame for {id:?}"
-                    )));
-                };
-                block.push(idx);
-            }
-            Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::from([
-                Arc::from(block),
-            ])))
+            let groups = causal_data::VectorVariableGroups::try_new(Arc::from([Arc::from(
+                space_ids_full.to_vec(),
+            )]))
+            .map_err(DiscoveryError::from)?;
+            let blocks = causal_data::column_blocks_for_frame(&groups, frame)
+                .map_err(DiscoveryError::from)?;
+            Arc::new(PairwiseMultivariateCi::with_column_blocks(blocks))
         } else {
             Arc::clone(&self.engine.ci)
         };
@@ -234,6 +229,15 @@ impl JpcmciPlus {
         let engine = PcmciEngine {
             constraints: constraints.clone(),
             ci: Arc::clone(&ci),
+            column_blocks: if use_mv_space_dummy {
+                let groups = causal_data::VectorVariableGroups::try_new(Arc::from([Arc::from(
+                    space_ids_full.to_vec(),
+                )]))
+                .map_err(DiscoveryError::from)?;
+                causal_data::column_blocks_for_frame(&groups, frame).map_err(DiscoveryError::from)?
+            } else {
+                Arc::from([])
+            },
         };
 
         let mut diagnostics = Vec::new();
@@ -323,7 +327,11 @@ impl JpcmciPlus {
             let mut required = cons3.required.to_vec();
             required.extend(directed_exogenous_links(&context_parents));
             cons3.required = Arc::from(required);
-            let engine3 = PcmciEngine { constraints: cons3.clone(), ci: Arc::clone(&engine.ci) };
+            let engine3 = PcmciEngine {
+                constraints: cons3.clone(),
+                ci: Arc::clone(&engine.ci),
+                column_blocks: Arc::clone(&engine.column_blocks),
+            };
             let compiled3 = engine3.constraints.compile(&all_vars)?;
             let search_dummy = |link: LaggedLink| {
                 let sr = constraints.multi_dataset.role_of(link.source);
@@ -368,7 +376,11 @@ impl JpcmciPlus {
         required4.extend(directed_exogenous_links(&context_parents));
         required4.extend(directed_exogenous_links(&dummy_parents));
         cons4.required = Arc::from(required4);
-        let engine4 = PcmciEngine { constraints: cons4.clone(), ci: Arc::clone(&engine.ci) };
+        let engine4 = PcmciEngine {
+            constraints: cons4.clone(),
+            ci: Arc::clone(&engine.ci),
+            column_blocks: Arc::clone(&engine.column_blocks),
+        };
         let compiled4 = engine4.constraints.compile(&all_vars)?;
         let search_system = |link: LaggedLink| {
             constraints.multi_dataset.role_of(link.source) == JpcmciNodeRole::System

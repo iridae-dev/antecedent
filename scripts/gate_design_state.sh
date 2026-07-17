@@ -40,12 +40,14 @@ EVIDENCE = {
     "design_state.streaming_cov": "crates/causal-state/src/suff_stats.rs",
     "design_state.cache_budget": "crates/causal-state/src/store.rs",
     "design_state.facade": "crates/causal/tests/design_state.rs",
-    "design_state.incremental.particle_graph_score": "parity/design_state_deviations.md",
 }
 
 missing = []
 for c in caps(text):
-    if c["status"] not in ("done", "intentional_deviation"):
+    if c["status"] == "intentional_deviation":
+        missing.append(f"{c['id']}: intentional_deviation is retired; use pending (TODO.md) or done")
+        continue
+    if c["status"] != "done":
         continue
     ev = EVIDENCE.get(c["id"])
     if not ev:
@@ -60,11 +62,11 @@ for path in [
     "crates/causal-design/benches/design_rank.rs",
     "crates/causal-state/benches/state_append.rs",
     "benches/baselines/design_state.md",
-    "parity/design_state_deviations.md",
     "parity/design_state.toml",
     "adr/0016-design-state.md",
     "provenance/design.eig.toml",
     "provenance/state.incremental_ols.toml",
+    "TODO.md",
 ]:
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")

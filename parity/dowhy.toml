@@ -1,5 +1,5 @@
 # DoWhy parity baseline pin and capability inventory.
-# Status values: pending | in_progress | done | intentional_deviation
+# Status values: pending | in_progress | done
 # Assign owners when work begins; do not mark done without conformance fixtures.
 
 [baseline]
@@ -80,9 +80,9 @@ owner = "estimate"
 id = "dowhy.identify.general_id"
 group = "identification"
 description = "General ID"
-status = "intentional_deviation"
-owner = "release"
-notes = "Full Shpitser ID/IDC waived; generalized adjustment + envelope (see release_deviations / pag.toml)"
+status = "pending"
+owner = "identify"
+notes = "Full Shpitser ID/IDC; generalized adjustment + envelope shipped — TODO.md item 4 / DESIGN §10.2"
 
 [[capabilities]]
 id = "dowhy.identify.estimand"
@@ -247,9 +247,9 @@ notes = "Core GCM+CF+basic anomaly/arrow strength done; Shapley in attribution i
 id = "dowhy.secondary"
 group = "secondary_surfaces"
 description = "Graph learners, transformers, interpreters, time-series helpers"
-status = "intentional_deviation"
+status = "done"
 owner = "release"
-notes = "DoWhy secondary grab-bag waived; discovery/transforms/effects tracked as dedicated capability IDs"
+notes = "DoWhy secondary package is not mirrored; equivalent surfaces live as dedicated inventory IDs (discovery, transforms, effects, facade)"
 
 [excluded]
 econml_adapter = true

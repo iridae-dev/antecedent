@@ -3,7 +3,7 @@
 **Suite path:** `conformance/pag/lpcmci_chain`
 
 LPCMCI on a lagged X→Y chain returns a TemporalPag with positive node count
-and algorithm id `lpcmci` (Gerhardus & Runge Alg. 1; P4.3).
+and algorithm id `lpcmci`.
 
 ## Expected summary
 

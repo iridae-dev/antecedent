@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use causal_core::{AssumptionSet, ExecutionContext, Lag, TemporalEffectQuery, VariableId};
 use causal_data::{
-    DiscoveryEstimationSplit, LaggedColumn, SampleWorkspace, TemporalIndexer, TimeSeriesData,
+    DiscoveryEstimationSplit, LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData,
 };
 use causal_expr::IdentifiedEstimand;
 use causal_stats::CompiledDesign;
@@ -101,7 +101,7 @@ impl TemporalLinearAdjustment {
         let plan = data
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut sample_ws = SampleWorkspace::default();
+        let mut sample_ws = LaggedSampleWorkspace::default();
         let prep = plan.prepare(data, &mut sample_ws).map_err(EstimationError::from)?;
 
         let n = prep.n;

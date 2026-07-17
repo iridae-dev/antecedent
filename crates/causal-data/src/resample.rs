@@ -575,7 +575,7 @@ fn apply_weight_plan(data: &TimeSeriesData, weights: &[f64]) -> Result<TimeSerie
         };
         cols.push(OwnedColumn::Float64(Float64Column::new(
             v.id,
-            Arc::clone(&src.values),
+            src.values.clone(),
             src.validity.clone(),
         )?));
     }
