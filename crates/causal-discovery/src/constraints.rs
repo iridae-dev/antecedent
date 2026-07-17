@@ -94,6 +94,17 @@ impl JpcmciNodeRole {
     }
 }
 
+/// How space (dataset) dummies enter CI tests in J-PCMCI+.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+pub enum SpaceDummyCiMode {
+    /// Production default: `M−1` one-hot columns, each a scalar ParCorr variable.
+    #[default]
+    ScalarOneHot,
+    /// Tigramite-style: one logical space-dummy node; CI expands to the full one-hot block
+    /// via [`causal_stats::PairwiseMultivariateCi`].
+    MultivariateBlock,
+}
+
 /// Multi-dataset / context-aware discovery constraints (J-PCMCI+).
 #[derive(Clone, Debug)]
 pub struct MultiDatasetConstraints {
@@ -109,6 +120,8 @@ pub struct MultiDatasetConstraints {
     pub include_space_dummy: bool,
     /// When true, synthesize a time-index dummy.
     pub include_time_dummy: bool,
+    /// How space dummies enter CI (scalar one-hot vs multivariate block).
+    pub space_dummy_ci: SpaceDummyCiMode,
     /// Cross-environment link assumptions (API compatibility; unused by Günther path).
     pub cross_env: CrossEnvLinkAssumption,
     /// Legacy intersection-pool flag; ignored by Günther pooled search.
@@ -124,6 +137,7 @@ impl Default for MultiDatasetConstraints {
             time_dummy_variables: Arc::from([]),
             include_space_dummy: true,
             include_time_dummy: false,
+            space_dummy_ci: SpaceDummyCiMode::ScalarOneHot,
             cross_env: CrossEnvLinkAssumption::default(),
             pool_lagged_ci: true,
         }

@@ -44,7 +44,7 @@ use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
     gather, prepare_propensity_problem, split_by_treatment, trim_of, trim_retained_rows,
 };
-use crate::se::{AnalyticSeKind, cluster_influence_se, require_clusters};
+use crate::se::{AnalyticSeKind, cluster_influence_se, hetero_influence_se, require_clusters};
 use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
@@ -101,7 +101,11 @@ impl AipwAte {
             backend: FaerBackend,
             bootstrap_replicates: 200,
             overlap: default_propensity_overlap(),
-            glm_options: GlmOptions::default(),
+            glm_options: {
+                let mut o = GlmOptions::default();
+                o.ridge_on_separation = Some(crate::se::DEFAULT_RIDGE_ON_SEPARATION);
+                o
+            },
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
         }
@@ -199,11 +203,12 @@ impl AipwAte {
         let ate = workspace.psi.iter().sum::<f64>() / n;
         let se_analytic = match self.se_kind {
             AnalyticSeKind::Homoskedastic => sample_std(&workspace.psi) / n.sqrt(),
-            AnalyticSeKind::Hc1 => {
-                let se0 = sample_std(&workspace.psi) / n.sqrt();
-                se0 * (n / (n - 1.0).max(1.0)).sqrt()
-            }
-            AnalyticSeKind::Cluster => {
+            AnalyticSeKind::Hc0
+            | AnalyticSeKind::Hc1
+            | AnalyticSeKind::Hc2
+            | AnalyticSeKind::Hc3
+            | AnalyticSeKind::NeweyWest { .. } => hetero_influence_se(&workspace.psi),
+            AnalyticSeKind::Cluster | AnalyticSeKind::PanelClusterHac { .. } => {
                 let groups_full = require_clusters(&self.cluster_ids, problem.nrows)?;
                 match &retained {
                     Some(idx) => {
@@ -212,6 +217,11 @@ impl AipwAte {
                     }
                     None => cluster_influence_se(&workspace.psi, groups_full),
                 }
+            }
+            AnalyticSeKind::Multiway => {
+                return Err(EstimationError::UnsupportedQuery(
+                    "AIPW AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap".into(),
+                ));
             }
         };
 
@@ -246,13 +256,12 @@ impl AipwAte {
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
         let trim = trim_of(problem.overlap);
-        let mut rng = ctx.rng.stream(0xA1D0_u64);
-        let n = problem.nrows;
+                let n = problem.nrows;
         let ncols = problem.design_ncols;
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D0_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 t_boot[r] = problem.treatment[src];
                 y_boot[r] = problem.outcome[src];

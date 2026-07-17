@@ -306,12 +306,11 @@ impl FrontDoorTwoStage {
         workspace: &mut FrontDoorWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
-        let mut rng = ctx.rng.stream(0xF80D_u64);
-        let n = problem.nrows;
+                let n = problem.nrows;
         let mut t_boot = vec![0.0; n];
         let mut m_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        bootstrap_se(self.bootstrap_replicates, ctx, 0xF80D_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 t_boot[r] = problem.treatment[src];
                 m_boot[r] = problem.mediator[src];

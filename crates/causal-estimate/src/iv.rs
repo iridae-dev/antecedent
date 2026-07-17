@@ -29,14 +29,14 @@ use causal_core::{
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
-    FaerBackend, LeastSquaresWorkspace, SandwichKind, coefficient_covariance, fit_2sls, form_xtx,
+    FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx,
     invert_square,
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::se::{AnalyticSeKind, cluster_influence_se, require_clusters};
+use crate::se::{AnalyticSeKind, cluster_influence_se, require_clusters, residual_sandwich_coef_se};
 use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
@@ -245,14 +245,18 @@ impl WaldIv {
         let ate = wald.ratio * problem.treatment_delta;
         let se_unit = match self.se_kind {
             AnalyticSeKind::Homoskedastic => wald.se,
-            AnalyticSeKind::Hc1 => wald_influence_se(
+            AnalyticSeKind::Hc0
+            | AnalyticSeKind::Hc1
+            | AnalyticSeKind::Hc2
+            | AnalyticSeKind::Hc3
+            | AnalyticSeKind::NeweyWest { .. } => wald_influence_se(
                 &z,
                 &problem.treatment,
                 &problem.outcome,
                 wald.ratio,
                 None,
             )?,
-            AnalyticSeKind::Cluster => {
+            AnalyticSeKind::Cluster | AnalyticSeKind::PanelClusterHac { .. } => {
                 let groups = require_clusters(&self.cluster_ids, problem.nrows)?;
                 wald_influence_se(
                     &z,
@@ -261,6 +265,12 @@ impl WaldIv {
                     wald.ratio,
                     Some(groups),
                 )?
+            }
+            AnalyticSeKind::Multiway => {
+                return Err(EstimationError::UnsupportedQuery(
+                    "WaldIv AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"
+                        .into(),
+                ));
             }
         };
         let se_analytic = se_unit * problem.treatment_delta.abs();
@@ -291,12 +301,11 @@ impl WaldIv {
         z: &[f64],
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
-        let mut rng = ctx.rng.stream(0x5A1D_u64);
-        let n = problem.nrows;
+                let n = problem.nrows;
         let mut z_boot = vec![0.0; n];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        bootstrap_se(self.bootstrap_replicates, ctx, 0x5A1D_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 z_boot[r] = z[src];
                 t_boot[r] = problem.treatment[src];
@@ -460,8 +469,10 @@ pub struct TwoStageLeastSquares {
     pub overlap: OverlapPolicy,
     /// Analytic SE kind.
     pub se_kind: AnalyticSeKind,
-    /// Optional cluster ids for [`AnalyticSeKind::Cluster`].
+    /// Optional cluster ids for cluster / panel SE.
     pub cluster_ids: Option<Vec<u32>>,
+    /// Optional multiway cluster ids for [`AnalyticSeKind::Multiway`].
+    pub multiway_ids: Option<Vec<Vec<u32>>>,
 }
 
 impl Default for TwoStageLeastSquares {
@@ -480,6 +491,7 @@ impl TwoStageLeastSquares {
             overlap: OverlapPolicy::ExplicitOverride,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            multiway_ids: None,
         }
     }
 
@@ -526,45 +538,30 @@ impl TwoStageLeastSquares {
         .map_err(stats_err)?;
         let coef = fit.second_stage.coefficients[0];
         let ate = coef * problem.treatment_delta;
-        let se_coef = match self.se_kind {
-            AnalyticSeKind::Homoskedastic => analytic_se_2sls(
+        let ncols = 1 + problem.x_ncols;
+        let mut xhat = vec![0.0; problem.nrows * ncols];
+        xhat[..problem.nrows].copy_from_slice(&fit.fitted_endogenous);
+        xhat[problem.nrows..problem.nrows * ncols]
+            .copy_from_slice(&problem.exogenous_matrix[..problem.nrows * problem.x_ncols]);
+        let se_coef = if let Some(se) = residual_sandwich_coef_se(
+            self.se_kind,
+            &xhat,
+            problem.nrows,
+            ncols,
+            &fit.structural_residuals,
+            0,
+            &self.cluster_ids,
+            &self.multiway_ids,
+        )? {
+            se
+        } else {
+            analytic_se_2sls(
                 &fit.fitted_endogenous,
                 &problem.exogenous_matrix,
                 problem.nrows,
                 problem.x_ncols,
                 fit.structural_rss,
-            ),
-            AnalyticSeKind::Hc1 | AnalyticSeKind::Cluster => {
-                let ncols = 1 + problem.x_ncols;
-                let mut xhat = vec![0.0; problem.nrows * ncols];
-                xhat[..problem.nrows].copy_from_slice(&fit.fitted_endogenous);
-                xhat[problem.nrows..problem.nrows * ncols]
-                    .copy_from_slice(&problem.exogenous_matrix[..problem.nrows * problem.x_ncols]);
-                let cov = match self.se_kind {
-                    AnalyticSeKind::Hc1 => coefficient_covariance(
-                        &xhat,
-                        problem.nrows,
-                        ncols,
-                        &fit.structural_residuals,
-                        SandwichKind::Hc1,
-                    ),
-                    AnalyticSeKind::Cluster => {
-                        let groups = require_clusters(&self.cluster_ids, problem.nrows)?;
-                        coefficient_covariance(
-                            &xhat,
-                            problem.nrows,
-                            ncols,
-                            &fit.structural_residuals,
-                            SandwichKind::Cluster { groups },
-                        )
-                    }
-                    AnalyticSeKind::Homoskedastic => unreachable!(),
-                };
-                match cov {
-                    Ok(cov) => cov[0].max(0.0).sqrt(),
-                    Err(_) => f64::NAN,
-                }
-            }
+            )
         };
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
@@ -594,15 +591,14 @@ impl TwoStageLeastSquares {
         workspace: &mut TwoStageLeastSquaresWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
-        let mut rng = ctx.rng.stream(0x25D5_u64);
-        let n = problem.nrows;
+                let n = problem.nrows;
         let zc = problem.z_ncols;
         let xc = problem.x_ncols;
         let mut z_boot = vec![0.0; n * zc];
         let mut x_boot = vec![0.0; n * xc];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        bootstrap_se(self.bootstrap_replicates, ctx, 0x25D5_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 t_boot[r] = problem.treatment[src];
                 y_boot[r] = problem.outcome[src];

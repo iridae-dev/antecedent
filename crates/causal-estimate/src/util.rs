@@ -4,8 +4,8 @@
 
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::similar_names)]
 
-use causal_core::CausalRng;
-use causal_kernels::unbiased_index;
+use causal_core::ExecutionContext;
+use causal_data::{ResamplingPlan, fill_resample_index_batch};
 use causal_stats::{StatsError, form_xtx, invert_square};
 
 use crate::error::EstimationError;
@@ -88,22 +88,39 @@ pub(crate) fn finalize_bootstrap_se(ates: &[f64], replicates: u32) -> BootstrapS
 
 /// IID bootstrap standard error with failure accounting.
 ///
+/// Index plans are produced in one batch under `ctx` via
+/// [`fill_resample_index_batch`] (DESIGN.md §11.4).
+///
 /// `estimate` should return `Ok(Some(ate))` on success, `Ok(None)` for a soft-failed replicate
 /// (counted as failed, bootstrap continues), or `Err` to abort the whole bootstrap.
 pub(crate) fn bootstrap_se(
     replicates: u32,
-    rng: &mut CausalRng,
+    ctx: &ExecutionContext,
+    stream_base: u64,
     n: usize,
     mut estimate: impl FnMut(&[usize]) -> Result<Option<f64>, EstimationError>,
 ) -> Result<BootstrapSeResult, EstimationError> {
     if replicates == 0 || n == 0 {
         return Ok(BootstrapSeResult::skipped());
     }
-    let mut ates = Vec::with_capacity(replicates as usize);
+    let n_rep = replicates as usize;
+    let mut indexes = vec![0u32; n * n_rep];
+    fill_resample_index_batch(
+        ResamplingPlan::IidBootstrap,
+        n,
+        n_rep,
+        None,
+        ctx,
+        stream_base,
+        &mut indexes,
+    )
+    .map_err(EstimationError::from)?;
+    let mut ates = Vec::with_capacity(n_rep);
     let mut idx = vec![0usize; n];
-    for _ in 0..replicates {
-        for slot in &mut idx {
-            *slot = unbiased_index(rng, n);
+    for r in 0..n_rep {
+        let slice = &indexes[r * n..(r + 1) * n];
+        for (dst, &src) in idx.iter_mut().zip(slice.iter()) {
+            *dst = src as usize;
         }
         if let Some(ate) = estimate(&idx)? {
             ates.push(ate);

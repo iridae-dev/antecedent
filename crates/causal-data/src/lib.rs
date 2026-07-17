@@ -55,8 +55,9 @@ pub use panel::{PanelData, PanelUnit, PanelUnitView};
 pub use pooled_frame::{DummyOptions, PooledLaggedFrame, pool_multi_env_lagged_frame};
 pub use reference::ReferencePointPolicy;
 pub use resample::{
-    PermutationScheme, ResamplingPlan, fill_resample_indexes, fill_resample_indexes_grouped,
-    fill_resample_weights, resample_timeseries, resample_timeseries_grouped,
+    PermutationScheme, ResamplingPlan, fill_resample_index_batch, fill_resample_indexes,
+    fill_resample_indexes_grouped, fill_resample_weight_batch, fill_resample_weights,
+    resample_timeseries, resample_timeseries_grouped,
 };
 pub use sample::{DropSummary, LagMap, LaggedColumn, PreparedSample, SamplePlan, SampleWorkspace};
 pub use sim::{KnownLaggedParent, LaggedLinearPair};

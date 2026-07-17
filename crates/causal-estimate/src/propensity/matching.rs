@@ -70,7 +70,11 @@ impl PropensityMatching {
             backend: FaerBackend,
             bootstrap_replicates: 200,
             overlap: default_propensity_overlap(),
-            glm_options: GlmOptions::default(),
+            glm_options: {
+                let mut o = GlmOptions::default();
+                o.ridge_on_separation = Some(crate::se::DEFAULT_RIDGE_ON_SEPARATION);
+                o
+            },
             caliper: None,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
@@ -188,13 +192,12 @@ impl PropensityMatching {
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
-        let mut rng = ctx.rng.stream(0x51E7_u64);
-        let n = problem.nrows;
+                let n = problem.nrows;
         let ncols = problem.design_ncols;
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        bootstrap_se(self.bootstrap_replicates, ctx, 0x51E7_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 t_boot[r] = problem.treatment[src];
                 y_boot[r] = problem.outcome[src];
@@ -420,10 +423,14 @@ pub(crate) fn matching_contrast(
         AnalyticSeKind::Homoskedastic => {
             abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors)
         }
-        AnalyticSeKind::Hc1 => {
+        AnalyticSeKind::Hc0
+        | AnalyticSeKind::Hc1
+        | AnalyticSeKind::Hc2
+        | AnalyticSeKind::Hc3
+        | AnalyticSeKind::NeweyWest { .. } => {
             abadie_imbens_se_hetero(&per_unit_effects, &donor_usage, n_donors)
         }
-        AnalyticSeKind::Cluster => {
+        AnalyticSeKind::Cluster | AnalyticSeKind::PanelClusterHac { .. } => {
             let Some(ids) = cluster_ids else {
                 return Err(EstimationError::UnsupportedQuery(
                     "AnalyticSeKind::Cluster requires matching cluster_ids".into(),
@@ -431,6 +438,12 @@ pub(crate) fn matching_contrast(
             };
             let groups: Vec<u32> = effect_rows.iter().map(|&r| ids[r]).collect();
             cluster_influence_se(&per_unit_effects, &groups)
+        }
+        AnalyticSeKind::Multiway => {
+            return Err(EstimationError::UnsupportedQuery(
+                "matching AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"
+                    .into(),
+            ));
         }
     };
     Ok(MatchedEstimate { ate, se_analytic })

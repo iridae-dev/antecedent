@@ -10,14 +10,14 @@ use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, Intervent
 use causal_data::TabularData;
 use causal_expr::{EstimandMethod, IdentifiedEstimand};
 use causal_stats::{
-    CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, SandwichKind,
-    coefficient_covariance, form_xtx, invert_square,
+    CompiledDesign, DenseLinearAlgebra, FaerBackend, LassoOptions, LeastSquaresWorkspace,
+    MEstimateOptions, fit_huber_m, fit_lasso, fit_ridge, form_xtx, invert_square,
 };
 
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::prepare::{require_method, treatment_contrast, validate_simple_ate_query};
-use crate::se::{AnalyticSeKind, require_clusters};
+use crate::se::{AnalyticSeKind, residual_sandwich_coef_se};
 
 /// Prepared estimation problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -84,7 +84,33 @@ impl EffectEstimate {
     }
 }
 
-/// Analytic SE kind for [`LinearAdjustmentAte`] — see [`crate::se::AnalyticSeKind`].
+/// Linear fit family for [`LinearAdjustmentAte`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LinearFitKind {
+    /// Ordinary least squares.
+    Ols,
+    /// Ridge with penalty `lambda` (intercept unpenalized when constant).
+    Ridge {
+        /// Ridge penalty λ.
+        lambda: f64,
+    },
+    /// Lasso with penalty `lambda` (analytic SE omitted — use bootstrap).
+    Lasso {
+        /// Lasso penalty λ.
+        lambda: f64,
+    },
+    /// Huber M-estimation with tuning constant `c`.
+    Huber {
+        /// Huber tuning constant (default 1.345).
+        c: f64,
+    },
+}
+
+impl Default for LinearFitKind {
+    fn default() -> Self {
+        Self::Ols
+    }
+}
 
 /// Linear adjustment estimator for backdoor ATE.
 #[derive(Clone, Debug)]
@@ -97,8 +123,12 @@ pub struct LinearAdjustmentAte {
     pub overlap: OverlapPolicy,
     /// Analytic SE estimator (default homoskedastic).
     pub se_kind: AnalyticSeKind,
-    /// Optional cluster ids (length = prepared `nrows`) for [`AnalyticSeKind::Cluster`].
+    /// Optional cluster ids (length = prepared `nrows`) for cluster / panel SE.
     pub cluster_ids: Option<Vec<u32>>,
+    /// Optional multiway cluster ids for [`AnalyticSeKind::Multiway`].
+    pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Linear fit family (default OLS).
+    pub fit_kind: LinearFitKind,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -108,7 +138,7 @@ impl Default for LinearAdjustmentAte {
 }
 
 impl LinearAdjustmentAte {
-    /// Default: 200 bootstrap replicates, explicit overlap override.
+    /// Default: 200 bootstrap replicates, explicit overlap override, OLS.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -117,6 +147,8 @@ impl LinearAdjustmentAte {
             overlap: OverlapPolicy::ExplicitOverride,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            multiway_ids: None,
+            fit_kind: LinearFitKind::Ols,
         }
     }
 
@@ -175,7 +207,7 @@ impl LinearAdjustmentAte {
     ///
     /// # Errors
     ///
-    /// OLS failure.
+    /// Fit / SE failure.
     pub fn fit(
         &self,
         problem: &PreparedEstimationProblem,
@@ -183,51 +215,37 @@ impl LinearAdjustmentAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let fit = problem
-            .design
-            .fit_ols(&self.backend, &mut workspace.ols)
-            .map_err(EstimationError::from)?;
+        let (coefficients, residuals, rss, analytic_se_ok) =
+            self.fit_coefficients(problem, workspace)?;
         let t_col = problem
             .design
             .treatment_column()
             .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
-        let ate = fit.coefficients[t_col] * problem.treatment_delta;
+        let ate = coefficients[t_col] * problem.treatment_delta;
         let n = problem.design.nrows as f64;
         let p = problem.design.ncols as f64;
-        let sigma2 = fit.rss / (n - p).max(1.0);
-        let se_coef = match self.se_kind {
-            AnalyticSeKind::Homoskedastic => analytic_se_treatment(
+        let se_coef = if !analytic_se_ok {
+            f64::NAN
+        } else if let Some(se) = residual_sandwich_coef_se(
+            self.se_kind,
+            &problem.design.matrix,
+            problem.design.nrows,
+            problem.design.ncols,
+            &residuals,
+            t_col,
+            &self.cluster_ids,
+            &self.multiway_ids,
+        )? {
+            se
+        } else {
+            let sigma2 = rss / (n - p).max(1.0);
+            analytic_se_treatment(
                 &problem.design.matrix,
                 problem.design.nrows,
                 problem.design.ncols,
                 t_col,
                 sigma2,
-            ),
-            AnalyticSeKind::Hc1 => {
-                match coefficient_covariance(
-                    &problem.design.matrix,
-                    problem.design.nrows,
-                    problem.design.ncols,
-                    &fit.residuals,
-                    SandwichKind::Hc1,
-                ) {
-                    Ok(cov) => cov[t_col * problem.design.ncols + t_col].max(0.0).sqrt(),
-                    Err(_) => f64::NAN,
-                }
-            }
-            AnalyticSeKind::Cluster => {
-                let groups = require_clusters(&self.cluster_ids, problem.design.nrows)?;
-                match coefficient_covariance(
-                    &problem.design.matrix,
-                    problem.design.nrows,
-                    problem.design.ncols,
-                    &fit.residuals,
-                    SandwichKind::Cluster { groups },
-                ) {
-                    Ok(cov) => cov[t_col * problem.design.ncols + t_col].max(0.0).sqrt(),
-                    Err(_) => f64::NAN,
-                }
-            }
+            )
         };
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
@@ -251,6 +269,65 @@ impl LinearAdjustmentAte {
         .with_bootstrap(boot))
     }
 
+    fn fit_coefficients(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+    ) -> Result<(Vec<f64>, Vec<f64>, f64, bool), EstimationError> {
+        let x = &problem.design.matrix;
+        let n = problem.design.nrows;
+        let p = problem.design.ncols;
+        let y = &problem.design.outcome;
+        match self.fit_kind {
+            LinearFitKind::Ols => {
+                let fit = problem
+                    .design
+                    .fit_ols(&self.backend, &mut workspace.ols)
+                    .map_err(EstimationError::from)?;
+                Ok((fit.coefficients, fit.residuals, fit.rss, true))
+            }
+            LinearFitKind::Ridge { lambda } => {
+                let fit = fit_ridge(x, n, p, y, lambda, &self.backend, &mut workspace.ols)
+                    .map_err(EstimationError::from)?;
+                Ok((fit.coefficients, fit.residuals, fit.rss, true))
+            }
+            LinearFitKind::Lasso { lambda } => {
+                let fit = fit_lasso(x, n, p, y, lambda, &LassoOptions::default())
+                    .map_err(EstimationError::from)?;
+                let mut residuals = vec![0.0; n];
+                let mut rss = 0.0;
+                for r in 0..n {
+                    let mut pred = 0.0;
+                    for c in 0..p {
+                        pred += x[c * n + r] * fit.coefficients[c];
+                    }
+                    let e = y[r] - pred;
+                    residuals[r] = e;
+                    rss += e * e;
+                }
+                // Lasso analytic SE omitted (plan); bootstrap only.
+                Ok((fit.coefficients, residuals, rss, false))
+            }
+            LinearFitKind::Huber { c } => {
+                let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
+                let fit = fit_huber_m(x, n, p, y, &opts, &self.backend, &mut workspace.ols)
+                    .map_err(EstimationError::from)?;
+                let mut residuals = vec![0.0; n];
+                let mut rss = 0.0;
+                for r in 0..n {
+                    let mut pred = 0.0;
+                    for c in 0..p {
+                        pred += x[c * n + r] * fit.coefficients[c];
+                    }
+                    let e = y[r] - pred;
+                    residuals[r] = e;
+                    rss += e * e;
+                }
+                Ok((fit.coefficients, residuals, rss, true))
+            }
+        }
+    }
+
     fn bootstrap_se(
         &self,
         problem: &PreparedEstimationProblem,
@@ -258,22 +335,54 @@ impl LinearAdjustmentAte {
         ctx: &ExecutionContext,
         t_col: usize,
     ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
-        let mut rng = ctx.rng.stream(0xA7E_u64);
-        let n = problem.design.nrows;
+                let n = problem.design.nrows;
         let p = problem.design.ncols;
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
-        crate::util::bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        crate::util::bootstrap_se(self.bootstrap_replicates, ctx, 0xA7E_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 y_boot[r] = problem.design.outcome[src];
                 for c in 0..p {
                     x_boot[c * n + r] = problem.design.matrix[c * n + src];
                 }
             }
-            match self.backend.least_squares(&x_boot, n, p, &y_boot, &mut workspace.ols) {
-                Ok(fit) => Ok(Some(fit.coefficients[t_col] * problem.treatment_delta)),
-                Err(_) => Ok(None),
-            }
+            let coefs = match self.fit_kind {
+                LinearFitKind::Ols => {
+                    match self.backend.least_squares(&x_boot, n, p, &y_boot, &mut workspace.ols) {
+                        Ok(fit) => fit.coefficients,
+                        Err(_) => return Ok(None),
+                    }
+                }
+                LinearFitKind::Ridge { lambda } => {
+                    match fit_ridge(&x_boot, n, p, &y_boot, lambda, &self.backend, &mut workspace.ols)
+                    {
+                        Ok(fit) => fit.coefficients,
+                        Err(_) => return Ok(None),
+                    }
+                }
+                LinearFitKind::Lasso { lambda } => {
+                    match fit_lasso(&x_boot, n, p, &y_boot, lambda, &LassoOptions::default()) {
+                        Ok(fit) => fit.coefficients,
+                        Err(_) => return Ok(None),
+                    }
+                }
+                LinearFitKind::Huber { c } => {
+                    let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
+                    match fit_huber_m(
+                        &x_boot,
+                        n,
+                        p,
+                        &y_boot,
+                        &opts,
+                        &self.backend,
+                        &mut workspace.ols,
+                    ) {
+                        Ok(fit) => fit.coefficients,
+                        Err(_) => return Ok(None),
+                    }
+                }
+            };
+            Ok(Some(coefs[t_col] * problem.treatment_delta))
         })
     }
 }
@@ -493,5 +602,55 @@ mod tests {
                 .with_target_population(TargetPopulation::Treated);
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+    }
+
+    #[test]
+    fn hc_sandwich_kinds_yield_finite_se() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        for kind in [
+            AnalyticSeKind::Hc0,
+            AnalyticSeKind::Hc2,
+            AnalyticSeKind::Hc3,
+            AnalyticSeKind::NeweyWest { lag: 2 },
+        ] {
+            let est = LinearAdjustmentAte {
+                bootstrap_replicates: 0,
+                se_kind: kind,
+                ..LinearAdjustmentAte::new()
+            };
+            let prep = est.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = EstimationWorkspace::default();
+            let effect =
+                est.fit(&prep, &mut ws, &ExecutionContext::for_tests(1), AssumptionSet::new())
+                    .unwrap();
+            assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0, "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn ridge_lasso_huber_fit_kinds_recover_ate() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        for kind in [
+            LinearFitKind::Ridge { lambda: 1e-3 },
+            LinearFitKind::Lasso { lambda: 1e-4 },
+            LinearFitKind::Huber { c: 1.345 },
+        ] {
+            let est = LinearAdjustmentAte {
+                bootstrap_replicates: 0,
+                fit_kind: kind,
+                ..LinearAdjustmentAte::new()
+            };
+            let prep = est.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = EstimationWorkspace::default();
+            let effect =
+                est.fit(&prep, &mut ws, &ExecutionContext::for_tests(2), AssumptionSet::new())
+                    .unwrap();
+            assert!(effect.ate.is_finite(), "{kind:?}");
+            assert!((effect.ate - 2.0).abs() < 0.05, "ate={} kind={kind:?}", effect.ate);
+        }
     }
 }

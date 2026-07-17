@@ -27,12 +27,16 @@ pub use ci::{
     CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult,
     CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, GSquared,
     Gpdc, KnnCmi, KnnCmiWorkspace, MixedKnnCmi, MultivariatePartialCorrelation, OracleCi,
-    PartialCorrelation, PreparedCiTest, RegressionCi, RobustPartialCorrelation, SignificanceMethod,
-    SymbolicCmi, WeightedPartialCorrelation, analytic_confidence_level, analytic_parcorr_ci,
-    calibrate_parcorr_like, ci_from_name, nonparametric_permutation_count,
+    PairwiseMultivariateCi, PartialCorrelation, PreparedCiTest, RegressionCi,
+    RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
+    analytic_confidence_level, analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
+    nonparametric_permutation_count, pairwise_multivariate_test,
 };
 pub use covariance::{SandwichKind, coefficient_covariance};
-pub use design::{CompiledDesign, DesignColumnRole};
+pub use design::{
+    CompiledDesign, ContrastCodingKind, DesignColumnRole, RecordedContrast, StandardizationRecord,
+    StandardizedColumn, standardize_columns,
+};
 pub use divergence::{
     classifier_two_sample, gaussian_kl, mean_diff_two_sample, mean_var, residual_likelihood_ratio,
     sample_std,
@@ -49,7 +53,7 @@ pub use glm::{
     fit_glm, fit_multinomial_logit,
 };
 pub use gram::{accumulate_xtx, accumulate_xtx_xty_row, form_xtx, invert_square};
-pub use linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
+pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
 pub use matching::{
     EXACT_MATCHING_ROW_LIMIT, MatchingDistance, MatchingIndex, nearest_euclidean_scalar,

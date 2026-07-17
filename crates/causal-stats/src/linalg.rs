@@ -4,6 +4,53 @@
 
 use crate::error::StatsError;
 
+/// Fit diagnostics required by DESIGN.md §11.2.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FitDiagnostics {
+    /// Numerical rank estimate.
+    pub rank: usize,
+    /// Reciprocal condition estimate when available (`min|R_ii| / max|R_ii|`).
+    pub rcond: Option<f64>,
+    /// Backend identifier (`"faer"`, `"ridge"`, `"lasso"`, `"huber"`, …).
+    pub backend: &'static str,
+    /// Workspace grow count observed at fit time.
+    pub grow_count: u32,
+    /// Length of the design row-selection vector when known.
+    pub row_selection_len: Option<usize>,
+}
+
+impl FitDiagnostics {
+    /// Build diagnostics with optional condition number.
+    #[must_use]
+    pub const fn new(
+        rank: usize,
+        rcond: Option<f64>,
+        backend: &'static str,
+        grow_count: u32,
+    ) -> Self {
+        Self { rank, rcond, backend, grow_count, row_selection_len: None }
+    }
+
+    /// Attach row-selection provenance length.
+    #[must_use]
+    pub const fn with_row_selection_len(mut self, len: usize) -> Self {
+        self.row_selection_len = Some(len);
+        self
+    }
+}
+
+impl Default for FitDiagnostics {
+    fn default() -> Self {
+        Self {
+            rank: 0,
+            rcond: None,
+            backend: "unknown",
+            grow_count: 0,
+            row_selection_len: None,
+        }
+    }
+}
+
 /// Result of a least-squares solve.
 #[derive(Clone, Debug)]
 pub struct LeastSquaresFit {
@@ -15,6 +62,8 @@ pub struct LeastSquaresFit {
     pub rank: usize,
     /// Residual sum of squares.
     pub rss: f64,
+    /// Rank / condition / backend / allocation diagnostics.
+    pub diagnostics: FitDiagnostics,
 }
 
 /// Operation-level dense LA interface. Public causal APIs do not expose backend types.

@@ -9,6 +9,7 @@ pub mod adjustment;
 pub mod aipw;
 pub mod bayesian;
 pub mod conditional;
+pub mod design_compile;
 pub mod envelope;
 pub mod error;
 pub mod estimator;
@@ -27,8 +28,10 @@ pub mod temporal_mediation;
 pub mod util;
 
 pub use adjustment::{
-    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem,
+    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };
+pub use se::DEFAULT_RIDGE_ON_SEPARATION;
+pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use se::{AnalyticSeKind, LinearSeKind};
 pub use util::BootstrapSeResult;
 pub use aipw::{AipwAte, AipwWorkspace};

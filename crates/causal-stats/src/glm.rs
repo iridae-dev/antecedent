@@ -13,7 +13,7 @@ use causal_kernels::{norm_cdf, norm_pdf};
 
 use crate::error::StatsError;
 use crate::gram::invert_square;
-use crate::linalg::{DenseLinearAlgebra, LeastSquaresWorkspace};
+use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
 
 /// Family for the GLM path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -130,6 +130,8 @@ pub struct GlmFit {
     pub deviance: f64,
     /// Estimated or fixed NB2 `α` when family is [`GlmFamily::NegativeBinomial`].
     pub nb_alpha: Option<f64>,
+    /// Rank / condition / backend / allocation diagnostics.
+    pub diagnostics: FitDiagnostics,
 }
 
 impl GlmFit {
@@ -195,6 +197,7 @@ fn fit_gaussian(
         separated: false,
         deviance: fit.rss,
         nb_alpha: None,
+        diagnostics: fit.diagnostics,
     })
 }
 
@@ -273,6 +276,7 @@ fn fit_poisson(
         separated: false,
         deviance,
         nb_alpha: None,
+        diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
     })
 }
 
@@ -365,6 +369,7 @@ fn fit_logistic(
         separated,
         deviance,
         nb_alpha: None,
+        diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
     })
 }
 
@@ -458,6 +463,7 @@ fn fit_probit(
         separated,
         deviance,
         nb_alpha: None,
+        diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
     })
 }
 
@@ -658,6 +664,7 @@ fn fit_negbin_fixed_alpha(
         separated: false,
         deviance,
         nb_alpha: Some(alpha),
+        diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
     })
 }
 
@@ -666,7 +673,7 @@ fn fit_binomial_ridge(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
     _backend: &impl DenseLinearAlgebra,
-    _workspace: &mut LeastSquaresWorkspace,
+    workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
     lambda: f64,
 ) -> Result<GlmFit, StatsError> {
@@ -751,6 +758,7 @@ fn fit_binomial_ridge(
         separated: false,
         deviance,
         nb_alpha: None,
+        diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
     })
 }
 

@@ -25,9 +25,12 @@ LPCMCI (P4.3) now runs Gerhardus & Runge Alg. 1 (middle marks, weakly-minimal
 sepsets, interleaved ancestral/non-ancestral phases, R8–R10). J-PCMCI+ (P4.4)
 runs Günther et al. pooled four-phase search (observed context + space/time
 dummies under link assumptions; PCMCI+ majority + ContempMeek orientation).
-Full tigramite edge-set numerical equality remains optional for LPCMCI /
-J-PCMCI+ / RPCMCI; conformance pins structure / algorithm id. RPCMCI black-box
-equality still deferred (P4.5).
+System-only two-env edge-set equality is pinned in
+`conformance/tigramite/jpcmci_plus_two_env_edges` (tigramite `JPCMCIplus`, no
+space dummy). Structure pin remains at `jpcmci_plus_two_env`. Space-dummy
+multivariate CI is opt-in via `SpaceDummyCiMode::MultivariateBlock` (P4.4b);
+full tigramite edge equality with dummies / LPCMCI / RPCMCI black-box pins
+remain optional (RPCMCI deferred as P4.5).
 
 ## Notes (aligned with tigramite; not deviations)
 

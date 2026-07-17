@@ -54,7 +54,8 @@ pub use strategy_table::{
 pub use causal_discovery::{
     ContextKind, CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryPerformanceRecord, JpcmciPlus,
     JpcmciNodeRole, Lpcmci, MultiDatasetConstraints, PagDiscoveryResult, RegimeAssignment,
-    RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, ScoredLink, two_regime_half_split,
+    RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode,
+    two_regime_half_split,
 };
 pub use causal_estimate::{
     ConditionalLinearAdjustment, OverlapPolicy, TemporalEffectSurface, TemporalLinearPredictor,

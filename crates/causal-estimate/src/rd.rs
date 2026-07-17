@@ -260,11 +260,10 @@ impl SharpRegressionDiscontinuity {
         workspace: &mut RdWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
-        let mut rng = ctx.rng.stream(0x5D0C_u64);
-        let n = problem.nrows;
+                let n = problem.nrows;
         let mut x_boot = vec![0.0; n * RD_NCOLS];
         let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        bootstrap_se(self.bootstrap_replicates, ctx, 0x5D0C_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 y_boot[r] = problem.outcome[src];
                 for c in 0..RD_NCOLS {

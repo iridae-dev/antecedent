@@ -51,7 +51,11 @@ impl PropensityStratification {
             backend: FaerBackend,
             bootstrap_replicates: 200,
             overlap: default_propensity_overlap(),
-            glm_options: GlmOptions::default(),
+            glm_options: {
+                let mut o = GlmOptions::default();
+                o.ridge_on_separation = Some(crate::se::DEFAULT_RIDGE_ON_SEPARATION);
+                o
+            },
             n_strata: 5,
         }
     }
@@ -143,13 +147,12 @@ impl PropensityStratification {
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
-        let mut rng = ctx.rng.stream(0x3D2F_u64);
-        let n = problem.nrows;
+                let n = problem.nrows;
         let ncols = problem.design_ncols;
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        bootstrap_se(self.bootstrap_replicates, ctx, 0x3D2F_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 t_boot[r] = problem.treatment[src];
                 y_boot[r] = problem.outcome[src];

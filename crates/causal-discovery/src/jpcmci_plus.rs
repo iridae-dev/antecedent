@@ -21,10 +21,12 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::{DummyOptions, MultiEnvironmentData, pool_multi_env_lagged_frame};
 use causal_graph::{DenseNodeId, TemporalCpdag, TemporalCpdagReview};
-use causal_stats::{ConfidenceMethod, ConditionalIndependence, FdrAdjustment};
+use causal_stats::{
+    ConfidenceMethod, ConditionalIndependence, FdrAdjustment, PairwiseMultivariateCi,
+};
 
 use crate::constraints::{
-    ContextKind, DiscoveryConstraints, JpcmciNodeRole, MultiDatasetConstraints,
+    ContextKind, DiscoveryConstraints, JpcmciNodeRole, MultiDatasetConstraints, SpaceDummyCiMode,
 };
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
@@ -161,13 +163,22 @@ impl JpcmciPlus {
         let pooled = pool_multi_env_lagged_frame(data, &observed, frame_depth, dummies)
             .map_err(DiscoveryError::from)?;
 
+        let space_ids_full = Arc::clone(&pooled.space_dummy_variables);
+        let use_mv_space_dummy = md.space_dummy_ci == SpaceDummyCiMode::MultivariateBlock
+            && !space_ids_full.is_empty();
+        let logical_space_dummies: Arc<[VariableId]> = if use_mv_space_dummy {
+            Arc::from([space_ids_full[0]])
+        } else {
+            Arc::clone(&space_ids_full)
+        };
+
         let mut constraints = self.engine.constraints.clone();
-        constraints.multi_dataset.space_dummy_variables =
-            Arc::clone(&pooled.space_dummy_variables);
+        constraints.multi_dataset.space_dummy_variables = Arc::clone(&logical_space_dummies);
         constraints.multi_dataset.time_dummy_variables = pooled
             .time_dummy_variable
             .map(|t| Arc::from([t]) as Arc<[VariableId]>)
             .unwrap_or_else(|| Arc::from([]));
+        constraints.multi_dataset.space_dummy_ci = md.space_dummy_ci;
 
         let system: Vec<VariableId> = variables.to_vec();
         let context: Vec<VariableId> = md.context_variables.to_vec();
@@ -176,7 +187,12 @@ impl JpcmciPlus {
             .copied()
             .filter(|&v| constraints.multi_dataset.context_kind(v) == ContextKind::Time)
             .collect();
-        let all_vars = pooled.all_variables();
+        // Search graph uses the logical space-dummy id in MV mode (one-hot cols stay in frame).
+        let mut all_vars = pooled.observed_variables.to_vec();
+        all_vars.extend_from_slice(&logical_space_dummies);
+        if let Some(t) = pooled.time_dummy_variable {
+            all_vars.push(t);
+        }
         let frame = &pooled.frame;
 
         if let Some(hard) = ctx.memory.hard_limit_bytes {
@@ -187,6 +203,23 @@ impl JpcmciPlus {
             }
         }
 
+        let ci: Arc<dyn ConditionalIndependence + Send + Sync> = if use_mv_space_dummy {
+            let mut block = Vec::with_capacity(space_ids_full.len());
+            for &id in space_ids_full.iter() {
+                let Some(idx) = frame.column_index(id, Lag::CONTEMPORANEOUS) else {
+                    return Err(DiscoveryError::data_msg(format!(
+                        "space-dummy column missing from pooled frame for {id:?}"
+                    )));
+                };
+                block.push(idx);
+            }
+            Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::from([
+                Arc::from(block),
+            ])))
+        } else {
+            Arc::clone(&self.engine.ci)
+        };
+
         let threads = ctx.parallelism.max_threads.get().max(1);
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
@@ -195,15 +228,23 @@ impl JpcmciPlus {
                 confidence: ConfidenceMethod::default(),
             };
             workspace.prepared_ci =
-                Some(self.engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+                Some(ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
         }
 
         let engine = PcmciEngine {
             constraints: constraints.clone(),
-            ci: Arc::clone(&self.engine.ci),
+            ci: Arc::clone(&ci),
         };
 
         let mut diagnostics = Vec::new();
+        let space_diag = if use_mv_space_dummy {
+            format!(
+                "multivariate(k={})",
+                space_ids_full.len()
+            )
+        } else {
+            format!("{}", space_ids_full.len())
+        };
         push_diagnostic(
             &mut diagnostics,
             "jpcmci_plus.pooled_frame",
@@ -212,7 +253,7 @@ impl JpcmciPlus {
                 data.env_count(),
                 frame.n_effective(),
                 observed.len(),
-                pooled.space_dummy_variables.len(),
+                space_diag,
                 usize::from(pooled.time_dummy_variable.is_some())
             ),
         );
@@ -265,13 +306,18 @@ impl JpcmciPlus {
         }
 
         let context_parents = exogenous_parents_from_scored(&ctx_scored, &constraints, true, false);
-        // Fold contemporaneous context parents into lagged_parents for later MCI.
-        merge_fixed_parents(&mut lagged_parents, &context_parents);
+        // Strip rejected B̂^C from conditioners; keep only context MCI survivors.
+        replace_exogenous_parents(
+            &mut lagged_parents,
+            &context_parents,
+            &constraints,
+            |r| r.is_observed_context(),
+        );
 
         // --- Phase 3: MCI dummy–system (if any dummies) ---
         let mut dummy_scored = Vec::new();
         let mut trunc_b = 0u64;
-        if !pooled.space_dummy_variables.is_empty() || pooled.time_dummy_variable.is_some() {
+        if !space_ids_full.is_empty() || pooled.time_dummy_variable.is_some() {
             let mut cons3 = constraints.clone();
             // Fix discovered context → system as required.
             let mut required = cons3.required.to_vec();
@@ -308,7 +354,13 @@ impl JpcmciPlus {
         }
         let dummy_parents =
             exogenous_parents_from_scored(&dummy_scored, &constraints, false, true);
-        merge_fixed_parents(&mut lagged_parents, &dummy_parents);
+        // Strip rejected B̂^{CD}; keep only dummy MCI survivors for phase 4.
+        replace_exogenous_parents(
+            &mut lagged_parents,
+            &dummy_parents,
+            &constraints,
+            |r| r.is_dummy(),
+        );
 
         // --- Phase 4: MCI system–system ---
         let mut cons4 = constraints.clone();
@@ -352,15 +404,13 @@ impl JpcmciPlus {
             );
         }
 
-        // Merge scored links; remap one-hot space dummies → first space-dummy id.
-        let space_rep = pooled.space_dummy_variables.first().copied();
+        // Merge phase scored survivors only (PCMCI+ style: no PC1 re-injection).
+        let space_rep = logical_space_dummies.first().copied();
         let mut scored = Vec::new();
         scored.extend(ctx_scored);
         scored.extend(dummy_scored);
         scored.extend(sys_scored);
-        // Include lagged PC1 system/time-context parents as scored survivors.
-        scored.extend(lagged_parents_as_scored(&lagged_parents, &constraints));
-        scored = remap_space_dummy_links(scored, &pooled.space_dummy_variables, space_rep);
+        scored = remap_space_dummy_links(scored, &space_ids_full, space_rep);
         scored = threshold_scored_links(scored, self.fdr, constraints.alpha);
         scored = symmetrize_contemporaneous_links(scored);
         // Exogenous → system: force directed (no undirected symmetrize residue).
@@ -389,13 +439,14 @@ impl JpcmciPlus {
         let algorithm = algorithm_record(
             "jpcmci_plus",
             format!(
-                "alpha={},max_lag={},fdr={:?},envs={},context={},space_dummy={},time_dummy={}",
+                "alpha={},max_lag={},fdr={:?},envs={},context={},space_dummy={},space_dummy_ci={:?},time_dummy={}",
                 constraints.alpha,
                 max_lag,
                 self.fdr,
                 data.env_count(),
                 context.len(),
-                pooled.space_dummy_variables.len(),
+                space_ids_full.len(),
+                md.space_dummy_ci,
                 usize::from(pooled.time_dummy_variable.is_some())
             ),
         );
@@ -494,12 +545,19 @@ fn directed_exogenous_links(
     out
 }
 
-fn merge_fixed_parents(
+/// Replace all parents of a given exogenous role class with MCI survivors.
+///
+/// Rejected lagged context/dummy links from PC1 must leave the conditioner set used
+/// in later phases (tigramite `observed_context_parents` / `dummy_parents`).
+fn replace_exogenous_parents(
     lagged_parents: &mut [(VariableId, Vec<(VariableId, Lag)>)],
-    extra: &HashMap<VariableId, Vec<(VariableId, Lag)>>,
+    survivors: &HashMap<VariableId, Vec<(VariableId, Lag)>>,
+    constraints: &DiscoveryConstraints,
+    mut match_role: impl FnMut(JpcmciNodeRole) -> bool,
 ) {
     for (target, list) in lagged_parents.iter_mut() {
-        if let Some(more) = extra.get(target) {
+        list.retain(|&(src, _)| !match_role(constraints.multi_dataset.role_of(src)));
+        if let Some(more) = survivors.get(target) {
             for &p in more {
                 if !list.contains(&p) {
                     list.push(p);
@@ -507,41 +565,6 @@ fn merge_fixed_parents(
             }
         }
     }
-}
-
-fn lagged_parents_as_scored(
-    lagged_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
-    constraints: &DiscoveryConstraints,
-) -> Vec<ScoredLink> {
-    let mut out = Vec::new();
-    for &(target, ref parents) in lagged_parents {
-        for &(src, slag) in parents {
-            if slag.is_contemporaneous() {
-                continue;
-            }
-            // Skip exogenous→exogenous / into exogenous (already forbidden).
-            if constraints.multi_dataset.gunther_forbids(LaggedLink {
-                source: src,
-                source_lag: slag,
-                target,
-                target_lag: Lag::CONTEMPORANEOUS,
-            }) {
-                continue;
-            }
-            out.push(ScoredLink {
-                link: LaggedLink {
-                    source: src,
-                    source_lag: slag,
-                    target,
-                    target_lag: Lag::CONTEMPORANEOUS,
-                },
-                statistic: 1.0,
-                p_value: 0.0,
-                adjusted_p_value: None,
-            });
-        }
-    }
-    out
 }
 
 fn remap_space_dummy_links(
@@ -674,6 +697,7 @@ fn force_orient_exogenous(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::sync::Arc;
 
     use causal_core::{
@@ -685,7 +709,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::constraints::{MultiDatasetConstraints, TemporalConstraints};
+    use crate::constraints::{
+        ContextKind, MultiDatasetConstraints, SpaceDummyCiMode, TemporalConstraints,
+    };
 
     fn toy_env(n: usize, seed: f64) -> TimeSeriesData {
         let mut b = CausalSchemaBuilder::new();
@@ -885,6 +911,242 @@ mod tests {
                 causal_graph::NodeRef::Context { variable, .. } if *variable == ctx
             )),
             "observed context should appear as Context node"
+        );
+    }
+
+    #[test]
+    fn replace_exogenous_parents_drops_rejected_context() {
+        let sys = VariableId::from_raw(0);
+        let ctx_v = VariableId::from_raw(1);
+        let sys_parent = VariableId::from_raw(2);
+        let constraints = DiscoveryConstraints {
+            multi_dataset: MultiDatasetConstraints {
+                context_variables: Arc::from([ctx_v]),
+                context_kinds: Arc::from([(ctx_v, ContextKind::Time)]),
+                ..MultiDatasetConstraints::default()
+            },
+            ..DiscoveryConstraints::default()
+        };
+        let mut lagged_parents = vec![(
+            sys,
+            vec![
+                (ctx_v, Lag::from_raw(1)),
+                (sys_parent, Lag::from_raw(1)),
+                (ctx_v, Lag::CONTEMPORANEOUS),
+            ],
+        )];
+        // MCI kept only contemporaneous context → system.
+        let survivors = HashMap::from([(sys, vec![(ctx_v, Lag::CONTEMPORANEOUS)])]);
+        replace_exogenous_parents(
+            &mut lagged_parents,
+            &survivors,
+            &constraints,
+            |r| r.is_observed_context(),
+        );
+        let parents = &lagged_parents[0].1;
+        assert!(
+            parents.contains(&(ctx_v, Lag::CONTEMPORANEOUS)),
+            "survivor context parent must remain"
+        );
+        assert!(
+            !parents.contains(&(ctx_v, Lag::from_raw(1))),
+            "MCI-rejected lagged context must leave conditioner set"
+        );
+        assert!(
+            parents.contains(&(sys_parent, Lag::from_raw(1))),
+            "system lagged parents must be untouched"
+        );
+    }
+
+    #[test]
+    fn replace_exogenous_parents_drops_rejected_dummy() {
+        let sys = VariableId::from_raw(0);
+        let dummy = VariableId::from_raw(10);
+        let sys_parent = VariableId::from_raw(1);
+        let constraints = DiscoveryConstraints {
+            multi_dataset: MultiDatasetConstraints {
+                space_dummy_variables: Arc::from([dummy]),
+                ..MultiDatasetConstraints::default()
+            },
+            ..DiscoveryConstraints::default()
+        };
+        let mut lagged_parents = vec![(
+            sys,
+            vec![
+                (dummy, Lag::CONTEMPORANEOUS),
+                (sys_parent, Lag::from_raw(1)),
+            ],
+        )];
+        // Dummy link rejected by MCI → empty survivors.
+        let survivors = HashMap::new();
+        replace_exogenous_parents(
+            &mut lagged_parents,
+            &survivors,
+            &constraints,
+            |r| r.is_dummy(),
+        );
+        let parents = &lagged_parents[0].1;
+        assert!(
+            !parents.iter().any(|&(s, _)| s == dummy),
+            "rejected dummy parent must be stripped"
+        );
+        assert!(
+            parents.contains(&(sys_parent, Lag::from_raw(1))),
+            "system parents must remain"
+        );
+    }
+
+    /// Smooth time context drives X only contemporaneously; lagged C→X is PC1-plausible
+    /// (autocorrelated C) but MCI-rejected given C_t. Must not reappear in the CPDAG.
+    fn toy_env_time_context_contemp_only(n: usize, seed: f64, env_shift: f64) -> TimeSeriesData {
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["x", "y", "c"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mut c = vec![0.0; n];
+        for t in 0..n {
+            let tf = t as f64;
+            c[t] = env_shift + (0.3 * tf + seed).sin() + 0.15 * (0.7 * tf + seed).cos();
+            let eps_x = 0.05 * ((tf + seed * 1.1).sin());
+            let eps_y = 0.05 * ((tf + seed * 1.3).cos());
+            x[t] = 0.85 * c[t] + eps_x;
+            y[t] = 0.6 * x[t] + eps_y;
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(c),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn mci_rejected_lagged_context_absent_from_cpdag() {
+        let a = toy_env_time_context_contemp_only(400, 0.0, -1.0);
+        let b = toy_env_time_context_contemp_only(400, 1.0, 1.0);
+        let multi = MultiEnvironmentData::try_new(Arc::from([a, b])).unwrap();
+        let system = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let ctx_v = VariableId::from_raw(2);
+        let algo = JpcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            alpha: 0.05,
+            multi_dataset: MultiDatasetConstraints {
+                context_variables: Arc::from([ctx_v]),
+                context_kinds: Arc::from([(ctx_v, ContextKind::Time)]),
+                include_space_dummy: true,
+                ..MultiDatasetConstraints::default()
+            },
+            ..DiscoveryConstraints::default()
+        });
+        let mut ws = DiscoveryWorkspace::default();
+        let result = algo.run(&multi, &system, &mut ws, &ExecutionContext::for_tests(23)).unwrap();
+
+        let lagged_ctx_to_system = result.evidence.links.iter().any(|s| {
+            s.link.source == ctx_v
+                && !s.link.source_lag.is_contemporaneous()
+                && (s.link.target == system[0] || s.link.target == system[1])
+        });
+        assert!(
+            !lagged_ctx_to_system,
+            "lagged context→system removed by context MCI must not re-enter the CPDAG \
+             (old lagged_parents_as_scored reinjection); links={:?}",
+            result
+                .evidence
+                .links
+                .iter()
+                .map(|s| (s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw(), s.p_value))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn multivariate_space_dummy_uses_single_logical_node() {
+        // M=3 → two one-hot columns; MV mode exposes one logical SpaceDummy in the CPDAG.
+        let envs = [
+            toy_env(180, 0.0),
+            toy_env(180, 1.0),
+            toy_env(180, 2.0),
+        ];
+        let multi = MultiEnvironmentData::try_new(Arc::from(envs)).unwrap();
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let algo = JpcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            alpha: 0.1,
+            multi_dataset: MultiDatasetConstraints {
+                include_space_dummy: true,
+                space_dummy_ci: SpaceDummyCiMode::MultivariateBlock,
+                ..MultiDatasetConstraints::default()
+            },
+            ..DiscoveryConstraints::default()
+        });
+        let mut ws = DiscoveryWorkspace::default();
+        let result = algo.run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(31)).unwrap();
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("multivariate(k=2)")),
+            "expected multivariate(k=2) diagnostic; got {:?}",
+            result.diagnostics
+        );
+        let space_ids: BTreeSet<u32> = result
+            .evidence
+            .links
+            .iter()
+            .flat_map(|s| [s.link.source.raw(), s.link.target.raw()])
+            .filter(|&id| id >= 2)
+            .collect();
+        assert!(
+            space_ids.len() <= 1,
+            "MV mode must collapse to ≤1 logical space-dummy id; got {space_ids:?}"
+        );
+        assert!(
+            result.algorithm.config.as_ref().contains("space_dummy_ci=MultivariateBlock"),
+            "config={}",
+            result.algorithm.config
         );
     }
 }

@@ -5,7 +5,7 @@
 #![allow(clippy::cast_precision_loss, clippy::needless_range_loop)]
 
 use crate::error::StatsError;
-use crate::linalg::{DenseLinearAlgebra, LeastSquaresWorkspace};
+use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
 use crate::twosls::fit_wls;
 
 /// Options for [`fit_huber_m`].
@@ -36,6 +36,8 @@ pub struct MEstimateFit {
     pub iterations: u32,
     /// Whether the outer loop converged.
     pub converged: bool,
+    /// Rank / condition / backend / allocation diagnostics.
+    pub diagnostics: FitDiagnostics,
 }
 
 /// Fit a Huber M-estimator via IRLS with MAD scale updates.
@@ -102,7 +104,13 @@ pub fn fit_huber_m(
         }
     }
 
-    Ok(MEstimateFit { coefficients: beta, scale, iterations, converged })
+    Ok(MEstimateFit {
+        coefficients: beta,
+        scale,
+        iterations,
+        converged,
+        diagnostics: FitDiagnostics::new(ncols, None, "huber", workspace.grow_count),
+    })
 }
 
 fn mad_scale(residuals: &[f64]) -> f64 {

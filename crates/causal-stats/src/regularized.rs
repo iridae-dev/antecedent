@@ -6,7 +6,7 @@
 
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};
-use crate::linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
+use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 
 /// Options for [`fit_lasso`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -32,6 +32,8 @@ pub struct LassoFit {
     pub iterations: u32,
     /// Whether the loop converged.
     pub converged: bool,
+    /// Rank / condition / backend / allocation diagnostics.
+    pub diagnostics: FitDiagnostics,
 }
 
 /// Ridge regression: solve `(XᵀX + λ I)β = Xᵀy`, leaving a constant intercept column unpenalized.
@@ -97,7 +99,13 @@ pub fn fit_ridge(
         residuals[r] = e;
         rss += e * e;
     }
-    Ok(LeastSquaresFit { coefficients, residuals, rank: ncols, rss })
+    Ok(LeastSquaresFit {
+        coefficients,
+        residuals,
+        rank: ncols,
+        rss,
+        diagnostics: FitDiagnostics::new(ncols, None, "ridge", 0),
+    })
 }
 
 /// Lasso via coordinate descent on centered predictors (soft-thresholding).
@@ -204,7 +212,12 @@ pub fn fit_lasso(
         beta[0] = intercept;
     }
 
-    Ok(LassoFit { coefficients: beta, iterations, converged })
+    Ok(LassoFit {
+        coefficients: beta,
+        iterations,
+        converged,
+        diagnostics: FitDiagnostics::new(ncols, None, "lasso", 0),
+    })
 }
 
 fn soft_threshold(z: f64, gamma: f64) -> f64 {

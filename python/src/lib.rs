@@ -25,8 +25,9 @@ use causal::{
     DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, DifferenceMeasure,
     DiscoverParams, DiscoveryPerformanceRecord, DistributionChangeOptions, FdrAdjustment,
     GraphIdentFlag, InferenceMode, MeasurementPlan, MultiDatasetConstraints, RefuteSuite,
-    SamplingPlan, ScoredLink, StateEvent, TemporalLinearPredictor, TemporalMediationEstimator,
-    WeightedGraphSamples, apply_state_event, attribute_distribution_change, counterfactual_ite,
+    SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent, TemporalLinearPredictor,
+    TemporalMediationEstimator, WeightedGraphSamples, apply_state_event,
+    attribute_distribution_change, counterfactual_ite,
     dag_from_dot, dag_to_dot, dag_to_json, decode_causal_posterior_bytes,
     discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
@@ -919,6 +920,7 @@ fn discover_lpcmci(
     context_names=None,
     include_space_dummy=true,
     include_time_dummy=false,
+    space_dummy_ci="scalar",
 ))]
 fn discover_jpcmci_plus(
     py: Python<'_>,
@@ -934,6 +936,7 @@ fn discover_jpcmci_plus(
     context_names: Option<Vec<String>>,
     include_space_dummy: bool,
     include_time_dummy: bool,
+    space_dummy_ci: &str,
 ) -> PyResult<PcmciDiscoveryResult> {
     if env_columns.is_empty() {
         return Err(PyValueError::new_err("discover_jpcmci_plus needs ≥1 environment"));
@@ -979,6 +982,15 @@ fn discover_jpcmci_plus(
             ));
         }
 
+        let space_dummy_ci = match space_dummy_ci {
+            "scalar" | "scalar_one_hot" | "one_hot" => SpaceDummyCiMode::ScalarOneHot,
+            "multivariate" | "multivariate_block" | "block" => SpaceDummyCiMode::MultivariateBlock,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "space_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
+                )));
+            }
+        };
         let params = DiscoverParams {
             max_lag,
             alpha,
@@ -988,6 +1000,7 @@ fn discover_jpcmci_plus(
                 context_variables: Arc::from(context_ids),
                 include_space_dummy,
                 include_time_dummy,
+                space_dummy_ci,
                 ..MultiDatasetConstraints::default()
             },
         };

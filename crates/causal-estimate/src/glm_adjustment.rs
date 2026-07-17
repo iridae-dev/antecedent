@@ -28,13 +28,14 @@ use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
     CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    fit_glm, form_xtx, invert_square,
+    coefficient_covariance, fit_glm, form_xtx, invert_square,
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::gcomp::gcomp_diffs;
 use crate::overlap::OverlapPolicy;
+use crate::se::AnalyticSeKind;
 use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
@@ -79,6 +80,12 @@ pub struct GlmAdjustmentAte {
     pub glm_options: GlmOptions,
     /// Outcome family / link.
     pub family: GlmFamily,
+    /// Analytic SE kind (default Homoskedastic → Fisher delta-method).
+    pub se_kind: AnalyticSeKind,
+    /// Optional cluster ids for cluster / panel sandwich SE.
+    pub cluster_ids: Option<Vec<u32>>,
+    /// Optional multiway cluster ids.
+    pub multiway_ids: Option<Vec<Vec<u32>>>,
 }
 
 impl Default for GlmAdjustmentAte {
@@ -88,15 +95,22 @@ impl Default for GlmAdjustmentAte {
 }
 
 impl GlmAdjustmentAte {
-    /// Default: 200 bootstrap replicates, explicit overlap override.
+    /// Default: 200 bootstrap replicates, explicit overlap override, ridge-on-separation.
     #[must_use]
     pub fn new() -> Self {
         Self {
             backend: FaerBackend,
             bootstrap_replicates: 200,
             overlap: OverlapPolicy::ExplicitOverride,
-            glm_options: GlmOptions::default(),
+            glm_options: {
+                let mut o = GlmOptions::default();
+                o.ridge_on_separation = Some(crate::se::DEFAULT_RIDGE_ON_SEPARATION);
+                o
+            },
             family: GlmFamily::BinomialLogit,
+            se_kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
+            multiway_ids: None,
         }
     }
 
@@ -167,21 +181,16 @@ impl GlmAdjustmentAte {
                     }
                 }
             }
-            GlmFamily::PoissonLog => {
+            GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => {
                 for &yi in &y {
                     if !(yi.is_finite() && yi >= 0.0) {
                         return Err(EstimationError::UnsupportedQuery(
-                            "PoissonLog GlmAdjustmentAte requires non-negative outcomes".into(),
+                            "Poisson/NB GlmAdjustmentAte requires non-negative outcomes".into(),
                         ));
                     }
                 }
             }
             GlmFamily::GaussianIdentity => {}
-            GlmFamily::NegativeBinomial => {
-                return Err(EstimationError::UnsupportedQuery(
-                    "NegativeBinomial is not supported by GlmAdjustmentAte g-computation".into(),
-                ));
-            }
         }
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
@@ -247,21 +256,33 @@ impl GlmAdjustmentAte {
         );
         let n = diffs.len() as f64;
         let ate = diffs.iter().sum::<f64>() / n;
-        // Conditional-on-covariates delta-method SE (standard g-computation practice):
-        // propagates GLM coefficient uncertainty through the mean contrast, treating the
-        // observed covariate rows as fixed. The bootstrap SE below additionally resamples
-        // rows and refits the GLM.
-        let se_analytic = gcomp_delta_method_se(
-            problem.family,
-            &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
-            t_col,
-            &glm_fit.coefficients,
-            problem.active,
-            problem.control,
-            glm_fit.deviance,
-        );
+        let se_analytic = match self.se_kind {
+            AnalyticSeKind::Homoskedastic => gcomp_delta_method_se(
+                problem.family,
+                &problem.design.matrix,
+                problem.design.nrows,
+                problem.design.ncols,
+                t_col,
+                &glm_fit.coefficients,
+                problem.active,
+                problem.control,
+                glm_fit.deviance,
+            ),
+            other => gcomp_sandwich_se(
+                other,
+                problem.family,
+                &problem.design.matrix,
+                problem.design.nrows,
+                problem.design.ncols,
+                t_col,
+                &glm_fit.coefficients,
+                &problem.design.outcome,
+                problem.active,
+                problem.control,
+                &self.cluster_ids,
+                &self.multiway_ids,
+            )?,
+        };
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -290,12 +311,11 @@ impl GlmAdjustmentAte {
         ctx: &ExecutionContext,
         t_col: usize,
     ) -> Result<BootstrapSeResult, EstimationError> {
-        let mut rng = ctx.rng.stream(0xC17A_u64);
-        let n = problem.design.nrows;
+                let n = problem.design.nrows;
         let p = problem.design.ncols;
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, &mut rng, n, |idx| {
+        bootstrap_se(self.bootstrap_replicates, ctx, 0xC17A_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 y_boot[r] = problem.design.outcome[src];
                 for c in 0..p {
@@ -450,6 +470,183 @@ fn gcomp_delta_method_se(
         }
     }
     (dispersion * quad.max(0.0)).sqrt()
+}
+
+/// G-computation SE using residual sandwich Cov(β̂) (working/Pearson residuals) then
+/// the same mean-contrast gradient as the Fisher delta-method.
+#[allow(clippy::too_many_arguments)]
+fn gcomp_sandwich_se(
+    kind: AnalyticSeKind,
+    family: GlmFamily,
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    t_col: usize,
+    coefficients: &[f64],
+    y: &[f64],
+    active: f64,
+    control: f64,
+    cluster_ids: &Option<Vec<u32>>,
+    multiway_ids: &Option<Vec<Vec<u32>>>,
+) -> Result<f64, EstimationError> {
+    let residuals = glm_working_residuals(family, x_colmajor, nrows, ncols, coefficients, y);
+    // Reuse residual_sandwich_coef_se machinery by computing full cov via a probe on col 0,
+    // then recompute with the stored kind — better: duplicate sandwich selection briefly.
+    let cov = sandwich_cov_matrix(
+        kind,
+        x_colmajor,
+        nrows,
+        ncols,
+        &residuals,
+        cluster_ids,
+        multiway_ids,
+    )?;
+    let Some(cov) = cov else {
+        return Ok(gcomp_delta_method_se(
+            family, x_colmajor, nrows, ncols, t_col, coefficients, active, control, 0.0,
+        ));
+    };
+    let grad = gcomp_gradient(
+        family, x_colmajor, nrows, ncols, t_col, coefficients, active, control,
+    );
+    let mut quad = 0.0;
+    for i in 0..ncols {
+        for j in 0..ncols {
+            quad += grad[i] * cov[i * ncols + j] * grad[j];
+        }
+    }
+    Ok(quad.max(0.0).sqrt())
+}
+
+fn sandwich_cov_matrix(
+    kind: AnalyticSeKind,
+    x: &[f64],
+    nrows: usize,
+    ncols: usize,
+    residuals: &[f64],
+    cluster_ids: &Option<Vec<u32>>,
+    multiway_ids: &Option<Vec<Vec<u32>>>,
+) -> Result<Option<Vec<f64>>, EstimationError> {
+    use causal_stats::SandwichKind;
+    use crate::se::{require_clusters, require_multiway};
+    if matches!(kind, AnalyticSeKind::Homoskedastic) {
+        return Ok(None);
+    }
+    let cov = match kind {
+        AnalyticSeKind::Homoskedastic => unreachable!(),
+        AnalyticSeKind::Hc0 => {
+            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Hc0)
+        }
+        AnalyticSeKind::Hc1 => {
+            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Hc1)
+        }
+        AnalyticSeKind::Hc2 => {
+            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Hc2)
+        }
+        AnalyticSeKind::Hc3 => {
+            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Hc3)
+        }
+        AnalyticSeKind::Cluster => {
+            let groups = require_clusters(cluster_ids, nrows)?;
+            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Cluster { groups })
+        }
+        AnalyticSeKind::Multiway => {
+            let dims = require_multiway(multiway_ids, nrows)?;
+            let refs: Vec<&[u32]> = dims.iter().map(Vec::as_slice).collect();
+            coefficient_covariance(
+                x,
+                nrows,
+                ncols,
+                residuals,
+                SandwichKind::Multiway { dimensions: &refs },
+            )
+        }
+        AnalyticSeKind::NeweyWest { lag } => {
+            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::NeweyWest { lag })
+        }
+        AnalyticSeKind::PanelClusterHac { lag } => {
+            let groups = require_clusters(cluster_ids, nrows)?;
+            coefficient_covariance(
+                x,
+                nrows,
+                ncols,
+                residuals,
+                SandwichKind::PanelClusterHac { groups, lag },
+            )
+        }
+    };
+    Ok(Some(cov.unwrap_or_else(|_| vec![f64::NAN; ncols * ncols])))
+}
+
+fn glm_working_residuals(
+    family: GlmFamily,
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    coefficients: &[f64],
+    y: &[f64],
+) -> Vec<f64> {
+    let mut out = vec![0.0; nrows];
+    for r in 0..nrows {
+        let mut eta = 0.0;
+        for c in 0..ncols {
+            eta += x_colmajor[c * nrows + r] * coefficients[c];
+        }
+        let mu = family.mean_from_eta(eta);
+        let denom = match family {
+            GlmFamily::GaussianIdentity => 1.0,
+            GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
+                (mu * (1.0 - mu)).max(1e-12).sqrt()
+            }
+            GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => mu.max(1e-12).sqrt(),
+        };
+        out[r] = (y[r] - mu) / denom;
+    }
+    out
+}
+
+fn gcomp_gradient(
+    family: GlmFamily,
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    t_col: usize,
+    coefficients: &[f64],
+    active: f64,
+    control: f64,
+) -> Vec<f64> {
+    let n = nrows as f64;
+    let mut grad = vec![0.0; ncols];
+    for r in 0..nrows {
+        let mut eta_active = 0.0;
+        let mut eta_control = 0.0;
+        for c in 0..ncols {
+            let coef = coefficients[c];
+            if c == t_col {
+                eta_active += active * coef;
+                eta_control += control * coef;
+            } else {
+                let val = x_colmajor[c * nrows + r];
+                eta_active += val * coef;
+                eta_control += val * coef;
+            }
+        }
+        let d1 = mean_derivative(family, eta_active);
+        let d0 = mean_derivative(family, eta_control);
+        for c in 0..ncols {
+            let (x1, x0) = if c == t_col {
+                (active, control)
+            } else {
+                let val = x_colmajor[c * nrows + r];
+                (val, val)
+            };
+            grad[c] += d1 * x1 - d0 * x0;
+        }
+    }
+    for g in &mut grad {
+        *g /= n;
+    }
+    grad
 }
 
 #[cfg(test)]
@@ -739,5 +936,84 @@ mod tests {
                 .with_target_population(TargetPopulation::Treated);
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+    }
+
+    #[test]
+    fn negbin_gcomp_accepts_nonnegative_counts() {
+        let n = 200usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { 3.0 }).collect();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([]),
+            ExprId::from_raw(0),
+        );
+        let est = GlmAdjustmentAte {
+            family: GlmFamily::NegativeBinomial,
+            bootstrap_replicates: 0,
+            ..GlmAdjustmentAte::new()
+        };
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = GlmAdjustmentWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(effect.ate.is_finite() && effect.ate > 0.0);
+    }
+
+    #[test]
+    fn hc1_sandwich_se_finite_without_bootstrap() {
+        let (data, estimand) = binary_scm(800, 9);
+        let est = GlmAdjustmentAte {
+            bootstrap_replicates: 0,
+            se_kind: AnalyticSeKind::Hc1,
+            ..GlmAdjustmentAte::new()
+        };
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = GlmAdjustmentWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
     }
 }

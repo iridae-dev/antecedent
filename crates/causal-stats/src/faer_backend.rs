@@ -8,7 +8,7 @@ use faer::linalg::solvers::{ColPivQr, SolveLstsqCore};
 use faer::{Conj, Mat};
 
 use crate::error::StatsError;
-use crate::linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
+use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 
 /// Default `faer` backend.
 #[derive(Clone, Copy, Debug, Default)]
@@ -42,8 +42,13 @@ impl DenseLinearAlgebra for FaerBackend {
         let r_factor = qr.thin_R();
         let size = r_factor.nrows().min(r_factor.ncols());
         let mut max_diag = 0.0_f64;
+        let mut min_diag = f64::INFINITY;
         for i in 0..size {
-            max_diag = max_diag.max(r_factor[(i, i)].abs());
+            let d = r_factor[(i, i)].abs();
+            max_diag = max_diag.max(d);
+            if d > 0.0 {
+                min_diag = min_diag.min(d);
+            }
         }
         let tol = (nrows as f64).sqrt() * f64::EPSILON * max_diag.max(1.0);
         let mut rank = 0usize;
@@ -55,6 +60,11 @@ impl DenseLinearAlgebra for FaerBackend {
         if rank < ncols {
             return Err(StatsError::RankDeficient { rank, ncols });
         }
+        let rcond = if max_diag > 0.0 && min_diag.is_finite() {
+            Some(min_diag / max_diag)
+        } else {
+            None
+        };
 
         // solve_lstsq writes β into the leading ncols entries of the RHS.
         let mut rhs = Mat::<f64>::from_fn(nrows, 1, |r, _| y[r]);
@@ -75,7 +85,13 @@ impl DenseLinearAlgebra for FaerBackend {
         }
         let rss: f64 = residuals.iter().map(|e| e * e).sum();
 
-        Ok(LeastSquaresFit { coefficients, residuals: residuals.to_vec(), rank, rss })
+        Ok(LeastSquaresFit {
+            coefficients,
+            residuals: residuals.to_vec(),
+            rank,
+            rss,
+            diagnostics: FitDiagnostics::new(rank, rcond, "faer", workspace.grow_count),
+        })
     }
 }
 

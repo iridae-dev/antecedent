@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use causal_core::CausalRng;
+use causal_core::{CausalRng, ExecutionContext};
 use causal_kernels::unbiased_index;
 
 use crate::column::{ColumnView, Float64Column, OwnedColumn};
@@ -339,6 +339,165 @@ pub fn fill_resample_weights(
     Ok(())
 }
 
+/// Fill `out` (`len = n * n_replicates`, replicate-major) with index plans under one
+/// [`ExecutionContext`] (DESIGN.md §11.4 batch production).
+///
+/// Each replicate uses `ctx.rng.stream(stream_base ^ replicate_id)` so results are
+/// independent of scheduling order under [`causal_core::Determinism::Strict`].
+/// When `max_threads > 1` and `n_replicates ≥ 2`, fills run in a bounded
+/// `std::thread::scope` pool.
+///
+/// # Errors
+///
+/// Shape / plan mismatches as in [`fill_resample_indexes_grouped`], or `out` length mismatch.
+pub fn fill_resample_index_batch(
+    plan: ResamplingPlan,
+    n: usize,
+    n_replicates: usize,
+    cluster_ids: Option<&[u32]>,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    out: &mut [u32],
+) -> Result<(), DataError> {
+    if n == 0 || n_replicates == 0 {
+        return Err(DataError::InvalidArgument {
+            message: "batch resample needs n > 0 and n_replicates > 0".into(),
+        });
+    }
+    if out.len() != n.saturating_mul(n_replicates) {
+        return Err(DataError::LengthMismatch {
+            expected: n * n_replicates,
+            actual: out.len(),
+            context: "fill_resample_index_batch out",
+        });
+    }
+    if plan.is_weight_plan() {
+        return Err(DataError::InvalidArgument {
+            message: "BayesianBootstrap yields weights; use fill_resample_weight_batch".into(),
+        });
+    }
+    let threads = ctx.parallelism.max_threads.get().max(1) as usize;
+    if threads == 1 || n_replicates < 2 {
+        let mut scratch = Vec::with_capacity(n);
+        for r in 0..n_replicates {
+            let mut rng = ctx.rng.stream(stream_base ^ r as u64);
+            fill_resample_indexes_grouped(plan, n, cluster_ids, &mut rng, &mut scratch)?;
+            out[r * n..(r + 1) * n].copy_from_slice(&scratch);
+        }
+        return Ok(());
+    }
+    let chunk = n_replicates.div_ceil(threads);
+    let cluster_owned: Option<Vec<u32>> = cluster_ids.map(<[u32]>::to_vec);
+    let err = std::sync::Mutex::new(None::<DataError>);
+    std::thread::scope(|scope| {
+        let mut rest = out;
+        let mut start = 0usize;
+        while start < n_replicates {
+            let end = (start + chunk).min(n_replicates);
+            let (this, next) = rest.split_at_mut((end - start) * n);
+            rest = next;
+            let cluster_ref = cluster_owned.as_deref();
+            let err_slot = &err;
+            let rng_factory = &ctx.rng;
+            scope.spawn(move || {
+                let mut scratch = Vec::with_capacity(n);
+                for (local, r) in (start..end).enumerate() {
+                    let mut rng = rng_factory.stream(stream_base ^ r as u64);
+                    if let Err(e) =
+                        fill_resample_indexes_grouped(plan, n, cluster_ref, &mut rng, &mut scratch)
+                    {
+                        let mut guard = err_slot.lock().unwrap_or_else(|p| p.into_inner());
+                        if guard.is_none() {
+                            *guard = Some(e);
+                        }
+                        return;
+                    }
+                    this[local * n..(local + 1) * n].copy_from_slice(&scratch);
+                }
+            });
+            start = end;
+        }
+    });
+    if let Some(e) = err.into_inner().unwrap_or_else(|p| p.into_inner()) {
+        return Err(e);
+    }
+    Ok(())
+}
+
+/// Batch Bayesian-bootstrap weights under one [`ExecutionContext`] (replicate-major).
+///
+/// # Errors
+///
+/// Non-weight plan, zero sizes, or `out` length mismatch.
+pub fn fill_resample_weight_batch(
+    plan: ResamplingPlan,
+    n: usize,
+    n_replicates: usize,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    out: &mut [f64],
+) -> Result<(), DataError> {
+    if n == 0 || n_replicates == 0 {
+        return Err(DataError::InvalidArgument {
+            message: "batch resample needs n > 0 and n_replicates > 0".into(),
+        });
+    }
+    if out.len() != n.saturating_mul(n_replicates) {
+        return Err(DataError::LengthMismatch {
+            expected: n * n_replicates,
+            actual: out.len(),
+            context: "fill_resample_weight_batch out",
+        });
+    }
+    if !matches!(plan, ResamplingPlan::BayesianBootstrap) {
+        return Err(DataError::InvalidArgument {
+            message: "fill_resample_weight_batch requires BayesianBootstrap".into(),
+        });
+    }
+    let threads = ctx.parallelism.max_threads.get().max(1) as usize;
+    if threads == 1 || n_replicates < 2 {
+        let mut scratch = Vec::with_capacity(n);
+        for r in 0..n_replicates {
+            let mut rng = ctx.rng.stream(stream_base ^ r as u64);
+            fill_resample_weights(plan, n, &mut rng, &mut scratch)?;
+            out[r * n..(r + 1) * n].copy_from_slice(&scratch);
+        }
+        return Ok(());
+    }
+    let chunk = n_replicates.div_ceil(threads);
+    let err = std::sync::Mutex::new(None::<DataError>);
+    std::thread::scope(|scope| {
+        let mut rest = out;
+        let mut start = 0usize;
+        while start < n_replicates {
+            let end = (start + chunk).min(n_replicates);
+            let (this, next) = rest.split_at_mut((end - start) * n);
+            rest = next;
+            let err_slot = &err;
+            let rng_factory = &ctx.rng;
+            scope.spawn(move || {
+                let mut scratch = Vec::with_capacity(n);
+                for (local, r) in (start..end).enumerate() {
+                    let mut rng = rng_factory.stream(stream_base ^ r as u64);
+                    if let Err(e) = fill_resample_weights(plan, n, &mut rng, &mut scratch) {
+                        let mut guard = err_slot.lock().unwrap_or_else(|p| p.into_inner());
+                        if guard.is_none() {
+                            *guard = Some(e);
+                        }
+                        return;
+                    }
+                    this[local * n..(local + 1) * n].copy_from_slice(&scratch);
+                }
+            });
+            start = end;
+        }
+    });
+    if let Some(e) = err.into_inner().unwrap_or_else(|p| p.into_inner()) {
+        return Err(e);
+    }
+    Ok(())
+}
+
 /// Apply a resampling plan to produce a new float64 time series.
 ///
 /// Index plans gather rows. [`ResamplingPlan::BayesianBootstrap`] keeps row
@@ -612,5 +771,59 @@ mod tests {
         )
         .unwrap();
         assert_eq!(idx.len(), 80);
+    }
+
+    #[test]
+    fn index_batch_shape_and_strict_determinism() {
+        use causal_core::ExecutionContext;
+        let ctx = ExecutionContext::for_tests(42);
+        let n = 20usize;
+        let b = 8usize;
+        let mut out_a = vec![0u32; n * b];
+        let mut out_b = vec![0u32; n * b];
+        fill_resample_index_batch(
+            ResamplingPlan::IidBootstrap,
+            n,
+            b,
+            None,
+            &ctx,
+            0xDEAD_u64,
+            &mut out_a,
+        )
+        .unwrap();
+        fill_resample_index_batch(
+            ResamplingPlan::IidBootstrap,
+            n,
+            b,
+            None,
+            &ctx,
+            0xDEAD_u64,
+            &mut out_b,
+        )
+        .unwrap();
+        assert_eq!(out_a, out_b);
+        assert!(out_a.iter().all(|&i| (i as usize) < n));
+    }
+
+    #[test]
+    fn weight_batch_rows_sum_to_n() {
+        use causal_core::ExecutionContext;
+        let ctx = ExecutionContext::for_tests(7);
+        let n = 15usize;
+        let b = 4usize;
+        let mut out = vec![0.0; n * b];
+        fill_resample_weight_batch(
+            ResamplingPlan::BayesianBootstrap,
+            n,
+            b,
+            &ctx,
+            0xBEEF_u64,
+            &mut out,
+        )
+        .unwrap();
+        for r in 0..b {
+            let sum: f64 = out[r * n..(r + 1) * n].iter().sum();
+            assert!((sum - n as f64).abs() < 1e-9);
+        }
     }
 }

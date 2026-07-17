@@ -17,4 +17,6 @@ test_sources = [
   "two-environment toy unit test",
   "observed context enters CI unit test",
   "conformance/tigramite/jpcmci_plus_two_env",
+  "conformance/tigramite/jpcmci_plus_two_env_edges",
+  "multivariate_space_dummy_uses_single_logical_node",
 ]
