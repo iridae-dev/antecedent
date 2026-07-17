@@ -10,12 +10,14 @@ use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, Intervent
 use causal_data::TabularData;
 use causal_expr::{EstimandMethod, IdentifiedEstimand};
 use causal_stats::{
-    CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
+    CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, SandwichKind,
+    coefficient_covariance, form_xtx, invert_square,
 };
 
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::prepare::{require_method, treatment_contrast, validate_simple_ate_query};
+use crate::se::{AnalyticSeKind, require_clusters};
 
 /// Prepared estimation problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -82,6 +84,8 @@ impl EffectEstimate {
     }
 }
 
+/// Analytic SE kind for [`LinearAdjustmentAte`] — see [`crate::se::AnalyticSeKind`].
+
 /// Linear adjustment estimator for backdoor ATE.
 #[derive(Clone, Debug)]
 pub struct LinearAdjustmentAte {
@@ -91,6 +95,10 @@ pub struct LinearAdjustmentAte {
     pub bootstrap_replicates: u32,
     /// Overlap policy (must be explicit in).
     pub overlap: OverlapPolicy,
+    /// Analytic SE estimator (default homoskedastic).
+    pub se_kind: AnalyticSeKind,
+    /// Optional cluster ids (length = prepared `nrows`) for [`AnalyticSeKind::Cluster`].
+    pub cluster_ids: Option<Vec<u32>>,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -107,6 +115,8 @@ impl LinearAdjustmentAte {
             backend: FaerBackend,
             bootstrap_replicates: 200,
             overlap: OverlapPolicy::ExplicitOverride,
+            se_kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
         }
     }
 
@@ -185,13 +195,40 @@ impl LinearAdjustmentAte {
         let n = problem.design.nrows as f64;
         let p = problem.design.ncols as f64;
         let sigma2 = fit.rss / (n - p).max(1.0);
-        let se_coef = analytic_se_treatment(
-            &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
-            t_col,
-            sigma2,
-        );
+        let se_coef = match self.se_kind {
+            AnalyticSeKind::Homoskedastic => analytic_se_treatment(
+                &problem.design.matrix,
+                problem.design.nrows,
+                problem.design.ncols,
+                t_col,
+                sigma2,
+            ),
+            AnalyticSeKind::Hc1 => {
+                match coefficient_covariance(
+                    &problem.design.matrix,
+                    problem.design.nrows,
+                    problem.design.ncols,
+                    &fit.residuals,
+                    SandwichKind::Hc1,
+                ) {
+                    Ok(cov) => cov[t_col * problem.design.ncols + t_col].max(0.0).sqrt(),
+                    Err(_) => f64::NAN,
+                }
+            }
+            AnalyticSeKind::Cluster => {
+                let groups = require_clusters(&self.cluster_ids, problem.design.nrows)?;
+                match coefficient_covariance(
+                    &problem.design.matrix,
+                    problem.design.nrows,
+                    problem.design.ncols,
+                    &fit.residuals,
+                    SandwichKind::Cluster { groups },
+                ) {
+                    Ok(cov) => cov[t_col * problem.design.ncols + t_col].max(0.0).sqrt(),
+                    Err(_) => f64::NAN,
+                }
+            }
+        };
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
         let boot = if self.bootstrap_replicates == 0 {

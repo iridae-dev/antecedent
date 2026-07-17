@@ -19,6 +19,7 @@ pub mod materialize;
 pub mod multi_env;
 pub mod multi_env_plan;
 pub mod panel;
+pub mod pooled_frame;
 pub mod reference;
 pub mod resample;
 pub mod sample;
@@ -51,9 +52,11 @@ pub use multi_env::MultiEnvironmentData;
 pub use multi_env_plan::{MultiEnvSamplePlan, PanelSamplePlan, plans_for_series_lengths};
 pub(crate) use multi_env_plan::series_columnar_ptr;
 pub use panel::{PanelData, PanelUnit, PanelUnitView};
+pub use pooled_frame::{DummyOptions, PooledLaggedFrame, pool_multi_env_lagged_frame};
 pub use reference::ReferencePointPolicy;
 pub use resample::{
-    ResamplingPlan, fill_resample_indexes, fill_resample_weights, resample_timeseries,
+    PermutationScheme, ResamplingPlan, fill_resample_indexes, fill_resample_indexes_grouped,
+    fill_resample_weights, resample_timeseries, resample_timeseries_grouped,
 };
 pub use sample::{DropSummary, LagMap, LaggedColumn, PreparedSample, SamplePlan, SampleWorkspace};
 pub use sim::{KnownLaggedParent, LaggedLinearPair};

@@ -20,6 +20,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::se::AnalyticSeKind;
 use crate::util::{bootstrap_se, stats_err, BootstrapSeResult};
 
 /// Distance matching on raw adjustment covariates (Euclidean), not the propensity score.
@@ -41,6 +42,10 @@ pub struct DistanceMatching {
     pub glm_options: GlmOptions,
     /// Optional maximum Euclidean distance for an accepted match.
     pub caliper: Option<f64>,
+    /// Analytic SE kind.
+    pub se_kind: AnalyticSeKind,
+    /// Optional cluster ids aligned to prepared complete-case rows.
+    pub cluster_ids: Option<Vec<u32>>,
 }
 
 impl Default for DistanceMatching {
@@ -59,6 +64,8 @@ impl DistanceMatching {
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             caliper: None,
+            se_kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
         }
     }
 
@@ -116,6 +123,29 @@ impl DistanceMatching {
             dim,
             retained.as_deref(),
         );
+        let clusters_used = match (&self.cluster_ids, &retained) {
+            (Some(ids), Some(idx)) => {
+                if ids.len() != problem.nrows {
+                    return Err(EstimationError::data_msg(format!(
+                        "cluster_ids length {} != nrows {}",
+                        ids.len(),
+                        problem.nrows
+                    )));
+                }
+                Some(idx.iter().map(|&i| ids[i]).collect::<Vec<_>>())
+            }
+            (Some(ids), None) => {
+                if ids.len() != problem.nrows {
+                    return Err(EstimationError::data_msg(format!(
+                        "cluster_ids length {} != nrows {}",
+                        ids.len(),
+                        problem.nrows
+                    )));
+                }
+                Some(ids.clone())
+            }
+            (None, _) => None,
+        };
         let result = matching_contrast(
             &t_used,
             &y_used,
@@ -125,6 +155,8 @@ impl DistanceMatching {
             &problem.target_population,
             self.caliper,
             workspace,
+            self.se_kind,
+            clusters_used.as_deref(),
         )?;
 
         let boot = if self.bootstrap_replicates == 0 {
@@ -210,6 +242,8 @@ impl DistanceMatching {
                 &problem.target_population,
                 self.caliper,
                 workspace,
+                AnalyticSeKind::Homoskedastic,
+                None,
             ) {
                 Ok(m) => Ok(Some(m.ate)),
                 Err(_) => Ok(None),

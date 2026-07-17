@@ -15,13 +15,19 @@ use causal_graph::{DenseNodeId, NodeRef};
 use crate::orientation::OrientationState;
 use crate::result::{AlgorithmRecord, DiscoveryDiagnostic, DiscoveryPerformanceRecord, PcSepsets};
 
-/// Map lagged `(variable, lag)` pairs to dense node ids for orientation.
+/// Map lagged `(variable, lag)` pairs — and context nodes as `(variable, 0)` — to dense ids.
 #[must_use]
 pub fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> {
     let mut node_ids = HashMap::new();
     for (i, node) in nodes.iter().enumerate() {
-        if let NodeRef::Lagged { variable, lag } = node {
-            node_ids.insert((variable.raw(), lag.raw()), DenseNodeId::from_raw(i as u32));
+        match node {
+            NodeRef::Lagged { variable, lag } => {
+                node_ids.insert((variable.raw(), lag.raw()), DenseNodeId::from_raw(i as u32));
+            }
+            NodeRef::Context { variable, .. } => {
+                node_ids.insert((variable.raw(), 0), DenseNodeId::from_raw(i as u32));
+            }
+            _ => {}
         }
     }
     node_ids

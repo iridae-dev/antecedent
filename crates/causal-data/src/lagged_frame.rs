@@ -196,6 +196,113 @@ impl LaggedFrame {
             values,
         })
     }
+
+    /// Vertically stack frames that share the same variable list and max lag.
+    ///
+    /// Used for multi-environment pooling without lag windows crossing env boundaries.
+    ///
+    /// # Errors
+    ///
+    /// Empty input, or mismatched variables / max_lag across frames.
+    pub fn stack(frames: &[Self]) -> Result<Self, DataError> {
+        let Some(first) = frames.first() else {
+            return Err(DataError::InvalidArgument {
+                message: "LaggedFrame::stack needs ≥1 frame".into(),
+            });
+        };
+        for (i, f) in frames.iter().enumerate().skip(1) {
+            if f.variables.as_ref() != first.variables.as_ref() {
+                return Err(DataError::InvalidArgument {
+                    message: format!("LaggedFrame::stack: variables mismatch at frame {i}"),
+                });
+            }
+            if f.max_lag != first.max_lag || f.n_lags != first.n_lags {
+                return Err(DataError::InvalidArgument {
+                    message: format!("LaggedFrame::stack: max_lag mismatch at frame {i}"),
+                });
+            }
+        }
+        let n_eff: usize = frames.iter().map(Self::n_effective).sum();
+        if n_eff == 0 {
+            return Err(DataError::InvalidArgument {
+                message: "LaggedFrame::stack: zero effective rows".into(),
+            });
+        }
+        let n_cols = first.ncols();
+        let mut values = vec![0.0; n_cols.saturating_mul(n_eff)];
+        for c in 0..n_cols {
+            let mut offset = 0usize;
+            for f in frames {
+                let src = f.column(c);
+                let dst = &mut values[c * n_eff + offset..c * n_eff + offset + f.n_effective];
+                dst.copy_from_slice(src);
+                offset += f.n_effective;
+            }
+        }
+        Ok(Self {
+            variables: Arc::clone(&first.variables),
+            max_lag: first.max_lag,
+            n_effective: n_eff,
+            n_lags: first.n_lags,
+            values,
+        })
+    }
+
+    /// Append variables whose values are constant across lags (space/time dummies).
+    ///
+    /// Each entry is `(variable_id, contemporaneous column)` of length `n_effective`.
+    /// The same values are copied into every lag slot so MCI can index any lag;
+    /// link assumptions should still forbid lagged parents of space/time dummies.
+    ///
+    /// # Errors
+    ///
+    /// Length mismatch, duplicate variable id, or empty column list.
+    pub fn append_constant_lag_columns(
+        &self,
+        columns: &[(VariableId, Vec<f64>)],
+    ) -> Result<Self, DataError> {
+        if columns.is_empty() {
+            return Ok(self.clone());
+        }
+        let mut vars = self.variables.to_vec();
+        for (id, col) in columns {
+            if col.len() != self.n_effective {
+                return Err(DataError::InvalidArgument {
+                    message: format!(
+                        "append_constant_lag_columns: column len {} != n_effective {}",
+                        col.len(),
+                        self.n_effective
+                    ),
+                });
+            }
+            if vars.contains(id) {
+                return Err(DataError::InvalidArgument {
+                    message: format!("append_constant_lag_columns: duplicate variable {id}"),
+                });
+            }
+            vars.push(*id);
+        }
+        let n_eff = self.n_effective;
+        let n_lags = self.n_lags;
+        let old_cols = self.ncols();
+        let new_slots = columns.len();
+        let n_cols = old_cols + new_slots * n_lags;
+        let mut values = vec![0.0; n_cols.saturating_mul(n_eff)];
+        values[..old_cols * n_eff].copy_from_slice(&self.values);
+        for (s, (_id, col)) in columns.iter().enumerate() {
+            for lag in 0..n_lags {
+                let c = old_cols + s * n_lags + lag;
+                values[c * n_eff..(c + 1) * n_eff].copy_from_slice(col);
+            }
+        }
+        Ok(Self {
+            variables: Arc::from(vars),
+            max_lag: self.max_lag,
+            n_effective: n_eff,
+            n_lags,
+            values,
+        })
+    }
 }
 
 #[cfg(test)]

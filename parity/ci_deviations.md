@@ -22,9 +22,12 @@ deviation has been removed. Black-box edge-set equality is pinned in
 ## 3. LPCMCI / J-PCMCI+ / RPCMCI black-box equality
 
 LPCMCI (P4.3) now runs Gerhardus & Runge Alg. 1 (middle marks, weakly-minimal
-sepsets, interleaved ancestral/non-ancestral phases, R8–R10). Full tigramite
-edge-set numerical equality remains optional; conformance pins structure /
-algorithm id. J-PCMCI+ / RPCMCI black-box equality still blocked on P4.4–P4.5.
+sepsets, interleaved ancestral/non-ancestral phases, R8–R10). J-PCMCI+ (P4.4)
+runs Günther et al. pooled four-phase search (observed context + space/time
+dummies under link assumptions; PCMCI+ majority + ContempMeek orientation).
+Full tigramite edge-set numerical equality remains optional for LPCMCI /
+J-PCMCI+ / RPCMCI; conformance pins structure / algorithm id. RPCMCI black-box
+equality still deferred (P4.5).
 
 ## Notes (aligned with tigramite; not deviations)
 

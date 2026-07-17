@@ -14,6 +14,8 @@
     clippy::cast_precision_loss
 )]
 
+use std::any::Any;
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 
 use arrow_array::{Float64Array, RecordBatch};
@@ -22,10 +24,11 @@ use causal::{
     AnalysisError, BayesianConfig, CandidateDesign, CausalAnalysis, DataBatchRef, DesignCost,
     DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, DifferenceMeasure,
     DiscoverParams, DiscoveryPerformanceRecord, DistributionChangeOptions, FdrAdjustment,
-    GraphIdentFlag, InferenceMode, MeasurementPlan, RefuteSuite, SamplingPlan, ScoredLink,
-    StateEvent, TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples,
-    apply_state_event, attribute_distribution_change, counterfactual_ite, dag_from_dot, dag_to_dot,
-    dag_to_json, decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    GraphIdentFlag, InferenceMode, MeasurementPlan, MultiDatasetConstraints, RefuteSuite,
+    SamplingPlan, ScoredLink, StateEvent, TemporalLinearPredictor, TemporalMediationEstimator,
+    WeightedGraphSamples, apply_state_event, attribute_distribution_change, counterfactual_ite,
+    dag_from_dot, dag_to_dot, dag_to_json, decode_causal_posterior_bytes,
+    discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
     encode_causal_posterior_bytes, fit_gcm, new_causal_state, pag_definite_directed_edge_count,
@@ -85,6 +88,39 @@ fn py_msg(e: impl ToString) -> PyErr {
 
 fn py_estimate(e: impl ToString) -> PyErr {
     CausalEstimateError::new_err(e.to_string())
+}
+
+/// Convert a Rust panic payload into a typed Python error so panics never cross FFI.
+fn catch_ffi<F, T>(f: F) -> PyResult<T>
+where
+    F: FnOnce() -> PyResult<T>,
+{
+    match panic::catch_unwind(AssertUnwindSafe(f)) {
+        Ok(result) => result,
+        Err(payload) => Err(CausalError::new_err(format!(
+            "internal Rust panic: {}",
+            panic_payload_msg(payload.as_ref())
+        ))),
+    }
+}
+
+fn panic_payload_msg(payload: &(dyn Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic payload".into()
+    }
+}
+
+/// Release the GIL for native work and convert any panic into [`CausalError`].
+fn detach_catch<F, T>(py: Python<'_>, f: F) -> PyResult<T>
+where
+    F: FnOnce() -> PyResult<T> + Send,
+    T: Send,
+{
+    py.detach(|| catch_ffi(f))
 }
 
 impl IntoCausalPyErr for AnalysisError {
@@ -285,16 +321,18 @@ fn load_float64_columns(
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
 ) -> PyResult<ArrowLoadInfo> {
-    let batch = columns_to_batch(&names, &columns)?;
-    let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-    let column_names: Vec<String> =
-        loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
-    Ok(ArrowLoadInfo {
-        row_count: loaded.data.row_count(),
-        column_count: loaded.data.schema().len(),
-        bytes_copied: loaded.bytes_copied,
-        diagnostic_count: loaded.diagnostics.len(),
-        column_names,
+    catch_ffi(|| {
+        let batch = columns_to_batch(&names, &columns)?;
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let column_names: Vec<String> =
+            loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
+        Ok(ArrowLoadInfo {
+            row_count: loaded.data.row_count(),
+            column_count: loaded.data.schema().len(),
+            bytes_copied: loaded.bytes_copied,
+            diagnostic_count: loaded.diagnostics.len(),
+            column_names,
+        })
     })
 }
 
@@ -351,7 +389,7 @@ fn analyze_ate(
     // Drop NumPy borrows before releasing the GIL.
     drop(columns);
 
-    py.detach(move || {
+    detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -725,13 +763,14 @@ fn discover_pcmci(
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
 
-    py.detach(move || {
+    detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams {
             max_lag,
             alpha,
             fdr: fdr.then(FdrAdjustment::bh),
             ci: ci_impl,
+            multi_dataset: MultiDatasetConstraints::default(),
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_pcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
@@ -771,13 +810,14 @@ fn discover_pcmci_plus(
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
 
-    py.detach(move || {
+    detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams {
             max_lag,
             alpha,
             fdr: fdr.then(FdrAdjustment::bh),
             ci: ci_impl,
+            multi_dataset: MultiDatasetConstraints::default(),
         };
         let ctx = py_execution_context(seed, threads);
         let result =
@@ -826,13 +866,14 @@ fn discover_lpcmci(
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
 
-    py.detach(move || {
+    detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         let params = DiscoverParams {
             max_lag,
             alpha,
             fdr: fdr.then(FdrAdjustment::bh),
             ci: ci_impl,
+            multi_dataset: MultiDatasetConstraints::default(),
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_lpcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
@@ -861,8 +902,24 @@ fn discover_lpcmci(
 /// J-PCMCI+ over multiple environments (one GIL crossing).
 ///
 /// `env_columns` is a list of column batches (each env: same `names` order).
+/// Optional `context_names` lists observed context columns (must appear in `names`);
+/// remaining names are treated as system variables.
 #[pyfunction]
-#[pyo3(signature = (names, env_columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
+#[pyo3(signature = (
+    names,
+    env_columns,
+    *,
+    max_lag=1,
+    alpha=0.05,
+    fdr=true,
+    seed=1,
+    ci="parcorr",
+    weights=None,
+    threads=1,
+    context_names=None,
+    include_space_dummy=true,
+    include_time_dummy=false,
+))]
 fn discover_jpcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
@@ -874,6 +931,9 @@ fn discover_jpcmci_plus(
     ci: &str,
     weights: Option<Vec<f64>>,
     threads: u32,
+    context_names: Option<Vec<String>>,
+    include_space_dummy: bool,
+    include_time_dummy: bool,
 ) -> PyResult<PcmciDiscoveryResult> {
     if env_columns.is_empty() {
         return Err(PyValueError::new_err("discover_jpcmci_plus needs ≥1 environment"));
@@ -884,28 +944,56 @@ fn discover_jpcmci_plus(
     }
     let ci_name = ci.to_string();
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
+    let context_names = context_names.unwrap_or_default();
     drop(env_columns);
 
-    py.detach(move || {
+    detach_catch(py, move || {
         let mut series_list = Vec::with_capacity(batches.len());
-        let mut variables = Vec::new();
+        let mut all_variables = Vec::new();
         for (i, batch) in batches.iter().enumerate() {
             let (series, vars) = series_from_batch(batch)?;
             if i == 0 {
-                variables = vars;
+                all_variables = vars;
             }
             series_list.push(series);
         }
         let multi = MultiEnvironmentData::try_new(Arc::from(series_list)).map_err(py_err)?;
+
+        let mut context_ids = Vec::new();
+        for cname in &context_names {
+            let Some(idx) = names.iter().position(|n| n == cname) else {
+                return Err(PyValueError::new_err(format!(
+                    "context_names entry '{cname}' not found in names"
+                )));
+            };
+            context_ids.push(all_variables[idx]);
+        }
+        let system: Vec<VariableId> = all_variables
+            .iter()
+            .copied()
+            .filter(|v| !context_ids.contains(v))
+            .collect();
+        if system.is_empty() {
+            return Err(PyValueError::new_err(
+                "discover_jpcmci_plus needs ≥1 system variable after excluding context_names",
+            ));
+        }
+
         let params = DiscoverParams {
             max_lag,
             alpha,
             fdr: fdr.then(FdrAdjustment::bh),
             ci: ci_impl,
+            multi_dataset: MultiDatasetConstraints {
+                context_variables: Arc::from(context_ids),
+                include_space_dummy,
+                include_time_dummy,
+                ..MultiDatasetConstraints::default()
+            },
         };
         let ctx = py_execution_context(seed, threads);
         let result =
-            facade_discover_jpcmci_plus(&multi, &variables, &params, &ctx).map_err(py_err)?;
+            facade_discover_jpcmci_plus(&multi, &system, &params, &ctx).map_err(py_err)?;
         let cpdag = &result.evidence.graph;
         let graph_edges = cpdag_graph_edges(&names, cpdag);
         Ok(discovery_result_fields(
@@ -942,7 +1030,7 @@ fn discover_rpcmci(
     let batch = columns_to_batch(&names, &columns)?;
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
-    py.detach(move || {
+    detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         let assign = two_regime_half_split(series.row_count());
         let params = DiscoverParams {
@@ -950,6 +1038,7 @@ fn discover_rpcmci(
             alpha,
             fdr: fdr.then(FdrAdjustment::bh),
             ci: ci_impl,
+            multi_dataset: MultiDatasetConstraints::default(),
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)
@@ -987,7 +1076,7 @@ fn mediation_effects_summary(
 ) -> PyResult<MediationEffectsSummary> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    py.detach(move || {
+    detach_catch(py, move || {
         let (series, _) = series_from_batch(&batch)?;
         let id = |nm: &str| {
             series
@@ -1029,7 +1118,7 @@ fn predict_intervened_summary(
 ) -> PyResult<PredictSummary> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    py.detach(move || {
+    detach_catch(py, move || {
         let (series, _) = series_from_batch(&batch)?;
         let id = |nm: &str| {
             series
@@ -1143,7 +1232,7 @@ fn analyze(
 ) -> PyResult<AnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    py.detach(move || {
+    detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let tabular = loaded.data;
         let n = tabular.row_count();
@@ -1248,7 +1337,7 @@ fn gcm_counterfactual_ite(
 ) -> PyResult<GcmIteResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    let (mean_ite, n_units, noise_inference, n_assignments, unit_vec) = py.detach(move || {
+    let (mean_ite, n_units, noise_inference, n_assignments, unit_vec) = detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -1303,7 +1392,7 @@ fn gcm_sample_do(
 ) -> PyResult<GcmSampleResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    let (means, n_rows, n_nodes, flat) = py.detach(move || {
+    let (means, n_rows, n_nodes, flat) = detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -1381,7 +1470,7 @@ fn gcm_distribution_change(
 ) -> PyResult<(f64, Vec<(String, f64)>)> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    py.detach(move || {
+    detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -1443,51 +1532,53 @@ fn rank_design_eig(
     seed: u64,
     threads: u32,
 ) -> PyResult<(usize, Vec<f64>, u64)> {
-    let flags: Vec<GraphIdentFlag> = identified
-        .into_iter()
-        .map(|v| if v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified })
-        .collect();
-    let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_msg)?;
-    let mut candidates = Vec::new();
-    for (i, vid) in measure_var_ids.into_iter().enumerate() {
-        candidates.push(CandidateDesign::Measure(MeasurementPlan {
-            variables: Arc::from([VariableId::from_raw(vid)]),
-            cost: DesignCost::zero(),
-            tag: u64::try_from(i).unwrap_or(0),
-        }));
-    }
-    for (i, n) in sampling_increments.into_iter().enumerate() {
-        candidates.push(CandidateDesign::IncreaseSamplingRate(SamplingPlan {
-            additional_samples: n,
-            cost: DesignCost::zero(),
-            tag: 1000 + u64::try_from(i).unwrap_or(0),
-        }));
-    }
-    if candidates.is_empty() {
-        return Err(PyValueError::new_err("no candidates"));
-    }
-    let ranker = DesignRanker::new().with_config(DesignRankConfig {
-        min_batches: 2,
-        max_batches: 8,
-        batch_size: 4,
-        rank_uncertainty_threshold: 0.5,
-    });
-    let ctx = py_execution_context(seed, threads);
-    let eval = DesignEvaluationContext::<(), ()> {
-        graphs: &graphs,
-        effect_width: None,
-        model_loglik: None,
-        decisions: None,
-        query_id_unlock: None,
-        identified_under_intervention: None,
-        graph_features: None,
-    };
-    let ranking =
-        rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
-            .map_err(py_err)?;
-    let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
-    let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
-    Ok((best, scores, ranking.budget.samples))
+    catch_ffi(|| {
+        let flags: Vec<GraphIdentFlag> = identified
+            .into_iter()
+            .map(|v| if v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified })
+            .collect();
+        let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_msg)?;
+        let mut candidates = Vec::new();
+        for (i, vid) in measure_var_ids.into_iter().enumerate() {
+            candidates.push(CandidateDesign::Measure(MeasurementPlan {
+                variables: Arc::from([VariableId::from_raw(vid)]),
+                cost: DesignCost::zero(),
+                tag: u64::try_from(i).unwrap_or(0),
+            }));
+        }
+        for (i, n) in sampling_increments.into_iter().enumerate() {
+            candidates.push(CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+                additional_samples: n,
+                cost: DesignCost::zero(),
+                tag: 1000 + u64::try_from(i).unwrap_or(0),
+            }));
+        }
+        if candidates.is_empty() {
+            return Err(PyValueError::new_err("no candidates"));
+        }
+        let ranker = DesignRanker::new().with_config(DesignRankConfig {
+            min_batches: 2,
+            max_batches: 8,
+            batch_size: 4,
+            rank_uncertainty_threshold: 0.5,
+        });
+        let ctx = py_execution_context(seed, threads);
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let ranking =
+            rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
+                .map_err(py_err)?;
+        let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
+        let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
+        Ok((best, scores, ranking.budget.samples))
+    })
 }
 
 /// Apply `AppendData` events to a fresh state; returns `(version, stale_query_count)`.
@@ -1496,101 +1587,111 @@ fn rank_design_eig(
 #[pyfunction]
 #[pyo3(signature = (n_appends=2, cache_bytes=1_048_576))]
 fn causal_state_append_demo(n_appends: u64, cache_bytes: u64) -> PyResult<(u64, usize)> {
-    use causal_core::{AverageEffectQuery, CausalQuery};
-    let mut state = new_causal_state(CacheBudget::new(cache_bytes));
-    let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-        VariableId::from_raw(0),
-        VariableId::from_raw(1),
-    )));
-    let _ = state.refresh_results(&[(q, 1, 16)]);
-    for i in 0..n_appends {
-        apply_state_event(
-            &mut state,
-            StateEvent::AppendData(DataBatchRef {
-                id: Arc::from(format!("b{i}")),
-                nrows: 8,
-                bytes: 64,
-            }),
-        )
-        .map_err(py_err)?;
-    }
-    Ok((state.version.raw(), state.stale_queries().len()))
+    catch_ffi(|| {
+        use causal_core::{AverageEffectQuery, CausalQuery};
+        let mut state = new_causal_state(CacheBudget::new(cache_bytes));
+        let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        )));
+        let _ = state.refresh_results(&[(q, 1, 16)]);
+        for i in 0..n_appends {
+            apply_state_event(
+                &mut state,
+                StateEvent::AppendData(DataBatchRef {
+                    id: Arc::from(format!("b{i}")),
+                    nrows: 8,
+                    bytes: 64,
+                }),
+            )
+            .map_err(py_err)?;
+        }
+        Ok((state.version.raw(), state.stale_queries().len()))
+    })
 }
 
 /// Decode a serialized posterior artifact into summaries + column-major draws.
 #[pyfunction]
 fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
-    let (meta, draws) = decode_causal_posterior_bytes(&bytes).map_err(py_err)?;
-    Ok(PosteriorArtifact {
-        n_draws: meta.n_draws as usize,
-        mean: meta.mean,
-        sd: meta.sd,
-        q025: meta.q025,
-        q975: meta.q975,
-        draws,
-        backend_id: meta.backend_id,
-        identification: meta.identification,
-        unidentified_mass: meta.unidentified_mass,
-        converged: meta.converged,
-        hessian_condition: meta.hessian_condition,
-        quantity_names: meta.quantities.iter().map(quantity_wire_name).collect(),
+    catch_ffi(|| {
+        let (meta, draws) = decode_causal_posterior_bytes(&bytes).map_err(py_err)?;
+        Ok(PosteriorArtifact {
+            n_draws: meta.n_draws as usize,
+            mean: meta.mean,
+            sd: meta.sd,
+            q025: meta.q025,
+            q975: meta.q975,
+            draws,
+            backend_id: meta.backend_id,
+            identification: meta.identification,
+            unidentified_mass: meta.unidentified_mass,
+            converged: meta.converged,
+            hessian_condition: meta.hessian_condition,
+            quantity_names: meta.quantities.iter().map(quantity_wire_name).collect(),
+        })
     })
 }
 
 /// Re-encode a decoded [`PosteriorArtifact`] to container bytes (round-trip).
 #[pyfunction]
 fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> {
-    let quantities: Vec<PosteriorQuantityWire> = artifact
-        .quantity_names
-        .iter()
-        .map(|name| {
-            if name == "residual_variance" {
-                PosteriorQuantityWire::ResidualVariance
-            } else if name.starts_with("coef_") {
-                let index =
-                    name.strip_prefix("coef_").and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
-                PosteriorQuantityWire::Coefficient { index, name: None }
-            } else {
-                PosteriorQuantityWire::Effect { name: name.clone() }
-            }
-        })
-        .collect();
-    let meta = CausalPosteriorWire {
-        quantities,
-        n_draws: u32::try_from(artifact.n_draws)
-            .map_err(|_| PyValueError::new_err("n_draws exceeds u32"))?,
-        mean: artifact.mean.clone(),
-        sd: artifact.sd.clone(),
-        q025: artifact.q025.clone(),
-        q975: artifact.q975.clone(),
-        identification: artifact.identification.clone(),
-        unidentified_mass: artifact.unidentified_mass,
-        backend_id: artifact.backend_id.clone(),
-        converged: artifact.converged,
-        hessian_condition: artifact.hessian_condition,
-        draws_encoding: "f64_le_colmajor".into(),
-    };
-    let art =
-        encode_posterior_wire(&meta, &artifact.draws, "py-posterior", VERSION).map_err(py_err)?;
-    let mut buf = Vec::new();
-    art.write_to(&mut buf).map_err(py_err)?;
-    Ok(buf)
+    catch_ffi(|| {
+        let quantities: Vec<PosteriorQuantityWire> = artifact
+            .quantity_names
+            .iter()
+            .map(|name| {
+                if name == "residual_variance" {
+                    PosteriorQuantityWire::ResidualVariance
+                } else if name.starts_with("coef_") {
+                    let index =
+                        name.strip_prefix("coef_").and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
+                    PosteriorQuantityWire::Coefficient { index, name: None }
+                } else {
+                    PosteriorQuantityWire::Effect { name: name.clone() }
+                }
+            })
+            .collect();
+        let meta = CausalPosteriorWire {
+            quantities,
+            n_draws: u32::try_from(artifact.n_draws)
+                .map_err(|_| PyValueError::new_err("n_draws exceeds u32"))?,
+            mean: artifact.mean.clone(),
+            sd: artifact.sd.clone(),
+            q025: artifact.q025.clone(),
+            q975: artifact.q975.clone(),
+            identification: artifact.identification.clone(),
+            unidentified_mass: artifact.unidentified_mass,
+            backend_id: artifact.backend_id.clone(),
+            converged: artifact.converged,
+            hessian_condition: artifact.hessian_condition,
+            draws_encoding: "f64_le_colmajor".into(),
+        };
+        let art =
+            encode_posterior_wire(&meta, &artifact.draws, "py-posterior", VERSION).map_err(py_err)?;
+        let mut buf = Vec::new();
+        art.write_to(&mut buf).map_err(py_err)?;
+        Ok(buf)
+    })
 }
 
 /// Parse DOT digraph text; return `(node_count, edges)`.
 #[pyfunction]
 fn parse_dag_dot(dot: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
-    let dag = dag_from_dot(dot).map_err(py_err)?;
-    let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
-    Ok((wire.node_count as usize, wire.edges))
+    catch_ffi(|| {
+        let dag = dag_from_dot(dot).map_err(py_err)?;
+        let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
+        Ok((wire.node_count as usize, wire.edges))
+    })
 }
 
 /// Emit DOT for a numeric DAG given `node_count` and `edges`.
 #[pyfunction]
 fn format_dag_dot(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
-    let wire = causal_io::DagWire { node_count, edges };
-    let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
-    dag_to_dot(&dag, None).map_err(py_err)
+    catch_ffi(|| {
+        let wire = causal_io::DagWire { node_count, edges };
+        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        dag_to_dot(&dag, None).map_err(py_err)
+    })
 }
 
 /// Parsed JSON DAG: `(node_count, edges, variable_names)`.
@@ -1599,10 +1700,12 @@ type ParsedDagJson = (usize, Vec<(u32, u32)>, Option<Vec<String>>);
 /// Parse JSON DAG document; return `(node_count, edges, variable_names|None)`.
 #[pyfunction]
 fn parse_dag_json(json: &str) -> PyResult<ParsedDagJson> {
-    let doc = causal_io::dag_json_from_str(json).map_err(py_err)?;
-    let dag = causal_io::dag_from_wire(&doc.to_wire()).map_err(py_err)?;
-    let _ = dag;
-    Ok((doc.node_count as usize, doc.edges, doc.variable_names))
+    catch_ffi(|| {
+        let doc = causal_io::dag_json_from_str(json).map_err(py_err)?;
+        let dag = causal_io::dag_from_wire(&doc.to_wire()).map_err(py_err)?;
+        let _ = dag;
+        Ok((doc.node_count as usize, doc.edges, doc.variable_names))
+    })
 }
 
 /// Emit JSON for a numeric DAG.
@@ -1612,9 +1715,11 @@ fn format_dag_json(
     edges: Vec<(u32, u32)>,
     variable_names: Option<Vec<String>>,
 ) -> PyResult<String> {
-    let wire = causal_io::DagWire { node_count, edges };
-    let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
-    dag_to_json(&dag, variable_names.as_deref()).map_err(py_err)
+    catch_ffi(|| {
+        let wire = causal_io::DagWire { node_count, edges };
+        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        dag_to_json(&dag, variable_names.as_deref()).map_err(py_err)
+    })
 }
 
 /// Python module `causal._native`.
@@ -1669,4 +1774,20 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<GcmSampleResult>()?;
     m.add("__version__", causal_core::VERSION)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::panic_payload_msg;
+    use std::any::Any;
+
+    #[test]
+    fn panic_payload_formats_str_and_string() {
+        let as_str: Box<dyn Any + Send> = Box::new("boom");
+        assert_eq!(panic_payload_msg(as_str.as_ref()), "boom");
+        let as_string: Box<dyn Any + Send> = Box::new(String::from("kaboom"));
+        assert_eq!(panic_payload_msg(as_string.as_ref()), "kaboom");
+        let other: Box<dyn Any + Send> = Box::new(42_u32);
+        assert_eq!(panic_payload_msg(other.as_ref()), "unknown panic payload");
+    }
 }

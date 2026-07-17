@@ -7,7 +7,7 @@ use causal_core::VariableId;
 use crate::algo::{bfs_reaches, is_dag};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
-use crate::workspace::GraphWorkspace;
+use crate::workspace::{BitSet, GraphWorkspace};
 
 /// ADMG: directed edges and bidirected (latent-confounder) edges; no directed cycles.
 #[derive(Clone, Debug)]
@@ -182,6 +182,60 @@ impl Admg {
         &self.bidirected[id.as_usize()]
     }
 
+    /// Local Markov blanket of `node` on an ADMG: directed blanket (parents ∪
+    /// children ∪ spouses) plus bidirected neighbors and their parents.
+    ///
+    /// This is the adjacency-style blanket used for local conditioning; it is
+    /// not a complete m-separation closure over inducing paths.
+    ///
+    /// # Errors
+    ///
+    /// Unknown node id.
+    pub fn markov_blanket(
+        &self,
+        node: DenseNodeId,
+        out: &mut BitSet,
+    ) -> Result<(), GraphError> {
+        self.validate_node(node)?;
+        let n = self.node_count();
+        out.resize(n);
+        out.clear();
+        for &p in self.parents(node) {
+            out.insert(p);
+        }
+        for &c in self.children(node) {
+            out.insert(c);
+            for &spouse in self.parents(c) {
+                if spouse != node {
+                    out.insert(spouse);
+                }
+            }
+        }
+        for &b in self.bidirected_neighbors(node) {
+            out.insert(b);
+            for &p in self.parents(b) {
+                if p != node {
+                    out.insert(p);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Sorted local Markov blanket of `node` (excluding `node`).
+    ///
+    /// # Errors
+    ///
+    /// Unknown node id.
+    pub fn markov_blanket_nodes(&self, node: DenseNodeId) -> Result<Vec<DenseNodeId>, GraphError> {
+        let mut bits = BitSet::with_len(self.node_count());
+        self.markov_blanket(node, &mut bits)?;
+        Ok((0..self.node_count())
+            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
+            .filter(|&id| bits.contains(id))
+            .collect())
+    }
+
     /// Whether `from` reaches `to` via directed edges.
     #[must_use]
     pub fn reaches(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
@@ -285,5 +339,19 @@ mod tests {
             middle: MiddleMark::Empty,
         };
         assert!(g.insert_marked(e).is_err());
+    }
+
+    #[test]
+    fn markov_blanket_includes_bidirected_neighbors() {
+        // A → T ↔ U ← B  ⇒  MB(T) = {A, U, B}
+        let mut g = Admg::with_variables(4);
+        let a = DenseNodeId::from_raw(0);
+        let t = DenseNodeId::from_raw(1);
+        let u = DenseNodeId::from_raw(2);
+        let b = DenseNodeId::from_raw(3);
+        g.insert_directed(a, t).unwrap();
+        g.insert_bidirected(t, u).unwrap();
+        g.insert_directed(b, u).unwrap();
+        assert_eq!(g.markov_blanket_nodes(t).unwrap(), vec![a, u, b]);
     }
 }

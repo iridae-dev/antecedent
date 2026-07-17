@@ -28,7 +28,7 @@ pub use rng::{
     categorical_from_u, fill_standard_normal, sample_categorical, shuffle, standard_normal,
     standard_normal_pair, unbiased_index,
 };
-pub use special::{erf, erfc, norm_cdf};
+pub use special::{erf, erfc, norm_cdf, norm_pdf};
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 
 #[cfg(test)]

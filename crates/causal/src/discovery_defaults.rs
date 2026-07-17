@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use causal_core::Lag;
-use causal_discovery::{DiscoveryConstraints, TemporalConstraints};
+use causal_discovery::{DiscoveryConstraints, MultiDatasetConstraints, TemporalConstraints};
 use causal_stats::{ConditionalIndependence, WeightedPartialCorrelation, ci_from_name};
 
 use crate::error::AnalysisError;
@@ -36,7 +36,7 @@ pub fn pcmci_constraints(max_lag: u32, alpha: f64) -> DiscoveryConstraints {
     }
 }
 
-/// Contemporaneous-allowed constraints (`min_lag = 0`) for PCMCI+, LPCMCI, J-PCMCI+, RPCMCI.
+/// Contemporaneous-allowed constraints (`min_lag = 0`) for PCMCI+, LPCMCI, RPCMCI.
 #[must_use]
 pub fn contemporaneous_constraints(max_lag: u32, alpha: f64) -> DiscoveryConstraints {
     DiscoveryConstraints {
@@ -48,6 +48,18 @@ pub fn contemporaneous_constraints(max_lag: u32, alpha: f64) -> DiscoveryConstra
         max_cond_size: DEFAULT_MAX_COND_SIZE,
         ..DiscoveryConstraints::default()
     }
+}
+
+/// J-PCMCI+ constraints: contemporaneous search plus multi-dataset / context settings.
+#[must_use]
+pub fn jpcmci_constraints(
+    max_lag: u32,
+    alpha: f64,
+    multi_dataset: MultiDatasetConstraints,
+) -> DiscoveryConstraints {
+    let mut c = contemporaneous_constraints(max_lag, alpha);
+    c.multi_dataset = multi_dataset;
+    c
 }
 
 /// Resolve a CI test by name, with optional observation weights for `weighted_parcorr`.

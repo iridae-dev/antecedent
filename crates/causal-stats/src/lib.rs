@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod ci;
+pub mod covariance;
 pub mod design;
 pub mod divergence;
 pub mod error;
@@ -15,8 +16,10 @@ pub mod fdr;
 pub mod glm;
 pub mod gram;
 pub mod linalg;
+pub mod m_estimate;
 pub mod matching;
 pub mod propensity;
+pub mod regularized;
 pub mod special;
 pub mod twosls;
 
@@ -28,6 +31,7 @@ pub use ci::{
     SymbolicCmi, WeightedPartialCorrelation, analytic_confidence_level, analytic_parcorr_ci,
     calibrate_parcorr_like, ci_from_name, nonparametric_permutation_count,
 };
+pub use covariance::{SandwichKind, coefficient_covariance};
 pub use design::{CompiledDesign, DesignColumnRole};
 pub use divergence::{
     classifier_two_sample, gaussian_kl, mean_diff_two_sample, mean_var, residual_likelihood_ratio,
@@ -41,11 +45,12 @@ pub use fdr::{
     bonferroni, holm,
 };
 pub use glm::{
-    GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef, MultinomialFit, fit_glm,
-    fit_multinomial_logit,
+    GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef, MultinomialFit, NbAlphaPolicy,
+    fit_glm, fit_multinomial_logit,
 };
 pub use gram::{accumulate_xtx, accumulate_xtx_xty_row, form_xtx, invert_square};
 pub use linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
+pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
 pub use matching::{
     EXACT_MATCHING_ROW_LIMIT, MatchingDistance, MatchingIndex, nearest_euclidean_scalar,
 };
@@ -53,7 +58,8 @@ pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
     predict_propensity,
 };
+pub use regularized::{LassoFit, LassoOptions, fit_lasso, fit_ridge};
 pub use special::{
-    gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_sf,
+    digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_sf, trigamma,
 };
 pub use twosls::{TwoSlsFit, fit_2sls, fit_wls};

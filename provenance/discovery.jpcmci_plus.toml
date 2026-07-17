@@ -6,14 +6,15 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "J-PCMCI+: Causal discovery for multi-dataset time series", sections = ["context / multi-dataset PCMCI+"] },
+  { title = "Causal discovery for time series from multiple datasets with latent contexts", doi = "10.48550/arXiv.2306.12896", sections = ["J-PCMCI+", "dummy variables", "link assumptions"] },
 ]
 
 upstream_implementations_observed = [
- { project = "tigramite", exposure = "black-box comparison only" },
+  { project = "tigramite", exposure = "black-box comparison only", notes = "JPCMCIplus four-phase search" },
 ]
 
 test_sources = [
- "two-environment toy unit test",
- "conformance/tigramite/jpcmci_plus_two_env",
+  "two-environment toy unit test",
+  "observed context enters CI unit test",
+  "conformance/tigramite/jpcmci_plus_two_env",
 ]

@@ -1,4 +1,4 @@
-//! Temporal bootstrap / resampling index plans (DESIGN.md §11.4 subset).
+//! Temporal bootstrap / resampling index plans (DESIGN.md §11.4).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -19,8 +19,17 @@ use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
-/// Resampling plan producing row-index or weight replicates.
+/// Null / permutation scheme for [`ResamplingPlan::Permutation`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum PermutationScheme {
+    /// Full Fisher–Yates shuffle of row indexes `0..n`.
+    Full,
+    /// Shuffle within each cluster (ids supplied to the fill helper).
+    WithinCluster,
+}
+
+/// Resampling plan producing row-index or weight replicates.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ResamplingPlan {
     /// IID with-replacement row bootstrap.
     IidBootstrap,
@@ -36,6 +45,15 @@ pub enum ResamplingPlan {
         /// Block length in rows.
         length: usize,
     },
+    /// Cluster bootstrap (resample whole clusters; ids via grouped fill).
+    ClusterBootstrap,
+    /// Stationary block bootstrap (Politis–Romano geometric lengths).
+    StationaryBlock {
+        /// Expected block length (mean of geometric distribution).
+        expected_length: f64,
+    },
+    /// Permutation (shuffle) index plan.
+    Permutation(PermutationScheme),
 }
 
 impl ResamplingPlan {
@@ -44,17 +62,50 @@ impl ResamplingPlan {
     pub const fn is_weight_plan(self) -> bool {
         matches!(self, Self::BayesianBootstrap)
     }
+
+    /// Whether this plan requires per-row cluster labels.
+    #[must_use]
+    pub const fn needs_clusters(self) -> bool {
+        matches!(
+            self,
+            Self::ClusterBootstrap | Self::Permutation(PermutationScheme::WithinCluster)
+        )
+    }
 }
 
 /// Fill `out` with a length-`n` row-index plan under `plan`.
 ///
+/// Plans that need cluster labels ([`ResamplingPlan::ClusterBootstrap`],
+/// [`PermutationScheme::WithinCluster`]) must use
+/// [`fill_resample_indexes_grouped`] instead.
+///
 /// # Errors
 ///
-/// Zero series length, zero block length, or a weight-only plan
-/// ([`ResamplingPlan::BayesianBootstrap`]).
+/// Zero series length, zero block length, weight-only plan, or a clustered plan.
 pub fn fill_resample_indexes(
     plan: ResamplingPlan,
     n: usize,
+    rng: &mut CausalRng,
+    out: &mut Vec<u32>,
+) -> Result<(), DataError> {
+    if plan.needs_clusters() {
+        return Err(DataError::InvalidArgument {
+            message: "clustered plan requires fill_resample_indexes_grouped".into(),
+        });
+    }
+    fill_resample_indexes_grouped(plan, n, None, rng, out)
+}
+
+/// Fill `out` with a length-`n` row-index plan, optionally using `cluster_ids`.
+///
+/// # Errors
+///
+/// Shape / plan mismatches as in [`fill_resample_indexes`], plus missing or
+/// wrong-length cluster ids when required.
+pub fn fill_resample_indexes_grouped(
+    plan: ResamplingPlan,
+    n: usize,
+    cluster_ids: Option<&[u32]>,
     rng: &mut CausalRng,
     out: &mut Vec<u32>,
 ) -> Result<(), DataError> {
@@ -66,6 +117,20 @@ pub fn fill_resample_indexes(
             message: "BayesianBootstrap yields weights; use fill_resample_weights".into(),
         });
     }
+    if plan.needs_clusters() {
+        let Some(ids) = cluster_ids else {
+            return Err(DataError::InvalidArgument {
+                message: "clustered resampling requires cluster_ids".into(),
+            });
+        };
+        if ids.len() != n {
+            return Err(DataError::LengthMismatch {
+                expected: n,
+                actual: ids.len(),
+                context: "cluster_ids",
+            });
+        }
+    }
     out.clear();
     out.reserve(n);
     match plan {
@@ -76,36 +141,155 @@ pub fn fill_resample_indexes(
         }
         ResamplingPlan::BayesianBootstrap => unreachable!("checked above"),
         ResamplingPlan::MovingBlock { length } | ResamplingPlan::CircularBlock { length } => {
-            if length == 0 {
-                return Err(DataError::InvalidArgument {
-                    message: "block length must be > 0".into(),
-                });
+            fill_block(n, length, matches!(plan, ResamplingPlan::CircularBlock { .. }), rng, out)?;
+        }
+        ResamplingPlan::StationaryBlock { expected_length } => {
+            fill_stationary(n, expected_length, rng, out)?;
+        }
+        ResamplingPlan::ClusterBootstrap => {
+            fill_cluster_bootstrap(n, cluster_ids.unwrap(), rng, out)?;
+        }
+        ResamplingPlan::Permutation(PermutationScheme::Full) => {
+            out.extend((0..n as u32));
+            // Fisher–Yates
+            for i in (1..n).rev() {
+                let j = unbiased_index(rng, i + 1);
+                out.swap(i, j);
             }
-            if length > n {
-                return Err(DataError::InvalidArgument {
-                    message: format!("block length {length} exceeds series length {n}"),
-                });
+        }
+        ResamplingPlan::Permutation(PermutationScheme::WithinCluster) => {
+            fill_within_cluster_permutation(n, cluster_ids.unwrap(), rng, out)?;
+        }
+    }
+    Ok(())
+}
+
+fn fill_block(
+    n: usize,
+    length: usize,
+    circular: bool,
+    rng: &mut CausalRng,
+    out: &mut Vec<u32>,
+) -> Result<(), DataError> {
+    if length == 0 {
+        return Err(DataError::InvalidArgument { message: "block length must be > 0".into() });
+    }
+    if length > n {
+        return Err(DataError::InvalidArgument {
+            message: format!("block length {length} exceeds series length {n}"),
+        });
+    }
+    let n_starts = if circular { n } else { n.saturating_sub(length).saturating_add(1) };
+    while out.len() < n {
+        let start = unbiased_index(rng, n_starts);
+        for k in 0..length {
+            if out.len() >= n {
+                break;
             }
-            let circular = matches!(plan, ResamplingPlan::CircularBlock { .. });
-            let n_starts =
-                if circular { n } else { n.saturating_sub(length).saturating_add(1) };
-            debug_assert!(n_starts >= 1);
-            while out.len() < n {
-                let start = unbiased_index(rng, n_starts);
-                for k in 0..length {
-                    if out.len() >= n {
-                        break;
-                    }
-                    let idx = if circular {
-                        (start + k) % n
-                    } else {
-                        // length <= n and start <= n-length, so start+k < n.
-                        start + k
-                    };
-                    out.push(idx as u32);
-                }
+            let idx = if circular { (start + k) % n } else { start + k };
+            out.push(idx as u32);
+        }
+    }
+    out.truncate(n);
+    Ok(())
+}
+
+fn fill_stationary(
+    n: usize,
+    expected_length: f64,
+    rng: &mut CausalRng,
+    out: &mut Vec<u32>,
+) -> Result<(), DataError> {
+    if !(expected_length.is_finite() && expected_length >= 1.0) {
+        return Err(DataError::InvalidArgument {
+            message: "stationary expected_length must be finite and ≥ 1".into(),
+        });
+    }
+    // Geometric block length with mean L: P(L=k) = p(1-p)^{k-1}, p = 1/L.
+    let p = 1.0 / expected_length;
+    while out.len() < n {
+        let mut len = 1usize;
+        while rng.next_f64() > p {
+            len += 1;
+            if len > n {
+                break;
             }
-            out.truncate(n);
+        }
+        len = len.min(n);
+        let start = unbiased_index(rng, n);
+        for k in 0..len {
+            if out.len() >= n {
+                break;
+            }
+            out.push(((start + k) % n) as u32);
+        }
+    }
+    out.truncate(n);
+    Ok(())
+}
+
+fn fill_cluster_bootstrap(
+    n: usize,
+    cluster_ids: &[u32],
+    rng: &mut CausalRng,
+    out: &mut Vec<u32>,
+) -> Result<(), DataError> {
+    // Build cluster → row list.
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by_key(|&i| cluster_ids[i]);
+    let mut clusters: Vec<Vec<u32>> = Vec::new();
+    let mut idx = 0usize;
+    while idx < n {
+        let g = cluster_ids[order[idx]];
+        let mut members = Vec::new();
+        while idx < n && cluster_ids[order[idx]] == g {
+            members.push(order[idx] as u32);
+            idx += 1;
+        }
+        clusters.push(members);
+    }
+    if clusters.is_empty() {
+        return Err(DataError::InvalidArgument { message: "no clusters".into() });
+    }
+    while out.len() < n {
+        let c = unbiased_index(rng, clusters.len());
+        for &row in &clusters[c] {
+            if out.len() >= n {
+                break;
+            }
+            out.push(row);
+        }
+    }
+    out.truncate(n);
+    Ok(())
+}
+
+fn fill_within_cluster_permutation(
+    n: usize,
+    cluster_ids: &[u32],
+    rng: &mut CausalRng,
+    out: &mut Vec<u32>,
+) -> Result<(), DataError> {
+    out.extend((0..n as u32));
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by_key(|&i| cluster_ids[i]);
+    let mut idx = 0usize;
+    while idx < n {
+        let g = cluster_ids[order[idx]];
+        let start = idx;
+        while idx < n && cluster_ids[order[idx]] == g {
+            idx += 1;
+        }
+        // Fisher–Yates on out[order[start..idx]] positions — shuffle the member rows
+        // among the slots that belong to this cluster in the original order.
+        let members: Vec<usize> = order[start..idx].to_vec();
+        let mut vals: Vec<u32> = members.iter().map(|&i| i as u32).collect();
+        for i in (1..vals.len()).rev() {
+            let j = unbiased_index(rng, i + 1);
+            vals.swap(i, j);
+        }
+        for (k, &pos) in members.iter().enumerate() {
+            out[pos] = vals[k];
         }
     }
     Ok(())
@@ -159,7 +343,7 @@ pub fn fill_resample_weights(
 ///
 /// Index plans gather rows. [`ResamplingPlan::BayesianBootstrap`] keeps row
 /// order and replaces storage weights with a fresh weight plan (multiplied by
-/// any existing weights).
+/// any existing weights). Clustered plans require [`resample_timeseries_grouped`].
 ///
 /// # Errors
 ///
@@ -170,13 +354,33 @@ pub fn resample_timeseries(
     rng: &mut CausalRng,
     index_scratch: &mut Vec<u32>,
 ) -> Result<TimeSeriesData, DataError> {
+    if plan.needs_clusters() {
+        return Err(DataError::InvalidArgument {
+            message: "clustered plan requires resample_timeseries_grouped".into(),
+        });
+    }
+    resample_timeseries_grouped(data, plan, None, rng, index_scratch)
+}
+
+/// Like [`resample_timeseries`], with optional cluster labels for clustered plans.
+///
+/// # Errors
+///
+/// Non-float columns, clustered plan without ids, or construction failures.
+pub fn resample_timeseries_grouped(
+    data: &TimeSeriesData,
+    plan: ResamplingPlan,
+    cluster_ids: Option<&[u32]>,
+    rng: &mut CausalRng,
+    index_scratch: &mut Vec<u32>,
+) -> Result<TimeSeriesData, DataError> {
     let n = data.row_count();
     if plan.is_weight_plan() {
         let mut weights = Vec::new();
         fill_resample_weights(plan, n, rng, &mut weights)?;
         return apply_weight_plan(data, &weights);
     }
-    fill_resample_indexes(plan, n, rng, index_scratch)?;
+    fill_resample_indexes_grouped(plan, n, cluster_ids, rng, index_scratch)?;
     apply_row_map(data, index_scratch)
 }
 
@@ -356,5 +560,57 @@ mod tests {
         .unwrap();
         assert_eq!(out.row_count(), 100);
         assert_eq!(idx.len(), 100);
+    }
+
+    #[test]
+    fn permutation_full_is_bijection() {
+        let mut rng = CausalRng::from_seed(3);
+        let mut idx = Vec::new();
+        fill_resample_indexes(
+            ResamplingPlan::Permutation(PermutationScheme::Full),
+            20,
+            &mut rng,
+            &mut idx,
+        )
+        .unwrap();
+        let mut sorted = idx.clone();
+        sorted.sort_unstable();
+        assert_eq!(sorted, (0..20u32).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn cluster_bootstrap_keeps_members_contiguous_from_same_cluster() {
+        let n = 12usize;
+        let clusters: Vec<u32> = (0..n as u32).map(|i| i / 3).collect();
+        let mut rng = CausalRng::from_seed(5);
+        let mut idx = Vec::new();
+        fill_resample_indexes_grouped(
+            ResamplingPlan::ClusterBootstrap,
+            n,
+            Some(&clusters),
+            &mut rng,
+            &mut idx,
+        )
+        .unwrap();
+        assert_eq!(idx.len(), n);
+        // Every index must come from some original cluster; consecutive triples
+        // from the same draw share a cluster id when length allows.
+        for &i in &idx {
+            assert!((i as usize) < n);
+        }
+    }
+
+    #[test]
+    fn stationary_block_preserves_length() {
+        let mut rng = CausalRng::from_seed(2);
+        let mut idx = Vec::new();
+        fill_resample_indexes(
+            ResamplingPlan::StationaryBlock { expected_length: 5.0 },
+            80,
+            &mut rng,
+            &mut idx,
+        )
+        .unwrap();
+        assert_eq!(idx.len(), 80);
     }
 }

@@ -1,4 +1,4 @@
-//! GLM fitting: logistic, multinomial logit, Gaussian/identity, and Poisson/log IRLS.
+//! GLM fitting: logistic, probit, multinomial logit, Gaussian, Poisson, and NB2 IRLS.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -9,7 +9,7 @@
     clippy::float_cmp
 )]
 
-use causal_kernels::norm_cdf;
+use causal_kernels::{norm_cdf, norm_pdf};
 
 use crate::error::StatsError;
 use crate::gram::invert_square;
@@ -26,6 +26,30 @@ pub enum GlmFamily {
     GaussianIdentity,
     /// Poisson with log link.
     PoissonLog,
+    /// Negative binomial (NB2) with log link; dispersion via [`GlmOptions::nb_alpha`].
+    NegativeBinomial,
+}
+
+/// Policy for NB2 dispersion `α` (`Var = μ + α μ²`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NbAlphaPolicy {
+    /// Fixed dispersion.
+    Fixed(f64),
+    /// Pearson method-of-moments after a Poisson warm-start (default).
+    MethodOfMoments,
+    /// Alternating β-IRLS and 1-D MLE for `α`.
+    NestedMle {
+        /// Maximum outer (α, β) cycles.
+        max_outer: u32,
+        /// Absolute tolerance on `|Δα|`.
+        tol_alpha: f64,
+    },
+}
+
+impl Default for NbAlphaPolicy {
+    fn default() -> Self {
+        Self::MethodOfMoments
+    }
 }
 
 impl GlmFamily {
@@ -36,7 +60,7 @@ impl GlmFamily {
             Self::BinomialLogit => 1.0 / (1.0 + (-eta).exp()),
             Self::BinomialProbit => norm_cdf(eta),
             Self::GaussianIdentity => eta,
-            Self::PoissonLog => eta.exp(),
+            Self::PoissonLog | Self::NegativeBinomial => eta.exp(),
         }
     }
 }
@@ -61,19 +85,33 @@ pub struct GlmOptions {
     pub max_iter: u32,
     /// Coefficient change tolerance for convergence.
     pub tol: f64,
+    /// NB2 dispersion policy ([`NbAlphaPolicy`]); ignored for other families.
+    pub nb_alpha: NbAlphaPolicy,
+    /// When set, logistic/probit that hit separation are refit with this ridge λ on `β`.
+    pub ridge_on_separation: Option<f64>,
 }
 
 impl Default for GlmOptions {
     fn default() -> Self {
-        Self { max_iter: 50, tol: 1e-8 }
+        Self {
+            max_iter: 50,
+            tol: 1e-8,
+            nb_alpha: NbAlphaPolicy::MethodOfMoments,
+            ridge_on_separation: None,
+        }
     }
 }
 
 impl GlmOptions {
-    /// Construct options.
+    /// Construct options (MoM NB α, no ridge fallback).
     #[must_use]
     pub const fn new(max_iter: u32, tol: f64) -> Self {
-        Self { max_iter, tol }
+        Self {
+            max_iter,
+            tol,
+            nb_alpha: NbAlphaPolicy::MethodOfMoments,
+            ridge_on_separation: None,
+        }
     }
 }
 
@@ -90,6 +128,8 @@ pub struct GlmFit {
     pub separated: bool,
     /// Final deviance.
     pub deviance: f64,
+    /// Estimated or fixed NB2 `α` when family is [`GlmFamily::NegativeBinomial`].
+    pub nb_alpha: Option<f64>,
 }
 
 impl GlmFit {
@@ -128,11 +168,10 @@ pub fn fit_glm(
 ) -> Result<GlmFit, StatsError> {
     match family {
         GlmFamily::BinomialLogit => fit_logistic(design, backend, workspace, options),
-        GlmFamily::BinomialProbit => Err(StatsError::Backend(
-            "BinomialProbit frequentist IRLS is not implemented; use Bayesian Laplace".into(),
-        )),
+        GlmFamily::BinomialProbit => fit_probit(design, backend, workspace, options),
         GlmFamily::GaussianIdentity => fit_gaussian(design, backend, workspace),
         GlmFamily::PoissonLog => fit_poisson(design, backend, workspace, options),
+        GlmFamily::NegativeBinomial => fit_negbin(design, backend, workspace, options),
     }
 }
 
@@ -155,6 +194,7 @@ fn fit_gaussian(
         converged: true,
         separated: false,
         deviance: fit.rss,
+        nb_alpha: None,
     })
 }
 
@@ -226,7 +266,14 @@ fn fit_poisson(
         }
     }
 
-    Ok(GlmFit { coefficients: beta, iterations, converged, separated: false, deviance })
+    Ok(GlmFit {
+        coefficients: beta,
+        iterations,
+        converged,
+        separated: false,
+        deviance,
+        nb_alpha: None,
+    })
 }
 
 fn fit_logistic(
@@ -296,7 +343,424 @@ fn fit_logistic(
         }
     }
 
-    Ok(GlmFit { coefficients: beta, iterations, converged, separated, deviance })
+    if separated {
+        if let Some(lambda) = options.ridge_on_separation {
+            if lambda > 0.0 {
+                return fit_binomial_ridge(
+                    GlmFamily::BinomialLogit,
+                    design,
+                    backend,
+                    workspace,
+                    options,
+                    lambda,
+                );
+            }
+        }
+    }
+
+    Ok(GlmFit {
+        coefficients: beta,
+        iterations,
+        converged,
+        separated,
+        deviance,
+        nb_alpha: None,
+    })
+}
+
+fn fit_probit(
+    design: GlmDesignRef<'_>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    if y.len() != nrows {
+        return Err(StatsError::Shape { message: "y length != nrows" });
+    }
+    if x_colmajor.len() < nrows.saturating_mul(ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    for &yi in y {
+        if !(yi == 0.0 || yi == 1.0) {
+            return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+        }
+    }
+
+    let mut beta = vec![0.0; ncols];
+    let mut x_w = vec![0.0; nrows * ncols];
+    let mut z = vec![0.0; nrows];
+    let mut converged = false;
+    let mut separated = false;
+    let mut iterations = 0u32;
+    let mut deviance = f64::INFINITY;
+
+    for iter in 1..=options.max_iter {
+        iterations = iter;
+        let mut max_delta = 0.0_f64;
+        deviance = 0.0;
+        for r in 0..nrows {
+            let mut eta = 0.0;
+            for c in 0..ncols {
+                eta += x_colmajor[c * nrows + r] * beta[c];
+            }
+            let mu = norm_cdf(eta);
+            if mu < 1e-8 || mu > 1.0 - 1e-8 {
+                separated = true;
+            }
+            let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
+            let phi = norm_pdf(eta).max(1e-12);
+            let denom = (mu_clamped * (1.0 - mu_clamped)).max(1e-12);
+            let w_fisher = (phi * phi) / denom;
+            let w = w_fisher.sqrt();
+            let yi = y[r];
+            z[r] = (eta + (yi - mu_clamped) / phi) * w;
+            for c in 0..ncols {
+                x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
+            }
+            if yi > 0.0 {
+                deviance += -2.0 * mu_clamped.ln();
+            } else {
+                deviance += -2.0 * (1.0 - mu_clamped).ln();
+            }
+        }
+
+        let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
+        for c in 0..ncols {
+            max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
+            beta[c] = fit.coefficients[c];
+        }
+        if max_delta < options.tol {
+            converged = true;
+            break;
+        }
+    }
+
+    if separated {
+        if let Some(lambda) = options.ridge_on_separation {
+            if lambda > 0.0 {
+                return fit_binomial_ridge(
+                    GlmFamily::BinomialProbit,
+                    design,
+                    backend,
+                    workspace,
+                    options,
+                    lambda,
+                );
+            }
+        }
+    }
+
+    Ok(GlmFit {
+        coefficients: beta,
+        iterations,
+        converged,
+        separated,
+        deviance,
+        nb_alpha: None,
+    })
+}
+
+/// NB2 IRLS with fixed, MoM, or nested-MLE dispersion α (`Var = μ + α μ²`).
+fn fit_negbin(
+    design: GlmDesignRef<'_>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    if y.len() != nrows {
+        return Err(StatsError::Shape { message: "y length != nrows" });
+    }
+    if x_colmajor.len() < nrows.saturating_mul(ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    for &yi in y {
+        if !(yi.is_finite() && yi >= 0.0) {
+            return Err(StatsError::Shape {
+                message: "negative-binomial GLM requires non-negative outcomes",
+            });
+        }
+    }
+
+    let mut mom_alpha = || -> Result<f64, StatsError> {
+        let poisson = fit_poisson(design, backend, workspace, options)?;
+        let mut pearson_ss = 0.0;
+        let mut sum_mu = 0.0;
+        for r in 0..nrows {
+            let mut eta = 0.0;
+            for c in 0..ncols {
+                eta += x_colmajor[c * nrows + r] * poisson.coefficients[c];
+            }
+            let mu = eta.exp().max(1e-12);
+            let e = (y[r] - mu) / mu.sqrt();
+            pearson_ss += e * e;
+            sum_mu += mu;
+        }
+        let df = (nrows as f64 - ncols as f64).max(1.0);
+        let excess = (pearson_ss - df).max(0.0);
+        Ok((excess / sum_mu.max(1e-12)).max(1e-8))
+    };
+
+    match options.nb_alpha {
+        NbAlphaPolicy::Fixed(a) => {
+            if !(a.is_finite() && a > 0.0) {
+                return Err(StatsError::Shape {
+                    message: "nb_alpha Fixed must be finite and > 0",
+                });
+            }
+            fit_negbin_fixed_alpha(design, backend, workspace, options, a)
+        }
+        NbAlphaPolicy::MethodOfMoments => {
+            let alpha = mom_alpha()?;
+            fit_negbin_fixed_alpha(design, backend, workspace, options, alpha)
+        }
+        NbAlphaPolicy::NestedMle { max_outer, tol_alpha } => {
+            let mut alpha = mom_alpha()?;
+            let mut fit = fit_negbin_fixed_alpha(design, backend, workspace, options, alpha)?;
+            let mut outer_ok = false;
+            for _ in 0..max_outer.max(1) {
+                let mut mu = vec![0.0; nrows];
+                for r in 0..nrows {
+                    let mut eta = 0.0;
+                    for c in 0..ncols {
+                        eta += x_colmajor[c * nrows + r] * fit.coefficients[c];
+                    }
+                    mu[r] = eta.exp().max(1e-12);
+                }
+                let alpha_new = mle_nb_alpha(y, &mu, alpha);
+                let beta_prev = fit.coefficients.clone();
+                fit = fit_negbin_fixed_alpha(design, backend, workspace, options, alpha_new)?;
+                let mut max_db = 0.0_f64;
+                for c in 0..ncols {
+                    max_db = max_db.max((fit.coefficients[c] - beta_prev[c]).abs());
+                }
+                let da = (alpha_new - alpha).abs();
+                alpha = alpha_new;
+                if da < tol_alpha && (fit.converged || max_db < options.tol) {
+                    outer_ok = true;
+                    break;
+                }
+            }
+            fit.converged = fit.converged && outer_ok;
+            fit.nb_alpha = Some(alpha);
+            Ok(fit)
+        }
+    }
+}
+
+/// 1-D MLE for NB2 α given fitted means (digamma/trigamma Newton on θ=1/α, safeguarded).
+fn mle_nb_alpha(y: &[f64], mu: &[f64], alpha0: f64) -> f64 {
+    use crate::special::{digamma, trigamma};
+
+    // Work in θ = 1/α (more stable); clamp to a wide but finite range.
+    let mut theta = (1.0 / alpha0.max(1e-8)).clamp(1e-4, 1e6);
+    for _ in 0..80 {
+        let mut score = 0.0;
+        let mut hess = 0.0;
+        for (&yi, &mui) in y.iter().zip(mu.iter()) {
+            let d_theta = digamma(yi + theta) - digamma(theta)
+                + (theta / (theta + mui)).ln()
+                + (mui - yi) / (theta + mui);
+            let d2_theta = trigamma(yi + theta) - trigamma(theta) + 1.0 / theta
+                - 1.0 / (theta + mui)
+                - (mui - yi) / ((theta + mui) * (theta + mui));
+            score += d_theta;
+            hess += d2_theta;
+        }
+        if !score.is_finite() {
+            break;
+        }
+        // Maximize ⇒ Newton uses −score/hess when hess < 0; otherwise gradient ascent.
+        let step = if hess < -1e-12 {
+            -score / hess
+        } else if score.abs() > 1e-12 {
+            0.1 * score.signum() * theta
+        } else {
+            0.0
+        };
+        let mut theta_new = (theta + step).clamp(1e-4, 1e6);
+        // Damp large relative steps.
+        if (theta_new - theta).abs() > 0.5 * theta {
+            theta_new = theta + 0.25 * (theta_new - theta);
+            theta_new = theta_new.clamp(1e-4, 1e6);
+        }
+        if (theta_new - theta).abs() < 1e-10 * (1.0 + theta) || score.abs() < 1e-10 {
+            theta = theta_new;
+            break;
+        }
+        theta = theta_new;
+    }
+    (1.0 / theta).clamp(1e-8, 1e4)
+}
+
+fn fit_negbin_fixed_alpha(
+    design: GlmDesignRef<'_>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+    alpha: f64,
+) -> Result<GlmFit, StatsError> {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    let mut beta = vec![0.0; ncols];
+    let mut x_w = vec![0.0; nrows * ncols];
+    let mut z = vec![0.0; nrows];
+    let mut converged = false;
+    let mut iterations = 0u32;
+    let mut deviance = f64::INFINITY;
+
+    for iter in 1..=options.max_iter {
+        iterations = iter;
+        let mut max_delta = 0.0_f64;
+        deviance = 0.0;
+        for r in 0..nrows {
+            let eta = if iter == 1 {
+                (y[r] + 0.5).ln()
+            } else {
+                let mut acc = 0.0;
+                for c in 0..ncols {
+                    acc += x_colmajor[c * nrows + r] * beta[c];
+                }
+                acc
+            };
+            let mu = eta.exp().max(1e-12);
+            let var = mu * (1.0 + alpha * mu);
+            let w = (mu * mu / var).sqrt();
+            let yi = y[r];
+            z[r] = (eta + (yi - mu) / mu) * w;
+            for c in 0..ncols {
+                x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
+            }
+            let theta = 1.0 / alpha;
+            if yi > 0.0 {
+                deviance += 2.0
+                    * (yi * (yi / mu).ln()
+                        - (yi + theta) * ((yi + theta) / (mu + theta)).ln());
+            } else {
+                deviance += 2.0 * theta * ((theta + mu) / theta).ln();
+            }
+        }
+        let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
+        for c in 0..ncols {
+            max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
+            beta[c] = fit.coefficients[c];
+        }
+        if max_delta < options.tol {
+            converged = true;
+            break;
+        }
+    }
+
+    Ok(GlmFit {
+        coefficients: beta,
+        iterations,
+        converged,
+        separated: false,
+        deviance,
+        nb_alpha: Some(alpha),
+    })
+}
+
+/// Ridge-penalized binomial IRLS used as optional separation fallback.
+fn fit_binomial_ridge(
+    family: GlmFamily,
+    design: GlmDesignRef<'_>,
+    _backend: &impl DenseLinearAlgebra,
+    _workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+    lambda: f64,
+) -> Result<GlmFit, StatsError> {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    let mut beta = vec![0.0; ncols];
+    let mut xtwx = vec![0.0; ncols * ncols];
+    let mut xtwz = vec![0.0; ncols];
+    let mut converged = false;
+    let mut iterations = 0u32;
+    let mut deviance = f64::INFINITY;
+
+    for iter in 1..=options.max_iter {
+        iterations = iter;
+        let mut max_delta = 0.0_f64;
+        deviance = 0.0;
+        xtwx.fill(0.0);
+        xtwz.fill(0.0);
+        for r in 0..nrows {
+            let mut eta = 0.0;
+            for c in 0..ncols {
+                eta += x_colmajor[c * nrows + r] * beta[c];
+            }
+            let (mu, w_fisher, working) = match family {
+                GlmFamily::BinomialLogit => {
+                    let mu = (1.0 / (1.0 + (-eta).exp())).clamp(1e-9, 1.0 - 1e-9);
+                    let w = mu * (1.0 - mu);
+                    let z = eta + (y[r] - mu) / w.max(1e-12);
+                    (mu, w, z)
+                }
+                GlmFamily::BinomialProbit => {
+                    let mu = norm_cdf(eta).clamp(1e-9, 1.0 - 1e-9);
+                    let phi = norm_pdf(eta).max(1e-12);
+                    let w = (phi * phi) / (mu * (1.0 - mu)).max(1e-12);
+                    let z = eta + (y[r] - mu) / phi;
+                    (mu, w, z)
+                }
+                _ => unreachable!("ridge fallback is binomial-only"),
+            };
+            for i in 0..ncols {
+                let xi = x_colmajor[i * nrows + r];
+                xtwz[i] += xi * w_fisher * working;
+                for j in 0..ncols {
+                    xtwx[i * ncols + j] += xi * w_fisher * x_colmajor[j * nrows + r];
+                }
+            }
+            if y[r] > 0.0 {
+                deviance += -2.0 * mu.ln();
+            } else {
+                deviance += -2.0 * (1.0 - mu).ln();
+            }
+        }
+        let unpenalize0 = col_is_constant(x_colmajor, nrows, 0);
+        for c in 0..ncols {
+            if c == 0 && unpenalize0 {
+                continue;
+            }
+            xtwx[c * ncols + c] += lambda;
+        }
+        let Some(inv) = invert_square(&xtwx, ncols) else {
+            return Err(StatsError::Backend("ridge binomial: singular X'WX+λI".into()));
+        };
+        let mut beta_new = vec![0.0; ncols];
+        for i in 0..ncols {
+            let mut s = 0.0;
+            for j in 0..ncols {
+                s += inv[i * ncols + j] * xtwz[j];
+            }
+            beta_new[i] = s;
+            max_delta = max_delta.max((s - beta[i]).abs());
+        }
+        beta = beta_new;
+        if max_delta < options.tol {
+            converged = true;
+            break;
+        }
+    }
+
+    Ok(GlmFit {
+        coefficients: beta,
+        iterations,
+        converged,
+        separated: false,
+        deviance,
+        nb_alpha: None,
+    })
+}
+
+fn col_is_constant(x_colmajor: &[f64], nrows: usize, col: usize) -> bool {
+    if nrows == 0 {
+        return true;
+    }
+    let base = col * nrows;
+    let v0 = x_colmajor[base];
+    x_colmajor[base..base + nrows].iter().all(|&v| (v - v0).abs() < 1e-12)
 }
 
 /// Multinomial logit design: column-major `X` and integer category codes.
@@ -687,6 +1151,192 @@ mod tests {
         .unwrap();
         assert!(fit.converged, "iters={} deviance={}", fit.iterations, fit.deviance);
         assert!((fit.coefficients[0] - 100.0_f64.ln()).abs() < 1e-6, "b0={}", fit.coefficients[0]);
+    }
+
+    #[test]
+    fn probit_recovers_positive_slope() {
+        let n = 200usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            // Soft signal: mostly follows t with a few flips.
+            y[i] = if i % 8 == 0 { 1.0 - t } else { t };
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = fit_glm(
+            GlmFamily::BinomialProbit,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(100, 1e-6),
+        )
+        .unwrap();
+        assert!(fit.converged, "iters={} deviance={}", fit.iterations, fit.deviance);
+        assert!(fit.coefficients[1] > 0.3, "slope={}", fit.coefficients[1]);
+        assert!(!fit.separated);
+    }
+
+    #[test]
+    fn negbin_fixed_alpha_recovers_positive_association() {
+        let n = 120usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            // Overdispersed counts: base 2 vs 5 with occasional spikes.
+            y[i] = if t < 0.5 {
+                if i % 11 == 0 { 8.0 } else { 2.0 }
+            } else if i % 11 == 0 {
+                15.0
+            } else {
+                5.0
+            };
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let opts = GlmOptions {
+            nb_alpha: NbAlphaPolicy::Fixed(0.5),
+            ..GlmOptions::new(100, 1e-8)
+        };
+        let fit = fit_glm(
+            GlmFamily::NegativeBinomial,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &opts,
+        )
+        .unwrap();
+        assert!(fit.converged);
+        assert!(fit.coefficients[1] > 0.3, "slope={}", fit.coefficients[1]);
+    }
+
+    #[test]
+    fn negbin_mom_alpha_matches_pearson_formula() {
+        // Intercept-only Poisson μ̂ = ȳ; Pearson MoM α̂ = (Σ(y−μ)²/μ − (n−1)) / (nμ).
+        let y = [1.0_f64, 2.0, 0.0, 4.0, 3.0, 1.0, 5.0, 2.0];
+        let n = y.len();
+        let mu = y.iter().sum::<f64>() / n as f64;
+        let pearson: f64 = y.iter().map(|&yi| (yi - mu).powi(2) / mu).sum();
+        let expected = ((pearson - (n as f64 - 1.0)).max(0.0) / (n as f64 * mu)).max(1e-8);
+
+        let x = vec![1.0; n];
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = fit_glm(
+            GlmFamily::NegativeBinomial,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 1, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(100, 1e-10),
+        )
+        .unwrap();
+        assert!(fit.converged);
+        // Recompute MoM from the same Poisson μ path used internally.
+        let poisson = fit_glm(
+            GlmFamily::PoissonLog,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 1, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(100, 1e-10),
+        )
+        .unwrap();
+        let mu_hat = poisson.coefficients[0].exp();
+        assert!((mu_hat - mu).abs() < 1e-8);
+        assert!(
+            (expected - ((pearson - (n as f64 - 1.0)).max(0.0) / (n as f64 * mu_hat)).max(1e-8))
+                .abs()
+                < 1e-12
+        );
+        // Fixed-α fit at that MoM should match default MethodOfMoments path coefficients.
+        let opts = GlmOptions {
+            nb_alpha: NbAlphaPolicy::Fixed(expected),
+            ..GlmOptions::new(100, 1e-10)
+        };
+        let fit_fixed = fit_glm(
+            GlmFamily::NegativeBinomial,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 1, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &opts,
+        )
+        .unwrap();
+        assert!((fit.coefficients[0] - fit_fixed.coefficients[0]).abs() < 1e-6);
+    }
+
+    #[test]
+    fn negbin_nested_mle_recovers_overdispersion() {
+        // Intercept-only NB2 with known α≈0.5 via gamma-poisson mixture (deterministic spikes).
+        let n = 400usize;
+        let x = vec![1.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            // Mean ~3 with heavy tails: mostly 2, occasional 10.
+            y[i] = if i % 8 == 0 { 10.0 } else { 2.0 };
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let opts = GlmOptions {
+            nb_alpha: NbAlphaPolicy::NestedMle { max_outer: 20, tol_alpha: 1e-6 },
+            ..GlmOptions::new(100, 1e-8)
+        };
+        let fit = fit_glm(
+            GlmFamily::NegativeBinomial,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 1, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &opts,
+        )
+        .unwrap();
+        assert!(fit.converged);
+        let alpha = fit.nb_alpha.expect("nb alpha");
+        assert!(alpha > 0.05, "alpha={alpha}");
+        assert!(alpha < 5.0, "alpha={alpha}");
+        // Nested MLE α should be in the ballpark of MoM.
+        let mom = fit_glm(
+            GlmFamily::NegativeBinomial,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 1, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(100, 1e-8),
+        )
+        .unwrap();
+        let mom_a = mom.nb_alpha.unwrap();
+        assert!(
+            (alpha - mom_a).abs() / mom_a.max(1e-6) < 2.0,
+            "nested={alpha} mom={mom_a}"
+        );
+    }
+
+    #[test]
+    fn ridge_on_separation_clears_separated_flag() {
+        let n = 60usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            y[i] = t;
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let opts = GlmOptions {
+            ridge_on_separation: Some(1.0),
+            ..GlmOptions::new(100, 1e-6)
+        };
+        let fit = fit_glm(
+            GlmFamily::BinomialLogit,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &opts,
+        )
+        .unwrap();
+        assert!(fit.converged);
+        assert!(!fit.separated);
+        assert!(fit.require_ok().is_ok());
+        assert!(fit.coefficients[1] > 0.0);
     }
 
     #[test]

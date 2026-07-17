@@ -59,6 +59,72 @@ pub fn normal_ppf(p: f64) -> f64 {
         / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0)
 }
 
+/// Digamma `ψ(z) = d/dz ln Γ(z)` (reflection + asymptotic series).
+#[must_use]
+pub fn digamma(mut z: f64) -> f64 {
+    if !(z.is_finite() && z > 0.0) {
+        return f64::NAN;
+    }
+    let mut result = 0.0;
+    // Reflection for z < 0.5: ψ(1−z) − ψ(z) = π cot(πz).
+    if z < 0.5 {
+        let pi = std::f64::consts::PI;
+        result -= pi / (pi * z).tan();
+        z = 1.0 - z;
+    }
+    // Recurrence to z ≥ 8.
+    while z < 8.0 {
+        result -= 1.0 / z;
+        z += 1.0;
+    }
+    // Asymptotic: ψ(z) ≈ ln z − 1/(2z) − Σ B_{2k}/(2k z^{2k})
+    let iz = 1.0 / z;
+    let iz2 = iz * iz;
+    result += z.ln() - 0.5 * iz;
+    // Bernoulli terms: 1/12, −1/120, 1/252, −1/240, 1/132, −691/32760, …
+    result -= iz2
+        * (1.0 / 12.0
+            - iz2
+                * (1.0 / 120.0
+                    - iz2
+                        * (1.0 / 252.0
+                            - iz2
+                                * (1.0 / 240.0
+                                    - iz2 * (1.0 / 132.0 - iz2 * (691.0 / 32760.0))))));
+    result
+}
+
+/// Trigamma `ψ₁(z) = d²/dz² ln Γ(z)` (reflection + asymptotic series).
+#[must_use]
+pub fn trigamma(mut z: f64) -> f64 {
+    if !(z.is_finite() && z > 0.0) {
+        return f64::NAN;
+    }
+    let mut result = 0.0;
+    // Reflection: ψ₁(z) + ψ₁(1−z) = π² / sin²(πz).
+    if z < 0.5 {
+        let pi = std::f64::consts::PI;
+        let s = (pi * z).sin();
+        result += (pi * pi) / (s * s);
+        z = 1.0 - z;
+    }
+    while z < 8.0 {
+        result += 1.0 / (z * z);
+        z += 1.0;
+    }
+    let iz = 1.0 / z;
+    let iz2 = iz * iz;
+    // ψ₁(z) ≈ 1/z + 1/(2z²) + Σ B_{2k}/z^{2k+1}
+    result += iz + 0.5 * iz2;
+    result += iz2
+        * iz
+        * (1.0 / 6.0
+            - iz2
+                * (1.0 / 30.0
+                    - iz2 * (1.0 / 42.0 - iz2 * (1.0 / 30.0 - iz2 * (5.0 / 66.0)))));
+    result
+}
+
 /// Lanczos approximation of `ln Γ(z)`.
 #[must_use]
 pub fn ln_gamma(z: f64) -> f64 {
@@ -238,5 +304,17 @@ mod tests {
             let hi = normal_ppf(1.0 - p);
             assert!((lo + hi).abs() < 1e-9, "asymmetry at p={p}: {lo} vs {hi}");
         }
+    }
+
+    #[test]
+    fn digamma_trigamma_pin_known_values() {
+        const EULER: f64 = 0.577_215_664_901_532_9;
+        assert!((digamma(1.0) + EULER).abs() < 1e-10);
+        assert!((digamma(0.5) + EULER + 2.0 * std::f64::consts::LN_2).abs() < 1e-10);
+        assert!((trigamma(1.0) - std::f64::consts::PI.powi(2) / 6.0).abs() < 1e-10);
+        // Recurrence: ψ(z+1) = ψ(z) + 1/z
+        let z = 2.3;
+        assert!((digamma(z + 1.0) - digamma(z) - 1.0 / z).abs() < 1e-12);
+        assert!((trigamma(z + 1.0) - trigamma(z) + 1.0 / (z * z)).abs() < 1e-12);
     }
 }

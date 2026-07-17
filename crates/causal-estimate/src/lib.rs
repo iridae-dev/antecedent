@@ -21,6 +21,7 @@ pub mod prediction;
 pub mod prepare;
 pub mod propensity;
 pub mod rd;
+pub mod se;
 pub mod temporal_adjustment;
 pub mod temporal_mediation;
 pub mod util;
@@ -28,6 +29,7 @@ pub mod util;
 pub use adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem,
 };
+pub use se::{AnalyticSeKind, LinearSeKind};
 pub use util::BootstrapSeResult;
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use bayesian::{

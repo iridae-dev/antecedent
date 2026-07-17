@@ -34,8 +34,8 @@ pub use ci::{
 };
 
 pub use constraints::{
-    CandidateCatalog, CompiledConstraints, CrossEnvLinkAssumption, DiscoveryConstraints,
-    MultiDatasetConstraints, TemporalConstraints,
+    CandidateCatalog, CompiledConstraints, ContextKind, CrossEnvLinkAssumption,
+    DiscoveryConstraints, JpcmciNodeRole, MultiDatasetConstraints, TemporalConstraints,
 };
 pub use discriminating_paths::{DiscriminatingPath, find_discriminating_paths};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};

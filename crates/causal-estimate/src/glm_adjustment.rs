@@ -130,13 +130,6 @@ impl GlmAdjustmentAte {
             });
         }
         query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
-        if matches!(self.family, GlmFamily::BinomialProbit) {
-            return Err(EstimationError::UnsupportedQuery(
-                "BinomialProbit frequentist IRLS is not implemented; use Bayesian Laplace \
-                 or BinomialLogit"
-                    .into(),
-            ));
-        }
         if !query.effect_modifiers.is_empty() {
             return Err(EstimationError::UnsupportedQuery(
                 "GLM adjustment does not support effect modifiers".into(),
@@ -184,6 +177,11 @@ impl GlmAdjustmentAte {
                 }
             }
             GlmFamily::GaussianIdentity => {}
+            GlmFamily::NegativeBinomial => {
+                return Err(EstimationError::UnsupportedQuery(
+                    "NegativeBinomial is not supported by GlmAdjustmentAte g-computation".into(),
+                ));
+            }
         }
         let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         for &z in estimand.adjustment_set.iter() {
@@ -341,11 +339,10 @@ fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
         }
         GlmFamily::BinomialProbit => {
             // φ(η) = dμ/dη for probit.
-            const INV_SQRT_2PI: f64 = 0.398_942_280_401_432_7;
-            INV_SQRT_2PI * (-0.5 * eta * eta).exp()
+            causal_kernels::norm_pdf(eta)
         }
         GlmFamily::GaussianIdentity => 1.0,
-        GlmFamily::PoissonLog => eta.exp(),
+        GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => eta.exp(),
     }
 }
 
@@ -408,7 +405,10 @@ fn gcomp_delta_method_se(
     let dispersion = match family {
         // For Gaussian/identity the fit's deviance is the RSS.
         GlmFamily::GaussianIdentity => deviance / (n - ncols as f64).max(1.0),
-        GlmFamily::BinomialLogit | GlmFamily::BinomialProbit | GlmFamily::PoissonLog => 1.0,
+        GlmFamily::BinomialLogit
+        | GlmFamily::BinomialProbit
+        | GlmFamily::PoissonLog
+        | GlmFamily::NegativeBinomial => 1.0,
     };
 
     // Gradient of the mean g-computation contrast w.r.t. the coefficient vector.
@@ -700,19 +700,20 @@ mod tests {
     }
 
     #[test]
-    fn rejects_probit_early_in_prepare() {
+    fn probit_adjustment_fits_binary_outcome() {
         let (data, estimand) = binary_scm(200, 7);
         let est = GlmAdjustmentAte {
             family: GlmFamily::BinomialProbit,
+            bootstrap_replicates: 0,
             ..GlmAdjustmentAte::new()
         };
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(
-            matches!(err, EstimationError::UnsupportedQuery(ref m) if m.contains("BinomialProbit")),
-            "{err:?}"
-        );
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = GlmAdjustmentWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(effect.ate.is_finite());
+        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
     }
 
     #[test]

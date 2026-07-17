@@ -54,6 +54,8 @@ pub struct TwoSlsFit {
     /// endogenous values (not the fitted ones). This is the σ̂² numerator for the
     /// conventional 2SLS analytic standard error.
     pub structural_rss: f64,
+    /// Structural residuals `e_i = y_i − T_i β̂ − X_i γ̂` (same as RSS terms).
+    pub structural_residuals: Vec<f64>,
 }
 
 /// Two-stage least squares.
@@ -113,6 +115,7 @@ pub fn fit_2sls(
     let second_stage = backend.least_squares(&x2, z_nrows, stage2_ncols, y, workspace)?;
     // Structural residuals evaluate the second-stage coefficients at the ACTUAL
     // endogenous values; `second_stage.rss` uses fitted T and is not σ̂².
+    let mut structural_residuals = vec![0.0; z_nrows];
     let mut structural_rss = 0.0;
     for r in 0..z_nrows {
         let mut pred = second_stage.coefficients[0] * endogenous[r];
@@ -120,9 +123,16 @@ pub fn fit_2sls(
             pred += exogenous_colmajor[c * z_nrows + r] * second_stage.coefficients[1 + c];
         }
         let e = y[r] - pred;
+        structural_residuals[r] = e;
         structural_rss += e * e;
     }
-    Ok(TwoSlsFit { first_stage, second_stage, fitted_endogenous: fitted, structural_rss })
+    Ok(TwoSlsFit {
+        first_stage,
+        second_stage,
+        fitted_endogenous: fitted,
+        structural_rss,
+        structural_residuals,
+    })
 }
 
 #[cfg(test)]

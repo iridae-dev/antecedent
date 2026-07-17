@@ -27,3 +27,10 @@ pub fn erf(x: f64) -> f64 {
 pub fn norm_cdf(x: f64) -> f64 {
     0.5 * (1.0 + erf(x / std::f64::consts::SQRT_2))
 }
+
+/// Standard normal PDF ϕ(x) = (1/√(2π)) exp(−x²/2).
+#[must_use]
+pub fn norm_pdf(x: f64) -> f64 {
+    const INV_SQRT_2PI: f64 = 0.398_942_280_401_432_7;
+    INV_SQRT_2PI * (-0.5 * x * x).exp()
+}

@@ -27,7 +27,7 @@ pub use discovery::{
 };
 pub use discovery_defaults::{
     DEFAULT_ALPHA, DEFAULT_MAX_COND_SIZE, DEFAULT_RPCMCI_MIN_REGIME_LEN,
-    contemporaneous_constraints, pcmci_constraints, resolve_ci,
+    contemporaneous_constraints, jpcmci_constraints, pcmci_constraints, resolve_ci,
 };
 pub use error::AnalysisError;
 pub use options::{DiscoveryAccept, FdrControl};
@@ -52,9 +52,9 @@ pub use strategy_table::{
 
 // PAG / LPCMCI surfaces.
 pub use causal_discovery::{
-    CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryPerformanceRecord, JpcmciPlus, Lpcmci,
-    PagDiscoveryResult, RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult,
-    ScoredLink, two_regime_half_split,
+    ContextKind, CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryPerformanceRecord, JpcmciPlus,
+    JpcmciNodeRole, Lpcmci, MultiDatasetConstraints, PagDiscoveryResult, RegimeAssignment,
+    RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, ScoredLink, two_regime_half_split,
 };
 pub use causal_estimate::{
     ConditionalLinearAdjustment, OverlapPolicy, TemporalEffectSurface, TemporalLinearPredictor,

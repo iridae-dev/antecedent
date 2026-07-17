@@ -28,6 +28,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::se::{AnalyticSeKind, cluster_influence_se};
 use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
 
 /// Propensity-score nearest-neighbor matching (Absolute distance, optional caliper).
@@ -49,6 +50,10 @@ pub struct PropensityMatching {
     pub glm_options: GlmOptions,
     /// Optional maximum propensity distance for an accepted match.
     pub caliper: Option<f64>,
+    /// Analytic SE kind (Abadie–Imbens / hetero / cluster).
+    pub se_kind: AnalyticSeKind,
+    /// Optional cluster ids aligned to prepared complete-case rows.
+    pub cluster_ids: Option<Vec<u32>>,
 }
 
 impl Default for PropensityMatching {
@@ -67,6 +72,8 @@ impl PropensityMatching {
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             caliper: None,
+            se_kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
         }
     }
 
@@ -114,6 +121,29 @@ impl PropensityMatching {
             1,
             retained.as_deref(),
         );
+        let clusters_used = match (&self.cluster_ids, &retained) {
+            (Some(ids), Some(idx)) => {
+                if ids.len() != problem.nrows {
+                    return Err(EstimationError::data_msg(format!(
+                        "cluster_ids length {} != nrows {}",
+                        ids.len(),
+                        problem.nrows
+                    )));
+                }
+                Some(idx.iter().map(|&i| ids[i]).collect::<Vec<_>>())
+            }
+            (Some(ids), None) => {
+                if ids.len() != problem.nrows {
+                    return Err(EstimationError::data_msg(format!(
+                        "cluster_ids length {} != nrows {}",
+                        ids.len(),
+                        problem.nrows
+                    )));
+                }
+                Some(ids.clone())
+            }
+            (None, _) => None,
+        };
         let result = matching_contrast(
             &t_used,
             &y_used,
@@ -123,6 +153,8 @@ impl PropensityMatching {
             &problem.target_population,
             self.caliper,
             workspace,
+            self.se_kind,
+            clusters_used.as_deref(),
         )?;
 
         let boot = if self.bootstrap_replicates == 0 {
@@ -200,6 +232,8 @@ impl PropensityMatching {
                 &problem.target_population,
                 self.caliper,
                 workspace,
+                AnalyticSeKind::Homoskedastic,
+                None,
             ) {
                 Ok(m) => Ok(Some(m.ate)),
                 Err(_) => Ok(None),
@@ -222,7 +256,7 @@ pub(crate) fn match_diffs(
     query_outcome: &[f64],
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
-) -> Result<(Vec<f64>, Vec<usize>), EstimationError> {
+) -> Result<(Vec<f64>, Vec<usize>, Vec<usize>), EstimationError> {
     let n_donors = donor_outcome.len();
     if n_donors == 0 {
         return Err(EstimationError::data_msg("matching requires at least one donor row"));
@@ -243,6 +277,7 @@ pub(crate) fn match_diffs(
     }
     let mut diffs = Vec::with_capacity(n_queries);
     let mut used_donors = Vec::with_capacity(n_queries);
+    let mut used_queries = Vec::with_capacity(n_queries);
     let mu_donor = fit_linear_mean(donor_features, donor_outcome, dim);
     for q in 0..n_queries {
         let d = donor_rows[q];
@@ -258,11 +293,12 @@ pub(crate) fn match_diffs(
             };
             diffs.push(raw - bias);
             used_donors.push(d);
+            used_queries.push(q);
         }
     }
     workspace.matching_donor_rows = donor_rows;
     workspace.matching_distances = distances;
-    Ok((diffs, used_donors))
+    Ok((diffs, used_donors, used_queries))
 }
 
 pub(crate) struct MatchedEstimate {
@@ -274,6 +310,7 @@ pub(crate) struct MatchedEstimate {
 ///
 /// ATT matches treated→nearest control; ATC matches control→nearest treated (sign-flipped);
 /// ATE pools both directions' per-unit imputed effects (Abadie–Imbens style).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn matching_contrast(
     treatment: &[f64],
     outcome: &[f64],
@@ -283,7 +320,16 @@ pub(crate) fn matching_contrast(
     target: &TargetPopulation,
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
+    se_kind: AnalyticSeKind,
+    cluster_ids: Option<&[u32]>,
 ) -> Result<MatchedEstimate, EstimationError> {
+    if let Some(ids) = cluster_ids {
+        if ids.len() != treatment.len() {
+            return Err(EstimationError::data_msg(
+                "matching cluster_ids length != treatment rows",
+            ));
+        }
+    }
     let (treated_idx, control_idx) = split_by_treatment(treatment);
     if treated_idx.is_empty() || control_idx.is_empty() {
         return Err(EstimationError::data_msg("matching requires both treated and control rows"));
@@ -293,9 +339,14 @@ pub(crate) fn matching_contrast(
     let treated_y = gather(outcome, &treated_idx);
     let control_y = gather(outcome, &control_idx);
 
-    let (per_unit_effects, donor_usage, n_donors): (Vec<f64>, Vec<usize>, usize) = match target {
+    let (per_unit_effects, donor_usage, n_donors, effect_rows): (
+        Vec<f64>,
+        Vec<usize>,
+        usize,
+        Vec<usize>,
+    ) = match target {
         TargetPopulation::Treated => {
-            let (diffs, donors) = match_diffs(
+            let (diffs, donors, q_local) = match_diffs(
                 &control_feat,
                 &control_y,
                 dim,
@@ -305,10 +356,11 @@ pub(crate) fn matching_contrast(
                 caliper,
                 workspace,
             )?;
-            (diffs, donors, control_y.len())
+            let rows: Vec<usize> = q_local.iter().map(|&q| treated_idx[q]).collect();
+            (diffs, donors, control_y.len(), rows)
         }
         TargetPopulation::Untreated => {
-            let (diffs, donors) = match_diffs(
+            let (diffs, donors, q_local) = match_diffs(
                 &treated_feat,
                 &treated_y,
                 dim,
@@ -319,10 +371,11 @@ pub(crate) fn matching_contrast(
                 workspace,
             )?;
             let flipped: Vec<f64> = diffs.into_iter().map(|d| -d).collect();
-            (flipped, donors, treated_y.len())
+            let rows: Vec<usize> = q_local.iter().map(|&q| control_idx[q]).collect();
+            (flipped, donors, treated_y.len(), rows)
         }
         TargetPopulation::AllObserved => {
-            let (att_diffs, att_donors) = match_diffs(
+            let (att_diffs, att_donors, att_q) = match_diffs(
                 &control_feat,
                 &control_y,
                 dim,
@@ -332,7 +385,7 @@ pub(crate) fn matching_contrast(
                 caliper,
                 workspace,
             )?;
-            let (atc_raw, atc_donors) = match_diffs(
+            let (atc_raw, atc_donors, atc_q) = match_diffs(
                 &treated_feat,
                 &treated_y,
                 dim,
@@ -343,14 +396,14 @@ pub(crate) fn matching_contrast(
                 workspace,
             )?;
             let atc_diffs: Vec<f64> = atc_raw.into_iter().map(|d| -d).collect();
-            // Pool ATT and ATC; donor counts live in disjoint arms, so concatenate
-            // usage vectors with an offset on ATC donor indices for the SE helper.
             let n_control = control_y.len();
             let mut effects = att_diffs;
             effects.extend(atc_diffs);
             let mut donors = att_donors;
             donors.extend(atc_donors.into_iter().map(|d| d + n_control));
-            (effects, donors, n_control + treated_y.len())
+            let mut rows: Vec<usize> = att_q.iter().map(|&q| treated_idx[q]).collect();
+            rows.extend(atc_q.iter().map(|&q| control_idx[q]));
+            (effects, donors, n_control + treated_y.len(), rows)
         }
         _ => {
             return Err(EstimationError::UnsupportedQuery(
@@ -363,7 +416,23 @@ pub(crate) fn matching_contrast(
         return Err(EstimationError::data_msg("no matched units within caliper"));
     }
     let ate = per_unit_effects.iter().sum::<f64>() / per_unit_effects.len() as f64;
-    let se_analytic = abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors);
+    let se_analytic = match se_kind {
+        AnalyticSeKind::Homoskedastic => {
+            abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors)
+        }
+        AnalyticSeKind::Hc1 => {
+            abadie_imbens_se_hetero(&per_unit_effects, &donor_usage, n_donors)
+        }
+        AnalyticSeKind::Cluster => {
+            let Some(ids) = cluster_ids else {
+                return Err(EstimationError::UnsupportedQuery(
+                    "AnalyticSeKind::Cluster requires matching cluster_ids".into(),
+                ));
+            };
+            let groups: Vec<u32> = effect_rows.iter().map(|&r| ids[r]).collect();
+            cluster_influence_se(&per_unit_effects, &groups)
+        }
+    };
     Ok(MatchedEstimate { ate, se_analytic })
 }
 
@@ -389,6 +458,27 @@ fn abadie_imbens_se(effects: &[f64], donor_local: &[usize], n_donors: usize) -> 
     let sum_k2: f64 = k.iter().map(|&kj| (kj as f64).powi(2)).sum();
     let var = sigma2 * (n as f64 + sum_k2) / (n as f64).powi(2);
     var.sqrt()
+}
+
+/// Heteroskedastic Abadie–Imbens SE using pair-level variance proxies.
+fn abadie_imbens_se_hetero(effects: &[f64], donor_local: &[usize], n_donors: usize) -> f64 {
+    let n = effects.len();
+    if n < 2 || donor_local.len() != n {
+        return sample_std(effects) / (n as f64).sqrt();
+    }
+    let mut k = vec![0usize; n_donors.max(1)];
+    for &d in donor_local {
+        if d < k.len() {
+            k[d] += 1;
+        }
+    }
+    let mut var = 0.0;
+    for (i, &d) in donor_local.iter().enumerate() {
+        let sigma2_i = 0.5 * effects[i] * effects[i];
+        let kd = k.get(d).copied().unwrap_or(0) as f64;
+        var += sigma2_i * (1.0 + kd).powi(2);
+    }
+    (var / (n as f64).powi(2)).max(0.0).sqrt()
 }
 
 /// OLS of `y` on `[1, x]` (row-major `x` with `dim` columns). Returns `[intercept, β…]`.

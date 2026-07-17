@@ -64,6 +64,49 @@ impl Dag {
         self.reaches(anc, desc)
     }
 
+    /// Markov blanket of `node`: parents ∪ children ∪ spouses (co-parents of
+    /// children). Does not include `node` itself.
+    ///
+    /// # Errors
+    ///
+    /// Unknown node id.
+    pub fn markov_blanket(
+        &self,
+        node: DenseNodeId,
+        out: &mut BitSet,
+    ) -> Result<(), GraphError> {
+        self.validate_node_pub(node)?;
+        let n = self.node_count();
+        out.resize(n);
+        out.clear();
+        for &p in self.parents(node) {
+            out.insert(p);
+        }
+        for &c in self.children(node) {
+            out.insert(c);
+            for &spouse in self.parents(c) {
+                if spouse != node {
+                    out.insert(spouse);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Sorted Markov blanket of `node` (excluding `node`).
+    ///
+    /// # Errors
+    ///
+    /// Unknown node id.
+    pub fn markov_blanket_nodes(&self, node: DenseNodeId) -> Result<Vec<DenseNodeId>, GraphError> {
+        let mut bits = BitSet::with_len(self.node_count());
+        self.markov_blanket(node, &mut bits)?;
+        Ok((0..self.node_count())
+            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
+            .filter(|&id| bits.contains(id))
+            .collect())
+    }
+
     /// Mutilate the graph under intervention: remove all edges into each
     /// intervened node. Returns a new DAG (nodes preserved).
     ///
@@ -101,5 +144,41 @@ impl Dag {
         } else {
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn markov_blanket_includes_parents_children_spouses() {
+        // A → T ← B, T → Y ← C  ⇒  MB(T) = {A, B, Y, C}
+        let mut g = Dag::with_variables(5);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let t = DenseNodeId::from_raw(2);
+        let y = DenseNodeId::from_raw(3);
+        let c = DenseNodeId::from_raw(4);
+        g.insert_directed(a, t).unwrap();
+        g.insert_directed(b, t).unwrap();
+        g.insert_directed(t, y).unwrap();
+        g.insert_directed(c, y).unwrap();
+
+        let mb = g.markov_blanket_nodes(t).unwrap();
+        assert_eq!(mb, vec![a, b, y, c]);
+        assert!(!mb.contains(&t));
+    }
+
+    #[test]
+    fn markov_blanket_of_root_includes_child_and_spouse() {
+        let mut g = Dag::with_variables(3);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        g.insert_directed(a, y).unwrap();
+        g.insert_directed(b, y).unwrap();
+        assert_eq!(g.markov_blanket_nodes(y).unwrap(), vec![a, b]);
+        assert_eq!(g.markov_blanket_nodes(a).unwrap(), vec![b, y]);
     }
 }

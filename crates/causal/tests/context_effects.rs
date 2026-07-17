@@ -100,7 +100,7 @@ fn jpcmci_plus_two_env_pin() {
     let result = alg.run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(1)).unwrap();
     assert_eq!(result.algorithm.id.as_ref(), expected["algorithm_id"].as_str().unwrap());
     assert!(result.evidence.graph.node_count() >= expected["min_nodes"].as_u64().unwrap() as usize);
-    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "jpcmci_plus.multi_env_plan"));
+    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "jpcmci_plus.pooled_frame"));
     assert!(
         result.evidence.links.len() >= expected["min_links"].as_u64().unwrap_or(1) as usize,
         "expected at least one retained link, got {}",

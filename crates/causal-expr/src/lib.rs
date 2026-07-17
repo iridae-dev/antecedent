@@ -6,10 +6,12 @@
 #![deny(missing_docs)]
 
 mod estimand;
+mod latex;
 mod pretty;
 
 pub use estimand::{EstimandMethod, IdentifiedEstimand};
 
+use latex::latex_expr;
 use pretty::pretty_expr;
 
 use std::collections::HashMap;
@@ -488,6 +490,12 @@ impl CausalExprArena {
     pub fn pretty(&self, id: ExprId) -> String {
         pretty_expr(self, id)
     }
+
+    /// Render an expression as LaTeX (diagnostics only; not an equality key).
+    #[must_use]
+    pub fn latex(&self, id: ExprId) -> String {
+        latex_expr(self, id)
+    }
 }
 
 impl fmt::Display for ExprId {
@@ -548,6 +556,9 @@ mod tests {
         assert_ne!(left, right);
         let pretty = a.pretty(id);
         assert!(pretty.contains('−') || pretty.contains("E["));
+        let latex = a.latex(id);
+        assert!(latex.contains("\\mathbb{E}") || latex.contains("\\mathrm{do}"));
+        assert!(latex.contains('-'));
     }
 
     #[test]

@@ -41,6 +41,7 @@ use crate::discovery::{
     discover_rpcmci,
 };
 use crate::discovery_defaults::resolve_ci;
+use causal_discovery::{MultiDatasetConstraints, two_regime_half_split};
 use crate::error::AnalysisError;
 use crate::inference::{BayesianConfig, InferenceMode};
 use crate::planner::{
@@ -58,7 +59,6 @@ use crate::strategy_table::{
     IdentifierId, estimate_provenance_step, estimate_static_effect, identify_provenance_step,
     identify_static,
 };
-use causal_discovery::two_regime_half_split;
 
 /// Which refuters to run (static ATE path).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -1170,7 +1170,13 @@ fn run_pcmci_review(
     ctx: &ExecutionContext,
 ) -> Result<TemporalGraphReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr,
+        ci: resolve_ci("parcorr", None)?,
+        multi_dataset: MultiDatasetConstraints::default(),
+    };
     let result = discover_pcmci(data, &vars, &params, ctx)?;
     Ok(result.review)
 }
@@ -1183,7 +1189,13 @@ fn run_pcmci_plus_review(
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr,
+        ci: resolve_ci("parcorr", None)?,
+        multi_dataset: MultiDatasetConstraints::default(),
+    };
     let result = discover_pcmci_plus(data, &vars, &params, ctx)?;
     Ok(result.review)
 }
@@ -1196,7 +1208,13 @@ fn run_jpcmci_plus_review(
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr,
+        ci: resolve_ci("parcorr", None)?,
+        multi_dataset: MultiDatasetConstraints::default(),
+    };
     let multi = MultiEnvironmentData::try_new(Arc::from([data.clone()])).map_err(|e| {
         AnalysisError::Compile { message: format!("jpcmci+ multi-env wrap failed: {e}") }
     })?;
@@ -1212,7 +1230,13 @@ fn run_rpcmci_discovery(
     ctx: &ExecutionContext,
 ) -> Result<causal_discovery::RpcmciDiscoveryResult, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr,
+        ci: resolve_ci("parcorr", None)?,
+        multi_dataset: MultiDatasetConstraints::default(),
+    };
     let assign = two_regime_half_split(data.row_count());
     discover_rpcmci(data, &vars, &assign, &params, None, ctx)
 }
@@ -1225,7 +1249,13 @@ fn run_lpcmci_review(
     ctx: &ExecutionContext,
 ) -> Result<causal_graph::TemporalPagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams { max_lag, alpha, fdr, ci: resolve_ci("parcorr", None)? };
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr,
+        ci: resolve_ci("parcorr", None)?,
+        multi_dataset: MultiDatasetConstraints::default(),
+    };
     let result = discover_lpcmci(data, &vars, &params, ctx)?;
     Ok(result.review)
 }

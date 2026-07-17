@@ -12,5 +12,5 @@
     }
   ],
   "tolerance_class": "Exact",
-  "notes": "Honest structure pin only; full tigramite edge-set equality blocked on P4.4 (J-PCMCI+)."
+  "notes": "Structure pin for Günther pooled J-PCMCI+ (context/dummies in CI). Full tigramite edge-set equality remains optional (see parity/ci_deviations.md)."
 }

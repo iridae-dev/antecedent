@@ -160,35 +160,8 @@ impl PcmciPlus {
         }
 
         // --- Step 1: lagged-only PC1 → B̂⁻ ---
-        let mut lagged_constraints = self.engine.constraints.clone();
-        // Lagged phase never includes τ=0; bump min_lag to at least 1.
-        if lagged_constraints.temporal.min_lag.raw() == 0 {
-            lagged_constraints.temporal.min_lag = Lag::from_raw(1);
-        }
         let (lagged_parents, mut iterations, mut ci_tests, mut sepsets) =
-            if lagged_constraints.temporal.min_lag.raw()
-                > lagged_constraints.temporal.max_lag.raw()
-            {
-                // max_lag = 0: no lagged candidates.
-                let empty: Vec<_> = variables.iter().map(|&t| (t, Vec::new())).collect();
-                (empty, Vec::new(), 0u64, PcSepsets::default())
-            } else {
-                let lagged_engine = PcmciEngine {
-                    constraints: lagged_constraints,
-                    ci: Arc::clone(&self.engine.ci),
-                };
-                let lagged_compiled = lagged_engine.constraints.compile(variables)?;
-                let (parents, iters, tests) = lagged_engine.select_parents_all(
-                    &frame,
-                    variables,
-                    &lagged_compiled,
-                    workspace,
-                    ctx,
-                    threads,
-                )?;
-                let sep = std::mem::take(&mut workspace.sepsets);
-                (parents, iters, tests, sep)
-            };
+            lagged_pc1_parents(&self.engine, &frame, variables, workspace, ctx, threads)?;
 
         // --- Step 2: contemporaneous MCI phase ---
         let (scored, contemp_sepsets, contemp_tests, truncated) = contemp_mci_phase(
@@ -199,6 +172,7 @@ impl PcmciPlus {
             &lagged_parents,
             workspace,
             ctx,
+            None,
         )?;
         ci_tests += contemp_tests;
         iterations.push(DiscoveryIteration {
@@ -300,12 +274,55 @@ impl PcmciPlus {
 type AdjMap = HashMap<VariableId, Vec<(VariableId, Lag)>>;
 type ScoreMap = HashMap<(VariableId, Lag, VariableId), (f64, f64)>;
 
+/// Lagged-only PC1 parent selection (\(\widehat{\mathcal{B}}^-\)).
+///
+/// # Errors
+///
+/// Engine / CI failures.
+pub(crate) fn lagged_pc1_parents(
+    engine: &PcmciEngine,
+    frame: &LaggedFrame,
+    variables: &[VariableId],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+    threads: u32,
+) -> Result<
+    (Vec<(VariableId, Vec<(VariableId, Lag)>)>, Vec<DiscoveryIteration>, u64, PcSepsets),
+    DiscoveryError,
+> {
+    let mut lagged_constraints = engine.constraints.clone();
+    if lagged_constraints.temporal.min_lag.raw() == 0 {
+        lagged_constraints.temporal.min_lag = Lag::from_raw(1);
+    }
+    if lagged_constraints.temporal.min_lag.raw() > lagged_constraints.temporal.max_lag.raw() {
+        let empty: Vec<_> = variables.iter().map(|&t| (t, Vec::new())).collect();
+        return Ok((empty, Vec::new(), 0, PcSepsets::default()));
+    }
+    let lagged_engine =
+        PcmciEngine { constraints: lagged_constraints, ci: Arc::clone(&engine.ci) };
+    let lagged_compiled = lagged_engine.constraints.compile(variables)?;
+    let (parents, iters, tests) = lagged_engine.select_parents_all(
+        frame,
+        variables,
+        &lagged_compiled,
+        workspace,
+        ctx,
+        threads,
+    )?;
+    let sep = std::mem::take(&mut workspace.sepsets);
+    Ok((parents, iters, tests, sep))
+}
+
 /// Contemporaneous + lagged MCI skeleton (Runge 2020 Alg. 2 / tigramite `contemp_conds`).
 ///
 /// Initializes adjacencies with \(\widehat{\mathcal{B}}^-\) lagged parents plus all
 /// contemporaneous pairs; removes edges by PC1-style tests whose contemporaneous
 /// conditioning sets are augmented with lagged parents of both endpoints (MCI).
-fn contemp_mci_phase(
+///
+/// When `search` is `Some`, only links for which `search(link)` is true are tested for
+/// removal; other adjacencies stay as fixed conditioning parents (J-PCMCI+ phases).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn contemp_mci_phase(
     engine: &PcmciEngine,
     frame: &LaggedFrame,
     variables: &[VariableId],
@@ -313,6 +330,7 @@ fn contemp_mci_phase(
     lagged_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
+    search: Option<&dyn Fn(LaggedLink) -> bool>,
 ) -> Result<(Vec<ScoredLink>, PcSepsets, u64, u64), DiscoveryError> {
     let alpha = engine.constraints.alpha;
     let max_cond = engine.constraints.max_cond_size;
@@ -370,6 +388,9 @@ fn contemp_mci_phase(
                     target,
                     target_lag: Lag::CONTEMPORANEOUS,
                 };
+                if search.is_some_and(|f| !f(link)) {
+                    continue;
+                }
                 // Contemporaneous conditions only (Alg. 2); lagged MCI parents always added.
                 let contemp_others: Vec<(VariableId, Lag)> = order
                     .iter()
@@ -442,19 +463,24 @@ fn contemp_mci_phase(
     }
 
     // Emit surviving adjacencies (conservative p = max over tests).
+    // Fixed (non-search) links are omitted unless they have scores from a prior test.
     let mut scored = Vec::new();
     for (&target, parents) in &adj {
         for &(src, slag) in parents {
+            let link = LaggedLink {
+                source: src,
+                source_lag: slag,
+                target,
+                target_lag: Lag::CONTEMPORANEOUS,
+            };
+            if search.is_some_and(|f| !f(link)) {
+                continue;
+            }
             let Some(&(p, stat)) = scores.get(&(src, slag, target)) else {
                 continue;
             };
             scored.push(ScoredLink {
-                link: LaggedLink {
-                    source: src,
-                    source_lag: slag,
-                    target,
-                    target_lag: Lag::CONTEMPORANEOUS,
-                },
+                link,
                 statistic: stat,
                 p_value: p,
                 adjusted_p_value: None,
@@ -469,7 +495,7 @@ fn contemp_mci_phase(
 /// Matches tigramite `contemp_collider_rule='majority'`. Conflicts / ambiguous triples
 /// are recorded out-of-band (`conflict_edges`) and conflicting edges are marked `x-x`.
 #[allow(clippy::too_many_arguments)]
-fn orient_majority_colliders(
+pub(crate) fn orient_majority_colliders(
     engine: &PcmciEngine,
     frame: &LaggedFrame,
     lagged_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
@@ -567,6 +593,7 @@ fn orient_majority_colliders(
 fn is_contemp_node(graph: &causal_graph::TemporalCpdag, id: DenseNodeId) -> bool {
     match graph.nodes().get(id.raw() as usize) {
         Some(NodeRef::Lagged { lag, .. }) => lag.is_contemporaneous(),
+        Some(NodeRef::Context { .. }) => true,
         _ => false,
     }
 }
@@ -574,6 +601,7 @@ fn is_contemp_node(graph: &causal_graph::TemporalCpdag, id: DenseNodeId) -> bool
 fn node_var_lag(graph: &causal_graph::TemporalCpdag, id: DenseNodeId) -> Option<(VariableId, Lag)> {
     match graph.nodes().get(id.raw() as usize) {
         Some(NodeRef::Lagged { variable, lag }) => Some((*variable, *lag)),
+        Some(NodeRef::Context { variable, .. }) => Some((*variable, Lag::CONTEMPORANEOUS)),
         _ => None,
     }
 }

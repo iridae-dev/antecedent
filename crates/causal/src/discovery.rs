@@ -13,13 +13,15 @@ use causal_core::{ExecutionContext, VariableId};
 use causal_data::{MultiEnvironmentData, TimeSeriesData};
 use causal_discovery::{
     CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryWorkspace, JpcmciPlus, Lpcmci,
-    PagDiscoveryResult, Pcmci, PcmciPlus, RegimeAssignment, Rpcmci, RpcmciDiscoveryResult,
+    MultiDatasetConstraints, PagDiscoveryResult, Pcmci, PcmciPlus, RegimeAssignment, Rpcmci,
+    RpcmciDiscoveryResult,
 };
 use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
 use causal_stats::ConditionalIndependence;
 
 use crate::discovery_defaults::{
-    DEFAULT_RPCMCI_MIN_REGIME_LEN, contemporaneous_constraints, pcmci_constraints,
+    DEFAULT_RPCMCI_MIN_REGIME_LEN, contemporaneous_constraints, jpcmci_constraints,
+    pcmci_constraints,
 };
 use crate::error::AnalysisError;
 
@@ -34,6 +36,8 @@ pub struct DiscoverParams {
     pub fdr: Option<causal_stats::FdrAdjustment>,
     /// Conditional-independence test (resolved via [`crate::discovery_defaults::resolve_ci`]).
     pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
+    /// Multi-dataset / context settings (J-PCMCI+); ignored by single-series algorithms.
+    pub multi_dataset: MultiDatasetConstraints,
 }
 
 impl std::fmt::Debug for DiscoverParams {
@@ -43,6 +47,7 @@ impl std::fmt::Debug for DiscoverParams {
             .field("alpha", &self.alpha)
             .field("fdr", &self.fdr)
             .field("ci", &"<dyn ConditionalIndependence>")
+            .field("multi_dataset", &self.multi_dataset)
             .finish()
     }
 }
@@ -117,7 +122,11 @@ pub fn discover_jpcmci_plus(
 ) -> Result<CpdagDiscoveryResult, AnalysisError> {
     let alg = JpcmciPlus::new()
         .with_fdr_adjustment(params.fdr)
-        .with_constraints(contemporaneous_constraints(params.max_lag, params.alpha))
+        .with_constraints(jpcmci_constraints(
+            params.max_lag,
+            params.alpha,
+            params.multi_dataset.clone(),
+        ))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
     alg.run(data, variables, &mut ws, ctx).map_err(AnalysisError::from)

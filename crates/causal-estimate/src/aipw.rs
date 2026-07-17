@@ -44,6 +44,7 @@ use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
     gather, prepare_propensity_problem, split_by_treatment, trim_of, trim_retained_rows,
 };
+use crate::se::{AnalyticSeKind, cluster_influence_se, require_clusters};
 use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
@@ -80,6 +81,10 @@ pub struct AipwAte {
     pub overlap: OverlapPolicy,
     /// GLM fitting options for the propensity model.
     pub glm_options: GlmOptions,
+    /// Analytic SE kind (IID influence / HC1 scale / cluster).
+    pub se_kind: AnalyticSeKind,
+    /// Optional cluster ids for [`AnalyticSeKind::Cluster`] (aligned to prepared rows).
+    pub cluster_ids: Option<Vec<u32>>,
 }
 
 impl Default for AipwAte {
@@ -97,6 +102,8 @@ impl AipwAte {
             bootstrap_replicates: 200,
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
+            se_kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
         }
     }
 
@@ -190,7 +197,23 @@ impl AipwAte {
         aipw_psi(&t_used, &y_used, &e_used, &workspace.mu0, &workspace.mu1, &mut workspace.psi);
         let n = workspace.psi.len() as f64;
         let ate = workspace.psi.iter().sum::<f64>() / n;
-        let se_analytic = sample_std(&workspace.psi) / n.sqrt();
+        let se_analytic = match self.se_kind {
+            AnalyticSeKind::Homoskedastic => sample_std(&workspace.psi) / n.sqrt(),
+            AnalyticSeKind::Hc1 => {
+                let se0 = sample_std(&workspace.psi) / n.sqrt();
+                se0 * (n / (n - 1.0).max(1.0)).sqrt()
+            }
+            AnalyticSeKind::Cluster => {
+                let groups_full = require_clusters(&self.cluster_ids, problem.nrows)?;
+                match &retained {
+                    Some(idx) => {
+                        let g: Vec<u32> = idx.iter().map(|&i| groups_full[i]).collect();
+                        cluster_influence_se(&workspace.psi, &g)
+                    }
+                    None => cluster_influence_se(&workspace.psi, groups_full),
+                }
+            }
+        };
 
         let boot = if self.bootstrap_replicates == 0 {
             None

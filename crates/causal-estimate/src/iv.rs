@@ -28,11 +28,15 @@ use causal_core::{
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
-use causal_stats::{FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx, invert_square};
+use causal_stats::{
+    FaerBackend, LeastSquaresWorkspace, SandwichKind, coefficient_covariance, fit_2sls, form_xtx,
+    invert_square,
+};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
+use crate::se::{AnalyticSeKind, cluster_influence_se, require_clusters};
 use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
@@ -175,6 +179,10 @@ pub struct WaldIv {
     pub bootstrap_replicates: u32,
     /// Overlap policy (must be [`OverlapPolicy::ExplicitOverride`]).
     pub overlap: OverlapPolicy,
+    /// Analytic SE kind (default: delta-method on Y arms).
+    pub se_kind: AnalyticSeKind,
+    /// Optional cluster ids for [`AnalyticSeKind::Cluster`] (length = prepared `nrows`).
+    pub cluster_ids: Option<Vec<u32>>,
 }
 
 impl Default for WaldIv {
@@ -187,7 +195,12 @@ impl WaldIv {
     /// Default: 200 bootstrap replicates, explicit overlap override.
     #[must_use]
     pub fn new() -> Self {
-        Self { bootstrap_replicates: 200, overlap: OverlapPolicy::ExplicitOverride }
+        Self {
+            bootstrap_replicates: 200,
+            overlap: OverlapPolicy::ExplicitOverride,
+            se_kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
+        }
     }
 
     /// Prepare the instrument/outcome/treatment design.
@@ -230,7 +243,27 @@ impl WaldIv {
 
         let wald = wald_ratio(&z, &problem.treatment, &problem.outcome)?;
         let ate = wald.ratio * problem.treatment_delta;
-        let se_analytic = wald.se * problem.treatment_delta.abs();
+        let se_unit = match self.se_kind {
+            AnalyticSeKind::Homoskedastic => wald.se,
+            AnalyticSeKind::Hc1 => wald_influence_se(
+                &z,
+                &problem.treatment,
+                &problem.outcome,
+                wald.ratio,
+                None,
+            )?,
+            AnalyticSeKind::Cluster => {
+                let groups = require_clusters(&self.cluster_ids, problem.nrows)?;
+                wald_influence_se(
+                    &z,
+                    &problem.treatment,
+                    &problem.outcome,
+                    wald.ratio,
+                    Some(groups),
+                )?
+            }
+        };
+        let se_analytic = se_unit * problem.treatment_delta.abs();
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -334,6 +367,71 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
     Ok(WaldResult { ratio, se })
 }
 
+/// Influence-function SE for the Wald ratio `(ȳ₁−ȳ₀)/(t̄₁−t̄₀)`.
+///
+/// Per-row score for the ratio uses the IF of a ratio of mean contrasts. With optional
+/// clustering, scores are fed to [`cluster_influence_se`].
+fn wald_influence_se(
+    z: &[f64],
+    t: &[f64],
+    y: &[f64],
+    ratio: f64,
+    groups: Option<&[u32]>,
+) -> Result<f64, EstimationError> {
+    let n = z.len();
+    let (mut n1, mut n0) = (0.0, 0.0);
+    let (mut sy1, mut sy0, mut st1, mut st0) = (0.0, 0.0, 0.0, 0.0);
+    for i in 0..n {
+        if z[i] > 0.5 {
+            n1 += 1.0;
+            sy1 += y[i];
+            st1 += t[i];
+        } else {
+            n0 += 1.0;
+            sy0 += y[i];
+            st0 += t[i];
+        }
+    }
+    if n1 < 1.0 || n0 < 1.0 {
+        return Err(EstimationError::data_msg("Wald IV requires both instrument arms"));
+    }
+    let mean_y1 = sy1 / n1;
+    let mean_y0 = sy0 / n0;
+    let mean_t1 = st1 / n1;
+    let mean_t0 = st0 / n0;
+    let dy = mean_y1 - mean_y0;
+    let dt = mean_t1 - mean_t0;
+    if dt.abs() < 1e-10 {
+        return Err(EstimationError::stats_msg("degenerate first stage"));
+    }
+    // ψ_i for ratio r = dy/dt. Linearize: (ψ_dy − r ψ_dt) / dt.
+    // For Z=1: contrib to dy is (y−ȳ₁)·(n/n1) style → use indicator-scaled IF:
+    // ψ_dy,i = 1{Z=1}(y−ȳ₁)/(n1/n) − 1{Z=0}(y−ȳ₀)/(n0/n) = n(…)
+    // Simpler: ψ_dy,i = n · (1{Z=1}/n1 · (y−ȳ₁) − 1{Z=0}/n0 · (y−ȳ₀)) but mean of that is 0.
+    // Equivalent unit-level scores with E[ψ]=0:
+    let mut psi = vec![0.0; n];
+    for i in 0..n {
+        let (psi_dy, psi_dt) = if z[i] > 0.5 {
+            ((y[i] - mean_y1) * (n as f64 / n1), (t[i] - mean_t1) * (n as f64 / n1))
+        } else {
+            (-(y[i] - mean_y0) * (n as f64 / n0), -(t[i] - mean_t0) * (n as f64 / n0))
+        };
+        psi[i] = (psi_dy - ratio * psi_dt) / dt;
+    }
+    let _ = dy;
+    Ok(match groups {
+        None => {
+            // HC1-ish: sample SD of ψ / √n (Bessel).
+            sample_std_psi(&psi) / (n as f64).sqrt()
+        }
+        Some(g) => cluster_influence_se(&psi, g),
+    })
+}
+
+fn sample_std_psi(values: &[f64]) -> f64 {
+    crate::util::sample_std(values)
+}
+
 // ---------------------------------------------------------------------------------------------
 // Two-stage least squares
 // ---------------------------------------------------------------------------------------------
@@ -360,6 +458,10 @@ pub struct TwoStageLeastSquares {
     pub bootstrap_replicates: u32,
     /// Overlap policy (must be [`OverlapPolicy::ExplicitOverride`]).
     pub overlap: OverlapPolicy,
+    /// Analytic SE kind.
+    pub se_kind: AnalyticSeKind,
+    /// Optional cluster ids for [`AnalyticSeKind::Cluster`].
+    pub cluster_ids: Option<Vec<u32>>,
 }
 
 impl Default for TwoStageLeastSquares {
@@ -376,6 +478,8 @@ impl TwoStageLeastSquares {
             backend: FaerBackend,
             bootstrap_replicates: 200,
             overlap: OverlapPolicy::ExplicitOverride,
+            se_kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
         }
     }
 
@@ -422,13 +526,46 @@ impl TwoStageLeastSquares {
         .map_err(stats_err)?;
         let coef = fit.second_stage.coefficients[0];
         let ate = coef * problem.treatment_delta;
-        let se_coef = analytic_se_2sls(
-            &fit.fitted_endogenous,
-            &problem.exogenous_matrix,
-            problem.nrows,
-            problem.x_ncols,
-            fit.structural_rss,
-        );
+        let se_coef = match self.se_kind {
+            AnalyticSeKind::Homoskedastic => analytic_se_2sls(
+                &fit.fitted_endogenous,
+                &problem.exogenous_matrix,
+                problem.nrows,
+                problem.x_ncols,
+                fit.structural_rss,
+            ),
+            AnalyticSeKind::Hc1 | AnalyticSeKind::Cluster => {
+                let ncols = 1 + problem.x_ncols;
+                let mut xhat = vec![0.0; problem.nrows * ncols];
+                xhat[..problem.nrows].copy_from_slice(&fit.fitted_endogenous);
+                xhat[problem.nrows..problem.nrows * ncols]
+                    .copy_from_slice(&problem.exogenous_matrix[..problem.nrows * problem.x_ncols]);
+                let cov = match self.se_kind {
+                    AnalyticSeKind::Hc1 => coefficient_covariance(
+                        &xhat,
+                        problem.nrows,
+                        ncols,
+                        &fit.structural_residuals,
+                        SandwichKind::Hc1,
+                    ),
+                    AnalyticSeKind::Cluster => {
+                        let groups = require_clusters(&self.cluster_ids, problem.nrows)?;
+                        coefficient_covariance(
+                            &xhat,
+                            problem.nrows,
+                            ncols,
+                            &fit.structural_residuals,
+                            SandwichKind::Cluster { groups },
+                        )
+                    }
+                    AnalyticSeKind::Homoskedastic => unreachable!(),
+                };
+                match cov {
+                    Ok(cov) => cov[0].max(0.0).sqrt(),
+                    Err(_) => f64::NAN,
+                }
+            }
+        };
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
         let boot = if self.bootstrap_replicates == 0 {

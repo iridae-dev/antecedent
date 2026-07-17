@@ -29,6 +29,9 @@ impl Default for TemporalConstraints {
 }
 
 /// How contemporaneous links may relate across environments (J-PCMCI+).
+///
+/// Retained for API compatibility. Günther pooled search does not use this enum
+/// to drive pooling; link assumptions come from node roles instead.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum CrossEnvLinkAssumption {
     /// No cross-environment contemporaneous assumption (default).
@@ -40,22 +43,161 @@ pub enum CrossEnvLinkAssumption {
     EnvironmentSpecificContemporaneous,
 }
 
-/// Multi-dataset / context-aware discovery constraints .
-#[derive(Clone, Debug, Default)]
+/// Observed context kind for J-PCMCI+ (Günther et al.).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+pub enum ContextKind {
+    /// Constant within an environment; varies across datasets (spatial context).
+    #[default]
+    Space,
+    /// Shared across environments; may vary in time (temporal context).
+    Time,
+}
+
+/// J-PCMCI+ node role used for Günther link assumptions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum JpcmciNodeRole {
+    /// Ordinary system variable.
+    System,
+    /// Observed spatial context.
+    SpaceContext,
+    /// Observed temporal context.
+    TimeContext,
+    /// Synthetic space (dataset) dummy column.
+    SpaceDummy,
+    /// Synthetic time dummy column.
+    TimeDummy,
+}
+
+impl JpcmciNodeRole {
+    /// Whether this role is any observed context.
+    #[must_use]
+    pub const fn is_observed_context(self) -> bool {
+        matches!(self, Self::SpaceContext | Self::TimeContext)
+    }
+
+    /// Whether this role is any dummy.
+    #[must_use]
+    pub const fn is_dummy(self) -> bool {
+        matches!(self, Self::SpaceDummy | Self::TimeDummy)
+    }
+
+    /// Whether this role is exogenous to the system (context or dummy).
+    #[must_use]
+    pub const fn is_exogenous(self) -> bool {
+        self.is_observed_context() || self.is_dummy()
+    }
+
+    /// Whether lagged parents of this node are allowed (only time context among exogenous).
+    #[must_use]
+    pub const fn allows_lagged_as_source(self) -> bool {
+        matches!(self, Self::System | Self::TimeContext)
+    }
+}
+
+/// Multi-dataset / context-aware discovery constraints (J-PCMCI+).
+#[derive(Clone, Debug)]
 pub struct MultiDatasetConstraints {
-    /// System variables that act as context (appear as [`NodeRef::Context`] in output graphs).
+    /// Observed context variables (appear as [`causal_graph::NodeRef::Context`] in output).
     pub context_variables: Arc<[VariableId]>,
-    /// Cross-environment link assumptions for pooled CI.
+    /// Optional kind per context variable; missing entries default to [`ContextKind::Space`].
+    pub context_kinds: Arc<[(VariableId, ContextKind)]>,
+    /// Synthetic space-dummy variable ids (filled by the J-PCMCI+ runner).
+    pub space_dummy_variables: Arc<[VariableId]>,
+    /// Synthetic time-dummy variable ids (filled by the J-PCMCI+ runner).
+    pub time_dummy_variables: Arc<[VariableId]>,
+    /// When true (and ≥2 envs), synthesize a space dummy.
+    pub include_space_dummy: bool,
+    /// When true, synthesize a time-index dummy.
+    pub include_time_dummy: bool,
+    /// Cross-environment link assumptions (API compatibility; unused by Günther path).
     pub cross_env: CrossEnvLinkAssumption,
-    /// When true, pool CI evidence across environments for lagged system links.
+    /// Legacy intersection-pool flag; ignored by Günther pooled search.
     pub pool_lagged_ci: bool,
 }
 
+impl Default for MultiDatasetConstraints {
+    fn default() -> Self {
+        Self {
+            context_variables: Arc::from([]),
+            context_kinds: Arc::from([]),
+            space_dummy_variables: Arc::from([]),
+            time_dummy_variables: Arc::from([]),
+            include_space_dummy: true,
+            include_time_dummy: false,
+            cross_env: CrossEnvLinkAssumption::default(),
+            pool_lagged_ci: true,
+        }
+    }
+}
+
 impl MultiDatasetConstraints {
-    /// Whether `v` is marked as a context variable.
+    /// Whether `v` is marked as an observed context variable.
     #[must_use]
     pub fn is_context(&self, v: VariableId) -> bool {
         self.context_variables.iter().any(|&x| x == v)
+    }
+
+    /// Whether `v` is a synthetic dummy.
+    #[must_use]
+    pub fn is_dummy(&self, v: VariableId) -> bool {
+        self.space_dummy_variables.iter().any(|&x| x == v)
+            || self.time_dummy_variables.iter().any(|&x| x == v)
+    }
+
+    /// Kind of an observed context variable (defaults to space).
+    #[must_use]
+    pub fn context_kind(&self, v: VariableId) -> ContextKind {
+        self.context_kinds
+            .iter()
+            .find(|(id, _)| *id == v)
+            .map(|(_, k)| *k)
+            .unwrap_or(ContextKind::Space)
+    }
+
+    /// Resolve the J-PCMCI+ role of `v` (system if unmarked).
+    #[must_use]
+    pub fn role_of(&self, v: VariableId) -> JpcmciNodeRole {
+        if self.space_dummy_variables.iter().any(|&x| x == v) {
+            return JpcmciNodeRole::SpaceDummy;
+        }
+        if self.time_dummy_variables.iter().any(|&x| x == v) {
+            return JpcmciNodeRole::TimeDummy;
+        }
+        if self.is_context(v) {
+            return match self.context_kind(v) {
+                ContextKind::Space => JpcmciNodeRole::SpaceContext,
+                ContextKind::Time => JpcmciNodeRole::TimeContext,
+            };
+        }
+        JpcmciNodeRole::System
+    }
+
+    /// Günther / tigramite link-assumption: whether `link` is forbidden.
+    ///
+    /// Rules (exogenous context/dummy → system only; no context↔context / dummy children;
+    /// space context/dummy and time dummy are contemporaneous-only sources).
+    #[must_use]
+    pub fn gunther_forbids(&self, link: LaggedLink) -> bool {
+        let src = self.role_of(link.source);
+        let tgt = self.role_of(link.target);
+        let lag = link.source_lag.raw();
+
+        // No edges into exogenous nodes.
+        if tgt.is_exogenous() {
+            return true;
+        }
+        // No exogenous ↔ exogenous (context/dummy among themselves).
+        if src.is_exogenous() && tgt.is_exogenous() {
+            return true;
+        }
+        // Exogenous → system only; already covered if tgt is system.
+        if src.is_exogenous() {
+            // Lagged sources only allowed for time context.
+            if lag > 0 && !src.allows_lagged_as_source() {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -99,10 +241,13 @@ impl Default for DiscoveryConstraints {
 }
 
 impl DiscoveryConstraints {
-    /// Whether a link is forbidden by the explicit forbidden list.
+    /// Whether a link is forbidden by the explicit forbidden list, tiers, or
+    /// Günther multi-dataset link assumptions.
     #[must_use]
     pub fn is_forbidden(&self, link: LaggedLink) -> bool {
         self.forbidden.iter().any(|f| *f == link)
+            || self.tier_forbids(link.source, link.target)
+            || self.multi_dataset.gunther_forbids(link)
     }
 
     /// Whether a link is required.
@@ -172,7 +317,7 @@ impl DiscoveryConstraints {
                     target,
                     target_lag: Lag::CONTEMPORANEOUS,
                 };
-                if self.is_forbidden(link) || self.tier_forbids(v, target) {
+                if self.is_forbidden(link) {
                     continue;
                 }
                 if v == target && lag == 0 {
@@ -207,7 +352,7 @@ impl DiscoveryConstraints {
         let mut candidates = BitSet::with_len(catalog.len());
         for idx in 0..catalog.len() {
             let link = catalog.link_at(idx);
-            let banned = self.is_forbidden(link) || self.tier_forbids(link.source, link.target);
+            let banned = self.is_forbidden(link);
             if banned {
                 forbidden.insert(DenseNodeId::from_raw(idx as u32));
             } else {
@@ -388,11 +533,46 @@ mod tests {
                 context_variables: Arc::from([ctx]),
                 cross_env: CrossEnvLinkAssumption::SharedContemporaneousSkeleton,
                 pool_lagged_ci: true,
+                ..MultiDatasetConstraints::default()
             },
             ..DiscoveryConstraints::default()
         };
         assert!(c.multi_dataset.is_context(ctx));
         assert!(!c.multi_dataset.is_context(VariableId::from_raw(0)));
+        assert_eq!(c.multi_dataset.role_of(ctx), JpcmciNodeRole::SpaceContext);
         c.validate().unwrap();
+    }
+
+    #[test]
+    fn gunther_forbids_system_to_context_and_lagged_space_dummy() {
+        let sys = VariableId::from_raw(0);
+        let ctx = VariableId::from_raw(1);
+        let dummy = VariableId::from_raw(2);
+        let md = MultiDatasetConstraints {
+            context_variables: Arc::from([ctx]),
+            space_dummy_variables: Arc::from([dummy]),
+            ..MultiDatasetConstraints::default()
+        };
+        let into_ctx = LaggedLink {
+            source: sys,
+            source_lag: Lag::CONTEMPORANEOUS,
+            target: ctx,
+            target_lag: Lag::CONTEMPORANEOUS,
+        };
+        assert!(md.gunther_forbids(into_ctx));
+        let lagged_dummy = LaggedLink {
+            source: dummy,
+            source_lag: Lag::from_raw(1),
+            target: sys,
+            target_lag: Lag::CONTEMPORANEOUS,
+        };
+        assert!(md.gunther_forbids(lagged_dummy));
+        let ok = LaggedLink {
+            source: dummy,
+            source_lag: Lag::CONTEMPORANEOUS,
+            target: sys,
+            target_lag: Lag::CONTEMPORANEOUS,
+        };
+        assert!(!md.gunther_forbids(ok));
     }
 }
