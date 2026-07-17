@@ -1,0 +1,11 @@
+{
+  "n_obs": 30,
+  "n_particles": 64,
+  "seed": 99,
+  "obs_seed": 7,
+  "a": 0.9,
+  "process_std": 0.3,
+  "obs_std": 0.5,
+  "stable_float_tol": 1e-10,
+  "notes": "Stepwise ParticleFilterState matches run_batch under CRN."
+}

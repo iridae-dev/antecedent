@@ -59,5 +59,5 @@ notes = "rank_designs / new_causal_state / apply_state_event + Python surfaces"
 
 [[capabilities]]
 id = "design_state.incremental.particle_graph_score"
-status = "pending"
-notes = "Particle-filter state and full graph-score incremental caches — TODO.md item 8; OLS/streaming cov shipped"
+status = "done"
+notes = "Particle-filter LGSSM state + Gaussian BIC LocalScoreCache with delta_score; OLS/streaming cov/lag keys already shipped"

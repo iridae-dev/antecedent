@@ -258,6 +258,18 @@ impl CausalRng {
         Self { state: seed ^ 0x9E37_79B9_7F4A_7C15 }
     }
 
+    /// Restore from a previously exported [`Self::state`].
+    #[must_use]
+    pub const fn from_state(state: u64) -> Self {
+        Self { state }
+    }
+
+    /// Opaque stream state for checkpoint / CRN continuation.
+    #[must_use]
+    pub const fn state(&self) -> u64 {
+        self.state
+    }
+
     /// Next `u64` from the stream.
     #[must_use]
     pub fn next_u64(&mut self) -> u64 {

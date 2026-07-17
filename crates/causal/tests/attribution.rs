@@ -143,3 +143,56 @@ fn mechanism_change_detect_conformance() {
     let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
     assert!(y.changed, "{y:?}");
 }
+
+#[test]
+fn mechanism_change_kernel_conformance() {
+    let expected: Value =
+        serde_json::from_str(&fs::read_to_string(fixture("mechanism_change_kernel_shift")).unwrap())
+            .unwrap();
+    let (model, data) = two_period_chain();
+    let q = MechanismChangeQuery::new(
+        [VariableId::from_raw(0), VariableId::from_raw(1)],
+        PopulationSelector::TimeRange { start: 0, end: 40 },
+        PopulationSelector::TimeRange { start: 40, end: 80 },
+        expected["significance_level"].as_f64().unwrap(),
+        10,
+    );
+    let dets = mechanism_change_detection(
+        &model,
+        &data,
+        &q,
+        MechanismChangeMethod::KernelTwoSample,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
+    let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
+    assert!(y.changed, "{y:?}");
+    assert_eq!(&*y.method, expected["method"].as_str().unwrap());
+}
+
+#[test]
+fn mechanism_change_change_point_conformance() {
+    let expected: Value = serde_json::from_str(
+        &fs::read_to_string(fixture("mechanism_change_change_point")).unwrap(),
+    )
+    .unwrap();
+    let (model, data) = two_period_chain();
+    let q = MechanismChangeQuery::new(
+        [VariableId::from_raw(0), VariableId::from_raw(1)],
+        PopulationSelector::TimeRange { start: 0, end: 40 },
+        PopulationSelector::TimeRange { start: 40, end: 80 },
+        expected["significance_level"].as_f64().unwrap(),
+        10,
+    );
+    let dets = mechanism_change_detection(
+        &model,
+        &data,
+        &q,
+        MechanismChangeMethod::ChangePoint,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
+    let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
+    assert!(y.changed, "{y:?}");
+    assert_eq!(&*y.method, expected["method"].as_str().unwrap());
+}

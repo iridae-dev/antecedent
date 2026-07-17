@@ -9,7 +9,10 @@ use causal_data::{TableView, TabularData};
 use causal_model::{
     CompiledCausalModel, MechanismRegistry, ParentBatch, SelectionPolicy, infer_noise_column,
 };
-use causal_stats::{classifier_two_sample, mean_diff_two_sample, residual_likelihood_ratio};
+use causal_stats::{
+    change_point_two_sample, classifier_two_sample, kernel_two_sample, mean_diff_two_sample,
+    residual_likelihood_ratio,
+};
 
 use crate::error::AttributionError;
 use crate::population::{resolve_rows, subset_table};
@@ -25,6 +28,10 @@ pub enum MechanismChangeMethod {
     MeanDiff,
     /// Classifier / two-sample proxy on residuals.
     ClassifierTwoSample,
+    /// Kernel two-sample (MMD² + RBF) on residuals.
+    KernelTwoSample,
+    /// Known-split change-point test on concatenated baseline→comparison residuals.
+    ChangePoint,
 }
 
 /// Detect which mechanisms differ between baseline and comparison populations.
@@ -81,6 +88,21 @@ pub fn detect_mechanism_changes(
                 let rc = residuals(&base_model, &comparison, target)?;
                 let (s, p) = classifier_two_sample(&rb, &rc)?;
                 (s, p, "classifier_two_sample")
+            }
+            MechanismChangeMethod::KernelTwoSample => {
+                let rb = residuals(&base_model, &baseline, target)?;
+                let rc = residuals(&base_model, &comparison, target)?;
+                let seed = 0x_4E12_A001u64
+                    .wrapping_add(target.as_usize() as u64)
+                    .wrapping_mul(0x9E37_79B9);
+                let (s, p) = kernel_two_sample(&rb, &rc, seed)?;
+                (s, p, "kernel_two_sample")
+            }
+            MechanismChangeMethod::ChangePoint => {
+                let rb = residuals(&base_model, &baseline, target)?;
+                let rc = residuals(&base_model, &comparison, target)?;
+                let (s, p) = change_point_two_sample(&rb, &rc)?;
+                (s, p, "change_point")
             }
         };
         out.push(MechanismChangeDetection {
@@ -195,5 +217,98 @@ mod tests {
         .unwrap();
         let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
         assert!(y.changed, "y should be flagged changed: {y:?}");
+    }
+
+    fn two_period_data() -> (CompiledCausalModel, TabularData) {
+        let n = 80usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut xv = Vec::new();
+        let mut yv = Vec::new();
+        for i in 0..n {
+            let x = (i % 40) as f64 * 0.1;
+            xv.push(x);
+            yv.push(if i < 40 { 1.0 + 2.0 * x } else { 6.0 + 2.0 * x });
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let model = CompiledCausalModel::compile(g).unwrap();
+        (model, data)
+    }
+
+    #[test]
+    fn kernel_two_sample_flags_y_shift() {
+        let (model, data) = two_period_data();
+        let q = MechanismChangeQuery::new(
+            [VariableId::from_raw(0), VariableId::from_raw(1)],
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+            0.05,
+            10,
+        );
+        let dets = detect_mechanism_changes(
+            &model,
+            &data,
+            &q,
+            MechanismChangeMethod::KernelTwoSample,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
+        assert!(y.changed, "y should be flagged changed: {y:?}");
+        assert_eq!(&*y.method, "kernel_two_sample");
+    }
+
+    #[test]
+    fn change_point_flags_y_shift() {
+        let (model, data) = two_period_data();
+        let q = MechanismChangeQuery::new(
+            [VariableId::from_raw(0), VariableId::from_raw(1)],
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+            0.05,
+            10,
+        );
+        let dets = detect_mechanism_changes(
+            &model,
+            &data,
+            &q,
+            MechanismChangeMethod::ChangePoint,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
+        assert!(y.changed, "y should be flagged changed: {y:?}");
+        assert_eq!(&*y.method, "change_point");
     }
 }

@@ -15,7 +15,9 @@
 
 pub mod error;
 pub mod event;
+pub mod graph_score;
 pub mod invalidation;
+pub mod particle_filter;
 pub mod retention;
 pub mod state;
 pub mod store;
@@ -23,7 +25,12 @@ pub mod suff_stats;
 
 pub use error::StateError;
 pub use event::StateEvent;
+pub use graph_score::{
+    GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache, ParentSetOp,
+    full_graph_score,
+};
 pub use invalidation::{InvalidationEntry, InvalidationLog, InvalidationTarget};
+pub use particle_filter::{LgssmParams, ParticleFilterState};
 pub use retention::RetentionPolicy;
 pub use state::CausalState;
 pub use store::{

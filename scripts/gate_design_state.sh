@@ -40,6 +40,7 @@ EVIDENCE = {
     "design_state.streaming_cov": "crates/causal-state/src/suff_stats.rs",
     "design_state.cache_budget": "crates/causal-state/src/store.rs",
     "design_state.facade": "crates/causal/tests/design_state.rs",
+    "design_state.incremental.particle_graph_score": "crates/causal-state/src/graph_score.rs",
 }
 
 missing = []
@@ -59,6 +60,8 @@ for c in caps(text):
 for path in [
     "conformance/design_state/rank_candidates_eig/expected.json",
     "conformance/design_state/incremental_ols_match/expected.json",
+    "conformance/design_state/incremental_graph_score_match/expected.json",
+    "conformance/design_state/incremental_particle_filter_match/expected.json",
     "crates/causal-design/benches/design_rank.rs",
     "crates/causal-state/benches/state_append.rs",
     "benches/baselines/design_state.md",
@@ -66,6 +69,7 @@ for path in [
     "adr/0016-design-state.md",
     "provenance/design.eig.toml",
     "provenance/state.incremental_ols.toml",
+    "provenance/state.incremental.particle_graph_score.toml",
     "TODO.md",
 ]:
     if not (root / path).exists():

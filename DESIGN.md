@@ -1777,12 +1777,9 @@ Compare conditional mechanisms between environments/regimes. **Shipped detectors
 
 - likelihood-ratio or mean-difference proxies;
 - classifier two-sample tests;
-- posterior parameter or predictive differences where a posterior is available.
-
-**Planned extensions** (`TODO.md`):
-
-- kernel two-sample tests;
-- change-point models for temporal mechanisms.
+- posterior parameter or predictive differences where a posterior is available;
+- kernel two-sample tests (MMD² with RBF on residuals);
+- change-point models for temporal mechanisms (known-split Gaussian LR; max-CUSUM scan).
 
 Detection and causal attribution are separate. A changed mechanism is not necessarily responsible for the target outcome change.
 
@@ -2012,8 +2009,8 @@ Incremental algorithms may maintain:
 - sufficient statistics for linear models (**shipped**);
 - streaming covariance matrices (**shipped**);
 - cached lagged sample indexes (**shipped**);
-- particle-filter state (**planned** — `TODO.md`);
-- graph-score caches (**planned** — `TODO.md`);
+- particle-filter state (**shipped** — bootstrap/SIR LGSSM in `causal-state`);
+- graph-score caches (**shipped** — Gaussian BIC local scores with parent-set deltas);
 - rolling mechanism diagnostics.
 
 Caches are versioned, bounded, and reconstructible. Eviction affects performance only, never semantics. Serialized state contains no process handles, thread pools, callbacks, borrowed buffers, or Python objects.
@@ -3190,7 +3187,7 @@ The following decisions are accepted and are no longer open.
 13. **PAG / LPCMCI:** PAG endpoint semantics and LPCMCI orientation inventory (`parity/pag.toml`). (ADR 0013)
 14. **Context / regime effects:** multi-environment and regime handling; RPCMCI uses caller-supplied regime labels (`parity/context.toml`). (ADR 0014)
 15. **Attribution:** Shapley/change/anomaly attribution surface (`parity/attribution.toml`). (ADR 0015)
-16. **Design / state:** experiment-design and incremental-state surface; OLS / streaming cov shipped, particle/graph-score caches planned (`parity/design_state.toml`, `TODO.md`). (ADR 0016)
+16. **Design / state:** experiment-design and incremental-state surface; OLS / streaming cov / particle-filter / graph-score caches shipped (`parity/design_state.toml`). (ADR 0016)
 17. **Release prep:** release-closure inventory, wheel matrix, and gate scripts (`parity/release.toml`, ADR 0017). Package version remains 0.1.0 until an explicit 1.0.0 bump.
 
 Record these decisions as ADRs before dependent code is merged. Changing one requires an explicit superseding ADR and migration or compatibility analysis where applicable.

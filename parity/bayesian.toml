@@ -66,7 +66,7 @@ notes = "causal-model MechanismRegistry + CompiledCausalModel"
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
 status = "pending"
-notes = "Bayesian DAG/DBN posterior search (§13.7) — TODO.md item 5; envelopes over supplied WeightedGraphSamples ship"
+notes = "Bayesian DAG/DBN posterior search (§13.7) — TODO.md item 3; envelopes over supplied WeightedGraphSamples ship"
 
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"

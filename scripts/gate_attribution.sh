@@ -34,6 +34,8 @@ EVIDENCE = {
     "attribution.distribution_change": "crates/causal-attribution/src/distribution_change.rs",
     "attribution.distribution_change_robust": "crates/causal-attribution/src/robust.rs",
     "attribution.mechanism_change_detection": "crates/causal-attribution/src/mechanism_change.rs",
+    "attribution.mechanism_change_kernel": "crates/causal-stats/src/divergence.rs",
+    "attribution.mechanism_change_change_point": "crates/causal-stats/src/divergence.rs",
     "attribution.unit_change": "crates/causal-attribution/src/unit_change.rs",
     "attribution.path_decompose": "crates/causal-attribution/src/path.rs",
     "attribution.feature_relevance": "crates/causal-attribution/src/feature_relevance.rs",
@@ -58,6 +60,8 @@ for c in caps(text):
 for path in [
     "conformance/attribution/distribution_change_y_shift/expected.json",
     "conformance/attribution/mechanism_change_detect/expected.json",
+    "conformance/attribution/mechanism_change_kernel_shift/expected.json",
+    "conformance/attribution/mechanism_change_change_point/expected.json",
     "crates/causal-attribution/benches/shapley.rs",
     "benches/baselines/shapley.md",
     "parity/attribution.toml",

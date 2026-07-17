@@ -8,6 +8,8 @@ use std::sync::Arc;
 use causal_core::{CacheBudget, CausalQuery, ModelId, QueryId, StateVersion};
 
 use crate::error::StateError;
+use crate::graph_score::LocalScoreCache;
+use crate::particle_filter::ParticleFilterState;
 use crate::retention::RetentionPolicy;
 use crate::suff_stats::{
     LagIndexCacheEntry, LagIndexCacheKey, LinearOlsSuffStats, StreamingCovariance,
@@ -249,4 +251,8 @@ pub struct SuffStatStore {
     pub cov: HashMap<Arc<str>, StreamingCovariance>,
     /// Lag-index cache metadata.
     pub lag_indexes: HashMap<LagIndexCacheKey, LagIndexCacheEntry>,
+    /// Graph local-score caches (keyed by opaque slot name).
+    pub graph_scores: HashMap<Arc<str>, LocalScoreCache>,
+    /// Particle-filter states (keyed by opaque slot name).
+    pub particle_filters: HashMap<Arc<str>, ParticleFilterState>,
 }

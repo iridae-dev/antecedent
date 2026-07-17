@@ -1,0 +1,6 @@
+{
+  "n_rows": 40,
+  "stable_float_tol": 1e-10,
+  "min_delta": 1.0,
+  "notes": "Adding true parent of x1 improves Gaussian BIC; incremental total matches full rebuild."
+}

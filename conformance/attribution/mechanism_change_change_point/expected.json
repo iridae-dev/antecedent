@@ -1,0 +1,6 @@
+{
+  "targets": ["x", "y"],
+  "changed": ["y"],
+  "method": "change_point",
+  "significance_level": 0.05
+}

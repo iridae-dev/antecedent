@@ -28,6 +28,16 @@ status = "done"
 notes = "Detection separate from attribution (LR / mean-diff / classifier proxy)"
 
 [[capabilities]]
+id = "attribution.mechanism_change_kernel"
+status = "done"
+notes = "MMD² RBF kernel two-sample on residuals (DESIGN.md §17.3)"
+
+[[capabilities]]
+id = "attribution.mechanism_change_change_point"
+status = "done"
+notes = "Known-split Gaussian change-point on concatenated residuals (DESIGN.md §17.3)"
+
+[[capabilities]]
 id = "attribution.unit_change"
 status = "done"
 notes = "Per-unit input Shapley vs reference parents"

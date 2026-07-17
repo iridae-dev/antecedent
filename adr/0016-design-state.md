@@ -17,8 +17,8 @@ identification probability, effect-width, decision utility) and an embeddable
   adaptive stop on rank uncertainty, and explicit constraint-violation records
   (never silent drops).
 - `CausalState::apply` invalidates and versions only; callers request
-  `refresh_results`. Incremental OLS / streaming covariance match full
-  recomputation on fixtures.
+  `refresh_results`. Incremental OLS / streaming covariance / graph-score
+  deltas / particle-filter steps match full recomputation on fixtures.
 - Facade + Python bind the same Rust entry points.
 
 ## Consequences

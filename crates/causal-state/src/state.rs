@@ -90,7 +90,11 @@ impl CausalState {
                 self.suff_stats.ols.clear();
                 self.suff_stats.cov.clear();
                 self.suff_stats.lag_indexes.clear();
+                self.suff_stats.graph_scores.clear();
+                self.suff_stats.particle_filters.clear();
                 self.invalidations.push(v, InvalidationTarget::LagIndexes, "replace_data");
+                self.invalidations.push(v, InvalidationTarget::GraphScores, "replace_data");
+                self.invalidations.push(v, InvalidationTarget::ParticleFilters, "replace_data");
             }
             StateEvent::AddGraphEvidence(rec) => {
                 self.graph_evidence.evidence.push(rec);
@@ -182,6 +186,12 @@ impl CausalState {
         self.invalidations.push(v, InvalidationTarget::LagIndexes, reason);
         // Lag indexes become stale on data change; drop metadata.
         self.suff_stats.lag_indexes.clear();
+        // Graph scores are data-dependent; clear until a streaming family exists.
+        self.suff_stats.graph_scores.clear();
+        self.invalidations.push(v, InvalidationTarget::GraphScores, reason);
+        // Particle filters: drop on append (caller re-inits / steps a fresh filter).
+        self.suff_stats.particle_filters.clear();
+        self.invalidations.push(v, InvalidationTarget::ParticleFilters, reason);
     }
 
     fn invalidate_all_results(&mut self, v: StateVersion, reason: &str) {

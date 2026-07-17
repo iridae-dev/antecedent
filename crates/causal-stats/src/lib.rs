@@ -43,7 +43,8 @@ pub use gam::{
     fitted_from_gam, predict_gam,
 };
 pub use divergence::{
-    classifier_two_sample, gaussian_kl, mean_diff_two_sample, mean_var, residual_likelihood_ratio,
+    change_point_known_split, change_point_scan, change_point_two_sample, classifier_two_sample,
+    gaussian_kl, kernel_two_sample, mean_diff_two_sample, mean_var, residual_likelihood_ratio,
     sample_std,
 };
 pub use error::StatsError;

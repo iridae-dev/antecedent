@@ -19,6 +19,10 @@ pub enum InvalidationTarget {
     SuffStat(Arc<str>),
     /// Lag-index cache entries.
     LagIndexes,
+    /// Graph-score cache slots.
+    GraphScores,
+    /// Particle-filter state slots.
+    ParticleFilters,
 }
 
 /// One invalidation record.

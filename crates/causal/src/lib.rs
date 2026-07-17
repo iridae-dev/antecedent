@@ -276,10 +276,12 @@ pub use causal_design::{
 pub use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
 pub use causal_state::{
     CachedResult, CausalState, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
-    GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, InterventionRecord,
-    InvalidationEntry, InvalidationLog, InvalidationTarget, LagIndexCacheEntry, LagIndexCacheKey,
-    LinearOlsSuffStats, ModelRecord, ModelStore, QueryRecord, QueryStore, ResultStore,
-    RetentionPolicy, StateError, StateEvent, StreamingCovariance, SuffStatStore,
+    GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, GraphScoreCacheKey,
+    GraphScoreData, GraphScoreFamily, InterventionRecord, InvalidationEntry, InvalidationLog,
+    InvalidationTarget, LagIndexCacheEntry, LagIndexCacheKey, LgssmParams, LinearOlsSuffStats,
+    LocalScoreCache, ModelRecord, ModelStore, ParentSetOp, ParticleFilterState, QueryRecord,
+    QueryStore, ResultStore, RetentionPolicy, StateError, StateEvent, StreamingCovariance,
+    SuffStatStore, full_graph_score,
 };
 
 #[cfg(test)]
