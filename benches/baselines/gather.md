@@ -5,7 +5,7 @@ Workload: `gather_stride10_n100k` — gather every 10th index from a contiguous
 
 Established: 2026-07-21
 Machine class: Apple M1 Max (arm64), 64 GB
-Policy: default (`portable-optimized` allowed)
+Policy: default (portable-optimized allowed via KernelPolicy)
 Criterion sample size: 50
 
 ## Accepted measurement

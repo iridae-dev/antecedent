@@ -156,6 +156,7 @@ pub fn compile_adjustment_design(
         row_selection: selection,
         contrasts,
         standardization,
+        smooths: Vec::new(),
     })
 }
 
@@ -197,6 +198,7 @@ fn expand_contrast_columns(
             role: DesignColumnRole::Covariate(id),
             contrast_idx: Some(contrast_idx),
             standardization_idx: None,
+            smooth_idx: None,
         });
     }
     Ok(())

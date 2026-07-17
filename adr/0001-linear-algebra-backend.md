@@ -12,6 +12,7 @@ additive and never removes the default `faer` path from conformance testing.
 
 ## Consequences
 
-- `causal-stats` depends on `faer` under the `faer` feature (default).
+- `causal-stats` always depends on `faer` (required, not a feature flag).
 - Callers never take `faer` types as the public causal API surface.
+- Optional BLAS, when added, is an additive feature and never removes `faer`.
 - Backend swaps are measured on designated workloads.

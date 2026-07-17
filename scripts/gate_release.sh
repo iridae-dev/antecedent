@@ -47,7 +47,7 @@ for manifest in ["parity/dowhy.toml", "parity/tigramite.toml"]:
 
 EVIDENCE = {
     "release.parity_closure": "parity/release_deviations.md",
-    "release.graph_dot_json": "crates/causal-io/src/graph_dot.rs",
+    "release.graph_dot_json": "crates/causal-io/src/graph_gml.rs",
     "release.artifact_schema": "crates/causal-io/src/migrate.rs",
     "release.wheel_matrix": ".github/workflows/ci.yml",
     "release.conformance_docs": "docs/conformance/README.md",
@@ -75,10 +75,14 @@ for path in [
     "docs/conformance/README.md",
     "deny.toml",
     "conformance/interchange/graph_dot_json/expected.json",
+    "conformance/interchange/graph_gml_networkx/expected.json",
     "conformance/interchange/artifact_migrate/expected.json",
     "crates/causal-io/src/graph_dot.rs",
+    "crates/causal-io/src/graph_gml.rs",
+    "crates/causal-io/src/graph_networkx.rs",
     "crates/causal-io/src/graph_json.rs",
     "crates/causal-io/src/migrate.rs",
+    "crates/causal-io/src/model_bundle.rs",
     "scripts/generate_conformance_docs.py",
 ]:
     if not (root / path).exists():

@@ -1069,7 +1069,9 @@ Implement:
   Lasso point estimates ship without analytic standard errors — pair/resampling
   bootstrap only (post-selection classical sandwich is invalid; debiased Lasso is a
   separate estimator, not an SE bolt-on). Ridge retains residual sandwich SEs;
-- generalized additive interfaces as optional extensions.
+- generalized additive interfaces (cubic B-spline expansion, backfitting
+  `fit_gam` / `predict_gam`, `DesignColumnMap` smooth provenance — Gaussian
+  identity only; no analytic SEs).
 
 Model fitting is split into design compilation and iterative fitting:
 
@@ -2311,6 +2313,16 @@ Do not:
 
 ## 24. Serialization and artifact format [partial]
 
+Shipped: versioned sectioned container with per-section Zstandard compression
+(Auto/Always/Never), BLAKE3 checksums, format `0.2` (`STABLE_FORMAT`) with
+`0.1→0.2` schema migration, CBOR wire types for graphs/queries/analysis/
+mechanisms/plans/provenance, DOT/GML/JSON and NetworkX-compatible DAG exchange,
+and `model_bundle` encode/decode. See `docs/artifacts.md`.
+
+Remaining: §24.5 memory-map / stream large Arrow sections without full buffer
+load; skip unread sections without materializing payloads; zero-copy write paths
+when Arrow buffers are already shared.
+
 ### 24.1 Container format
 
 Use a versioned sectioned container:
@@ -2997,21 +3009,15 @@ Release gates include:
 **Actual flags today** (not the full roadmap list):
 
 ```toml
-# causal-kernels
-[features]
-default = ["portable-optimized"]
-portable-optimized = []   # portable autovectorized loops; not runtime CPU dispatch
-
 # causal-data
 [features]
 default = ["arrow"]
-arrow = []                # Arrow adapters
-
-# causal-stats
-[features]
-default = ["faer"]
-faer = []                 # dense backend
+arrow = []                # Arrow ingest adapters (library-owned tables remain core)
 ```
+
+`faer` is a required dependency of `causal-stats` (ADR 0001), not a feature.
+Portable-optimized kernels are always compiled into `causal-kernels`; scalar
+selection is runtime-only via `KernelPolicy` (force-scalar / disallow-portable).
 
 Parallelism is hand-rolled `std::thread::scope` coordinated by `ExecutionContext`, not a `rayon`
 feature. Runtime SIMD dispatch (`simd-runtime`) is still planned (§23.2).
@@ -3036,7 +3042,10 @@ plot-data = []
 
 Core semantic types do not change shape based on feature flags. Features add implementations and adapters.
 
-The scalar reference kernels remain available in all builds. Disabling `portable-optimized` (or a future `simd-runtime`) must not select different statistical behavior. Optional `blas` would add a backend and never remove the default `faer` path from conformance testing.
+Scalar reference kernels remain available in all builds and are selected via
+`KernelPolicy`, not by omitting a compile-time feature. A future `simd-runtime`
+must not select different statistical behavior. Optional `blas` would add a
+backend and never remove the required `faer` path from conformance testing.
 
 ## 31. API and performance stability [built]
 

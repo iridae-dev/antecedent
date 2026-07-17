@@ -1,0 +1,12 @@
+{
+  "fixture": "graph_gml_networkx",
+  "expected_node_count": 3,
+  "gml": "graph [\n  directed 1\n  node [ id \"Z\" label \"Z\" ]\n  node [ id \"X\" label \"X\" ]\n  node [ id \"Y\" label \"Y\" ]\n  edge [ source \"Z\" target \"X\" ]\n  edge [ source \"X\" target \"Y\" ]\n]",
+  "networkx_node_link": {
+    "directed": true,
+    "multigraph": false,
+    "graph": {},
+    "nodes": [{"id": "Z"}, {"id": "X"}, {"id": "Y"}],
+    "links": [{"source": "Z", "target": "X"}, {"source": "X", "target": "Y"}]
+  }
+}

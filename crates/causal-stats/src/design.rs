@@ -31,13 +31,20 @@ pub struct DesignColumn {
     pub contrast_idx: Option<usize>,
     /// Index into [`StandardizationRecord::entries`] when this column was standardized.
     pub standardization_idx: Option<usize>,
+    /// Index into [`CompiledDesign::smooths`] when expanded from a smooth term.
+    pub smooth_idx: Option<usize>,
 }
 
 impl DesignColumn {
-    /// Column with role only (no contrast / standardization link).
+    /// Column with role only (no contrast / standardization / smooth link).
     #[must_use]
     pub const fn from_role(role: DesignColumnRole) -> Self {
-        Self { role, contrast_idx: None, standardization_idx: None }
+        Self {
+            role,
+            contrast_idx: None,
+            standardization_idx: None,
+            smooth_idx: None,
+        }
     }
 }
 
@@ -137,6 +144,23 @@ impl DesignColumnMap {
         self.columns = Arc::from(cols);
         self
     }
+
+    /// Attach smooth indexes from recorded smooths (`column_range` → smooth index).
+    #[must_use]
+    pub fn with_smooth_links(mut self, smooths: &[RecordedSmooth]) -> Self {
+        let mut cols = self.columns.as_ref().to_vec();
+        for c in &mut cols {
+            c.smooth_idx = None;
+        }
+        for (si, smooth) in smooths.iter().enumerate() {
+            let (start, end) = smooth.column_range;
+            for col in cols.iter_mut().take(end).skip(start) {
+                col.smooth_idx = Some(si);
+            }
+        }
+        self.columns = Arc::from(cols);
+        self
+    }
 }
 
 impl From<Vec<DesignColumn>> for DesignColumnMap {
@@ -188,6 +212,30 @@ pub struct RecordedContrast {
     pub matrix: Arc<[f64]>,
 }
 
+/// Spline / smooth basis kind recorded on a compiled additive design.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum BasisKind {
+    /// Cubic B-spline basis.
+    CubicBSpline,
+}
+
+/// Provenance for one smooth term expanded into design columns (DESIGN.md §11.2).
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecordedSmooth {
+    /// Source covariate variable (when known).
+    pub variable: Option<VariableId>,
+    /// Basis family used for expansion.
+    pub basis: BasisKind,
+    /// Knot sequence used at expansion (including boundary knots).
+    pub knots: Arc<[f64]>,
+    /// Ridge penalty λ applied to basis coefficients within this smooth.
+    pub lambda: f64,
+    /// Half-open column range `[start, end)` into the design matrix.
+    pub column_range: (usize, usize),
+    /// Number of basis columns (`end - start`).
+    pub n_basis: usize,
+}
+
 /// One column's standardization parameters.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StandardizedColumn {
@@ -223,6 +271,8 @@ pub struct CompiledDesign {
     pub row_selection: Arc<[usize]>,
     /// Categorical contrast provenance (empty for float-only designs).
     pub contrasts: Vec<RecordedContrast>,
+    /// Smooth / spline provenance (empty when no additive terms).
+    pub smooths: Vec<RecordedSmooth>,
     /// Standardization provenance (empty when columns are raw).
     pub standardization: StandardizationRecord,
 }
@@ -287,6 +337,7 @@ impl CompiledDesign {
             outcome: Arc::from(outcome.to_vec()),
             row_selection: selection,
             contrasts: Vec::new(),
+            smooths: Vec::new(),
             standardization: StandardizationRecord::default(),
         })
     }
@@ -294,6 +345,7 @@ impl CompiledDesign {
     /// Attach contrast / standardization provenance without rebuilding the matrix.
     ///
     /// Also refreshes per-column `contrast_idx` / `standardization_idx` links.
+    /// Existing [`Self::smooths`] links are preserved via [`DesignColumnMap::with_smooth_links`].
     #[must_use]
     pub fn with_provenance(
         mut self,
@@ -303,9 +355,24 @@ impl CompiledDesign {
         self.columns = self
             .columns
             .with_contrast_links(&contrasts)
-            .with_standardization_links(&standardization);
+            .with_standardization_links(&standardization)
+            .with_smooth_links(&self.smooths);
         self.contrasts = contrasts;
         self.standardization = standardization;
+        self
+    }
+
+    /// Attach smooth provenance without rebuilding the matrix.
+    ///
+    /// Refreshes per-column `smooth_idx` links; contrast / standardization links are preserved.
+    #[must_use]
+    pub fn with_smooth_provenance(mut self, smooths: Vec<RecordedSmooth>) -> Self {
+        self.columns = self
+            .columns
+            .with_smooth_links(&smooths)
+            .with_contrast_links(&self.contrasts)
+            .with_standardization_links(&self.standardization);
+        self.smooths = smooths;
         self
     }
 

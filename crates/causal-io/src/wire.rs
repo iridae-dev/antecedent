@@ -55,12 +55,14 @@ impl SemanticVersion {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {
-    /// Schema + graph bundle .
+    /// Schema + graph bundle.
     SchemaGraph,
-    /// Identification/estimation analysis trace .
+    /// Identification/estimation analysis trace.
     AnalysisTrace,
-    /// Columnar causal posterior .
+    /// Columnar causal posterior.
     CausalPosterior,
+    /// Fitted / compiled model plus optional analysis sections.
+    ModelBundle,
     /// Other / future.
     Other(String),
 }
@@ -89,17 +91,97 @@ pub struct SectionDescriptor {
     pub compressed_size: u64,
     /// Uncompressed size.
     pub uncompressed_size: u64,
-    /// BLAKE3 checksum of the stored payload bytes.
+    /// BLAKE3 checksum of the stored (on-wire) payload bytes.
     pub blake3: [u8; 32],
     /// Logical schema id.
     pub logical_schema: String,
 }
 
-/// Wire schema: ordered variable names and raw ids.
+/// Format 0.1 skinny schema wire (names only) — used by migration.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SchemaWire {
+pub struct SchemaWireV01 {
     /// Variable names in dense id order.
     pub variable_names: Vec<String>,
+}
+
+/// Scalar element type on the wire.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ScalarTypeWire {
+    /// f64.
+    Float64,
+    /// f32.
+    Float32,
+    /// i64.
+    Int64,
+    /// i32.
+    Int32,
+}
+
+/// Value type on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ValueTypeWire {
+    /// Continuous.
+    Continuous,
+    /// Count.
+    Count,
+    /// Binary.
+    Binary,
+    /// Categorical.
+    Categorical,
+    /// Ordinal.
+    Ordinal,
+    /// Fixed-width vector.
+    Vector {
+        /// Width.
+        width: u32,
+        /// Element type.
+        element: ScalarTypeWire,
+    },
+}
+
+/// Measurement metadata on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MeasurementSpecWire {
+    /// Optional description.
+    pub description: Option<String>,
+    /// Noisy measurement flag.
+    pub noisy: bool,
+}
+
+/// One variable on the wire (format ≥ 0.2).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VariableSchemaWire {
+    /// Dense variable id.
+    pub id: u32,
+    /// Name.
+    pub name: String,
+    /// Value type.
+    pub value_type: ValueTypeWire,
+    /// Role-hint bit mask ([`causal_core::SmallRoleSet::bits`]).
+    pub role_bits: u16,
+    /// Optional unit.
+    pub unit: Option<String>,
+    /// Optional category domain id.
+    pub category_domain: Option<u32>,
+    /// Measurement.
+    pub measurement: MeasurementSpecWire,
+}
+
+/// Full schema wire (format ≥ 0.2).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SchemaWire {
+    /// Variables in dense id order.
+    pub variables: Vec<VariableSchemaWire>,
+}
+
+impl SchemaWire {
+    /// Skinny name list (API convenience / migration helper).
+    #[must_use]
+    pub fn variable_names(&self) -> Vec<String> {
+        self.variables.iter().map(|v| v.name.clone()).collect()
+    }
 }
 
 /// Wire DAG: directed edges by dense variable index.

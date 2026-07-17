@@ -10,9 +10,9 @@ pub mod covariance;
 pub mod design;
 pub mod divergence;
 pub mod error;
-#[cfg(feature = "faer")]
 pub mod faer_backend;
 pub mod fdr;
+pub mod gam;
 pub mod glm;
 pub mod gram;
 pub mod linalg;
@@ -34,15 +34,19 @@ pub use ci::{
 };
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use design::{
-    CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
-    RecordedContrast, StandardizationRecord, StandardizedColumn, standardize_columns,
+    BasisKind, CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
+    RecordedContrast, RecordedSmooth, StandardizationRecord, StandardizedColumn,
+    standardize_columns,
+};
+pub use gam::{
+    GamFit, GamOptions, GamWorkspace, SmoothSpec, compile_additive_design, expand_bspline, fit_gam,
+    fitted_from_gam, predict_gam,
 };
 pub use divergence::{
     classifier_two_sample, gaussian_kl, mean_diff_two_sample, mean_var, residual_likelihood_ratio,
     sample_std,
 };
 pub use error::StatsError;
-#[cfg(feature = "faer")]
 pub use faer_backend::FaerBackend;
 pub use fdr::{
     FdrAdjustment, MultipleTestingMethod, adjust_pvalues, benjamini_hochberg, benjamini_yekutieli,

@@ -10,7 +10,7 @@ notes = "Every required DoWhy/Tigramite item done or intentional_deviation with 
 [[capabilities]]
 id = "release.graph_dot_json"
 status = "done"
-notes = "DOT + JSON DAG interchange in causal-io; GML/NetworkX waived"
+notes = "DOT + JSON + GML + NetworkX DAG interchange in causal-io"
 
 [[capabilities]]
 id = "release.artifact_schema"

@@ -1879,6 +1879,134 @@ fn format_dag_json(
     })
 }
 
+/// Parse GML digraph text; return `(node_count, edges)`.
+#[pyfunction]
+fn parse_dag_gml(gml: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
+    catch_ffi(|| {
+        let dag = causal::dag_from_gml(gml).map_err(py_err)?;
+        let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
+        Ok((wire.node_count as usize, wire.edges))
+    })
+}
+
+/// Emit GML for a numeric DAG.
+#[pyfunction]
+fn format_dag_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
+    catch_ffi(|| {
+        let wire = causal_io::DagWire { node_count, edges };
+        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        causal::dag_to_gml(&dag, None).map_err(py_err)
+    })
+}
+
+/// Parse NetworkX node-link JSON; return `(node_count, edges)`.
+#[pyfunction]
+fn parse_dag_networkx_node_link(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
+    catch_ffi(|| {
+        let dag = causal::dag_from_networkx_node_link(json).map_err(py_err)?;
+        let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
+        Ok((wire.node_count as usize, wire.edges))
+    })
+}
+
+/// Emit NetworkX node-link JSON for a numeric DAG.
+#[pyfunction]
+fn format_dag_networkx_node_link(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
+    catch_ffi(|| {
+        let wire = causal_io::DagWire { node_count, edges };
+        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        causal::dag_to_networkx_node_link(&dag, None).map_err(py_err)
+    })
+}
+
+/// Encode a minimal SCM model bundle (schema names + edges + mechanism slots).
+///
+/// `mechanisms` entries are `(kind, constant|intercept, coeffs|None, sigma|None)`
+/// with `kind` in `{vacant, constant, linear_gaussian}`.
+#[pyfunction]
+fn encode_model_bundle(
+    variable_names: Vec<String>,
+    edges: Vec<(u32, u32)>,
+    mechanisms: Vec<(String, Option<f64>, Option<Vec<f64>>, Option<f64>)>,
+) -> PyResult<Vec<u8>> {
+    catch_ffi(|| {
+        use causal::{CompiledMechanismStore, MechanismSlot};
+        use causal_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
+        use causal_io::{
+            ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire, encode_model_bundle as enc,
+        };
+        use std::sync::Arc;
+
+        let mut b = CausalSchemaBuilder::new();
+        for name in &variable_names {
+            b.add_variable(
+                name.as_str(),
+                ValueType::Continuous,
+                SmallRoleSet::empty(),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .map_err(|e| py_err(IoError::Convert(e.to_string())))?;
+        }
+        let schema = b.build().map_err(|e| py_err(IoError::Convert(e.to_string())))?;
+        let wire = causal_io::DagWire {
+            node_count: u32::try_from(variable_names.len()).unwrap_or(0),
+            edges,
+        };
+        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        let slots: Vec<MechanismSlot> = mechanisms
+            .into_iter()
+            .map(|(kind, constant, coeffs, sigma)| match kind.as_str() {
+                "vacant" => MechanismSlot::Vacant,
+                "constant" => MechanismSlot::Constant { value: constant.unwrap_or(0.0) },
+                "linear_gaussian" => MechanismSlot::LinearGaussian {
+                    intercept: constant.unwrap_or(0.0),
+                    coeffs: Arc::from(coeffs.unwrap_or_default()),
+                    sigma: sigma.unwrap_or(1.0),
+                },
+                _ => MechanismSlot::Vacant,
+            })
+            .collect();
+        let store = CompiledMechanismStore { slots: slots.into() };
+        let art = enc(ModelBundleEncode {
+            header: ModelBundleHeaderWire { model_kind: ModelKindWire::Scm, label: None },
+            schema: &schema,
+            dag: &dag,
+            mechanisms: &store,
+            artifact_id: "py-model-bundle",
+            contrast: None,
+            query: None,
+            analysis_trace: None,
+            identification: None,
+            estimate: None,
+            refutations: None,
+            logical_plan: None,
+            physical_plan: None,
+            performance: None,
+            diagnostics: None,
+            provenance: None,
+            posterior: None,
+            discovery: None,
+        })
+        .map_err(py_err)?;
+        let mut buf = Vec::new();
+        art.write_to(&mut buf).map_err(py_err)?;
+        Ok(buf)
+    })
+}
+
+/// Decode a model bundle; return `(variable_names, edges, n_mechanisms)`.
+#[pyfunction]
+fn decode_model_bundle(bytes: &[u8]) -> PyResult<(Vec<String>, Vec<(u32, u32)>, usize)> {
+    catch_ffi(|| {
+        let bundle = causal::decode_model_bundle_bytes(bytes).map_err(py_err)?;
+        let names = bundle.schema.variables().iter().map(|v| v.name.to_string()).collect();
+        let wire = causal_io::dag_to_wire(&bundle.dag).map_err(py_err)?;
+        Ok((names, wire.edges, bundle.mechanisms.slots.len()))
+    })
+}
+
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1919,6 +2047,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(format_dag_dot, m)?)?;
     m.add_function(wrap_pyfunction!(parse_dag_json, m)?)?;
     m.add_function(wrap_pyfunction!(format_dag_json, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_dag_gml, m)?)?;
+    m.add_function(wrap_pyfunction!(format_dag_gml, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_dag_networkx_node_link, m)?)?;
+    m.add_function(wrap_pyfunction!(format_dag_networkx_node_link, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_model_bundle, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_model_bundle, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
     m.add_class::<PosteriorArtifact>()?;

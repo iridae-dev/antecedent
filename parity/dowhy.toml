@@ -30,7 +30,7 @@ group = "model_and_graph_workflow"
 description = "Graph parsing and validation"
 status = "done"
 owner = "release"
-notes = "DOT+JSON via causal-io; programmatic DAG + CBOR; GML/NetworkX waived (release_deviations)"
+notes = "DOT+JSON+GML+NetworkX via causal-io; programmatic DAG + CBOR"
 
 [[capabilities]]
 id = "dowhy.model_graph.assumptions"

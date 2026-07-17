@@ -12,10 +12,6 @@ readme = "README.md"
 [lints]
 workspace = true
 
-[features]
-default = ["portable-optimized"]
-portable-optimized = []
-
 [dependencies]
 causal-core = { path = "../causal-core" }
 

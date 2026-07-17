@@ -118,6 +118,93 @@ pub fn dag_to_json(
     causal_io::dag_to_json(dag, names).map_err(AnalysisError::from)
 }
 
+/// Parse a GML digraph into a [`causal_graph::Dag`].
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on malformed GML or invalid DAG structure.
+pub fn dag_from_gml(gml: &str) -> Result<causal_graph::Dag, AnalysisError> {
+    causal_io::dag_from_gml(gml).map_err(AnalysisError::from)
+}
+
+/// Serialize a DAG to GML.
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on conversion failure.
+pub fn dag_to_gml(
+    dag: &causal_graph::Dag,
+    names: Option<&[String]>,
+) -> Result<String, AnalysisError> {
+    causal_io::dag_to_gml(dag, names).map_err(AnalysisError::from)
+}
+
+/// Parse NetworkX `node_link_data` JSON into a [`causal_graph::Dag`].
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on malformed JSON or invalid DAG structure.
+pub fn dag_from_networkx_node_link(json: &str) -> Result<causal_graph::Dag, AnalysisError> {
+    causal_io::dag_from_networkx_node_link(json).map_err(AnalysisError::from)
+}
+
+/// Serialize a DAG to NetworkX `node_link_data` JSON.
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on conversion failure.
+pub fn dag_to_networkx_node_link(
+    dag: &causal_graph::Dag,
+    names: Option<&[String]>,
+) -> Result<String, AnalysisError> {
+    causal_io::dag_to_networkx_node_link(dag, names).map_err(AnalysisError::from)
+}
+
+/// Parse NetworkX `adjacency_data` JSON into a [`causal_graph::Dag`].
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on malformed JSON or invalid DAG structure.
+pub fn dag_from_networkx_adjacency(json: &str) -> Result<causal_graph::Dag, AnalysisError> {
+    causal_io::dag_from_networkx_adjacency(json).map_err(AnalysisError::from)
+}
+
+/// Serialize a DAG to NetworkX `adjacency_data` JSON.
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on conversion failure.
+pub fn dag_to_networkx_adjacency(
+    dag: &causal_graph::Dag,
+    names: Option<&[String]>,
+) -> Result<String, AnalysisError> {
+    causal_io::dag_to_networkx_adjacency(dag, names).map_err(AnalysisError::from)
+}
+
+/// Encode a model bundle to durable bytes.
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on IO failures.
+pub fn encode_model_bundle_bytes(
+    input: causal_io::ModelBundleEncode<'_>,
+) -> Result<Vec<u8>, AnalysisError> {
+    let art = causal_io::encode_model_bundle(input).map_err(AnalysisError::from)?;
+    let mut buf = Vec::new();
+    art.write_to(&mut buf).map_err(AnalysisError::from)?;
+    Ok(buf)
+}
+
+/// Decode a model bundle from durable bytes (migrates format if needed).
+///
+/// # Errors
+///
+/// [`AnalysisError::Serialization`] on IO failures.
+pub fn decode_model_bundle_bytes(bytes: &[u8]) -> Result<causal_io::ModelBundle, AnalysisError> {
+    let art = causal_io::read_and_migrate(bytes).map_err(AnalysisError::from)?;
+    causal_io::decode_model_bundle(&art).map_err(AnalysisError::from)
+}
+
 /// Encode a [`causal_estimate::CausalPosterior`] to durable bytes.
 ///
 /// # Errors
@@ -171,11 +258,11 @@ pub use causal_counterfactual::{
 #[allow(deprecated)]
 pub use causal_counterfactual::nested_hard_counterfactual;
 pub use causal_model::{
-    CompiledCausalModel, DoSampleResult, InvertibleStructuralCausalModel, KdeDoSampler,
-    McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismWorkspace,
-    ModelCollection, ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy,
-    StructuralCausalModel, WeightingDoSampler, interventional_mean, sample_interventional,
-    sample_observational,
+    CompiledCausalModel, CompiledMechanismStore, DoSampleResult, InvertibleStructuralCausalModel,
+    KdeDoSampler, McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry,
+    MechanismSlot, MechanismWorkspace, ModelCollection, ModelError, ModelEvaluator,
+    ProbabilisticCausalModel, SelectionPolicy, StructuralCausalModel, WeightingDoSampler,
+    interventional_mean, sample_interventional, sample_observational,
 };
 
 // design / incremental state surfaces.

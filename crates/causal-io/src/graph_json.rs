@@ -34,14 +34,15 @@ impl DagJson {
     ///
     /// Name count ≠ node count.
     pub fn with_schema(mut self, schema: &SchemaWire) -> Result<Self, IoError> {
-        if schema.variable_names.len() != self.node_count as usize {
+        let names = schema.variable_names();
+        if names.len() != self.node_count as usize {
             return Err(IoError::Convert(format!(
                 "variable_names length {} must equal node_count {}",
-                schema.variable_names.len(),
+                names.len(),
                 self.node_count
             )));
         }
-        self.variable_names = Some(schema.variable_names.clone());
+        self.variable_names = Some(names);
         Ok(self)
     }
 

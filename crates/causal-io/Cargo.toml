@@ -14,14 +14,20 @@ workspace = true
 
 [dependencies]
 causal-core = { path = "../causal-core" }
+causal-data = { path = "../causal-data" }
+causal-discovery = { path = "../causal-discovery" }
 causal-estimate = { path = "../causal-estimate" }
+causal-expr = { path = "../causal-expr" }
 causal-graph = { path = "../causal-graph" }
 causal-identify = { path = "../causal-identify" }
+causal-model = { path = "../causal-model" }
 causal-prob = { path = "../causal-prob" }
+causal-validate = { path = "../causal-validate" }
 blake3 = { workspace = true }
 ciborium = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+zstd = { workspace = true }
 
 [dev-dependencies]

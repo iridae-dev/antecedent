@@ -53,6 +53,12 @@ impl ExprId {
 pub struct VarSetId(u32);
 
 impl VarSetId {
+    /// Create from a raw index (deserialization).
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
     /// Raw index.
     #[must_use]
     pub const fn raw(self) -> u32 {
@@ -64,6 +70,20 @@ impl VarSetId {
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct InterventionSetId(u32);
+
+impl InterventionSetId {
+    /// Create from a raw index (deserialization).
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    /// Raw index.
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+}
 
 /// One hard intervention assignment in an interned set.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -113,6 +133,20 @@ impl OutcomeExprId {
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct ExprListId(u32);
+
+impl ExprListId {
+    /// Create from a raw index (deserialization).
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    /// Raw index.
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+}
 
 /// Semantic expression node (no derivation metadata).
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -339,6 +373,24 @@ impl CausalExprArena {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
+    }
+
+    /// Number of interned variable sets (for serialization).
+    #[must_use]
+    pub fn var_set_count(&self) -> usize {
+        self.var_sets.len()
+    }
+
+    /// Number of interned intervention sets (for serialization).
+    #[must_use]
+    pub fn intervention_set_count(&self) -> usize {
+        self.interventions.len()
+    }
+
+    /// Number of interned expression lists (for serialization).
+    #[must_use]
+    pub fn list_count(&self) -> usize {
+        self.lists.len()
     }
 
     /// Build the backdoor adjustment functional for ATE:

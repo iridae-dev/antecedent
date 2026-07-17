@@ -39,6 +39,18 @@ pub enum IoError {
     Io(String),
     /// Graph/schema conversion.
     Convert(String),
+    /// Unknown or unsupported section compression algorithm.
+    UnsupportedCompression {
+        /// Algorithm name from the manifest.
+        algo: String,
+    },
+    /// Section decompression failure.
+    Decompress {
+        /// Section id.
+        section: String,
+        /// Explanation.
+        message: String,
+    },
 }
 
 impl fmt::Display for IoError {
@@ -59,6 +71,12 @@ impl fmt::Display for IoError {
             Self::TooLarge => write!(f, "payload too large"),
             Self::Io(msg) => write!(f, "io error: {msg}"),
             Self::Convert(msg) => write!(f, "convert error: {msg}"),
+            Self::UnsupportedCompression { algo } => {
+                write!(f, "unsupported section compression `{algo}`")
+            }
+            Self::Decompress { section, message } => {
+                write!(f, "decompress section `{section}`: {message}")
+            }
         }
     }
 }

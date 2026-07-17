@@ -32,10 +32,8 @@ Tigramite-style vector-variable grouping inside CI tests is not in 1.0 scope
 
 ## 5. GML / NetworkX string graph interchange
 
-**DOT + JSON** graph import/export is shipped. GML and NetworkX-native string
-interchange listed under DESIGN §IO are **intentional_deviation** for this
-release preparation; programmatic DAG construction and CBOR wire remain
-supported.
+**Shipped.** DOT, JSON, GML, and NetworkX-compatible (`node_link_data` /
+`adjacency_data`) DAG import/export live in `causal-io` alongside CBOR wire.
 
 ## 6. Package version remains 0.1.0
 

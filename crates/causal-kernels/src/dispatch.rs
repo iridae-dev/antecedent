@@ -16,14 +16,15 @@ pub enum KernelImpl {
 }
 
 /// Resolve the implementation for a batch from policy.
+///
+/// Portable-optimized kernels are always compiled in; scalar is selected only
+/// when [`KernelPolicy`] forces it (correctness / debugging).
 #[must_use]
 pub fn select_impl(policy: &KernelPolicy) -> KernelImpl {
     if policy.force_scalar || !policy.allow_portable_optimized {
         KernelImpl::Scalar
-    } else if cfg!(feature = "portable-optimized") {
-        KernelImpl::PortableOptimized
     } else {
-        KernelImpl::Scalar
+        KernelImpl::PortableOptimized
     }
 }
 

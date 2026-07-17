@@ -4,6 +4,7 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use causal_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
@@ -14,22 +15,22 @@ use causal_graph::{Dag, DenseNodeId};
 use causal_io::{
     AnalysisTraceWire, ArtifactKind, ArtifactManifest, CausalPosteriorWire, DerivationStepWire,
     EncodedArtifact, FormatVersion, PosteriorQuantityWire, ProvenanceWire, STABLE_FORMAT,
-    SectionBytes, SemanticVersion, assumptions_to_wire, dag_to_wire, encode_posterior_artifact,
-    from_cbor, migrate_artifact, read_and_migrate, schema_to_wire, section_descriptor, to_cbor,
+    SchemaWire, SchemaWireV01, SectionBytes, SemanticVersion, assumptions_to_wire, dag_to_wire,
+    encode_posterior_artifact, from_cbor, migrate_artifact, read_and_migrate, schema_to_wire,
+    section_descriptor, to_cbor,
 };
 use serde_json::Value;
-use std::sync::Arc;
 
 fn fixture_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/interchange/artifact_migrate")
 }
 
 #[test]
-fn conformance_migrate_three_kinds() {
+fn conformance_migrate_three_kinds_at_stable() {
     let raw = fs::read_to_string(fixture_dir().join("expected.json")).unwrap();
     let v: Value = serde_json::from_str(&raw).unwrap();
     assert_eq!(v["stable_format"]["major"], 0);
-    assert_eq!(v["stable_format"]["minor"], 1);
+    assert_eq!(v["stable_format"]["minor"], 2);
 
     for art in [schema_graph_artifact(), analysis_trace_artifact(), posterior_artifact()] {
         let mut buf = Vec::new();
@@ -42,8 +43,30 @@ fn conformance_migrate_three_kinds() {
             assert_eq!(a.data, b.data);
         }
         let again = migrate_artifact(migrated).unwrap();
-        assert_eq!(again.manifest.format_version, FormatVersion { major: 0, minor: 1 });
+        assert_eq!(again.manifest.format_version, STABLE_FORMAT);
     }
+}
+
+#[test]
+fn conformance_migrate_0_1_schema_to_0_2() {
+    let v01 = SchemaWireV01 { variable_names: vec!["x".into(), "y".into()] };
+    let payload = to_cbor(&v01).unwrap();
+    let art = EncodedArtifact {
+        manifest: ArtifactManifest {
+            format_version: FormatVersion { major: 0, minor: 1 },
+            minimum_reader_version: FormatVersion { major: 0, minor: 1 },
+            artifact_kind: ArtifactKind::SchemaGraph,
+            library_version: SemanticVersion::from_crate_version(VERSION).unwrap(),
+            artifact_id: "v01-schema".into(),
+            sections: vec![section_descriptor("schema", "application/cbor", &payload)],
+            provenance: ProvenanceWire { note: "v01".into() },
+        },
+        sections: vec![SectionBytes { id: "schema".into(), data: payload }],
+    };
+    let migrated = migrate_artifact(art).unwrap();
+    assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
+    let schema: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
+    assert_eq!(schema.variable_names(), vec!["x".to_string(), "y".to_string()]);
 }
 
 fn schema_graph_artifact() -> EncodedArtifact {
@@ -147,5 +170,5 @@ fn wire_round_trip_still_decodes() {
     let mut buf = Vec::new();
     art.write_to(&mut buf).unwrap();
     let migrated = read_and_migrate(buf.as_slice()).unwrap();
-    let _: causal_io::SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
+    let _: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
 }
