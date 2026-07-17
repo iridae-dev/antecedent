@@ -101,9 +101,11 @@ fn lpcmci_chain() {
             <= expected["max_pending_circles"].as_u64().unwrap() as usize
     );
     let rules = expected["orientation_rule_ids"].as_array().unwrap();
-    assert_eq!(rules.len(), 5);
+    assert!(rules.len() >= 5);
     assert!(rules.iter().any(|r| r.as_str() == Some("lpcmci.r2")));
     assert!(rules.iter().any(|r| r.as_str() == Some("lpcmci.r3")));
+    assert!(rules.iter().any(|r| r.as_str() == Some("lpcmci.r8")));
+    assert!(rules.iter().any(|r| r.as_str() == Some("lpcmci.r10")));
     if expected["require_true_edge_subset"].as_bool() == Some(true) {
         let recovered: std::collections::BTreeSet<(u32, u32, u32)> = result
             .evidence

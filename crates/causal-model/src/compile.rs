@@ -73,13 +73,15 @@ pub enum MechanismSlot {
     /// Unconditional when `logit_coeffs` is `None` (use `probs`).
     /// Parent-conditional when `logit_coeffs` is `Some`: softmax over
     /// `support.len()` rows of length `1 + n_parents` (intercept + parent coeffs).
+    /// Coefficients are baseline-category multinomial-logit MLEs (reference category
+    /// index 0 is pinned to zero).
     Discrete {
         /// Support values.
         support: Arc<[f64]>,
         /// Unconditional probabilities (same length as support); ignored when
         /// `logit_coeffs` is set.
         probs: Arc<[f64]>,
-        /// Optional softmax logit coefficients, row-major `[k * (1 + p) + j]`.
+        /// Optional softmax logit coefficients, row-major `[k * (1 + p)]`.
         logit_coeffs: Option<Arc<[f64]>>,
     },
     /// Constant mechanism.

@@ -43,7 +43,7 @@ use causal_data::{
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{
-    Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, NodeRef, TemporalCpdag, TemporalDag,
+    Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark, NodeRef, TemporalCpdag, TemporalDag,
     TemporalPag, ensure_lagged,
 };
 use causal_io::{
@@ -510,10 +510,10 @@ struct GraphEdge {
     b: String,
     #[pyo3(get)]
     b_lag: u32,
-    /// Endpoint mark at `a`: `tail` | `arrow` | `circle`.
+    /// Endpoint mark at `a`: `tail` | `arrow` | `circle` | `conflict`.
     #[pyo3(get)]
     at_a: String,
-    /// Endpoint mark at `b`: `tail` | `arrow` | `circle`.
+    /// Endpoint mark at `b`: `tail` | `arrow` | `circle` | `conflict`.
     #[pyo3(get)]
     at_b: String,
 }
@@ -523,6 +523,7 @@ fn endpoint_name(e: Endpoint) -> &'static str {
         Endpoint::Tail => "tail",
         Endpoint::Arrow => "arrow",
         Endpoint::Circle => "circle",
+        Endpoint::Conflict => "conflict",
     }
 }
 
@@ -575,7 +576,7 @@ fn pag_graph_edges(names: &[String], pag: &TemporalPag) -> Vec<GraphEdge> {
             out.push(graph_edge_from_marked(
                 names,
                 nodes,
-                MarkedEdge { a, b, at_a, at_b },
+                MarkedEdge { a, b, at_a, at_b, middle: MiddleMark::Empty },
             ));
         }
     }

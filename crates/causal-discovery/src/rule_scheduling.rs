@@ -9,10 +9,11 @@
 
 use std::collections::HashSet;
 
-use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
+use causal_graph::{DenseNodeId, Endpoint, MiddleMark, TemporalPag};
 
 use crate::discriminating_paths::{discriminating_implies_collider, find_discriminating_paths};
 use crate::orientation::{OrientationError, OrientationQueue, OrientationState, RuleDelta};
+use crate::uncovered_paths::{uncovered_pd_paths, EndpointPattern};
 
 /// Drain the orientation queue into a focus set, or scan all nodes when empty
 /// (same contract as Meek [`crate::orientation`] rules).
@@ -356,6 +357,10 @@ fn set_marks_oriented(
     let Some(e) = graph.edge_between(a, b) else {
         return Err(OrientationError::msg("missing edge in set_marks_oriented"));
     };
+    // Tigramite: once an endpoint is `x`, further rules leave it alone.
+    if matches!(e.at_a, Endpoint::Conflict) || matches!(e.at_b, Endpoint::Conflict) {
+        return Ok(false);
+    }
     let result = if e.a == a {
         graph.set_marks(a, b, at_a, at_b)
     } else {
@@ -365,6 +370,10 @@ fn set_marks_oriented(
         Ok(()) => Ok(true),
         Err(causal_graph::GraphError::Cycle { .. }) => {
             state.record_conflict(delta, a, b, "cycle");
+            if graph.mark_conflict(a, b).is_ok() {
+                delta.edges_changed += 1;
+                delta.fixed_point = false;
+            }
             Ok(false)
         }
         Err(err) => Err(OrientationError::from(err)),
@@ -462,6 +471,341 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
     }
 }
 
+/// FCI R8′: `a → b → c` and `a o–* c` → orient `a → c`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LpcmciR8;
+
+impl LpcmciOrientationRule for LpcmciR8 {
+    fn id(&self) -> &'static str {
+        "lpcmci.r8"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalPag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta::default();
+        let focus = focus_nodes(graph, queue);
+        for b in focus {
+            let nbrs: Vec<_> = graph.neighbors(b).map(|(x, _, _)| x).collect();
+            for &a in &nbrs {
+                for &c in &nbrs {
+                    if a == c {
+                        continue;
+                    }
+                    let Some((at_a_ab, at_b_ab)) = marks_between(graph, a, b) else {
+                        continue;
+                    };
+                    let Some((at_b_bc, at_c_bc)) = marks_between(graph, b, c) else {
+                        continue;
+                    };
+                    if !matches!(at_a_ab, Endpoint::Tail)
+                        || !matches!(at_b_ab, Endpoint::Arrow)
+                        || !matches!(at_b_bc, Endpoint::Tail)
+                        || !matches!(at_c_bc, Endpoint::Arrow)
+                    {
+                        continue;
+                    }
+                    let Some((at_a_ac, _)) = marks_between(graph, a, c) else {
+                        continue;
+                    };
+                    if !matches!(at_a_ac, Endpoint::Circle) {
+                        continue;
+                    }
+                    if set_marks_oriented(
+                        graph,
+                        state,
+                        &mut delta,
+                        a,
+                        c,
+                        Endpoint::Tail,
+                        Endpoint::Arrow,
+                    )? {
+                        delta.edges_changed += 1;
+                        enqueue_local(graph, a, queue);
+                        enqueue_local(graph, c, queue);
+                    }
+                }
+            }
+        }
+        delta.fixed_point = delta.edges_changed == 0;
+        Ok(delta)
+    }
+}
+
+/// FCI R9′: uncovered PD path from neighbor of `a` to `c` with `a o→ c` → `a → c`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LpcmciR9;
+
+impl LpcmciOrientationRule for LpcmciR9 {
+    fn id(&self) -> &'static str {
+        "lpcmci.r9"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalPag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta::default();
+        let focus = focus_nodes(graph, queue);
+        for a in focus {
+            let nbrs: Vec<_> = graph.neighbors(a).map(|(x, _, _)| x).collect();
+            for &c in &nbrs {
+                let Some((at_a_ac, at_c_ac)) = marks_between(graph, a, c) else {
+                    continue;
+                };
+                if !matches!(at_a_ac, Endpoint::Circle) || !matches!(at_c_ac, Endpoint::Arrow) {
+                    continue;
+                }
+                // Need weakly-minimal sepset involving some B1 with a in Sep(B1, c).
+                for &b1 in &nbrs {
+                    if b1 == c || graph.has_edge(b1, c) {
+                        continue;
+                    }
+                    let Some(sep) = state.sepset(b1, c) else {
+                        continue;
+                    };
+                    if !sep.iter().any(|&z| z == a) {
+                        continue;
+                    }
+                    if !state.is_weakly_minimal(b1, c) && !sep.is_empty() {
+                        // Prefer WM; allow empty/singleton sepsets as trivially WM.
+                        if sep.len() > 1 {
+                            continue;
+                        }
+                    }
+                    let initial = [
+                        EndpointPattern::circle_circle(),
+                        EndpointPattern::circle_arrow(),
+                        EndpointPattern::directed(),
+                    ];
+                    let paths = uncovered_pd_paths(graph, b1, c, &initial, 8, 8);
+                    let qualifies = paths.iter().any(|path| {
+                        path.len() >= 3 && !path.contains(&a) && !graph.has_edge(a, path[1])
+                    });
+                    if !qualifies {
+                        continue;
+                    }
+                    if set_marks_oriented(
+                        graph,
+                        state,
+                        &mut delta,
+                        a,
+                        c,
+                        Endpoint::Tail,
+                        Endpoint::Arrow,
+                    )? {
+                        delta.edges_changed += 1;
+                        enqueue_local(graph, a, queue);
+                        enqueue_local(graph, c, queue);
+                        break;
+                    }
+                }
+            }
+        }
+        delta.fixed_point = delta.edges_changed == 0;
+        Ok(delta)
+    }
+}
+
+/// FCI R10′: `a o→ c ← b` with uncovered PD paths into both parents → `a → c`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LpcmciR10;
+
+impl LpcmciOrientationRule for LpcmciR10 {
+    fn id(&self) -> &'static str {
+        "lpcmci.r10"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalPag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta::default();
+        let _ = state;
+        let focus = focus_nodes(graph, queue);
+        for c in focus {
+            let nbrs: Vec<_> = graph.neighbors(c).map(|(x, _, _)| x).collect();
+            // Collect parents with definite tail into c: *← from c's view is Tail at nbr, Arrow at c? 
+            // Pattern: a o→ c and p_c → c (tail at p_c).
+            let mut o_arrow_into: Vec<DenseNodeId> = Vec::new();
+            let mut directed_into: Vec<DenseNodeId> = Vec::new();
+            for &n in &nbrs {
+                let Some((at_n, at_c)) = marks_between(graph, n, c) else {
+                    continue;
+                };
+                if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Circle) {
+                    o_arrow_into.push(n);
+                }
+                if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Tail) {
+                    directed_into.push(n);
+                }
+            }
+            let initial = [
+                EndpointPattern::circle_circle(),
+                EndpointPattern::circle_arrow(),
+                EndpointPattern::directed(),
+            ];
+            for &a in &o_arrow_into {
+                let mut found = false;
+                for &p_c in &directed_into {
+                    if p_c == a {
+                        continue;
+                    }
+                    let paths = uncovered_pd_paths(graph, a, p_c, &initial, 8, 8);
+                    if paths.iter().any(|p| p.len() >= 3 && !p.contains(&c)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    continue;
+                }
+                if set_marks_oriented(
+                    graph,
+                    state,
+                    &mut delta,
+                    a,
+                    c,
+                    Endpoint::Tail,
+                    Endpoint::Arrow,
+                )? {
+                    delta.edges_changed += 1;
+                    enqueue_local(graph, a, queue);
+                    enqueue_local(graph, c, queue);
+                }
+            }
+        }
+        delta.fixed_point = delta.edges_changed == 0;
+        Ok(delta)
+    }
+}
+
+/// Ancestor–parent rule (Lemma 1): clear middle marks on definite directed parents.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LpcmciApr;
+
+impl LpcmciOrientationRule for LpcmciApr {
+    fn id(&self) -> &'static str {
+        "lpcmci.apr"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalPag,
+        _state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta::default();
+        let focus = focus_nodes(graph, queue);
+        for a in focus {
+            let nbrs: Vec<_> = graph.neighbors(a).map(|(x, _, _)| x).collect();
+            for &b in &nbrs {
+                let Some(e) = graph.edge_between(a, b) else {
+                    continue;
+                };
+                let (at_a, at_b, mid) = if e.a == a {
+                    (e.at_a, e.at_b, e.middle)
+                } else {
+                    (e.at_b, e.at_a, e.middle)
+                };
+                // Definite a → b with non-empty middle that APR clears.
+                if !matches!(at_a, Endpoint::Tail) || !matches!(at_b, Endpoint::Arrow) {
+                    continue;
+                }
+                let clear = match mid {
+                    MiddleMark::Both => true,
+                    MiddleMark::Left | MiddleMark::Right => {
+                        // Ordered: clear Left when a > b (later/higher), Right when a < b.
+                        // Use dense id as total order proxy consistent with time-ordered nodes.
+                        (matches!(mid, MiddleMark::Left) && a.raw() > b.raw())
+                            || (matches!(mid, MiddleMark::Right) && a.raw() < b.raw())
+                    }
+                    _ => false,
+                };
+                if clear {
+                    graph.set_middle(a, b, MiddleMark::Empty)?;
+                    delta.edges_changed += 1;
+                    enqueue_local(graph, a, queue);
+                    enqueue_local(graph, b, queue);
+                }
+            }
+        }
+        delta.fixed_point = delta.edges_changed == 0;
+        Ok(delta)
+    }
+}
+
+/// Middle-mark rule (MMR): on `*→` with `?`, set L/R by node order.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LpcmciMmr;
+
+impl LpcmciOrientationRule for LpcmciMmr {
+    fn id(&self) -> &'static str {
+        "lpcmci.mmr"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalPag,
+        _state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta::default();
+        let focus = focus_nodes(graph, queue);
+        for a in focus {
+            let nbrs: Vec<_> = graph.neighbors(a).map(|(x, _, _)| x).collect();
+            for &b in &nbrs {
+                if a.raw() > b.raw() {
+                    continue; // each edge once
+                }
+                let Some(e) = graph.edge_between(a, b) else {
+                    continue;
+                };
+                if !matches!(e.middle, MiddleMark::Unknown) {
+                    continue;
+                }
+                // Arrow at either end → apply L/R by order (smaller node gets L toward larger).
+                let has_arrow =
+                    matches!(e.at_a, Endpoint::Arrow) || matches!(e.at_b, Endpoint::Arrow);
+                if !has_arrow {
+                    continue;
+                }
+                // Smaller id is "left" in dense order → Left on the edge.
+                graph.apply_middle(a, b, MiddleMark::Left)?;
+                delta.edges_changed += 1;
+                enqueue_local(graph, a, queue);
+                enqueue_local(graph, b, queue);
+            }
+        }
+        delta.fixed_point = delta.edges_changed == 0;
+        Ok(delta)
+    }
+}
+
+/// Default LPCMCI orientation rule list (collider + R1–R4 + R8–R10 + APR + MMR).
+#[must_use]
+pub fn default_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 10] {
+    [
+        &LpcmciOrientCollider,
+        &LpcmciR1,
+        &LpcmciR2,
+        &LpcmciR3,
+        &LpcmciDiscriminatingPathRule,
+        &LpcmciR8,
+        &LpcmciR9,
+        &LpcmciR10,
+        &LpcmciApr,
+        &LpcmciMmr,
+    ]
+}
+
 /// Schedule LPCMCI rules to a fixed point using a local delta queue.
 ///
 /// Seeds all nodes once. Subsequent rounds honor nodes enqueued by rules
@@ -528,6 +872,7 @@ mod tests {
             b: c,
             at_a: Endpoint::Circle,
             at_b: Endpoint::Circle,
+            middle: causal_graph::MiddleMark::Empty,
         })
         .unwrap();
         let mut state = OrientationState::default();
@@ -553,6 +898,7 @@ mod tests {
             b: c,
             at_a: Endpoint::Tail,
             at_b: Endpoint::Circle,
+            middle: causal_graph::MiddleMark::Empty,
         })
         .unwrap();
         let mut state = OrientationState::default();
@@ -580,6 +926,7 @@ mod tests {
             b: c,
             at_a: Endpoint::Circle,
             at_b: Endpoint::Tail,
+            middle: causal_graph::MiddleMark::Empty,
         })
         .unwrap();
         let mut state = OrientationState::default();
@@ -603,6 +950,7 @@ mod tests {
             b: c,
             at_a: Endpoint::Circle,
             at_b: Endpoint::Circle,
+            middle: causal_graph::MiddleMark::Empty,
         })
         .unwrap();
         let mut state = OrientationState::default();
@@ -615,10 +963,34 @@ mod tests {
     }
 
     #[test]
+    fn r8_orients_triangle() {
+        // a → b → c and a o→ c ⇒ a → c
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_directed(b, c).unwrap();
+        g.insert_circle_arrow(a, c).unwrap();
+        let mut state = OrientationState::default();
+        let mut queue = OrientationQueue::new();
+        let d = LpcmciR8.apply(&mut g, &mut state, &mut queue).unwrap();
+        assert!(d.edges_changed > 0);
+        let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+        assert!(matches!(at_a, Endpoint::Tail));
+        assert!(matches!(at_c, Endpoint::Arrow));
+    }
+
+    #[test]
     fn rule_ids_cover_r1_r2_r3() {
         assert_eq!(LpcmciR1.id(), "lpcmci.r1");
         assert_eq!(LpcmciR2.id(), "lpcmci.r2");
         assert_eq!(LpcmciR3.id(), "lpcmci.r3");
+        assert_eq!(LpcmciR8.id(), "lpcmci.r8");
+        assert_eq!(LpcmciR9.id(), "lpcmci.r9");
+        assert_eq!(LpcmciR10.id(), "lpcmci.r10");
+        assert_eq!(LpcmciApr.id(), "lpcmci.apr");
+        assert_eq!(LpcmciMmr.id(), "lpcmci.mmr");
     }
 
     #[test]
@@ -636,6 +1008,7 @@ mod tests {
             b: c,
             at_a: Endpoint::Circle,
             at_b: Endpoint::Circle,
+            middle: causal_graph::MiddleMark::Empty,
         })
         .unwrap();
         let mut state = OrientationState::default();

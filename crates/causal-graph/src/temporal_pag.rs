@@ -11,7 +11,7 @@ use causal_core::{Lag, VariableId};
 use crate::error::GraphError;
 use crate::marked_storage::{self, AdjEntry};
 use crate::pag::Pag;
-use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
+use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// Temporal PAG: lagged nodes with ancestral-graph marks including circles.
@@ -145,7 +145,7 @@ impl TemporalPag {
         self.insert_marked(MarkedEdge::directed(from, to))
     }
 
-    /// Circle-arrow insert.
+    /// Circle-arrow insert with empty middle mark.
     ///
     /// # Errors
     ///
@@ -155,11 +155,47 @@ impl TemporalPag {
         from: DenseNodeId,
         to: DenseNodeId,
     ) -> Result<(), GraphError> {
+        self.insert_circle_arrow_with_middle(from, to, MiddleMark::Empty)
+    }
+
+    /// Circle-arrow insert with an LPCMCI middle mark (typically [`MiddleMark::Left`] for lagged).
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::insert_marked`].
+    pub fn insert_circle_arrow_with_middle(
+        &mut self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+        middle: MiddleMark,
+    ) -> Result<(), GraphError> {
         self.insert_marked(MarkedEdge {
             a: from,
             b: to,
             at_a: Endpoint::Circle,
             at_b: Endpoint::Arrow,
+            middle,
+        })
+    }
+
+    /// Circle-circle contemporaneous insert with middle mark (typically [`MiddleMark::Unknown`]).
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::insert_marked`].
+    pub fn insert_circle_circle_with_middle(
+        &mut self,
+        a: DenseNodeId,
+        b: DenseNodeId,
+        middle: MiddleMark,
+    ) -> Result<(), GraphError> {
+        let (lo, hi) = if a.raw() <= b.raw() { (a, b) } else { (b, a) };
+        self.insert_marked(MarkedEdge {
+            a: lo,
+            b: hi,
+            at_a: Endpoint::Circle,
+            at_b: Endpoint::Circle,
+            middle,
         })
     }
 
@@ -204,7 +240,7 @@ impl TemporalPag {
         let Some(previous) = self.edge_between(a, b) else {
             return Err(GraphError::UnknownNode { id: a.raw() });
         };
-        let edge = MarkedEdge { a, b, at_a, at_b };
+        let edge = MarkedEdge { a, b, at_a, at_b, middle: previous.middle };
         if let Some((from, to)) = edge.parent_child() {
             marked_storage::remove_edge(&mut self.adj, a, b);
             let cycle = self.reaches_directed(to, from);
@@ -216,6 +252,83 @@ impl TemporalPag {
             return Ok(());
         }
         marked_storage::set_marks(&mut self.adj, a, b, at_a, at_b)
+    }
+
+    /// Mark an existing edge as a Tigramite `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
+    ///
+    /// # Errors
+    ///
+    /// Missing edge or unknown nodes.
+    pub fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        self.set_marks(a, b, Endpoint::Conflict, Endpoint::Conflict)
+    }
+
+    /// Set / merge the LPCMCI middle mark on an existing edge.
+    ///
+    /// # Errors
+    ///
+    /// Missing edge.
+    pub fn apply_middle(
+        &mut self,
+        a: DenseNodeId,
+        b: DenseNodeId,
+        update: MiddleMark,
+    ) -> Result<(), GraphError> {
+        self.validate_node(a)?;
+        self.validate_node(b)?;
+        let Some(e) = self.edge_between(a, b) else {
+            return Err(GraphError::UnknownNode { id: a.raw() });
+        };
+        marked_storage::set_middle(&mut self.adj, a, b, e.middle.apply(update))
+    }
+
+    /// Replace the middle mark (no merge).
+    ///
+    /// # Errors
+    ///
+    /// Missing edge.
+    pub fn set_middle(
+        &mut self,
+        a: DenseNodeId,
+        b: DenseNodeId,
+        middle: MiddleMark,
+    ) -> Result<(), GraphError> {
+        self.validate_node(a)?;
+        self.validate_node(b)?;
+        if self.edge_between(a, b).is_none() {
+            return Err(GraphError::UnknownNode { id: a.raw() });
+        }
+        marked_storage::set_middle(&mut self.adj, a, b, middle)
+    }
+
+    /// Middle mark between `a` and `b`, if adjacent.
+    #[must_use]
+    pub fn middle_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MiddleMark> {
+        self.edge_between(a, b).map(|e| e.middle)
+    }
+
+    /// Remove an edge (both adjacency halves).
+    ///
+    /// # Errors
+    ///
+    /// Unknown nodes.
+    pub fn remove_edge(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        self.validate_node(a)?;
+        self.validate_node(b)?;
+        if self.edge_between(a, b).is_none() {
+            return Err(GraphError::UnknownNode { id: a.raw() });
+        }
+        marked_storage::remove_edge(&mut self.adj, a, b);
+        Ok(())
+    }
+
+    /// Force all middle marks to [`MiddleMark::Empty`] (tigramite finalization).
+    pub fn clear_middle_marks(&mut self) {
+        for list in &mut self.adj {
+            for e in list.iter_mut() {
+                e.middle = MiddleMark::Empty;
+            }
+        }
     }
 
     /// Directed reachability.
@@ -249,7 +362,13 @@ impl TemporalPag {
                 if e.neighbor.raw() < a.raw() {
                     continue;
                 }
-                let edge = MarkedEdge { a, b: e.neighbor, at_a: e.at_self, at_b: e.at_neighbor };
+                let edge = MarkedEdge {
+                    a,
+                    b: e.neighbor,
+                    at_a: e.at_self,
+                    at_b: e.at_neighbor,
+                    middle: e.middle,
+                };
                 let _ = p.insert_marked(edge);
             }
         }
@@ -309,11 +428,25 @@ mod tests {
         g.insert_circle_arrow(a, c).unwrap();
         let err = g.set_marks(a, c, Endpoint::Tail, Endpoint::Arrow).unwrap_err();
         assert!(matches!(err, GraphError::Cycle { .. }));
-        // Previous circle-arrow marks restored.
         let e = g.edge_between(a, c).unwrap();
         let (at_a, at_c) = if e.a == a { (e.at_a, e.at_b) } else { (e.at_b, e.at_a) };
         assert!(matches!(at_a, Endpoint::Circle));
         assert!(matches!(at_c, Endpoint::Arrow));
+    }
+
+    #[test]
+    fn middle_marks_and_remove_edge() {
+        let mut g = TemporalPag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_circle_arrow_with_middle(a, b, MiddleMark::Left).unwrap();
+        assert_eq!(g.middle_between(a, b), Some(MiddleMark::Left));
+        g.apply_middle(a, b, MiddleMark::Right).unwrap();
+        assert_eq!(g.middle_between(a, b), Some(MiddleMark::Both));
+        g.clear_middle_marks();
+        assert_eq!(g.middle_between(a, b), Some(MiddleMark::Empty));
+        g.remove_edge(a, b).unwrap();
+        assert!(!g.has_edge(a, b));
     }
 }
 

@@ -467,7 +467,7 @@ fn contemp_mci_phase(
 /// Majority collider orientation with contemporaneous-neighbor subset re-tests.
 ///
 /// Matches tigramite `contemp_collider_rule='majority'`. Conflicts / ambiguous triples
-/// are recorded out-of-band (`conflict_edges`); `x-x` Endpoint marks remain deferred.
+/// are recorded out-of-band (`conflict_edges`) and conflicting edges are marked `x-x`.
 #[allow(clippy::too_many_arguments)]
 fn orient_majority_colliders(
     engine: &PcmciEngine,

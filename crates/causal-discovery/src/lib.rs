@@ -15,6 +15,7 @@ pub mod error;
 pub mod evidence;
 pub mod jpcmci_plus;
 pub mod lpcmci;
+pub mod lpcmci_phases;
 pub mod orientation;
 pub mod pcmci;
 pub mod pcmci_plus;
@@ -22,6 +23,8 @@ pub mod pipeline;
 pub mod result;
 pub mod rpcmci;
 pub mod rule_scheduling;
+pub mod uncovered_paths;
+pub mod weakly_minimal;
 
 pub use algorithm::DiscoveryAlgorithm;
 pub use ci::{
@@ -67,6 +70,7 @@ pub use rpcmci::{
     two_regime_half_split,
 };
 pub use rule_scheduling::{
-    LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciOrientationRule, LpcmciR1, LpcmciR2,
-    LpcmciR3, run_lpcmci_orientation,
+    LpcmciApr, LpcmciDiscriminatingPathRule, LpcmciMmr, LpcmciOrientCollider, LpcmciOrientationRule,
+    LpcmciR1, LpcmciR10, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9, default_lpcmci_rules,
+    run_lpcmci_orientation,
 };

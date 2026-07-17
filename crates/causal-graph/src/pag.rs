@@ -8,7 +8,7 @@ use causal_core::VariableId;
 
 use crate::error::GraphError;
 use crate::marked_storage::{self, AdjEntry};
-use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
+use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// Static PAG over variables (DESIGN §6.2).
@@ -79,7 +79,7 @@ impl Pag {
         self.validate_node(id)
     }
 
-    /// Whether marks are legal for a PAG (any Tail/Arrow/Circle pair on distinct nodes).
+    /// Whether marks are legal for a PAG (any Tail/Arrow/Circle/Conflict pair on distinct nodes).
     ///
     /// Structural constraints (duplicates, directed cycles) are checked on insert.
     #[must_use]
@@ -141,6 +141,7 @@ impl Pag {
             b: to,
             at_a: Endpoint::Circle,
             at_b: Endpoint::Arrow,
+            middle: MiddleMark::Empty,
         })
     }
 
@@ -155,7 +156,13 @@ impl Pag {
         b: DenseNodeId,
     ) -> Result<(), GraphError> {
         let (a, b) = if a.raw() <= b.raw() { (a, b) } else { (b, a) };
-        self.insert_marked(MarkedEdge { a, b, at_a: Endpoint::Circle, at_b: Endpoint::Circle })
+        self.insert_marked(MarkedEdge {
+            a,
+            b,
+            at_a: Endpoint::Circle,
+            at_b: Endpoint::Circle,
+            middle: MiddleMark::Empty,
+        })
     }
 
     /// Bidirected `a ↔ b`.
@@ -204,10 +211,16 @@ impl Pag {
         if !self.has_edge(a, b) {
             return Err(GraphError::UnknownNode { id: a.raw() });
         }
-        let edge = MarkedEdge { a, b, at_a, at_b };
+        let previous =
+            marked_storage::edge_between(&self.adj, a, b).expect("edge present after has_edge");
+        let edge = MarkedEdge {
+            a,
+            b,
+            at_a,
+            at_b,
+            middle: previous.middle,
+        };
         if let Some((from, to)) = edge.parent_child() {
-            let previous =
-                marked_storage::edge_between(&self.adj, a, b).expect("edge present after has_edge");
             marked_storage::remove_edge(&mut self.adj, a, b);
             let cycle = self.reaches_directed(to, from);
             if cycle {
@@ -218,6 +231,15 @@ impl Pag {
             return Ok(());
         }
         marked_storage::set_marks(&mut self.adj, a, b, at_a, at_b)
+    }
+
+    /// Mark an existing edge as a Tigramite `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
+    ///
+    /// # Errors
+    ///
+    /// Missing edge or unknown nodes.
+    pub fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        self.set_marks(a, b, Endpoint::Conflict, Endpoint::Conflict)
     }
 
     /// Directed children (definite Tail→Arrow from this node).

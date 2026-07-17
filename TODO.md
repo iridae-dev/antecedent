@@ -4,107 +4,16 @@ Items are marked DONE with notes until independently verified and removed. Do no
 
 ---
 
-## P1 — Graph-layer soundness (remaining)
-
-### P1.12 Discrete conditional mechanism: linear-probability fits used as softmax logits — incomplete
-`crates/causal-model/src/registry.rs:283-297`, `crates/causal-model/src/mechanism.rs:304-336`
-One-vs-rest least squares on category indicators produces predicted probabilities in [0,1]; these
-are stored as `logit_coeffs` and passed through softmax at evaluation. softmax(π) ≠ π — true
-(0.9, 0.1) becomes ≈ (0.69, 0.31); all parent-conditional discrete sampling and `log_prob_column`
-values are biased toward uniform.
-**Done (interim):** evaluation applies `ln(clip(π))` before softmax so recovered probs ≈π.
-**Still open:** fit true multinomial-logit coefficients via IRLS (blocked on P5 multinomial GLM).
-The interim recover-π trick is numerically close but is not a proper MLE and does not unblock
-likelihood-based model comparison for discrete conditionals.
-
-**Related leftover from P1.7 (otherwise fixed):** cycle/collider conflicts are recorded out-of-band
-(`conflict_edges` + `orientation.conflicts` diagnostics) and runs continue, but Tigramite-style
-`x-x` Endpoint marks are still deferred pending an `Endpoint` enum extension.
-
----
-
 ## P4 — Algorithm parity upgrades (bring implementations up to their published names)
 
-### P4.3 LPCMCI: from FCI-lite to LPCMCI
-`crates/causal-discovery/src/lpcmci.rs:78-97` runs the PC1+MCI engine plus rules
-{collider, R1, R2, R3, disc-path}. R1/R2/R4 and lagged `o→` init are fixed; close the remaining
-algorithmic gap: middle marks, weakly-minimal separating sets, interleaved ancestral
-edge-removal/orientation phases, and rules R8, R9, R10 (uncovered potentially directed paths) —
-required for FCI-style completeness.
-
 ### P4.4 J-PCMCI+ per Günther et al.
-`crates/causal-discovery/src/jpcmci_plus.rs:127-183` runs PCMCI independently per environment,
-pools links by intersection with `p = max` (`pool_scored_links`, lines 226-258 — whose doc promises
-*union* semantics; fix doc or code), and context variables never enter any CI test
-(`attach_context_nodes`, lines 260-294, is decoration). The published algorithm augments the
-variable set with observed context + dataset/time dummy variables and runs PCMCI+ once on pooled
-data with link assumptions.
-**Immediate bug regardless of redesign:** line 145 keeps only the **last environment's** sepsets
-(`last_sepsets = engine_result.sepsets`) for collider orientation of the pooled graph.
-Also: the `MultiEnvSamplePlan` built and validated at lines 105-143 is discarded (each env rebuilds
-its own frame) while its byte counts are reported in diagnostics — wire it in or drop it.
-
-### P4.5 RPCMCI: masking, not row-splicing — DONE
-`crates/causal-discovery/src/rpcmci.rs:283-309` (`subset_series`) gathers regime rows by index and
-re-declares them a contiguous series, so lagged pairs span regime gaps — statistically wrong CI
-tests for interleaved regimes. Saggioro et al. mask samples instead and alternate between regime
-assignment and per-regime discovery; the alternating optimization is entirely absent
-(`run_median_split` is a stand-in heuristic).
-**Fix:** implement masked CI evaluation (only use effective rows whose full lag window lies within
-one regime), then the alternating assignment loop.
-
-### P4.7 Generalized/PAG identification beyond the empty set — DONE
-`crates/causal-identify/src/generalized.rs:98-121` tests only `Z = ∅` per MAG completion; any
-confounded-but-adjustable completion reports NotIdentified. Implement generalized adjustment-set
-search per completion (candidate sets from possible ancestors, m-separation on legal MAGs),
-and document the current limitation loudly in the module docs until then (frontdoor.rs:3-16 is the
-model for honest limitation docs). MAG completion filter is in place (`is_mag_completion`). The full ID/IDC algorithm
-is roadmap — see P5.3.
-
-### P4.8 GCM attribution parity (DoWhy-GCM) — DONE
-- `attribute_unit_change` (`crates/causal-attribution/src/unit_change.rs:80-83,154-183`): abduction
-  runs and is discarded (`let _ = exo;`); the payoff is the linear surrogate `Σβᵢ(xᵢ−refᵢ)` — for
-  an additive game the Shapley loop is a tautology (φᵢ = βᵢ(xᵢ−refᵢ) exactly), and non-LinearGaussian
-  mechanisms silently get `betas = vec![1.0; n]`. Implement the real payoff: evaluate the outcome
-  mechanism on coalition-mixed parent values with the abduced noise (Budhathoki-style factual vs
-  counterfactual output decomposition). Also: per-unit MC stderrs are averaged as if they were a
-  mean stderr (lines 124-139) — aggregate with 1/√n.
-- Anomaly attribution (`crates/causal-attribution/src/anomaly.rs:33-97`): implement Janzing et al.
-  2020 — IT/outlier score of the target distributed over ancestor **noise terms via Shapley**
-  (replace noise coordinates with reference draws). The current per-node −log p(y|parents) +
-  |residual| conflates "node is anomalous" with "node received anomalous input", yet the facade
-  exports it as `anomaly_attribution` (`crates/causal/src/gcm.rs:123-132`).
-- `feature_relevance` (`crates/causal-attribution/src/feature_relevance.rs:12-69`): currently a
-  one-at-a-time finite-difference do-contrast |E[Y|do(X=μ+δ/2)] − E[Y|do(X=μ−δ/2)]| — no
-  interactions, no efficiency property. Implement Shapley feature relevance with
-  marginal/conditional randomization (the Shapley engine in `shapley.rs` is verified correct;
-  reuse it).
-- `distribution_change` (`crates/causal-attribution/src/distribution_change.rs:30-35`): structure
-  is correct Budhathoki 2021; add the KL-based target functional (DoWhy's default; `gaussian_kl`
-  is fixed), and
-  use common random numbers across coalition payoffs (seed is currently `seed + mask`, line 267 —
-  extra MC variance; exact-mode efficiency is unaffected but sampled modes pay for it).
-
-### P4.9 do-samplers: bias and dead code — DONE
-`crates/causal-model/src/do_sampler.rs`
-- `WeightingDoSampler` (lines 128-151): the IPW numerator was never implemented (`lp_do` computed
-  as zeros then `let _ = lp_do[i]; let _ = t_do;`); the kernel bandwidth is the mechanism residual
-  SD σ — a fixed bandwidth giving O(σ²) smoothing bias that never shrinks with n, plus a `min(1e6)`
-  weight cap. The conformance test passes only because its data is noiseless. Use a shrinking
-  bandwidth (e.g. Silverman on the treatment margin) and finish or remove the numerator. The
-  non-Gaussian branch (lines 143-149) degenerates to exact matching — error for genuinely
-  continuous treatments.
-- `McmcDoSampler` (lines 291-349): the chain targets a Silverman-KDE of ≥64 pilot draws, not the
-  interventional law, and the docstring's "exact when the proposal is the target" describes
-  independent MH, not the random-walk implemented. MH mechanics are correct; fix the docs and
-  consider targeting the mechanism density directly.
-
-### P4.10 Matching: variance and bias correction — DONE
-`crates/causal-estimate/src/propensity/stratification.rs:334-337` treats matched differences as
-i.i.d. (`sample_std/√n`); with-replacement donor reuse makes them correlated → understated SE.
-Implement the Abadie–Imbens (2006) variance with donor-usage counts K_i, add the regression bias
-adjustment, and document that the bootstrap is invalid for NN matching (Abadie–Imbens 2008). This
-is DoWhy-parity-level today but — unlike the library's other simplifications — undocumented.
+`crates/causal-discovery/src/jpcmci_plus.rs` still runs PCMCI independently per environment,
+pools surviving links by intersection (`p = max`), merges per-env sepsets, and attaches
+`context_variables` as decoration after pooling (`attach_context_nodes` — they never enter CI
+tests). Module docs now match this scope. Sepset/plan interim bugs are fixed
+(`merge_sepsets`; `MultiEnvSamplePlan` validates shared geometry). Remaining: the published
+Günther et al. redesign — augment the variable set with observed context + dataset/time
+dummies and run PCMCI+ once on pooled data under link assumptions.
 
 ---
 
@@ -123,7 +32,8 @@ roughly by how much current claims/outputs depend on them.
    IDC, hedge certificates, `AutoIdentifier`, memoized recursion; maximal adjustment sets; the two
    missing `IdentificationStatus` variants (`IdentifiedUnderParametricRestrictions`,
    `IdentifiedUnderPriorRestrictions` — `crates/causal-core/src/identification.rs:11-20`).
-4. **Statistical layer** (DESIGN.md:1000-1061): multinomial logistic (unblocks P1.12), negative
+4. **Statistical layer** (DESIGN.md:1000-1061): ~~multinomial logistic (unblocks P1.12)~~ **done**
+   (`fit_multinomial_logit`); remaining: negative
    binomial, probit IRLS (unblocks P4.12), robust M-estimation, ridge/lasso (optional
    separation fallback; hard-fail already shipped); **robust covariance §11.3** — HC0–HC3, cluster, multiway, HAC/Newey-West (zero hits
    repo-wide today; SEs are homoskedastic-analytic or bootstrap); shared resampling engine §11.4

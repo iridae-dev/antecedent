@@ -6,7 +6,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::GraphError;
-use crate::types::{DenseNodeId, Endpoint, MarkedEdge};
+use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};
 use crate::workspace::GraphWorkspace;
 
 /// Adjacency entry: neighbor plus marks at self and at neighbor.
@@ -15,6 +15,7 @@ pub(crate) struct AdjEntry {
     pub(crate) neighbor: DenseNodeId,
     pub(crate) at_self: Endpoint,
     pub(crate) at_neighbor: Endpoint,
+    pub(crate) middle: MiddleMark,
 }
 
 impl AdjEntry {
@@ -23,8 +24,9 @@ impl AdjEntry {
         neighbor: DenseNodeId,
         at_self: Endpoint,
         at_neighbor: Endpoint,
+        middle: MiddleMark,
     ) -> Self {
-        Self { neighbor, at_self, at_neighbor }
+        Self { neighbor, at_self, at_neighbor, middle }
     }
 
     #[inline]
@@ -35,8 +37,8 @@ impl AdjEntry {
 
 /// Push both halves of a marked edge into adjacency lists.
 pub(crate) fn push_marked_pair(adj: &mut [Vec<AdjEntry>], edge: MarkedEdge) {
-    adj[edge.a.as_usize()].push(AdjEntry::new(edge.b, edge.at_a, edge.at_b));
-    adj[edge.b.as_usize()].push(AdjEntry::new(edge.a, edge.at_b, edge.at_a));
+    adj[edge.a.as_usize()].push(AdjEntry::new(edge.b, edge.at_a, edge.at_b, edge.middle));
+    adj[edge.b.as_usize()].push(AdjEntry::new(edge.a, edge.at_b, edge.at_a, edge.middle));
 }
 
 /// Marked edge between `a` and `b` if present.
@@ -51,7 +53,13 @@ pub(crate) fn edge_between(
     }
     for e in &adj[a.as_usize()] {
         if e.neighbor == b {
-            return Some(MarkedEdge { a, b, at_a: e.at_self, at_b: e.at_neighbor });
+            return Some(MarkedEdge {
+                a,
+                b,
+                at_a: e.at_self,
+                at_b: e.at_neighbor,
+                middle: e.middle,
+            });
         }
     }
     None
@@ -96,7 +104,7 @@ pub(crate) fn reaches_directed(
     false
 }
 
-/// Update marks on an existing edge (both adjacency halves).
+/// Update endpoint marks on an existing edge (both adjacency halves); middle unchanged.
 pub(crate) fn set_marks(
     adj: &mut [Vec<AdjEntry>],
     a: DenseNodeId,
@@ -121,6 +129,38 @@ pub(crate) fn set_marks(
         if e.neighbor == a {
             e.at_self = at_b;
             e.at_neighbor = at_a;
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        return Err(GraphError::UnknownNode { id: b.raw() });
+    }
+    Ok(())
+}
+
+/// Update the middle mark on an existing edge (both adjacency halves).
+pub(crate) fn set_middle(
+    adj: &mut [Vec<AdjEntry>],
+    a: DenseNodeId,
+    b: DenseNodeId,
+    middle: MiddleMark,
+) -> Result<(), GraphError> {
+    let mut found = false;
+    for e in &mut adj[a.as_usize()] {
+        if e.neighbor == b {
+            e.middle = middle;
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        return Err(GraphError::UnknownNode { id: a.raw() });
+    }
+    found = false;
+    for e in &mut adj[b.as_usize()] {
+        if e.neighbor == a {
+            e.middle = middle;
             found = true;
             break;
         }

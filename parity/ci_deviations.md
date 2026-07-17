@@ -19,11 +19,12 @@ contemporaneous links and does not run R4. The former intentional R4
 deviation has been removed. Black-box edge-set equality is pinned in
 `conformance/tigramite/pcmci_plus_lag0`.
 
-## 3. LPCMCI / J-PCMCI+ / RPCMCI black-box equality deferred (P4)
+## 3. LPCMCI / J-PCMCI+ / RPCMCI black-box equality
 
-Full tigramite edge-set equality for LPCMCI, J-PCMCI+, and RPCMCI is blocked on
-algorithm parity upgrades (TODO P4.3–P4.5). Conformance fixtures assert
-non-vacuous structure and true-edge subset invariants only.
+LPCMCI (P4.3) now runs Gerhardus & Runge Alg. 1 (middle marks, weakly-minimal
+sepsets, interleaved ancestral/non-ancestral phases, R8–R10). Full tigramite
+edge-set numerical equality remains optional; conformance pins structure /
+algorithm id. J-PCMCI+ / RPCMCI black-box equality still blocked on P4.4–P4.5.
 
 ## Notes (aligned with tigramite; not deviations)
 

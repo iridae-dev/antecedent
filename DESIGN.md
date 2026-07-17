@@ -588,6 +588,7 @@ pub enum Endpoint {
     Tail,
     Arrow,
     Circle,
+    Conflict, // Tigramite `x`; CPDAG conflicts use Conflict–Conflict (`x-x`)
 }
 
 pub struct MarkedEdge<N> {
@@ -602,8 +603,8 @@ Named graph types constrain valid endpoint combinations:
 
 - `Dag`: tail-arrow only, acyclic;
 - `Admg`: directed and bidirected, no directed cycles;
-- `Cpdag`: directed and undirected equivalence-class marks;
-- `Pag`: tail, arrow, and circle endpoints under ancestral-graph constraints;
+- `Cpdag`: directed, undirected, and conflict (`x-x`) equivalence-class marks;
+- `Pag`: tail, arrow, circle, and conflict endpoints under ancestral-graph constraints;
 - temporal variants add stationarity and lag constraints.
 
 Invalid endpoint combinations cannot be inserted through safe constructors.

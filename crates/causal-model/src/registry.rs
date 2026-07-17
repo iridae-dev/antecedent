@@ -16,12 +16,17 @@ use std::sync::Arc;
 use causal_core::VariableId;
 use causal_data::{TableView, TabularData};
 use causal_graph::DenseNodeId;
-use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use causal_stats::{
+    DenseLinearAlgebra, FaerBackend, GlmOptions, LeastSquaresWorkspace, MultinomialDesignRef,
+    fit_multinomial_logit,
+};
 
+use crate::batch::ParentBatch;
 use crate::compile::{
     CompiledCausalModel, CompiledMechanismStore, MechanismSlot, ParentGatherPlan,
 };
 use crate::error::ModelError;
+use crate::mechanism::log_prob_column;
 
 /// Candidate mechanism family known to the registry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -220,10 +225,17 @@ fn score_family(
             let mse = y.iter().map(|yi| (yi - value).powi(2)).sum::<f64>() / y.len().max(1) as f64;
             -mse
         }
-        MechanismSlot::Discrete { probs, .. } => {
-            let ent: f64 = probs.iter().map(|p| if *p > 0.0 { -p * p.ln() } else { 0.0 }).sum();
-            -ent
-        }
+        MechanismSlot::Discrete { support, probs, logit_coeffs } => match logit_coeffs {
+            None => {
+                let ent: f64 =
+                    probs.iter().map(|p| if *p > 0.0 { -p * p.ln() } else { 0.0 }).sum();
+                -ent
+            }
+            Some(logits) => {
+                // Mean log-likelihood under the multinomial-logit fit (model comparison).
+                discrete_mean_loglik(gather, model, data, y, support, logits)?
+            }
+        },
         _ => f64::NEG_INFINITY,
     };
     Ok(MechanismCandidate {
@@ -267,6 +279,8 @@ fn fit_family(
                     message: "no finite values for discrete fit".into(),
                 });
             }
+            // Stable support order → stable baseline-category reference (index 0).
+            pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
             let total = pairs.iter().map(|(_, _, c)| *c).sum::<usize>() as f64;
             let support: Vec<f64> = pairs.iter().map(|(_, v, _)| *v).collect();
             let probs: Vec<f64> = pairs.iter().map(|(_, _, c)| *c as f64 / total).collect();
@@ -279,9 +293,8 @@ fn fit_family(
                     logit_coeffs: None,
                 });
             }
-            // Parent-conditional: one-vs-rest least squares on category indicators.
-            // Coefficients are linear-probability scale; `softmax_row_probs` applies
-            // ln(clip(π)) until multinomial IRLS lands (P5).
+            // Parent-conditional: baseline-category multinomial logit MLE (Fisher / IRLS).
+            // Coefficients are true softmax logits; category 0 is the reference (zeros).
             let ncols = 1 + p;
             let mut x = vec![0.0; n * ncols];
             for r in 0..n {
@@ -293,20 +306,43 @@ fn fit_family(
                 let base = (1 + pi) * n;
                 x[base..base + n].copy_from_slice(&col[..n]);
             }
-            let mut logit_coeffs = vec![0.0; k * ncols];
-            for (cat, &sv) in support.iter().enumerate() {
-                let indicators: Vec<f64> =
-                    y.iter().map(|&yi| if (yi - sv).abs() < 1e-12 { 1.0 } else { 0.0 }).collect();
-                let fit = backend
-                    .least_squares(&x, n, ncols, &indicators, ls_ws)
-                    .map_err(ModelError::from)?;
-                let base = cat * ncols;
-                logit_coeffs[base..base + ncols].copy_from_slice(&fit.coefficients[..ncols]);
+            let mut y_cat = vec![0u32; n];
+            for (r, &yi) in y.iter().enumerate() {
+                let Some(idx) = support.iter().position(|&s| (s - yi).abs() < 1e-12) else {
+                    return Err(ModelError::Shape {
+                        message: "discrete outcome not in fitted support".into(),
+                    });
+                };
+                y_cat[r] = u32::try_from(idx).map_err(|_| ModelError::Shape {
+                    message: "too many discrete categories".into(),
+                })?;
+            }
+            let fit = fit_multinomial_logit(
+                MultinomialDesignRef {
+                    x_colmajor: &x,
+                    nrows: n,
+                    ncols,
+                    y_category: &y_cat,
+                    n_categories: k,
+                },
+                &backend,
+                ls_ws,
+                &GlmOptions::default(),
+            )?;
+            // Refuse non-converged fits; separation is allowed (near-deterministic
+            // conditionals → large logits; softmax evaluation remains well-defined).
+            if !fit.converged {
+                return Err(ModelError::Numerical {
+                    message: format!(
+                        "multinomial logit did not converge (iters={}, deviance={})",
+                        fit.iterations, fit.deviance
+                    ),
+                });
             }
             Ok(MechanismSlot::Discrete {
                 support: Arc::from(support),
                 probs: Arc::from(probs),
-                logit_coeffs: Some(Arc::from(logit_coeffs)),
+                logit_coeffs: Some(Arc::from(fit.coefficients)),
             })
         }
         MechanismFamily::LinearGaussian => {
@@ -355,6 +391,34 @@ fn residual_mse(
         sse += e * e;
     }
     Ok(sse / n.max(1) as f64)
+}
+
+fn discrete_mean_loglik(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    support: &[f64],
+    logits: &[f64],
+) -> Result<f64, ModelError> {
+    let n = y.len();
+    let p = gather.n_parents();
+    let mut parent_mat = vec![0.0; n * p.max(1)];
+    for (pi, &parent) in gather.parents.iter().enumerate() {
+        let var = model.output_layout.variables[parent.as_usize()];
+        let col = data.float64_values(var).map_err(ModelError::from)?;
+        let base = pi * n;
+        parent_mat[base..base + n].copy_from_slice(&col[..n]);
+    }
+    let parents = ParentBatch { n_rows: n, n_parents: p, values: &parent_mat[..n * p] };
+    let slot = MechanismSlot::Discrete {
+        support: Arc::from(support.to_vec()),
+        probs: Arc::from(vec![0.0; support.len()]),
+        logit_coeffs: Some(Arc::from(logits.to_vec())),
+    };
+    let mut lp = vec![0.0; n];
+    log_prob_column(&slot, y, parents, &mut lp)?;
+    Ok(lp.iter().sum::<f64>() / n.max(1) as f64)
 }
 
 /// Collection of fitted models weighted by graph posterior mass.
@@ -474,5 +538,73 @@ mod tests {
             store.get(DenseNodeId::from_raw(1)),
             MechanismSlot::LinearGaussian { .. }
         ));
+    }
+
+    #[test]
+    fn discrete_conditional_multinomial_logit_mle() {
+        let n = 120usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut xv = vec![0.0; n];
+        let mut yv = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            xv[i] = t;
+            // Soft association: mostly Y=t, occasional flips (avoids complete separation).
+            yv[i] = if i % 8 == 0 { 1.0 - t } else { t };
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let reg = MechanismRegistry::standard();
+        let (store, _) = reg
+            .assign_and_fit(
+                &compiled,
+                &data,
+                SelectionPolicy::RequireFamily(MechanismFamily::Discrete),
+            )
+            .unwrap();
+        let MechanismSlot::Discrete { support, logit_coeffs, .. } =
+            store.get(DenseNodeId::from_raw(1))
+        else {
+            panic!("expected discrete mechanism");
+        };
+        let logits = logit_coeffs.as_ref().expect("parent-conditional logits");
+        assert_eq!(support.len(), 2);
+        assert_eq!(logits.len(), 2 * 2); // K * (1 + p)
+        // Reference category pinned to zero.
+        assert!(logits[0].abs() < 1e-12 && logits[1].abs() < 1e-12);
+        // Positive slope for the higher class vs reference.
+        assert!(logits[3] > 0.5, "slope={}", logits[3]);
     }
 }

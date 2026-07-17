@@ -254,7 +254,7 @@ impl Admg {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::Endpoint;
+    use crate::types::{Endpoint, MiddleMark};
 
     #[test]
     fn districts_split_on_bidirected() {
@@ -282,6 +282,7 @@ mod tests {
             b: DenseNodeId::from_raw(1),
             at_a: Endpoint::Circle,
             at_b: Endpoint::Arrow,
+            middle: MiddleMark::Empty,
         };
         assert!(g.insert_marked(e).is_err());
     }

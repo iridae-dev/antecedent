@@ -105,7 +105,9 @@ pub fn is_mag_completion(g: &Pag) -> bool {
             if b.raw() < a.raw() {
                 continue;
             }
-            if matches!(at_a, Endpoint::Circle) || matches!(at_b, Endpoint::Circle) {
+            if matches!(at_a, Endpoint::Circle | Endpoint::Conflict)
+                || matches!(at_b, Endpoint::Circle | Endpoint::Conflict)
+            {
                 return false;
             }
             // Directed MAGs (Zhang) allow → and ↔ only — not undirected —o—.

@@ -1,6 +1,7 @@
 //! CPDAG and temporal CPDAG .
 //!
 //! Undirected contemporaneous marks use [`Endpoint::Tail`]–[`Endpoint::Tail`].
+//! Orientation conflicts use [`Endpoint::Conflict`]–[`Endpoint::Conflict`] (`x-x`).
 //! [`Endpoint::Circle`] is rejected (reserved for PAG/LPCMCI).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -100,12 +101,12 @@ impl TemporalCpdag {
     ///
     /// # Errors
     ///
-    /// Unknown nodes, duplicates, Circle marks, contemporaneous self-edges,
+    /// Unknown nodes, duplicates, illegal marks, contemporaneous self-edges,
     /// lagged self-loops (reported as [`GraphError::Cycle`]), or directed cycles.
     pub fn insert_marked(&mut self, edge: MarkedEdge) -> Result<(), GraphError> {
         if !edge.is_cpdag_legal() {
             return Err(GraphError::InvalidEndpoints {
-                message: "CPDAG rejects Circle marks and non Tail/Arrow combinations ",
+                message: "CPDAG accepts only Tail–Arrow, Tail–Tail, or Conflict–Conflict marks",
             });
         }
         self.validate_node(edge.a)?;
@@ -187,6 +188,20 @@ impl TemporalCpdag {
         Ok(())
     }
 
+    /// Mark an existing edge as a Tigramite `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
+    ///
+    /// # Errors
+    ///
+    /// Missing edge or unknown nodes.
+    pub fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        self.validate_node(a)?;
+        self.validate_node(b)?;
+        if self.edge_between(a, b).is_none() {
+            return Err(GraphError::UnknownNode { id: a.raw() });
+        }
+        self.set_marks(a, b, Endpoint::Conflict, Endpoint::Conflict)
+    }
+
     /// Whether any edge exists between `a` and `b`.
     #[must_use]
     pub fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
@@ -211,7 +226,7 @@ impl TemporalCpdag {
                     || (a.raw() == e.neighbor.raw()
                         && matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)))
                 {
-                    out.push(MarkedEdge { a, b: e.neighbor, at_a: e.at_self, at_b: e.at_neighbor });
+                    out.push(MarkedEdge { a, b: e.neighbor, at_a: e.at_self, at_b: e.at_neighbor, middle: e.middle });
                 } else if a.raw() > e.neighbor.raw() {
                     // skip reverse half
                 } else if matches!((e.at_self, e.at_neighbor), (Endpoint::Arrow, Endpoint::Tail)) {
@@ -295,11 +310,12 @@ impl TemporalCpdag {
         Ok(dag)
     }
 
-    /// Convert to a [`TemporalDag`] only when no undirected edges remain.
+    /// Convert to a [`TemporalDag`] only when no undirected or conflict edges remain.
     ///
     /// # Errors
     ///
-    /// [`GraphError::InvalidEndpoints`] if any Tail–Tail edge is still present, or insert failure.
+    /// [`GraphError::InvalidEndpoints`] if any Tail–Tail or Conflict–Conflict edge remains,
+    /// or insert failure.
     pub fn try_into_temporal_dag(&self) -> Result<TemporalDag, GraphError> {
         for e in self.edges() {
             if e.is_undirected() {
@@ -307,8 +323,19 @@ impl TemporalCpdag {
                     message: "cannot complete TemporalCpdag to TemporalDag while undirected edges remain",
                 });
             }
+            if e.is_conflict() {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "cannot complete TemporalCpdag to TemporalDag while conflict edges remain",
+                });
+            }
         }
         self.to_directed_skeleton()
+    }
+
+    /// Count conflict (`x-x`) edges.
+    #[must_use]
+    pub fn conflict_edge_count(&self) -> usize {
+        self.edges().iter().filter(|e| e.is_conflict()).count()
     }
 
     /// Map dense id to a serializable [`TemporalNodeKey`].
@@ -392,11 +419,31 @@ mod tests {
     }
 
     #[test]
+    fn mark_conflict_sets_x_x() {
+        let mut g = TemporalCpdag::empty();
+        let x = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_undirected(x, y).unwrap();
+        g.mark_conflict(x, y).unwrap();
+        let e = g.edge_between(x, y).unwrap();
+        assert!(e.is_conflict());
+        assert_eq!(g.conflict_edge_count(), 1);
+        assert!(g.undirected_neighbors(x).is_empty());
+        assert!(g.try_into_temporal_dag().is_err());
+    }
+
+    #[test]
     fn rejects_circle_marks() {
         let mut g = TemporalCpdag::empty();
         let x = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         let y = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-        let edge = MarkedEdge { a: x, b: y, at_a: Endpoint::Circle, at_b: Endpoint::Arrow };
+        let edge = MarkedEdge {
+            a: x,
+            b: y,
+            at_a: Endpoint::Circle,
+            at_b: Endpoint::Arrow,
+            middle: crate::types::MiddleMark::Empty,
+        };
         assert!(matches!(g.insert_marked(edge), Err(GraphError::InvalidEndpoints { .. })));
     }
 

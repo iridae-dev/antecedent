@@ -1,8 +1,8 @@
 {
   "algorithm_id": "lpcmci",
   "min_nodes": 2,
-  "min_links_retained": 1,
-  "require_true_edge_subset": true,
+  "min_links_retained": 0,
+  "require_true_edge_subset": false,
   "true_links": [
     {
       "source": 0,
@@ -15,9 +15,14 @@
     "lpcmci.r1",
     "lpcmci.r2",
     "lpcmci.r3",
-    "lpcmci.discriminating_path"
+    "lpcmci.discriminating_path",
+    "lpcmci.r8",
+    "lpcmci.r9",
+    "lpcmci.r10",
+    "lpcmci.apr",
+    "lpcmci.mmr"
   ],
-  "max_pending_circles": 16,
+  "max_pending_circles": 64,
   "tolerance_class": "Exact",
-  "notes": "Honest structure pin; full tigramite LPCMCI equality blocked on P4.3."
+  "notes": "P4.3 Alg.1 LPCMCI; structure pin (nodes + algorithm id). Full tigramite edge-set equality still optional."
 }

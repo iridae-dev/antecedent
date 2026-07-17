@@ -280,6 +280,7 @@ pub fn pag_from_scored_links(
                 b: if src.raw() <= tgt.raw() { tgt } else { src },
                 at_a: causal_graph::Endpoint::Circle,
                 at_b: causal_graph::Endpoint::Circle,
+                middle: causal_graph::MiddleMark::Empty,
             })
         } else {
             // Lagged: o→ with arrow at the later node by time order.

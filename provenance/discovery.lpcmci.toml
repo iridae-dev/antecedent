@@ -14,4 +14,5 @@ upstream_implementations_observed = ["Tigramite LPCMCI"]
 test_sources = [
  "lpcmci returns TemporalPag",
  "discriminating_paths and rule_scheduling modules",
+ "lpcmci_phases Alg.1 (middle marks, weakly-minimal, R8–R10)",
 ]

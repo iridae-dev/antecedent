@@ -1,5 +1,8 @@
 //! LPCMCI discovery returning a temporal PAG (DESIGN.md §13.4–13.5).
 //!
+//! Implements Gerhardus & Runge (2020): middle marks, weakly-minimal sepsets,
+//! interleaved ancestral / non-ancestral removal with orientation (Alg. 1).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
@@ -8,30 +11,24 @@ use std::sync::Arc;
 
 use causal_core::{ExecutionContext, Lag, VariableId};
 use causal_data::TimeSeriesData;
-use causal_graph::TemporalPagReview;
 use causal_stats::{ConditionalIndependence, FdrAdjustment};
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
-use crate::evidence::{pag_evidence_from_oriented, pag_from_scored_links, threshold_scored_links};
-use crate::pipeline::{
-    algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
-    with_links_retained,
-};
+use crate::lpcmci_phases::run_lpcmci_algorithm;
 use crate::result::PagDiscoveryResult;
-use crate::rule_scheduling::{
-    LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciR1, LpcmciR2, LpcmciR3,
-    run_lpcmci_orientation,
-};
 
-/// LPCMCI: latent-confounder-aware PCMCI → oriented [`TemporalPag`].
+/// LPCMCI: latent-confounder-aware PCMCI → oriented [`causal_graph::TemporalPag`].
 #[derive(Clone, Debug)]
 pub struct Lpcmci {
     /// Shared PCMCI engine (`min_lag` typically 0).
     pub engine: PcmciEngine,
     /// Multiple-testing adjustment (`None` = off).
     pub fdr: Option<FdrAdjustment>,
+    /// Preliminary Alg-S2 iterations before the final ancestral/non-ancestral pass
+    /// (tigramite `n_preliminary_iterations`, default 1).
+    pub n_preliminary_iterations: u32,
 }
 
 impl Default for Lpcmci {
@@ -49,6 +46,7 @@ impl Lpcmci {
         Self {
             engine: PcmciEngine::new().with_constraints(constraints),
             fdr: Some(FdrAdjustment::bh()),
+            n_preliminary_iterations: 1,
         }
     }
 
@@ -73,6 +71,13 @@ impl Lpcmci {
         self
     }
 
+    /// Number of preliminary ancestral phases (tigramite default: 1).
+    #[must_use]
+    pub fn with_n_preliminary_iterations(mut self, n: u32) -> Self {
+        self.n_preliminary_iterations = n;
+        self
+    }
+
     /// Replace CI test.
     #[must_use]
     pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
@@ -92,64 +97,15 @@ impl Lpcmci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<PagDiscoveryResult, DiscoveryError> {
-        let engine_result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
-        let alpha = self.engine.constraints.alpha;
-        let scored = threshold_scored_links(engine_result.evidence.links.to_vec(), self.fdr, alpha);
-        let max_lag = self.engine.constraints.temporal.max_lag.raw();
-        let mut pag = pag_from_scored_links(&scored, variables, max_lag)?;
-
-        let node_ids = lagged_node_index(pag.nodes());
-        let mut state = orientation_state_from_sepsets(&node_ids, &engine_result.sepsets);
-
-        let rules: [&dyn crate::rule_scheduling::LpcmciOrientationRule; 5] =
-            [&LpcmciOrientCollider, &LpcmciR1, &LpcmciR2, &LpcmciR3, &LpcmciDiscriminatingPathRule];
-        let delta =
-            run_lpcmci_orientation(&mut pag, &rules, &mut state).map_err(DiscoveryError::from)?;
-
-        let algorithm = algorithm_record(
-            "lpcmci",
-            format!(
-                "alpha={},max_lag={},fdr={:?},min_lag={}",
-                alpha,
-                self.engine.constraints.temporal.max_lag.raw(),
-                self.fdr,
-                self.engine.constraints.temporal.min_lag.raw()
-            ),
-        );
-        let evidence = pag_evidence_from_oriented(pag.clone(), scored, &engine_result.sepsets);
-        let review = TemporalPagReview::from_pag(pag, algorithm.id.clone());
-        let links_retained = evidence.links.len();
-        let mut diagnostics = engine_result.diagnostics;
-        push_diagnostic(
-            &mut diagnostics,
-            "lpcmci.pag",
-            format!(
-                "oriented temporal PAG with {} nodes ({} circle edges pending)",
-                evidence.graph.node_count(),
-                review.pending_circles.len()
-            ),
-        );
-        if state.conflicts > 0 || delta.conflicts > 0 {
-            push_diagnostic(
-                &mut diagnostics,
-                "orientation.conflicts",
-                format!(
-                    "{} orientation conflict(s) recorded (cycle or opposite direction)",
-                    state.conflicts
-                ),
-            );
-        }
-
-        Ok(PagDiscoveryResult {
-            evidence,
-            review,
-            algorithm,
-            assumptions: engine_result.assumptions,
-            iterations: engine_result.iterations,
-            diagnostics,
-            performance: with_links_retained(engine_result.performance, links_retained),
-            sepsets: engine_result.sepsets,
-        })
+        run_lpcmci_algorithm(
+            &self.engine,
+            data,
+            variables,
+            workspace,
+            ctx,
+            self.fdr,
+            self.n_preliminary_iterations,
+        )
     }
 }
 

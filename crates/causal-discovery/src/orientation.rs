@@ -94,12 +94,13 @@ impl OrientationQueue {
 pub struct OrientationState {
     /// Sepset for unordered pair `(min(a,b), max(a,b))`.
     pub sepsets: HashMap<(u32, u32), Arc<[DenseNodeId]>>,
+    /// Keys whose stored sepset is weakly minimal (LPCMCI Def. 1).
+    pub weakly_minimal: HashSet<(u32, u32)>,
     /// Number of orientation conflicts recorded this run.
     pub conflicts: u32,
     /// Unordered edge keys `(min,max)` that participated in a conflict.
     ///
-    /// Full Tigramite `x-x` endpoint marks are deferred (Endpoint has no Conflict
-    /// variant yet); conflicts are tracked out-of-band and surfaced as diagnostics.
+    /// Matching edges are also marked Conflict–Conflict (`x-x`) in the graph when present.
     pub conflict_edges: HashSet<(u32, u32)>,
 }
 
@@ -117,6 +118,19 @@ impl OrientationState {
         self.sepsets.get(&key).map(AsRef::as_ref)
     }
 
+    /// Mark `{a,b}`'s sepset as weakly minimal.
+    pub fn mark_weakly_minimal(&mut self, a: DenseNodeId, b: DenseNodeId) {
+        let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
+        self.weakly_minimal.insert(key);
+    }
+
+    /// Whether the stored sepset for `{a,b}` is weakly minimal.
+    #[must_use]
+    pub fn is_weakly_minimal(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
+        let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
+        self.weakly_minimal.contains(&key)
+    }
+
     /// Record an orientation conflict on `{a,b}` (cycle or opposite direction).
     pub fn record_conflict(&mut self, delta: &mut RuleDelta, a: DenseNodeId, b: DenseNodeId, kind: &str) {
         let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
@@ -132,7 +146,7 @@ impl OrientationState {
 
 /// Try to orient an undirected edge `from → to`.
 ///
-/// Cycle conflicts are recorded and the run continues (edge stays undirected).
+/// Cycle conflicts are recorded, the edge is marked `x-x`, and the run continues.
 /// Other graph errors propagate.
 pub(crate) fn try_orient_undirected(
     graph: &mut TemporalCpdag,
@@ -151,6 +165,10 @@ pub(crate) fn try_orient_undirected(
         }
         Err(GraphError::Cycle { .. }) => {
             state.record_conflict(delta, from, to, "cycle");
+            if graph.mark_conflict(from, to).is_ok() {
+                delta.edges_changed += 1;
+                delta.fixed_point = false;
+            }
             Ok(false)
         }
         Err(e) => Err(OrientationError::from(e)),
@@ -660,6 +678,12 @@ impl OrientationRule for OrientCollider {
                                     *c,
                                     "opposite_direction",
                                 );
+                                if graph.mark_conflict(endpoint, *c).is_ok() {
+                                    delta.edges_changed += 1;
+                                    delta.fixed_point = false;
+                                    changed.push(endpoint);
+                                    changed.push(*c);
+                                }
                             }
                             LegKind::Undirected => {
                                 let premise = format!(
@@ -767,7 +791,10 @@ mod tests {
         let delta = run_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
         assert!(state.conflicts >= 1, "conflicts={}", state.conflicts);
         assert!(delta.conflicts >= 1);
-        assert!(g.edge_between(b, c).unwrap().is_undirected());
+        assert!(
+            g.edge_between(b, c).unwrap().is_conflict(),
+            "cycle conflict should mark x-x"
+        );
     }
 
     #[test]
@@ -784,7 +811,10 @@ mod tests {
         let mut queue = OrientationQueue::new();
         let d = OrientCollider.apply(&mut g, &mut state, &mut queue).unwrap();
         assert!(state.conflicts >= 1 || d.conflicts >= 1);
-        assert_eq!(g.edge_between(c, a).unwrap().parent_child(), Some((c, a)));
+        assert!(
+            g.edge_between(c, a).unwrap().is_conflict(),
+            "opposite-direction conflict should mark x-x"
+        );
         assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
     }
 
