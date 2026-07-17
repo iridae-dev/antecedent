@@ -12,6 +12,7 @@
 
 use crate::dag::Dag;
 use crate::error::GraphError;
+use crate::overlay::GraphOverlay;
 use crate::types::DenseNodeId;
 use crate::workspace::{BitSet, GraphWorkspace};
 
@@ -96,6 +97,18 @@ impl Dag {
         z: &[DenseNodeId],
         ws: &mut DSeparationWorkspace,
     ) -> Result<bool, GraphError> {
+        self.is_d_separated_with(x, y, z, ws, None)
+    }
+
+    /// d-separation under an optional [`GraphOverlay`].
+    pub(crate) fn is_d_separated_with(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+        overlay: Option<&GraphOverlay>,
+    ) -> Result<bool, GraphError> {
         self.validate_node_pub(x)?;
         self.validate_node_pub(y)?;
         for &v in z {
@@ -104,7 +117,7 @@ impl Dag {
         if x == y {
             return Ok(false);
         }
-        Ok(self.d_sep_bool(x, y, z, ws))
+        Ok(self.d_sep_active_path(x, y, z, ws, overlay).is_none())
     }
 
     /// Batch boolean d-separation. `out[i]` corresponds to `queries[i] = (x,y,z)`.
@@ -139,6 +152,18 @@ impl Dag {
         z: &[DenseNodeId],
         ws: &mut DSeparationWorkspace,
     ) -> Result<SeparationResult, GraphError> {
+        self.d_separation_with(x, y, z, ws, None)
+    }
+
+    /// Witness d-separation under an optional [`GraphOverlay`].
+    pub(crate) fn d_separation_with(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+        overlay: Option<&GraphOverlay>,
+    ) -> Result<SeparationResult, GraphError> {
         self.validate_node_pub(x)?;
         self.validate_node_pub(y)?;
         for &v in z {
@@ -147,7 +172,7 @@ impl Dag {
         if x == y {
             return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
         }
-        if let Some(path) = self.d_sep_active_path(x, y, z, ws) {
+        if let Some(path) = self.d_sep_active_path(x, y, z, ws, overlay) {
             Ok(SeparationResult::Connected {
                 active_path: path.into_iter().map(|node| PathStep { node }).collect(),
             })
@@ -159,16 +184,6 @@ impl Dag {
         }
     }
 
-    fn d_sep_bool(
-        &self,
-        x: DenseNodeId,
-        y: DenseNodeId,
-        z: &[DenseNodeId],
-        ws: &mut DSeparationWorkspace,
-    ) -> bool {
-        self.d_sep_active_path(x, y, z, ws).is_none()
-    }
-
     /// Returns an active undirected path if d-connected; `None` if separated.
     fn d_sep_active_path(
         &self,
@@ -176,6 +191,7 @@ impl Dag {
         y: DenseNodeId,
         z: &[DenseNodeId],
         ws: &mut DSeparationWorkspace,
+        overlay: Option<&GraphOverlay>,
     ) -> Option<Vec<DenseNodeId>> {
         let n = self.node_count();
         ws.prepare(n);
@@ -185,7 +201,7 @@ impl Dag {
         seeds.push(x);
         seeds.push(y);
         seeds.extend_from_slice(z);
-        self.ancestors_of(&seeds, &mut ws.ancestral, &mut ws.graph_ws);
+        self.ancestors_of_with(&seeds, &mut ws.ancestral, &mut ws.graph_ws, overlay);
 
         ws.conditioning.clear();
         for &v in z {
@@ -200,17 +216,26 @@ impl Dag {
             }
             // Directed edges become undirected (within ancestral set).
             for &c in self.children(u) {
+                if overlay.is_some_and(|ov| !ov.edge_visible(u, c)) {
+                    continue;
+                }
                 if ws.ancestral.contains(c) {
                     add_undirected(&mut ws.undirected, u, c);
                 }
             }
-            // Moral edges: marry parents.
+            // Moral edges: marry parents connected by visible edges into u.
             let parents = self.parents(u);
             for (a_idx, &a) in parents.iter().enumerate() {
+                if overlay.is_some_and(|ov| !ov.edge_visible(a, u)) {
+                    continue;
+                }
                 if !ws.ancestral.contains(a) {
                     continue;
                 }
                 for &b in &parents[a_idx + 1..] {
+                    if overlay.is_some_and(|ov| !ov.edge_visible(b, u)) {
+                        continue;
+                    }
                     if ws.ancestral.contains(b) {
                         add_undirected(&mut ws.undirected, a, b);
                     }

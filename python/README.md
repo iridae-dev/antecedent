@@ -1,6 +1,8 @@
 # Python package for causal-library
 
-Requires CPython 3.11+ and a Rust 1.85 toolchain.
+Requires CPython 3.11–3.14 and a Rust 1.85 toolchain. CI builds and smoke-tests
+wheels for that range on Linux x86_64/aarch64 (manylinux), macOS x86_64/arm64,
+and Windows x86_64 (default `faer` path; no system BLAS).
 
 ```bash
 cd python

@@ -670,7 +670,9 @@ Implement in this order:
 9. latent projection;
 10. graph mutilation under intervention;
 11. moralization and ancestral subgraphs;
-12. Markov blankets;
+12. Markov blankets
+   (**status:** shipped — `Dag::markov_blanket` and Richardson-moral
+   `Admg::markov_blanket` with inducing-path / district closure);
 13. temporal stationarity expansion;
 14. finite temporal unfolding;
 15. graph completions and equivalence-class sampling.
@@ -703,8 +705,9 @@ Required:
 
 - batched ancestry and separation APIs for repeated queries;
 - intervention/mutilation without cloning full graphs on hot paths
-  (**status:** planned — `Dag::mutilate` currently returns a full new `Dag`;
-  intervention overlays exist for SCM sampling (`causal-model`), not yet for graph algorithms);
+  (**status:** shipped — `GraphOverlay` / `DagView` hide incoming or outgoing
+  edges without cloning adjacency; `Dag::mutilate` materializes when an owned
+  `Dag` is required; SCM sampling overlays remain in `causal-model`);
 - lazy temporal unfolding or windowed unfolding when the algorithm does not require the complete graph;
 - delta queues for orientation rules so a rule revisits only affected triples or paths;
 - compact conditioning and separating sets using sorted dense IDs or bitsets;
@@ -825,7 +828,7 @@ pub enum TargetPopulation {
 
 Target population is part of the query identity and serialization.
 
-## 9. Symbolic causal-functional IR [partial]
+## 9. Symbolic causal-functional IR [built]
 
 `causal-expr` represents identified functionals independently of any estimator. The semantic form is an arena-backed directed acyclic expression graph rather than recursively boxed trees.
 
@@ -856,16 +859,20 @@ pub struct CausalExprArena {
 }
 ```
 
-Requirements:
+Requirements (**status:** shipped):
 
 - structural equality and stable hashing;
 - alpha-normalized variable ordering;
 - interned sorted variable and intervention sets;
-- simplification without changing semantics;
+- simplification without changing semantics
+  (`CausalExprArena::simplify` — bottom-up rewrite + memoization);
 - pretty printing and LaTeX rendering;
-- evaluation against empirical, parametric, or posterior distribution providers;
+- evaluation against empirical, parametric, or posterior distribution providers
+  (`DistributionProvider` trait; `EmpiricalTableProvider` /
+  `PosteriorDrawProvider`; parametric backends implement the trait);
 - derivation traces linking rewrites to identification rules;
-- compiled evaluators for repeated empirical or posterior evaluation.
+- compiled evaluators for repeated empirical or posterior evaluation
+  (`CompiledEvaluator`; discrete `SumOut` path — `IntegralOut` rejected).
 
 The arena may hash-cons repeated subexpressions. Simplification uses iterative worklists and memoization. Derivation metadata is stored separately from canonical semantic nodes so adding an explanation does not duplicate the expression graph.
 
@@ -2490,14 +2497,14 @@ Supported Python versions for the first public release:
 CPython 3.11, 3.12, 3.13, 3.14
 ```
 
-Initial wheel matrix:
+Initial wheel matrix (**status:** shipped in CI):
 
 - Linux x86-64 manylinux;
 - Linux aarch64 manylinux;
 - macOS x86-64 and arm64;
 - Windows x86-64.
 
-The default wheel includes the pure-Rust `faer` path and must not require system BLAS. `abi3`, free-threaded Python, PyPy, and optional BLAS wheel variants are experimental until NumPy/Arrow compatibility and performance are measured.
+The default wheel includes the pure-Rust `faer` path and must not require system BLAS. `abi3`, free-threaded Python, PyPy, and optional BLAS wheel variants are experimental until NumPy/Arrow compatibility and performance are measured (see `parity/release_deviations.md`).
 
 ### 25.6 Python performance requirements
 

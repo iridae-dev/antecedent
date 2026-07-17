@@ -6,10 +6,18 @@
 #![deny(missing_docs)]
 
 mod estimand;
+mod eval;
 mod latex;
 mod pretty;
+mod provider;
+mod simplify;
 
 pub use estimand::{EstimandMethod, IdentifiedEstimand};
+pub use eval::CompiledEvaluator;
+pub use provider::{
+    Assignment, DistributionProvider, EmpiricalTableProvider, EvalContext, EvalError, FactorSpec,
+    PosteriorDrawProvider,
+};
 
 use latex::latex_expr;
 use pretty::pretty_expr;
@@ -277,6 +285,12 @@ impl CausalExprArena {
         id
     }
 
+    /// Borrow an interned expression list.
+    #[must_use]
+    pub fn list(&self, id: ExprListId) -> &[ExprId] {
+        &self.lists[id.0 as usize]
+    }
+
     /// Hash-cons an expression node.
     pub fn intern(&mut self, node: ExprNode) -> ExprId {
         if let Some(id) = self.node_index.get(&node) {
@@ -291,6 +305,16 @@ impl CausalExprArena {
     /// Attach derivation metadata (does not affect semantic equality).
     pub fn set_derivation(&mut self, id: ExprId, meta: DerivationMeta) {
         self.derivation.insert(id.0, meta);
+    }
+
+    /// Attach derivation metadata only when absent (never overwrites ID rules).
+    pub fn set_derivation_if_absent(&mut self, id: ExprId, meta: DerivationMeta) {
+        self.derivation.entry(id.0).or_insert(meta);
+    }
+
+    /// Simplify `root` with worklist-style bottom-up rewrite + memoization.
+    pub fn simplify(&mut self, root: ExprId) -> ExprId {
+        simplify::simplify(self, root)
     }
 
     /// Borrow derivation metadata.

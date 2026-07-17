@@ -4,12 +4,24 @@
 
 use crate::dag::Dag;
 use crate::error::GraphError;
+use crate::overlay::GraphOverlay;
 use crate::types::DenseNodeId;
 use crate::workspace::{BitSet, GraphWorkspace};
 
 impl Dag {
     /// Collect all ancestors of `nodes` (including `nodes` themselves) into `out`.
     pub fn ancestors_of(&self, nodes: &[DenseNodeId], out: &mut BitSet, ws: &mut GraphWorkspace) {
+        self.ancestors_of_with(nodes, out, ws, None);
+    }
+
+    /// Ancestors under an optional edge-visibility overlay.
+    pub(crate) fn ancestors_of_with(
+        &self,
+        nodes: &[DenseNodeId],
+        out: &mut BitSet,
+        ws: &mut GraphWorkspace,
+        overlay: Option<&GraphOverlay>,
+    ) {
         let n = self.node_count();
         out.resize(n);
         out.clear();
@@ -25,6 +37,11 @@ impl Dag {
         }
         while let Some(u) = ws.frontier.pop() {
             for &p in self.parents(u) {
+                if let Some(ov) = overlay {
+                    if !ov.edge_visible(p, u) {
+                        continue;
+                    }
+                }
                 if !out.contains(p) {
                     out.insert(p);
                     ws.frontier.push(p);
@@ -35,6 +52,17 @@ impl Dag {
 
     /// Collect all descendants of `nodes` (including `nodes`) into `out`.
     pub fn descendants_of(&self, nodes: &[DenseNodeId], out: &mut BitSet, ws: &mut GraphWorkspace) {
+        self.descendants_of_with(nodes, out, ws, None);
+    }
+
+    /// Descendants under an optional edge-visibility overlay.
+    pub(crate) fn descendants_of_with(
+        &self,
+        nodes: &[DenseNodeId],
+        out: &mut BitSet,
+        ws: &mut GraphWorkspace,
+        overlay: Option<&GraphOverlay>,
+    ) {
         let n = self.node_count();
         out.resize(n);
         out.clear();
@@ -50,6 +78,11 @@ impl Dag {
         }
         while let Some(u) = ws.frontier.pop() {
             for &c in self.children(u) {
+                if let Some(ov) = overlay {
+                    if !ov.edge_visible(u, c) {
+                        continue;
+                    }
+                }
                 if !out.contains(c) {
                     out.insert(c);
                     ws.frontier.push(c);
@@ -70,11 +103,7 @@ impl Dag {
     /// # Errors
     ///
     /// Unknown node id.
-    pub fn markov_blanket(
-        &self,
-        node: DenseNodeId,
-        out: &mut BitSet,
-    ) -> Result<(), GraphError> {
+    pub fn markov_blanket(&self, node: DenseNodeId, out: &mut BitSet) -> Result<(), GraphError> {
         self.validate_node_pub(node)?;
         let n = self.node_count();
         out.resize(n);
@@ -110,6 +139,9 @@ impl Dag {
     /// Mutilate the graph under intervention: remove all edges into each
     /// intervened node. Returns a new DAG (nodes preserved).
     ///
+    /// Prefer [`Dag::view`] with [`GraphOverlay::do_intervention`] on hot paths
+    /// to avoid cloning adjacency.
+    ///
     /// # Errors
     ///
     /// Unknown node ids.
@@ -117,25 +149,8 @@ impl Dag {
         for &v in intervened {
             self.validate_node_pub(v)?;
         }
-        let mut out = Dag::with_variables(
-            u32::try_from(self.node_count()).map_err(|_| GraphError::TooManyNodes)?,
-        );
-        // Copy only non-incoming-to-intervened edges. The source is a valid DAG
-        // and removing edges cannot create cycles, so skip per-edge validation.
-        let mut blocked = BitSet::with_len(self.node_count());
-        for &v in intervened {
-            blocked.insert(v);
-        }
-        for i in 0..self.node_count() {
-            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
-            for &to in self.children(from) {
-                if blocked.contains(to) {
-                    continue;
-                }
-                out.insert_directed_unchecked(from, to);
-            }
-        }
-        Ok(out)
+        let overlay = GraphOverlay::do_intervention(self.node_count(), intervened);
+        self.view(&overlay).materialize()
     }
 
     pub(crate) fn validate_node_pub(&self, id: DenseNodeId) -> Result<(), GraphError> {

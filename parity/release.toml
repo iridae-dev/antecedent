@@ -20,7 +20,7 @@ notes = "Format 0.1 frozen; migrate registry + golden fixtures"
 [[capabilities]]
 id = "release.wheel_matrix"
 status = "done"
-notes = "CPython 3.11–3.14 × Linux/macOS/Windows wheels in CI"
+notes = "CPython 3.11–3.14 × Linux x86_64/aarch64, macOS x86_64/arm64, Windows x86_64 wheels in CI"
 
 [[capabilities]]
 id = "release.conformance_docs"

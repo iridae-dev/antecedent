@@ -42,6 +42,14 @@ supported.
 1.0 *preparation*: artifact format `0.1` is frozen and gated. Workspace and
 Python package versions stay at `0.1.0` (no 1.0.0 bump).
 
+## 7. Experimental Python wheel targets
+
+DESIGN §25.5 keeps `abi3`, free-threaded CPython, PyPy, and optional BLAS wheel
+variants **experimental** until NumPy/Arrow compatibility and performance are
+measured. The default CI matrix is CPython 3.11–3.14 × Linux x86_64/aarch64
+manylinux, macOS x86_64/arm64, and Windows x86_64 with the pure-Rust `faer`
+path (no system BLAS).
+
 ## Verification
 
 `scripts/gate_release.sh` requires every required DoWhy/Tigramite row to be

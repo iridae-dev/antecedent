@@ -9,6 +9,7 @@ use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     let mut arena = CausalExprArena::new();
+    let mut last = None;
     for chunk in data.chunks(4).take(64) {
         if chunk.is_empty() {
             continue;
@@ -30,13 +31,9 @@ fuzz_target!(|data: &[u8]| {
             domain,
         });
         let tag = chunk.get(3).copied().unwrap_or(0) % 4;
-        match tag {
-            0 => {
-                let _ = arena.intern(ExprNode::SumOut { variables: empty, expr: dist });
-            }
-            1 => {
-                let _ = arena.intern(ExprNode::IntegralOut { variables: empty, expr: dist });
-            }
+        let id = match tag {
+            0 => arena.intern(ExprNode::SumOut { variables: empty, expr: dist }),
+            1 => arena.intern(ExprNode::IntegralOut { variables: empty, expr: dist }),
             2 => {
                 let vars_a = arena.intern_var_set([a]);
                 let other = arena.intern(ExprNode::Distribution {
@@ -45,16 +42,20 @@ fuzz_target!(|data: &[u8]| {
                     intervention: empty_do,
                     domain: DomainRef::Observational,
                 });
-                let _ = arena.intern(ExprNode::Ratio {
-                    numerator: dist,
-                    denominator: other,
-                });
+                arena.intern(ExprNode::Ratio { numerator: dist, denominator: other })
             }
             _ => {
                 let list = arena.intern_list([dist]);
-                let _ = arena.intern(ExprNode::Product(list));
+                arena.intern(ExprNode::Product(list))
             }
-        }
+        };
+        last = Some(id);
+    }
+    if let Some(id) = last {
+        let simplified = arena.simplify(id);
+        let _ = arena.compile(simplified);
+        let again = arena.simplify(simplified);
+        assert_eq!(simplified, again);
     }
     if let Ok(s) = std::str::from_utf8(data) {
         let slice = if s.len() > 256 { &s[..256] } else { s };

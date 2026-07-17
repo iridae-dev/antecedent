@@ -47,6 +47,12 @@ impl BitSet {
         }
         (self.words[i / 64] >> (i % 64)) & 1 == 1
     }
+
+    /// Whether any bit is set.
+    #[must_use]
+    pub fn any(&self) -> bool {
+        self.words.iter().any(|w| *w != 0)
+    }
 }
 
 /// Scratch space for graph traversals; may grow but is reused.

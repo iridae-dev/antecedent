@@ -83,11 +83,35 @@ jobs:
             target: x86_64
             manylinux: auto
           - os: ubuntu-24.04-arm
+            python: "3.11"
+            target: aarch64
+            manylinux: auto
+          - os: ubuntu-24.04-arm
             python: "3.12"
             target: aarch64
             manylinux: auto
+          - os: ubuntu-24.04-arm
+            python: "3.13"
+            target: aarch64
+            manylinux: auto
+          - os: ubuntu-24.04-arm
+            python: "3.14"
+            target: aarch64
+            manylinux: auto
+          - os: macos-13
+            python: "3.11"
+            target: x86_64
+            manylinux: ""
           - os: macos-13
             python: "3.12"
+            target: x86_64
+            manylinux: ""
+          - os: macos-13
+            python: "3.13"
+            target: x86_64
+            manylinux: ""
+          - os: macos-13
+            python: "3.14"
             target: x86_64
             manylinux: ""
           - os: macos-14

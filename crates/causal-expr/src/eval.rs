@@ -1,0 +1,614 @@
+//! Compiled topological evaluators for causal expressions (DESIGN.md §9).
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use causal_core::VariableId;
+
+use crate::provider::{Assignment, DistributionProvider, EvalContext, EvalError, FactorSpec};
+use crate::{
+    CausalExprArena, ContrastOp, DomainRef, ExprId, ExprNode, InterventionSetId, OutcomeExprId,
+    VarSetId,
+};
+
+/// One step in a compiled evaluation plan (child references are slot indices).
+#[derive(Clone, Debug)]
+enum EvalOp {
+    Distribution {
+        variables: VarSetId,
+        conditioned_on: VarSetId,
+        intervention: InterventionSetId,
+        domain: DomainRef,
+    },
+    Product {
+        children: Arc<[usize]>,
+    },
+    SumOut {
+        variables: VarSetId,
+        body: usize,
+    },
+    Ratio {
+        numerator: usize,
+        denominator: usize,
+    },
+    Expectation {
+        function: OutcomeExprId,
+        distribution: usize,
+    },
+    Contrast {
+        left: usize,
+        right: usize,
+        op: ContrastOp,
+    },
+}
+
+/// Topologically ordered compiled evaluator for repeated provider evaluation.
+#[derive(Clone, Debug)]
+pub struct CompiledEvaluator {
+    ops: Vec<EvalOp>,
+    root: usize,
+}
+
+impl CausalExprArena {
+    /// Compile `root` into a topological evaluation plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EvalError::UnsupportedIntegralOut`] if the DAG contains
+    /// continuous marginalization.
+    pub fn compile(&self, root: ExprId) -> Result<CompiledEvaluator, EvalError> {
+        CompiledEvaluator::compile(self, root)
+    }
+}
+
+impl CompiledEvaluator {
+    /// Compile an expression DAG into slot-addressed ops (post-order).
+    ///
+    /// # Errors
+    ///
+    /// Unsupported constructs (e.g. `IntegralOut`).
+    pub fn compile(arena: &CausalExprArena, root: ExprId) -> Result<Self, EvalError> {
+        let mut ops = Vec::new();
+        let mut expr_to_slot = HashMap::new();
+        let root_slot = compile_rec(arena, root, &mut ops, &mut expr_to_slot)?;
+        Ok(Self { ops, root: root_slot })
+    }
+
+    /// Evaluate once against a provider.
+    ///
+    /// # Errors
+    ///
+    /// Provider / numeric failures.
+    pub fn evaluate(
+        &self,
+        arena: &CausalExprArena,
+        provider: &dyn DistributionProvider,
+        ctx: &EvalContext,
+    ) -> Result<f64, EvalError> {
+        self.eval_slot(arena, provider, ctx, &Assignment::new(), self.root)
+    }
+
+    /// Evaluate over all posterior draws (`provider.n_draws()`), or a single
+    /// empirical evaluation when `n_draws` is `None`.
+    ///
+    /// # Errors
+    ///
+    /// Provider / numeric failures.
+    pub fn evaluate_batch(
+        &self,
+        arena: &CausalExprArena,
+        provider: &dyn DistributionProvider,
+    ) -> Result<Vec<f64>, EvalError> {
+        match provider.n_draws() {
+            None => Ok(vec![self.evaluate(arena, provider, &EvalContext::default())?]),
+            Some(n) => {
+                let mut out = Vec::with_capacity(n);
+                for draw in 0..n {
+                    let ctx = EvalContext { draw: Some(draw) };
+                    out.push(self.evaluate(arena, provider, &ctx)?);
+                }
+                Ok(out)
+            }
+        }
+    }
+
+    fn eval_slot(
+        &self,
+        arena: &CausalExprArena,
+        provider: &dyn DistributionProvider,
+        ctx: &EvalContext,
+        env: &Assignment,
+        slot: usize,
+    ) -> Result<f64, EvalError> {
+        // Density / scalar under `env`. Expectations and contrasts are scalars;
+        // other ops are densities in the free variables bound by `env`.
+        match &self.ops[slot] {
+            EvalOp::Distribution { variables, conditioned_on, intervention, domain } => {
+                let spec = FactorSpec {
+                    variables: arena.var_set(*variables),
+                    conditioned_on: arena.var_set(*conditioned_on),
+                    intervention: arena.intervention_assignments(*intervention),
+                    domain: *domain,
+                };
+                // Interventions bind targets; merge into lookup assignment.
+                let mut lookup = env.clone();
+                for a in spec.intervention {
+                    lookup.set(a.variable, a.value.clone());
+                }
+                provider.probability(&spec, &lookup, ctx)
+            }
+            EvalOp::Product { children } => {
+                let mut prod = 1.0;
+                for &c in children.iter() {
+                    prod *= self.eval_slot(arena, provider, ctx, env, c)?;
+                }
+                Ok(prod)
+            }
+            EvalOp::SumOut { variables, body } => {
+                let vars = arena.var_set(*variables);
+                let rows = provider.support(vars, ctx)?;
+                let mut sum = 0.0;
+                for row in rows.iter() {
+                    if row.len() != vars.len() {
+                        return Err(EvalError::SupportShape {
+                            expected: vars.len(),
+                            actual: row.len(),
+                        });
+                    }
+                    let mut extended = env.clone();
+                    for (i, &v) in vars.iter().enumerate() {
+                        extended.set(v, row[i].clone());
+                    }
+                    sum += self.eval_slot(arena, provider, ctx, &extended, *body)?;
+                }
+                Ok(sum)
+            }
+            EvalOp::Ratio { numerator, denominator } => {
+                let num = self.eval_slot(arena, provider, ctx, env, *numerator)?;
+                let den = self.eval_slot(arena, provider, ctx, env, *denominator)?;
+                if den == 0.0 {
+                    return Err(EvalError::DivisionByZero);
+                }
+                Ok(num / den)
+            }
+            EvalOp::Expectation { function, distribution } => {
+                // E[f | D] = Σ_{x ∈ support(free(D))} f(x) · dens(D, x)
+                let free = free_vars_of_slot(self, arena, *distribution);
+                let unbound: Vec<VariableId> =
+                    free.into_iter().filter(|v| env.get(*v).is_none()).collect();
+                let outcome_var = function.variable();
+                let mut enum_vars = unbound;
+                if !enum_vars.contains(&outcome_var) && env.get(outcome_var).is_none() {
+                    enum_vars.push(outcome_var);
+                }
+                enum_vars.sort_by_key(|v| v.raw());
+                enum_vars.dedup();
+
+                if enum_vars.is_empty() {
+                    let dens = self.eval_slot(arena, provider, ctx, env, *distribution)?;
+                    let y = provider.outcome(outcome_var, env, ctx)?;
+                    return Ok(y * dens);
+                }
+
+                let rows = provider.support(&enum_vars, ctx)?;
+                let mut acc = 0.0;
+                for row in rows.iter() {
+                    if row.len() != enum_vars.len() {
+                        return Err(EvalError::SupportShape {
+                            expected: enum_vars.len(),
+                            actual: row.len(),
+                        });
+                    }
+                    let mut extended = env.clone();
+                    for (i, &v) in enum_vars.iter().enumerate() {
+                        extended.set(v, row[i].clone());
+                    }
+                    let dens = self.eval_slot(arena, provider, ctx, &extended, *distribution)?;
+                    let y = provider.outcome(outcome_var, &extended, ctx)?;
+                    acc += y * dens;
+                }
+                Ok(acc)
+            }
+            EvalOp::Contrast { left, right, op } => {
+                let l = self.eval_slot(arena, provider, ctx, env, *left)?;
+                let r = self.eval_slot(arena, provider, ctx, env, *right)?;
+                match op {
+                    ContrastOp::Difference => Ok(l - r),
+                }
+            }
+        }
+    }
+}
+
+fn compile_rec(
+    arena: &CausalExprArena,
+    id: ExprId,
+    ops: &mut Vec<EvalOp>,
+    expr_to_slot: &mut HashMap<u32, usize>,
+) -> Result<usize, EvalError> {
+    if let Some(&slot) = expr_to_slot.get(&id.raw()) {
+        return Ok(slot);
+    }
+    let op = match arena.node(id).clone() {
+        ExprNode::Distribution { variables, conditioned_on, intervention, domain } => {
+            EvalOp::Distribution { variables, conditioned_on, intervention, domain }
+        }
+        ExprNode::Product(list) => {
+            let mut children = Vec::new();
+            for &c in arena.list(list) {
+                children.push(compile_rec(arena, c, ops, expr_to_slot)?);
+            }
+            EvalOp::Product { children: Arc::from(children) }
+        }
+        ExprNode::SumOut { variables, expr } => {
+            let body = compile_rec(arena, expr, ops, expr_to_slot)?;
+            EvalOp::SumOut { variables, body }
+        }
+        ExprNode::IntegralOut { .. } => return Err(EvalError::UnsupportedIntegralOut),
+        ExprNode::Ratio { numerator, denominator } => {
+            let n = compile_rec(arena, numerator, ops, expr_to_slot)?;
+            let d = compile_rec(arena, denominator, ops, expr_to_slot)?;
+            EvalOp::Ratio { numerator: n, denominator: d }
+        }
+        ExprNode::Expectation { function, distribution } => {
+            let dist = compile_rec(arena, distribution, ops, expr_to_slot)?;
+            EvalOp::Expectation { function, distribution: dist }
+        }
+        ExprNode::Contrast { left, right, op } => {
+            let l = compile_rec(arena, left, ops, expr_to_slot)?;
+            let r = compile_rec(arena, right, ops, expr_to_slot)?;
+            EvalOp::Contrast { left: l, right: r, op }
+        }
+    };
+    let slot = ops.len();
+    ops.push(op);
+    expr_to_slot.insert(id.raw(), slot);
+    Ok(slot)
+}
+
+fn free_vars_of_slot(
+    compiled: &CompiledEvaluator,
+    arena: &CausalExprArena,
+    slot: usize,
+) -> Vec<VariableId> {
+    let mut out = Vec::new();
+    free_vars_rec(compiled, arena, slot, &mut out);
+    out.sort_by_key(|v| v.raw());
+    out.dedup();
+    out
+}
+
+fn free_vars_rec(
+    compiled: &CompiledEvaluator,
+    arena: &CausalExprArena,
+    slot: usize,
+    out: &mut Vec<VariableId>,
+) {
+    match &compiled.ops[slot] {
+        EvalOp::Distribution { variables, conditioned_on, intervention, .. } => {
+            out.extend_from_slice(arena.var_set(*variables));
+            out.extend_from_slice(arena.var_set(*conditioned_on));
+            let _ = intervention; // bound by do(·)
+        }
+        EvalOp::Product { children } => {
+            for &c in children.iter() {
+                free_vars_rec(compiled, arena, c, out);
+            }
+        }
+        EvalOp::SumOut { variables, body } => {
+            let mut inner = Vec::new();
+            free_vars_rec(compiled, arena, *body, &mut inner);
+            let bound = arena.var_set(*variables);
+            for v in inner {
+                if !bound.iter().any(|b| *b == v) {
+                    out.push(v);
+                }
+            }
+        }
+        EvalOp::Ratio { numerator, denominator } => {
+            free_vars_rec(compiled, arena, *numerator, out);
+            free_vars_rec(compiled, arena, *denominator, out);
+        }
+        EvalOp::Expectation { function, distribution } => {
+            free_vars_rec(compiled, arena, *distribution, out);
+            out.push(function.variable());
+        }
+        EvalOp::Contrast { left, right, .. } => {
+            free_vars_rec(compiled, arena, *left, out);
+            free_vars_rec(compiled, arena, *right, out);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::provider::{EmpiricalTableProvider, PosteriorDrawProvider};
+    use crate::{InterventionAssignment, OutcomeExprId};
+    use causal_core::Value;
+
+    fn v(id: u32) -> VariableId {
+        VariableId::from_raw(id)
+    }
+
+    fn f(x: f64) -> Value {
+        Value::f64(x)
+    }
+
+    /// Binary confounder Z, binary Y; backdoor ATE = 0.45.
+    fn backdoor_provider(t: VariableId, y: VariableId, z: VariableId) -> EmpiricalTableProvider {
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(z, [f(0.0), f(1.0)]);
+        p.set_domain(y, [f(0.0), f(1.0)]);
+        p.set_domain(t, [f(0.0), f(1.0)]);
+
+        // P(Z)
+        for (zval, prob) in [(0.0, 0.5), (1.0, 0.5)] {
+            let spec = FactorSpec {
+                variables: &[z],
+                conditioned_on: &[],
+                intervention: &[],
+                domain: DomainRef::Observational,
+            };
+            let assign = Assignment::from_pairs([(z, f(zval))]);
+            p.insert_probability(&spec, &assign, prob).unwrap();
+        }
+
+        // P(Y | Z, do(T=t)) = P(Y | T=t, Z) under backdoor.
+        // E[Y|T=1,Z=0]=0.8, E[Y|T=1,Z=1]=0.6, E[Y|T=0,Z=0]=0.3, E[Y|T=0,Z=1]=0.2
+        let ey = |tlev: f64, zlev: f64| -> f64 {
+            match (tlev.to_bits(), zlev.to_bits()) {
+                (t, z) if t == 1.0f64.to_bits() && z == 0.0f64.to_bits() => 0.8,
+                (t, z) if t == 1.0f64.to_bits() && z == 1.0f64.to_bits() => 0.6,
+                (t, z) if t == 0.0f64.to_bits() && z == 0.0f64.to_bits() => 0.3,
+                (t, z) if t == 0.0f64.to_bits() && z == 1.0f64.to_bits() => 0.2,
+                _ => panic!("bad levels"),
+            }
+        };
+        for tlev in [0.0, 1.0] {
+            let interv = [InterventionAssignment { variable: t, value: f(tlev) }];
+            for zlev in [0.0, 1.0] {
+                let p_y1 = ey(tlev, zlev);
+                for (yval, prob) in [(1.0, p_y1), (0.0, 1.0 - p_y1)] {
+                    let spec = FactorSpec {
+                        variables: &[y],
+                        conditioned_on: &[z],
+                        intervention: &interv,
+                        domain: DomainRef::Interventional,
+                    };
+                    let assign = Assignment::from_pairs([(y, f(yval)), (z, f(zlev))]);
+                    p.insert_probability(&spec, &assign, prob).unwrap();
+                }
+            }
+        }
+        p
+    }
+
+    #[test]
+    fn backdoor_ate_matches_closed_form() {
+        let mut arena = CausalExprArena::new();
+        let t = v(0);
+        let y = v(1);
+        let z = v(2);
+        let expr = arena.backdoor_ate(t, y, &[z], f(1.0), f(0.0));
+        let provider = backdoor_provider(t, y, z);
+        let compiled = arena.compile(expr).unwrap();
+        let ate = compiled.evaluate(&arena, &provider, &EvalContext::default()).unwrap();
+        assert!((ate - 0.45).abs() < 1e-12, "ate={ate}");
+    }
+
+    #[test]
+    fn simplify_preserves_backdoor_evaluation() {
+        let mut arena = CausalExprArena::new();
+        let t = v(0);
+        let y = v(1);
+        let z = v(2);
+        let expr = arena.backdoor_ate(t, y, &[z], f(1.0), f(0.0));
+        let provider = backdoor_provider(t, y, z);
+        let before = arena
+            .compile(expr)
+            .unwrap()
+            .evaluate(&arena, &provider, &EvalContext::default())
+            .unwrap();
+        let simplified = arena.simplify(expr);
+        let after = arena
+            .compile(simplified)
+            .unwrap()
+            .evaluate(&arena, &provider, &EvalContext::default())
+            .unwrap();
+        assert!((before - after).abs() < 1e-12, "before={before} after={after}");
+        assert!((after - 0.45).abs() < 1e-12);
+    }
+
+    #[test]
+    fn shallow_frontdoor_evaluates() {
+        // Minimal front-door: T→M→Y with no hidden confounding encoded in tables.
+        // P(M|do(T=t))=P(M|T=t); P(Y|M,T'); P(T').
+        let mut arena = CausalExprArena::new();
+        let t = v(0);
+        let y = v(1);
+        let m = v(2);
+        let expr = arena.frontdoor_ate(t, y, &[m], f(1.0), f(0.0));
+
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(t, [f(0.0), f(1.0)]);
+        p.set_domain(y, [f(0.0), f(1.0)]);
+        p.set_domain(m, [f(0.0), f(1.0)]);
+
+        // P(T')
+        for (tval, prob) in [(0.0, 0.5), (1.0, 0.5)] {
+            let spec = FactorSpec {
+                variables: &[t],
+                conditioned_on: &[],
+                intervention: &[],
+                domain: DomainRef::Observational,
+            };
+            p.insert_probability(&spec, &Assignment::from_pairs([(t, f(tval))]), prob).unwrap();
+        }
+
+        // P(M | do(T=t)): P(M=1|T=1)=0.7, P(M=1|T=0)=0.3
+        for tlev in [0.0, 1.0] {
+            let pm1 = if (tlev - 1.0_f64).abs() < f64::EPSILON { 0.7 } else { 0.3 };
+            let interv = [InterventionAssignment { variable: t, value: f(tlev) }];
+            for (mval, prob) in [(1.0, pm1), (0.0, 1.0 - pm1)] {
+                let spec = FactorSpec {
+                    variables: &[m],
+                    conditioned_on: &[],
+                    intervention: &interv,
+                    domain: DomainRef::Interventional,
+                };
+                p.insert_probability(&spec, &Assignment::from_pairs([(m, f(mval))]), prob).unwrap();
+            }
+        }
+
+        // P(Y | M, T'): E[Y|M=1,*]=0.9, E[Y|M=0,*]=0.1 (T' irrelevant)
+        // Arena sorts m_and_t as [t, m] when t.raw() < m.raw().
+        for tlev in [0.0, 1.0] {
+            for mlev in [0.0, 1.0] {
+                let py1 = if (mlev - 1.0_f64).abs() < f64::EPSILON { 0.9 } else { 0.1 };
+                for (yval, prob) in [(1.0, py1), (0.0, 1.0 - py1)] {
+                    let spec = FactorSpec {
+                        variables: &[y],
+                        conditioned_on: &[t, m],
+                        intervention: &[],
+                        domain: DomainRef::Observational,
+                    };
+                    let assign = Assignment::from_pairs([(y, f(yval)), (m, f(mlev)), (t, f(tlev))]);
+                    p.insert_probability(&spec, &assign, prob).unwrap();
+                }
+            }
+        }
+
+        // Front-door: E[Y|do(T=t)] = Σ_m P(m|do(t)) Σ_t' P(y|m,t') P(t')
+        // With P(Y|M) independent of T': E[Y|do(T=1)] = 0.7*0.9 + 0.3*0.1 = 0.66
+        // E[Y|do(T=0)] = 0.3*0.9 + 0.7*0.1 = 0.34
+        // ATE = 0.32
+        let compiled = arena.compile(expr).unwrap();
+        let ate = compiled.evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        assert!((ate - 0.32).abs() < 1e-12, "ate={ate}");
+
+        let simplified = arena.simplify(expr);
+        let ate2 = arena
+            .compile(simplified)
+            .unwrap()
+            .evaluate(&arena, &p, &EvalContext::default())
+            .unwrap();
+        assert!((ate - ate2).abs() < 1e-12);
+    }
+
+    #[test]
+    fn integral_out_rejected_at_compile() {
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let dist = arena.intern(ExprNode::Distribution {
+            variables: empty,
+            conditioned_on: empty,
+            intervention: empty_i,
+            domain: DomainRef::Observational,
+        });
+        let z = arena.intern_var_set([v(0)]);
+        let integ = arena.intern(ExprNode::IntegralOut { variables: z, expr: dist });
+        let err = arena.compile(integ).unwrap_err();
+        assert_eq!(err, EvalError::UnsupportedIntegralOut);
+    }
+
+    #[test]
+    fn posterior_evaluate_batch() {
+        let mut arena = CausalExprArena::new();
+        let t = v(0);
+        let y = v(1);
+        let z = v(2);
+        let expr = arena.backdoor_ate(t, y, &[z], f(1.0), f(0.0));
+
+        let draw0 = backdoor_provider(t, y, z);
+        // Perturb P(Z) in draw1 so ATE still 0.45 if conditionals unchanged...
+        // Actually change E[Y|T=1,Z=*] so ATE differs.
+        let mut draw1 = EmpiricalTableProvider::new();
+        draw1.set_domain(z, [f(0.0), f(1.0)]);
+        draw1.set_domain(y, [f(0.0), f(1.0)]);
+        draw1.set_domain(t, [f(0.0), f(1.0)]);
+        for (zval, prob) in [(0.0, 0.5), (1.0, 0.5)] {
+            let spec = FactorSpec {
+                variables: &[z],
+                conditioned_on: &[],
+                intervention: &[],
+                domain: DomainRef::Observational,
+            };
+            draw1.insert_probability(&spec, &Assignment::from_pairs([(z, f(zval))]), prob).unwrap();
+        }
+        // E[Y|T=1,*]=1.0, E[Y|T=0,*]=0.0 → ATE = 1.0
+        for tlev in [0.0, 1.0] {
+            let interv = [InterventionAssignment { variable: t, value: f(tlev) }];
+            let py1 = tlev;
+            for zlev in [0.0, 1.0] {
+                for (yval, prob) in [(1.0, py1), (0.0, 1.0 - py1)] {
+                    let spec = FactorSpec {
+                        variables: &[y],
+                        conditioned_on: &[z],
+                        intervention: &interv,
+                        domain: DomainRef::Interventional,
+                    };
+                    draw1
+                        .insert_probability(
+                            &spec,
+                            &Assignment::from_pairs([(y, f(yval)), (z, f(zlev))]),
+                            prob,
+                        )
+                        .unwrap();
+                }
+            }
+        }
+
+        let posterior = PosteriorDrawProvider::from_draws(vec![draw0, draw1]);
+        let compiled = arena.compile(expr).unwrap();
+        let batch = compiled.evaluate_batch(&arena, &posterior).unwrap();
+        assert_eq!(batch.len(), 2);
+        assert!((batch[0] - 0.45).abs() < 1e-12, "draw0={}", batch[0]);
+        assert!((batch[1] - 1.0).abs() < 1e-12, "draw1={}", batch[1]);
+
+        let single0 =
+            compiled.evaluate(&arena, &posterior, &EvalContext { draw: Some(0) }).unwrap();
+        let single1 =
+            compiled.evaluate(&arena, &posterior, &EvalContext { draw: Some(1) }).unwrap();
+        assert!((single0 - batch[0]).abs() < 1e-15);
+        assert!((single1 - batch[1]).abs() < 1e-15);
+    }
+
+    #[test]
+    fn expectation_of_simple_marginal() {
+        let mut arena = CausalExprArena::new();
+        let y = v(0);
+        let yset = arena.intern_var_set([y]);
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let dist = arena.intern(ExprNode::Distribution {
+            variables: yset,
+            conditioned_on: empty,
+            intervention: empty_i,
+            domain: DomainRef::Observational,
+        });
+        let exp = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(y),
+            distribution: dist,
+        });
+
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(y, [f(0.0), f(2.0)]);
+        let spec = FactorSpec {
+            variables: &[y],
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Observational,
+        };
+        p.insert_probability(&spec, &Assignment::from_pairs([(y, f(0.0))]), 0.25).unwrap();
+        p.insert_probability(&spec, &Assignment::from_pairs([(y, f(2.0))]), 0.75).unwrap();
+
+        let val =
+            arena.compile(exp).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        // 0*0.25 + 2*0.75 = 1.5
+        assert!((val - 1.5).abs() < 1e-12);
+    }
+}
