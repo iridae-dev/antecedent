@@ -34,9 +34,10 @@ pub use options::{DiscoveryAccept, FdrControl};
 pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use gcm::{
     FittedGcm, IteResult, anomaly_attribution, attribute_distribution_change,
-    attribute_distribution_change_robust, attribute_feature_relevance, attribute_paths,
-    attribute_unit_change, change_attribution_builder, counterfactual_ite, fit_gcm,
-    mechanism_change_detection, rank_root_causes, sample_do,
+    attribute_distribution_change_robust, attribute_feature_relevance, attribute_path_specific,
+    attribute_paths, attribute_unit_change, change_attribution_builder, counterfactual_ite,
+    fit_gcm, mechanism_change_detection, rank_root_causes, sample_do,
+    sample_interventional_distribution,
 };
 pub use inference::{BayesianConfig, InferenceMode};
 pub use planner::{

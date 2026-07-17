@@ -28,7 +28,7 @@ use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
     CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    coefficient_covariance, fit_glm, form_xtx, invert_square,
+    score_coefficient_covariance, fit_glm, form_xtx, invert_square,
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
@@ -102,11 +102,7 @@ impl GlmAdjustmentAte {
             backend: FaerBackend,
             bootstrap_replicates: 200,
             overlap: OverlapPolicy::ExplicitOverride,
-            glm_options: {
-                let mut o = GlmOptions::default();
-                o.ridge_on_separation = Some(crate::se::DEFAULT_RIDGE_ON_SEPARATION);
-                o
-            },
+            glm_options: GlmOptions::default(),
             family: GlmFamily::BinomialLogit,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
@@ -279,6 +275,7 @@ impl GlmAdjustmentAte {
                 &problem.design.outcome,
                 problem.active,
                 problem.control,
+                glm_fit.nb_alpha.unwrap_or(0.0),
                 &self.cluster_ids,
                 &self.multiway_ids,
             )?,
@@ -472,8 +469,11 @@ fn gcomp_delta_method_se(
     (dispersion * quad.max(0.0)).sqrt()
 }
 
-/// G-computation SE using residual sandwich Cov(β̂) (working/Pearson residuals) then
-/// the same mean-contrast gradient as the Fisher delta-method.
+/// G-computation SE using score-exact GLM sandwich Cov(β̂) then the same
+/// mean-contrast gradient as the Fisher delta-method.
+///
+/// Meat uses score contributions `s_i = u_i x_i` with
+/// `u_i = (y_i−μ_i) V(μ_i)⁻¹ μ'(η_i)`; bread is Fisher `(XᵀWX)⁻¹`.
 #[allow(clippy::too_many_arguments)]
 fn gcomp_sandwich_se(
     kind: AnalyticSeKind,
@@ -486,18 +486,19 @@ fn gcomp_sandwich_se(
     y: &[f64],
     active: f64,
     control: f64,
+    nb_alpha: f64,
     cluster_ids: &Option<Vec<u32>>,
     multiway_ids: &Option<Vec<Vec<u32>>>,
 ) -> Result<f64, EstimationError> {
-    let residuals = glm_working_residuals(family, x_colmajor, nrows, ncols, coefficients, y);
-    // Reuse residual_sandwich_coef_se machinery by computing full cov via a probe on col 0,
-    // then recompute with the stored kind — better: duplicate sandwich selection briefly.
+    let (score_u, fisher_w) =
+        glm_score_components(family, x_colmajor, nrows, ncols, coefficients, y, nb_alpha);
     let cov = sandwich_cov_matrix(
         kind,
         x_colmajor,
         nrows,
         ncols,
-        &residuals,
+        &score_u,
+        &fisher_w,
         cluster_ids,
         multiway_ids,
     )?;
@@ -523,7 +524,8 @@ fn sandwich_cov_matrix(
     x: &[f64],
     nrows: usize,
     ncols: usize,
-    residuals: &[f64],
+    score_u: &[f64],
+    fisher_w: &[f64],
     cluster_ids: &Option<Vec<u32>>,
     multiway_ids: &Option<Vec<Vec<u32>>>,
 ) -> Result<Option<Vec<f64>>, EstimationError> {
@@ -534,43 +536,77 @@ fn sandwich_cov_matrix(
     }
     let cov = match kind {
         AnalyticSeKind::Homoskedastic => unreachable!(),
-        AnalyticSeKind::Hc0 => {
-            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Hc0)
-        }
-        AnalyticSeKind::Hc1 => {
-            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Hc1)
-        }
-        AnalyticSeKind::Hc2 => {
-            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Hc2)
-        }
-        AnalyticSeKind::Hc3 => {
-            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Hc3)
-        }
+        AnalyticSeKind::Hc0 => score_coefficient_covariance(
+            x,
+            nrows,
+            ncols,
+            score_u,
+            fisher_w,
+            SandwichKind::Hc0,
+        ),
+        AnalyticSeKind::Hc1 => score_coefficient_covariance(
+            x,
+            nrows,
+            ncols,
+            score_u,
+            fisher_w,
+            SandwichKind::Hc1,
+        ),
+        AnalyticSeKind::Hc2 => score_coefficient_covariance(
+            x,
+            nrows,
+            ncols,
+            score_u,
+            fisher_w,
+            SandwichKind::Hc2,
+        ),
+        AnalyticSeKind::Hc3 => score_coefficient_covariance(
+            x,
+            nrows,
+            ncols,
+            score_u,
+            fisher_w,
+            SandwichKind::Hc3,
+        ),
         AnalyticSeKind::Cluster => {
             let groups = require_clusters(cluster_ids, nrows)?;
-            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::Cluster { groups })
+            score_coefficient_covariance(
+                x,
+                nrows,
+                ncols,
+                score_u,
+                fisher_w,
+                SandwichKind::Cluster { groups },
+            )
         }
         AnalyticSeKind::Multiway => {
             let dims = require_multiway(multiway_ids, nrows)?;
             let refs: Vec<&[u32]> = dims.iter().map(Vec::as_slice).collect();
-            coefficient_covariance(
+            score_coefficient_covariance(
                 x,
                 nrows,
                 ncols,
-                residuals,
+                score_u,
+                fisher_w,
                 SandwichKind::Multiway { dimensions: &refs },
             )
         }
-        AnalyticSeKind::NeweyWest { lag } => {
-            coefficient_covariance(x, nrows, ncols, residuals, SandwichKind::NeweyWest { lag })
-        }
+        AnalyticSeKind::NeweyWest { lag } => score_coefficient_covariance(
+            x,
+            nrows,
+            ncols,
+            score_u,
+            fisher_w,
+            SandwichKind::NeweyWest { lag },
+        ),
         AnalyticSeKind::PanelClusterHac { lag } => {
             let groups = require_clusters(cluster_ids, nrows)?;
-            coefficient_covariance(
+            score_coefficient_covariance(
                 x,
                 nrows,
                 ncols,
-                residuals,
+                score_u,
+                fisher_w,
                 SandwichKind::PanelClusterHac { groups, lag },
             )
         }
@@ -578,31 +614,63 @@ fn sandwich_cov_matrix(
     Ok(Some(cov.unwrap_or_else(|_| vec![f64::NAN; ncols * ncols])))
 }
 
-fn glm_working_residuals(
+/// Per-row GLM score multiplier `u_i` and Fisher weight `w_i`.
+///
+/// Score contribution is `s_i = u_i x_i` with
+/// `u_i = (y−μ) V(μ)⁻¹ μ'(η)`; `w_i` is the IRLS Fisher weight for bread `XᵀWX`.
+fn glm_score_components(
     family: GlmFamily,
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
     coefficients: &[f64],
     y: &[f64],
-) -> Vec<f64> {
-    let mut out = vec![0.0; nrows];
+    nb_alpha: f64,
+) -> (Vec<f64>, Vec<f64>) {
+    use causal_kernels::norm_pdf;
+    let mut score_u = vec![0.0; nrows];
+    let mut fisher_w = vec![0.0; nrows];
+    let alpha = nb_alpha.max(0.0);
     for r in 0..nrows {
         let mut eta = 0.0;
         for c in 0..ncols {
             eta += x_colmajor[c * nrows + r] * coefficients[c];
         }
         let mu = family.mean_from_eta(eta);
-        let denom = match family {
-            GlmFamily::GaussianIdentity => 1.0,
-            GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
-                (mu * (1.0 - mu)).max(1e-12).sqrt()
+        let (u, w) = match family {
+            GlmFamily::GaussianIdentity => {
+                // V=1, μ'=1 → u = y−μ, w = 1
+                (y[r] - mu, 1.0)
             }
-            GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => mu.max(1e-12).sqrt(),
+            GlmFamily::BinomialLogit => {
+                let mu = mu.clamp(1e-9, 1.0 - 1e-9);
+                let var = (mu * (1.0 - mu)).max(1e-12);
+                // μ' = var, u = (y−μ)/var * var = y−μ; w = var
+                (y[r] - mu, var)
+            }
+            GlmFamily::BinomialProbit => {
+                let mu = mu.clamp(1e-9, 1.0 - 1e-9);
+                let phi = norm_pdf(eta).max(1e-12);
+                let var = (mu * (1.0 - mu)).max(1e-12);
+                // u = (y−μ) φ / V; w = φ² / V
+                ((y[r] - mu) * phi / var, (phi * phi) / var)
+            }
+            GlmFamily::PoissonLog => {
+                let mu = mu.max(1e-12);
+                // V=μ, μ'=μ → u = y−μ; w = μ
+                (y[r] - mu, mu)
+            }
+            GlmFamily::NegativeBinomial => {
+                let mu = mu.max(1e-12);
+                let var = (mu + alpha * mu * mu).max(1e-12);
+                // μ'=μ, u = (y−μ) μ / V; w = μ² / V
+                ((y[r] - mu) * mu / var, (mu * mu) / var)
+            }
         };
-        out[r] = (y[r] - mu) / denom;
+        score_u[r] = u;
+        fisher_w[r] = w;
     }
-    out
+    (score_u, fisher_w)
 }
 
 fn gcomp_gradient(

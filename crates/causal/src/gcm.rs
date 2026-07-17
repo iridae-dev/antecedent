@@ -18,7 +18,8 @@ use causal_attribution::{
 };
 use causal_core::{
     AnomalyAttributionQuery, CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
-    MechanismChangeQuery, UnitChangeQuery, Value, VariableId,
+    InterventionalDistributionQuery, MechanismChangeQuery, PathSpecificEffectQuery,
+    TargetPopulation, UnitChangeQuery, Value, VariableId,
 };
 use causal_counterfactual::{
     CounterfactualEngine, CounterfactualError, ExogenousPosterior, MissingPolicy,
@@ -195,6 +196,71 @@ pub fn attribute_unit_change(
     ctx: &ExecutionContext,
 ) -> Result<UnitChangeResult, AnalysisError> {
     unit_change(model, data, query, ctx).map_err(map_attr)
+}
+
+/// Sample an interventional distribution under [`InterventionalDistributionQuery`].
+///
+/// Thin wrapper over [`sample_do`]. Only [`TargetPopulation::AllObserved`] is supported.
+///
+/// # Errors
+///
+/// Query validation, unsupported target population, or sampling failures.
+pub fn sample_interventional_distribution(
+    model: &CompiledCausalModel,
+    query: &InterventionalDistributionQuery,
+    n: usize,
+    rng: &mut CausalRng,
+    ctx: &ExecutionContext,
+) -> Result<ValueBatch, AnalysisError> {
+    query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    if query.target_population != TargetPopulation::AllObserved {
+        return Err(AnalysisError::Unsupported {
+            message:
+                "sample_interventional_distribution only supports TargetPopulation::AllObserved",
+        });
+    }
+    sample_do(model, &query.interventions, n, rng, ctx)
+}
+
+/// Path-specific contribution via [`PathSpecificEffectQuery`].
+///
+/// Thin wrapper over [`path_decompose`]. Only [`TargetPopulation::AllObserved`] is supported.
+/// When `path_nodes` is non-empty, keeps paths that visit every listed intermediate node.
+///
+/// # Errors
+///
+/// Query validation, unsupported target population, or path decomposition failures.
+pub fn attribute_path_specific(
+    model: &CompiledCausalModel,
+    query: &PathSpecificEffectQuery,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AnalysisError> {
+    query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    if query.target_population != TargetPopulation::AllObserved {
+        return Err(AnalysisError::Unsupported {
+            message: "attribute_path_specific only supports TargetPopulation::AllObserved",
+        });
+    }
+    let mut result = path_decompose(
+        model,
+        &[query.treatment],
+        query.outcome,
+        query.max_paths,
+        query.max_len,
+        ctx,
+    )
+    .map_err(map_attr)?;
+    if !query.path_nodes.is_empty() {
+        let filtered: Vec<_> = result
+            .path_breakdown
+            .iter()
+            .filter(|p| query.path_nodes.iter().all(|n| p.path.iter().any(|v| v == n)))
+            .cloned()
+            .collect();
+        result.total_change = filtered.iter().map(|p| p.contribution).sum();
+        result.path_breakdown = Arc::from(filtered);
+    }
+    Ok(result)
 }
 
 /// Path decomposition.

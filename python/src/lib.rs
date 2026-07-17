@@ -27,19 +27,21 @@ use causal::{
     GraphIdentFlag, InferenceMode, MeasurementPlan, MultiDatasetConstraints, RefuteSuite,
     SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent, TemporalLinearPredictor,
     TemporalMediationEstimator, WeightedGraphSamples, apply_state_event,
-    attribute_distribution_change, counterfactual_ite,
+    attribute_distribution_change, attribute_path_specific, counterfactual_ite,
     dag_from_dot, dag_to_dot, dag_to_json, decode_causal_posterior_bytes,
     discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
     encode_causal_posterior_bytes, fit_gcm, new_causal_state, pag_definite_directed_edge_count,
-    rank_designs, resolve_ci, sample_do, two_regime_half_split,
+    rank_designs, resolve_ci, sample_do, sample_interventional_distribution,
+    two_regime_half_split,
 };
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CacheBudget, CachePolicy,
-    CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention, Lag, MediationContrast,
-    MediationQuery, PopulationSelector, SchemaError, ShapleyConfig, TemporalEffectQuery,
-    TemporalPolicy, VERSION, Value, VariableId,
+    CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
+    InterventionalDistributionQuery, Lag, MediationContrast, MediationQuery, PathSpecificEffectQuery,
+    PopulationSelector, SchemaError, ShapleyConfig, TemporalEffectQuery, TemporalPolicy, VERSION,
+    Value, VariableId,
 };
 use causal_data::{
     DataError, MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
@@ -1450,6 +1452,148 @@ fn gcm_sample_do(
     })
 }
 
+/// Sample an interventional distribution via [`InterventionalDistributionQuery`].
+///
+/// Same return shape as [`gcm_sample_do`]; builds the typed query then samples.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, outcome=None, seed=0, threads=1))]
+fn gcm_sample_interventional_distribution(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    do_value: f64,
+    n_draws: usize,
+    outcome: Option<String>,
+    seed: u64,
+    threads: u32,
+) -> PyResult<GcmSampleResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    let (means, n_rows, n_nodes, flat) = detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_name = match &outcome {
+            Some(o) => o.as_str(),
+            None => names.last().map_or("y", String::as_str),
+        };
+        let y_id = data.schema().id_of(y_name).map_err(py_err)?;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let query = InterventionalDistributionQuery::new(
+            y_id,
+            [Intervention::set(t_id, Value::f64(do_value))],
+        );
+        let ctx = py_execution_context(seed, threads);
+        let mut rng = CausalRng::from_seed(seed);
+        let samples =
+            sample_interventional_distribution(&fitted.model, &query, n_draws, &mut rng, &ctx)
+                .map_err(py_err)?;
+        let mut means = Vec::with_capacity(samples.n_nodes);
+        for i in 0..samples.n_nodes {
+            let start = i * samples.n_rows;
+            let col = &samples.values[start..start + samples.n_rows];
+            let m = col.iter().sum::<f64>() / col.len().max(1) as f64;
+            means.push(m);
+        }
+        Ok::<_, PyErr>((means, samples.n_rows, samples.n_nodes, samples.values.as_ref().to_vec()))
+    })?;
+    let draws = PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind();
+    Ok(GcmSampleResult {
+        column_means: means,
+        n_draws: n_rows,
+        n_nodes,
+        draws,
+    })
+}
+
+/// Path-specific contribution via [`PathSpecificEffectQuery`] / `path_decompose`.
+///
+/// Returns `(total_change, [([node_names...], contribution), ...])`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, treatment, outcome, path_nodes=None, max_paths=64, max_len=16, seed=0, threads=1))]
+fn gcm_attribute_path_specific(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    path_nodes: Option<Vec<String>>,
+    max_paths: usize,
+    max_len: usize,
+    seed: u64,
+    threads: u32,
+) -> PyResult<(f64, Vec<(Vec<String>, f64)>)> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let mut intermediates = Vec::new();
+        if let Some(nodes) = &path_nodes {
+            for n in nodes {
+                intermediates.push(data.schema().id_of(n).map_err(py_err)?);
+            }
+        }
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
+            .with_max_paths(max_paths)
+            .with_max_len(max_len);
+        if !intermediates.is_empty() {
+            query = query.with_path_nodes(intermediates);
+        }
+        let ctx = py_execution_context(seed, threads);
+        let result = attribute_path_specific(&fitted.model, &query, &ctx).map_err(py_err)?;
+        let schema = data.schema();
+        let paths: Vec<(Vec<String>, f64)> = result
+            .path_breakdown
+            .iter()
+            .map(|p| {
+                let path_names: Vec<String> = p
+                    .path
+                    .iter()
+                    .map(|id| {
+                        schema
+                            .get(*id)
+                            .map(|v| v.name.to_string())
+                            .unwrap_or_else(|_| format!("V{}", id.raw()))
+                    })
+                    .collect();
+                (path_names, p.contribution)
+            })
+            .collect();
+        Ok((result.total_change, paths))
+    })
+}
+
 fn quantity_wire_name(q: &PosteriorQuantityWire) -> String {
     match q {
         PosteriorQuantityWire::Coefficient { index, name } => {
@@ -1764,6 +1908,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(predict_intervened_summary, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_counterfactual_ite, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_sample_do, m)?)?;
+    m.add_function(wrap_pyfunction!(gcm_sample_interventional_distribution, m)?)?;
+    m.add_function(wrap_pyfunction!(gcm_attribute_path_specific, m)?)?;
     m.add_function(wrap_pyfunction!(gcm_distribution_change, m)?)?;
     m.add_function(wrap_pyfunction!(rank_design_eig, m)?)?;
     m.add_function(wrap_pyfunction!(causal_state_append_demo, m)?)?;

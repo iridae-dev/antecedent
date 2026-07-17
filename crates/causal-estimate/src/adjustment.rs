@@ -94,7 +94,11 @@ pub enum LinearFitKind {
         /// Ridge penalty λ.
         lambda: f64,
     },
-    /// Lasso with penalty `lambda` (analytic SE omitted — use bootstrap).
+    /// Lasso with penalty `lambda`.
+    ///
+    /// Analytic SE is permanently omitted: classical / active-set sandwich SEs are
+    /// invalid after selection, and debiased Lasso changes the point estimator.
+    /// Use bootstrap (`bootstrap_replicates > 0`); `se_analytic` is NaN.
     Lasso {
         /// Lasso penalty λ.
         lambda: f64,
@@ -305,7 +309,7 @@ impl LinearAdjustmentAte {
                     residuals[r] = e;
                     rss += e * e;
                 }
-                // Lasso analytic SE omitted (plan); bootstrap only.
+                // Permanent policy: no analytic SE for Lasso (bootstrap only).
                 Ok((fit.coefficients, residuals, rss, false))
             }
             LinearFitKind::Huber { c } => {
@@ -652,5 +656,36 @@ mod tests {
             assert!(effect.ate.is_finite(), "{kind:?}");
             assert!((effect.ate - 2.0).abs() < 0.05, "ate={} kind={kind:?}", effect.ate);
         }
+    }
+
+    #[test]
+    fn lasso_analytic_se_nan_bootstrap_finite() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let no_boot = LinearAdjustmentAte {
+            bootstrap_replicates: 0,
+            fit_kind: LinearFitKind::Lasso { lambda: 1e-4 },
+            ..LinearAdjustmentAte::new()
+        };
+        let prep = no_boot.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let effect = no_boot
+            .fit(&prep, &mut ws, &ExecutionContext::for_tests(3), AssumptionSet::new())
+            .unwrap();
+        assert!(effect.se_analytic.is_nan(), "lasso se_analytic={}", effect.se_analytic);
+        assert!(effect.se_bootstrap.is_none());
+
+        let with_boot = LinearAdjustmentAte {
+            bootstrap_replicates: 40,
+            fit_kind: LinearFitKind::Lasso { lambda: 1e-4 },
+            ..LinearAdjustmentAte::new()
+        };
+        let effect = with_boot
+            .fit(&prep, &mut ws, &ExecutionContext::for_tests(3), AssumptionSet::new())
+            .unwrap();
+        assert!(effect.se_analytic.is_nan());
+        let boot = effect.se_bootstrap.expect("bootstrap SE");
+        assert!(boot.is_finite() && boot >= 0.0, "se_bootstrap={boot}");
     }
 }

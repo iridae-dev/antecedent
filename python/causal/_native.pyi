@@ -288,6 +288,31 @@ def gcm_sample_do(
     threads: int = 1,
 ) -> GcmSampleResult: ...
 
+def gcm_sample_interventional_distribution(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    do_value: float,
+    n_draws: int,
+    outcome: str | None = None,
+    seed: int = 0,
+    threads: int = 1,
+) -> GcmSampleResult: ...
+
+def gcm_attribute_path_specific(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    path_nodes: list[str] | None = None,
+    max_paths: int = 64,
+    max_len: int = 16,
+    seed: int = 0,
+    threads: int = 1,
+) -> tuple[float, list[tuple[list[str], float]]]: ...
+
 def gcm_distribution_change(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],

@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from ._native import GcmSampleResult, gcm_sample_do
+from ._native import GcmSampleResult, gcm_sample_do, gcm_sample_interventional_distribution
 
-__all__ = ["GcmSampleResult", "gcm_sample_do"]
+__all__ = ["GcmSampleResult", "gcm_sample_do", "gcm_sample_interventional_distribution"]

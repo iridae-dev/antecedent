@@ -757,7 +757,7 @@ pub enum Assumption {
 
 Every identification and estimation result references the exact assumptions used. Assumptions can be declared, tested, contradicted, or untestable. An untestable assumption is not marked as validated.
 
-## 8. Causal query model [partial]
+## 8. Causal query model [built]
 
 The public query model uses typed variants rather than free-form strings.
 
@@ -774,12 +774,20 @@ pub enum CausalQuery {
     TemporalEffect(TemporalEffectQuery),
     MechanismChange(MechanismChangeQuery),
     UnitChange(UnitChangeQuery),
+    Distribution(InterventionalDistributionQuery),
+    PathSpecific(PathSpecificEffectQuery),
 }
 ```
 
-**Planned (roadmap; not yet variants):** `Distribution(InterventionalDistributionQuery)` and
-`PathSpecific(PathSpecificEffectQuery)`. Prefer adding those as new variants rather than
-overloading `ChangeAttribution` / `Mediation`.
+`Distribution` and `PathSpecific` are first-class variants (not overloads of
+`ChangeAttribution` / `Mediation`). Types validate and register in state; GCM
+wrappers sample interventional distributions (`sample_interventional_distribution`)
+and path *contribution* (`attribute_path_specific` → `path_decompose`). Minimal
+IO wire forms exist for those two queries. **Identify / estimate algorithms** for
+interventional distributions (IDC) and path-restricted natural effects remain
+deferred — coordinate with deep identification (§10); do not fork a second
+`AutoIdentifier`. Nonparametric path-specific natural effects stay waived under
+`parity/context.toml` (`context.mediation.nonparametric`).
 
 ### 8.1 Interventions
 
@@ -799,7 +807,7 @@ Temporal sequences specify start, duration, cadence, and post-intervention behav
 pub enum TemporalPolicy {
     Pulse { at: TimeOffset },
     Sustained { from: TimeOffset, until: TimeOffset },
-    Dynamic { rule: DynamicRuleId },
+    // Planned: Dynamic { rule: DynamicRuleId },
 }
 ```
 
@@ -810,9 +818,8 @@ pub enum TargetPopulation {
     AllObserved,
     Treated,
     Untreated,
-    Predicate(PredicateExpr),
     Environment(EnvironmentId),
-    CustomDistribution(DistributionRef),
+    // Planned: Predicate(PredicateExpr), CustomDistribution(DistributionRef),
 }
 ```
 
@@ -1052,13 +1059,16 @@ Implement:
 - robust M-estimation;
 - 2SLS;
 - ridge and lasso utilities where required by algorithms;
+  Lasso point estimates ship without analytic standard errors — pair/resampling
+  bootstrap only (post-selection classical sandwich is invalid; debiased Lasso is a
+  separate estimator, not an SE bolt-on). Ridge retains residual sandwich SEs;
 - generalized additive interfaces as optional extensions.
 
 Model fitting is split into design compilation and iterative fitting:
 
 ```rust
 pub struct CompiledDesign {
-    pub matrix: PreparedDesignMatrix,
+    pub matrix: Arc<[f64]>, // column-major dense storage
     pub columns: DesignColumnMap,
     pub contrasts: Vec<RecordedContrast>,
     pub row_selection: RowSelection,
@@ -1066,7 +1076,7 @@ pub struct CompiledDesign {
 }
 ```
 
-Repeated fits against the same design reuse compiled contrasts, row selection, standardization, and scratch buffers. Every fit returns rank, condition diagnostics, convergence state, row-selection provenance, iterations, backend, and allocation/copy diagnostics.
+Dense storage stays on `CompiledDesign.matrix` as `Arc<[f64]>` — there is no separate matrix wrapper type. `DesignColumnMap` carries per-column roles plus contrast / standardization provenance links. Repeated fits against the same design reuse compiled contrasts, row selection, standardization, and scratch buffers. Every fit returns rank, condition diagnostics, convergence state, row-selection provenance, iterations, backend, and allocation/copy diagnostics.
 
 ### 11.3 Covariance estimators
 

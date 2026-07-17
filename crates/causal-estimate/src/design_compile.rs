@@ -14,8 +14,8 @@ use causal_data::{
     CategoryCode, CategoryDomain, Contrast, ContrastMatrix, compile_contrast_matrix,
 };
 use causal_stats::{
-    CompiledDesign, ContrastCodingKind, DesignColumnRole, RecordedContrast, StandardizationRecord,
-    StandardizedColumn, standardize_columns, StatsError,
+    CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
+    RecordedContrast, StandardizationRecord, StandardizedColumn, standardize_columns, StatsError,
 };
 
 use crate::error::EstimationError;
@@ -75,8 +75,10 @@ pub fn compile_adjustment_design(
         }));
     };
 
-    let mut columns: Vec<DesignColumnRole> =
-        vec![DesignColumnRole::Intercept, DesignColumnRole::Treatment];
+    let mut columns: Vec<DesignColumn> = vec![
+        DesignColumn::from_role(DesignColumnRole::Intercept),
+        DesignColumn::from_role(DesignColumnRole::Treatment),
+    ];
     let mut matrix_cols: Vec<Vec<f64>> = Vec::new();
     // intercept
     matrix_cols.push(vec![1.0; nrows]);
@@ -96,7 +98,7 @@ pub fn compile_adjustment_design(
                 }
                 float_cov_col_idxs.push(matrix_cols.len());
                 matrix_cols.push(values.to_vec());
-                columns.push(DesignColumnRole::Covariate(*id));
+                columns.push(DesignColumn::from_role(DesignColumnRole::Covariate(*id)));
             }
             CovariateSpec::Categorical { id, codes, domain, contrast } => {
                 if codes.len() != nrows {
@@ -106,7 +108,15 @@ pub fn compile_adjustment_design(
                 }
                 let cm = compile_contrast_matrix(domain, contrast).map_err(EstimationError::from)?;
                 let start = matrix_cols.len();
-                expand_contrast_columns(&mut matrix_cols, &mut columns, *id, codes, &cm)?;
+                let contrast_idx = contrasts.len();
+                expand_contrast_columns(
+                    &mut matrix_cols,
+                    &mut columns,
+                    *id,
+                    codes,
+                    &cm,
+                    contrast_idx,
+                )?;
                 let end = matrix_cols.len();
                 let labels: Arc<[Arc<str>]> =
                     Arc::from(domain.levels.iter().map(|l| Arc::clone(&l.label)).collect::<Vec<_>>());
@@ -135,11 +145,13 @@ pub fn compile_adjustment_design(
         StandardizationRecord::default()
     };
 
+    let columns = DesignColumnMap::from(columns).with_standardization_links(&standardization);
+
     Ok(CompiledDesign {
         nrows,
         ncols,
         matrix: Arc::from(matrix),
-        columns: Arc::from(columns),
+        columns,
         outcome: Arc::from(outcome.to_vec()),
         row_selection: selection,
         contrasts,
@@ -162,10 +174,11 @@ fn coding_kind(contrast: &Contrast) -> ContrastCodingKind {
 
 fn expand_contrast_columns(
     matrix_cols: &mut Vec<Vec<f64>>,
-    columns: &mut Vec<DesignColumnRole>,
+    columns: &mut Vec<DesignColumn>,
     id: VariableId,
     codes: &[u32],
     cm: &ContrastMatrix,
+    contrast_idx: usize,
 ) -> Result<(), EstimationError> {
     let nrows = codes.len();
     for c in 0..cm.n_columns {
@@ -180,7 +193,11 @@ fn expand_contrast_columns(
             col[r] = cm.values[c * cm.n_levels + level];
         }
         matrix_cols.push(col);
-        columns.push(DesignColumnRole::Covariate(id));
+        columns.push(DesignColumn {
+            role: DesignColumnRole::Covariate(id),
+            contrast_idx: Some(contrast_idx),
+            standardization_idx: None,
+        });
     }
     Ok(())
 }
@@ -247,6 +264,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(&*design.contrasts[0].matrix, &*expected.values);
+        assert_eq!(design.columns.get(2).unwrap().contrast_idx, Some(0));
     }
 
     #[test]
@@ -271,5 +289,6 @@ mod tests {
         let mean: f64 =
             design.matrix[base..base + design.nrows].iter().sum::<f64>() / design.nrows as f64;
         assert!(mean.abs() < 1e-12);
+        assert_eq!(design.columns.get(2).unwrap().standardization_idx, Some(0));
     }
 }

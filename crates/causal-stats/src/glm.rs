@@ -78,6 +78,9 @@ pub struct GlmDesignRef<'a> {
     pub y: &'a [f64],
 }
 
+/// Default ridge λ applied on binomial separation fallback ([`GlmOptions::ridge_on_separation`]).
+pub const DEFAULT_RIDGE_ON_SEPARATION: f64 = 1e-4;
+
 /// Fitting options for [`fit_glm`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GlmOptions {
@@ -88,6 +91,8 @@ pub struct GlmOptions {
     /// NB2 dispersion policy ([`NbAlphaPolicy`]); ignored for other families.
     pub nb_alpha: NbAlphaPolicy,
     /// When set, logistic/probit that hit separation are refit with this ridge λ on `β`.
+    ///
+    /// Default is [`DEFAULT_RIDGE_ON_SEPARATION`].
     pub ridge_on_separation: Option<f64>,
 }
 
@@ -97,20 +102,20 @@ impl Default for GlmOptions {
             max_iter: 50,
             tol: 1e-8,
             nb_alpha: NbAlphaPolicy::MethodOfMoments,
-            ridge_on_separation: None,
+            ridge_on_separation: Some(DEFAULT_RIDGE_ON_SEPARATION),
         }
     }
 }
 
 impl GlmOptions {
-    /// Construct options (MoM NB α, no ridge fallback).
+    /// Construct options (MoM NB α, default ridge-on-separation).
     #[must_use]
     pub const fn new(max_iter: u32, tol: f64) -> Self {
         Self {
             max_iter,
             tol,
             nb_alpha: NbAlphaPolicy::MethodOfMoments,
-            ridge_on_separation: None,
+            ridge_on_separation: Some(DEFAULT_RIDGE_ON_SEPARATION),
         }
     }
 }
@@ -1084,12 +1089,16 @@ mod tests {
             y[i] = t;
         }
         let mut ws = LeastSquaresWorkspace::default();
+        let opts = GlmOptions {
+            ridge_on_separation: None,
+            ..GlmOptions::new(100, 1e-6)
+        };
         let fit = fit_glm(
             GlmFamily::BinomialLogit,
             GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
             &FaerBackend,
             &mut ws,
-            &GlmOptions::new(100, 1e-6),
+            &opts,
         )
         .unwrap();
         assert!(fit.separated);

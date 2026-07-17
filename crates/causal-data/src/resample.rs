@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use causal_core::{CausalRng, ExecutionContext};
+use causal_core::{CausalRng, ExecutionContext, VariableId};
 use causal_kernels::unbiased_index;
 
 use crate::column::{ColumnView, Float64Column, OwnedColumn};
@@ -46,7 +46,13 @@ pub enum ResamplingPlan {
         length: usize,
     },
     /// Cluster bootstrap (resample whole clusters; ids via grouped fill).
-    ClusterBootstrap,
+    ///
+    /// `cluster` names the variable whose labels are supplied as `cluster_ids`
+    /// to the fill helpers (labels remain caller-resolved).
+    ClusterBootstrap {
+        /// Variable that holds cluster membership labels.
+        cluster: VariableId,
+    },
     /// Stationary block bootstrap (Politis–Romano geometric lengths).
     StationaryBlock {
         /// Expected block length (mean of geometric distribution).
@@ -68,8 +74,17 @@ impl ResamplingPlan {
     pub const fn needs_clusters(self) -> bool {
         matches!(
             self,
-            Self::ClusterBootstrap | Self::Permutation(PermutationScheme::WithinCluster)
+            Self::ClusterBootstrap { .. } | Self::Permutation(PermutationScheme::WithinCluster)
         )
+    }
+
+    /// Cluster variable recorded on [`ResamplingPlan::ClusterBootstrap`], if any.
+    #[must_use]
+    pub const fn cluster_variable(self) -> Option<VariableId> {
+        match self {
+            Self::ClusterBootstrap { cluster } => Some(cluster),
+            _ => None,
+        }
     }
 }
 
@@ -146,7 +161,7 @@ pub fn fill_resample_indexes_grouped(
         ResamplingPlan::StationaryBlock { expected_length } => {
             fill_stationary(n, expected_length, rng, out)?;
         }
-        ResamplingPlan::ClusterBootstrap => {
+        ResamplingPlan::ClusterBootstrap { .. } => {
             fill_cluster_bootstrap(n, cluster_ids.unwrap(), rng, out)?;
         }
         ResamplingPlan::Permutation(PermutationScheme::Full) => {
@@ -744,7 +759,7 @@ mod tests {
         let mut rng = CausalRng::from_seed(5);
         let mut idx = Vec::new();
         fill_resample_indexes_grouped(
-            ResamplingPlan::ClusterBootstrap,
+            ResamplingPlan::ClusterBootstrap { cluster: VariableId::from_raw(0) },
             n,
             Some(&clusters),
             &mut rng,

@@ -461,6 +461,14 @@ impl CausalAnalysis {
                         .into(),
                 })
             }
+            (_, CausalQuery::Distribution(_), _) => Err(AnalysisError::Unsupported {
+                message: "CausalQuery::Distribution is not wired through CausalAnalysis; \
+                 use sample_interventional_distribution (identify/estimate deferred — IDC)",
+            }),
+            (_, CausalQuery::PathSpecific(_), _) => Err(AnalysisError::Unsupported {
+                message: "CausalQuery::PathSpecific is not wired through CausalAnalysis; \
+                 use attribute_path_specific for path contribution (identify/estimate deferred)",
+            }),
             _ => Err(AnalysisError::Unsupported {
                 message: "unsupported data/graph/query combination",
             }),
@@ -604,6 +612,14 @@ impl CausalAnalysis {
                         .into(),
                 })
             }
+            (_, CausalQuery::Distribution(_), _) => Err(AnalysisError::Unsupported {
+                message: "CausalQuery::Distribution is not wired through CausalAnalysis; \
+                 use sample_interventional_distribution (identify/estimate deferred — IDC)",
+            }),
+            (_, CausalQuery::PathSpecific(_), _) => Err(AnalysisError::Unsupported {
+                message: "CausalQuery::PathSpecific is not wired through CausalAnalysis; \
+                 use attribute_path_specific for path contribution (identify/estimate deferred)",
+            }),
             _ => Err(AnalysisError::Unsupported {
                 message: "unsupported data/graph/query combination",
             }),
@@ -620,6 +636,18 @@ impl CausalAnalysis {
 
     fn ensure_supported_combination(&self) -> Result<(), AnalysisError> {
         match (&self.data, &self.query, &self.graph) {
+            (_, CausalQuery::Distribution(_), _) => {
+                return Err(AnalysisError::Unsupported {
+                    message: "CausalQuery::Distribution is not wired through CausalAnalysis; \
+                     use sample_interventional_distribution (identify/estimate deferred — IDC)",
+                });
+            }
+            (_, CausalQuery::PathSpecific(_), _) => {
+                return Err(AnalysisError::Unsupported {
+                    message: "CausalQuery::PathSpecific is not wired through CausalAnalysis; \
+                     use attribute_path_specific for path contribution (identify/estimate deferred)",
+                });
+            }
             (DataInput::Tabular(_), CausalQuery::TemporalEffect(_), _) => {
                 return Err(AnalysisError::Compile {
                     message: "temporal effect query requires temporal data".into(),
@@ -737,6 +765,14 @@ impl CausalAnalysis {
                 })?;
                 self.execute_temporal(data, graph, q, physical, ctx)
             }
+            (_, CausalQuery::Distribution(_)) => Err(AnalysisError::Unsupported {
+                message: "CausalQuery::Distribution is not wired through CausalAnalysis; \
+                 use sample_interventional_distribution (identify/estimate deferred — IDC)",
+            }),
+            (_, CausalQuery::PathSpecific(_)) => Err(AnalysisError::Unsupported {
+                message: "CausalQuery::PathSpecific is not wired through CausalAnalysis; \
+                 use attribute_path_specific for path contribution (identify/estimate deferred)",
+            }),
             _ => Err(AnalysisError::Unsupported {
                 message: "execute path unsupported for this configuration",
             }),

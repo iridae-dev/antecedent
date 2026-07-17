@@ -50,6 +50,7 @@ pub enum SandwichKind<'a> {
 /// Coefficient covariance `p×p` (row-major) from design + residuals.
 ///
 /// Consumes retained residuals and `X` only — does not refit.
+/// Bread is `(XᵀX)⁻¹` (OLS / working-residual sandwich).
 ///
 /// # Errors
 ///
@@ -61,8 +62,49 @@ pub fn coefficient_covariance(
     residuals: &[f64],
     kind: SandwichKind<'_>,
 ) -> Result<Vec<f64>, StatsError> {
-    if residuals.len() != nrows {
-        return Err(StatsError::Shape { message: "residuals length != nrows" });
+    sandwich_from_multipliers(x_colmajor, nrows, ncols, residuals, None, kind)
+}
+
+/// Score / GLM sandwich: meat from score multipliers `u_i` (`s_i = u_i x_i`),
+/// bread `(XᵀWX)⁻¹` with diagonal Fisher weights `w`.
+///
+/// For identity-Gaussian with `u = y−μ` and `w = 1` this matches
+/// [`coefficient_covariance`]. Does not refit.
+///
+/// # Errors
+///
+/// Shape mismatch, empty design, or singular bread matrix.
+pub fn score_coefficient_covariance(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    score_multipliers: &[f64],
+    fisher_weights: &[f64],
+    kind: SandwichKind<'_>,
+) -> Result<Vec<f64>, StatsError> {
+    if fisher_weights.len() != nrows {
+        return Err(StatsError::Shape { message: "fisher_weights length != nrows" });
+    }
+    sandwich_from_multipliers(
+        x_colmajor,
+        nrows,
+        ncols,
+        score_multipliers,
+        Some(fisher_weights),
+        kind,
+    )
+}
+
+fn sandwich_from_multipliers(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    multipliers: &[f64],
+    fisher_weights: Option<&[f64]>,
+    kind: SandwichKind<'_>,
+) -> Result<Vec<f64>, StatsError> {
+    if multipliers.len() != nrows {
+        return Err(StatsError::Shape { message: "score/residual length != nrows" });
     }
     if x_colmajor.len() < nrows.saturating_mul(ncols) {
         return Err(StatsError::Shape { message: "X buffer too short" });
@@ -71,27 +113,42 @@ pub fn coefficient_covariance(
         return Err(StatsError::Shape { message: "covariance needs positive dimensions" });
     }
 
-    let mut xtx = vec![0.0; ncols * ncols];
-    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    let Some(bread) = invert_square(&xtx, ncols) else {
-        return Err(StatsError::Backend("singular X'X in sandwich bread".into()));
+    let mut gram = vec![0.0; ncols * ncols];
+    match fisher_weights {
+        None => form_xtx(x_colmajor, nrows, ncols, &mut gram),
+        Some(w) => form_xtwx(x_colmajor, nrows, ncols, w, &mut gram),
+    }
+    let Some(bread) = invert_square(&gram, ncols) else {
+        return Err(StatsError::Backend("singular sandwich bread".into()));
     };
 
     match kind {
         SandwichKind::Homoskedastic => {
-            let rss: f64 = residuals.iter().map(|e| e * e).sum();
+            if fisher_weights.is_some() {
+                // GLM classical SE uses Fisher bread alone (dispersion folded elsewhere).
+                return Ok(bread);
+            }
+            let rss: f64 = multipliers.iter().map(|e| e * e).sum();
             let sigma2 = rss / (nrows as f64 - ncols as f64).max(1.0);
             Ok(bread.iter().map(|v| v * sigma2).collect())
         }
         SandwichKind::Hc0 | SandwichKind::Hc1 | SandwichKind::Hc2 | SandwichKind::Hc3 => {
-            let meat = hc_meat(x_colmajor, nrows, ncols, residuals, &xtx, kind)?;
+            let meat = hc_meat(
+                x_colmajor,
+                nrows,
+                ncols,
+                multipliers,
+                &gram,
+                fisher_weights,
+                kind,
+            )?;
             Ok(sandwich_product(&bread, &meat, ncols))
         }
         SandwichKind::Cluster { groups } => {
             if groups.len() != nrows {
                 return Err(StatsError::Shape { message: "cluster groups length != nrows" });
             }
-            let meat = cluster_meat(x_colmajor, nrows, ncols, residuals, groups)?;
+            let meat = cluster_meat(x_colmajor, nrows, ncols, multipliers, groups)?;
             let g = distinct_count(groups);
             let scale = cluster_finite_sample(nrows, ncols, g);
             let meat: Vec<f64> = meat.iter().map(|v| v * scale).collect();
@@ -108,11 +165,11 @@ pub fn coefficient_covariance(
                     });
                 }
             }
-            let meat = multiway_meat(x_colmajor, nrows, ncols, residuals, dimensions)?;
+            let meat = multiway_meat(x_colmajor, nrows, ncols, multipliers, dimensions)?;
             Ok(sandwich_product(&bread, &meat, ncols))
         }
         SandwichKind::NeweyWest { lag } => {
-            let meat = newey_west_meat(x_colmajor, nrows, ncols, residuals, lag)?;
+            let meat = newey_west_meat(x_colmajor, nrows, ncols, multipliers, lag)?;
             Ok(sandwich_product(&bread, &meat, ncols))
         }
         SandwichKind::PanelClusterHac { groups, lag } => {
@@ -121,7 +178,7 @@ pub fn coefficient_covariance(
                     message: "panel HAC groups length != nrows",
                 });
             }
-            let meat = panel_cluster_hac_meat(x_colmajor, nrows, ncols, residuals, groups, lag)?;
+            let meat = panel_cluster_hac_meat(x_colmajor, nrows, ncols, multipliers, groups, lag)?;
             let g = distinct_count(groups);
             let scale = cluster_finite_sample(nrows, ncols, g);
             let meat: Vec<f64> = meat.iter().map(|v| v * scale).collect();
@@ -130,21 +187,43 @@ pub fn coefficient_covariance(
     }
 }
 
+/// Fill symmetric `XᵀWX` (row-major) with diagonal weights `w`.
+fn form_xtwx(x_colmajor: &[f64], nrows: usize, ncols: usize, w: &[f64], xtwx: &mut [f64]) {
+    xtwx[..ncols * ncols].fill(0.0);
+    for c1 in 0..ncols {
+        for c2 in c1..ncols {
+            let mut acc = 0.0;
+            let col1 = &x_colmajor[c1 * nrows..(c1 + 1) * nrows];
+            let col2 = &x_colmajor[c2 * nrows..(c2 + 1) * nrows];
+            for r in 0..nrows {
+                acc += w[r] * col1[r] * col2[r];
+            }
+            xtwx[c1 * ncols + c2] = acc;
+            if c1 != c2 {
+                xtwx[c2 * ncols + c1] = acc;
+            }
+        }
+    }
+}
+
 fn hc_meat(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
-    residuals: &[f64],
-    xtx: &[f64],
+    multipliers: &[f64],
+    gram: &[f64],
+    fisher_weights: Option<&[f64]>,
     kind: SandwichKind<'_>,
 ) -> Result<Vec<f64>, StatsError> {
     let hat = match kind {
-        SandwichKind::Hc2 | SandwichKind::Hc3 => Some(leverages(x_colmajor, nrows, ncols, xtx)?),
+        SandwichKind::Hc2 | SandwichKind::Hc3 => {
+            Some(leverages(x_colmajor, nrows, ncols, gram, fisher_weights)?)
+        }
         _ => None,
     };
     let mut meat = vec![0.0; ncols * ncols];
     for i in 0..nrows {
-        let e = residuals[i];
+        let e = multipliers[i];
         let adj = match kind {
             SandwichKind::Hc0 | SandwichKind::Hc1 => e * e,
             SandwichKind::Hc2 => {
@@ -173,14 +252,16 @@ fn leverages(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
-    xtx: &[f64],
+    gram: &[f64],
+    fisher_weights: Option<&[f64]>,
 ) -> Result<Vec<f64>, StatsError> {
-    let Some(inv) = invert_square(xtx, ncols) else {
-        return Err(StatsError::Backend("singular X'X for leverages".into()));
+    let Some(inv) = invert_square(gram, ncols) else {
+        return Err(StatsError::Backend("singular gram for leverages".into()));
     };
     let mut h = vec![0.0; nrows];
     for i in 0..nrows {
-        // h_ii = x_i' (X'X)⁻¹ x_i
+        // Unweighted: h_ii = x_i' (X'X)⁻¹ x_i
+        // Weighted:   h_ii = w_i x_i' (X'WX)⁻¹ x_i
         let mut tmp = vec![0.0; ncols];
         for a in 0..ncols {
             let mut s = 0.0;
@@ -192,6 +273,9 @@ fn leverages(
         let mut hi = 0.0;
         for a in 0..ncols {
             hi += x_colmajor[a * nrows + i] * tmp[a];
+        }
+        if let Some(w) = fisher_weights {
+            hi *= w[i];
         }
         h[i] = hi;
     }
@@ -541,5 +625,17 @@ mod tests {
         assert!(se_p > se_h, "panel {se_p} vs homo {se_h}");
         // Panel HAC should not equal stacked NW (seam bridging differs).
         assert!((se_p - se_nw).abs() > 1e-6, "panel={se_p} stacked_nw={se_nw}");
+    }
+
+    #[test]
+    fn score_sandwich_unit_weights_matches_residual() {
+        let x = vec![1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0];
+        let e = vec![1.0, -0.5, 0.25, -0.75];
+        let w = vec![1.0, 1.0, 1.0, 1.0];
+        let a = coefficient_covariance(&x, 4, 2, &e, SandwichKind::Hc0).unwrap();
+        let b = score_coefficient_covariance(&x, 4, 2, &e, &w, SandwichKind::Hc0).unwrap();
+        for (u, v) in a.iter().zip(b.iter()) {
+            assert!((u - v).abs() < 1e-12, "a={a:?} b={b:?}");
+        }
     }
 }

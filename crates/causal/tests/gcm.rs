@@ -98,6 +98,79 @@ fn gcm_fit_intervene() {
 }
 
 #[test]
+fn gcm_interventional_distribution_query() {
+    use causal::sample_interventional_distribution;
+    use causal_core::InterventionalDistributionQuery;
+
+    let expected = load_expected("gcm_fit_intervene");
+    let true_mean = expected["true_interventional_mean_y"].as_f64().unwrap();
+    let tol = expected["tolerance"].as_f64().unwrap();
+    let (data, g) = chain_data(40, false);
+    let fitted = fit_gcm(g, &data).unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let mut rng = CausalRng::from_seed(7);
+    let q = InterventionalDistributionQuery::new(
+        VariableId::from_raw(1),
+        [Intervention::set(VariableId::from_raw(0), Value::f64(3.0))],
+    );
+    let batch = sample_interventional_distribution(&fitted.model, &q, 200, &mut rng, &ctx).unwrap();
+    let y = batch.column(1).unwrap();
+    let mean = y.iter().sum::<f64>() / y.len() as f64;
+    assert!((mean - true_mean).abs() < tol, "mean={mean} true={true_mean}");
+}
+
+#[test]
+fn gcm_path_specific_query() {
+    use causal::attribute_path_specific;
+    use causal_core::PathSpecificEffectQuery;
+    use causal_model::{CompiledCausalModel, MechanismRegistry, SelectionPolicy};
+
+    let n = 40usize;
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "m", "y"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let tv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+    let mv: Vec<f64> = tv.iter().map(|t| 0.5 * t).collect();
+    let yv: Vec<f64> = mv.iter().zip(tv.iter()).map(|(m, t)| m + 0.25 * t).collect();
+    let validity = ValidityBitmap::all_valid(n);
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(tv), validity.clone()).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(mv), validity.clone()).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(yv), validity).unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let mut g = Dag::with_variables(3);
+    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    let compiled = CompiledCausalModel::compile(g).unwrap();
+    let (store, _) = MechanismRegistry::standard()
+        .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+        .unwrap();
+    let model = compiled.with_mechanisms(store);
+    let q = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
+        .with_path_nodes([VariableId::from_raw(1)]);
+    let result = attribute_path_specific(&model, &q, &ExecutionContext::for_tests(1)).unwrap();
+    assert!(!result.path_breakdown.is_empty());
+    assert!(result.total_change != 0.0);
+}
+
+#[test]
 fn gcm_anomaly() {
     let expected = load_expected("gcm_anomaly");
     let idx = expected["planted_outlier_index"].as_u64().unwrap() as usize;

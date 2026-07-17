@@ -14,6 +14,7 @@ pub mod graph_json;
 pub mod migrate;
 pub mod posterior;
 pub mod posterior_convert;
+pub mod query_wire;
 pub mod trace;
 pub mod wire;
 
@@ -35,6 +36,11 @@ pub use posterior::{
 };
 pub use posterior_convert::{
     decode_causal_posterior_bytes, encode_causal_posterior, encode_causal_posterior_bytes,
+};
+pub use query_wire::{
+    InterventionalDistributionQueryWire, PathSpecificEffectQueryWire, SetInterventionWire,
+    TargetPopulationWire, ValueWire, interventional_distribution_from_wire,
+    interventional_distribution_to_wire, path_specific_from_wire, path_specific_to_wire,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,

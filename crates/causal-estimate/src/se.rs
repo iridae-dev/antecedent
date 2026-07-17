@@ -40,7 +40,9 @@ pub enum AnalyticSeKind {
 pub type LinearSeKind = AnalyticSeKind;
 
 /// Default ridge λ applied by propensity / GLM estimators on separation.
-pub const DEFAULT_RIDGE_ON_SEPARATION: f64 = 1e-4;
+///
+/// Re-export of [`causal_stats::DEFAULT_RIDGE_ON_SEPARATION`] (single source of truth).
+pub use causal_stats::DEFAULT_RIDGE_ON_SEPARATION;
 
 /// Require cluster labels matching prepared row count.
 ///

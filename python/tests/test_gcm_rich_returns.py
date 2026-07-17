@@ -40,3 +40,30 @@ def test_gcm_sample_do_returns_draws():
     assert result.draws.shape == (result.n_nodes, n_draws)
     means = result.draws.mean(axis=1)
     assert np.allclose(means, result.column_means, rtol=1e-9)
+
+
+def test_gcm_sample_interventional_distribution():
+    names, cols, edges = _gcm_linear(n=80)
+    n_draws = 40
+    result = causal.gcm_sample_interventional_distribution(
+        names, cols, edges, "t", do_value=1.0, n_draws=n_draws, outcome="y", seed=2
+    )
+    assert result.n_draws == n_draws
+    assert result.draws.shape == (result.n_nodes, n_draws)
+
+
+def test_gcm_attribute_path_specific():
+    rng = np.random.default_rng(4)
+    n = 60
+    t = rng.normal(size=n)
+    m = 0.8 * t + rng.normal(scale=0.1, size=n)
+    y = 0.6 * m + 0.2 * t + rng.normal(scale=0.1, size=n)
+    names = ["t", "m", "y"]
+    cols = [t, m, y]
+    edges = [("t", "m"), ("m", "y"), ("t", "y")]
+    total, paths = causal.gcm_attribute_path_specific(
+        names, cols, edges, "t", "y", path_nodes=["m"], seed=1
+    )
+    assert isinstance(total, float)
+    assert paths
+    assert all(isinstance(p, list) and isinstance(c, float) for p, c in paths)

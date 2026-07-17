@@ -195,10 +195,14 @@ mod tests {
             t[i] = if z > 0.0 { 1.0 } else { 0.0 };
         }
         let mut ws = PropensityWorkspace::default();
-        let err = fit_propensity(&x, n, 2, &t, &FaerBackend, &mut ws, &GlmOptions::new(100, 1e-6));
+        let opts = GlmOptions {
+            ridge_on_separation: None,
+            ..GlmOptions::new(100, 1e-6)
+        };
+        let err = fit_propensity(&x, n, 2, &t, &FaerBackend, &mut ws, &opts);
         assert!(err.is_err(), "complete separation must error");
         let diag = fit_propensity_diagnostic(
-            &x, n, 2, &t, &FaerBackend, &mut ws, &GlmOptions::new(100, 1e-6),
+            &x, n, 2, &t, &FaerBackend, &mut ws, &opts,
         )
         .expect("diagnostics keep scores under separation");
         let min = diag.scores.iter().copied().fold(f64::INFINITY, f64::min);

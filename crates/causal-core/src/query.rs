@@ -384,6 +384,169 @@ impl ConditionalEffectQuery {
     }
 }
 
+/// Interventional distribution query P(Y | do(...)) (DESIGN.md §8).
+///
+/// Distinct from [`ChangeAttributionQuery`] (population/period change attribution).
+/// Identify/estimate algorithms for this query are deferred (IDC); GCM sampling is
+/// the interim execution path.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InterventionalDistributionQuery {
+    /// Outcome variable(s) whose interventional distribution is requested.
+    pub outcomes: Arc<[VariableId]>,
+    /// Interventions defining the `do(...)` world.
+    pub interventions: Arc<[Intervention]>,
+    /// Target population.
+    pub target_population: TargetPopulation,
+}
+
+impl InterventionalDistributionQuery {
+    /// Single-outcome interventional distribution under the given interventions.
+    #[must_use]
+    pub fn new(outcome: VariableId, interventions: impl Into<Arc<[Intervention]>>) -> Self {
+        Self {
+            outcomes: Arc::from([outcome]),
+            interventions: interventions.into(),
+            target_population: TargetPopulation::AllObserved,
+        }
+    }
+
+    /// Multiple outcomes.
+    #[must_use]
+    pub fn with_outcomes(mut self, outcomes: impl Into<Arc<[VariableId]>>) -> Self {
+        self.outcomes = outcomes.into();
+        self
+    }
+
+    /// Set target population.
+    #[must_use]
+    pub fn with_target_population(mut self, population: TargetPopulation) -> Self {
+        self.target_population = population;
+        self
+    }
+
+    /// Validate outcomes and interventions.
+    ///
+    /// # Errors
+    ///
+    /// Empty outcomes or invalid interventions.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.outcomes.is_empty() {
+            return Err(QueryError::EmptyDistributionOutcomes);
+        }
+        for iv in self.interventions.iter() {
+            iv.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+        }
+        Ok(())
+    }
+}
+
+/// Path-specific effect / contribution query (DESIGN.md §8).
+///
+/// Prefer this over overloading [`MediationQuery`]. Path *contribution*
+/// attribution is available via GCM `path_decompose`; path-restricted natural
+/// effects (identify/estimate) are deferred.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PathSpecificEffectQuery {
+    /// Treatment / source variable.
+    pub treatment: VariableId,
+    /// Outcome variable.
+    pub outcome: VariableId,
+    /// Intermediate nodes constraining the path set (`empty` = all directed paths).
+    pub path_nodes: Arc<[VariableId]>,
+    /// Control intervention level.
+    pub control: Intervention,
+    /// Active intervention level.
+    pub active: Intervention,
+    /// Target population.
+    pub target_population: TargetPopulation,
+    /// Maximum number of paths to enumerate.
+    pub max_paths: usize,
+    /// Maximum path length (edges).
+    pub max_len: usize,
+}
+
+impl PathSpecificEffectQuery {
+    /// Binary 0/1 treatment contrast with all directed paths and default limits.
+    #[must_use]
+    pub fn binary(treatment: VariableId, outcome: VariableId) -> Self {
+        Self {
+            treatment,
+            outcome,
+            path_nodes: Arc::from([]),
+            control: Intervention::set(treatment, Value::f64(0.0)),
+            active: Intervention::set(treatment, Value::f64(1.0)),
+            target_population: TargetPopulation::AllObserved,
+            max_paths: 64,
+            max_len: 16,
+        }
+    }
+
+    /// Restrict to paths that visit these intermediate nodes (in any order).
+    #[must_use]
+    pub fn with_path_nodes(mut self, nodes: impl Into<Arc<[VariableId]>>) -> Self {
+        self.path_nodes = nodes.into();
+        self
+    }
+
+    /// Cap path enumeration.
+    #[must_use]
+    pub const fn with_max_paths(mut self, max_paths: usize) -> Self {
+        self.max_paths = max_paths;
+        self
+    }
+
+    /// Cap path length.
+    #[must_use]
+    pub const fn with_max_len(mut self, max_len: usize) -> Self {
+        self.max_len = max_len;
+        self
+    }
+
+    /// Set target population.
+    #[must_use]
+    pub fn with_target_population(mut self, population: TargetPopulation) -> Self {
+        self.target_population = population;
+        self
+    }
+
+    /// Validate ids, interventions, and limits.
+    ///
+    /// # Errors
+    ///
+    /// Treatment equals outcome, zero limits, path-node overlaps, or bad interventions.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.treatment == self.outcome {
+            return Err(QueryError::TreatmentEqualsOutcome { id: self.treatment });
+        }
+        if self.max_paths == 0 {
+            return Err(QueryError::NonPositivePathLimit);
+        }
+        if self.max_len == 0 {
+            return Err(QueryError::NonPositivePathLimit);
+        }
+        if self.path_nodes.iter().any(|&n| n == self.treatment || n == self.outcome) {
+            return Err(QueryError::PathNodeOverlapsTreatmentOrOutcome);
+        }
+        let control_var =
+            self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
+        if control_var != self.treatment {
+            return Err(QueryError::InterventionVariableMismatch {
+                expected: self.treatment,
+                got: control_var,
+            });
+        }
+        let active_var =
+            self.active.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
+        if active_var != self.treatment {
+            return Err(QueryError::InterventionVariableMismatch {
+                expected: self.treatment,
+                got: active_var,
+            });
+        }
+        Ok(())
+    }
+}
+
 /// Top-level causal query enum.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -406,6 +569,10 @@ pub enum CausalQuery {
     Mediation(MediationQuery),
     /// Conditional average effect given modifiers.
     ConditionalEffect(ConditionalEffectQuery),
+    /// Interventional distribution P(Y | do(...)).
+    Distribution(InterventionalDistributionQuery),
+    /// Path-specific effect / contribution.
+    PathSpecific(PathSpecificEffectQuery),
 }
 
 /// Counterfactual query over factual observations and interventions (DESIGN.md §16).
@@ -975,6 +1142,18 @@ impl CausalQuery {
         Self::ConditionalEffect(query)
     }
 
+    /// Construct an interventional-distribution query.
+    #[must_use]
+    pub fn distribution(query: InterventionalDistributionQuery) -> Self {
+        Self::Distribution(query)
+    }
+
+    /// Construct a path-specific effect query.
+    #[must_use]
+    pub fn path_specific(query: PathSpecificEffectQuery) -> Self {
+        Self::PathSpecific(query)
+    }
+
     /// Whether this query is the static ATE path.
     #[must_use]
     pub const fn is_static_ate(&self) -> bool {
@@ -1005,6 +1184,18 @@ impl CausalQuery {
         matches!(self, Self::ConditionalEffect(_))
     }
 
+    /// Whether this query is an interventional distribution.
+    #[must_use]
+    pub const fn is_distribution(&self) -> bool {
+        matches!(self, Self::Distribution(_))
+    }
+
+    /// Whether this query is path-specific.
+    #[must_use]
+    pub const fn is_path_specific(&self) -> bool {
+        matches!(self, Self::PathSpecific(_))
+    }
+
     /// Validate the inner query.
     ///
     /// # Errors
@@ -1021,6 +1212,8 @@ impl CausalQuery {
             Self::UnitChange(q) => q.validate(),
             Self::Mediation(q) => q.validate(),
             Self::ConditionalEffect(q) => q.validate(),
+            Self::Distribution(q) => q.validate(),
+            Self::PathSpecific(q) => q.validate(),
         }
     }
 }
@@ -1088,6 +1281,12 @@ pub enum QueryError {
     EmptyMechanismChangeTargets,
     /// Significance level must be in (0, 1).
     InvalidSignificanceLevel,
+    /// Interventional distribution query has no outcomes.
+    EmptyDistributionOutcomes,
+    /// Path enumeration `max_paths` / `max_len` must be ≥ 1.
+    NonPositivePathLimit,
+    /// Path node overlaps treatment or outcome.
+    PathNodeOverlapsTreatmentOrOutcome,
 }
 
 impl core::fmt::Display for QueryError {
@@ -1141,6 +1340,15 @@ impl core::fmt::Display for QueryError {
             }
             Self::InvalidSignificanceLevel => {
                 write!(f, "significance level must be in (0, 1)")
+            }
+            Self::EmptyDistributionOutcomes => {
+                write!(f, "interventional distribution requires at least one outcome")
+            }
+            Self::NonPositivePathLimit => {
+                write!(f, "path max_paths / max_len must be >= 1")
+            }
+            Self::PathNodeOverlapsTreatmentOrOutcome => {
+                write!(f, "path node overlaps treatment or outcome")
             }
         }
     }
@@ -1254,5 +1462,44 @@ mod tests {
     fn shapley_exact_config_rejects_zero_limit() {
         let cfg = ShapleyConfig::exact().with_max_exact_components(0);
         assert!(matches!(cfg.validate(), Err(QueryError::NonPositiveShapleyLimit)));
+    }
+
+    #[test]
+    fn interventional_distribution_query_validates() {
+        let y = VariableId::from_raw(1);
+        let t = VariableId::from_raw(0);
+        let q = InterventionalDistributionQuery::new(y, [Intervention::set(t, Value::f64(1.0))]);
+        q.validate().unwrap();
+        let cq = CausalQuery::distribution(q);
+        assert!(cq.is_distribution());
+        cq.validate().unwrap();
+
+        let empty = InterventionalDistributionQuery {
+            outcomes: Arc::from([]),
+            interventions: Arc::from([]),
+            target_population: TargetPopulation::AllObserved,
+        };
+        assert!(matches!(empty.validate(), Err(QueryError::EmptyDistributionOutcomes)));
+    }
+
+    #[test]
+    fn path_specific_query_validates() {
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(2);
+        let m = VariableId::from_raw(1);
+        let q = PathSpecificEffectQuery::binary(t, y).with_path_nodes([m]);
+        q.validate().unwrap();
+        let cq = CausalQuery::path_specific(q);
+        assert!(cq.is_path_specific());
+        cq.validate().unwrap();
+
+        let bad = PathSpecificEffectQuery::binary(t, y).with_max_paths(0);
+        assert!(matches!(bad.validate(), Err(QueryError::NonPositivePathLimit)));
+
+        let overlap = PathSpecificEffectQuery::binary(t, y).with_path_nodes([t]);
+        assert!(matches!(
+            overlap.validate(),
+            Err(QueryError::PathNodeOverlapsTreatmentOrOutcome)
+        ));
     }
 }

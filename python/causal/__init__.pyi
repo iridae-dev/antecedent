@@ -55,6 +55,8 @@ from ._native import (
     encode_posterior_artifact as encode_posterior_artifact,
     gcm_counterfactual_ite as gcm_counterfactual_ite,
     gcm_sample_do as gcm_sample_do,
+    gcm_sample_interventional_distribution as gcm_sample_interventional_distribution,
+    gcm_attribute_path_specific as gcm_attribute_path_specific,
     load_float64_columns as load_float64_columns,
     mediation_effects_summary as mediation_effects_summary,
     predict_intervened_summary as predict_intervened_summary,

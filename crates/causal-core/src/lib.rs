@@ -52,8 +52,9 @@ pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AttributionComponents, AverageEffectQuery,
     CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery,
-    MechanismChangeQuery, MediationContrast, MediationQuery, OrderedFloatBits, PopulationSelector,
-    QueryError, ShapleyConfig, ShapleyMode, TargetPopulation, TemporalEffectQuery, UnitChangeQuery,
+    InterventionalDistributionQuery, MechanismChangeQuery, MediationContrast, MediationQuery,
+    OrderedFloatBits, PathSpecificEffectQuery, PopulationSelector, QueryError, ShapleyConfig,
+    ShapleyMode, TargetPopulation, TemporalEffectQuery, UnitChangeQuery,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,

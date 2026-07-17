@@ -121,7 +121,15 @@ impl BackdoorIdentifier {
     ) -> Result<IdentificationResult, IdentificationError> {
         let CausalQuery::AverageEffect(ate) = query else {
             return Err(IdentificationError::UnsupportedQuery {
-                message: " only supports AverageEffect",
+                message: match query {
+                    CausalQuery::Distribution(_) => {
+                        "Distribution identification deferred (requires IDC; coordinate with deep identification)"
+                    }
+                    CausalQuery::PathSpecific(_) => {
+                        "PathSpecific identification deferred (path-restricted ID / natural effects)"
+                    }
+                    _ => "backdoor only supports AverageEffect",
+                },
             });
         };
         ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
@@ -497,5 +505,42 @@ mod tests {
         let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(res.estimands[0].adjustment_set.is_empty());
+    }
+
+    #[test]
+    fn distribution_and_path_specific_are_unsupported() {
+        use causal_core::{
+            Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, Value,
+        };
+
+        let mut g = Dag::with_variables(2);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        g.insert_directed(t, y).unwrap();
+        let id = BackdoorIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+
+        let dist = CausalQuery::distribution(InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        ));
+        let err = id.identify(&prep, &dist, &mut ws).unwrap_err();
+        assert!(matches!(
+            err,
+            IdentificationError::UnsupportedQuery { message }
+            if message.contains("IDC")
+        ));
+
+        let path = CausalQuery::path_specific(PathSpecificEffectQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let err = id.identify(&prep, &path, &mut ws).unwrap_err();
+        assert!(matches!(
+            err,
+            IdentificationError::UnsupportedQuery { message }
+            if message.contains("PathSpecific")
+        ));
     }
 }

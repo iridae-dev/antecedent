@@ -110,6 +110,18 @@ impl LogicalAnalysisPlan {
     /// Invalid combinations.
     pub fn validate(&self) -> Result<(), AnalysisError> {
         match (&self.query, self.record.data_classification) {
+            (CausalQuery::Distribution(_), _) => {
+                return Err(AnalysisError::Unsupported {
+                    message: "CausalQuery::Distribution is not wired through CausalAnalysis; \
+                     use sample_interventional_distribution (identify/estimate deferred — IDC)",
+                });
+            }
+            (CausalQuery::PathSpecific(_), _) => {
+                return Err(AnalysisError::Unsupported {
+                    message: "CausalQuery::PathSpecific is not wired through CausalAnalysis; \
+                     use attribute_path_specific for path contribution (identify/estimate deferred)",
+                });
+            }
             (CausalQuery::TemporalEffect(_), DataClassification::Tabular) => {
                 return Err(AnalysisError::Compile {
                     message: "temporal effect query requires temporal data".into(),

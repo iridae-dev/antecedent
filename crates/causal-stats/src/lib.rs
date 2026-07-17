@@ -32,10 +32,10 @@ pub use ci::{
     analytic_confidence_level, analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
     nonparametric_permutation_count, pairwise_multivariate_test,
 };
-pub use covariance::{SandwichKind, coefficient_covariance};
+pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use design::{
-    CompiledDesign, ContrastCodingKind, DesignColumnRole, RecordedContrast, StandardizationRecord,
-    StandardizedColumn, standardize_columns,
+    CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
+    RecordedContrast, StandardizationRecord, StandardizedColumn, standardize_columns,
 };
 pub use divergence::{
     classifier_two_sample, gaussian_kl, mean_diff_two_sample, mean_var, residual_likelihood_ratio,
@@ -49,8 +49,8 @@ pub use fdr::{
     bonferroni, holm,
 };
 pub use glm::{
-    GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef, MultinomialFit, NbAlphaPolicy,
-    fit_glm, fit_multinomial_logit,
+    DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
+    MultinomialFit, NbAlphaPolicy, fit_glm, fit_multinomial_logit,
 };
 pub use gram::{accumulate_xtx, accumulate_xtx_xty_row, form_xtx, invert_square};
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};

@@ -101,11 +101,7 @@ impl AipwAte {
             backend: FaerBackend,
             bootstrap_replicates: 200,
             overlap: default_propensity_overlap(),
-            glm_options: {
-                let mut o = GlmOptions::default();
-                o.ridge_on_separation = Some(crate::se::DEFAULT_RIDGE_ON_SEPARATION);
-                o
-            },
+            glm_options: GlmOptions::default(),
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
         }

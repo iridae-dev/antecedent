@@ -22,6 +22,135 @@ pub enum DesignColumnRole {
     Covariate(VariableId),
 }
 
+/// One design-matrix column with role and provenance links (DESIGN.md §11.2).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct DesignColumn {
+    /// Role of this column.
+    pub role: DesignColumnRole,
+    /// Index into [`CompiledDesign::contrasts`] when expanded from a categorical.
+    pub contrast_idx: Option<usize>,
+    /// Index into [`StandardizationRecord::entries`] when this column was standardized.
+    pub standardization_idx: Option<usize>,
+}
+
+impl DesignColumn {
+    /// Column with role only (no contrast / standardization link).
+    #[must_use]
+    pub const fn from_role(role: DesignColumnRole) -> Self {
+        Self { role, contrast_idx: None, standardization_idx: None }
+    }
+}
+
+/// Richer column-metadata map for [`CompiledDesign`] (DESIGN.md §11.2).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DesignColumnMap {
+    columns: Arc<[DesignColumn]>,
+}
+
+impl DesignColumnMap {
+    /// Build from a slice of columns.
+    #[must_use]
+    pub fn from_columns(columns: impl Into<Arc<[DesignColumn]>>) -> Self {
+        Self { columns: columns.into() }
+    }
+
+    /// Build from roles only (no provenance links).
+    #[must_use]
+    pub fn from_roles(roles: impl IntoIterator<Item = DesignColumnRole>) -> Self {
+        let cols: Vec<DesignColumn> = roles.into_iter().map(DesignColumn::from_role).collect();
+        Self { columns: Arc::from(cols) }
+    }
+
+    /// Number of columns.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.columns.len()
+    }
+
+    /// Whether the map is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.columns.is_empty()
+    }
+
+    /// Role at column index, if in range.
+    #[must_use]
+    pub fn role(&self, index: usize) -> Option<DesignColumnRole> {
+        self.columns.get(index).map(|c| c.role)
+    }
+
+    /// Full column metadata at index, if in range.
+    #[must_use]
+    pub fn get(&self, index: usize) -> Option<&DesignColumn> {
+        self.columns.get(index)
+    }
+
+    /// Iterate column metadata in matrix order.
+    pub fn iter(&self) -> impl Iterator<Item = &DesignColumn> {
+        self.columns.iter()
+    }
+
+    /// Underlying slice.
+    #[must_use]
+    pub fn as_slice(&self) -> &[DesignColumn] {
+        &self.columns
+    }
+
+    /// Index of the treatment column, if present.
+    #[must_use]
+    pub fn treatment_column(&self) -> Option<usize> {
+        self.columns.iter().position(|c| matches!(c.role, DesignColumnRole::Treatment))
+    }
+
+    /// Attach standardization entry indexes from a [`StandardizationRecord`].
+    ///
+    /// Clears previous `standardization_idx` values, then sets each entry's
+    /// `col_idx` → entry index in `record.entries`.
+    #[must_use]
+    pub fn with_standardization_links(mut self, record: &StandardizationRecord) -> Self {
+        let mut cols = self.columns.as_ref().to_vec();
+        for c in &mut cols {
+            c.standardization_idx = None;
+        }
+        for (ei, entry) in record.entries.iter().enumerate() {
+            if let Some(col) = cols.get_mut(entry.col_idx) {
+                col.standardization_idx = Some(ei);
+            }
+        }
+        self.columns = Arc::from(cols);
+        self
+    }
+
+    /// Attach contrast indexes from recorded contrasts (`column_range` → contrast index).
+    #[must_use]
+    pub fn with_contrast_links(mut self, contrasts: &[RecordedContrast]) -> Self {
+        let mut cols = self.columns.as_ref().to_vec();
+        for c in &mut cols {
+            c.contrast_idx = None;
+        }
+        for (ci, contrast) in contrasts.iter().enumerate() {
+            let (start, end) = contrast.column_range;
+            for col in cols.iter_mut().take(end).skip(start) {
+                col.contrast_idx = Some(ci);
+            }
+        }
+        self.columns = Arc::from(cols);
+        self
+    }
+}
+
+impl From<Vec<DesignColumn>> for DesignColumnMap {
+    fn from(value: Vec<DesignColumn>) -> Self {
+        Self { columns: Arc::from(value) }
+    }
+}
+
+impl From<Arc<[DesignColumn]>> for DesignColumnMap {
+    fn from(value: Arc<[DesignColumn]>) -> Self {
+        Self { columns: value }
+    }
+}
+
 /// Contrast coding kind recorded on a compiled design (DESIGN.md §11.2 provenance).
 ///
 /// Mirrors `causal_data::Contrast` without depending on that crate.
@@ -86,8 +215,8 @@ pub struct CompiledDesign {
     pub ncols: usize,
     /// Column-major values.
     pub matrix: Arc<[f64]>,
-    /// Column roles.
-    pub columns: Arc<[DesignColumnRole]>,
+    /// Column metadata (roles + provenance links); dense storage stays on `matrix`.
+    pub columns: DesignColumnMap,
     /// Outcome vector aligned with rows.
     pub outcome: Arc<[f64]>,
     /// Original row indices retained after validity / analysis-mask filtering.
@@ -154,7 +283,7 @@ impl CompiledDesign {
             nrows,
             ncols,
             matrix: Arc::from(matrix),
-            columns: Arc::from(roles),
+            columns: DesignColumnMap::from_roles(roles),
             outcome: Arc::from(outcome.to_vec()),
             row_selection: selection,
             contrasts: Vec::new(),
@@ -163,12 +292,18 @@ impl CompiledDesign {
     }
 
     /// Attach contrast / standardization provenance without rebuilding the matrix.
+    ///
+    /// Also refreshes per-column `contrast_idx` / `standardization_idx` links.
     #[must_use]
     pub fn with_provenance(
         mut self,
         contrasts: Vec<RecordedContrast>,
         standardization: StandardizationRecord,
     ) -> Self {
+        self.columns = self
+            .columns
+            .with_contrast_links(&contrasts)
+            .with_standardization_links(&standardization);
         self.contrasts = contrasts;
         self.standardization = standardization;
         self
@@ -190,7 +325,7 @@ impl CompiledDesign {
     /// Index of the treatment column (always 1 for [`linear_adjustment`]).
     #[must_use]
     pub fn treatment_column(&self) -> Option<usize> {
-        self.columns.iter().position(|c| matches!(c, DesignColumnRole::Treatment))
+        self.columns.treatment_column()
     }
 }
 
@@ -315,6 +450,8 @@ mod tests {
         assert_eq!(design.matrix.as_ptr(), ptr);
         assert_eq!(design.contrasts.len(), 1);
         assert_eq!(design.standardization.entries.len(), 1);
+        assert_eq!(design.columns.get(2).and_then(|c| c.contrast_idx), None); // range (2,3) but ncols=2
+        assert_eq!(design.columns.get(1).and_then(|c| c.standardization_idx), Some(0));
     }
 
     #[test]
