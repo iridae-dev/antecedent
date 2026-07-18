@@ -1,4 +1,4 @@
-"""Data loading helpers (DESIGN.md §25.1)."""
+"""Data conversion probes (Arrow / float64 columns)."""
 
 from __future__ import annotations
 

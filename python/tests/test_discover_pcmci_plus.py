@@ -27,8 +27,10 @@ def test_discover_pcmci_plus_returns_cpdag_summary():
     assert result.cpdag_nodes >= 2
     assert result.cpdag_directed_edges + result.cpdag_undirected_edges >= 1
     assert result.graph_edges, "oriented CPDAG body must be returned"
-    assert all(e.at_a in {"tail", "arrow", "circle"} for e in result.graph_edges)
-    assert any({e.a, e.b} == {"x", "y"} or e.a == e.b for e in result.graph_edges)
+    assert all(e.at_source in {"tail", "arrow", "circle"} for e in result.graph_edges)
+    assert any(
+        {e.source, e.target} == {"x", "y"} or e.source == e.target for e in result.graph_edges
+    )
     assert result.links, "scored links must be non-empty for this series"
 
 

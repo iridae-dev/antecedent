@@ -16,8 +16,11 @@ class CausalValidateError(CausalError): ...
 class CausalDiscoveryError(CausalError): ...
 class CausalModelError(CausalError): ...
 class CausalCounterfactualError(CausalError): ...
+class CausalAttributionError(CausalError): ...
 class CausalDataError(CausalError): ...
 class CausalGraphError(CausalError): ...
+class CausalDesignError(CausalError): ...
+class CausalStateError(CausalError): ...
 class CausalSerializationError(CausalError): ...
 class CausalCompileError(CausalError): ...
 class CausalResourceError(CausalError): ...
@@ -56,6 +59,11 @@ class AteAnalysisResult:
     posterior_p_below_zero: float | None
     posterior_backend: str | None
     posterior_artifact: list[int] | None
+    diagnostics: list[str]
+    provenance_node_count: int
+    plan_id: str
+    modality: str
+    peak_memory_bytes: int | None
 
 class PosteriorArtifact:
     n_draws: int
@@ -81,12 +89,12 @@ class DiscoveredLink:
     adjusted_p_value: float | None
 
 class GraphEdge:
-    a: str
-    a_lag: int
-    b: str
-    b_lag: int
-    at_a: str
-    at_b: str
+    source: str
+    source_lag: int
+    target: str
+    target_lag: int
+    at_source: str
+    at_target: str
 
 class PcmciDiscoveryResult:
     links: list[DiscoveredLink]
@@ -128,6 +136,9 @@ class AnalysisResult:
     peak_memory_bytes: int | None
     identification_status: str
     method: str
+    diagnostics: list[str]
+    provenance_node_count: int
+    refutation_count: int
 
 class GcmIteResult:
     mean_ite: float
@@ -177,6 +188,25 @@ def analyze(
     treatment: str,
     outcome: str,
     *,
+    treatment_lag: int = 1,
+    horizon_steps: int = 1,
+    active_level: float = 1.0,
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+) -> AnalysisResult: ...
+
+def analyze_temporal_discover(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    treatment: str,
+    outcome: str,
+    *,
+    algorithm: str = "pcmci",
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    accept_discovered: bool = True,
     treatment_lag: int = 1,
     horizon_steps: int = 1,
     active_level: float = 1.0,
@@ -271,7 +301,7 @@ def predict_intervened_summary(
     level: float = 1.0,
 ) -> PredictSummary: ...
 
-def gcm_counterfactual_ite(
+def counterfactual_ite(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     edges: list[tuple[str, str]],
@@ -279,22 +309,24 @@ def gcm_counterfactual_ite(
     outcome: str,
     active: float,
     control: float,
+    *,
     seed: int = 0,
     threads: int = 1,
 ) -> GcmIteResult: ...
 
-def gcm_sample_do(
+def sample_do(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     edges: list[tuple[str, str]],
     treatment: str,
     do_value: float,
     n_draws: int,
+    *,
     seed: int = 0,
     threads: int = 1,
 ) -> GcmSampleResult: ...
 
-def gcm_sample_interventional_distribution(
+def sample_interventional_distribution(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     edges: list[tuple[str, str]],
@@ -302,16 +334,18 @@ def gcm_sample_interventional_distribution(
     do_value: float,
     n_draws: int,
     outcome: str | None = None,
+    *,
     seed: int = 0,
     threads: int = 1,
 ) -> GcmSampleResult: ...
 
-def gcm_attribute_path_specific(
+def attribute_path_specific(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     edges: list[tuple[str, str]],
     treatment: str,
     outcome: str,
+    *,
     path_nodes: list[str] | None = None,
     max_paths: int = 64,
     max_len: int = 16,
@@ -319,7 +353,7 @@ def gcm_attribute_path_specific(
     threads: int = 1,
 ) -> tuple[float, list[tuple[list[str], float]]]: ...
 
-def gcm_distribution_change(
+def attribute_distribution_change(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     edges: list[tuple[str, str]],
@@ -328,40 +362,104 @@ def gcm_distribution_change(
     baseline_end: int,
     comparison_start: int,
     comparison_end: int,
+    *,
     n_samples: int = 500,
     seed: int = 0,
     threads: int = 1,
 ) -> tuple[float, list[tuple[str, float]]]: ...
 
-def rank_design_eig(
+def attribute_distribution_change_robust(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    outcome: str,
+    baseline_start: int,
+    baseline_end: int,
+    comparison_start: int,
+    comparison_end: int,
+    *,
+    n_samples: int = 500,
+    seed: int = 0,
+    threads: int = 1,
+) -> tuple[float, list[tuple[str, float]]]: ...
+
+def anomaly_attribution(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    outcomes: list[str],
+    *,
+    max_units: int = 0,
+) -> list[tuple[str, float, int]]: ...
+
+def attribute_unit_change(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    outcome: str,
+    *,
+    max_units: int = 0,
+    seed: int = 0,
+    threads: int = 1,
+) -> tuple[float, list[tuple[str, float]]]: ...
+
+def attribute_feature_relevance(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    outcome: str,
+    *,
+    delta: float = 1.0,
+    n_samples: int = 200,
+    seed: int = 0,
+    threads: int = 1,
+) -> list[tuple[str, float]]: ...
+
+def mechanism_change_detection(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    baseline_start: int,
+    baseline_end: int,
+    comparison_start: int,
+    comparison_end: int,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+) -> list[tuple[str, float, float, bool]]: ...
+
+def rank_designs(
     graph_weights: list[float],
     identified: list[int],
     graph_keys: list[int],
     measure_var_ids: list[int],
     sampling_increments: list[int],
+    *,
     seed: int = 0,
     threads: int = 1,
 ) -> tuple[int, list[float], int]: ...
 
-def causal_state_append_demo(
-    n_appends: int = 2,
-    cache_bytes: int = 1_048_576,
-) -> tuple[int, int]: ...
-
 def decode_posterior_artifact(bytes: list[int] | bytes) -> PosteriorArtifact: ...
 def encode_posterior_artifact(artifact: PosteriorArtifact) -> bytes: ...
-def parse_dag_dot(dot: str) -> tuple[int, list[tuple[int, int]]]: ...
-def format_dag_dot(node_count: int, edges: list[tuple[int, int]]) -> str: ...
-def parse_dag_json(json: str) -> tuple[int, list[tuple[int, int]], list[str] | None]: ...
-def format_dag_json(
+def dag_from_dot(dot: str) -> tuple[int, list[tuple[int, int]]]: ...
+def dag_to_dot(node_count: int, edges: list[tuple[int, int]]) -> str: ...
+def dag_from_json(json: str) -> tuple[int, list[tuple[int, int]], list[str] | None]: ...
+def dag_to_json(
     node_count: int,
     edges: list[tuple[int, int]],
     variable_names: list[str] | None = None,
 ) -> str: ...
-def parse_dag_gml(gml: str) -> tuple[int, list[tuple[int, int]]]: ...
-def format_dag_gml(node_count: int, edges: list[tuple[int, int]]) -> str: ...
-def parse_dag_networkx_node_link(json: str) -> tuple[int, list[tuple[int, int]]]: ...
-def format_dag_networkx_node_link(node_count: int, edges: list[tuple[int, int]]) -> str: ...
+def dag_from_gml(gml: str) -> tuple[int, list[tuple[int, int]]]: ...
+def dag_to_gml(node_count: int, edges: list[tuple[int, int]]) -> str: ...
+def dag_from_networkx_node_link(json: str) -> tuple[int, list[tuple[int, int]]]: ...
+def dag_to_networkx_node_link(node_count: int, edges: list[tuple[int, int]]) -> str: ...
+def dag_from_networkx_adjacency(json: str) -> tuple[int, list[tuple[int, int]]]: ...
+def dag_to_networkx_adjacency(
+    node_count: int,
+    edges: list[tuple[int, int]],
+    variable_names: list[str] | None = None,
+) -> str: ...
+def causal_state_append(n_appends: int = 2, cache_bytes: int = 1_048_576) -> tuple[int, int]: ...
 def encode_model_bundle(
     variable_names: list[str],
     edges: list[tuple[int, int]],

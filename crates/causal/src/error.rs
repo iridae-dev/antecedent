@@ -3,12 +3,17 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal_attribution::AttributionError;
+use causal_core::SchemaError;
 use causal_counterfactual::CounterfactualError;
+use causal_data::DataError;
+use causal_design::DesignError;
 use causal_discovery::DiscoveryError;
 use causal_estimate::EstimationError;
+use causal_graph::GraphError;
 use causal_identify::IdentificationError;
 use causal_io::IoError;
 use causal_model::ModelError;
+use causal_state::StateError;
 use causal_validate::ValidationError;
 use thiserror::Error;
 
@@ -39,6 +44,21 @@ pub enum AnalysisError {
     /// Artifact serialization / deserialization.
     #[error(transparent)]
     Serialization(#[from] IoError),
+    /// Tabular / time-series data construction or lookup.
+    #[error(transparent)]
+    Data(#[from] DataError),
+    /// Graph construction or validation.
+    #[error(transparent)]
+    Graph(#[from] GraphError),
+    /// Experiment / measurement design evaluation.
+    #[error(transparent)]
+    Design(#[from] DesignError),
+    /// Incremental causal-state update.
+    #[error(transparent)]
+    State(#[from] StateError),
+    /// Schema construction or name lookup at an API boundary.
+    #[error(transparent)]
+    Schema(#[from] SchemaError),
     /// Logical / physical plan compilation failed.
     #[error("{message}")]
     Compile {

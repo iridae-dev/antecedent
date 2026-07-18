@@ -99,8 +99,20 @@ impl From<&str> for IdentifierId {
     }
 }
 
+impl From<String> for IdentifierId {
+    fn from(value: String) -> Self {
+        Self::parse(&value)
+    }
+}
+
 impl From<&Arc<str>> for IdentifierId {
     fn from(value: &Arc<str>) -> Self {
+        Self::parse(value.as_ref())
+    }
+}
+
+impl From<Arc<str>> for IdentifierId {
+    fn from(value: Arc<str>) -> Self {
         Self::parse(value.as_ref())
     }
 }
@@ -226,8 +238,20 @@ impl From<&str> for EstimatorId {
     }
 }
 
+impl From<String> for EstimatorId {
+    fn from(value: String) -> Self {
+        Self::parse(&value)
+    }
+}
+
 impl From<&Arc<str>> for EstimatorId {
     fn from(value: &Arc<str>) -> Self {
+        Self::parse(value.as_ref())
+    }
+}
+
+impl From<Arc<str>> for EstimatorId {
+    fn from(value: Arc<str>) -> Self {
         Self::parse(value.as_ref())
     }
 }

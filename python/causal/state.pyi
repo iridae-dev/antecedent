@@ -1,5 +1,5 @@
-"""Incremental causal-state helpers (DESIGN.md §25.1)."""
+"""Incremental causal-state helpers."""
 
-from ._native import causal_state_append_demo as causal_state_append_demo
+from ._native import causal_state_append as causal_state_append
 
-__all__: list[str]
+__all__ = ["causal_state_append"]

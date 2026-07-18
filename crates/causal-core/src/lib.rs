@@ -4,10 +4,50 @@
 //! diagnostics, errors, and execution policy. It must not depend on numerical,
 //! graph-algorithm, Arrow, or Python crates (DESIGN.md §3.1).
 //!
+//! # Names at the boundary, IDs on the hot path
+//!
+//! Human-readable names live in [`CausalSchema`]. Hot-path APIs take
+//! [`VariableId`] values resolved from that schema — never raw strings.
+//!
+//! ```
+//! use causal_core::{
+//!     AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet,
+//!     ValueType, VariableId,
+//! };
+//!
+//! let mut b = CausalSchemaBuilder::new();
+//! b.add_variable(
+//!     "treatment",
+//!     ValueType::Continuous,
+//!     SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+//!     None,
+//!     None,
+//!     MeasurementSpec::default(),
+//! )
+//! .unwrap();
+//! b.add_variable(
+//!     "outcome",
+//!     ValueType::Continuous,
+//!     SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+//!     None,
+//!     None,
+//!     MeasurementSpec::default(),
+//! )
+//! .unwrap();
+//! let schema = b.build().unwrap();
+//! let t = schema.id_of("treatment").unwrap();
+//! let y = schema.id_of("outcome").unwrap();
+//! let query = AverageEffectQuery::binary_ate(t, y);
+//! assert_eq!(query.treatment, VariableId::from_raw(0));
+//! ```
+//!
+//! Parallelism, budgets, and RNG seeding are configured via [`ExecutionContext`].
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+#![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
 pub mod assumption;
 pub mod diagnostic;

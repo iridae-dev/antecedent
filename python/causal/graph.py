@@ -1,25 +1,29 @@
-"""Graph helpers (DESIGN.md §25.1 DOT/JSON/GML/NetworkX interchange)."""
+"""Graph interchange helpers (DOT / JSON / GML / NetworkX)."""
 
 from __future__ import annotations
 
 from ._native import (
-    format_dag_dot,
-    format_dag_gml,
-    format_dag_json,
-    format_dag_networkx_node_link,
-    parse_dag_dot,
-    parse_dag_gml,
-    parse_dag_json,
-    parse_dag_networkx_node_link,
+    dag_from_dot,
+    dag_from_gml,
+    dag_from_json,
+    dag_from_networkx_adjacency,
+    dag_from_networkx_node_link,
+    dag_to_dot,
+    dag_to_gml,
+    dag_to_json,
+    dag_to_networkx_adjacency,
+    dag_to_networkx_node_link,
 )
 
 __all__ = [
-    "format_dag_dot",
-    "format_dag_gml",
-    "format_dag_json",
-    "format_dag_networkx_node_link",
-    "parse_dag_dot",
-    "parse_dag_gml",
-    "parse_dag_json",
-    "parse_dag_networkx_node_link",
+    "dag_from_dot",
+    "dag_from_gml",
+    "dag_from_json",
+    "dag_from_networkx_adjacency",
+    "dag_from_networkx_node_link",
+    "dag_to_dot",
+    "dag_to_gml",
+    "dag_to_json",
+    "dag_to_networkx_adjacency",
+    "dag_to_networkx_node_link",
 ]

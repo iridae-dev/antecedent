@@ -3,10 +3,43 @@
 //! Arrow adapters are optional (`arrow` feature) and never leak Arrow types
 //! into the public causal API (ADR 0004).
 //!
+//! # Building tabular data
+//!
+//! ```
+//! use std::sync::Arc;
+//!
+//! use causal_core::{
+//!     CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
+//! };
+//! use causal_data::{
+//!     Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
+//! };
+//!
+//! let mut b = CausalSchemaBuilder::new();
+//! b.add_variable(
+//!     "x",
+//!     ValueType::Continuous,
+//!     SmallRoleSet::from_hint(RoleHint::Context),
+//!     None,
+//!     None,
+//!     MeasurementSpec::default(),
+//! )
+//! .unwrap();
+//! let schema = b.build().unwrap();
+//! let id = VariableId::from_raw(0);
+//! let col = Float64Column::new(id, Arc::from([1.0_f64, 2.0, 3.0]), ValidityBitmap::all_valid(3))
+//!     .unwrap();
+//! let storage =
+//!     OwnedColumnarStorage::try_new(schema, vec![OwnedColumn::Float64(col)], None, None).unwrap();
+//! let data = TabularData::new(storage);
+//! assert_eq!(data.row_count(), 3);
+//! ```
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
+#![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
 pub mod aligned_buffer;
 #[cfg(feature = "arrow")]

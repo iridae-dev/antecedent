@@ -1,5 +1,16 @@
 //! Causal discovery algorithms.
 //!
+//! Shipped surface is the PCMCI family ([`Pcmci`], [`PcmciPlus`], [`Lpcmci`],
+//! [`JpcmciPlus`], [`Rpcmci`]). Static PC/FCI/GES are not shipped yet
+//! (DESIGN.md §13.3).
+//!
+//! ```
+//! use causal_discovery::Pcmci;
+//!
+//! let alg = Pcmci::new();
+//! let _ = alg;
+//! ```
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]

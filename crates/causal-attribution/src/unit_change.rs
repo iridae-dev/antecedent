@@ -8,7 +8,7 @@ use causal_core::{
     AllocationMethod, AttributionComponents, ComponentId, ExecutionContext, UnitChangeQuery,
     VariableId,
 };
-use causal_counterfactual::{CounterfactualEngine, MissingPolicy};
+use causal_counterfactual::{CounterfactualEngine, AbductionMissingPolicy};
 use causal_data::{TableView, TabularData};
 use causal_graph::DenseNodeId;
 use causal_model::{
@@ -83,7 +83,7 @@ pub fn unit_change(
         parents.iter().copied().map(ComponentId::from_variable).collect();
 
     let engine = CounterfactualEngine::new(model.clone());
-    let exo = engine.abduct(data, MissingPolicy::Error)?;
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
 
     // Reference parent means.
     let mut parent_means = Vec::with_capacity(parents.len());

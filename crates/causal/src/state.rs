@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal_core::CacheBudget;
-use causal_state::{CausalState, StateError, StateEvent};
+use causal_state::{CausalState, StateEvent};
 
 use crate::error::AnalysisError;
 
@@ -22,14 +22,5 @@ pub fn apply_state_event(
     state: &mut CausalState,
     event: StateEvent,
 ) -> Result<causal_core::StateVersion, AnalysisError> {
-    state.apply(event).map_err(map_state)
-}
-
-fn map_state(err: StateError) -> AnalysisError {
-    match err {
-        StateError::CacheBudget { need, remaining } => AnalysisError::Resource {
-            message: format!("cache budget exceeded (need {need}, remaining {remaining})"),
-        },
-        other => AnalysisError::Compile { message: other.to_string() },
-    }
+    state.apply(event).map_err(AnalysisError::from)
 }

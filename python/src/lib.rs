@@ -23,25 +23,36 @@ use arrow_schema::{DataType, Field, Schema};
 use causal::{
     AnalysisError, BayesianConfig, CandidateDesign, CausalAnalysis, DataBatchRef, DesignCost,
     DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, DifferenceMeasure,
-    DiscoverParams, DiscoveryPerformanceRecord, DistributionChangeOptions, FdrAdjustment,
-    GraphIdentFlag, InferenceMode, MeasurementPlan, MultiDatasetConstraints, RefuteSuite,
-    SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent, TemporalLinearPredictor,
-    TemporalMediationEstimator, WeightedGraphSamples, apply_state_event,
-    attribute_distribution_change, attribute_path_specific, counterfactual_ite,
-    dag_from_dot, dag_to_dot, dag_to_json, decode_causal_posterior_bytes,
-    discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    DiscoverParams, DiscoveryAccept, DiscoveryPerformanceRecord, DistributionChangeOptions,
+    FdrAdjustment, FdrControl, GraphIdentFlag, InferenceMode, MeasurementPlan,
+    MultiDatasetConstraints, RefuteSuite, SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent,
+    TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples,
+    anomaly_attribution as facade_anomaly_attribution, apply_state_event,
+    attribute_distribution_change as facade_attribute_distribution_change,
+    attribute_distribution_change_robust as facade_attribute_distribution_change_robust,
+    attribute_feature_relevance as facade_attribute_feature_relevance,
+    attribute_path_specific as facade_attribute_path_specific,
+    attribute_unit_change as facade_attribute_unit_change,
+    counterfactual_ite as facade_counterfactual_ite, dag_from_dot as facade_dag_from_dot,
+    dag_from_networkx_adjacency as facade_dag_from_networkx_adjacency,
+    dag_to_dot as facade_dag_to_dot, dag_to_json as facade_dag_to_json,
+    dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency,
+    decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
-    encode_causal_posterior_bytes, fit_gcm, new_causal_state, pag_definite_directed_edge_count,
-    rank_designs, resolve_ci, sample_do, sample_interventional_distribution,
+    encode_causal_posterior_bytes, fit_gcm,
+    mechanism_change_detection as facade_mechanism_change_detection, new_causal_state,
+    pag_definite_directed_edge_count, rank_designs as facade_rank_designs, resolve_ci,
+    sample_do as facade_sample_do,
+    sample_interventional_distribution as facade_sample_interventional_distribution,
     two_regime_half_split,
 };
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CacheBudget, CachePolicy,
     CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
-    InterventionalDistributionQuery, Lag, MediationContrast, MediationQuery, PathSpecificEffectQuery,
-    PopulationSelector, SchemaError, ShapleyConfig, TemporalEffectQuery, TemporalPolicy, VERSION,
-    Value, VariableId,
+    InterventionalDistributionQuery, Lag, MechanismChangeQuery, MediationContrast, MediationQuery,
+    PathSpecificEffectQuery, PopulationSelector, SchemaError, ShapleyConfig, TemporalEffectQuery,
+    TemporalPolicy, UnitChangeQuery, VERSION, Value, VariableId,
 };
 use causal_data::{
     ArrowCColumn, DataError, MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex,
@@ -68,8 +79,11 @@ create_exception!(causal._native, CausalValidateError, CausalError);
 create_exception!(causal._native, CausalDiscoveryError, CausalError);
 create_exception!(causal._native, CausalModelError, CausalError);
 create_exception!(causal._native, CausalCounterfactualError, CausalError);
+create_exception!(causal._native, CausalAttributionError, CausalError);
 create_exception!(causal._native, CausalDataError, CausalError);
 create_exception!(causal._native, CausalGraphError, CausalError);
+create_exception!(causal._native, CausalDesignError, CausalError);
+create_exception!(causal._native, CausalStateError, CausalError);
 create_exception!(causal._native, CausalSerializationError, CausalError);
 create_exception!(causal._native, CausalCompileError, CausalError);
 create_exception!(causal._native, CausalResourceError, CausalError);
@@ -135,8 +149,18 @@ impl IntoCausalPyErr for AnalysisError {
             Self::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
             Self::Model(e) => CausalModelError::new_err(e.to_string()),
             Self::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
-            Self::Attribution(e) => CausalEstimateError::new_err(e.to_string()),
+            Self::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
             Self::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
+            Self::Data(e) => CausalDataError::new_err(e.to_string()),
+            Self::Graph(e) => CausalGraphError::new_err(e.to_string()),
+            Self::Design(e) => CausalDesignError::new_err(e.to_string()),
+            Self::State(e) => match &e {
+                causal::StateError::CacheBudget { .. } => {
+                    CausalResourceError::new_err(e.to_string())
+                }
+                _ => CausalStateError::new_err(e.to_string()),
+            },
+            Self::Schema(e) => CausalDataError::new_err(e.to_string()),
             Self::Compile { message } => CausalCompileError::new_err(message),
             Self::Resource { message } => CausalResourceError::new_err(message),
             Self::ReviewRequired { message } => CausalReviewError::new_err(message),
@@ -150,25 +174,25 @@ impl IntoCausalPyErr for AnalysisError {
 
 impl IntoCausalPyErr for DataError {
     fn into_causal_py_err(self) -> PyErr {
-        CausalDataError::new_err(self.to_string())
+        AnalysisError::from(self).into_causal_py_err()
     }
 }
 
 impl IntoCausalPyErr for GraphError {
     fn into_causal_py_err(self) -> PyErr {
-        CausalGraphError::new_err(self.to_string())
+        AnalysisError::from(self).into_causal_py_err()
     }
 }
 
 impl IntoCausalPyErr for IoError {
     fn into_causal_py_err(self) -> PyErr {
-        CausalSerializationError::new_err(self.to_string())
+        AnalysisError::from(self).into_causal_py_err()
     }
 }
 
 impl IntoCausalPyErr for SchemaError {
     fn into_causal_py_err(self) -> PyErr {
-        CausalDataError::new_err(self.to_string())
+        AnalysisError::from(self).into_causal_py_err()
     }
 }
 
@@ -255,6 +279,21 @@ struct AteAnalysisResult {
     /// Serialized posterior artifact bytes (CBOR meta + f64 LE draws) when Bayesian.
     #[pyo3(get)]
     posterior_artifact: Option<Vec<u8>>,
+    /// Human-readable diagnostic messages from the analysis.
+    #[pyo3(get)]
+    diagnostics: Vec<String>,
+    /// Number of provenance nodes recorded for this run.
+    #[pyo3(get)]
+    provenance_node_count: usize,
+    /// Logical plan id.
+    #[pyo3(get)]
+    plan_id: String,
+    /// Data modality classification.
+    #[pyo3(get)]
+    modality: String,
+    /// Estimated peak memory from the physical plan.
+    #[pyo3(get)]
+    peak_memory_bytes: Option<u64>,
 }
 
 /// Decoded posterior artifact for Python consumers .
@@ -613,6 +652,15 @@ fn ate_result_from_analysis(
         posterior_p_below_zero,
         posterior_backend,
         posterior_artifact,
+        diagnostics: result
+            .diagnostics
+            .iter()
+            .map(|d| format!("{}: {}", d.code, d.message))
+            .collect(),
+        provenance_node_count: result.provenance.len(),
+        plan_id: result.logical_plan.plan_id.to_string(),
+        modality: format!("{:?}", result.logical_plan.data_classification),
+        peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
     })
 }
 
@@ -621,19 +669,19 @@ fn ate_result_from_analysis(
 #[derive(Clone)]
 struct GraphEdge {
     #[pyo3(get)]
-    a: String,
+    source: String,
     #[pyo3(get)]
-    a_lag: u32,
+    source_lag: u32,
     #[pyo3(get)]
-    b: String,
+    target: String,
     #[pyo3(get)]
-    b_lag: u32,
-    /// Endpoint mark at `a`: `tail` | `arrow` | `circle` | `conflict`.
+    target_lag: u32,
+    /// Endpoint mark at `source`: `tail` | `arrow` | `circle` | `conflict`.
     #[pyo3(get)]
-    at_a: String,
-    /// Endpoint mark at `b`: `tail` | `arrow` | `circle` | `conflict`.
+    at_source: String,
+    /// Endpoint mark at `target`: `tail` | `arrow` | `circle` | `conflict`.
     #[pyo3(get)]
-    at_b: String,
+    at_target: String,
 }
 
 fn endpoint_name(e: Endpoint) -> &'static str {
@@ -665,15 +713,15 @@ fn node_ref_parts(names: &[String], node: NodeRef) -> (String, u32) {
 }
 
 fn graph_edge_from_marked(names: &[String], nodes: &[NodeRef], edge: MarkedEdge) -> GraphEdge {
-    let (a, a_lag) = node_ref_parts(names, nodes[edge.a.as_usize()]);
-    let (b, b_lag) = node_ref_parts(names, nodes[edge.b.as_usize()]);
+    let (source, source_lag) = node_ref_parts(names, nodes[edge.a.as_usize()]);
+    let (target, target_lag) = node_ref_parts(names, nodes[edge.b.as_usize()]);
     GraphEdge {
-        a,
-        a_lag,
-        b,
-        b_lag,
-        at_a: endpoint_name(edge.at_a).to_string(),
-        at_b: endpoint_name(edge.at_b).to_string(),
+        source,
+        source_lag,
+        target,
+        target_lag,
+        at_source: endpoint_name(edge.at_a).to_string(),
+        at_target: endpoint_name(edge.at_b).to_string(),
     }
 }
 
@@ -1287,6 +1335,12 @@ struct AnalysisResult {
     identification_status: String,
     #[pyo3(get)]
     method: String,
+    #[pyo3(get)]
+    diagnostics: Vec<String>,
+    #[pyo3(get)]
+    provenance_node_count: usize,
+    #[pyo3(get)]
+    refutation_count: usize,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -1376,6 +1430,13 @@ fn analyze(
             peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
             identification_status: format!("{:?}", result.identification.status),
             method: result.estimand.method.to_string(),
+            diagnostics: result
+                .diagnostics
+                .iter()
+                .map(|d| format!("{}: {}", d.code, d.message))
+                .collect(),
+            provenance_node_count: result.provenance.len(),
+            refutation_count: result.refutations.len(),
         })
     })
 }
@@ -1414,8 +1475,8 @@ struct GcmSampleResult {
 ///
 /// Crosses the Python boundary once: NumPy columns + edges in, arrays out.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment, outcome, active, control, seed=0, threads=1))]
-fn gcm_counterfactual_ite(
+#[pyo3(signature = (names, columns, edges, treatment, outcome, active, control, *, seed=0, threads=1))]
+fn counterfactual_ite(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -1449,7 +1510,7 @@ fn gcm_counterfactual_ite(
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let n_assignments = fitted.assignments.len();
         let ctx = py_execution_context(seed, threads);
-        let ite = counterfactual_ite(fitted.model, &data, t_id, y_id, active, control, &ctx)
+        let ite = facade_counterfactual_ite(fitted.model, &data, t_id, y_id, active, control, &ctx)
             .map_err(py_err)?;
         Ok::<_, PyErr>((
             ite.mean_ite,
@@ -1470,8 +1531,8 @@ fn gcm_counterfactual_ite(
 
 /// Fit GCM and return interventional column means + draws under hard `do(treatment=value)`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, seed=0, threads=1))]
-fn gcm_sample_do(
+#[pyo3(name = "sample_do", signature = (names, columns, edges, treatment, do_value, n_draws, *, seed=0, threads=1))]
+fn sample_do_py(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -1503,7 +1564,7 @@ fn gcm_sample_do(
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let mut rng = CausalRng::from_seed(seed);
-        let samples = sample_do(
+        let samples = facade_sample_do(
             &fitted.model,
             &[Intervention::set(t_id, Value::f64(do_value))],
             n_draws,
@@ -1533,8 +1594,8 @@ fn gcm_sample_do(
 ///
 /// Same return shape as [`gcm_sample_do`]; builds the typed query then samples.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, outcome=None, seed=0, threads=1))]
-fn gcm_sample_interventional_distribution(
+#[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, outcome=None, *, seed=0, threads=1))]
+fn sample_interventional_distribution(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -1577,7 +1638,7 @@ fn gcm_sample_interventional_distribution(
         let ctx = py_execution_context(seed, threads);
         let mut rng = CausalRng::from_seed(seed);
         let samples =
-            sample_interventional_distribution(&fitted.model, &query, n_draws, &mut rng, &ctx)
+            facade_sample_interventional_distribution(&fitted.model, &query, n_draws, &mut rng, &ctx)
                 .map_err(py_err)?;
         let mut means = Vec::with_capacity(samples.n_nodes);
         for i in 0..samples.n_nodes {
@@ -1601,8 +1662,8 @@ fn gcm_sample_interventional_distribution(
 ///
 /// Returns `(total_change, [([node_names...], contribution), ...])`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment, outcome, path_nodes=None, max_paths=64, max_len=16, seed=0, threads=1))]
-fn gcm_attribute_path_specific(
+#[pyo3(signature = (names, columns, edges, treatment, outcome, *, path_nodes=None, max_paths=64, max_len=16, seed=0, threads=1))]
+fn attribute_path_specific(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -1648,7 +1709,7 @@ fn gcm_attribute_path_specific(
             query = query.with_path_nodes(intermediates);
         }
         let ctx = py_execution_context(seed, threads);
-        let result = attribute_path_specific(&fitted.model, &query, &ctx).map_err(py_err)?;
+        let result = facade_attribute_path_specific(&fitted.model, &query, &ctx).map_err(py_err)?;
         let schema = data.schema();
         let paths: Vec<(Vec<String>, f64)> = result
             .path_breakdown
@@ -1687,8 +1748,8 @@ fn quantity_wire_name(q: &PosteriorQuantityWire) -> String {
 ///
 /// Returns `(total_change, [(component_name, contribution), ...])`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, n_samples=500, seed=0, threads=1))]
-fn gcm_distribution_change(
+#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
+fn attribute_distribution_change(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -1737,7 +1798,7 @@ fn gcm_distribution_change(
             n_samples: n_samples.max(100),
             seed,
         };
-        let result = attribute_distribution_change(&fitted.model, &data, &query, &opts, &ctx)
+        let result = facade_attribute_distribution_change(&fitted.model, &data, &query, &opts, &ctx)
             .map_err(py_err)?;
         let mut pairs = Vec::with_capacity(result.contributions.len());
         for c in result.contributions.iter() {
@@ -1756,8 +1817,8 @@ fn gcm_distribution_change(
 /// `graph_weights`, `identified` (0/1), and `graph_keys` form the discrete posterior.
 /// Returns `(best_index, scores, mc_samples)`.
 #[pyfunction]
-#[pyo3(signature = (graph_weights, identified, graph_keys, measure_var_ids, sampling_increments, seed=0, threads=1))]
-fn rank_design_eig(
+#[pyo3(signature = (graph_weights, identified, graph_keys, measure_var_ids, sampling_increments, *, seed=0, threads=1))]
+fn rank_designs(
     graph_weights: Vec<f64>,
     identified: Vec<u8>,
     graph_keys: Vec<u64>,
@@ -1807,40 +1868,11 @@ fn rank_design_eig(
             graph_features: None,
         };
         let ranking =
-            rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
+            facade_rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
                 .map_err(py_err)?;
         let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
         let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
         Ok((best, scores, ranking.budget.samples))
-    })
-}
-
-/// Apply `AppendData` events to a fresh state; returns `(version, stale_query_count)`.
-///
-/// Demonstrates invalidation without a service runtime.
-#[pyfunction]
-#[pyo3(signature = (n_appends=2, cache_bytes=1_048_576))]
-fn causal_state_append_demo(n_appends: u64, cache_bytes: u64) -> PyResult<(u64, usize)> {
-    catch_ffi(|| {
-        use causal_core::{AverageEffectQuery, CausalQuery};
-        let mut state = new_causal_state(CacheBudget::new(cache_bytes));
-        let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-        )));
-        let _ = state.refresh_results(&[(q, 1, 16)]);
-        for i in 0..n_appends {
-            apply_state_event(
-                &mut state,
-                StateEvent::AppendData(DataBatchRef {
-                    id: Arc::from(format!("b{i}")),
-                    nrows: 8,
-                    bytes: 64,
-                }),
-            )
-            .map_err(py_err)?;
-        }
-        Ok((state.version.raw(), state.stale_queries().len()))
     })
 }
 
@@ -1910,9 +1942,9 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
 
 /// Parse DOT digraph text; return `(node_count, edges)`.
 #[pyfunction]
-fn parse_dag_dot(dot: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
+fn dag_from_dot(dot: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
-        let dag = dag_from_dot(dot).map_err(py_err)?;
+        let dag = facade_dag_from_dot(dot).map_err(py_err)?;
         let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
         Ok((wire.node_count as usize, wire.edges))
     })
@@ -1920,11 +1952,11 @@ fn parse_dag_dot(dot: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
 
 /// Emit DOT for a numeric DAG given `node_count` and `edges`.
 #[pyfunction]
-fn format_dag_dot(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
+fn dag_to_dot(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
     catch_ffi(|| {
         let wire = causal_io::DagWire { node_count, edges };
         let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
-        dag_to_dot(&dag, None).map_err(py_err)
+        facade_dag_to_dot(&dag, None).map_err(py_err)
     })
 }
 
@@ -1933,7 +1965,7 @@ type ParsedDagJson = (usize, Vec<(u32, u32)>, Option<Vec<String>>);
 
 /// Parse JSON DAG document; return `(node_count, edges, variable_names|None)`.
 #[pyfunction]
-fn parse_dag_json(json: &str) -> PyResult<ParsedDagJson> {
+fn dag_from_json(json: &str) -> PyResult<ParsedDagJson> {
     catch_ffi(|| {
         let doc = causal_io::dag_json_from_str(json).map_err(py_err)?;
         let dag = causal_io::dag_from_wire(&doc.to_wire()).map_err(py_err)?;
@@ -1944,7 +1976,7 @@ fn parse_dag_json(json: &str) -> PyResult<ParsedDagJson> {
 
 /// Emit JSON for a numeric DAG.
 #[pyfunction]
-fn format_dag_json(
+fn dag_to_json(
     node_count: u32,
     edges: Vec<(u32, u32)>,
     variable_names: Option<Vec<String>>,
@@ -1952,13 +1984,13 @@ fn format_dag_json(
     catch_ffi(|| {
         let wire = causal_io::DagWire { node_count, edges };
         let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
-        dag_to_json(&dag, variable_names.as_deref()).map_err(py_err)
+        facade_dag_to_json(&dag, variable_names.as_deref()).map_err(py_err)
     })
 }
 
 /// Parse GML digraph text; return `(node_count, edges)`.
 #[pyfunction]
-fn parse_dag_gml(gml: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
+fn dag_from_gml(gml: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
         let dag = causal::dag_from_gml(gml).map_err(py_err)?;
         let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
@@ -1968,7 +2000,7 @@ fn parse_dag_gml(gml: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
 
 /// Emit GML for a numeric DAG.
 #[pyfunction]
-fn format_dag_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
+fn dag_to_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
     catch_ffi(|| {
         let wire = causal_io::DagWire { node_count, edges };
         let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
@@ -1978,7 +2010,7 @@ fn format_dag_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
 
 /// Parse NetworkX node-link JSON; return `(node_count, edges)`.
 #[pyfunction]
-fn parse_dag_networkx_node_link(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
+fn dag_from_networkx_node_link(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
         let dag = causal::dag_from_networkx_node_link(json).map_err(py_err)?;
         let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
@@ -1988,7 +2020,7 @@ fn parse_dag_networkx_node_link(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)
 
 /// Emit NetworkX node-link JSON for a numeric DAG.
 #[pyfunction]
-fn format_dag_networkx_node_link(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
+fn dag_to_networkx_node_link(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
     catch_ffi(|| {
         let wire = causal_io::DagWire { node_count, edges };
         let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
@@ -2084,6 +2116,484 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<(Vec<String>, Vec<(u32, u32)>, 
     })
 }
 
+
+/// Temporal effect analysis with PCMCI-family discovery (auto-accept when possible).
+///
+/// `algorithm` is one of `pcmci`, `pcmci_plus`, `lpcmci`. When discovery requires
+/// human review and `accept_discovered` is false (or auto-accept is impossible),
+/// raises [`CausalReviewError`].
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    treatment,
+    outcome,
+    *,
+    algorithm="pcmci",
+    max_lag=1,
+    alpha=0.05,
+    fdr=true,
+    accept_discovered=true,
+    treatment_lag=1,
+    horizon_steps=1,
+    active_level=1.0,
+    seed=1,
+    bootstrap=0,
+    threads=1
+))]
+fn analyze_temporal_discover(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    treatment: String,
+    outcome: String,
+    algorithm: &str,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    accept_discovered: bool,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let algo = algorithm.to_string();
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let tabular = loaded.data;
+        let n = tabular.row_count();
+        let series = TimeSeriesData::try_new(
+            tabular.storage().clone(),
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .map_err(py_err)?;
+
+        let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+        let pulse_at = -i32::try_from(treatment_lag)
+            .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
+        let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
+            .with_policy(TemporalPolicy::pulse(pulse_at))
+            .with_horizon_steps(horizon_steps);
+
+        let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
+        let accept = if accept_discovered {
+            DiscoveryAccept::AutoAccept
+        } else {
+            DiscoveryAccept::Review
+        };
+
+        let mut builder = CausalAnalysis::builder()
+            .series(series)
+            .temporal_query(q)
+            .bootstrap_replicates(bootstrap);
+        builder = match algo.as_str() {
+            "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
+            "pcmci_plus" => builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept),
+            "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown discovery algorithm {other:?}; use pcmci|pcmci_plus|lpcmci"
+                )));
+            }
+        };
+        let analysis = builder.build().map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        Ok(AnalysisResult {
+            ate: result.estimate.ate,
+            se_analytic: result.estimate.se_analytic,
+            se_bootstrap: result.estimate.se_bootstrap,
+            plan_id: result.logical_plan.plan_id.to_string(),
+            modality: format!("{:?}", result.logical_plan.data_classification),
+            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+            identification_status: format!("{:?}", result.identification.status),
+            method: result.estimand.method.to_string(),
+            diagnostics: result
+                .diagnostics
+                .iter()
+                .map(|d| format!("{}: {}", d.code, d.message))
+                .collect(),
+            provenance_node_count: result.provenance.len(),
+            refutation_count: result.refutations.len(),
+        })
+    })
+}
+
+/// Anomaly scores: `(outcome, mean_score, n_units)`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, outcomes, *, max_units=0))]
+fn anomaly_attribution(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    outcomes: Vec<String>,
+    max_units: usize,
+) -> PyResult<Vec<(String, f64, usize)>> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let outcome_ids: Vec<VariableId> = outcomes
+            .iter()
+            .map(|n| data.schema().id_of(n).map_err(py_err))
+            .collect::<PyResult<_>>()?;
+        let max_u = if max_units == 0 { data.row_count() } else { max_units };
+        let scores = facade_anomaly_attribution(&fitted.model, &data, outcome_ids, max_u).map_err(py_err)?;
+        Ok(scores
+            .into_iter()
+            .map(|s| {
+                let name = names
+                    .get(s.target.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", s.target.raw()));
+                let mean = if s.scores.is_empty() {
+                    0.0
+                } else {
+                    s.scores.iter().sum::<f64>() / s.scores.len() as f64
+                };
+                (name, mean, s.rows.len())
+            })
+            .collect())
+    })
+}
+
+/// Unit-level change attribution: `(mean_abs_total, [(component, mean_contrib), ...])`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, outcome, *, max_units=0, seed=0, threads=1))]
+fn attribute_unit_change(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    outcome: String,
+    max_units: usize,
+    seed: u64,
+    threads: u32,
+) -> PyResult<(f64, Vec<(String, f64)>)> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let max_u = if max_units == 0 { data.row_count() } else { max_units };
+        let query = UnitChangeQuery::new(y_id, max_u);
+        let result =
+            facade_attribute_unit_change(&fitted.model, &data, &query, &ctx).map_err(py_err)?;
+        let comps: Vec<(String, f64)> = result
+            .components
+            .iter()
+            .zip(result.mean_contributions.iter())
+            .map(|(c, v)| {
+                let name = names
+                    .get(c.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("comp{}", c.raw()));
+                (name, *v)
+            })
+            .collect();
+        let total = result.mean_contributions.iter().map(|x| x.abs()).sum();
+        Ok((total, comps))
+    })
+}
+
+/// Feature relevance scores for parents of `outcome`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, outcome, *, delta=1.0, n_samples=200, seed=0, threads=1))]
+fn attribute_feature_relevance(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    outcome: String,
+    delta: f64,
+    n_samples: usize,
+    seed: u64,
+    threads: u32,
+) -> PyResult<Vec<(String, f64)>> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let features: Vec<VariableId> = (0..data.schema().len())
+            .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
+            .filter(|id| *id != y_id)
+            .collect();
+        let scores = facade_attribute_feature_relevance(
+            &fitted.model,
+            &data,
+            y_id,
+            &features,
+            delta,
+            n_samples,
+            features.len(),
+            &ctx,
+        )
+        .map_err(py_err)?;
+        Ok(scores
+            .into_iter()
+            .map(|s| {
+                let name = names
+                    .get(s.feature.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", s.feature.raw()));
+                (name, s.score)
+            })
+            .collect())
+    })
+}
+
+/// Robust distribution-change attribution between two row ranges.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
+fn attribute_distribution_change_robust(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    outcome: String,
+    baseline_start: usize,
+    baseline_end: usize,
+    comparison_start: usize,
+    comparison_end: usize,
+    n_samples: usize,
+    seed: u64,
+    threads: u32,
+) -> PyResult<(f64, Vec<(String, f64)>)> {
+    let _ = n_samples;
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let query = ChangeAttributionQuery {
+            outcome: y_id,
+            baseline: PopulationSelector::TimeRange {
+                start: baseline_start,
+                end: baseline_end,
+            },
+            comparison: PopulationSelector::TimeRange {
+                start: comparison_start,
+                end: comparison_end,
+            },
+            components: AttributionComponents::All,
+            allocation: AllocationMethod::Shapley {
+                approximation: ShapleyConfig::monte_carlo(200),
+            },
+            max_components: 64,
+        };
+        let opts = causal::RobustChangeOptions::default();
+        let ctx = py_execution_context(seed, threads);
+        let result = facade_attribute_distribution_change_robust(
+            &fitted.model,
+            &data,
+            &query,
+            &opts,
+            &ctx,
+        )
+        .map_err(py_err)?;
+        let comps: Vec<(String, f64)> = result
+            .contributions
+            .iter()
+            .map(|c| {
+                let name = names
+                    .get(c.component.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("comp{}", c.component.raw()));
+                (name, c.contribution)
+            })
+            .collect();
+        Ok((result.total_change, comps))
+    })
+}
+
+/// Detect mechanism changes; returns `(node, statistic, p_value, changed)`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, baseline_start, baseline_end, comparison_start, comparison_end, *, seed=0, threads=1))]
+fn mechanism_change_detection(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    baseline_start: usize,
+    baseline_end: usize,
+    comparison_start: usize,
+    comparison_end: usize,
+    seed: u64,
+    threads: u32,
+) -> PyResult<Vec<(String, f64, f64, bool)>> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let targets: Vec<VariableId> = (0..data.schema().len())
+            .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
+            .collect();
+        let query = MechanismChangeQuery::new(
+            targets,
+            PopulationSelector::TimeRange {
+                start: baseline_start,
+                end: baseline_end,
+            },
+            PopulationSelector::TimeRange {
+                start: comparison_start,
+                end: comparison_end,
+            },
+            0.05,
+            data.schema().len(),
+        );
+        let detected = facade_mechanism_change_detection(
+            &fitted.model,
+            &data,
+            &query,
+            causal::MechanismChangeMethod::MeanDiff,
+            &ctx,
+        )
+        .map_err(py_err)?;
+        Ok(detected
+            .into_iter()
+            .map(|d| {
+                let name = names
+                    .get(d.variable.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", d.variable.raw()));
+                (name, d.statistic, d.p_value, d.changed)
+            })
+            .collect())
+    })
+}
+
+/// Parse NetworkX adjacency JSON; return `(node_count, edges)`.
+#[pyfunction]
+fn dag_from_networkx_adjacency(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
+    catch_ffi(|| {
+        let dag = facade_dag_from_networkx_adjacency(json).map_err(py_err)?;
+        let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
+        Ok((wire.node_count as usize, wire.edges))
+    })
+}
+
+/// Emit NetworkX adjacency JSON for a numeric DAG.
+#[pyfunction]
+fn dag_to_networkx_adjacency(
+    node_count: u32,
+    edges: Vec<(u32, u32)>,
+    variable_names: Option<Vec<String>>,
+) -> PyResult<String> {
+    catch_ffi(|| {
+        let wire = causal_io::DagWire { node_count, edges };
+        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        facade_dag_to_networkx_adjacency(&dag, variable_names.as_deref()).map_err(py_err)
+    })
+}
+
+/// Create a causal state and apply AppendData events; returns `(version, stale_query_count)`.
+#[pyfunction]
+#[pyo3(signature = (n_appends=2, cache_bytes=1_048_576))]
+fn causal_state_append(n_appends: u64, cache_bytes: u64) -> PyResult<(u64, usize)> {
+    catch_ffi(|| {
+        use causal_core::{AverageEffectQuery, CausalQuery};
+        let mut state = new_causal_state(CacheBudget::new(cache_bytes));
+        let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        )));
+        let _ = state.refresh_results(&[(q, 1, 16)]);
+        for i in 0..n_appends {
+            apply_state_event(
+                &mut state,
+                StateEvent::AppendData(DataBatchRef {
+                    id: Arc::from(format!("b{i}")),
+                    nrows: 8,
+                    bytes: 64,
+                }),
+            )
+            .map_err(py_err)?;
+        }
+        Ok((state.version.raw(), state.stale_queries().len()))
+    })
+}
+
+
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -2094,8 +2604,11 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CausalDiscoveryError", m.py().get_type::<CausalDiscoveryError>())?;
     m.add("CausalModelError", m.py().get_type::<CausalModelError>())?;
     m.add("CausalCounterfactualError", m.py().get_type::<CausalCounterfactualError>())?;
+    m.add("CausalAttributionError", m.py().get_type::<CausalAttributionError>())?;
     m.add("CausalDataError", m.py().get_type::<CausalDataError>())?;
     m.add("CausalGraphError", m.py().get_type::<CausalGraphError>())?;
+    m.add("CausalDesignError", m.py().get_type::<CausalDesignError>())?;
+    m.add("CausalStateError", m.py().get_type::<CausalStateError>())?;
     m.add("CausalSerializationError", m.py().get_type::<CausalSerializationError>())?;
     m.add("CausalCompileError", m.py().get_type::<CausalCompileError>())?;
     m.add("CausalResourceError", m.py().get_type::<CausalResourceError>())?;
@@ -2105,6 +2618,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_temporal_discover, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci_plus, m)?)?;
     m.add_function(wrap_pyfunction!(discover_lpcmci, m)?)?;
@@ -2112,23 +2626,30 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(discover_rpcmci, m)?)?;
     m.add_function(wrap_pyfunction!(mediation_effects_summary, m)?)?;
     m.add_function(wrap_pyfunction!(predict_intervened_summary, m)?)?;
-    m.add_function(wrap_pyfunction!(gcm_counterfactual_ite, m)?)?;
-    m.add_function(wrap_pyfunction!(gcm_sample_do, m)?)?;
-    m.add_function(wrap_pyfunction!(gcm_sample_interventional_distribution, m)?)?;
-    m.add_function(wrap_pyfunction!(gcm_attribute_path_specific, m)?)?;
-    m.add_function(wrap_pyfunction!(gcm_distribution_change, m)?)?;
-    m.add_function(wrap_pyfunction!(rank_design_eig, m)?)?;
-    m.add_function(wrap_pyfunction!(causal_state_append_demo, m)?)?;
+    m.add_function(wrap_pyfunction!(counterfactual_ite, m)?)?;
+    m.add_function(wrap_pyfunction!(sample_do_py, m)?)?;
+    m.add_function(wrap_pyfunction!(sample_interventional_distribution, m)?)?;
+    m.add_function(wrap_pyfunction!(attribute_path_specific, m)?)?;
+    m.add_function(wrap_pyfunction!(attribute_distribution_change, m)?)?;
+    m.add_function(wrap_pyfunction!(attribute_distribution_change_robust, m)?)?;
+    m.add_function(wrap_pyfunction!(anomaly_attribution, m)?)?;
+    m.add_function(wrap_pyfunction!(attribute_unit_change, m)?)?;
+    m.add_function(wrap_pyfunction!(attribute_feature_relevance, m)?)?;
+    m.add_function(wrap_pyfunction!(mechanism_change_detection, m)?)?;
+    m.add_function(wrap_pyfunction!(rank_designs, m)?)?;
+    m.add_function(wrap_pyfunction!(causal_state_append, m)?)?;
     m.add_function(wrap_pyfunction!(decode_posterior_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(encode_posterior_artifact, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_dag_dot, m)?)?;
-    m.add_function(wrap_pyfunction!(format_dag_dot, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_dag_json, m)?)?;
-    m.add_function(wrap_pyfunction!(format_dag_json, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_dag_gml, m)?)?;
-    m.add_function(wrap_pyfunction!(format_dag_gml, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_dag_networkx_node_link, m)?)?;
-    m.add_function(wrap_pyfunction!(format_dag_networkx_node_link, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_from_dot, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_to_dot, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_from_json, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_to_json, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_from_gml, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_to_gml, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_from_networkx_node_link, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_to_networkx_node_link, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_from_networkx_adjacency, m)?)?;
+    m.add_function(wrap_pyfunction!(dag_to_networkx_adjacency, m)?)?;
     m.add_function(wrap_pyfunction!(encode_model_bundle, m)?)?;
     m.add_function(wrap_pyfunction!(decode_model_bundle, m)?)?;
     m.add_class::<ArrowLoadInfo>()?;

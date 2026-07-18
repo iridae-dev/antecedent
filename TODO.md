@@ -24,3 +24,8 @@ Ordered by remaining difficulty/scope (simplest → hardest).
     - ESS / R-hat diagnostics (`crates/causal-prob/src/diagnostics.rs` explicitly defers).
     - Bayes-factor CI and posterior dependence probability.
     ESS/SBC wait on HMC/SMC backends; overlaps optional feature flags in DESIGN §30. External Stan/PyMC adapters are **not** required for completion (native Laplace is canonical; see DESIGN §14.5).
+
+8. **Python `analyze()` / bindings completeness** (post API-surface pass; DESIGN §25.3–25.4): Three gaps left after PCMCI-family temporal `discovery=` and the broader native exports.
+    - **JPCMCI+ / RPCMCI one-shot**: `discover_jpcmci_plus` / `discover_rpcmci` helpers exist; wire them through `analyze(discovery=…)` (multi-env columns / regime inputs on the OO path and `analyze_temporal_discover`). Builder methods already exist on the Rust facade.
+    - **Callback extensibility** (§25.4): explicit slow-path Python hooks for custom CI tests, mechanism wrappers, utility functions, and validators — GIL reacquire, plan marks callback regions as non-native-perf. No plugin surface yet.
+    - **Static `discovery=`**: `AverageEffect` still requires a supplied `graph=`. End-to-end static discover→estimate needs PC (or another static algorithm) from **item 5**, then `discovery=PC(…)` (or equivalent) on `analyze()`.

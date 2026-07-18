@@ -1,8 +1,9 @@
-"""Attribution helpers (DESIGN.md §25.1)."""
-
 from ._native import (
-    gcm_attribute_path_specific as gcm_attribute_path_specific,
-    gcm_distribution_change as gcm_distribution_change,
+    anomaly_attribution as anomaly_attribution,
+    attribute_distribution_change as attribute_distribution_change,
+    attribute_distribution_change_robust as attribute_distribution_change_robust,
+    attribute_feature_relevance as attribute_feature_relevance,
+    attribute_path_specific as attribute_path_specific,
+    attribute_unit_change as attribute_unit_change,
+    mechanism_change_detection as mechanism_change_detection,
 )
-
-__all__: list[str]

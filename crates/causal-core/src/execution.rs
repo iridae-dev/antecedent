@@ -320,6 +320,15 @@ pub struct ExecutionContext {
 
 impl ExecutionContext {
     /// Construct a serial, strict, scalar-friendly context for tests.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use causal_core::ExecutionContext;
+    ///
+    /// let ctx = ExecutionContext::for_tests(42);
+    /// assert!(!ctx.cancellation.is_cancelled());
+    /// ```
     #[must_use]
     pub fn for_tests(seed: u64) -> Self {
         Self {

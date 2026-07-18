@@ -121,8 +121,8 @@ Edition 2024
 import causal
 
 result = causal.analyze(
-    data,
-    graph=graph,
+    data,  # dict[str, ndarray] or pandas DataFrame
+    graph=[("z", "campaign"), ("z", "revenue"), ("campaign", "revenue")],
     query=causal.AverageEffect(
         treatment="campaign",
         outcome="revenue",
@@ -130,17 +130,13 @@ result = causal.analyze(
     inference=causal.Frequentist(),
 )
 
-if result.identification.is_identified:
-    print(result.estimate.value)
-    print(result.estimate.interval)
-else:
-    print(result.identification)
+print(result.identification.status, result.estimate.ate)
+print(result.validation.count)
 ```
 
 The result exposes each stage independently:
 
 ```python
-result.graph
 result.identification
 result.estimate
 result.posterior
@@ -150,28 +146,27 @@ result.provenance
 result.performance
 ```
 
-### Discover a temporal graph and estimate an effect
+### Discover structure, then estimate a temporal effect
 
 ```python
+discovered = causal.discover_pcmci(
+    names, columns, max_lag=12, alpha=0.05, seed=1
+)
+# Orient / accept edges, then estimate with a lagged graph:
 result = causal.analyze(
-    data,
-    time="timestamp",
-    unit="machine_id",
+    {"pressure": pressure, "defect": defect},
+    graph=[("pressure", 1, "defect", 0)],
     query=causal.PulseEffect(
         treatment="pressure",
-        change=-0.03,
-        outcome="defect_probability",
-        horizon="2h",
-    ),
-    discovery=causal.PCMCI(max_lag=12),
-    inference=causal.Bayesian(
-        backend="laplace",
-        priors="weakly_informative",
+        outcome="defect",
+        active_level=-0.03,
+        treatment_lag=1,
+        horizon_steps=1,
     ),
 )
 ```
 
-The same result structure is used for static and temporal analyses.
+Wiring `discovery=` directly into `analyze()` for a single-call discover→estimate path is still partial.
 
 ## Rust quick start
 
@@ -179,32 +174,28 @@ The same result structure is used for static and temporal analyses.
 use causal::prelude::*;
 
 fn main() -> Result<(), CausalError> {
-    let ctx = ExecutionContext::default();
+    let ctx = ExecutionContext::for_tests(1);
+    let t = schema.id_of("campaign")?;
+    let y = schema.id_of("revenue")?;
 
     let result = CausalAnalysis::builder()
         .data(tabular)
-        .graph(GraphInput::Supplied(dag))
-        .query(AverageEffectQuery::new("campaign", "revenue"))
-        .inference(InferenceMode::Bayesian(
-            BayesianConfig::laplace()
-                .prior(PriorSet::weakly_informative()),
-        ))
+        .graph(dag)
+        .query(AverageEffectQuery::binary_ate(t, y))
+        .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(1000)))
         .build()?
         .run(&ctx)?;
 
-    let posterior = result.posterior()?.effect();
-
-    println!("mean effect: {}", posterior.mean());
-    println!(
-        "P(effect > 0): {}",
-        posterior.probability_above(0.0)
-    );
+    if let Some(posterior) = &result.posterior {
+        println!("P(effect < 0) = {}", posterior.probability_below(0.0)?);
+    }
+    println!("ATE point = {}", result.estimate.ate);
 
     Ok(())
 }
 ```
 
-The `causal` crate provides the high-level API. Lower-level crates expose the individual graph, discovery, identification, estimation, model, validation, and numerical components.
+The `causal` crate provides the high-level API (`use causal::prelude::*`). Lower-level crates expose graph, discovery, identification, estimation, model, validation, and numerical components.
 
 ## Capabilities
 
@@ -524,9 +515,9 @@ Use individual crates or Python modules when you need a specific stage:
 
 ```rust
 use causal_graph::Dag;
-use causal_discovery::Pc;
-use causal_identify::AutoIdentifier;
-use causal_estimate::Aipw;
+use causal_discovery::Pcmci;
+use causal_identify::BackdoorIdentifier;
+use causal_estimate::AipwAte;
 use causal_validate::PlaceboTreatment;
 ```
 

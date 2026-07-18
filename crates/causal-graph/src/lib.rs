@@ -1,5 +1,19 @@
 //! Causal graph types, dense indexes, and traversal workspaces.
 //!
+//! Distinct concrete types ([`Dag`], [`Admg`], [`Cpdag`], [`Pag`], [`TemporalDag`], …)
+//! preserve edge semantics — they are not interchangeable aliases.
+//!
+//! ```
+//! use causal_graph::{Dag, DenseNodeId};
+//!
+//! let mut dag = Dag::empty();
+//! let a = DenseNodeId::from_raw(0);
+//! let b = DenseNodeId::from_raw(1);
+//! // Prefer schema-aligned constructors in real code; empty DAGs are for scaffolding.
+//! assert_eq!(dag.node_count(), 0);
+//! let _ = (a, b, dag);
+//! ```
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]

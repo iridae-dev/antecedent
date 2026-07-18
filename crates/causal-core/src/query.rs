@@ -45,6 +45,15 @@ pub struct AverageEffectQuery {
 
 impl AverageEffectQuery {
     /// ATE for binary treatment coded as 0/1 on `treatment`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use causal_core::{AverageEffectQuery, VariableId};
+    ///
+    /// let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    /// assert_eq!(q.treatment, VariableId::from_raw(0));
+    /// ```
     #[must_use]
     pub fn binary_ate(treatment: VariableId, outcome: VariableId) -> Self {
         Self {

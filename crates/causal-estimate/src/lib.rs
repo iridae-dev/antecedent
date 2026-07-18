@@ -1,5 +1,15 @@
 //! Estimators for identified causal functionals.
 //!
+//! Estimators consume an [`IdentifiedEstimand`](causal_expr::IdentifiedEstimand) —
+//! they never choose confounders or assert identifiability.
+//!
+//! ```
+//! use causal_estimate::LinearAdjustmentAte;
+//!
+//! let est = LinearAdjustmentAte::default();
+//! let _ = est;
+//! ```
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]

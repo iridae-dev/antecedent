@@ -1,9 +1,29 @@
 //! Unified static/temporal `CausalAnalysis` facade (identify → estimate → refute).
 //!
+//! # Quick start
+//!
+//! ```rust,ignore
+//! use causal::prelude::*;
+//!
+//! let result = CausalAnalysis::builder()
+//!     .data(tabular)
+//!     .graph(dag)
+//!     .query(AverageEffectQuery::binary_ate(treatment, outcome))
+//!     .identifier(IdentifierId::BackdoorAdjustment)
+//!     .estimator(EstimatorId::LinearAdjustmentAte)
+//!     .build()?
+//!     .run(&ctx)?;
+//!
+//! println!("ATE = {}", result.estimate.ate);
+//! ```
+//!
+//! Prefer [`prelude`] for day-1 imports. Component crates remain available for stage-specific work.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+#![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
 pub mod analysis;
 pub mod design;
@@ -14,12 +34,13 @@ pub mod gcm;
 pub mod inference;
 pub mod options;
 pub mod planner;
+pub mod prelude;
 pub mod result;
 pub mod review;
 pub mod state;
 pub mod strategy_table;
 
-pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RefuteSuite};
+pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RdConfig, RefuteSuite};
 pub use design::rank_designs;
 pub use discovery::{
     DiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pcmci, discover_pcmci_plus,
@@ -29,7 +50,7 @@ pub use discovery_defaults::{
     DEFAULT_ALPHA, DEFAULT_MAX_COND_SIZE, DEFAULT_RPCMCI_MIN_REGIME_LEN,
     contemporaneous_constraints, jpcmci_constraints, pcmci_constraints, resolve_ci,
 };
-pub use error::AnalysisError;
+pub use error::{AnalysisError, CausalError};
 pub use options::{DiscoveryAccept, FdrControl};
 pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use gcm::{
@@ -241,22 +262,18 @@ pub fn decode_causal_posterior_bytes(
 }
 
 // GCM / counterfactual / attribution surfaces.
-#[allow(deprecated)]
 pub use causal_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
     MechanismChangeMethod, RobustChangeOptions, RootCauseRank, UnitChangeResult, arrow_strengths,
     detect_mechanism_changes, distribution_change, distribution_change_robust, feature_relevance,
-    intrinsic_influence, path_decompose, population_do_contrast, root_cause_rank, score_anomalies,
-    unit_change,
+    path_decompose, population_do_contrast, root_cause_rank, score_anomalies, unit_change,
 };
 pub use causal_counterfactual::{
-    CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError, CounterfactualResult,
-    CounterfactualWorld, ExogenousPosterior, MissingPolicy, NoiseInferenceKind,
+    AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
+    CounterfactualResult, CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind,
     simultaneous_hard_counterfactual, streaming_matches_retained,
 };
-#[allow(deprecated)]
-pub use causal_counterfactual::nested_hard_counterfactual;
 pub use causal_model::{
     CompiledCausalModel, CompiledMechanismStore, DoSampleResult, InvertibleStructuralCausalModel,
     KdeDoSampler, McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry,

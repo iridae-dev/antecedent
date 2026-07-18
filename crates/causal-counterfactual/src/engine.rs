@@ -22,15 +22,17 @@ use causal_model::{
 use crate::error::CounterfactualError;
 
 /// Policy for missing factual columns during abduction.
+///
+/// Distinct from [`causal_data::MissingPolicy`] (sample construction).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum MissingPolicy {
+pub enum AbductionMissingPolicy {
     /// Fail if a required factual column is absent.
     Error,
     /// Zero-fill absent columns and mark them as assumed noise.
     ZeroFill,
 }
 
-impl MissingPolicy {
+impl AbductionMissingPolicy {
     /// Whether absent columns are zero-filled.
     #[must_use]
     pub const fn allows_missing(self) -> bool {
@@ -38,7 +40,7 @@ impl MissingPolicy {
     }
 }
 
-impl From<bool> for MissingPolicy {
+impl From<bool> for AbductionMissingPolicy {
     fn from(allow_missing: bool) -> Self {
         if allow_missing { Self::ZeroFill } else { Self::Error }
     }
@@ -66,7 +68,7 @@ pub struct ExogenousPosterior {
     pub n_nodes: usize,
     /// Inference kind.
     pub kind: NoiseInferenceKind,
-    /// Per-node flag: factual column was absent and zero-filled under [`MissingPolicy::ZeroFill`]
+    /// Per-node flag: factual column was absent and zero-filled under [`AbductionMissingPolicy::ZeroFill`]
     /// (`true` ⇒ that node's factual values must not be treated as observed).
     pub assumed_columns: Arc<[bool]>,
 }
@@ -117,7 +119,7 @@ impl CounterfactualEngine {
     pub fn abduct(
         &self,
         data: &TabularData,
-        missing: MissingPolicy,
+        missing: AbductionMissingPolicy,
     ) -> Result<ExogenousPosterior, CounterfactualError> {
         let n = data.row_count();
         let n_nodes = self.model.n_nodes();
@@ -422,7 +424,7 @@ pub fn simultaneous_hard_counterfactual(
             }
         }
     }
-    let exo = engine.abduct(data, MissingPolicy::Error)?;
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
     let mut combined = outer.to_vec();
     combined.extend_from_slice(inner);
     let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
@@ -431,25 +433,6 @@ pub fn simultaneous_hard_counterfactual(
         CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
     })?;
     Ok(res.streaming_outcome_mean(0, o))
-}
-
-/// Deprecated alias for [`simultaneous_hard_counterfactual`].
-///
-/// The historical name suggested nested twin-network semantics; the
-/// implementation composes disjoint hard interventions simultaneously.
-#[deprecated(
-    note = "renamed to simultaneous_hard_counterfactual — nested CF semantics are not implemented"
-)]
-pub fn nested_hard_counterfactual(
-    engine: &CounterfactualEngine,
-    data: &TabularData,
-    outer: &[Intervention],
-    inner: &[Intervention],
-    outcome: VariableId,
-    ws: &mut MechanismWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<f64, CounterfactualError> {
-    simultaneous_hard_counterfactual(engine, data, outer, inner, outcome, ws, ctx)
 }
 
 #[cfg(test)]
@@ -516,7 +499,7 @@ mod tests {
     #[test]
     fn ite_and_streaming_equivalence() {
         let (engine, data) = toy();
-        let exo = engine.abduct(&data, MissingPolicy::Error).unwrap();
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
         assert_eq!(exo.kind, NoiseInferenceKind::Invertible);
         let mut ws = MechanismWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);

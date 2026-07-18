@@ -7,7 +7,7 @@ use std::sync::Arc;
 use causal_core::{
     AnomalyAttributionQuery, ComponentId, ExecutionContext, ShapleyConfig, VariableId,
 };
-use causal_counterfactual::{CounterfactualEngine, MissingPolicy};
+use causal_counterfactual::{CounterfactualEngine, AbductionMissingPolicy};
 use causal_data::{TableView, TabularData};
 use causal_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use causal_model::{
@@ -62,7 +62,7 @@ pub fn score_anomalies(
     }
 
     let engine = CounterfactualEngine::new(model.clone());
-    let exo = engine.abduct(data, MissingPolicy::Error)?;
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
     let ctx = ExecutionContext::for_tests(0xA10A);
     let shapley = ShapleyConfig::exact();
 
@@ -295,20 +295,6 @@ pub fn population_do_contrast(
     let hi_m = hi.column(child_dense.as_usize())?.iter().sum::<f64>() / n.max(1) as f64;
     let lo_m = lo.column(child_dense.as_usize())?.iter().sum::<f64>() / n.max(1) as f64;
     Ok((hi_m - lo_m).abs())
-}
-
-/// Deprecated alias for [`population_do_contrast`] (name was misleading).
-#[deprecated(note = "renamed to population_do_contrast; this is not intrinsic influence")]
-pub fn intrinsic_influence(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    parent: VariableId,
-    child: VariableId,
-    delta: f64,
-    max_units: usize,
-    ctx: &ExecutionContext,
-) -> Result<f64, AttributionError> {
-    population_do_contrast(model, data, parent, child, delta, max_units, ctx)
 }
 
 #[cfg(test)]

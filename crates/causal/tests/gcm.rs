@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use causal::{
     CounterfactualEngine, CounterfactualWorld, KdeDoSampler, McmcDoSampler, MechanismWorkspace,
-    MissingPolicy, WeightingDoSampler, anomaly_attribution, arrow_strengths, counterfactual_ite,
+    AbductionMissingPolicy, WeightingDoSampler, anomaly_attribution, arrow_strengths, counterfactual_ite,
     fit_gcm, sample_do, streaming_matches_retained,
 };
 use causal_core::{
@@ -204,7 +204,7 @@ fn gcm_cf_ite() {
     assert_eq!(format!("{:?}", ite.noise_inference), "Invertible");
 
     let engine = CounterfactualEngine::new(fitted.model);
-    let exo = engine.abduct(&data, MissingPolicy::Error).unwrap();
+    let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
     let mut ws = MechanismWorkspace::default();
     let worlds = [CounterfactualWorld {
         unit_rows: None,

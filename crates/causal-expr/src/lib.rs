@@ -1,16 +1,24 @@
 //! Arena-backed causal-functional IR (DESIGN.md §9).
 //!
+//! # Modules
+//!
+//! - [`estimand`] — identified estimand + method tags
+//! - [`eval`] — compiled evaluators over providers
+//! - [`simplify`] — algebraic simplification
+//! - [`pretty`] / [`latex`] — display helpers
+//! - [`provider`] — distribution / table / posterior providers
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-mod estimand;
-mod eval;
-mod latex;
-mod pretty;
-mod provider;
-mod simplify;
+pub mod estimand;
+pub mod eval;
+pub mod latex;
+pub mod pretty;
+pub mod provider;
+pub mod simplify;
 
 pub use estimand::{EstimandMethod, IdentifiedEstimand};
 pub use eval::CompiledEvaluator;

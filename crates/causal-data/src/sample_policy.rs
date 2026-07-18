@@ -1,6 +1,6 @@
 //! Sample construction policies (DESIGN.md §5.5).
 //!
-//! Distinct from `causal_counterfactual::MissingPolicy` (abduction).
+//! Distinct from `causal_counterfactual::AbductionMissingPolicy` (abduction).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

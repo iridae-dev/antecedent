@@ -4,8 +4,7 @@
 
 use causal_core::ExecutionContext;
 use causal_design::{
-    CandidateDesign, DesignError, DesignEvaluationContext, DesignObjective, DesignRanker,
-    DesignRanking,
+    CandidateDesign, DesignEvaluationContext, DesignObjective, DesignRanker, DesignRanking,
 };
 
 use crate::error::AnalysisError;
@@ -26,9 +25,5 @@ where
     A: Clone,
     O: Clone,
 {
-    ranker.rank(objective, candidates, eval, ctx).map_err(|e| map_design(&e))
-}
-
-fn map_design(err: &DesignError) -> AnalysisError {
-    AnalysisError::Compile { message: err.to_string() }
+    ranker.rank(objective, candidates, eval, ctx).map_err(AnalysisError::from)
 }

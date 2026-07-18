@@ -1,5 +1,21 @@
 //! Anomaly attribution, change explanation, and root-cause ranking (DESIGN.md §17).
 //!
+//! # Modules
+//!
+//! Browse by concern: [`anomaly`], [`distribution_change`], [`unit_change`],
+//! [`path`], [`feature_relevance`], [`mechanism_change`], [`robust`], [`root_cause`],
+//! [`shapley`], [`builder`].
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use causal_attribution::score_anomalies;
+//! use causal_core::{AnomalyAttributionQuery, VariableId};
+//!
+//! let query = AnomalyAttributionQuery::new([VariableId::from_raw(0)], 100);
+//! let scores = score_anomalies(&model, &data, &query)?;
+//! ```
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -13,25 +29,23 @@
     clippy::too_many_lines
 )]
 
-mod anomaly;
-mod builder;
-mod coalition;
-mod distribution_change;
-mod error;
-mod feature_relevance;
-mod mechanism_change;
-mod path;
-mod population;
-mod result;
-mod robust;
-mod root_cause;
-mod shapley;
-mod unit_change;
+pub mod anomaly;
+pub mod builder;
+pub mod coalition;
+pub mod distribution_change;
+pub mod error;
+pub mod feature_relevance;
+pub mod mechanism_change;
+pub mod path;
+pub mod population;
+pub mod result;
+pub mod robust;
+pub mod root_cause;
+pub mod shapley;
+pub mod unit_change;
 
-#[allow(deprecated)]
 pub use anomaly::{
-    AnomalyScores, ArrowStrength, arrow_strengths, intrinsic_influence, population_do_contrast,
-    score_anomalies,
+    AnomalyScores, ArrowStrength, arrow_strengths, population_do_contrast, score_anomalies,
 };
 pub use builder::ChangeAttribution;
 pub use coalition::{CoalitionCache, CoalitionKey};

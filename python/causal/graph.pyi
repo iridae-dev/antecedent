@@ -1,10 +1,14 @@
-"""Graph helpers (DESIGN.md §25.1 DOT+JSON interchange)."""
+"""Graph interchange stubs."""
 
 from ._native import (
-    format_dag_dot as format_dag_dot,
-    format_dag_json as format_dag_json,
-    parse_dag_dot as parse_dag_dot,
-    parse_dag_json as parse_dag_json,
+    dag_from_dot as dag_from_dot,
+    dag_from_gml as dag_from_gml,
+    dag_from_json as dag_from_json,
+    dag_from_networkx_adjacency as dag_from_networkx_adjacency,
+    dag_from_networkx_node_link as dag_from_networkx_node_link,
+    dag_to_dot as dag_to_dot,
+    dag_to_gml as dag_to_gml,
+    dag_to_json as dag_to_json,
+    dag_to_networkx_adjacency as dag_to_networkx_adjacency,
+    dag_to_networkx_node_link as dag_to_networkx_node_link,
 )
-
-__all__: list[str]

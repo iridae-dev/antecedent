@@ -1,5 +1,17 @@
 //! Causal identification algorithms.
 //!
+//! Identify first; estimate second. Primary entry points include
+//! [`BackdoorIdentifier`], [`FrontDoorIdentifier`], and
+//! [`InstrumentalVariableIdentifier`]. Full ID/IDC (`AutoIdentifier`) is not
+//! shipped yet (DESIGN.md §10).
+//!
+//! ```
+//! use causal_identify::BackdoorIdentifier;
+//!
+//! let id = BackdoorIdentifier::new();
+//! let _ = id;
+//! ```
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]

@@ -3,6 +3,15 @@
 //! Thin facade over `causal-model` / `causal-counterfactual` / `causal-attribution`
 //! so planners and Python bind once at the library boundary.
 //!
+//! # Example
+//!
+//! ```rust,ignore
+//! use causal::gcm::{fit_gcm, sample_do};
+//!
+//! let fitted = fit_gcm(dag, &data)?;
+//! let draws = sample_do(&fitted.model, treatment, do_value, n, &mut rng, &ctx)?;
+//! ```
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, clippy::too_many_arguments)]
@@ -22,7 +31,7 @@ use causal_core::{
     TargetPopulation, UnitChangeQuery, Value, VariableId,
 };
 use causal_counterfactual::{
-    CounterfactualEngine, CounterfactualError, ExogenousPosterior, MissingPolicy,
+    CounterfactualEngine, CounterfactualError, ExogenousPosterior, AbductionMissingPolicy,
     NoiseInferenceKind,
 };
 use causal_data::TabularData;
@@ -87,7 +96,7 @@ pub fn counterfactual_ite(
     ctx: &ExecutionContext,
 ) -> Result<IteResult, AnalysisError> {
     let engine = CounterfactualEngine::new(model);
-    let exo = engine.abduct(data, MissingPolicy::Error).map_err(map_cf)?;
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error).map_err(map_cf)?;
     let mut ws = MechanismWorkspace::default();
     let ite = engine
         .individual_treatment_effect(

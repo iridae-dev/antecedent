@@ -2022,17 +2022,20 @@ Do not retain the full historical dataset merely because an incremental statisti
 ### 21.1 User workflow
 
 ```rust
+use causal::prelude::*;
+
 let result = CausalAnalysis::builder()
-    .data(data)
-    .query(query)
-    .graph(GraphInput::Discover)
-    .assumptions(assumptions)
-    .inference(InferenceMode::Bayesian(BayesianConfig::default()))
+    .data(tabular)
+    .graph(dag) // or .discover_pcmci(...) for temporal discovery
+    .query(AverageEffectQuery::binary_ate(t, y))
+    .identifier(IdentifierId::BackdoorAdjustment)
+    .estimator(EstimatorId::LinearAdjustmentAte)
+    .inference(InferenceMode::Bayesian(BayesianConfig::laplace()))
     .build()?
     .run(&ctx)?;
 ```
 
-The same flow applies to tabular and temporal data.
+The same builder applies to tabular and temporal data (`.series(...)` + temporal query / discovery).
 
 ### 21.2 Logical and physical planning
 
@@ -2093,20 +2096,26 @@ Otherwise compilation returns a `ReviewRequired` artifact containing unresolved 
 
 ### 21.4 Result type
 
+Shipped shape (`crates/causal/src/result.rs`):
+
 ```rust
 pub struct CausalAnalysisResult {
     pub logical_plan: LogicalAnalysisPlanRecord,
     pub physical_plan: PhysicalExecutionPlanRecord,
-    pub graph: GraphAnalysisArtifact,
-    pub identification: IdentificationArtifact,
-    pub estimate: Option<EstimateArtifact>,
-    pub posterior: Option<CausalPosteriorArtifact>,
-    pub validation: ValidationArtifact,
+    pub identification: IdentificationResult,
+    pub estimand: IdentifiedEstimand,
+    pub estimate: EffectEstimate,
+    pub posterior: Option<CausalPosterior>,
+    pub refutations: Vec<RefutationReport>,
     pub diagnostics: Vec<Diagnostic>,
     pub provenance: ProvenanceGraph,
     pub performance: ExecutionPerformanceRecord,
+    pub treatment: VariableId,
+    pub outcome: VariableId,
 }
 ```
+
+There is no separate `graph` / `validation` field on the Rust result: graph review is a compile-time gate, and refutation reports live in `refutations`. Python nests the same information under `result.validation`.
 
 ### 21.5 Planner anti-patterns
 
@@ -2122,11 +2131,12 @@ Do not:
 
 Beyond the builder/`run` sketch above, the `causal` crate (and Python bindings) expose:
 
+- `prelude` — day-1 re-exports (`CausalAnalysis`, `CausalError`, query/data/graph types, strategy IDs);
 - `RefuteSuite` (`None` / `PlaceboAndRcc` / `Full`) on `CausalAnalysisBuilder`;
 - `gcm` module — fit GCM, interventional sample, ITE, anomaly / distribution / mechanism-change attribution;
-- `strategy_table` — static identifier × estimator pairing and validation;
+- `strategy_table` — typed `IdentifierId` / `EstimatorId` pairing and validation (wire strings via `From<&str>`);
 - `discovery_defaults` — named CI resolution (`parcorr`, `weighted_parcorr`, …) including optional weights;
-- Python entry points `analyze`, `analyze_ate`, `discover_pcmci` / `discover_pcmci_plus` / `discover_lpcmci` / `discover_rpcmci` / `discover_jpcmci_plus` with optional `weights=` on discovery.
+- Python OO facade: `causal.analyze(..., query=AverageEffect|PulseEffect|SustainedEffect, …)` plus `discover_pcmci*` / `counterfactual_ite` / `sample_do` / `dag_from_*` / `dag_to_*`.
 
 ## 22. Error and diagnostic model [built]
 
@@ -2147,6 +2157,11 @@ pub enum AnalysisError {
     Counterfactual(CounterfactualError),
     Attribution(AttributionError),
     Serialization(IoError),
+    Data(DataError),
+    Graph(GraphError),
+    Design(DesignError),
+    State(StateError),
+    Schema(SchemaError),
     Compile { message: String },
     Resource { message: String },
     ReviewRequired { message: String },
@@ -2156,6 +2171,9 @@ pub enum AnalysisError {
 
 pub type CausalError = AnalysisError;
 ```
+
+Python maps each domain variant to a typed `Causal*Error` subclass of `CausalError`
+(including `CausalDesignError` / `CausalStateError`).
 
 Examples of scientific diagnostics:
 
@@ -2441,26 +2459,27 @@ python/
   src/lib.rs                 # Rust bindings → causal._native
   causal/                    # installed Python package
     __init__.py
+    py.typed
     data.py
     graph.py
-    query.py
-    discovery.py
-    identification.py
-    estimation.py
+    query.py                 # AverageEffect, PulseEffect, SustainedEffect
+    inference.py             # Frequentist, Bayesian
+    discovery.py             # PCMCI* configs + discover_* helpers
+    estimation.py            # analyze() + nested AnalysisResult
     model.py
     counterfactual.py
     attribution.py
-    validation.py
     design.py
-    state.py
+    state.py                 # reserved / experimental
     _native.*                # built extension (not checked in)
-    *.pyi / py.typed
+    *.pyi
   tests/
   examples/
 ```
 
-Public entry points today include `analyze`, `analyze_ate`, `discover_pcmci` (optional
-`weights=` for weighted CI tests), plus GCM helpers — see the facade notes in §21 and §26.3.
+Identification and validation are not separate public modules: they surface through
+`analyze(...).identification` / `.validation`. Advanced FFI remains on `causal._native`
+(including `analyze_ate` / temporal `analyze` used by the OO layer).
 
 ### 25.2 Binding rules
 
@@ -2478,30 +2497,54 @@ Public entry points today include `analyze`, `analyze_ate`, `discover_pcmci` (op
 
 ```python
 result = causal.analyze(
-    data,
-    query=causal.SustainedEffect(
+    data,  # dict[str, array] or pandas DataFrame
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=causal.AverageEffect(treatment="t", outcome="y"),
+    inference=causal.Bayesian(n_draws=1000),
+)
+
+# Temporal pulse with a supplied lagged graph:
+result = causal.analyze(
+    series,
+    graph=[("pressure", 1, "defect", 0)],
+    query=causal.PulseEffect(
         treatment="pressure",
-        change=-0.03,
-        duration="30m",
         outcome="defect",
-        horizon="2h",
+        active_level=-0.03,
+        treatment_lag=1,
+        horizon_steps=1,
     ),
-    graph="discover",
-    inference="bayesian",
+)
+
+# Or discover → estimate in one call:
+result = causal.analyze(
+    series,
+    discovery=causal.PCMCI(max_lag=1, alpha=0.05),
+    query=causal.PulseEffect(
+        treatment="pressure",
+        outcome="defect",
+        treatment_lag=1,
+        horizon_steps=1,
+    ),
 )
 ```
 
-Objects expose the same top-level sections across modalities:
+Nested result sections (Python):
 
 ```python
-result.graph
 result.identification
-result.posterior
 result.estimate
+result.posterior
 result.validation
+result.diagnostics
 result.provenance
 result.performance
 ```
+
+`discovery=` accepts `PCMCI` / `PCMCIPlus` / `LPCMCI` for temporal queries (auto-accepts
+oriented edges by default). `JPCMCIPlus` / `RPCMCI` still go through `discover_*` helpers.
+Attribution, NetworkX adjacency IO, and causal-state append helpers are exported from the
+package root and stage modules.
 
 ### 25.4 Python extensibility
 
@@ -3087,50 +3130,54 @@ For designated hot APIs, the project documents performance-shape guarantees rath
 
 Removing one of these guarantees is an API change even if function signatures remain compatible.
 
-## 32. Initial public API examples [built]
+## 32. Initial public API examples [partial]
+
+Examples below match the shipped `0.1.0` surface. Unshipped algorithms (PC, AutoIdentifier,
+full ID/IDC) are documented in §10 / §13, not here.
 
 ### 32.1 Static, Bayesian
 
 ```rust
+use causal::prelude::*;
+
+let t = schema.id_of("treatment")?;
+let y = schema.id_of("outcome")?;
 let result = CausalAnalysis::builder()
     .data(tabular)
-    .graph(GraphInput::Supplied(dag))
-    .query(AverageEffectQuery::new("treatment", "outcome"))
-    .inference(InferenceMode::Bayesian(
-        BayesianConfig::laplace()
-            .prior(PriorSet::weakly_informative()),
-    ))
+    .graph(dag)
+    .query(AverageEffectQuery::binary_ate(t, y))
+    .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(1000)))
     .build()?
     .run(&ctx)?;
 
-let posterior = result.posterior()?.effect();
-println!("P(effect < 0) = {}", posterior.probability_below(0.0));
+if let Some(posterior) = &result.posterior {
+    println!("P(effect < 0) = {}", posterior.probability_below(0.0)?);
+}
 ```
 
 ### 32.2 Temporal discovery and effect
 
 ```rust
+use causal::prelude::*;
+use causal::{DiscoveryAccept, FdrControl};
+
+let pressure = schema.id_of("pressure")?;
+let defect = schema.id_of("defect")?;
 let request = CausalAnalysis::builder()
-    .data(series)
-    .graph(GraphInput::DiscoverWith(
-        PcmciConfig::default()
-            .max_lag(Lag::new(12))
-            .ci_test(PartialCorrelation::default()),
-    ))
-    .query(
-        TemporalEffectQuery::pulse("pressure", -0.03)
-            .outcome("defect")
-            .horizon(Duration::hours(2)),
-    )
+    .series(series)
+    .discover_pcmci(12, 0.05, FdrControl::bh(), DiscoveryAccept::Review)
+    .temporal_query(TemporalEffectQuery::pulse(pressure, defect, -0.03))
     .build()?;
 
-match request.compile()? {
-    CompiledAnalysis::Ready(plan) => plan.execute(&ctx)?,
+match request.compile(&ctx)? {
+    CompiledAnalysis::Ready(plan) => {
+        let _ = request.execute(&plan, &ctx)?;
+    }
     CompiledAnalysis::ReviewRequired(review) => {
-        let reviewed = review
-            .require_edge(("valve", 1), ("flow", 0))?
-            .finish()?;
-        reviewed.execute(&ctx)?
+        let _ = request.finish_review_and_run(review, &ctx)?;
+    }
+    other => {
+        let _ = other;
     }
 }
 ```
@@ -3139,14 +3186,14 @@ match request.compile()? {
 
 ```rust
 let attribution = ChangeAttribution::new()
-    .outcome("defect_probability")
-    .baseline(january)
-    .comparison(february)
+    .outcome(defect)
+    .baseline(PopulationSelector::TimeRange { start: 0, end: 100 })
+    .comparison(PopulationSelector::TimeRange { start: 100, end: 200 })
     .components(AttributionComponents::All)
     .allocation(AllocationMethod::Shapley {
         approximation: ShapleyConfig::monte_carlo(2_000),
     })
-    .run(&model, &posterior, &ctx)?;
+    .run(&model, &data, &ctx)?;
 ```
 
 ### 32.4 Python
@@ -3154,20 +3201,11 @@ let attribution = ChangeAttribution::new()
 ```python
 result = causal.analyze(
     data,
-    time="timestamp",
-    unit="line_id",
-    query=causal.PulseEffect(
-        treatment="pressure",
-        change=-0.03,
-        outcome="defect_probability",
-        horizon="2h",
-    ),
-    discovery=causal.PCMCI(max_lag=12),
-    inference=causal.Bayesian(
-        backend="laplace",
-        priors="weakly_informative",
-    ),
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=causal.AverageEffect(treatment="t", outcome="y"),
+    inference=causal.Bayesian(n_draws=1000),
 )
+print(result.estimate.ate, result.validation.count)
 ```
 
 ## 33. Adopted architecture decisions [built]

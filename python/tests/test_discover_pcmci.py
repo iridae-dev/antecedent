@@ -47,7 +47,8 @@ def test_discover_pcmci_schema_fields():
     for name in SCHEMA_FIELDS:
         assert hasattr(result, name), name
     assert result.algorithm_id == "pcmci"
-    assert "fdr=false" in result.algorithm_config
+    assert "fdr=" in result.algorithm_config
+    assert "fdr=BH" not in result.algorithm_config  # fdr=False → no BH adjustment
     assert result.ci_tests > 0
     assert result.lagged_frame_bytes > 0
     assert result.worker_threads >= 1

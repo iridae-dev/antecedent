@@ -22,12 +22,10 @@ def test_unknown_edge_variable_raises_data_error():
     t = np.zeros(n)
     y = np.ones(n)
     with pytest.raises(causal.CausalDataError):
-        causal.analyze_ate(
-            ["t", "y"],
-            [t, y],
-            edges=[("missing", "y")],
-            treatment="t",
-            outcome="y",
+        causal.analyze(
+            {"t": t, "y": y},
+            graph=[("missing", "y")],
+            query=causal.AverageEffect(treatment="t", outcome="y"),
             refute=False,
             bootstrap=0,
             seed=1,
@@ -46,3 +44,12 @@ def test_exceptions_subclass_causal_error():
     assert issubclass(causal.CausalCompileError, causal.CausalError)
     assert issubclass(causal.CausalDataError, causal.CausalError)
     assert issubclass(causal.CausalDiscoveryError, causal.CausalError)
+    assert issubclass(causal.CausalAttributionError, causal.CausalError)
+    assert issubclass(causal.CausalDesignError, causal.CausalError)
+    assert issubclass(causal.CausalStateError, causal.CausalError)
+
+
+def test_causal_state_append_smoke():
+    version, stale = causal.state.causal_state_append(n_appends=2)
+    assert version >= 1
+    assert stale >= 0

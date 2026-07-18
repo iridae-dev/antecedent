@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manufacturing-style temporal analyze() example .
+"""Manufacturing-style temporal analyze() example.
 
 Requires a built causal extension (`maturin develop` in python/).
 """
@@ -10,7 +10,7 @@ import math
 
 import numpy as np
 
-from causal import analyze
+from causal import PulseEffect, analyze
 
 
 def main() -> None:
@@ -21,20 +21,21 @@ def main() -> None:
         defect[t] = 0.9 * pressure[t - 1]
 
     result = analyze(
-        ["pressure", "defect"],
-        [pressure, defect],
-        edges=[("pressure", 1, "defect", 0)],
-        treatment="pressure",
-        outcome="defect",
-        treatment_lag=1,
-        horizon_steps=1,
-        active_level=1.0,
+        {"pressure": pressure, "defect": defect},
+        graph=[("pressure", 1, "defect", 0)],
+        query=PulseEffect(
+            treatment="pressure",
+            outcome="defect",
+            treatment_lag=1,
+            horizon_steps=1,
+            active_level=1.0,
+        ),
         bootstrap=0,
         seed=42,
     )
     print(
-        f"ATE={result.ate:.4f} plan={result.plan_id} "
-        f"peak_mem={result.peak_memory_bytes} method={result.method}"
+        f"ATE={result.ate:.4f} plan={result.performance.plan_id} "
+        f"peak_mem={result.performance.peak_memory_bytes} method={result.estimate.method}"
     )
     assert abs(result.ate - 0.9) < 0.05, result.ate
 

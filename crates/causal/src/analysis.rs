@@ -98,8 +98,8 @@ pub struct CausalAnalysisBuilder {
     refute: RefuteSuite,
     bootstrap_replicates: u32,
     split: Option<DiscoveryEstimationSplit>,
-    identifier: Option<Arc<str>>,
-    estimator: Option<Arc<str>>,
+    identifier: Option<IdentifierId>,
+    estimator: Option<EstimatorId>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
     /// Optional override for propensity / AIPW overlap (clip/trim). `None` keeps estimator defaults.
@@ -308,39 +308,37 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Select the identification strategy for the static ATE path .
+    /// Select the identification strategy for the static ATE path.
     ///
-    /// Defaults to `backdoor.adjustment` when unset. Supported ids: `backdoor.adjustment`,
-    /// `backdoor.efficient`, `frontdoor`, `iv`, `rd.sharp`. `compile` refuses any
+    /// Defaults to [`IdentifierId::BackdoorAdjustment`] when unset. Wire strings such as
+    /// `"backdoor.adjustment"` are accepted via [`From<&str>`]. `compile` refuses any
     /// identifier/estimator pair outside the allowlist. Ignored on the temporal path (which
-    /// always uses `temporal.backdoor.unfolded`).
+    /// always uses [`IdentifierId::TemporalBackdoorUnfolded`]).
     #[must_use]
-    pub fn identifier(mut self, id: impl Into<Arc<str>>) -> Self {
+    pub fn identifier(mut self, id: impl Into<IdentifierId>) -> Self {
         self.identifier = Some(id.into());
         self
     }
 
-    /// Select the estimator for the static ATE path .
+    /// Select the estimator for the static ATE path.
     ///
-    /// Defaults to `linear.adjustment.ate` when unset. Supported ids: `linear.adjustment.ate`,
-    /// `propensity.weighting`, `propensity.matching`, `propensity.stratification`,
-    /// `distance.matching`, `aipw`, `glm.adjustment`, `frontdoor.two_stage`, `iv.wald`,
-    /// `iv.2sls`, `rd.sharp`. `compile` refuses any identifier/estimator pair outside the
-    /// allowlist. Ignored on the temporal path (which always uses
-    /// `temporal.linear.adjustment`).
+    /// Defaults to [`EstimatorId::LinearAdjustmentAte`] when unset. Wire strings such as
+    /// `"linear.adjustment.ate"` are accepted via [`From<&str>`]. `compile` refuses any
+    /// identifier/estimator pair outside the allowlist. Ignored on the temporal path (which
+    /// always uses [`EstimatorId::TemporalLinearAdjustment`]).
     #[must_use]
-    pub fn estimator(mut self, id: impl Into<Arc<str>>) -> Self {
+    pub fn estimator(mut self, id: impl Into<EstimatorId>) -> Self {
         self.estimator = Some(id.into());
         self
     }
 
     /// Configure frequentist vs Bayesian inference (DESIGN.md §34.1).
     ///
-    /// [`InferenceMode::Bayesian`] selects estimator `bayesian.gcomp`.
+    /// [`InferenceMode::Bayesian`] selects estimator [`EstimatorId::BayesianGcomp`].
     #[must_use]
     pub fn inference(mut self, mode: InferenceMode) -> Self {
         if matches!(mode, InferenceMode::Bayesian(_)) {
-            self.estimator = Some(Arc::from("bayesian.gcomp"));
+            self.estimator = Some(EstimatorId::BayesianGcomp);
         }
         self.inference = mode;
         self
@@ -396,8 +394,8 @@ pub struct CausalAnalysis {
     refute: RefuteSuite,
     bootstrap_replicates: u32,
     split: Option<DiscoveryEstimationSplit>,
-    identifier: Option<Arc<str>>,
-    estimator: Option<Arc<str>>,
+    identifier: Option<IdentifierId>,
+    estimator: Option<EstimatorId>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
     overlap_policy: Option<OverlapPolicy>,
@@ -405,6 +403,15 @@ pub struct CausalAnalysis {
 
 impl CausalAnalysis {
     /// Builder entry point.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use causal::CausalAnalysis;
+    ///
+    /// let builder = CausalAnalysis::builder().bootstrap_replicates(50);
+    /// let _ = builder;
+    /// ```
     #[must_use]
     pub fn builder() -> CausalAnalysisBuilder {
         CausalAnalysisBuilder::new()
@@ -690,7 +697,7 @@ impl CausalAnalysis {
         // selected non-temporal identifier/estimator rather than silently ignoring it.
         if matches!(&self.query, CausalQuery::TemporalEffect(_)) {
             if let Some(id) = &self.identifier {
-                if IdentifierId::parse(id) != IdentifierId::TemporalBackdoorUnfolded {
+                if *id != IdentifierId::TemporalBackdoorUnfolded {
                     return Err(AnalysisError::Compile {
                         message: format!(
                             "temporal path only supports identifier \"temporal.backdoor.unfolded\"; got {id:?}"
@@ -699,7 +706,7 @@ impl CausalAnalysis {
                 }
             }
             if let Some(est) = &self.estimator {
-                if EstimatorId::parse(est) != EstimatorId::TemporalLinearAdjustment {
+                if *est != EstimatorId::TemporalLinearAdjustment {
                     return Err(AnalysisError::Compile {
                         message: format!(
                             "temporal path only supports estimator \"temporal.linear.adjustment\"; got {est:?}"
@@ -713,15 +720,9 @@ impl CausalAnalysis {
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
-        let identifier = self
-            .identifier
-            .clone()
-            .unwrap_or_else(|| Arc::from(DEFAULT_IDENTIFIER_ID.as_str()));
-        let estimator = self
-            .estimator
-            .clone()
-            .unwrap_or_else(|| Arc::from(DEFAULT_ESTIMATOR_ID.as_str()));
-        (identifier, estimator)
+        let identifier = self.identifier.as_ref().unwrap_or(&DEFAULT_IDENTIFIER_ID);
+        let estimator = self.estimator.as_ref().unwrap_or(&DEFAULT_ESTIMATOR_ID);
+        (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
     }
 
     fn ensure_rd_config_present(&self, estimator: &str) -> Result<(), AnalysisError> {

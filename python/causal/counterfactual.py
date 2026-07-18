@@ -1,7 +1,7 @@
-"""Counterfactual helpers (DESIGN.md §25.1)."""
+"""GCM counterfactual helpers."""
 
 from __future__ import annotations
 
-from ._native import GcmIteResult, gcm_counterfactual_ite
+from ._native import GcmIteResult, counterfactual_ite
 
-__all__ = ["GcmIteResult", "gcm_counterfactual_ite"]
+__all__ = ["GcmIteResult", "counterfactual_ite"]
