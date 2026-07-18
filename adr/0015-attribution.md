@@ -7,7 +7,7 @@
 
 DESIGN.md requires distribution/unit/mechanism-change attribution,
 Shapley and path decompositions, robust variants, posterior contribution
-blocks, and graph-sensitive root-cause ranking with DoWhy-GCM parity.
+blocks, and graph-sensitive root-cause ranking with GCM parity.
 
 ## Decision
 
@@ -16,7 +16,7 @@ blocks, and graph-sensitive root-cause ranking with DoWhy-GCM parity.
   budget + stderr; coalition evaluations use a semantic cache under
   `ExecutionContext.cache_policy`.
 - Mechanism-change *detection* is a separate API from attribution.
-- Robust attribution uses regression hybrids (DoWhy `distribution_change_robust`
+- Robust attribution uses regression hybrids (pinned baseline `distribution_change_robust`
   parity) rather than full density estimation.
 - Facade + Python surfaces bind the same Rust entry points as GCM.
 

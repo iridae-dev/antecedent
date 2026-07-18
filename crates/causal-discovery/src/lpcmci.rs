@@ -27,7 +27,7 @@ pub struct Lpcmci {
     /// Multiple-testing adjustment (`None` = off).
     pub fdr: Option<FdrAdjustment>,
     /// Preliminary Alg-S2 iterations before the final ancestral/non-ancestral pass
-    /// (tigramite `n_preliminary_iterations`, default 1).
+    /// (pinned baseline `n_preliminary_iterations`, default 1).
     pub n_preliminary_iterations: u32,
 }
 
@@ -71,7 +71,7 @@ impl Lpcmci {
         self
     }
 
-    /// Number of preliminary ancestral phases (tigramite default: 1).
+    /// Number of preliminary ancestral phases (pinned baseline default: 1).
     #[must_use]
     pub fn with_n_preliminary_iterations(mut self, n: u32) -> Self {
         self.n_preliminary_iterations = n;

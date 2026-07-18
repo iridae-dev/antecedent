@@ -1,6 +1,11 @@
 {
-  "targets": ["x", "y"],
-  "changed": ["y"],
+  "targets": [
+    "x",
+    "y"
+  ],
+  "changed": [
+    "y"
+  ],
   "method": "kernel_two_sample",
   "significance_level": 0.05
 }

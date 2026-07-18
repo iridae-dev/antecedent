@@ -1,0 +1,98 @@
+{
+  "algorithm_id": "jpcmci_plus",
+  "n_per_env": 400,
+  "n_envs": 2,
+  "alpha": 0.05,
+  "max_lag": 1,
+  "min_lag": 0,
+  "fdr": false,
+  "include_space_dummy": false,
+  "tolerance_class": "Exact",
+  "var_names": [
+    "x",
+    "y"
+  ],
+  "true_parents": [
+    {
+      "source": "x",
+      "source_lag": 1,
+      "target": "x",
+      "target_lag": 0
+    },
+    {
+      "source": "y",
+      "source_lag": 1,
+      "target": "y",
+      "target_lag": 0
+    },
+    {
+      "source": "x",
+      "source_lag": 0,
+      "target": "y",
+      "target_lag": 0
+    }
+  ],
+  "notes": "Edge-set pin vs tigramite JPCMCIplus on two-env SCM without space dummy.",
+  "reference": {
+    "project": "tigramite",
+    "available": true,
+    "version": "5.2.9.7",
+    "commit": "5a8768754e6103755b006e9357e21c1a58534927",
+    "command": null,
+    "note": "black-box JPCMCIplus; system-only, no dummy/context (space dummy MV = P4.4b)",
+    "outputs": {
+      "pin_note": "PyPI 5.2.9.7 (jpcmciplus module; 5.2.1.30 lacks it)",
+      "graph_shape": [
+        2,
+        2,
+        2
+      ],
+      "recovered_parents": [
+        {
+          "source": "x",
+          "source_lag": 1,
+          "target": "x",
+          "target_lag": 0
+        },
+        {
+          "source": "y",
+          "source_lag": 1,
+          "target": "y",
+          "target_lag": 0
+        }
+      ],
+      "graph_links": [
+        {
+          "source": "x",
+          "source_lag": 1,
+          "target": "x",
+          "target_lag": 0,
+          "mark": "-->"
+        },
+        {
+          "source": "x",
+          "source_lag": 0,
+          "target": "y",
+          "target_lag": 0,
+          "mark": "-->"
+        },
+        {
+          "source": "y",
+          "source_lag": 0,
+          "target": "x",
+          "target_lag": 0,
+          "mark": "<--"
+        },
+        {
+          "source": "y",
+          "source_lag": 1,
+          "target": "y",
+          "target_lag": 0,
+          "mark": "-->"
+        }
+      ],
+      "alpha": 0.05,
+      "max_lag": 1
+    }
+  }
+}

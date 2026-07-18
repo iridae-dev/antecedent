@@ -1,6 +1,10 @@
-# attribution / mechanism_change_change_point
+# Mechanism-change detection (change-point)
 
-Fixture: `conformance/attribution/mechanism_change_change_point/`.
+**Suite path:** `conformance/attribution/mechanism_change_change_point`
 
-Known-split change-point mechanism-change detection on the two-period synthetic
-chain; expects `y` flagged under method `change_point`.
+Same synthetic periods as `mechanism_change_detect`. Detection should flag
+`y` as changed under the known-split `change_point` residual test.
+
+## Expected summary
+
+Top-level keys: `changed, method, significance_level, targets` (4 fields).

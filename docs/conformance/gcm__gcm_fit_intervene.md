@@ -7,4 +7,4 @@ interventional mean of Y ≈ 7.
 
 ## Expected summary
 
-Top-level keys: `intervention, notes, tolerance, tolerance_class, true_interventional_mean_y` (5 fields).
+Top-level keys: `generation, intervention, notes, reference, tolerance, tolerance_class, true_interventional_mean_y` (7 fields).

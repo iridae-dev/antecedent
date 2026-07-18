@@ -3,7 +3,7 @@
 **Suite path:** `conformance/estimate/propensity_ipw`
 
 Generated inline by `crates/causal/tests/estimate_conformance.rs` — no
-CSV, no DoWhy install. Clean-room synthetic SCM, deterministic from a fixed
+CSV, no pinned baseline install. Clean-room synthetic SCM, deterministic from a fixed
 `ExecutionContext` seed.
 
 Comparison: `|estimate.ate - true_effect| < tolerance` (finite-sample Monte
@@ -11,4 +11,4 @@ Carlo check; not a `StableFloat` bitwise/analytic comparison).
 
 ## Expected summary
 
-Top-level keys: `estimator, identifier, notes, tolerance, true_effect` (5 fields).
+Top-level keys: `estimator, generation, identifier, notes, reference, tolerance, true_effect` (7 fields).

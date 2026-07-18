@@ -142,7 +142,7 @@ pub fn anomaly_attribution(
     score_anomalies(model, data, &q).map_err(map_attr)
 }
 
-/// Distribution-change attribution (DoWhy-GCM parity).
+/// Distribution-change attribution (pinned baseline-GCM parity).
 ///
 /// # Errors
 ///

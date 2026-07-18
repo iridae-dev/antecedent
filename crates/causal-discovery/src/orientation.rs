@@ -457,7 +457,7 @@ fn is_contemporaneous_node(graph: &TemporalCpdag, id: DenseNodeId) -> bool {
     }
 }
 
-/// Meek R1 restricted to contemporaneous undirected edges (PCMCI+ / tigramite).
+/// Meek R1 restricted to contemporaneous undirected edges (PCMCI+ / pinned baseline).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContempMeekR1;
 
@@ -505,7 +505,7 @@ impl OrientationRule for ContempMeekR1 {
     }
 }
 
-/// Meek R2 restricted to contemporaneous undirected edges (PCMCI+ / tigramite).
+/// Meek R2 restricted to contemporaneous undirected edges (PCMCI+ / pinned baseline).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContempMeekR2;
 
@@ -553,7 +553,7 @@ impl OrientationRule for ContempMeekR2 {
     }
 }
 
-/// Meek R3 restricted to contemporaneous undirected edges (PCMCI+ / tigramite).
+/// Meek R3 restricted to contemporaneous undirected edges (PCMCI+ / pinned baseline).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContempMeekR3;
 

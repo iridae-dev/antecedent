@@ -23,4 +23,4 @@ breaks identification soundness (DESIGN.md §2 / §21.2).
 ## Consequences
 
 Exit criteria gated by `scripts/gate_pag.sh`. Shapley attribution remains
-Attribution inventory; J/RPCMCI live under context / tigramite.
+Attribution inventory; J/RPCMCI live under context / pinned baseline.

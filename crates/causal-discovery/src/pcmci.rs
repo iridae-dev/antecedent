@@ -46,7 +46,7 @@ impl Pcmci {
         self
     }
 
-    /// Enable / disable BH FDR (tigramite contemporaneous exclusion).
+    /// Enable / disable BH FDR (pinned baseline contemporaneous exclusion).
     #[must_use]
     pub fn with_fdr(mut self, fdr: bool) -> Self {
         self.fdr = fdr.then(FdrAdjustment::bh);

@@ -6,7 +6,26 @@
     "directed": true,
     "multigraph": false,
     "graph": {},
-    "nodes": [{"id": "Z"}, {"id": "X"}, {"id": "Y"}],
-    "links": [{"source": "Z", "target": "X"}, {"source": "X", "target": "Y"}]
+    "nodes": [
+      {
+        "id": "Z"
+      },
+      {
+        "id": "X"
+      },
+      {
+        "id": "Y"
+      }
+    ],
+    "links": [
+      {
+        "source": "Z",
+        "target": "X"
+      },
+      {
+        "source": "X",
+        "target": "Y"
+      }
+    ]
   }
 }

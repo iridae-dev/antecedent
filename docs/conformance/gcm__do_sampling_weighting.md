@@ -6,4 +6,4 @@ Weighting do-sampler on binary treatment SCM; treated mean = 2.
 
 ## Expected summary
 
-Top-level keys: `expected_treated_mean, tolerance_class` (2 fields).
+Top-level keys: `expected_treated_mean, generation, reference, tolerance_class` (4 fields).

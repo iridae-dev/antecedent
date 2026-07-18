@@ -1,0 +1,16 @@
+# Pointer into conformance/ for the DoWhy ATE fixture.
+
+id = "dowhy.linear_gaussian_ate"
+capability_ids = [
+  "estimate.identify.backdoor",
+  "estimate.identify.automatic",
+  "estimate.identify.estimand",
+  "estimate.linear_regression",
+  "estimate.refute.placebo",
+  "estimate.refute.random_common_cause",
+  "estimate.model.workflow",
+]
+fixture_dir = "conformance/estimate/linear_gaussian_ate"
+tolerance_class = "StableFloat"
+generator = "scripts/conformance/generate_dowhy_linear_gaussian_ate.py"
+baseline_pin = "parity/baselines/dowhy.toml"

@@ -21,7 +21,7 @@ recording security/licensing/unsafe/dependency review — without treating Phase
   written into DESIGN.md and marked `done` (no `intentional_deviation` /
   `*_deviations.md`).
 - Ship **DOT + JSON + GML + NetworkX** DAG interchange in `causal-io` as the
-  string-graph surface for `dowhy.model_graph.parsing`.
+  string-graph surface for `pinned baseline.model_graph.parsing`.
 - Ship full CPython 3.11–3.14 wheel CI (Linux x86_64/aarch64 manylinux, macOS
   x86_64/arm64, Windows x86_64) with default `faer` and no system BLAS.
 - Generate `docs/conformance/` from fixtures; index hot paths in

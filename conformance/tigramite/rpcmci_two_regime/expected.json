@@ -1,8 +1,0 @@
-{
-  "algorithm_id": "rpcmci",
-  "n_regimes": 2,
-  "min_nodes_per_regime": 2,
-  "min_links_per_regime": 0,
-  "tolerance_class": "Exact",
-  "notes": "Honest multi-regime structure pin; full tigramite equality blocked on P4.5 (RPCMCI masking)."
-}

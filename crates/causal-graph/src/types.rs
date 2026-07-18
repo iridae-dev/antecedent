@@ -41,7 +41,7 @@ pub enum Endpoint {
     Arrow,
     /// Circle (PAG; not used in DAG constructors).
     Circle,
-    /// Conflict (`x` in Tigramite). Orientation rules proposed incompatible marks.
+    /// Conflict (`x` in pinned baseline). Orientation rules proposed incompatible marks.
     ///
     /// CPDAG / PCMCI+ contemporaneous conflicts use Conflict–Conflict (`x-x`).
     /// PAG / LPCMCI may also use asymmetric forms (`x→`, `←x`).
@@ -73,7 +73,7 @@ impl MiddleMark {
         matches!(self, Self::Empty)
     }
 
-    /// Merge an existing middle mark with an update (tigramite `_apply_middle_mark`).
+    /// Merge an existing middle mark with an update (pinned baseline `_apply_middle_mark`).
     #[must_use]
     pub const fn apply(self, update: Self) -> Self {
         use MiddleMark::{Both, Empty, Left, Right, Unknown};
@@ -188,7 +188,7 @@ impl MarkedEdge {
         }
     }
 
-    /// Conflict edge `a x-x b` (Tigramite). Canonicalizes so `a.raw() <= b.raw()`.
+    /// Conflict edge `a x-x b` (pinned baseline). Canonicalizes so `a.raw() <= b.raw()`.
     #[must_use]
     pub fn conflict(a: DenseNodeId, b: DenseNodeId) -> Self {
         if a.raw() <= b.raw() {

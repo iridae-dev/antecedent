@@ -1,0 +1,5 @@
+id = "discovery.lpcmci_chain"
+capability_ids = ["discovery.lpcmci"]
+fixture_dir = "conformance/pag/lpcmci_chain"
+tolerance_class = "Exact"
+baseline_pin = "parity/baselines/tigramite.toml"

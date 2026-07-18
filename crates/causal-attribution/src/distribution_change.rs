@@ -1,4 +1,4 @@
-//! Distribution-change attribution (DoWhy-GCM parity; DESIGN.md §17.2).
+//! Distribution-change attribution (pinned baseline-GCM parity; DESIGN.md §17.2).
 //!
 //! Fits mechanisms on baseline and comparison populations, then attributes the
 //! change in the outcome marginal to mechanism replacements via Shapley values
@@ -34,7 +34,7 @@ pub enum DifferenceMeasure {
     /// Variance difference.
     VarianceDiff,
     /// Gaussian KL `KL(N(μ_S, σ_S²) ‖ N(μ₀, σ₀²))` of the hybrid outcome law vs the
-    /// all-baseline coalition (DoWhy's default target functional).
+    /// all-baseline coalition (pinned baseline's default target functional).
     GaussianKl,
 }
 

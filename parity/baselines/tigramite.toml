@@ -1,0 +1,6 @@
+# Pinned external baseline (oracle pin only). Capability inventory lives in domain TOMLs.
+project = "tigramite"
+version = "5.2.1.25"
+commit = "5a8768754e6103755b006e9357e21c1a58534927"
+extended_snapshot_commit = "ff3ff13e1481073b8c5833a6fde1c304627a208e"
+notes = "Pinned per ADR 0009. Extended snapshot covers post-release features. Used only for reference blocks."

@@ -101,7 +101,7 @@ pub enum SpaceDummyCiMode {
     /// Production default: `M−1` one-hot columns, each a scalar ParCorr variable.
     #[default]
     ScalarOneHot,
-    /// Tigramite-style: one logical space-dummy node; CI expands to the full one-hot block
+    /// pinned baseline-style: one logical space-dummy node; CI expands to the full one-hot block
     /// via [`causal_stats::PairwiseMultivariateCi`].
     MultivariateBlock,
 }
@@ -187,7 +187,7 @@ impl MultiDatasetConstraints {
         JpcmciNodeRole::System
     }
 
-    /// Günther / tigramite link-assumption: whether `link` is forbidden.
+    /// Günther / pinned baseline link-assumption: whether `link` is forbidden.
     ///
     /// Rules (exogenous context/dummy → system only; no context↔context / dummy children;
     /// space context/dummy and time dummy are contemporaneous-only sources).
@@ -237,7 +237,7 @@ pub struct DiscoveryConstraints {
     pub significance: SignificanceMethod,
     /// Optional multi-dataset / context constraints (ignored by single-series PCMCI).
     pub multi_dataset: MultiDatasetConstraints,
-    /// Tigramite-style vector-variable groups (logical node = first component).
+    /// pinned baseline-style vector-variable groups (logical node = first component).
     pub vector_groups: VectorVariableGroups,
 }
 

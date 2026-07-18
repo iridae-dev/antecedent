@@ -18,12 +18,12 @@ pub enum MultipleTestingMethod {
     Holm,
 }
 
-/// Configuration for adjusting a family of p-values (tigramite-style options).
+/// Configuration for adjusting a family of p-values (pinned baseline-style options).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct FdrAdjustment {
     /// Correction procedure.
     pub method: MultipleTestingMethod,
-    /// When true (tigramite default), contemporaneous (lag-0) tests are left
+    /// When true (pinned baseline default), contemporaneous (lag-0) tests are left
     /// unadjusted — only lagged p-values enter the correction family.
     pub exclude_contemporaneous: bool,
 }
@@ -32,14 +32,14 @@ impl Default for FdrAdjustment {
     fn default() -> Self {
         Self {
             method: MultipleTestingMethod::BenjaminiHochberg,
-            // Matches tigramite `get_corrected_pvalues(..., exclude_contemporaneous=True)`.
+            // Matches pinned baseline `get_corrected_pvalues(..., exclude_contemporaneous=True)`.
             exclude_contemporaneous: true,
         }
     }
 }
 
 impl FdrAdjustment {
-    /// BH with tigramite's default contemporaneous exclusion.
+    /// BH with pinned baseline's default contemporaneous exclusion.
     #[must_use]
     pub const fn bh() -> Self {
         Self {

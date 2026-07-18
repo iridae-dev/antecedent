@@ -1,0 +1,5 @@
+id = "estimate.identify.general_id.backdoor_chain"
+capability_ids = ["estimate.identify.general_id"]
+fixture_dir = "conformance/identify/general_id_backdoor_chain"
+tolerance_class = "Exact"
+baseline_pin = "parity/baselines/dowhy.toml"

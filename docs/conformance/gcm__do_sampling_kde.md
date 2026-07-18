@@ -6,4 +6,4 @@ KDE do-sampler returns finite interventional draws.
 
 ## Expected summary
 
-Top-level keys: `n_draws, require_finite_draws` (2 fields).
+Top-level keys: `generation, n_draws, reference, require_finite_draws` (4 fields).

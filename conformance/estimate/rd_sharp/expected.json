@@ -1,7 +1,20 @@
 {
- "true_effect": 3.0,
- "tolerance": 0.5,
- "identifier": "rd.sharp",
- "estimator": "rd.sharp",
- "notes": "sharp RD jump"
+  "true_effect": 3.0,
+  "tolerance": 0.5,
+  "identifier": "rd.sharp",
+  "estimator": "rd.sharp",
+  "notes": "sharp RD jump",
+  "generation": {
+    "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py"
+  },
+  "reference": {
+    "project": "dowhy",
+    "available": false,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "note": "iv.regression_discontinuity failed: float() argument must be a string or a real number, not 'NoneType'"
+  }
 }

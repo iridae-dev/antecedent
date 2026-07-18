@@ -30,8 +30,8 @@ use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance");
-    // J/RPCMCI suites live under tigramite/; mediation/conditional/prediction under context/.
-    for area in ["context", "tigramite"] {
+    // J/RPCMCI suites live under discovery/; mediation/conditional/prediction under context/.
+    for area in ["context", "discovery"] {
         let cand = root.join(area).join(name);
         if cand.join("expected.json").exists() {
             return cand;
@@ -64,6 +64,51 @@ fn toy_env(n: usize, seed: f64) -> TimeSeriesData {
     for t in 1..n {
         x[t] = 0.5 * x[t - 1] + 0.1 * ((t as f64) + seed).sin();
         y[t] = 0.7 * x[t] + 0.2 * y[t - 1] + 0.05 * ((t as f64) + seed).cos();
+    }
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(x), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap()
+}
+
+/// Homogeneous within each half, opposite contemporaneous sign across the split.
+fn two_regime_toy(n: usize) -> TimeSeriesData {
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["x", "y"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let mut x = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mid = n / 2;
+    for t in 1..n {
+        if t < mid {
+            x[t] = 0.6 * x[t - 1] + 0.05 * (t as f64).sin();
+            y[t] = 0.5 * x[t] + 0.1 * y[t - 1];
+        } else {
+            x[t] = 0.2 * x[t - 1] + 0.05 * (t as f64).cos();
+            y[t] = -0.4 * x[t] + 0.1 * y[t - 1];
+        }
     }
     let cols = vec![
         OwnedColumn::Float64(
@@ -129,20 +174,25 @@ fn jpcmci_plus_two_env_pin() {
 #[test]
 fn rpcmci_two_regime_pin() {
     let expected = load_expected("rpcmci_two_regime");
-    let data = toy_env(200, 0.0);
+    // Distinct dynamics per half so caller-supplied labels are meaningful; keep
+    // alternating off (product contract: explicit regime labels).
+    let data = two_regime_toy(200);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
     let assign = two_regime_half_split(data.row_count());
-    let alg = Rpcmci::new().with_min_regime_len(40).with_pcmci_plus(
-        PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
-            temporal: TemporalConstraints {
-                max_lag: Lag::from_raw(1),
-                min_lag: Lag::CONTEMPORANEOUS,
+    let alg = Rpcmci::new()
+        .with_min_regime_len(40)
+        .with_alternating_iters(0)
+        .with_pcmci_plus(PcmciPlus::new().with_fdr(false).with_constraints(
+            DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(1),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                alpha: 0.25,
+                max_cond_size: 2,
+                ..DiscoveryConstraints::default()
             },
-            alpha: 0.25,
-            max_cond_size: 2,
-            ..DiscoveryConstraints::default()
-        }),
-    );
+        ));
     let mut ws = DiscoveryWorkspace::default();
     let result = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2)).unwrap();
     assert_eq!(result.algorithm.id.as_ref(), expected["algorithm_id"].as_str().unwrap());

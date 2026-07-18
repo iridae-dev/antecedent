@@ -67,16 +67,16 @@ for path in [
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")
 
-# Coarse tigramite rows
-tigramite = (root / "parity/tigramite.toml").read_text()
-for cid in ("tigramite.discovery.lpcmci", "tigramite.graphs.separation"):
+# Domain inventory rows
+discovery_inv = (root / "parity/discovery.toml").read_text()
+for cid in ("discovery.lpcmci", "discovery.graphs.separation"):
     block = None
-    for b in re.split(r"\n\[\[capabilities\]\]\n", tigramite)[1:]:
+    for b in re.split(r"\n\[\[capabilities\]\]\n", discovery_inv)[1:]:
         if re.search(rf'^id\s*=\s*"{cid}"', b, re.M):
             block = b
             break
     if not block:
-        missing.append(f"{cid} missing from tigramite.toml")
+        missing.append(f"{cid} missing from discovery.toml")
         continue
     m = re.search(r'^status\s*=\s*"([^"]*)"', block, re.M)
     if not m or m.group(1) != "done":

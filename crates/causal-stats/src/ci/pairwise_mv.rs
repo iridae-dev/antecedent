@@ -42,7 +42,7 @@ impl PairwiseMultivariateCi {
         }
     }
 
-    /// Construct with column-membership blocks (tigramite `vector_vars` style).
+    /// Construct with column-membership blocks (pinned baseline `vector_vars` style).
     #[must_use]
     pub fn with_column_blocks(column_blocks: Arc<[Arc<[usize]>]>) -> Self {
         Self {

@@ -15,7 +15,7 @@ notes = "Semantic coalition cache keyed by mask + tag under CachePolicy"
 [[capabilities]]
 id = "attribution.distribution_change"
 status = "done"
-notes = "DoWhy-GCM distribution_change via mechanism-swap Shapley"
+notes = "pinned baseline-GCM distribution_change via mechanism-swap Shapley"
 
 [[capabilities]]
 id = "attribution.distribution_change_robust"

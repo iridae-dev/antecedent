@@ -9,7 +9,14 @@
   "outcome": "defect",
   "treatment_lag": 1,
   "horizon_steps": 1,
-  "edges": [["pressure", 1, "defect", 0]],
+  "edges": [
+    [
+      "pressure",
+      1,
+      "defect",
+      0
+    ]
+  ],
   "sampling_interval_ns": 3600000000000,
-  "note": "Discrete time steps; 2h at 1h sampling ≡ 2 steps"
+  "note": "Discrete time steps; 2h at 1h sampling \u2261 2 steps"
 }

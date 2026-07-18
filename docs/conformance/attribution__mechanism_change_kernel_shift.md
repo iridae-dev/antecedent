@@ -1,6 +1,10 @@
-# attribution / mechanism_change_kernel_shift
+# Mechanism-change detection (kernel two-sample)
 
-Fixture: `conformance/attribution/mechanism_change_kernel_shift/`.
+**Suite path:** `conformance/attribution/mechanism_change_kernel_shift`
 
-Kernel two-sample (MMD) mechanism-change detection on the two-period synthetic
-chain; expects `y` flagged under method `kernel_two_sample`.
+Same synthetic periods as `mechanism_change_detect`. Detection should flag
+`y` as changed under `kernel_two_sample` (MMD on residuals).
+
+## Expected summary
+
+Top-level keys: `changed, method, significance_level, targets` (4 fields).

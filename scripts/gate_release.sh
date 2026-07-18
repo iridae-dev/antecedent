@@ -14,6 +14,7 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_context.sh
   bash scripts/gate_attribution.sh
   bash scripts/gate_design_state.sh
+  bash scripts/gate_upstream_names.sh
 fi
 
 python3 - <<'PY'
@@ -41,8 +42,8 @@ missing = []
 
 # Inventories: allow pending/in_progress (TODO.md roadmap); forbid retired waiver status.
 for manifest in [
-    "parity/dowhy.toml",
-    "parity/tigramite.toml",
+    "parity/estimate.toml",
+    "parity/discovery.toml",
     "parity/bayesian.toml",
     "parity/pag.toml",
     "parity/context.toml",

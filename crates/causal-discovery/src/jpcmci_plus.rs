@@ -5,7 +5,7 @@
 //! Günther link assumptions. Observed context and dummies enter CI tests.
 //!
 //! Reference: Günther, Ninad, Runge — *Causal discovery for time series from multiple
-//! datasets with latent contexts*, UAI 2023 (arXiv:2306.12896); tigramite `JPCMCIplus`.
+//! datasets with latent contexts*, UAI 2023 (arXiv:2306.12896); pinned baseline `JPCMCIplus`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -560,7 +560,7 @@ fn directed_exogenous_links(
 /// Replace all parents of a given exogenous role class with MCI survivors.
 ///
 /// Rejected lagged context/dummy links from PC1 must leave the conditioner set used
-/// in later phases (tigramite `observed_context_parents` / `dummy_parents`).
+/// in later phases (pinned baseline `observed_context_parents` / `dummy_parents`).
 fn replace_exogenous_parents(
     lagged_parents: &mut [(VariableId, Vec<(VariableId, Lag)>)],
     survivors: &HashMap<VariableId, Vec<(VariableId, Lag)>>,

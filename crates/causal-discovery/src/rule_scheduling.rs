@@ -357,7 +357,7 @@ fn set_marks_oriented(
     let Some(e) = graph.edge_between(a, b) else {
         return Err(OrientationError::msg("missing edge in set_marks_oriented"));
     };
-    // Tigramite: once an endpoint is `x`, further rules leave it alone.
+    // pinned baseline: once an endpoint is `x`, further rules leave it alone.
     if matches!(e.at_a, Endpoint::Conflict) || matches!(e.at_b, Endpoint::Conflict) {
         return Ok(false);
     }

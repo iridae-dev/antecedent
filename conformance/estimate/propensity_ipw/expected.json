@@ -1,7 +1,28 @@
 {
- "true_effect": 2.0,
- "tolerance": 0.35,
- "identifier": "backdoor.adjustment",
- "estimator": "propensity.weighting",
- "notes": "synthetic SCM; clean-room; Z~N(0,1) confounder, T~Bernoulli(sigmoid(-0.4+0.9Z)), Y=2T+Z+noise; IPW recovers ATE under confounding that biases a naive unadjusted contrast"
+  "true_effect": 2.0,
+  "tolerance": 0.35,
+  "identifier": "backdoor.adjustment",
+  "estimator": "propensity.weighting",
+  "notes": "synthetic SCM; clean-room; Z~N(0,1) confounder, T~Bernoulli(sigmoid(-0.4+0.9Z)), Y=2T+Z+noise; IPW recovers ATE under confounding that biases a naive unadjusted contrast",
+  "generation": {
+    "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py"
+  },
+  "reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "note": "black-box execution only; no source translation",
+    "outputs": {
+      "method": "backdoor.propensity_score_weighting",
+      "estimate": 2.0880885310759196,
+      "se": 0.27284801301033784,
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U\u2192{t} and U\u2192y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1,",
+      "n": 800,
+      "seed": 7
+    }
+  }
 }

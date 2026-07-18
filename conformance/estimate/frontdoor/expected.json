@@ -1,7 +1,28 @@
 {
- "true_effect": 2.0,
- "tolerance": 0.35,
- "identifier": "frontdoor",
- "estimator": "frontdoor.two_stage",
- "notes": "synthetic SCM; clean-room; U->T->M->Y with U->Y confounding and no direct T->Y edge (U unmeasured, absent from the graph); M=1*T+noise, Y=2*M+U+noise; two-stage product-of-coefficients recovers effect=1*2=2"
+  "true_effect": 2.0,
+  "tolerance": 0.35,
+  "identifier": "frontdoor",
+  "estimator": "frontdoor.two_stage",
+  "notes": "synthetic SCM; clean-room; U->T->M->Y with U->Y confounding and no direct T->Y edge (U unmeasured, absent from the graph); M=1*T+noise, Y=2*M+U+noise; two-stage product-of-coefficients recovers effect=1*2=2",
+  "generation": {
+    "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py"
+  },
+  "reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "note": "black-box execution only; no source translation",
+    "outputs": {
+      "method": "frontdoor.two_stage_regression",
+      "estimate": 2.0510287289381304,
+      "se": 0.04664220538741697,
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nNo such variable(s) found!\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nEstimand expression:\n \u23a1 d       d       \u23a4\nE\u23a2\u2500\u2500\u2500\u2500(y)\u22c5\u2500\u2500\u2500\u2500([m])\u23a5\n \u23a3d[m]    d[t]     \u23a6\nEstimand assumption 1, Full-mediation: m intercepts (blocks) all directed paths from t to y.\nEstimand assumption 2, First-stage-unconfoundedness: If U\u2192{t} and U\u2192{m} then P(m|t,U) = P(m|t)\nEstiman",
+      "n": 800,
+      "seed": 7
+    }
+  }
 }

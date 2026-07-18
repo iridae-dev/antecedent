@@ -89,7 +89,7 @@ pub struct PcmciEngine {
     pub constraints: DiscoveryConstraints,
     /// Pluggable CI test (defaults to partial correlation).
     pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
-    /// Optional pairwise-MV column blocks (tigramite `vector_vars` / space-dummy MV).
+    /// Optional pairwise-MV column blocks (pinned baseline `vector_vars` / space-dummy MV).
     /// Empty ⇒ no block expansion when building masked keep masks.
     pub column_blocks: Arc<[Arc<[usize]>]>,
 }
@@ -140,7 +140,7 @@ impl PcmciEngine {
         self
     }
 
-    /// PC1 parent selection for one target (tigramite `run_pc_stable`, `max_combinations=1`).
+    /// PC1 parent selection for one target (pinned baseline `run_pc_stable`, `max_combinations=1`).
     ///
     /// Candidates are tested unconditionally, then at each conditioning size `q` against the
     /// single strongest-`q` set of the *other* surviving candidates, ranked by the minimum
@@ -235,7 +235,7 @@ impl PcmciEngine {
                 // Always record |stat| so required edges that fail independence still rank by
                 // observed association (not as +∞ / strongest).
                 min_stat[pi] = min_stat[pi].min(stat.abs());
-                // Tigramite retains links with p <= alpha (independence when p > alpha).
+                // pinned baseline retains links with p <= alpha (independence when p > alpha).
                 if p > self.constraints.alpha {
                     let link = LaggedLink {
                         source: src,
@@ -275,7 +275,7 @@ impl PcmciEngine {
     /// MCI test for a candidate link given parent sets.
     ///
     /// `parents_source` is keyed to the source at lag 0 and is shifted by the link's source
-    /// lag τ so the conditioning set is `pa(X_{t−τ})`, matching tigramite's MCI phase. The
+    /// lag τ so the conditioning set is `pa(X_{t−τ})`, matching pinned baseline's MCI phase. The
     /// frame must therefore materialize lags up to `2 · max_lag`.
     ///
     /// Returns the scored link and the number of conditioning parents truncated by
@@ -318,7 +318,7 @@ impl PcmciEngine {
     ///
     /// PC parent sets are used only for MCI conditioning (`pa(Y_t)` and time-shifted
     /// `pa(X_{t−τ})`). MCI scores every allowed `(X_{t−τ}, Y_t)` pair (Runge et al. 2019 /
-    /// tigramite `run_mci`), not only PC survivors. Returns **unthresholded** scores;
+    /// pinned baseline `run_mci`), not only PC survivors. Returns **unthresholded** scores;
     /// callers apply alpha and optional FDR over that full family.
     ///
     /// When [`DiscoveryConstraints::vector_groups`] is non-empty, the lagged frame still
@@ -336,7 +336,7 @@ impl PcmciEngine {
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
         let max_lag = self.constraints.temporal.max_lag.raw();
-        // Align with tigramite's default `cut_off='2xtau_max'`: both PC and MCI use a
+        // Align with pinned baseline's default `cut_off='2xtau_max'`: both PC and MCI use a
         // frame materializing lags up to 2·max_lag (same effective sample count).
         let frame_depth = 2 * max_lag;
         let frame =

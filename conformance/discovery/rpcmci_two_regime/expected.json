@@ -1,0 +1,21 @@
+{
+  "algorithm_id": "rpcmci",
+  "n_regimes": 2,
+  "min_nodes_per_regime": 2,
+  "min_links_per_regime": 0,
+  "tolerance_class": "Exact",
+  "notes": "Honest multi-regime structure pin; full tigramite equality blocked on P4.5 (RPCMCI masking).",
+  "generation": {
+    "script": "scripts/conformance/generate_tigramite_rpcmci_two_regime.py",
+    "baseline_pin": "parity/baselines/tigramite.toml",
+    "env": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30"
+  },
+  "reference": {
+    "project": "tigramite",
+    "available": false,
+    "version": "unknown",
+    "commit": "5a8768754e6103755b006e9357e21c1a58534927",
+    "command": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30",
+    "note": "RPCMCI module import failed on this pin"
+  }
+}

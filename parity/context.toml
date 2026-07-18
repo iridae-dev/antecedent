@@ -1,7 +1,7 @@
 # Context / regime / effects capability inventory
 # Status: pending | in_progress | done
-# Fine-grained rows for gate evidence. Coarse Tigramite/DoWhy flips live in
-# `tigramite.toml` / `dowhy.toml`.
+# Fine-grained rows for gate evidence. Coarse pinned baseline/pinned baseline flips live in
+# `pinned baseline.toml` / `pinned baseline.toml`.
 
 [[capabilities]]
 id = "context.panel_data"
@@ -24,7 +24,7 @@ group = "discovery"
 description = "JpcmciPlus on MultiEnvironmentData"
 status = "done"
 owner = "context"
-notes = "conformance/tigramite/jpcmci_plus_two_env"
+notes = "conformance/discovery/jpcmci_plus_two_env"
 
 [[capabilities]]
 id = "context.rpcmci"

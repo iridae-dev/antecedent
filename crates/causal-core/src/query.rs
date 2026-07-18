@@ -901,7 +901,7 @@ pub struct ChangeAttributionQuery {
 }
 
 impl ChangeAttributionQuery {
-    /// Construct with Shapley Monte Carlo allocation (common DoWhy-GCM path).
+    /// Construct with Shapley Monte Carlo allocation (common pinned baseline-GCM path).
     #[must_use]
     pub fn new(
         outcome: VariableId,

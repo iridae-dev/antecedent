@@ -5,7 +5,7 @@
 
 ## Context
 
-DESIGN.md requires J-PCMCI+, RPCMCI, Tigramite effects parity, linear
+DESIGN.md requires J-PCMCI+, RPCMCI, pinned baseline effects parity, linear
 temporal mediation, and panel/multi-env refinements without stubs.
 
 ## Decision

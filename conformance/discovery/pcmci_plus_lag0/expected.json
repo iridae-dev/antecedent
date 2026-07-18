@@ -1,0 +1,77 @@
+{
+  "true_parents": [
+    {
+      "source": "x",
+      "source_lag": 1,
+      "target": "y",
+      "target_lag": 0
+    },
+    {
+      "source": "x",
+      "source_lag": 0,
+      "target": "y",
+      "target_lag": 0
+    }
+  ],
+  "tolerance_class": "Exact",
+  "max_lag": 1,
+  "min_lag": 0,
+  "alpha": 0.05,
+  "fdr": false,
+  "n": 500,
+  "scm": "x_t ~ N(0,1); y_t = 0.8*x_{t-1} + 0.5*x_t + 0.2*N(0,1); seed=0",
+  "generation": {
+    "script": "scripts/conformance/generate_tigramite_pcmci_plus_lag0.py",
+    "baseline_pin": "parity/baselines/tigramite.toml",
+    "env": "uv run --python 3.12 --with numpy --with tigramite==5.2.1.30"
+  },
+  "reference": {
+    "project": "tigramite",
+    "available": true,
+    "version": "5.2.1.30",
+    "commit": "5a8768754e6103755b006e9357e21c1a58534927",
+    "command": "uv run --python 3.12 --with numpy --with tigramite==5.2.1.30",
+    "note": "black-box PCMCI+; Meek R4 may add extra orientations on our side",
+    "outputs": {
+      "graph_shape": [
+        2,
+        2,
+        2
+      ],
+      "recovered_parents": [
+        {
+          "source": "x",
+          "source_lag": 1,
+          "target": "y",
+          "target_lag": 0
+        }
+      ],
+      "graph_links": [
+        {
+          "source": "x",
+          "source_lag": 0,
+          "target": "y",
+          "target_lag": 0,
+          "mark": "-->"
+        },
+        {
+          "source": "x",
+          "source_lag": 1,
+          "target": "y",
+          "target_lag": 0,
+          "mark": "-->"
+        },
+        {
+          "source": "y",
+          "source_lag": 0,
+          "target": "x",
+          "target_lag": 0,
+          "mark": "<--"
+        }
+      ],
+      "alpha": 0.05,
+      "max_lag": 1,
+      "pin_note": "PyPI 5.2.1.30"
+    }
+  }
+}

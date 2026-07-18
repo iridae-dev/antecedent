@@ -10,8 +10,8 @@
 - Contributions require Developer Certificate of Origin (DCO) sign-off.
 - No CLA initially.
 - Machine-readable algorithm provenance under `provenance/`.
-- Clean-implementation rules: no source translation from Tigramite or
- line-by-line DoWhy ports.
+- Clean-implementation rules: no source translation from pinned baseline or
+ line-by-line pinned baseline ports.
 
 ## Consequences
 

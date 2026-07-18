@@ -1,7 +1,7 @@
 //! conformance: propensity IPW, IV/2SLS, front-door two-stage.
 //!
 //! Fixtures under `conformance/estimate/*` are clean-room synthetic SCMs generated inline
-//! (deterministic from a fixed seed) — independent of any `DoWhy` install or CSV fixture. Each
+//! (deterministic from a fixed seed) — independent of any `pinned baseline` install or CSV fixture. Each
 //! test checks `|estimate.ate - expected.true_effect| < expected.tolerance`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

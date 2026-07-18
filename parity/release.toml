@@ -5,7 +5,7 @@ library = "causal"
 [[capabilities]]
 id = "release.parity_closure"
 status = "done"
-notes = "Shipped DoWhy/Tigramite rows are done; remaining DESIGN chapters are pending + TODO.md (no waiver vocabulary)"
+notes = "Shipped pinned baseline/pinned baseline rows are done; remaining DESIGN chapters are pending + TODO.md (no waiver vocabulary)"
 
 [[capabilities]]
 id = "release.graph_dot_json"

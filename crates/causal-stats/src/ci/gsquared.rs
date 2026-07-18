@@ -188,7 +188,7 @@ fn g_squared_statistic(
     if !any {
         return Err(StatsError::Shape { message: "empty stratified contingency" });
     }
-    // Per-stratum dof sums (rows-1)(cols-1) over nonempty strata (pgmpy/DoWhy-style);
+    // Per-stratum dof sums (rows-1)(cols-1) over nonempty strata (pgmpy/pinned baseline-style);
     // a stratum with constant X or Y contributes 0. Floor the TOTAL at 1 to avoid a
     // df=0 chi-square.
     Ok((g_total, df_total.max(1.0)))

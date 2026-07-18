@@ -68,16 +68,16 @@ for path in [
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")
 
-# Coarse Dowhy rows must be done when gated
-dowhy = (root / "parity/dowhy.toml").read_text()
-for cid in ("dowhy.gcm", "dowhy.do_sampling"):
+# Domain inventory rows
+estimate_inv = (root / "parity/estimate.toml").read_text()
+for cid in ("gcm.surface", "gcm.do_sampling"):
     block = None
-    for b in re.split(r"\n\[\[capabilities\]\]\n", dowhy)[1:]:
+    for b in re.split(r"\n\[\[capabilities\]\]\n", estimate_inv)[1:]:
         if re.search(rf'^id\s*=\s*"{cid}"', b, re.M):
             block = b
             break
     if not block:
-        missing.append(f"{cid} missing from dowhy.toml")
+        missing.append(f"{cid} missing from estimate.toml")
         continue
     m = re.search(r'^status\s*=\s*"([^"]*)"', block, re.M)
     if not m or m.group(1) != "done":

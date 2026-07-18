@@ -253,7 +253,7 @@ pub(crate) fn noise_replace_refute(
 }
 
 /// Two-sided p-value of observing `hypothesized` under a normal fit to `samples`
-/// (DoWhy-style refuter significance test). Degenerate spread compares means directly.
+/// (pinned baseline-style refuter significance test). Degenerate spread compares means directly.
 pub(crate) fn replicate_p_value(samples: &[f64], hypothesized: f64) -> f64 {
     if samples.len() < 2 {
         return 1.0;

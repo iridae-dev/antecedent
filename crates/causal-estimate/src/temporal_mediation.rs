@@ -207,7 +207,7 @@ fn ols_fit(
     Ok(fit.coefficients)
 }
 
-/// Temporal effect surface aligning with Tigramite (direct / total / mediated / conditional).
+/// Temporal effect surface aligning with pinned baseline (direct / total / mediated / conditional).
 #[derive(Clone, Debug)]
 pub struct TemporalEffectSurface {
     /// Total effect.
@@ -221,7 +221,7 @@ pub struct TemporalEffectSurface {
 }
 
 impl TemporalMediationEstimator {
-    /// Convenience: return the full Tigramite-style effect surface.
+    /// Convenience: return the full pinned baseline-style effect surface.
     ///
     /// # Errors
     ///

@@ -28,8 +28,8 @@ This project is independently implemented from published papers, specifications,
 and public behavior. Do **not**:
 
 - copy or translate source, comments, docstrings, tests, or notebooks from
- Tigramite;
-- translate DoWhy code line by line;
+ pinned external baselines;
+- translate pinned external baselines code line by line;
 - commit upstream GPL source, translated GPL tests, or fixtures with unclear
  redistribution status.
 

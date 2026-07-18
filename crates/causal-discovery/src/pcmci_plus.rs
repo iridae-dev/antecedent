@@ -1,6 +1,6 @@
 //! PCMCI+ returning a temporal CPDAG (DESIGN.md §13.4–13.5).
 //!
-//! Implements Runge (2020) / tigramite `run_pcmciplus`:
+//! Implements Runge (2020) / pinned baseline `run_pcmciplus`:
 //! 1. Lagged-only PC1 skeleton \(\widehat{\mathcal{B}}^-\).
 //! 2. Contemporaneous MCI phase with conditioning on contemp neighbors plus lagged parents.
 //! 3. Majority collider orientation (sepset subset re-tests) with out-of-band conflicts.
@@ -52,7 +52,7 @@ pub struct PcmciPlus {
     /// Shared engine (`min_lag` typically 0).
     pub engine: PcmciEngine,
     /// Multiple-testing adjustment (`None` = off). Contemporaneous links are
-    /// excluded from the family by default (tigramite).
+    /// excluded from the family by default (pinned baseline).
     pub fdr: Option<FdrAdjustment>,
 }
 
@@ -317,7 +317,7 @@ pub(crate) fn lagged_pc1_parents(
     Ok((parents, iters, tests, sep))
 }
 
-/// Contemporaneous + lagged MCI skeleton (Runge 2020 Alg. 2 / tigramite `contemp_conds`).
+/// Contemporaneous + lagged MCI skeleton (Runge 2020 Alg. 2 / pinned baseline `contemp_conds`).
 ///
 /// Initializes adjacencies with \(\widehat{\mathcal{B}}^-\) lagged parents plus all
 /// contemporaneous pairs; removes edges by PC1-style tests whose contemporaneous
@@ -496,7 +496,7 @@ pub(crate) fn contemp_mci_phase(
 
 /// Majority collider orientation with contemporaneous-neighbor subset re-tests.
 ///
-/// Matches tigramite `contemp_collider_rule='majority'`. Conflicts / ambiguous triples
+/// Matches pinned baseline `contemp_collider_rule='majority'`. Conflicts / ambiguous triples
 /// are recorded out-of-band (`conflict_edges`) and conflicting edges are marked `x-x`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn orient_majority_colliders(

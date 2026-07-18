@@ -1,7 +1,28 @@
 {
- "true_effect": 2.0,
- "tolerance": 0.5,
- "identifier": "iv",
- "estimator": "iv.wald",
- "notes": "Wald IV"
+  "true_effect": 2.0,
+  "tolerance": 0.5,
+  "identifier": "iv",
+  "estimator": "iv.wald",
+  "notes": "Wald IV",
+  "generation": {
+    "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py"
+  },
+  "reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "note": "black-box execution only; no source translation",
+    "outputs": {
+      "method": "iv.instrumental_variable",
+      "estimate": 2.078498199270674,
+      "se": 0.1007308466303174,
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nNo such variable(s) found!\n\n### Estimand : 2\nEstimand name: iv\nEstimand expression:\n \u23a1                   -1\u23a4\n \u23a2 d      \u239b d       \u239e  \u23a5\nE\u23a2\u2500\u2500\u2500\u2500(y)\u22c5\u239c\u2500\u2500\u2500\u2500([t])\u239f  \u23a5\n \u23a3d[z]    \u239dd[z]     \u23a0  \u23a6\nEstimand assumption 1, As-if-random: If U\u2192\u2192y then \u00ac(U \u2192\u2192{z})\nEstimand assumption 2, Exclusion: If we remove {z}\u2192{t}, then \u00ac({z}\u2192y)\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand ",
+      "n": 800,
+      "seed": 7
+    }
+  }
 }

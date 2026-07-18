@@ -73,7 +73,7 @@ impl ConditionalIndependenceTest for OracleCi {
 ///
 /// **Not** KSG/CMIknn: the statistic is −(mean k-th NN distance) in the joint
 /// `(X,Y,Z)` space — a generic dependence proxy for permutation testing. Factory
-/// ids `cmi_knn` / `knn_cmi` are retained for Tigramite parity naming.
+/// ids `cmi_knn` / `knn_cmi` are retained for pinned baseline parity naming.
 #[derive(Clone, Debug)]
 pub struct KnnCmi {
     /// Neighbors.

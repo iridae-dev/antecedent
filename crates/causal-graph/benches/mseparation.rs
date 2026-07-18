@@ -85,6 +85,8 @@ fn bench_msep(c: &mut Criterion) {
 
     let pag_s = sparse_pag(100);
     let pag_t = stress_pag(60);
+    // Diameter of the sparse chain is 100 nodes; budget must cover it or the
+    // definite-status search correctly returns SearchBudgetExhausted.
     c.bench_function("msep_pag_sparse_100", |b| {
         b.iter(|| {
             let _ = pag_s
@@ -92,8 +94,8 @@ fn bench_msep(c: &mut Criterion) {
                     black_box(DenseNodeId::from_raw(0)),
                     black_box(DenseNodeId::from_raw(99)),
                     black_box(&[]),
-                    32,
-                    16,
+                    64,
+                    128,
                 )
                 .unwrap();
         });
@@ -106,8 +108,8 @@ fn bench_msep(c: &mut Criterion) {
                     black_box(DenseNodeId::from_raw(0)),
                     black_box(DenseNodeId::from_raw(59)),
                     black_box(&[]),
-                    64,
-                    16,
+                    128,
+                    128,
                 )
                 .unwrap();
         });

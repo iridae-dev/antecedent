@@ -21,4 +21,4 @@ P3.5 additions (DESIGN.md §28.7):
 - `python_boundary` — DOT/`dag_from_dot` + schema names (Rust side of FFI)
 - `arrow_metadata` — malformed Arrow `RecordBatch` → `tabular_from_record_batch`
 
-Targets exercise core construction; they must not import DoWhy/Tigramite source.
+Targets exercise core construction; they must not import pinned external baseline source.

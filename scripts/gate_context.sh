@@ -53,8 +53,8 @@ for c in caps(text):
         missing.append(f"{c['id']} evidence missing: {ev}")
 
 for path in [
-    "conformance/tigramite/jpcmci_plus_two_env/expected.json",
-    "conformance/tigramite/rpcmci_two_regime/expected.json",
+    "conformance/discovery/jpcmci_plus_two_env/expected.json",
+    "conformance/discovery/rpcmci_two_regime/expected.json",
     "conformance/context/temporal_mediation/expected.json",
     "conformance/context/conditional_effect/expected.json",
     "conformance/context/prediction_smoke/expected.json",
@@ -67,7 +67,7 @@ for path in [
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")
 
-# Coarse inventory flips
+# Domain inventory rows
 def require_done(path, cid):
     text = (root / path).read_text()
     block = None
@@ -83,12 +83,12 @@ def require_done(path, cid):
         missing.append(f"{cid} must be status=done when Context gate passes")
 
 for cid in (
-    "tigramite.discovery.jpcmci_plus",
-    "tigramite.discovery.rpcmci",
-    "tigramite.effects",
+    "discovery.jpcmci_plus",
+    "discovery.rpcmci",
+    "discovery.effects",
 ):
-    require_done("parity/tigramite.toml", cid)
-require_done("parity/dowhy.toml", "dowhy.estimate.conditional")
+    require_done("parity/discovery.toml", cid)
+require_done("parity/estimate.toml", "estimate.conditional")
 
 if missing:
     print("Context gate FAILED:")

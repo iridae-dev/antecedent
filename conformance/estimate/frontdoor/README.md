@@ -1,7 +1,7 @@
 # front-door two-stage conformance fixture
 
 Generated inline by `crates/causal/tests/estimate_conformance.rs` — no
-CSV, no DoWhy install. Clean-room synthetic SCM, deterministic from a fixed
+CSV, no pinned baseline install. Clean-room synthetic SCM, deterministic from a fixed
 `ExecutionContext` seed.
 
 Comparison: `|estimate.ate - true_effect| < tolerance` (finite-sample Monte

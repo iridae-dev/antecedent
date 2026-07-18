@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-DoWhy-GCM fits mechanisms on a graph and samples under interventions and
+GCM fits mechanisms on a graph and samples under interventions and
 counterfactual worlds. A natural port clones the SCM per intervention or walks
 the semantic graph per draw. DESIGN.md §15.6 / §16.1 forbid both on the hot path.
 

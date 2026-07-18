@@ -7,4 +7,4 @@ Clean-room synthetic SCM generated inline by
 
 ## Expected summary
 
-Top-level keys: `estimator, identifier, notes, tolerance, true_effect` (5 fields).
+Top-level keys: `estimator, generation, identifier, notes, reference, tolerance, true_effect` (7 fields).

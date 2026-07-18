@@ -188,7 +188,7 @@ impl TemporalCpdag {
         Ok(())
     }
 
-    /// Mark an existing edge as a Tigramite `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
+    /// Mark an existing edge as a pinned baseline `x-x` conflict ([`Endpoint::Conflict`]–[`Endpoint::Conflict`]).
     ///
     /// # Errors
     ///

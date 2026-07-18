@@ -1,0 +1,6 @@
+# Pointer into conformance/ for masked MCI oracle.
+id = "discovery.masked_mci_lag1"
+capability_ids = ["discovery.data.masks"]
+fixture_dir = "conformance/discovery/masked_mci_lag1"
+tolerance_class = "Exact"
+baseline_pin = "parity/baselines/tigramite.toml"

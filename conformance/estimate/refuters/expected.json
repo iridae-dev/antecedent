@@ -1,25 +1,67 @@
 {
- "tolerance_class": "Exact",
- "validators": [
- "placebo_treatment",
- "random_common_cause",
- "bootstrap",
- "unobserved_common_cause",
- "overlap",
- "overlap_rule",
- "data_subset",
- "dummy_outcome",
- "evalue",
- "graph",
- "linear_sensitivity",
- "partial_linear_sensitivity",
- "nonparametric_sensitivity",
- "reisz_sensitivity",
- "validation_suite"
- ],
- "notes": "Pinned validator id set exercised by crates/causal-validate/tests/refuters.rs; outcomes are informative smoke (not StableFloat point estimates).",
- "generation": {
- "script": "crates/causal-validate/tests/refuters.rs",
- "baseline_pin": "parity/dowhy.toml"
- }
+  "tolerance_class": "Exact",
+  "validators": [
+    "placebo_treatment",
+    "random_common_cause",
+    "bootstrap",
+    "unobserved_common_cause",
+    "overlap",
+    "overlap_rule",
+    "data_subset",
+    "dummy_outcome",
+    "evalue",
+    "graph",
+    "linear_sensitivity",
+    "partial_linear_sensitivity",
+    "nonparametric_sensitivity",
+    "reisz_sensitivity",
+    "validation_suite"
+  ],
+  "notes": "Pinned validator id set exercised by crates/causal-validate/tests/refuters.rs; outcomes are informative smoke (not StableFloat point estimates).",
+  "generation": {
+    "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py"
+  },
+  "reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "note": "black-box execution only; no source translation",
+    "outputs": {
+      "method": "backdoor.linear_regression",
+      "refutations": {
+        "placebo_treatment_refuter": {
+          "new_effect": 0.0,
+          "estimated_effect": 2.037513004155971,
+          "refutation_type": "Refute: Use a Placebo Treatment",
+          "summary": "Refute: Use a Placebo Treatment\nEstimated effect:2.037513004155971\nNew effect:0.0\np value:1.0\n"
+        },
+        "random_common_cause": {
+          "new_effect": 2.0376550715895574,
+          "estimated_effect": 2.037513004155971,
+          "refutation_type": "Refute: Add a random common cause",
+          "summary": "Refute: Add a random common cause\nEstimated effect:2.037513004155971\nNew effect:2.0376550715895574\np value:0.8799999999999999\n"
+        },
+        "data_subset_refuter": {
+          "new_effect": 2.040557277744338,
+          "estimated_effect": 2.037513004155971,
+          "refutation_type": "Refute: Use a subset of data",
+          "summary": "Refute: Use a subset of data\nEstimated effect:2.037513004155971\nNew effect:2.040557277744338\np value:0.8600000000000001\n"
+        },
+        "dummy_outcome_refuter": {
+          "new_effect": null,
+          "estimated_effect": 2.037513004155971,
+          "refutation_type": "dummy_outcome_refuter",
+          "summary": "[<dowhy.causal_refuter.CausalRefutation object at 0x11a011460>]"
+        },
+        "add_unobserved_common_cause": {
+          "error": "invalid index to scalar variable."
+        }
+      },
+      "n": 800
+    }
+  }
 }

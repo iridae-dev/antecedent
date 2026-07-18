@@ -21,7 +21,7 @@ use causal_discovery::{
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
-fn series(n: usize) -> TimeSeriesData {
+fn two_regime_series(n: usize) -> TimeSeriesData {
     let mut b = CausalSchemaBuilder::new();
     for name in ["x", "y"] {
         b.add_variable(
@@ -37,9 +37,15 @@ fn series(n: usize) -> TimeSeriesData {
     let schema = b.build().unwrap();
     let mut x = vec![0.0; n];
     let mut y = vec![0.0; n];
+    let mid = n / 2;
     for t in 1..n {
-        x[t] = 0.4 * x[t - 1] + 0.05 * (t as f64).sin();
-        y[t] = 0.6 * x[t] + 0.1 * y[t - 1];
+        if t < mid {
+            x[t] = 0.6 * x[t - 1] + 0.05 * (t as f64).sin();
+            y[t] = 0.5 * x[t] + 0.1 * y[t - 1];
+        } else {
+            x[t] = 0.2 * x[t - 1] + 0.05 * (t as f64).cos();
+            y[t] = -0.4 * x[t] + 0.1 * y[t - 1];
+        }
     }
     let cols = vec![
         OwnedColumn::Float64(
@@ -70,53 +76,57 @@ fn bench_rpcmci(c: &mut Criterion) {
         max_cond_size: 1,
         ..DiscoveryConstraints::default()
     });
-    let alg = Rpcmci::new().with_min_regime_len(30).with_pcmci_plus(plus);
+    // Caller-supplied labels: no alternating collapse.
+    let alg = Rpcmci::new()
+        .with_min_regime_len(30)
+        .with_alternating_iters(0)
+        .with_pcmci_plus(plus);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
 
     c.bench_function("rpcmci_sparse_120", |b| {
-        let data = series(120);
+        let data = two_regime_series(120);
         let assign = two_regime_half_split(120);
         b.iter(|| {
             let mut ws = DiscoveryWorkspace::default();
             let r =
                 alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(1)).unwrap();
-            black_box(r.graphs.len());
+            black_box(r.graphs.graphs.len());
         });
     });
 
     c.bench_function("rpcmci_stress_240", |b| {
-        let data = series(240);
+        let data = two_regime_series(240);
         let assign = two_regime_half_split(240);
         b.iter(|| {
             let mut ws = DiscoveryWorkspace::default();
             let r =
                 alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2)).unwrap();
-            black_box(r.graphs.len());
+            black_box(r.graphs.graphs.len());
         });
     });
 
     // Gate `--test` path: single timed iteration must stay under soft budgets.
     {
-        let data = series(120);
+        let data = two_regime_series(120);
         let assign = two_regime_half_split(120);
         let mut ws = DiscoveryWorkspace::default();
         let t0 = Instant::now();
         let r = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(1)).unwrap();
         let elapsed = t0.elapsed();
-        assert_eq!(r.graphs.len(), 2);
+        assert_eq!(r.graphs.graphs.len(), 2);
         assert!(
             elapsed < SPARSE_BUDGET,
             "rpcmci_sparse_120 exceeded soft budget: {elapsed:?} >= {SPARSE_BUDGET:?}"
         );
     }
     {
-        let data = series(240);
+        let data = two_regime_series(240);
         let assign = two_regime_half_split(240);
         let mut ws = DiscoveryWorkspace::default();
         let t0 = Instant::now();
         let r = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2)).unwrap();
         let elapsed = t0.elapsed();
-        assert_eq!(r.graphs.len(), 2);
+        assert_eq!(r.graphs.graphs.len(), 2);
         assert!(
             elapsed < STRESS_BUDGET,
             "rpcmci_stress_240 exceeded soft budget: {elapsed:?} >= {STRESS_BUDGET:?}"

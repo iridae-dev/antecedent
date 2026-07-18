@@ -1,6 +1,11 @@
 {
- "targets": ["x", "y"],
- "changed": ["y"],
- "method": "mean_diff",
- "significance_level": 0.05
+  "targets": [
+    "x",
+    "y"
+  ],
+  "changed": [
+    "y"
+  ],
+  "method": "mean_diff",
+  "significance_level": 0.05
 }

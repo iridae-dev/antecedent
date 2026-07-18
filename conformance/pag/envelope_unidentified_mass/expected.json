@@ -1,4 +1,4 @@
 {
- "require_mass_accounted": true,
- "tolerance_class": "Exact"
+  "require_mass_accounted": true,
+  "tolerance_class": "Exact"
 }

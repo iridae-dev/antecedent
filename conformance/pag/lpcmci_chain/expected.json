@@ -24,5 +24,44 @@
   ],
   "max_pending_circles": 64,
   "tolerance_class": "Exact",
-  "notes": "P4.3 Alg.1 LPCMCI; structure pin (nodes + algorithm id). Full tigramite edge-set equality still optional."
+  "notes": "P4.3 Alg.1 LPCMCI; structure pin + recorded upstream edge marks.",
+  "n": 400,
+  "scm": "y_t = 0.7 * x_t + 0.2 N(0,1); seed=3",
+  "generation": {
+    "script": "scripts/conformance/generate_tigramite_lpcmci_chain.py",
+    "baseline_pin": "parity/baselines/tigramite.toml",
+    "env": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30"
+  },
+  "reference": {
+    "project": "tigramite",
+    "available": true,
+    "version": "5.2.1.30",
+    "commit": "5a8768754e6103755b006e9357e21c1a58534927",
+    "command": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30",
+    "note": "black-box execution only; no source translation",
+    "outputs": {
+      "graph_shape": [
+        2,
+        2,
+        2
+      ],
+      "links": [
+        {
+          "source": "y",
+          "target": "x",
+          "lag": 0,
+          "mark": "o-o"
+        },
+        {
+          "source": "x",
+          "target": "y",
+          "lag": 0,
+          "mark": "o-o"
+        }
+      ],
+      "alpha": 0.05,
+      "max_lag": 1,
+      "pin_note": "PyPI 5.2.1.25 unavailable; fixture generated with 5.2.1.30"
+    }
+  }
 }

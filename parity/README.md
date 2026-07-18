@@ -1,24 +1,33 @@
 # Parity manifests
 
-Pinned reference baselines and assignable capability inventories for DoWhy and
-Tigramite. See DESIGN.md §26 and ADR 0009.
+Domain capability inventories and pinned external baseline oracles. See DESIGN.md
+§26 and ADR 0009.
 
-- [dowhy.toml](dowhy.toml) — DoWhy v0.14 pin and inventory
-- [tigramite.toml](tigramite.toml) — Tigramite 5.2.1.25 pin and inventory
-- [bayesian.toml](bayesian.toml) — Bayesian core inventory
-- [gcm.toml](gcm.toml) — GCM / counterfactual inventory
-- [pag.toml](pag.toml) — PAG / LPCMCI inventory
-- [context.toml](context.toml) — Context / regime / effects inventory
-- [attribution.toml](attribution.toml) — Attribution inventory
-- [design_state.toml](design_state.toml) — Design / incremental-state inventory
-- [release.toml](release.toml) — Release-prep / parity-closure inventory
+**Inventories** (status: `pending` | `in_progress` | `done`):
 
-Status values: `pending`, `in_progress`, `done`.
+- [estimate.toml](estimate.toml) — identify / estimate / refute
+- [discovery.toml](discovery.toml) — temporal discovery / CI / graphs / effects
+- [bayesian.toml](bayesian.toml) — Bayesian core
+- [gcm.toml](gcm.toml) — GCM / counterfactual
+- [pag.toml](pag.toml) — PAG / LPCMCI
+- [context.toml](context.toml) — Context / regime / effects
+- [attribution.toml](attribution.toml) — Attribution
+- [design_state.toml](design_state.toml) — Design / incremental-state
+- [release.toml](release.toml) — Release-prep / parity-closure
+
+**Baseline pins** (oracle metadata only — not inventories):
+
+- [baselines/dowhy.toml](baselines/dowhy.toml)
+- [baselines/tigramite.toml](baselines/tigramite.toml)
+
+Recorded black-box outputs live under `conformance/**/expected.json` in a
+`reference` block (`project`, pin, command, `outputs`). Runtime and CI never
+install upstream packages. Regeneration is out-of-repo; keep the frozen
+`reference.command` as the audit trail.
 
 Unfinished DESIGN chapters stay `pending` and must appear on `TODO.md`. Permanent
-product contracts (for example native GPDC, no DoWhy secondary package mirror)
-are documented in DESIGN.md and marked `done`. There is no waiver / deviation
-status.
+product contracts are documented in DESIGN.md and marked `done`. There is no
+waiver / deviation status.
 
 Do not mark a capability `done` without conformance fixtures under
 `conformance/` **or** a named calibration/unit harness recorded in the
@@ -35,6 +44,7 @@ bash scripts/gate_pag.sh
 bash scripts/gate_context.sh
 bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
+bash scripts/gate_upstream_names.sh
 bash scripts/gate_release.sh
 ```
 

@@ -7,4 +7,4 @@ Covers every refuter and sensitivity path via `ValidationSuite::full_effect`.
 
 ## Expected summary
 
-Top-level keys: `generation, notes, tolerance_class, validators` (4 fields).
+Top-level keys: `generation, notes, reference, tolerance_class, validators` (5 fields).

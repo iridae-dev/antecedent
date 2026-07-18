@@ -8,7 +8,7 @@ use crate::common::{RefutationProblem, RefutationReport, complete_case_rows, mas
 use crate::error::ValidationError;
 
 /// Default pass threshold: E ≥ 2 is commonly read as moderate robustness to unmeasured
-/// confounding (VanderWeele & Ding). DoWhy reports the E-value as a continuous diagnostic
+/// confounding (VanderWeele & Ding). pinned baseline reports the E-value as a continuous diagnostic
 /// without a pass/fail gate; this library uses 2.0 so `ValidationSuite` verdicts are not
 /// vacuous (the formula always yields E ≥ 1, so threshold 1.0 would pass every estimate,
 /// including a true null).
@@ -44,7 +44,7 @@ impl EValue {
         Self { threshold: DEFAULT_EVALUE_THRESHOLD }
     }
 
-    /// Explicit pass threshold (DoWhy-style: report-only use `threshold = 0.0` or ignore
+    /// Explicit pass threshold (pinned baseline-style: report-only use `threshold = 0.0` or ignore
     /// `passed` and read [`RefutationReport::comparison`]).
     #[must_use]
     pub fn with_threshold(threshold: f64) -> Self {

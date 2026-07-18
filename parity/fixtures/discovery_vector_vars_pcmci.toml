@@ -1,0 +1,5 @@
+id = "discovery.vector_vars_pcmci"
+capability_ids = ["discovery.data.vector_variables"]
+fixture_dir = "conformance/discovery/vector_vars_pcmci"
+tolerance_class = "Exact"
+baseline_pin = "parity/baselines/tigramite.toml"

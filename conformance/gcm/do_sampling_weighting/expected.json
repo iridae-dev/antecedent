@@ -1,1 +1,23 @@
-{"expected_treated_mean":2.0,"tolerance_class":"Exact"}
+{
+  "expected_treated_mean": 2.0,
+  "tolerance_class": "Exact",
+  "generation": {
+    "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py"
+  },
+  "reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "note": "black-box execution only; no source translation",
+    "outputs": {
+      "method": "dowhy.gcm.average_causal_effect",
+      "estimate": 1.96210847135788,
+      "n": 400,
+      "seed": 7
+    }
+  }
+}

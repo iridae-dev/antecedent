@@ -1,0 +1,46 @@
+{
+  "true_ate": 2.0,
+  "reference_ate": 1.9999999999999951,
+  "reference_source": "DoWhy black-box estimate",
+  "tolerance_class": "StableFloat",
+  "atol": 1e-10,
+  "rtol": 1e-08,
+  "adjustment_set": [
+    "z"
+  ],
+  "n": 200,
+  "scm": "y = 1 + 2*t + 3*z; t = 1{z>0.5}; z = i/n",
+  "edges": [
+    [
+      "z",
+      "t"
+    ],
+    [
+      "z",
+      "y"
+    ],
+    [
+      "t",
+      "y"
+    ]
+  ],
+  "treatment": "t",
+  "outcome": "y",
+  "generation": {
+    "script": "scripts/conformance/generate_dowhy_linear_gaussian_ate.py",
+    "seed_note": "deterministic linspace confounder; no RNG",
+    "env": "optional: dowhy==0.14 in isolated venv"
+  },
+  "reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --with dowhy==0.14 --with numpy --with pandas python scripts/conformance/generate_dowhy_linear_gaussian_ate.py",
+    "note": "black-box execution only; no source translation",
+    "outputs": {
+      "estimate": 1.9999999999999951,
+      "method": "backdoor.linear_regression"
+    }
+  }
+}

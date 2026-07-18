@@ -7,7 +7,7 @@
 /// Scratch for residualization and Pearson correlation.
 #[derive(Clone, Debug, Default)]
 pub struct ParCorrWorkspace {
-    /// Design matrix column-major `[Z…]` (`n * p`); no intercept (tigramite parity).
+    /// Design matrix column-major `[Z…]` (`n * p`); no intercept (pinned baseline parity).
     pub design: Vec<f64>,
     /// `XtX` / Gram (`p^2`).
     pub gram: Vec<f64>,
@@ -113,7 +113,7 @@ fn constant_column(css: f64, mean: f64, nf: f64) -> bool {
 }
 
 fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) {
-    // No intercept: matches tigramite ParCorr `numpy.linalg.lstsq` on Z only.
+    // No intercept: matches pinned baseline ParCorr `numpy.linalg.lstsq` on Z only.
     for (j, z) in z_cols.iter().enumerate() {
         let base = j * n;
         design[base..base + n].copy_from_slice(z);
@@ -517,7 +517,7 @@ mod tests {
 
     #[test]
     fn parcorr_removes_confounder() {
-        // Mean-zero confounder: without an intercept column (tigramite parity),
+        // Mean-zero confounder: without an intercept column (pinned baseline parity),
         // residualization matches classical ParCorr on centered series.
         let n = 200usize;
         let z: Vec<f64> = (0..n).map(|i| ((i as f64) - 99.5) / 50.0).collect();

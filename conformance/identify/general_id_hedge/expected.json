@@ -1,0 +1,26 @@
+{
+  "tolerance_class": "Exact",
+  "case": "nonidentifiable_or_unidentified",
+  "treatment": "t",
+  "outcome": "y",
+  "graph_dot": "digraph { t -> y; U[latent]; U -> t; U -> y; }",
+  "expected_status_family": "unidentified",
+  "generation": {
+    "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py"
+  },
+  "notes": "Pre-recorded identify() oracle for pending general ID / ID-IDC work. Rust gate will compare when estimate.identify.general_id ships.",
+  "reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "note": "black-box execution only; no source translation",
+    "outputs": {
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nNo such variable(s) found!\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nNo such variable(s) found!\n",
+      "estimand_type": "EstimandType.NONPARAMETRIC_ATE"
+    }
+  }
+}

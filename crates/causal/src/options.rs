@@ -14,7 +14,7 @@ pub enum FdrControl {
 }
 
 impl FdrControl {
-    /// Benjamini–Hochberg with tigramite's contemporaneous exclusion.
+    /// Benjamini–Hochberg with pinned baseline's contemporaneous exclusion.
     #[must_use]
     pub const fn bh() -> Self {
         Self::On(FdrAdjustment::bh())

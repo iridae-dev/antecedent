@@ -1,7 +1,7 @@
 //! Efficient backdoor adjustment-set selection.
 //!
 //! Selects the *optimal* adjustment set `O` (Henckel, Perković & Maathuis;
-//! the construction `DoWhy`'s efficient backdoor implements): with
+//! the construction `pinned baseline`'s efficient backdoor implements): with
 //! `cn = de(T) ∩ an(Y) \ {T}` (the nodes on proper causal paths from `T` to
 //! `Y`, including `Y`), `forb = de(cn) ∪ {T}`, the O-set is
 //! `O = pa(cn) \ forb`. Among all valid backdoor sets in a fully observed

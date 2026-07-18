@@ -17,11 +17,11 @@ use crate::result::{
 
 /// Optionally FDR-adjust then retain links whose (adjusted) p-value is `<= alpha`.
 ///
-/// Matches tigramite's significance boundary (`p <= alpha` kept). Raw p-values are
+/// Matches pinned baseline's significance boundary (`p <= alpha` kept). Raw p-values are
 /// preserved on [`ScoredLink::p_value`]; adjusted values are recorded on
 /// [`ScoredLink::adjusted_p_value`] and drive retention when FDR is configured.
 ///
-/// When `fdr.exclude_contemporaneous` is set (tigramite default), lag-0 links are
+/// When `fdr.exclude_contemporaneous` is set (pinned baseline default), lag-0 links are
 /// left unadjusted and thresholded on their raw p-values — only lagged tests enter
 /// the correction family (`get_corrected_pvalues`).
 #[must_use]
@@ -55,7 +55,7 @@ pub fn threshold_scored_links(
     scored
 }
 
-/// Backward-compatible BH toggle (excludes contemporaneous links, matching tigramite).
+/// Backward-compatible BH toggle (excludes contemporaneous links, matching pinned baseline).
 #[must_use]
 pub fn threshold_scored_links_bh(scored: Vec<ScoredLink>, fdr: bool, alpha: f64) -> Vec<ScoredLink> {
     threshold_scored_links(scored, fdr.then(FdrAdjustment::bh), alpha)
@@ -63,7 +63,7 @@ pub fn threshold_scored_links_bh(scored: Vec<ScoredLink>, fdr: bool, alpha: f64)
 
 /// Keep a contemporaneous undirected adjacency only when **both** directed tests survive.
 ///
-/// Tigramite symmetrizes lag-0 links: X—Y at τ=0 requires both X→Y and Y→X adjacency
+/// pinned baseline symmetrizes lag-0 links: X—Y at τ=0 requires both X→Y and Y→X adjacency
 /// survivors (intersection). Lagged links pass through unchanged. When both directions
 /// survive, the retained score uses the more conservative (max) p-value and the
 /// corresponding statistic.

@@ -4,7 +4,7 @@ Status: implementation design, revision 2
 
 Performance posture: correctness and performance are co-equal implementation requirements. Hot-path data layout, allocation behavior, vectorization, parallel execution, and benchmark budgets are designed and tested during feature development; there is no late project-wide optimization pass.
 
-Scope baseline: functional parity with DoWhy excluding EconML integration, functional parity with Tigramite, and a Bayesian-first extension that preserves frequentist parity. The project is a library and Python extension, not a hosted service, workflow system, dashboard, or deployment platform.
+Scope baseline: functional parity with pinned external estimate/discovery baselines (see parity/baselines/ and ADR 0009), excluding EconML integration, plus a Bayesian-first extension that preserves frequentist parity. The project is a library and Python extension, not a hosted service, workflow system, dashboard, or deployment platform.
 
 ## Status markers
 
@@ -119,7 +119,7 @@ Repository root (this workspace; not a nested `causal-rs/` directory):
     release.toml
     fixtures/
   conformance/
-    dowhy/ | tigramite/ | gcm/ | estimate/ | pag/ | …
+    estimate/ | discovery/ | gcm/ | pag/ | …
     gates/
   scripts/
     gate_*.sh                # release / inventory gates
@@ -331,9 +331,9 @@ Do not:
 
 ## 5. Data model [built]
 
-Completion criteria for this chapter: masked temporal MCI (`tigramite.data.masks`) and
-Tigramite-style vector-variable CI grouping (`tigramite.data.vector_variables`) are shipped
-and gated. Remaining data-path polish (Arrow fixed-size-list ingest, full Tigramite
+Completion criteria for this chapter: masked temporal MCI (`discovery.data.masks`) and
+pinned discovery baseline-style vector-variable CI grouping (`discovery.data.vector_variables`) are shipped
+and gated. Remaining data-path polish (Arrow fixed-size-list ingest, full pinned discovery baseline
 `mask_type` enum) is incremental and does not reopen this chapter.
 
 ### 5.1 Concrete dataset types
@@ -592,7 +592,7 @@ pub enum Endpoint {
     Tail,
     Arrow,
     Circle,
-    Conflict, // Tigramite `x`; CPDAG conflicts use Conflict–Conflict (`x-x`)
+    Conflict, // pinned discovery baseline `x`; CPDAG conflicts use Conflict–Conflict (`x-x`)
 }
 
 pub struct MarkedEdge<N> {
@@ -1200,7 +1200,7 @@ pub struct CiTestResult {
 
 The framework owns sample planning, sample-index caching, shuffle/bootstrap wrappers, constant-variable handling, and reusable workspaces. Individual tests implement a dependence statistic and, where available, an analytic reference distribution.
 
-Required Tigramite-parity tests:
+Required pinned discovery baseline-parity tests:
 
 - partial correlation;
 - robust/nonparanormal partial correlation;
@@ -1826,7 +1826,7 @@ pub trait Validator<A> {
 
 ### 18.2 Effect refuters
 
-Implement DoWhy-parity checks:
+Implement pinned estimate baseline-parity checks:
 
 - placebo treatment;
 - random common cause;
@@ -2608,20 +2608,20 @@ Parity is tracked in machine-readable manifests pinned to exact upstream referen
 Pinned baselines:
 
 ```text
-DoWhy v0.14
+pinned estimate baseline v0.14
 commit 178ecc9c690a02f2801c1f70da2695f5744186cc
 
-Tigramite stable 5.2.1.25
+pinned discovery baseline stable 5.2.1.25
 commit 5a8768754e6103755b006e9357e21c1a58534927
 
-Tigramite extended snapshot
+pinned discovery baseline extended snapshot
 commit ff3ff13e1481073b8c5833a6fde1c304627a208e
 ```
 
 ```toml
 [[capabilities]]
-id = "dowhy.estimator.linear_regression"
-upstream = "py-why/dowhy"
+id = "pinned estimate baseline.estimator.linear_regression"
+upstream = "py-why/pinned estimate baseline"
 upstream_ref = "178ecc9c690a02f2801c1f70da2695f5744186cc"
 category = "estimation"
 status = "pending"
@@ -2652,9 +2652,9 @@ Parity dimensions:
 - calibration where applicable;
 - performance workload coverage.
 
-Performance is not required to match an upstream implementation exactly, but every parity capability expected to be computationally material must name at least one representative benchmark. Comparative DoWhy/Tigramite timings are informative, not the sole target: an upstream implementation may itself be inefficient or may use a different numerical backend.
+Performance is not required to match an upstream implementation exactly, but every parity capability expected to be computationally material must name at least one representative benchmark. Comparative pinned estimate baseline/pinned discovery baseline timings are informative, not the sole target: an upstream implementation may itself be inefficient or may use a different numerical backend.
 
-### 26.1 DoWhy parity inventory
+### 26.1 Estimate / identify parity inventory
 
 Required capability groups:
 
@@ -2739,12 +2739,12 @@ Optional adapter parity:
 
 #### Secondary surfaces
 
-DoWhy’s secondary package (graph learners, transformers, interpreters, time-series
+pinned estimate baseline’s secondary package (graph learners, transformers, interpreters, time-series
 helpers as one grab-bag) is **not mirrored**. Equivalent capabilities are tracked
 as dedicated inventory IDs under discovery, transforms, effects, and facade
-workflows. `dowhy.secondary` is `done` under that contract.
+workflows. `estimate.secondary_surfaces` is `done` under that contract.
 
-### 26.2 Tigramite parity inventory
+### 26.2 Discovery / CI parity inventory
 
 #### Data processing
 
@@ -2848,8 +2848,8 @@ Repository rules:
 - implementation PRs cite papers, standards, or independent design notes;
 - every substantive algorithm has a machine-readable provenance record under `provenance/`;
 - provenance records truthfully disclose prior exposure to upstream implementations;
-- no copied or translated source, comments, docstrings, tests, or notebooks from Tigramite enter the repository;
-- DoWhy code is also not translated line by line despite its permissive license;
+- no copied or translated source, comments, docstrings, tests, or notebooks from pinned discovery baseline enter the repository;
+- pinned estimate baseline code is also not translated line by line despite its permissive license;
 - reference libraries may be executed as black-box comparators in isolated conformance tooling;
 - reference outputs are generated from public APIs and stored with version, command, environment, and fixture metadata;
 - unusual parity quirks require a written decision: match upstream, or accept a permanent product contract in DESIGN and mark the inventory row `done`;
@@ -2870,7 +2870,7 @@ papers = [
 ]
 
 upstream_implementations_observed = [
-  { project = "tigramite", exposure = "previous familiarity" }
+  { project = "pinned discovery baseline", exposure = "previous familiarity" }
 ]
 
 test_sources = [
@@ -2927,7 +2927,7 @@ These tests use fixed simulation budgets and tolerance bands. They run in schedu
 
 ### 28.4 Conformance tests
 
-Conformance fixtures live under `conformance/<domain>/` (e.g. `dowhy/`, `tigramite/`, `gcm/`,
+Conformance fixtures live under `conformance/<domain>/` (e.g. `pinned estimate baseline/`, `pinned discovery baseline/`, `gcm/`,
 `estimate/`, `pag/`, `bayesian/`, `attribution/`, `context/`, `design_state/`, `interchange/`,
 `manufacturing/`) plus shared `conformance/gates/`. Each case typically has a README, inputs, and
 `expected.json` (or equivalent) rather than a single global `paper_examples|generated|reference_outputs`
@@ -3220,7 +3220,7 @@ The following decisions are accepted and are no longer open.
 6. **Initial Bayesian GLM:** native Laplace approximation with a backend-neutral inference interface; external probabilistic-programming adapters are optional forever and not required for completion. (ADR 0006)
 7. **Supported versions:** Rust 1.85, edition 2024; CPython 3.11 through 3.14 for the first public release. (ADR 0007)
 8. **License and provenance:** `MIT OR Apache-2.0`, DCO sign-off, machine-readable algorithm provenance, and clean-implementation rules. (ADR 0008)
-9. **Parity baselines:** DoWhy v0.14 at commit `178ecc9c690a02f2801c1f70da2695f5744186cc`; Tigramite stable tag `5.2.1.25` at commit `5a8768754e6103755b006e9357e21c1a58534927`, plus extended snapshot commit `ff3ff13e1481073b8c5833a6fde1c304627a208e` for post-release features. (ADR 0009)
+9. **Parity baselines:** pinned estimate baseline v0.14 at commit `178ecc9c690a02f2801c1f70da2695f5744186cc`; pinned discovery baseline stable tag `5.2.1.25` at commit `5a8768754e6103755b006e9357e21c1a58534927`, plus extended snapshot commit `ff3ff13e1481073b8c5833a6fde1c304627a208e` for post-release features. (ADR 0009)
 10. **Tolerance policy:** fixture-specific `Exact`, `StableFloat`, `BackendSensitive`, `ResidualBased`, `MonteCarlo`, and `PosteriorDistribution` classes. There is no project-wide epsilon. (ADR 0010)
 11. **Performance posture:** performance and correctness are co-equal requirements. Hot paths require prepared/batch APIs, reusable workspaces, memory plans, scalar references, optimized differential tests, and benchmark gates from initial implementation. (ADR 0011)
 12. **GCM model:** compiled SCM with intervention overlays for sampling; no per-draw semantic-graph walk or SCM clone. (ADR 0012)
@@ -3236,8 +3236,8 @@ Record these decisions as ADRs before dependent code is merged. Changing one req
 
 The library reaches the described full scope when:
 
-- all required DoWhy capabilities except EconML integration are `done` in inventories (or omitted as permanently out of scope in DESIGN);
-- all required Tigramite capabilities are `done` in inventories (or omitted as permanently out of scope in DESIGN);
+- all required pinned estimate baseline capabilities except EconML integration are `done` in inventories (or omitted as permanently out of scope in DESIGN);
+- all required pinned discovery baseline capabilities are `done` in inventories (or omitted as permanently out of scope in DESIGN);
 - every remaining DESIGN chapter is either `done` or explicitly `pending` on `TODO.md`;
 - static, temporal, panel, and multi-environment data use the same facade workflow;
 - every causal query passes through explicit identification;

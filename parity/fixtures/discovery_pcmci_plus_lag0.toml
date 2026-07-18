@@ -1,0 +1,5 @@
+id = "discovery.pcmci_plus_lag0"
+capability_ids = ["discovery.pcmci_plus"]
+fixture_dir = "conformance/discovery/pcmci_plus_lag0"
+tolerance_class = "Exact"
+baseline_pin = "parity/baselines/tigramite.toml"

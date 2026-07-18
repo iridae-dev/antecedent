@@ -19,7 +19,7 @@ use crate::error::ValidationError;
 /// How the placebo treatment column is constructed.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum PlaceboMode {
-    /// Replace treatment with i.i.d. Gaussian noise (DoWhy default).
+    /// Replace treatment with i.i.d. Gaussian noise (pinned baseline default).
     #[default]
     RandomGaussian,
     /// Permute the observed treatment column (preserves the treatment marginal).
