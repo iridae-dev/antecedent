@@ -41,6 +41,7 @@ EVIDENCE = {
     "design_state.cache_budget": "crates/causal-state/src/store.rs",
     "design_state.facade": "crates/causal/tests/design_state.rs",
     "design_state.incremental.particle_graph_score": "crates/causal-state/src/graph_score.rs",
+    "design_state.rolling_mechanism_diagnostics": "crates/causal-state/src/mechanism_diag.rs",
 }
 
 missing = []
@@ -62,6 +63,7 @@ for path in [
     "conformance/design_state/incremental_ols_match/expected.json",
     "conformance/design_state/incremental_graph_score_match/expected.json",
     "conformance/design_state/incremental_particle_filter_match/expected.json",
+    "conformance/design_state/rolling_mechanism_diag_match/expected.json",
     "crates/causal-design/benches/design_rank.rs",
     "crates/causal-state/benches/state_append.rs",
     "benches/baselines/design_state.md",

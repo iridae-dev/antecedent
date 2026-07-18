@@ -1847,17 +1847,17 @@ A refuter result contains the transformed problem, repeated estimates, compariso
 
 ### 18.3 Discovery validation
 
-Implement:
+Implement (**all shipped** in `causal-validate`):
 
-- stability selection over resamples;
-- lag-window sensitivity;
-- alpha-threshold sensitivity;
-- CI-test sensitivity;
-- orientation stability;
-- regime stability;
-- environment holdout;
-- synthetic-null calibration;
-- false-positive checks using permuted or phase-randomized data.
+- stability selection over resamples (**shipped** — `BlockBootstrapStability`);
+- lag-window sensitivity (**shipped**);
+- alpha-threshold sensitivity (**shipped**);
+- CI-test sensitivity (**shipped**);
+- orientation stability (**shipped** — `OrientationStability` / PCMCI+);
+- regime stability (**shipped** — `RegimeStability` / RPCMCI, fixed caller labels);
+- environment holdout (**shipped** — `EnvironmentHoldout` / J-PCMCI+);
+- synthetic-null calibration (**shipped** — `SyntheticNullCalibration`; scheduled gate);
+- false-positive checks using permuted or phase-randomized data (**shipped** — `FalsePositiveCheck` + `causal-data` surrogates).
 
 ### 18.4 Bayesian workflow diagnostics
 
@@ -2011,7 +2011,7 @@ Incremental algorithms may maintain:
 - cached lagged sample indexes (**shipped**);
 - particle-filter state (**shipped** — bootstrap/SIR LGSSM in `causal-state`);
 - graph-score caches (**shipped** — Gaussian BIC local scores with parent-set deltas);
-- rolling mechanism diagnostics.
+- rolling mechanism diagnostics (**shipped** — bounded-window linear-Gaussian fit health under `SuffStatStore::mechanism_diags`; caller appends after `AppendData`; `ReplaceData` clears).
 
 Caches are versioned, bounded, and reconstructible. Eviction affects performance only, never semantics. Serialized state contains no process handles, thread pools, callbacks, borrowed buffers, or Python objects.
 

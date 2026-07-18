@@ -1,4 +1,4 @@
-//! Discovery stability and parameter sensitivity (DESIGN.md §18.3).
+//! PCMCI link-frequency stability and parameter grids (DESIGN.md §18.3).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -244,7 +244,7 @@ impl CiTestSensitivity {
     }
 }
 
-fn run_param_grid(
+pub(crate) fn run_param_grid(
     configs: impl IntoIterator<Item = Pcmci>,
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -268,7 +268,7 @@ fn run_param_grid(
     Ok(report_from_counts(counts, cells, 0))
 }
 
-fn report_from_counts(
+pub(crate) fn report_from_counts(
     counts: BTreeMap<LaggedLink, u32>,
     replicates: u32,
     block_size: usize,

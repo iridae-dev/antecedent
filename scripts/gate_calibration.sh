@@ -35,4 +35,7 @@ run_ignored causal-discovery pc_null_fpr_near_alpha
 run_ignored causal-discovery pcmci_null_fpr_near_alpha
 run_ignored causal-discovery pcmci_planted_lag1_power
 
+echo "== Discovery synthetic-null validator (causal-validate) =="
+run_ignored causal-validate synthetic_null_fpr_near_alpha_gate
+
 echo "gate_calibration: ok"

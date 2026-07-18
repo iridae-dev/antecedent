@@ -67,6 +67,7 @@ pub mod selection;
 pub mod sim;
 pub mod split;
 pub mod storage;
+pub mod surrogate;
 pub mod table;
 pub mod temporal;
 pub mod transforms;
@@ -121,6 +122,7 @@ pub use split::{
     TemporalRandomPolicy, TimeRange, ensure_random_allowed_on_temporal,
 };
 pub use storage::OwnedColumnarStorage;
+pub use surrogate::{surrogate_permute_columns, surrogate_phase_randomize};
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
 pub use transforms::{equal_width_bin, moving_average, ordinal_patterns};

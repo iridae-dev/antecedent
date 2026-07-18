@@ -61,3 +61,8 @@ notes = "rank_designs / new_causal_state / apply_state_event + Python surfaces"
 id = "design_state.incremental.particle_graph_score"
 status = "done"
 notes = "Particle-filter LGSSM state + Gaussian BIC LocalScoreCache with delta_score; OLS/streaming cov/lag keys already shipped"
+
+[[capabilities]]
+id = "design_state.rolling_mechanism_diagnostics"
+status = "done"
+notes = "RollingMechanismDiagnostics bounded-window OLS + residual/CUSUM summaries under SuffStatStore; AppendData invalidates without clear; ReplaceData clears"

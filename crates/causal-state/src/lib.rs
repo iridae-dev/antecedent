@@ -17,6 +17,7 @@ pub mod error;
 pub mod event;
 pub mod graph_score;
 pub mod invalidation;
+pub mod mechanism_diag;
 pub mod particle_filter;
 pub mod retention;
 pub mod state;
@@ -30,6 +31,9 @@ pub use graph_score::{
     full_graph_score,
 };
 pub use invalidation::{InvalidationEntry, InvalidationLog, InvalidationTarget};
+pub use mechanism_diag::{
+    RollingMechanismDiagnostics, evict_mechanism_diag, insert_mechanism_diag,
+};
 pub use particle_filter::{LgssmParams, ParticleFilterState};
 pub use retention::RetentionPolicy;
 pub use state::CausalState;

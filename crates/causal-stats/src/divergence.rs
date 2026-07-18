@@ -362,7 +362,9 @@ fn gaussian_segment_lr(left: &[f64], right: &[f64]) -> Result<(f64, f64), StatsE
     Ok((stat, p))
 }
 
-fn max_abs_cusum(series: &[f64]) -> f64 {
+/// Max absolute CUSUM of demeaned `series` (interior points only).
+#[must_use]
+pub fn max_abs_cusum(series: &[f64]) -> f64 {
     let (mean, _) = mean_var(series);
     let mut s = 0.0;
     let mut max_abs: f64 = 0.0;

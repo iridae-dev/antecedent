@@ -23,6 +23,8 @@ pub enum InvalidationTarget {
     GraphScores,
     /// Particle-filter state slots.
     ParticleFilters,
+    /// Rolling mechanism-diagnostics slots.
+    MechanismDiagnostics,
 }
 
 /// One invalidation record.

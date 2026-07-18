@@ -300,8 +300,9 @@ pub use causal_state::{
     GraphScoreData, GraphScoreFamily, InterventionRecord, InvalidationEntry, InvalidationLog,
     InvalidationTarget, LagIndexCacheEntry, LagIndexCacheKey, LgssmParams, LinearOlsSuffStats,
     LocalScoreCache, ModelRecord, ModelStore, ParentSetOp, ParticleFilterState, QueryRecord,
-    QueryStore, ResultStore, RetentionPolicy, StateError, StateEvent, StreamingCovariance,
-    SuffStatStore, full_graph_score,
+    QueryStore, ResultStore, RetentionPolicy, RollingMechanismDiagnostics, StateError, StateEvent,
+    StreamingCovariance, SuffStatStore, evict_mechanism_diag, full_graph_score,
+    insert_mechanism_diag,
 };
 
 #[cfg(test)]

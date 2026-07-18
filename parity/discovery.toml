@@ -150,7 +150,7 @@ group = "discovery"
 description = "Static PC (tabular CPDAG)"
 status = "done"
 owner = "discovery"
-notes = "Classic undirected skeleton + Meek on static Cpdag; discover_pc Rust/Python. FCI/GES/LiNGAM remain pending (TODO 4c–4h)."
+notes = "Classic undirected skeleton + Meek on static Cpdag; discover_pc Rust/Python. FCI/GES/LiNGAM remain pending (TODO 3a–3f)."
 
 [[capabilities]]
 id = "discovery.pcmci_plus"
@@ -185,6 +185,14 @@ owner = "context"
 notes = "Rpcmci; conformance/discovery/rpcmci_two_regime"
 
 [[capabilities]]
+id = "discovery.validate.block_bootstrap_stability"
+group = "discovery_validation"
+description = "Block-bootstrap link-frequency stability (PCMCI)"
+status = "done"
+owner = "discovery"
+notes = "causal-validate BlockBootstrapStability; DiscoveryStabilityReport"
+
+[[capabilities]]
 id = "discovery.validate.alpha_threshold_sensitivity"
 group = "discovery_validation"
 description = "Alpha-threshold sensitivity (re-run PCMCI across alpha grid)"
@@ -207,6 +215,46 @@ description = "CI-test sensitivity (re-run PCMCI across CI names)"
 status = "done"
 owner = "discovery"
 notes = "causal-validate CiTestSensitivity; DiscoveryStabilityReport"
+
+[[capabilities]]
+id = "discovery.validate.orientation_stability"
+group = "discovery_validation"
+description = "Orientation stability (PCMCI+ contemporaneous directed/undirected frequencies)"
+status = "done"
+owner = "discovery"
+notes = "causal-validate OrientationStability; OrientationStabilityReport"
+
+[[capabilities]]
+id = "discovery.validate.regime_stability"
+group = "discovery_validation"
+description = "Regime stability (RPCMCI with fixed caller labels + block bootstrap)"
+status = "done"
+owner = "discovery"
+notes = "causal-validate RegimeStability; RegimeStabilityReport"
+
+[[capabilities]]
+id = "discovery.validate.environment_holdout"
+group = "discovery_validation"
+description = "Environment holdout (J-PCMCI+ train vs holdout link Jaccard)"
+status = "done"
+owner = "discovery"
+notes = "causal-validate EnvironmentHoldout; EnvHoldoutSplit"
+
+[[capabilities]]
+id = "discovery.validate.synthetic_null_calibration"
+group = "discovery_validation"
+description = "Synthetic-null FPR calibration under independent noise"
+status = "done"
+owner = "discovery"
+notes = "causal-validate SyntheticNullCalibration; scheduled gate via gate_calibration.sh"
+
+[[capabilities]]
+id = "discovery.validate.false_positive_permute_phase"
+group = "discovery_validation"
+description = "False-positive checks via column-permute / phase-randomize surrogates"
+status = "done"
+owner = "discovery"
+notes = "causal-data surrogate_* + causal-validate FalsePositiveCheck"
 
 [[capabilities]]
 id = "discovery.fdr"

@@ -9,6 +9,7 @@ use causal_core::{CacheBudget, CausalQuery, ModelId, QueryId, StateVersion};
 
 use crate::error::StateError;
 use crate::graph_score::LocalScoreCache;
+use crate::mechanism_diag::RollingMechanismDiagnostics;
 use crate::particle_filter::ParticleFilterState;
 use crate::retention::RetentionPolicy;
 use crate::suff_stats::{
@@ -255,4 +256,6 @@ pub struct SuffStatStore {
     pub graph_scores: HashMap<Arc<str>, LocalScoreCache>,
     /// Particle-filter states (keyed by opaque slot name).
     pub particle_filters: HashMap<Arc<str>, ParticleFilterState>,
+    /// Rolling mechanism diagnostics (keyed by opaque slot name).
+    pub mechanism_diags: HashMap<Arc<str>, RollingMechanismDiagnostics>,
 }

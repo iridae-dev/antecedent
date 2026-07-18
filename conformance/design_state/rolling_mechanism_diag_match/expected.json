@@ -1,0 +1,9 @@
+{
+  "window": 5,
+  "n_rows": 12,
+  "beta0": 2.0,
+  "beta1": 3.0,
+  "stable_float_tol": 1e-08,
+  "expected_version_after_two_appends": 2,
+  "notes": "RollingMechanismDiagnostics on last W rows matches batch OLS; AppendData does not clear the slot; ReplaceData clears."
+}

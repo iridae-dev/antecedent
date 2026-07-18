@@ -7,11 +7,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use causal::{
-    CandidateDesign, CausalState, DesignCost, DesignEvaluationContext, DesignObjective,
+    CandidateDesign, CausalState, DataVersion, DesignCost, DesignEvaluationContext, DesignObjective,
     DesignRankConfig, DesignRanker, GraphScoreCacheKey, GraphScoreData, GraphScoreFamily,
     LgssmParams, LinearOlsSuffStats, LocalScoreCache, MeasurementPlan, ParentSetOp,
-    ParticleFilterState, SamplingPlan, StateEvent, apply_state_event, full_graph_score,
-    new_causal_state, rank_designs,
+    ParticleFilterState, RollingMechanismDiagnostics, SamplingPlan, StateEvent, apply_state_event,
+    full_graph_score, insert_mechanism_diag, new_causal_state, rank_designs,
 };
 use causal_core::{
     AverageEffectQuery, CacheBudget, CausalQuery, ExecutionContext, QueryId, VariableId,
@@ -226,6 +226,84 @@ fn incremental_particle_filter_match_conformance() {
     assert!((step.weighted_mean() - batch.weighted_mean()).abs() < tol);
     assert!((step.ess() - batch.ess()).abs() < tol);
     assert_eq!(step.n_obs, n as u64);
+}
+
+#[test]
+fn rolling_mechanism_diag_match_conformance() {
+    let expected: Value = serde_json::from_str(
+        &fs::read_to_string(fixture("rolling_mechanism_diag_match")).unwrap(),
+    )
+    .unwrap();
+    let window = expected["window"].as_u64().unwrap() as usize;
+    let n_rows = expected["n_rows"].as_u64().unwrap() as usize;
+    let tol = expected["stable_float_tol"].as_f64().unwrap();
+    let mut state: CausalState = new_causal_state(CacheBudget::new(1024 * 1024));
+    let key: Arc<str> = Arc::from("mech");
+    let mut diag = RollingMechanismDiagnostics::new(2, window).unwrap();
+    let mut all_rows = Vec::new();
+    let mut all_y = Vec::new();
+    for i in 0..n_rows {
+        let row = [1.0, i as f64];
+        let y = expected["beta0"].as_f64().unwrap()
+            + expected["beta1"].as_f64().unwrap() * i as f64;
+        all_rows.extend_from_slice(&row);
+        all_y.push(y);
+        if i == n_rows / 2 {
+            apply_state_event(
+                &mut state,
+                StateEvent::AppendData(DataBatchRef {
+                    id: Arc::from("b1"),
+                    nrows: (n_rows / 2) as u64,
+                    bytes: 64,
+                }),
+            )
+            .unwrap();
+        }
+        diag.append_row(&row, y).unwrap();
+    }
+    apply_state_event(
+        &mut state,
+        StateEvent::AppendData(DataBatchRef {
+            id: Arc::from("b2"),
+            nrows: (n_rows - n_rows / 2) as u64,
+            bytes: 64,
+        }),
+    )
+    .unwrap();
+    diag.state_version = state.version;
+    diag.data_version = state.data_version().raw();
+    diag.refresh_summaries().unwrap();
+    insert_mechanism_diag(
+        &mut state.suff_stats.mechanism_diags,
+        Arc::clone(&key),
+        diag.clone(),
+        &mut state.cache_budget,
+    )
+    .unwrap();
+    assert!(state.suff_stats.mechanism_diags.contains_key(&key));
+    assert_eq!(
+        state.version.raw(),
+        expected["expected_version_after_two_appends"].as_u64().unwrap()
+    );
+
+    let start = n_rows - window;
+    let mut batch = LinearOlsSuffStats::new(2);
+    batch
+        .append_batch(&all_rows[start * 2..], &all_y[start..])
+        .unwrap();
+    let beta = batch.solve_beta().unwrap();
+    let slot = &state.suff_stats.mechanism_diags[&key];
+    assert!((slot.beta[0] - beta[0]).abs() < tol);
+    assert!((slot.beta[1] - beta[1]).abs() < tol);
+    assert!((slot.beta[0] - expected["beta0"].as_f64().unwrap()).abs() < tol);
+    assert!((slot.beta[1] - expected["beta1"].as_f64().unwrap()).abs() < tol);
+
+    apply_state_event(
+        &mut state,
+        StateEvent::ReplaceData(DataVersion::default().next()),
+    )
+    .unwrap();
+    assert!(state.suff_stats.mechanism_diags.is_empty());
 }
 
 #[test]
