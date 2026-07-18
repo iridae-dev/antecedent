@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use causal_core::VariableId;
+use causal_core::{KernelPolicy, VariableId};
 
 use crate::error::DataError;
 use crate::lagged_frame::LaggedFrame;
@@ -81,6 +81,7 @@ pub fn pool_multi_env_lagged_frame(
     variables: &[VariableId],
     frame_depth: u32,
     dummies: DummyOptions,
+    policy: &KernelPolicy,
 ) -> Result<PooledLaggedFrame, DataError> {
     if data.env_count() == 0 {
         return Err(DataError::InvalidArgument {
@@ -97,7 +98,7 @@ pub fn pool_multi_env_lagged_frame(
     let mut env_effective = Vec::with_capacity(data.env_count());
     for i in 0..data.env_count() {
         let series = data.environment(i)?;
-        let frame = LaggedFrame::from_series(series, variables, frame_depth)?;
+        let frame = LaggedFrame::from_series(series, variables, frame_depth, policy)?;
         env_effective.push(frame.n_effective());
         frames.push(frame);
     }
@@ -186,6 +187,7 @@ mod tests {
             &vars,
             depth,
             DummyOptions { include_space_dummy: false, include_time_dummy: false },
+            &KernelPolicy::default_policy(),
         )
         .unwrap();
         // n_effective = (20-2) + (30-2) = 46
@@ -207,6 +209,7 @@ mod tests {
             &vars,
             2,
             DummyOptions { include_space_dummy: true, include_time_dummy: false },
+            &KernelPolicy::default_policy(),
         )
         .unwrap();
         assert_eq!(pooled.space_dummy_variables.len(), 2);
@@ -231,6 +234,7 @@ mod tests {
             &vars,
             2,
             DummyOptions { include_space_dummy: false, include_time_dummy: true },
+            &KernelPolicy::default_policy(),
         )
         .unwrap();
         let tid = pooled.time_dummy_variable.unwrap();

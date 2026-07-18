@@ -58,5 +58,5 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
     let vars: Vec<VariableId> = (0..n_vars as u32).map(VariableId::from_raw).collect();
-    let _ = LaggedFrame::from_series(&series, &vars, max_lag);
+    let _ = LaggedFrame::from_series(&series, &vars, max_lag, &causal_core::KernelPolicy::default_policy());
 });

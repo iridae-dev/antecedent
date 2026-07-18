@@ -340,7 +340,8 @@ impl PcmciEngine {
         // frame materializing lags up to 2·max_lag (same effective sample count).
         let frame_depth = 2 * max_lag;
         let frame =
-            LaggedFrame::from_series(data, variables, frame_depth).map_err(DiscoveryError::from)?;
+            LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
+                .map_err(DiscoveryError::from)?;
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {

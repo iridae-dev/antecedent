@@ -266,6 +266,7 @@ impl SamplePlan {
         storage_mask: Option<&crate::column::ValidityBitmap>,
         storage_weights: Option<&[f64]>,
         workspace: &'a mut SampleWorkspace,
+        policy: &KernelPolicy,
     ) -> Result<PreparedSample<'a>, DataError> {
         let ncols = self.partitions.ncols();
         if ncols == 0 {
@@ -305,7 +306,6 @@ impl SamplePlan {
         workspace.prepare(n, ncols);
         workspace.row_indexes[..n].copy_from_slice(&selected);
 
-        let policy = KernelPolicy::default_policy();
         for (c, col) in self.columns.iter().enumerate() {
             let ColumnView::Float64(src) = data.column(col.variable)? else {
                 return Err(DataError::TypeMismatch { id: col.variable, expected: "float64" });
@@ -319,7 +319,7 @@ impl SamplePlan {
             let dst = workspace.values.prepare_mut(n * ncols);
             let col_dst = &mut dst[c * n..(c + 1) * n];
             gather(
-                &policy,
+                policy,
                 F64VectorView::contiguous(src.values.as_ref()),
                 &workspace.gather_indexes[..n],
                 col_dst,
@@ -368,12 +368,14 @@ impl SamplePlan {
         &'a self,
         data: &TabularData,
         workspace: &'a mut SampleWorkspace,
+        policy: &KernelPolicy,
     ) -> Result<PreparedSample<'a>, DataError> {
         self.prepare(
             data,
             data.storage().analysis_mask(),
             data.storage().weights(),
             workspace,
+            policy,
         )
     }
 
@@ -386,12 +388,14 @@ impl SamplePlan {
         &'a self,
         data: &TimeSeriesData,
         workspace: &'a mut SampleWorkspace,
+        policy: &KernelPolicy,
     ) -> Result<PreparedSample<'a>, DataError> {
         self.prepare(
             data,
             data.storage().analysis_mask(),
             data.storage().weights(),
             workspace,
+            policy,
         )
     }
 }
@@ -604,7 +608,7 @@ mod tests {
         let req = SampleRequest::new(&x, &y, &[]);
         let plan = SamplePlan::compile_tabular(&tabular, &req).unwrap();
         let mut ws = SampleWorkspace::default();
-        let prep = plan.prepare_tabular(&tabular, &mut ws).unwrap();
+        let prep = plan.prepare_tabular(&tabular, &mut ws, &KernelPolicy::default_policy()).unwrap();
         assert_eq!(prep.effective_n, 20);
         assert_eq!(prep.partitions.ncols(), 2);
         assert_eq!(prep.matrix.nrows(), 20);
@@ -625,7 +629,7 @@ mod tests {
         let req = SampleRequest::new(&x, &y, &[]);
         let plan = SamplePlan::compile_timeseries(&data, &req).unwrap();
         let mut ws = SampleWorkspace::default();
-        let prep = plan.prepare_timeseries(&data, &mut ws).unwrap();
+        let prep = plan.prepare_timeseries(&data, &mut ws, &KernelPolicy::default_policy()).unwrap();
         assert_eq!(prep.effective_n, 28);
         assert!((prep.matrix.get(0, 0).unwrap() - 0.0).abs() < 1e-12);
         assert!((prep.matrix.get(0, 1).unwrap() - 102.0).abs() < 1e-12);

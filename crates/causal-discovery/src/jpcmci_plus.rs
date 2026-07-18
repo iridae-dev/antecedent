@@ -160,8 +160,9 @@ impl JpcmciPlus {
             include_space_dummy: md.include_space_dummy && data.env_count() > 1,
             include_time_dummy: md.include_time_dummy,
         };
-        let pooled = pool_multi_env_lagged_frame(data, &observed, frame_depth, dummies)
-            .map_err(DiscoveryError::from)?;
+        let pooled =
+            pool_multi_env_lagged_frame(data, &observed, frame_depth, dummies, &ctx.kernel_policy)
+                .map_err(DiscoveryError::from)?;
 
         let space_ids_full = Arc::clone(&pooled.space_dummy_variables);
         let use_mv_space_dummy = md.space_dummy_ci == SpaceDummyCiMode::MultivariateBlock

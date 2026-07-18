@@ -120,10 +120,11 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
             return Err(StatsError::Shape { message: "weights length < nrows" });
         }
         let weights = &self.weights[self.weights.len() - n..];
+        let policy = &ctx.kernel_policy;
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
-            let r = weighted_parcorr_stat(request.columns, q.x, q.y, z, weights, n)?;
+            let r = weighted_parcorr_stat(request.columns, q.x, q.y, z, weights, n, policy)?;
             let df = (n as f64) - 2.0 - (q.z_len as f64);
             let result = match request.significance {
                 SignificanceMethod::Analytic => {
@@ -155,6 +156,7 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
                         block_size,
                         ctx,
                         qi as u64,
+                        policy,
                     )?;
                     CiResult { statistic: r, p_value: p, df, ci: None }
                 }
@@ -173,10 +175,11 @@ fn weighted_parcorr_stat(
     z: &[usize],
     weights: &[f64],
     n: usize,
+    policy: &KernelPolicy,
 ) -> Result<f64, StatsError> {
     let ex = weighted_residuals(columns[x], columns, z, weights, n)?;
     let ey = weighted_residuals(columns[y], columns, z, weights, n)?;
-    weighted_pearson(&ex, &ey, weights)
+    weighted_pearson(policy, &ex, &ey, weights)
         .ok_or(StatsError::Shape { message: "degenerate weighted correlation" })
 }
 
@@ -226,11 +229,15 @@ fn weighted_residuals(
 }
 
 /// Weighted Pearson correlation with weighted centering.
-fn weighted_pearson(x: &[f64], y: &[f64], weights: &[f64]) -> Option<f64> {
+fn weighted_pearson(
+    policy: &KernelPolicy,
+    x: &[f64],
+    y: &[f64],
+    weights: &[f64],
+) -> Option<f64> {
     let n = x.len();
-    let policy = KernelPolicy::default_policy();
-    let mx = weighted_mean(&policy, x, weights)?;
-    let my = weighted_mean(&policy, y, weights)?;
+    let mx = weighted_mean(policy, x, weights)?;
+    let my = weighted_mean(policy, y, weights)?;
     let mut cxx = 0.0;
     let mut cyy = 0.0;
     let mut cxy = 0.0;
@@ -262,6 +269,7 @@ fn weighted_block_shuffle_pvalue(
     block_size: usize,
     ctx: &ExecutionContext,
     stream_salt: u64,
+    policy: &KernelPolicy,
 ) -> Result<f64, StatsError> {
     let n = columns[q.x].len();
     let x = columns[q.x];
@@ -286,7 +294,7 @@ fn weighted_block_shuffle_pvalue(
         }
         let mut cols: Vec<&[f64]> = columns.to_vec();
         cols[q.x] = &shuffled;
-        let r = weighted_parcorr_stat(&cols, q.x, q.y, z, weights, n)?;
+        let r = weighted_parcorr_stat(&cols, q.x, q.y, z, weights, n, policy)?;
         if r.abs() >= abs_obs {
             extreme += 1;
         }

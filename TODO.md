@@ -6,7 +6,7 @@ Parity inventories use `pending` / `in_progress` / `done` only. Unfinished DESIG
 
 Ordered by remaining difficulty/scope (simplest → hardest).
 
-1. **Thread `ExecutionContext.kernel_policy` through stats/CI call sites**: G², distance correlation, weighted ParCorr, `standardize_columns`, and similar still hardcode `KernelPolicy::default_policy()`, so `force_scalar` / disallow-portable via context cannot reach them. Small plumbing pass; keeps §23.2 differential-test escape hatch honest.
+1. **DONE** (2026-07-22): Thread `ExecutionContext.kernel_policy` through stats/CI call sites — G², distance correlation, weighted ParCorr, ParCorr mode / block-shuffle, `standardize_columns`, and data gather (`LaggedSamplePlan` / `SampleRequest` / `LaggedFrame` / pooled frames). Call sites with `ctx` pass `&ctx.kernel_policy`; free helpers take `policy: &KernelPolicy`. `PartialCorrelation` no longer stores a default policy. Escape hatch for §23.2 differential tests is reachable from CI/stats/data.
 
 2. **Posterior draw reduction kernels** (DESIGN.md §23.2 deferred): Shared scalar+portable reductions over posterior draw batches when Bayesian estimation / PPC paths need them. Soft-coupled to mechanism / Bayes work in item 7; skip until a concrete caller exists.
 

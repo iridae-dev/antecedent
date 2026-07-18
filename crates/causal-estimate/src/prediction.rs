@@ -53,7 +53,9 @@ impl TemporalLinearPredictor {
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
+        let prep = plan
+            .prepare(data, &mut ws, &causal_core::KernelPolicy::default_policy())
+            .map_err(EstimationError::from)?;
         let n = prep.n;
         let y = prep.column(0);
         let ncols = 1 + parents.len();
@@ -95,7 +97,9 @@ impl TemporalLinearPredictor {
             .plan_lagged_sample(self.max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
+        let prep = plan
+            .prepare(data, &mut ws, &causal_core::KernelPolicy::default_policy())
+            .map_err(EstimationError::from)?;
         let n = prep.n;
         let mut out = vec![0.0; n];
         for i in 0..n {

@@ -411,6 +411,7 @@ pub fn standardize_columns(
     ncols: usize,
     col_idxs: &[usize],
     eps: f64,
+    policy: &KernelPolicy,
 ) -> Result<StandardizationRecord, StatsError> {
     if nrows == 0 || ncols == 0 {
         return Err(StatsError::Shape { message: "empty matrix for standardization" });
@@ -419,7 +420,6 @@ pub fn standardize_columns(
         return Err(StatsError::Shape { message: "matrix length mismatch" });
     }
     let eps = if eps.is_finite() && eps > 0.0 { eps } else { 1e-12 };
-    let policy = KernelPolicy::default_policy();
     let mut entries = Vec::with_capacity(col_idxs.len());
     for &col in col_idxs {
         if col >= ncols {
@@ -427,7 +427,7 @@ pub fn standardize_columns(
         }
         let base = col * nrows;
         let slice = &mut matrix[base..base + nrows];
-        let (mean, scale) = standardize_inplace(&policy, slice, eps);
+        let (mean, scale) = standardize_inplace(policy, slice, eps);
         entries.push(StandardizedColumn { col_idx: col, mean, scale });
     }
     Ok(StandardizationRecord { entries })
@@ -476,7 +476,15 @@ mod tests {
             1.0, 1.0, 1.0, 1.0, // intercept
             0.0, 2.0, 4.0, 6.0, // to standardize
         ];
-        let rec = standardize_columns(&mut matrix, 4, 2, &[1], 1e-12).unwrap();
+        let rec = standardize_columns(
+            &mut matrix,
+            4,
+            2,
+            &[1],
+            1e-12,
+            &KernelPolicy::default_policy(),
+        )
+        .unwrap();
         assert_eq!(rec.entries.len(), 1);
         assert!((rec.entries[0].mean - 3.0).abs() < 1e-12);
         let col: Vec<f64> = matrix[4..8].to_vec();

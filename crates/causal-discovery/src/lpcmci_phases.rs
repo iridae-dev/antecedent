@@ -546,7 +546,8 @@ pub fn run_lpcmci_algorithm(
     let max_cond = engine.constraints.max_cond_size;
     let frame_depth = 2 * max_lag;
     let frame =
-        LaggedFrame::from_series(data, variables, frame_depth).map_err(DiscoveryError::from)?;
+        LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
+            .map_err(DiscoveryError::from)?;
     workspace.prepared_ci = None;
 
     let mut sepsets = PcSepsets::default();

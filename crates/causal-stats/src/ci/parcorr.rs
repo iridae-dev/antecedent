@@ -5,7 +5,9 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_lossless)]
 
 use causal_core::{ExecutionContext, KernelPolicy};
-use causal_kernels::{ParCorrMode, ParCorrQuery, partial_correlation_batch};
+use causal_kernels::{
+    KernelImpl, ParCorrMode, ParCorrQuery, partial_correlation_batch, select_impl,
+};
 
 use super::analytic::{analytic_parcorr_ci, analytic_parcorr_pvalue};
 use super::block_shuffle::block_shuffle_pvalue;
@@ -14,24 +16,27 @@ use super::types::{
     ConfidenceMethod, SignificanceMethod, PreparedCiTest};
 use crate::error::StatsError;
 
-/// Partial-correlation CI test.
-#[derive(Clone, Debug)]
-pub struct PartialCorrelation {
-    /// Kernel policy.
-    pub policy: KernelPolicy,
-}
-
-impl Default for PartialCorrelation {
-    fn default() -> Self {
-        Self::new()
+/// Map [`KernelPolicy`] to the ParCorr batch mode (no arch-SIMD path).
+#[must_use]
+pub(crate) fn parcorr_mode(policy: &KernelPolicy) -> ParCorrMode {
+    match select_impl(policy) {
+        KernelImpl::Scalar => ParCorrMode::Native,
+        KernelImpl::PortableOptimized | KernelImpl::ArchSimd => ParCorrMode::Portable,
     }
 }
 
+/// Partial-correlation CI test.
+///
+/// Kernel path selection comes from [`ExecutionContext::kernel_policy`] at call time
+/// (DESIGN.md §23.2), not from state on this type.
+#[derive(Clone, Debug, Default)]
+pub struct PartialCorrelation;
+
 impl PartialCorrelation {
-    /// Default policy.
+    /// Construct.
     #[must_use]
     pub fn new() -> Self {
-        Self { policy: KernelPolicy::default_policy() }
+        Self
     }
 
     /// Single CI query without allocating request/result vectors.
@@ -61,14 +66,14 @@ impl PartialCorrelation {
         }
         workspace.prepare_queries(1);
         let query = ParCorrQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() };
-        let portable = ParCorrMode::from(!self.policy.force_scalar);
+        let mode = parcorr_mode(&ctx.kernel_policy);
         partial_correlation_batch(
             columns,
             &[query],
             z_flat,
             &mut workspace.stats[..1],
             &mut workspace.parcorr,
-            portable,
+            mode,
         );
         let r = workspace.stats[0]
             .ok_or(StatsError::Shape { message: "partial correlation failed" })?;
@@ -122,7 +127,7 @@ impl PartialCorrelation {
                     });
                 }
                 let p = block_shuffle_pvalue(
-                    &self.policy,
+                    &ctx.kernel_policy,
                     columns,
                     query,
                     z_flat,
@@ -157,14 +162,14 @@ impl ConditionalIndependenceTest for PartialCorrelation {
             .iter()
             .map(|q| ParCorrQuery { x: q.x, y: q.y, z_start: q.z_start, z_len: q.z_len })
             .collect();
-        let portable = ParCorrMode::from(!self.policy.force_scalar);
+        let mode = parcorr_mode(&ctx.kernel_policy);
         partial_correlation_batch(
             request.columns,
             &queries,
             request.z_flat,
             &mut workspace.stats[..nq],
             &mut workspace.parcorr,
-            portable,
+            mode,
         );
 
         let mut results = Vec::with_capacity(nq);

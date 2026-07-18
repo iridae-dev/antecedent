@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 
-use causal_core::{CausalRng, ExecutionContext};
+use causal_core::{CausalRng, ExecutionContext, KernelPolicy};
 
 use crate::special::{gamma_q, normal_ppf};
 use super::parcorr::PartialCorrelation;
@@ -55,10 +55,11 @@ impl ConditionalIndependenceTest for GSquared {
             return Err(StatsError::Shape { message: "no columns" });
         }
         let level = analytic_confidence_level(request.confidence);
+        let policy = &ctx.kernel_policy;
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
-            let (g, df) = g_squared_statistic(request.columns, q.x, q.y, z, n, workspace)?;
+            let (g, df) = g_squared_statistic(request.columns, q.x, q.y, z, n, workspace, policy)?;
             let (p, ci) = match request.significance {
                 super::types::SignificanceMethod::Analytic => {
                     let p = chi2_sf(g, df);
@@ -84,7 +85,8 @@ impl ConditionalIndependenceTest for GSquared {
                         }
                         let mut cols: Vec<&[f64]> = request.columns.to_vec();
                         cols[q.y] = &y_perm;
-                        let (g_null, _) = g_squared_statistic(&cols, q.x, q.y, z, n, workspace)?;
+                        let (g_null, _) =
+                            g_squared_statistic(&cols, q.x, q.y, z, n, workspace, policy)?;
                         if g_null >= g {
                             null_ge = null_ge.saturating_add(1);
                         }
@@ -155,6 +157,7 @@ fn g_squared_statistic(
     z: &[usize],
     n: usize,
     workspace: &mut CiWorkspace,
+    policy: &KernelPolicy,
 ) -> Result<(f64, f64), StatsError> {
     let xi: Vec<i32> = columns[x].iter().map(|v| v.round() as i32).collect();
     let yi: Vec<i32> = columns[y].iter().map(|v| v.round() as i32).collect();
@@ -180,7 +183,7 @@ fn g_squared_statistic(
         if rows.len() < 2 {
             continue;
         }
-        let (g, df) = g_squared_on_rows(&xi, &yi, rows, workspace);
+        let (g, df) = g_squared_on_rows(&xi, &yi, rows, workspace, policy);
         g_total += g;
         df_total += df;
         any = true;
@@ -199,6 +202,7 @@ fn g_squared_on_rows(
     yi: &[i32],
     rows: &[usize],
     workspace: &mut CiWorkspace,
+    policy: &KernelPolicy,
 ) -> (f64, f64) {
     let mut levels_x: Vec<i32> = rows.iter().map(|&r| xi[r]).collect();
     levels_x.sort_unstable();
@@ -227,7 +231,7 @@ fn g_squared_on_rows(
         workspace.contingency_y_codes[i] = levels_y.binary_search(&yi[r]).unwrap_or(0) as u32;
     }
     causal_kernels::accumulate_contingency(
-        &causal_core::KernelPolicy::default_policy(),
+        policy,
         &workspace.contingency_x_codes[..n_rows],
         &workspace.contingency_y_codes[..n_rows],
         &mut workspace.shuffled[..need],

@@ -245,7 +245,7 @@ impl Rpcmci {
 
         let max_lag = self.pcmci_plus.engine.constraints.temporal.max_lag.raw();
         let frame_depth = 2 * max_lag;
-        let full_frame = LaggedFrame::from_series(data, variables, frame_depth)
+        let full_frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
             .map_err(DiscoveryError::from)?;
 
         let mut graphs = Vec::with_capacity(regimes.len());

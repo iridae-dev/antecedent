@@ -1097,7 +1097,14 @@ impl CausalAnalysis {
         estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
         estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
         let prep = estimator
-            .prepare(data, &estimand, query, &id_res.indexer, self.split.as_ref())
+            .prepare(
+                data,
+                &estimand,
+                query,
+                &id_res.indexer,
+                self.split.as_ref(),
+                &ctx.kernel_policy,
+            )
             .map_err(AnalysisError::from)?;
         let mut workspace = EstimationWorkspace::default();
         let estimate = estimator

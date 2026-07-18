@@ -263,6 +263,7 @@ impl LaggedSamplePlan {
         &'a self,
         data: &TimeSeriesData,
         workspace: &'a mut LaggedSampleWorkspace,
+        policy: &KernelPolicy,
     ) -> Result<LaggedPreparedSample<'a>, DataError> {
         if data.row_count() != self.lag_map.series_len {
             return Err(DataError::LengthMismatch {
@@ -275,7 +276,6 @@ impl LaggedSamplePlan {
         let n = self.lag_map.n_effective;
         let ncols = self.columns.len();
         workspace.prepare(n, ncols);
-        let policy = KernelPolicy::default_policy();
 
         for (c, col) in self.columns.iter().enumerate() {
             let ColumnView::Float64(src) = data.column(col.variable)? else {
@@ -285,7 +285,7 @@ impl LaggedSamplePlan {
             self.lag_map.fill_row_indexes(col.lag, &mut workspace.row_indexes[..n])?;
             let dst = &mut workspace.values[c * n..(c + 1) * n];
             gather(
-                &policy,
+                policy,
                 F64VectorView::contiguous(src.values.as_slice()),
                 &workspace.row_indexes[..n],
                 dst,
@@ -406,7 +406,7 @@ mod tests {
         }]);
         let plan = data.plan_lagged_sample(2, cols).unwrap();
         let mut ws = LaggedSampleWorkspace::default();
-        let err = plan.prepare(&data, &mut ws).unwrap_err();
+        let err = plan.prepare(&data, &mut ws, &KernelPolicy::default_policy()).unwrap_err();
         assert!(matches!(
             err,
             DataError::IncompleteSeries { id: Some(v), .. } if v == VariableId::from_raw(0)
@@ -422,7 +422,7 @@ mod tests {
         }]);
         let plan = data.plan_lagged_sample(2, cols).unwrap();
         let mut ws = LaggedSampleWorkspace::default();
-        let err = plan.prepare(&data, &mut ws).unwrap_err();
+        let err = plan.prepare(&data, &mut ws, &KernelPolicy::default_policy()).unwrap_err();
         assert!(matches!(err, DataError::IncompleteSeries { id: None, .. }));
     }
 
@@ -445,7 +445,7 @@ mod tests {
         ]);
         let plan = data.plan_lagged_sample(2, cols).unwrap();
         let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(&data, &mut ws).unwrap();
+        let prep = plan.prepare(&data, &mut ws, &KernelPolicy::default_policy()).unwrap();
         assert_eq!(prep.n, 18);
         assert!((prep.column(0)[0] - 2.0).abs() < 1e-12);
         assert!((prep.column(1)[0] - 0.0).abs() < 1e-12);
@@ -462,13 +462,13 @@ mod tests {
         ]);
         let plan = data.plan_lagged_sample(3, cols).unwrap();
         let mut ws = LaggedSampleWorkspace::default();
-        let _ = plan.prepare(&data, &mut ws).unwrap();
+        let _ = plan.prepare(&data, &mut ws, &KernelPolicy::default_policy()).unwrap();
         let cap_n = ws.capacity_n();
         let cap_c = ws.capacity_cols();
         let values_cap = ws.values.capacity();
         let idx_cap = ws.row_indexes.capacity();
         for _ in 0..50 {
-            let _ = plan.prepare(&data, &mut ws).unwrap();
+            let _ = plan.prepare(&data, &mut ws, &KernelPolicy::default_policy()).unwrap();
             assert_eq!(ws.capacity_n(), cap_n);
             assert_eq!(ws.capacity_cols(), cap_c);
             assert_eq!(ws.values.capacity(), values_cap);

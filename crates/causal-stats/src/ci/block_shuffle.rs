@@ -91,7 +91,7 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let err = block_shuffle_pvalue(
-            &KernelPolicy::default_policy(),
+            &ctx.kernel_policy,
             &cols,
             query,
             &[],

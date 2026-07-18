@@ -17,7 +17,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use causal_core::ExecutionContext;
+use causal_core::{ExecutionContext, KernelPolicy};
 
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -502,12 +502,13 @@ impl ConditionalIndependenceTest for Gpdc {
             return Err(StatsError::Shape { message: "no columns" });
         }
         let n_perm = nonparametric_permutation_count(request.significance);
+        let policy = &ctx.kernel_policy;
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
             let rx = gp_residual(request.columns[q.x], request.columns, z, self);
             let ry = gp_residual(request.columns[q.y], request.columns, z, self);
-            let dcor = distance_correlation(&rx, &ry);
+            let dcor = distance_correlation(policy, &rx, &ry);
             // Permutation null: shuffle the Y residuals (Z influence already removed)
             // and recompute dCor; add-one p-value keeps it in (0, 1].
             let mut ry_perm = ry.clone();
@@ -518,7 +519,7 @@ impl ConditionalIndependenceTest for Gpdc {
                     let j = (rng.next_u64() as usize) % (i + 1);
                     ry_perm.swap(i, j);
                 }
-                if distance_correlation(&rx, &ry_perm) >= dcor {
+                if distance_correlation(policy, &rx, &ry_perm) >= dcor {
                     null_ge = null_ge.saturating_add(1);
                 }
             }
@@ -575,16 +576,15 @@ fn gp_residual(y: &[f64], columns: &[&[f64]], z: &[usize], gp: &Gpdc) -> Vec<f64
     (0..n).map(|i| y[i] - pred[i]).collect()
 }
 
-fn distance_correlation(x: &[f64], y: &[f64]) -> f64 {
+fn distance_correlation(policy: &KernelPolicy, x: &[f64], y: &[f64]) -> f64 {
     let n = x.len();
     if n < 2 {
         return 0.0;
     }
     let mut ax = vec![0.0; n * n];
     let mut ay = vec![0.0; n * n];
-    let policy = causal_core::KernelPolicy::default_policy();
-    causal_kernels::pairwise_l1_fill(&policy, x, &mut ax);
-    causal_kernels::pairwise_l1_fill(&policy, y, &mut ay);
+    causal_kernels::pairwise_l1_fill(policy, x, &mut ax);
+    causal_kernels::pairwise_l1_fill(policy, y, &mut ay);
     double_center_inplace(&mut ax, n);
     double_center_inplace(&mut ay, n);
     let mut dcov2 = 0.0;
@@ -711,22 +711,24 @@ mod tests {
 
     #[test]
     fn dcor_self_is_one_and_scale_invariant() {
+        let policy = KernelPolicy::default_policy();
         let x: Vec<f64> = (0..50).map(|i| (i as f64 * 0.7).sin() + 0.1 * i as f64).collect();
-        let d = distance_correlation(&x, &x);
+        let d = distance_correlation(&policy, &x, &x);
         assert!((d - 1.0).abs() < 1e-9, "dcor(x,x)={d}");
         let y: Vec<f64> = (0..50).map(|i| f64::from(((i * 13 + 5) % 17) as u32)).collect();
-        let d1 = distance_correlation(&x, &y);
+        let d1 = distance_correlation(&policy, &x, &y);
         let xs: Vec<f64> = x.iter().map(|v| 3.5 * v).collect();
         let ys: Vec<f64> = y.iter().map(|v| 3.5 * v).collect();
-        let d2 = distance_correlation(&xs, &ys);
+        let d2 = distance_correlation(&policy, &xs, &ys);
         assert!((d1 - d2).abs() < 1e-9, "scale dependence: {d1} vs {d2}");
     }
 
     #[test]
     fn dcor_independent_small() {
+        let policy = KernelPolicy::default_policy();
         let x = lcg_noise(200, 1);
         let y = lcg_noise(200, 2);
-        let d = distance_correlation(&x, &y);
+        let d = distance_correlation(&policy, &x, &y);
         assert!(d < 0.3, "dcor of independent noise = {d}");
     }
 

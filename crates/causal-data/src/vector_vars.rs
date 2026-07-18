@@ -273,7 +273,7 @@ mod tests {
             VariableId::from_raw(1),
             VariableId::from_raw(2),
         ];
-        let frame = LaggedFrame::from_series(&data, &vars, 1).unwrap();
+        let frame = LaggedFrame::from_series(&data, &vars, 1, &causal_core::KernelPolicy::default_policy()).unwrap();
         let groups = VectorVariableGroups::try_new(Arc::from([Arc::from([
             VariableId::from_raw(0),
             VariableId::from_raw(1),

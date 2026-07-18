@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use causal_core::VariableId;
+use causal_core::{KernelPolicy, VariableId};
 use causal_data::{
     CategoryCode, CategoryDomain, Contrast, ContrastMatrix, compile_contrast_matrix,
 };
@@ -54,6 +54,7 @@ pub fn compile_adjustment_design(
     outcome: &[f64],
     row_selection: &[usize],
     standardize_float_covariates: bool,
+    policy: &KernelPolicy,
 ) -> Result<CompiledDesign, EstimationError> {
     let nrows = outcome.len();
     if nrows == 0 {
@@ -139,7 +140,7 @@ pub fn compile_adjustment_design(
     }
 
     let standardization = if standardize_float_covariates && !float_cov_col_idxs.is_empty() {
-        standardize_columns(&mut matrix, nrows, ncols, &float_cov_col_idxs, 1e-12)
+        standardize_columns(&mut matrix, nrows, ncols, &float_cov_col_idxs, 1e-12, policy)
             .map_err(EstimationError::from)?
     } else {
         StandardizationRecord::default()
@@ -251,6 +252,7 @@ mod tests {
             &y,
             &[],
             false,
+            &KernelPolicy::default_policy(),
         )
         .unwrap();
         assert_eq!(design.ncols, 3); // intercept, T, one treatment dummy
@@ -280,6 +282,7 @@ mod tests {
             &y,
             &[],
             true,
+            &KernelPolicy::default_policy(),
         )
         .unwrap();
         assert_eq!(design.standardization.entries.len(), 1);

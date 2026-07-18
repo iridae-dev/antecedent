@@ -61,6 +61,7 @@ impl TemporalLinearAdjustment {
         query: &TemporalEffectQuery,
         indexer: &TemporalIndexer,
         split: Option<&DiscoveryEstimationSplit>,
+        policy: &causal_core::KernelPolicy,
     ) -> Result<PreparedEstimationProblem, EstimationError> {
         if self.inner.overlap != OverlapPolicy::ExplicitOverride {
             return Err(EstimationError::Overlap {
@@ -102,7 +103,9 @@ impl TemporalLinearAdjustment {
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
         let mut sample_ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut sample_ws).map_err(EstimationError::from)?;
+        let prep = plan
+            .prepare(data, &mut sample_ws, policy)
+            .map_err(EstimationError::from)?;
 
         let n = prep.n;
         let (row_start, row_end) = if let Some(s) = split {
@@ -263,7 +266,9 @@ mod tests {
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
         let est = TemporalLinearAdjustment::new();
-        let prep = est.prepare(&data, estimand, &q, &id_res.indexer, None).unwrap();
+        let prep = est
+            .prepare(&data, estimand, &q, &id_res.indexer, None, &ExecutionContext::for_tests(1).kernel_policy)
+            .unwrap();
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let mut est2 = TemporalLinearAdjustment::new();

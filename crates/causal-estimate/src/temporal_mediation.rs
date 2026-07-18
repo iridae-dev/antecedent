@@ -64,7 +64,6 @@ impl TemporalMediationEstimator {
         query: &MediationQuery,
         ctx: &ExecutionContext,
     ) -> Result<TemporalMediationEstimate, EstimationError> {
-        let _ = ctx;
         query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
         if !(estimand.method_kind().ok().is_some_and(|m| {
             m.is_temporal_mediation() || m == causal_expr::EstimandMethod::FrontDoor
@@ -95,7 +94,9 @@ impl TemporalMediationEstimator {
         ]);
         let plan = data.plan_lagged_sample(1, cols).map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws).map_err(EstimationError::from)?;
+        let prep = plan
+            .prepare(data, &mut ws, &ctx.kernel_policy)
+            .map_err(EstimationError::from)?;
         let t = prep.column(0);
         let m = prep.column(1);
         let y = prep.column(2);

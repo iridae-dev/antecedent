@@ -120,7 +120,8 @@ impl PcmciPlus {
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
         let frame_depth = 2 * max_lag;
         let frame =
-            LaggedFrame::from_series(data, variables, frame_depth).map_err(DiscoveryError::from)?;
+            LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
+                .map_err(DiscoveryError::from)?;
         self.run_on_frame(&frame, variables, workspace, ctx)
     }
 

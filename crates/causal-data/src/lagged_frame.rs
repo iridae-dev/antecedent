@@ -67,6 +67,7 @@ impl LaggedFrame {
         data: &TimeSeriesData,
         variables: &[VariableId],
         max_lag: u32,
+        policy: &KernelPolicy,
     ) -> Result<Self, DataError> {
         Self::from_series_with_options(
             data,
@@ -74,6 +75,7 @@ impl LaggedFrame {
             max_lag,
             ReferencePointPolicy::SeriesOrigin,
             LaggedFrameOptions::default(),
+            policy,
         )
     }
 
@@ -88,6 +90,7 @@ impl LaggedFrame {
         variables: &[VariableId],
         max_lag: u32,
         reference: ReferencePointPolicy,
+        policy: &KernelPolicy,
     ) -> Result<Self, DataError> {
         Self::from_series_with_options(
             data,
@@ -95,6 +98,7 @@ impl LaggedFrame {
             max_lag,
             reference,
             LaggedFrameOptions::default(),
+            policy,
         )
     }
 
@@ -110,6 +114,7 @@ impl LaggedFrame {
         max_lag: u32,
         reference: ReferencePointPolicy,
         options: LaggedFrameOptions,
+        policy: &KernelPolicy,
     ) -> Result<Self, DataError> {
         if variables.is_empty() {
             return Err(DataError::InvalidArgument {
@@ -122,7 +127,6 @@ impl LaggedFrame {
         let n_cols = variables.len().saturating_mul(n_lags);
         let mut values = vec![0.0; n_cols.saturating_mul(n_effective)];
         let mut validity = Vec::with_capacity(n_cols);
-        let policy = KernelPolicy::default_policy();
 
         // Row indexes depend only on the lag: compute each lag's gather once.
         let mut lag_rows = vec![vec![0usize; n_effective]; n_lags];
@@ -157,7 +161,7 @@ impl LaggedFrame {
             for (lag, rows) in lag_rows.iter().enumerate() {
                 let col = slot * n_lags + lag;
                 let dst = &mut values[col * n_effective..(col + 1) * n_effective];
-                gather(&policy, src_view, rows, dst);
+                gather(policy, src_view, rows, dst);
                 let col_valid = gather_column_validity(src, analysis, options.mask, rows)?;
                 validity.push(col_valid);
             }
@@ -470,7 +474,7 @@ mod tests {
     fn builds_with_missing_values_marking_invalid() {
         let data = float_series_with_gap(20, 2, 5);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let frame = LaggedFrame::from_series(&data, &vars, 2).unwrap();
+        let frame = LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap();
         assert_eq!(frame.n_effective(), 18);
         // Row index 5 in the series is invalid for v0; lag-0 effective index = 5 - 2 = 3.
         let i0 = frame.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
@@ -484,7 +488,7 @@ mod tests {
     fn builds_with_analysis_mask_marking_invalid() {
         let data = float_series_with_mask(20, 2, 5);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let frame = LaggedFrame::from_series(&data, &vars, 2).unwrap();
+        let frame = LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap();
         let i0 = frame.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
         assert!(!frame.column_valid(i0).is_valid(3));
         let keep = frame.keep_mask_for_columns(&[i0]).unwrap();
@@ -502,6 +506,7 @@ mod tests {
             2,
             ReferencePointPolicy::SeriesOrigin,
             LaggedFrameOptions { mask: MaskPolicy::Ignore, missing: MissingPolicy::CompleteCase },
+            &KernelPolicy::default_policy(),
         )
         .unwrap();
         assert!(frame.is_fully_valid());
@@ -520,6 +525,7 @@ mod tests {
                 mask: MaskPolicy::Honor,
                 missing: MissingPolicy::ErrorOnMissing,
             },
+            &KernelPolicy::default_policy(),
         )
         .unwrap_err();
         assert!(matches!(
@@ -532,7 +538,7 @@ mod tests {
     fn frame_matches_lag_map_gather() {
         let data = float_series(20, 2);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let frame = LaggedFrame::from_series(&data, &vars, 2).unwrap();
+        let frame = LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap();
         assert_eq!(frame.n_effective(), 18);
         assert_eq!(frame.ncols(), 6);
         assert!(frame.is_fully_valid());
@@ -546,7 +552,7 @@ mod tests {
     fn retain_effective_compacts_validity() {
         let data = float_series_with_mask(20, 2, 5);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let frame = LaggedFrame::from_series(&data, &vars, 2).unwrap();
+        let frame = LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap();
         let cols: Vec<usize> = (0..frame.ncols()).collect();
         let keep = frame.keep_mask_for_columns(&cols).unwrap();
         let compacted = frame.retain_effective(&keep).unwrap();
