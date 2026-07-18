@@ -12,7 +12,10 @@ use causal_core::{
     TargetPopulation, TemporalEffectQuery,
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use causal_graph::{Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview};
+use causal_graph::{
+    CpdagReview, Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
+    TemporalPagReview,
+};
 use causal_stats::FdrAdjustment;
 
 use crate::error::AnalysisError;
@@ -75,6 +78,8 @@ pub enum GraphInput {
         fdr: Option<FdrAdjustment>,
         /// Auto-accept when no undirected marks remain.
         accept_discovered: bool,
+        /// Multi-dataset / context / dummy settings.
+        multi_dataset: causal_discovery::MultiDatasetConstraints,
     },
     /// Discover with RPCMCI (regime assignments + per-regime graphs).
     DiscoverRpcmci {
@@ -84,7 +89,20 @@ pub enum GraphInput {
         alpha: f64,
         /// Multiple-testing adjustment (`None` = off).
         fdr: Option<FdrAdjustment>,
-        /// Auto-accept when each regime graph is fully oriented.
+        /// Auto-accept when a single fully-oriented regime exists.
+        accept_discovered: bool,
+        /// Caller-supplied regime label per time index (required; no silent half-split).
+        regime_assignment: causal_discovery::RegimeAssignment,
+    },
+    /// Discover with static PC (tabular CPDAG → DAG when fully oriented).
+    DiscoverPc {
+        /// Significance level.
+        alpha: f64,
+        /// Max conditioning-set size.
+        max_cond_size: usize,
+        /// Multiple-testing adjustment (`None` = off).
+        fdr: Option<FdrAdjustment>,
+        /// Auto-accept when no undirected marks remain.
         accept_discovered: bool,
     },
 }
@@ -143,6 +161,13 @@ impl LogicalAnalysisPlan {
                 message: "PCMCI-family discovery requires temporal data metadata".into(),
             });
         }
+        if matches!(self.record.discovery_algorithm.as_deref(), Some("pc"))
+            && self.record.data_classification != DataClassification::Tabular
+        {
+            return Err(AnalysisError::Compile {
+                message: "static PC discovery requires tabular data metadata".into(),
+            });
+        }
         self.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
         Ok(())
     }
@@ -168,6 +193,20 @@ impl LogicalAnalysisPlan {
         &self,
         ctx: &ExecutionContext,
         resolved_temporal_graph: Option<TemporalDag>,
+    ) -> Result<PhysicalExecutionPlan, AnalysisError> {
+        self.compile_physical_with_graphs(ctx, resolved_temporal_graph, None)
+    }
+
+    /// Compile a physical plan with optional resolved temporal and/or static graphs.
+    ///
+    /// # Errors
+    ///
+    /// Resource refusals or unsupported backends.
+    pub fn compile_physical_with_graphs(
+        &self,
+        ctx: &ExecutionContext,
+        resolved_temporal_graph: Option<TemporalDag>,
+        resolved_static_graph: Option<Dag>,
     ) -> Result<PhysicalExecutionPlan, AnalysisError> {
         self.validate()?;
         let n_rows = self.row_count_hint.max(1);
@@ -233,7 +272,12 @@ impl LogicalAnalysisPlan {
             deterministic_reductions: true,
             expected_python_crossings: 1,
         };
-        Ok(PhysicalExecutionPlan { record, logical: self.clone(), resolved_temporal_graph })
+        Ok(PhysicalExecutionPlan {
+            record,
+            logical: self.clone(),
+            resolved_temporal_graph,
+            resolved_static_graph,
+        })
     }
 }
 
@@ -246,6 +290,8 @@ pub struct PhysicalExecutionPlan {
     pub logical: LogicalAnalysisPlan,
     /// Temporal DAG to estimate against (supplied or post-review). Avoids re-discovery.
     pub resolved_temporal_graph: Option<TemporalDag>,
+    /// Static DAG from PC discovery auto-accept (avoids re-discovery at execute).
+    pub resolved_static_graph: Option<Dag>,
 }
 
 impl PhysicalExecutionPlan {
@@ -253,6 +299,12 @@ impl PhysicalExecutionPlan {
     #[must_use]
     pub fn temporal_graph(&self) -> Option<&TemporalDag> {
         self.resolved_temporal_graph.as_ref()
+    }
+
+    /// Borrow the resolved static DAG when present (PC discovery path).
+    #[must_use]
+    pub fn static_graph(&self) -> Option<&Dag> {
+        self.resolved_static_graph.as_ref()
     }
 }
 
@@ -265,6 +317,8 @@ pub enum CompiledAnalysis {
     ReviewRequired(TemporalGraphReview),
     /// PCMCI+ CPDAG needs acceptance of directed edges and orientation of undirected marks.
     ReviewRequiredCpdag(TemporalCpdagReview),
+    /// Static PC CPDAG needs orientation before ATE estimation.
+    ReviewRequiredStaticCpdag(CpdagReview),
     /// LPCMCI / PAG needs circle resolution or class-aware identification.
     ReviewRequiredPag(TemporalPagReview),
 }

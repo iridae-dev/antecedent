@@ -253,4 +253,77 @@ mod tests {
         // Under do(T), path T→Y remains; A does not separate T from Y.
         assert!(!view_sep);
     }
+
+    /// Overlay d-sep agrees with `Dag::mutilate` on random multi-treatment graphs.
+    #[test]
+    fn property_overlay_dsep_matches_mutilate_on_random_dags() {
+        use causal_core::CausalRng;
+
+        let mut rng = CausalRng::from_seed(17);
+        let mut ws = DSeparationWorkspace::default();
+        for _ in 0..40 {
+            let n = 4 + (rng.next_u64() % 3) as u32; // 4..=6
+            let mut g = Dag::with_variables(n);
+            let mut order: Vec<u32> = (0..n).collect();
+            for i in (1..n as usize).rev() {
+                let j = (rng.next_u64() as usize) % (i + 1);
+                order.swap(i, j);
+            }
+            for i in 0..n as usize {
+                for j in (i + 1)..n as usize {
+                    if rng.next_u64() % 3 == 0 {
+                        let _ = g.insert_directed(
+                            DenseNodeId::from_raw(order[i]),
+                            DenseNodeId::from_raw(order[j]),
+                        );
+                    }
+                }
+            }
+            let k = 1 + (rng.next_u64() as usize % (n as usize).min(3));
+            let mut treated = Vec::new();
+            while treated.len() < k {
+                let t = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
+                if !treated.contains(&t) {
+                    treated.push(t);
+                }
+            }
+            let overlay = GraphOverlay::do_intervention(g.node_count(), &treated);
+            let view = g.view(&overlay);
+            let mutilated = g.mutilate(&treated).unwrap();
+            // Structure agreement.
+            let mat = view.materialize().unwrap();
+            for i in 0..n {
+                let u = DenseNodeId::from_raw(i);
+                assert_eq!(mat.children(u), mutilated.children(u));
+            }
+            // d-sep agreement on random queries.
+            for _ in 0..12 {
+                let x = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
+                let mut y = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
+                while y == x {
+                    y = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
+                }
+                let mut z = Vec::new();
+                for i in 0..n {
+                    let v = DenseNodeId::from_raw(i);
+                    if v == x || v == y {
+                        continue;
+                    }
+                    if rng.next_u64() % 2 == 0 {
+                        z.push(v);
+                    }
+                }
+                let view_sep = view.is_d_separated(x, y, &z, &mut ws).unwrap();
+                let mut_sep = mutilated.is_d_separated(x, y, &z, &mut ws).unwrap();
+                assert_eq!(
+                    view_sep, mut_sep,
+                    "overlay≠mutilate d-sep x={} y={} z={:?} T={:?}",
+                    x.raw(),
+                    y.raw(),
+                    z.iter().map(|v| v.raw()).collect::<Vec<_>>(),
+                    treated.iter().map(|v| v.raw()).collect::<Vec<_>>()
+                );
+            }
+        }
+    }
 }

@@ -27,17 +27,17 @@ use causal_estimate::{
     EstimationWorkspace, OverlapPolicy,
 };
 use causal_expr::IdentifiedEstimand;
-use causal_graph::{TemporalCpdagReview, TemporalGraphReview};
+use causal_graph::{CpdagReview, TemporalCpdagReview, TemporalGraphReview};
 use causal_validate::{
     RefutationProblem, RefutationReport, ValidationSuite,
 };
 
 use crate::discovery::{
-    DiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pcmci, discover_pcmci_plus,
-    discover_rpcmci,
+    DiscoverParams, StaticDiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pc,
+    discover_pcmci, discover_pcmci_plus, discover_rpcmci,
 };
 use crate::discovery_defaults::resolve_ci;
-use causal_discovery::{MultiDatasetConstraints, two_regime_half_split};
+use causal_discovery::{MultiDatasetConstraints, RegimeAssignment};
 use crate::error::AnalysisError;
 use crate::result::CausalAnalysisResult;
 
@@ -146,24 +146,31 @@ pub(crate) fn run_pcmci_plus_review(
 }
 
 pub(crate) fn run_jpcmci_plus_review(
-    data: &TimeSeriesData,
+    data: &MultiEnvironmentData,
     max_lag: u32,
     alpha: f64,
     fdr: Option<causal_stats::FdrAdjustment>,
+    multi_dataset: &MultiDatasetConstraints,
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let system: Vec<VariableId> = vars
+        .into_iter()
+        .filter(|v| !multi_dataset.is_context(*v))
+        .collect();
+    if system.is_empty() {
+        return Err(AnalysisError::Compile {
+            message: "jpcmci+ needs ≥1 system variable after excluding context_variables".into(),
+        });
+    }
     let params = DiscoverParams {
         max_lag,
         alpha,
         fdr,
         ci: resolve_ci("parcorr", None)?,
-        multi_dataset: MultiDatasetConstraints::default(),
+        multi_dataset: multi_dataset.clone(),
     };
-    let multi = MultiEnvironmentData::try_new(Arc::from([data.clone()])).map_err(|e| {
-        AnalysisError::Compile { message: format!("jpcmci+ multi-env wrap failed: {e}") }
-    })?;
-    let result = discover_jpcmci_plus(&multi, &vars, &params, ctx)?;
+    let result = discover_jpcmci_plus(data, &system, &params, ctx)?;
     Ok(result.review)
 }
 
@@ -172,6 +179,7 @@ pub(crate) fn run_rpcmci_discovery(
     max_lag: u32,
     alpha: f64,
     fdr: Option<causal_stats::FdrAdjustment>,
+    assignment: &RegimeAssignment,
     ctx: &ExecutionContext,
 ) -> Result<causal_discovery::RpcmciDiscoveryResult, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -182,8 +190,16 @@ pub(crate) fn run_rpcmci_discovery(
         ci: resolve_ci("parcorr", None)?,
         multi_dataset: MultiDatasetConstraints::default(),
     };
-    let assign = two_regime_half_split(data.row_count());
-    discover_rpcmci(data, &vars, &assign, &params, None, ctx)
+    if assignment.len() != data.row_count() {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "RPCMCI regime_assignment length {} != series length {}",
+                assignment.len(),
+                data.row_count()
+            ),
+        });
+    }
+    discover_rpcmci(data, &vars, assignment, &params, None, ctx)
 }
 
 pub(crate) fn run_lpcmci_review(
@@ -202,6 +218,24 @@ pub(crate) fn run_lpcmci_review(
         multi_dataset: MultiDatasetConstraints::default(),
     };
     let result = discover_lpcmci(data, &vars, &params, ctx)?;
+    Ok(result.review)
+}
+
+pub(crate) fn run_pc_review(
+    data: &TabularData,
+    alpha: f64,
+    max_cond_size: usize,
+    fdr: Option<causal_stats::FdrAdjustment>,
+    ctx: &ExecutionContext,
+) -> Result<CpdagReview, AnalysisError> {
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = StaticDiscoverParams {
+        alpha,
+        max_cond_size,
+        fdr,
+        ci: resolve_ci("parcorr", None)?,
+    };
+    let result = discover_pc(data, &vars, &params, ctx)?;
     Ok(result.review)
 }
 

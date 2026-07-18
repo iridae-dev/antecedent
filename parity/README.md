@@ -45,8 +45,15 @@ bash scripts/gate_context.sh
 bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
+bash scripts/gate_calibration.sh
 bash scripts/gate_release.sh
 ```
+
+`gate_calibration.sh` is the DESIGN.md §28.3 statistical calibration suite
+(SE coverage, CI Type I / permutation uniformity, discovery null FPR). It is
+not part of every-PR unit CI; run locally before release, or via the weekly
+GitHub Actions workflow [`.github/workflows/calibration.yml`](../.github/workflows/calibration.yml)
+(`schedule` + `workflow_dispatch`).
 
 PAG: inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
 DAG-only-reject conformance; FCI/RFCI and full ID/IDC remain `pending`

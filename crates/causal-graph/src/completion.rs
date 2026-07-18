@@ -202,4 +202,114 @@ mod tests {
         g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         assert!(is_mag_completion(&g));
     }
+
+    fn random_pag_with_circles(rng: &mut causal_core::CausalRng, n: u32) -> Pag {
+        let mut pag = Pag::with_variables(n);
+        // Prefer a topological skeleton so directed inserts stay acyclic.
+        let mut order: Vec<u32> = (0..n).collect();
+        for i in (1..n as usize).rev() {
+            let j = (rng.next_u64() as usize) % (i + 1);
+            order.swap(i, j);
+        }
+        for i in 0..n as usize {
+            for j in (i + 1)..n as usize {
+                if rng.next_u64() % 3 != 0 {
+                    continue;
+                }
+                let a = DenseNodeId::from_raw(order[i]);
+                let b = DenseNodeId::from_raw(order[j]);
+                let kind = rng.next_u64() % 4;
+                let _ = match kind {
+                    0 => pag.insert_directed(a, b),
+                    1 => pag.insert_circle_arrow(a, b),
+                    2 => pag.insert_circle_circle(a, b),
+                    _ => pag.insert_bidirected(a, b),
+                };
+            }
+        }
+        pag
+    }
+
+    /// Completions respect the yield cap and never retain circle marks.
+    #[test]
+    fn property_completions_respect_bound_and_no_circles() {
+        use causal_core::CausalRng;
+
+        let mut rng = CausalRng::from_seed(23);
+        for _ in 0..40 {
+            let n = 2 + (rng.next_u64() % 3) as u32; // 2..=4
+            let pag = random_pag_with_circles(&mut rng, n);
+            let max_c = 1 + (rng.next_u64() as usize % 4); // 1..=4
+            let Ok(sampler) = CompletionSampler::new(pag, max_c) else {
+                continue; // too many circle sites
+            };
+            let collected: Vec<_> = sampler.collect();
+            assert!(collected.len() <= max_c, "exceeded max_completions");
+            for (i, c) in collected.iter().enumerate() {
+                assert_eq!(c.index, i);
+                assert!(is_mag_completion(&c.graph));
+                for i in 0..c.graph.node_count() {
+                    let a = DenseNodeId::from_raw(u32::try_from(i).unwrap());
+                    for (b, at_a, at_b) in c.graph.neighbors(a) {
+                        if b.raw() < a.raw() {
+                            continue;
+                        }
+                        assert!(!matches!(at_a, Endpoint::Circle | Endpoint::Conflict));
+                        assert!(!matches!(at_b, Endpoint::Circle | Endpoint::Conflict));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Where cheap: an active definite-status path in the PAG remains m-connecting in
+    /// every MAG completion (sound direction only; PAG separation is incomplete).
+    #[test]
+    fn property_definite_msep_stable_across_completions() {
+        use causal_core::CausalRng;
+
+        let mut rng = CausalRng::from_seed(29);
+        for _ in 0..30 {
+            let n = 3u32;
+            let pag = random_pag_with_circles(&mut rng, n);
+            let Ok(sampler) = CompletionSampler::new(pag.clone(), 8) else {
+                continue;
+            };
+            if sampler.n_circle_sites() > 4 {
+                continue; // keep enumeration cheap
+            }
+            let completions: Vec<_> = sampler.collect();
+            if completions.is_empty() {
+                continue;
+            }
+            for x in 0..n {
+                for y in 0..n {
+                    if x == y {
+                        continue;
+                    }
+                    let xi = DenseNodeId::from_raw(x);
+                    let yi = DenseNodeId::from_raw(y);
+                    // Empty Z only — cheapest definite-status check.
+                    let Ok(pag_sep) = pag.is_m_separated(xi, yi, &[], 32, 6) else {
+                        continue; // budget exhaustion — skip
+                    };
+                    if pag_sep {
+                        continue; // incomplete: PAG sep ⇏ completion sep
+                    }
+                    for c in &completions {
+                        let Ok(comp_sep) = c.graph.is_m_separated(xi, yi, &[], 32, 6) else {
+                            continue;
+                        };
+                        assert!(
+                            !comp_sep,
+                            "PAG m-connected but completion {} separated {}–{}",
+                            c.index,
+                            x,
+                            y
+                        );
+                    }
+                }
+            }
+        }
+    }
 }

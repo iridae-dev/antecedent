@@ -233,9 +233,11 @@ impl WaldIv {
 
         let wald = wald_ratio(&z, &problem.treatment, &problem.outcome)?;
         let ate = wald.ratio * problem.treatment_delta;
+        // Homoskedastic path uses the same first-stage-aware IF as HC (not the
+        // delta-method SE that ignores denominator sampling variability).
         let se_unit = match self.se_kind {
-            AnalyticSeKind::Homoskedastic => wald.se,
-            AnalyticSeKind::Hc0
+            AnalyticSeKind::Homoskedastic
+            | AnalyticSeKind::Hc0
             | AnalyticSeKind::Hc1
             | AnalyticSeKind::Hc2
             | AnalyticSeKind::Hc3 => wald_influence_se(
@@ -320,9 +322,11 @@ struct WaldResult {
     se: f64,
 }
 
-/// Ratio-of-differences point estimate with a delta-method SE that ignores sampling
-/// uncertainty in the first-stage denominator (a common simplification; the bootstrap SE
-/// above captures the full picture by resampling the whole ratio).
+/// Ratio-of-differences point estimate.
+///
+/// The accompanying `se` field is the classical delta-method SE that ignores
+/// first-stage sampling variability; callers that need analytic uncertainty
+/// should prefer [`wald_influence_se`].
 fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationError> {
     let (mut sy1, mut sy0, mut sy1sq, mut sy0sq, mut st1, mut st0) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
     let (mut n1, mut n0) = (0usize, 0usize);

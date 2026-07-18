@@ -28,6 +28,8 @@ def test_counterfactual_ite_returns_unit_effects():
     assert result.n_units == len(cols[0])
     assert result.unit_effects.shape == (result.n_units,)
     assert np.isclose(result.unit_effects.mean(), result.mean_ite, rtol=1e-9)
+    # Structural β=1.5; rtol=0.15 is stable on this fixture (was 0.2).
+    assert np.isclose(result.mean_ite, 1.5, rtol=0.15)
 
 
 def test_sample_do_returns_draws():
@@ -67,3 +69,10 @@ def test_attribute_path_specific():
     assert isinstance(total, float)
     assert paths
     assert all(isinstance(p, list) and isinstance(c, float) for p, c in paths)
+    mediated = next(
+        (c for p, c in paths if p == ["t", "m", "y"] or (len(p) == 3 and p[1] == "m")),
+        None,
+    )
+    assert mediated is not None, f"expected t→m→y path contribution, got {paths}"
+    # Linear SEM path product 0.8×0.6 = 0.48 (MonteCarlo tolerance).
+    assert abs(mediated - 0.48) < 0.25

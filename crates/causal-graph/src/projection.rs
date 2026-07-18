@@ -52,7 +52,14 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
                 // inserted; skip only those conflicts.
                 match admg.insert_directed(from, to) {
                     Ok(()) => {}
-                    Err(GraphError::Cycle { .. } | GraphError::DuplicateEdge { .. }) => {}
+                    Err(GraphError::DuplicateEdge { .. }) => {}
+                    Err(GraphError::Cycle { .. }) => {
+                        // Silent skip would drop a required projection edge and can
+                        // break d/m-separation equivalence — fail closed instead.
+                        return Err(GraphError::InvalidEndpoints {
+                            message: "latent projection directed edge conflicts with an existing path (cycle); refuse incomplete projection",
+                        });
+                    }
                     Err(e) => return Err(e),
                 }
             }
@@ -245,5 +252,23 @@ mod tests {
         dag.insert_directed(l, y).unwrap();
         let admg = latent_project(&dag, &[x, y]).unwrap();
         assert!(admg.children(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(1)));
+    }
+
+    #[test]
+    fn latent_projection_cycle_conflict_errors() {
+        // Latent skeleton X → L1 → Y → L2 → X: projecting onto {X, Y} proposes both
+        // X → Y and Y → X. Built with unchecked edges (invalid as a DAG, but exercises
+        // fail-closed refusal when projection would introduce a directed cycle).
+        let mut dag = Dag::with_variables(4);
+        let x = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let l1 = DenseNodeId::from_raw(2);
+        let l2 = DenseNodeId::from_raw(3);
+        dag.insert_directed_unchecked(x, l1);
+        dag.insert_directed_unchecked(l1, y);
+        dag.insert_directed_unchecked(y, l2);
+        dag.insert_directed_unchecked(l2, x);
+        let err = latent_project(&dag, &[x, y]).unwrap_err();
+        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
     }
 }

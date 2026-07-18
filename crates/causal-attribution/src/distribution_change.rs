@@ -301,7 +301,7 @@ mod tests {
     use super::*;
     use causal_core::{
         CachePolicy, CausalSchemaBuilder, MeasurementSpec, PopulationSelector, RoleHint,
-        SmallRoleSet, ValueType,
+        SmallRoleSet, ToleranceClass, ValueType,
     };
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};
@@ -394,5 +394,40 @@ mod tests {
             x_contrib,
             result.contributions
         );
+        // Exact Shapley efficiency: Σφ = total_change (payoff uses CRN across coalitions).
+        let phi_sum: f64 = result.contributions.iter().map(|c| c.contribution).sum();
+        assert!(
+            (phi_sum - result.total_change).abs() < 1e-6
+                || ToleranceClass::MonteCarlo.close(phi_sum, result.total_change),
+            "efficiency: Σφ={phi_sum} total={}",
+            result.total_change
+        );
+    }
+
+    #[test]
+    fn exact_shapley_efficiency_sum_phi_equals_total_change() {
+        let (model, data) = two_period_chain();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.cache_policy = CachePolicy::enabled(Some(1_000_000));
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: 800,
+            seed: 11,
+        };
+        let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
+        let phi_sum: f64 = result.contributions.iter().map(|c| c.contribution).sum();
+        assert!(
+            (phi_sum - result.total_change).abs() < 1e-6
+                || ToleranceClass::MonteCarlo.close(phi_sum, result.total_change),
+            "Σφ={phi_sum} total_change={}",
+            result.total_change
+        );
+        assert!(result.total_change.is_finite() && result.total_change.abs() > 1.0);
     }
 }

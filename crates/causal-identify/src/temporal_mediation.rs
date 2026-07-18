@@ -23,10 +23,19 @@ use crate::result::{
 use crate::temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
 
 /// Temporal linear mediation identifier.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct TemporalMediationIdentifier {
     /// Reuses temporal unfolding / backdoor machinery for optional horizon checks.
     pub temporal: TemporalBackdoorIdentifier,
+    /// When true, [`MediationContrast::NaturalDirect`] / [`MediationContrast::NaturalIndirect`]
+    /// are treated as their controlled counterparts (linear alias).
+    pub allow_natural_controlled_alias: bool,
+}
+
+impl Default for TemporalMediationIdentifier {
+    fn default() -> Self {
+        Self { temporal: TemporalBackdoorIdentifier::default(), allow_natural_controlled_alias: false }
+    }
 }
 
 impl TemporalMediationIdentifier {
@@ -49,6 +58,16 @@ impl TemporalMediationIdentifier {
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid mediation query",
         })?;
+        if matches!(
+            query.contrast,
+            MediationContrast::NaturalDirect | MediationContrast::NaturalIndirect
+        ) && !self.allow_natural_controlled_alias
+        {
+            return Err(IdentificationError::unsupported(
+                "NaturalDirect/NaturalIndirect require allow_natural_controlled_alias; \
+                 natural effects alias controlled effects in linear temporal mediation",
+            ));
+        }
         Self::ensure_mediators_intercept(template, query)?;
 
         let method: Arc<str> = match query.contrast {
@@ -102,6 +121,25 @@ impl TemporalMediationIdentifier {
             scope: AssumptionScope::Identification,
             status: AssumptionStatus::Declared,
         });
+        if matches!(
+            query.contrast,
+            MediationContrast::NaturalDirect | MediationContrast::NaturalIndirect
+        ) {
+            assumptions.push(AssumptionRecord {
+                assumption: Assumption::Custom {
+                    id: Arc::from("natural_controlled_alias"),
+                    description: Arc::from(
+                        "natural direct/indirect effects are aliased to controlled \
+                         direct/mediated effects under linear temporal mediation",
+                    ),
+                },
+                source: AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from("temporal_mediation"),
+                },
+                scope: AssumptionScope::Identification,
+                status: AssumptionStatus::Declared,
+            });
+        }
 
         let mut derivation = DerivationTrace::default();
         derivation.push(
@@ -230,5 +268,36 @@ mod tests {
         let id = TemporalMediationIdentifier::new().identify(&g, &q).unwrap();
         assert!(matches!(id.status, IdentificationStatus::PartiallyIdentified));
         assert_eq!(id.estimands[0].mediators.len(), 1);
+    }
+
+    #[test]
+    fn natural_contrast_without_flag_errors() {
+        let g = chain_template();
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::NaturalIndirect,
+        );
+        let err = TemporalMediationIdentifier::new().identify(&g, &q).unwrap_err();
+        assert!(matches!(err, IdentificationError::UnsupportedQuery { .. }));
+    }
+
+    #[test]
+    fn natural_contrast_with_flag_succeeds() {
+        let g = chain_template();
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::NaturalIndirect,
+        );
+        let mut ider = TemporalMediationIdentifier::new();
+        ider.allow_natural_controlled_alias = true;
+        let id = ider.identify(&g, &q).unwrap();
+        assert!(id.required_assumptions.entries.iter().any(|a| matches!(
+            &a.assumption,
+            Assumption::Custom { id, .. } if id.as_ref() == "natural_controlled_alias"
+        )));
     }
 }

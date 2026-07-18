@@ -45,7 +45,7 @@ use crate::planner::{
 use crate::result::CausalAnalysisResult;
 use crate::review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
-    compile_review_required_pag, ensure_review_complete,
+    compile_review_required_pag, compile_review_required_static_cpdag, ensure_review_complete,
 };
 use crate::strategy_table::{
     DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, EstimatorId,
@@ -57,7 +57,7 @@ use super::builder::{CausalAnalysisBuilder, DataInput, RdConfig, RefuteSuite};
 use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic,
     provenance_pair, run_jpcmci_plus_review, run_lpcmci_review, run_pcmci_plus_review,
-    run_pcmci_review, run_refuters, run_rpcmci_discovery,
+    run_pcmci_review, run_pc_review, run_refuters, run_rpcmci_discovery,
 };
 
 /// Prepared analysis (static or temporal).
@@ -126,12 +126,21 @@ impl CausalAnalysis {
                 CausalQuery::TemporalEffect(q),
                 GraphInput::DiscoverPcmci { .. }
                 | GraphInput::DiscoverPcmciPlus { .. }
-                | GraphInput::DiscoverJpcmciPlus { .. }
                 | GraphInput::DiscoverRpcmci { .. }
                 | GraphInput::DiscoverLpcmci { .. }
                 | GraphInput::TemporalPag(_),
             ) => {
                 // Review usually required; logical metadata still inspectable.
+                compile_logical_temporal_effect(data, &TemporalDag::empty(), q, self.split, true)
+            }
+            (
+                DataInput::MultiEnv(multi),
+                CausalQuery::TemporalEffect(q),
+                GraphInput::DiscoverJpcmciPlus { .. },
+            ) => {
+                let data = multi.environment(0).map_err(|e| AnalysisError::Compile {
+                    message: format!("jpcmci+ multi-env: {e}"),
+                })?;
                 compile_logical_temporal_effect(data, &TemporalDag::empty(), q, self.split, true)
             }
             (DataInput::Tabular(_), CausalQuery::AverageEffect(_), graph @ GraphInput::Pag(_)) => {
@@ -142,6 +151,26 @@ impl CausalAnalysis {
                      (generalized.adjustment envelope); CausalAnalysis execute is not wired for PAG"
                         .into(),
                 })
+            }
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(q),
+                GraphInput::DiscoverPc { .. },
+            ) => {
+                let (identifier, estimator) = self.resolve_static_pair();
+                let n_vars = u32::try_from(data.schema().len()).unwrap_or(0);
+                let empty = Dag::with_variables(n_vars);
+                let mut plan = compile_logical_static_ate(StaticAteCompileInput {
+                    data,
+                    graph: &empty,
+                    query: q,
+                    validation_suite: self.validation_suite_id(),
+                    identifier,
+                    estimator,
+                })?;
+                plan.record.discovery_algorithm = Some(Arc::from("pc"));
+                plan.record.graph_review_required = true;
+                Ok(plan)
             }
             (_, CausalQuery::Distribution(_), _) => Err(AnalysisError::Unsupported {
                 message: "CausalQuery::Distribution is not wired through CausalAnalysis; \
@@ -222,11 +251,27 @@ impl CausalAnalysis {
                 }
             }
             (
-                DataInput::Temporal(data),
+                DataInput::MultiEnv(multi),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverJpcmciPlus { max_lag, alpha, fdr, accept_discovered },
+                GraphInput::DiscoverJpcmciPlus {
+                    max_lag,
+                    alpha,
+                    fdr,
+                    accept_discovered,
+                    multi_dataset,
+                },
             ) => {
-                let review = run_jpcmci_plus_review(data, *max_lag, *alpha, *fdr, ctx)?;
+                let review = run_jpcmci_plus_review(
+                    multi,
+                    *max_lag,
+                    *alpha,
+                    *fdr,
+                    multi_dataset,
+                    ctx,
+                )?;
+                let data = multi.environment(0).map_err(|e| AnalysisError::Compile {
+                    message: format!("jpcmci+ multi-env: {e}"),
+                })?;
                 if *accept_discovered && review.pending_undirected.is_empty() {
                     PendingCpdagReview::new(review, data.row_count(), q.clone(), self.split)
                         .accept_all_directed()
@@ -238,9 +283,16 @@ impl CausalAnalysis {
             (
                 DataInput::Temporal(data),
                 CausalQuery::TemporalEffect(_q),
-                GraphInput::DiscoverRpcmci { max_lag, alpha, fdr, accept_discovered },
+                GraphInput::DiscoverRpcmci {
+                    max_lag,
+                    alpha,
+                    fdr,
+                    accept_discovered,
+                    regime_assignment,
+                },
             ) => {
-                let result = run_rpcmci_discovery(data, *max_lag, *alpha, *fdr, ctx)?;
+                let result =
+                    run_rpcmci_discovery(data, *max_lag, *alpha, *fdr, regime_assignment, ctx)?;
                 // Multi-regime estimation is not auto-wired; surface the first regime's CPDAG
                 // for review. Auto-accept only when a single fully-oriented regime exists.
                 let Some(first) = result.per_regime.first() else {
@@ -284,6 +336,41 @@ impl CausalAnalysis {
                     pag.clone(),
                     "supplied.temporal_pag",
                 )))
+            }
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(q),
+                GraphInput::DiscoverPc {
+                    alpha,
+                    max_cond_size,
+                    fdr,
+                    accept_discovered,
+                },
+            ) => {
+                let review = run_pc_review(data, *alpha, *max_cond_size, *fdr, ctx)?;
+                if *accept_discovered && review.pending_undirected.is_empty() {
+                    let mut accepted = review;
+                    accepted.pending_edges = Arc::from([]);
+                    let dag = accepted.try_into_dag().map_err(|e| AnalysisError::ReviewRequired {
+                        message: e.to_string(),
+                    })?;
+                    let (identifier, estimator) = self.resolve_static_pair();
+                    self.ensure_rd_config_present(&estimator)?;
+                    let mut logical = compile_logical_static_ate(StaticAteCompileInput {
+                        data,
+                        graph: &dag,
+                        query: q,
+                        validation_suite: self.validation_suite_id(),
+                        identifier,
+                        estimator,
+                    })?;
+                    logical.record.discovery_algorithm = Some(Arc::from("pc"));
+                    let physical =
+                        logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
+                    Ok(CompiledAnalysis::Ready(physical))
+                } else {
+                    Ok(compile_review_required_static_cpdag(review))
+                }
             }
             (DataInput::Tabular(_), CausalQuery::AverageEffect(_), graph @ GraphInput::Pag(_)) => {
                 let (identifier, _) = self.resolve_static_pair();
@@ -341,6 +428,12 @@ impl CausalAnalysis {
                         .into(),
                 });
             }
+            (DataInput::MultiEnv(_), CausalQuery::AverageEffect(_), _) => {
+                return Err(AnalysisError::Compile {
+                    message: "static ATE on temporal data is unsupported; use TemporalEffect"
+                        .into(),
+                });
+            }
             (
                 DataInput::Tabular(_),
                 _,
@@ -357,7 +450,30 @@ impl CausalAnalysis {
                             .into(),
                 });
             }
+            (DataInput::Temporal(_), _, GraphInput::DiscoverPc { .. })
+            | (DataInput::MultiEnv(_), _, GraphInput::DiscoverPc { .. }) => {
+                return Err(AnalysisError::Compile {
+                    message: "static PC discovery requires tabular data and AverageEffect".into(),
+                });
+            }
+            (DataInput::Temporal(_), _, GraphInput::DiscoverJpcmciPlus { .. }) => {
+                return Err(AnalysisError::Compile {
+                    message: "J-PCMCI+ discovery requires series_multi (MultiEnvironmentData)"
+                        .into(),
+                });
+            }
+            (DataInput::MultiEnv(_), _, graph) if !matches!(graph, GraphInput::DiscoverJpcmciPlus { .. }) => {
+                return Err(AnalysisError::Compile {
+                    message: "multi-environment data currently supports only DiscoverJpcmciPlus"
+                        .into(),
+                });
+            }
             (DataInput::Temporal(_), _, GraphInput::Pag(_)) => {
+                return Err(AnalysisError::Compile {
+                    message: "static Pag requires tabular data and an average-effect query".into(),
+                });
+            }
+            (DataInput::MultiEnv(_), _, GraphInput::Pag(_)) => {
                 return Err(AnalysisError::Compile {
                     message: "static Pag requires tabular data and an average-effect query".into(),
                 });
@@ -427,10 +543,19 @@ impl CausalAnalysis {
         ensure_review_complete(&physical.logical)?;
         match (&self.data, &self.query) {
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => {
-                let GraphInput::Static(graph) = &self.graph else {
-                    return Err(AnalysisError::Unsupported {
-                        message: "static ATE execute requires a supplied static DAG",
-                    });
+                let graph = match &self.graph {
+                    GraphInput::Static(graph) => graph,
+                    GraphInput::DiscoverPc { .. } => physical.static_graph().ok_or(
+                        AnalysisError::Compile {
+                            message: "Ready PC plan missing resolved static DAG (complete review first)"
+                                .into(),
+                        },
+                    )?,
+                    _ => {
+                        return Err(AnalysisError::Unsupported {
+                            message: "static ATE execute requires a supplied static DAG or DiscoverPc",
+                        });
+                    }
                 };
                 self.execute_static(data, graph, q, physical, ctx)
             }

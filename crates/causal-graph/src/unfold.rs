@@ -481,4 +481,160 @@ mod tests {
         let review = review.accept_edge(from, to);
         assert!(review.is_complete());
     }
+
+    fn random_small_template(rng: &mut causal_core::CausalRng) -> (TemporalDag, u32, u32, u32) {
+        let n_vars = 2 + (rng.next_u64() % 2) as u32; // 2..=3
+        let max_lag = 1 + (rng.next_u64() % 2) as u32; // 1..=2
+        let history = max_lag;
+        let horizon = 1 + (rng.next_u64() % 2) as u32; // 1..=2
+
+        let mut g = TemporalDag::empty();
+        let mut ids = Vec::new();
+        for v in 0..n_vars {
+            for lag in 0..=max_lag {
+                let id = g.add_lagged(VariableId::from_raw(v), Lag::from_raw(lag)).unwrap();
+                ids.push((v, lag, id));
+            }
+        }
+        // Time-respecting edges only: source lag ≥ target lag; contemporaneous
+        // edges ordered by variable id so the template stays a DAG.
+        for &(va, la, a) in &ids {
+            for &(vb, lb, b) in &ids {
+                if a == b {
+                    continue;
+                }
+                let time_ok = la > lb || (la == lb && va < vb);
+                if !time_ok {
+                    continue;
+                }
+                if rng.next_u64() % 3 == 0 {
+                    let _ = g.insert_directed(a, b);
+                }
+            }
+        }
+        (g, n_vars, history, horizon)
+    }
+
+    /// Reconstruct a DAG by querying every lazy `has_edge` pair in-window.
+    fn dag_from_lazy_scan(lazy: &LazyUnfoldedTemporalGraph) -> Dag {
+        let n = lazy.indexer.dense_len();
+        let mut dag = Dag::with_variables(u32::try_from(n).unwrap());
+        let min_off = -(lazy.indexer.history() as i32);
+        let max_off = (lazy.indexer.horizon() as i32) - 1;
+        let n_vars = lazy.indexer.variable_count();
+        for va in 0..n_vars {
+            for oa in min_off..=max_off {
+                for vb in 0..n_vars {
+                    for ob in min_off..=max_off {
+                        let from =
+                            TemporalNodeKey { variable: VariableId::from_raw(va), offset: oa };
+                        let to =
+                            TemporalNodeKey { variable: VariableId::from_raw(vb), offset: ob };
+                        if !lazy.has_edge(from, to).unwrap() {
+                            continue;
+                        }
+                        let a = DenseNodeId::from_raw(lazy.indexer.dense_id(from).unwrap());
+                        let b = DenseNodeId::from_raw(lazy.indexer.dense_id(to).unwrap());
+                        if a != b {
+                            let _ = dag.insert_directed(a, b);
+                        }
+                    }
+                }
+            }
+        }
+        dag
+    }
+
+    /// Lazy `has_edge` agrees with materialize over random small stationary templates.
+    #[test]
+    fn property_lazy_unfold_matches_materialize_on_small_templates() {
+        use causal_core::CausalRng;
+
+        let mut rng = CausalRng::from_seed(91);
+        for _ in 0..50 {
+            let (g, n_vars, history, horizon) = random_small_template(&mut rng);
+            let indexer = TemporalIndexer::new(n_vars, history, horizon).unwrap();
+            let lazy = g.unfold_lazy(indexer.clone()).unwrap();
+            let unfolded = lazy.materialize().unwrap();
+            let min_off = -(history as i32);
+            let max_off = (horizon as i32) - 1;
+            for va in 0..n_vars {
+                for oa in min_off..=max_off {
+                    for vb in 0..n_vars {
+                        for ob in min_off..=max_off {
+                            let from = TemporalNodeKey {
+                                variable: VariableId::from_raw(va),
+                                offset: oa,
+                            };
+                            let to = TemporalNodeKey {
+                                variable: VariableId::from_raw(vb),
+                                offset: ob,
+                            };
+                            let dense_a =
+                                DenseNodeId::from_raw(indexer.dense_id(from).unwrap());
+                            let dense_b =
+                                DenseNodeId::from_raw(indexer.dense_id(to).unwrap());
+                            let eager = unfolded.dag.children(dense_a).contains(&dense_b);
+                            assert_eq!(
+                                lazy.has_edge(from, to).unwrap(),
+                                eager,
+                                "lazy≠materialize {from:?}->{to:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// d-separation on the lazy-scanned DAG agrees with materialize on random templates.
+    #[test]
+    fn property_unfolded_dsep_lazy_scan_matches_materialize() {
+        use causal_core::CausalRng;
+
+        let mut rng = CausalRng::from_seed(113);
+        let mut ws = DSeparationWorkspace::default();
+        for _ in 0..30 {
+            let (g, n_vars, history, horizon) = random_small_template(&mut rng);
+            let indexer = TemporalIndexer::new(n_vars, history, horizon).unwrap();
+            let lazy = g.unfold_lazy(indexer).unwrap();
+            let unfolded = lazy.materialize().unwrap();
+            let scanned = dag_from_lazy_scan(&lazy);
+            let n = unfolded.dag.node_count() as u32;
+            assert_eq!(scanned.node_count(), unfolded.dag.node_count());
+            for i in 0..n {
+                let u = DenseNodeId::from_raw(i);
+                let mut a = scanned.children(u).to_vec();
+                let mut b = unfolded.dag.children(u).to_vec();
+                a.sort_by_key(|x| x.raw());
+                b.sort_by_key(|x| x.raw());
+                assert_eq!(a, b, "lazy-scan adjacency ≠ materialize at {}", i);
+            }
+            for _ in 0..10 {
+                let x = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
+                let mut y = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
+                while y == x {
+                    y = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
+                }
+                let mut z = Vec::new();
+                for i in 0..n {
+                    let v = DenseNodeId::from_raw(i);
+                    if v == x || v == y {
+                        continue;
+                    }
+                    if rng.next_u64() % 3 == 0 {
+                        z.push(v);
+                    }
+                }
+                let lazy_sep = scanned.is_d_separated(x, y, &z, &mut ws).unwrap();
+                let mat_sep = unfolded.dag.is_d_separated(x, y, &z, &mut ws).unwrap();
+                assert_eq!(
+                    lazy_sep, mat_sep,
+                    "unfolded d-sep mismatch x={} y={}",
+                    x.raw(),
+                    y.raw()
+                );
+            }
+        }
+    }
 }

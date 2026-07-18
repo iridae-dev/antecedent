@@ -205,6 +205,92 @@ mod tests {
         assert!(ToleranceClass::StableFloat.close(cov, cov_s));
     }
 
+    /// DESIGN §28.2: scalar ≡ portable under random lengths, strides/tails, masks, NaNs.
+    #[test]
+    fn property_scalar_portable_random_strides_masks_nans() {
+        let mut rng = causal_core::CausalRng::from_seed(28_02);
+        for trial in 0..80 {
+            let len = 1 + (rng.next_u64() as usize % 48); // 1..=48
+            let stride = 1 + (rng.next_u64() as usize % 4); // 1..=4
+            let tail = rng.next_u64() as usize % 5; // unused padding
+            let need = (len - 1) * stride + 1 + tail;
+            let mut x_buf = vec![0.0f64; need];
+            let mut y_buf = vec![0.0f64; need];
+            for i in 0..need {
+                // Mix finite values with occasional NaNs (inject into logical slots).
+                let u = rng.next_u64();
+                let base = ((u % 1000) as f64) * 0.01 - 5.0;
+                x_buf[i] = if u % 17 == 0 { f64::NAN } else { base };
+                y_buf[i] = if (u / 17) % 19 == 0 {
+                    f64::NAN
+                } else {
+                    base * 0.3 + 1.0
+                };
+            }
+            let x = F64VectorView::strided(&x_buf, len, stride).unwrap();
+            let y = F64VectorView::strided(&y_buf, len, stride).unwrap();
+
+            let mut bits = vec![0u8; len.div_ceil(8)];
+            let use_mask = rng.next_u64() % 3 != 0;
+            if use_mask {
+                for i in 0..len {
+                    if rng.next_u64() & 1 == 1 {
+                        bits[i / 8] |= 1 << (i % 8);
+                    }
+                }
+            }
+            // Ensure at least one valid bit when masked so mean/var/cov have a chance.
+            if use_mask && bits.iter().all(|&b| b == 0) {
+                bits[0] |= 1;
+            }
+            let mask = if use_mask {
+                Some(BitMaskView::new(&bits, len).unwrap())
+            } else {
+                None
+            };
+
+            let s_sum = scalar::masked_sum(x, mask);
+            let p_sum = portable::masked_sum(x, mask);
+            assert!(
+                floats_agree(s_sum, p_sum),
+                "trial={trial} sum scalar={s_sum} portable={p_sum} len={len} stride={stride}"
+            );
+
+            let s_mean = scalar::masked_mean(x, mask);
+            let p_mean = portable::masked_mean(x, mask);
+            assert!(
+                options_agree(s_mean, p_mean),
+                "trial={trial} mean scalar={s_mean:?} portable={p_mean:?}"
+            );
+
+            let s_var = scalar::masked_variance(x, mask);
+            let p_var = portable::masked_variance(x, mask);
+            assert!(
+                options_agree(s_var, p_var),
+                "trial={trial} var scalar={s_var:?} portable={p_var:?}"
+            );
+
+            let s_cov = scalar::masked_covariance(x, y, mask);
+            let p_cov = portable::masked_covariance(x, y, mask);
+            assert!(
+                options_agree(s_cov, p_cov),
+                "trial={trial} cov scalar={s_cov:?} portable={p_cov:?}"
+            );
+        }
+    }
+
+    fn floats_agree(a: f64, b: f64) -> bool {
+        (a.is_nan() && b.is_nan()) || ToleranceClass::StableFloat.close(a, b)
+    }
+
+    fn options_agree(a: Option<f64>, b: Option<f64>) -> bool {
+        match (a, b) {
+            (None, None) => true,
+            (Some(x), Some(y)) => floats_agree(x, y),
+            _ => false,
+        }
+    }
+
     #[test]
     fn gather_hot_path_reuses_output_buffer() {
         let n = 8_000usize;

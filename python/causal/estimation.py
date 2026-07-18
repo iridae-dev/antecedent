@@ -13,9 +13,10 @@ from ._native import (
     AteAnalysisResult,
     analyze as _analyze_temporal,
     analyze_ate as _analyze_ate,
+    analyze_ate_discover as _analyze_ate_discover,
     analyze_temporal_discover as _analyze_temporal_discover,
 )
-from .discovery import JPCMCIPlus, LPCMCI, PCMCI, PCMCIPlus, RPCMCI
+from .discovery import JPCMCIPlus, LPCMCI, PC, PCMCI, PCMCIPlus, RPCMCI
 from .inference import Bayesian, Frequentist
 from .query import AverageEffect, PulseEffect, SustainedEffect
 
@@ -190,23 +191,76 @@ def _wrap_temporal(raw: NativeAnalysisResult) -> AnalysisResult:
     )
 
 
-def _discovery_algorithm(discovery: Any) -> tuple[str, int, float, bool]:
+def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
     if isinstance(discovery, PCMCI):
-        return "pcmci", discovery.max_lag, discovery.alpha, discovery.fdr
+        return {
+            "algorithm": "pcmci",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+        }
     if isinstance(discovery, PCMCIPlus):
-        return "pcmci_plus", discovery.max_lag, discovery.alpha, discovery.fdr
+        return {
+            "algorithm": "pcmci_plus",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+        }
     if isinstance(discovery, LPCMCI):
-        return "lpcmci", discovery.max_lag, discovery.alpha, discovery.fdr
-    if isinstance(discovery, (JPCMCIPlus, RPCMCI)):
-        raise NotImplementedError(
-            f"{type(discovery).__name__} via analyze(discovery=...) is not wired; "
-            "call discover_jpcmci_plus / discover_rpcmci directly"
-        )
+        return {
+            "algorithm": "lpcmci",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+        }
+    if isinstance(discovery, JPCMCIPlus):
+        return {
+            "algorithm": "jpcmci_plus",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "context_names": list(discovery.context_names),
+            "include_space_dummy": discovery.include_space_dummy,
+            "include_time_dummy": discovery.include_time_dummy,
+            "space_dummy_ci": discovery.space_dummy_ci,
+        }
+    if isinstance(discovery, RPCMCI):
+        return {
+            "algorithm": "rpcmci",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+        }
+    if isinstance(discovery, PC):
+        return {
+            "algorithm": "pc",
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
+        }
     raise TypeError(f"unsupported discovery config: {type(discovery)!r}")
 
 
+def _as_multi_env_columns(
+    data: Sequence[Mapping[str, Any] | Any],
+) -> tuple[list[str], list[list[NDArray[np.float64]]]]:
+    if not data:
+        raise ValueError("JPCMCIPlus requires a non-empty sequence of environment frames")
+    names, first = _as_columns(data[0])
+    env_columns = [first]
+    for i, env in enumerate(data[1:], start=1):
+        n, cols = _as_columns(env)
+        if n != names:
+            raise ValueError(
+                f"environment {i} column names {n!r} do not match environment 0 {names!r}"
+            )
+        env_columns.append(cols)
+    return names, env_columns
+
+
 def analyze(
-    data: Mapping[str, Any] | Any,
+    data: Mapping[str, Any] | Any | Sequence[Mapping[str, Any] | Any],
     *,
     query: AverageEffect | PulseEffect | SustainedEffect,
     graph: Sequence[tuple[str, str]] | Sequence[tuple[str, int, str, int]] | None = None,
@@ -219,6 +273,7 @@ def analyze(
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,
+    regimes: Sequence[int] | None = None,
 ) -> AnalysisResult:
     """Identify then estimate a causal effect.
 
@@ -226,26 +281,66 @@ def analyze(
     ----------
     data:
         Mapping of column name → 1-d float array, or a pandas ``DataFrame``.
+        For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
+        (each a mapping or DataFrame with the same columns).
     query:
         ``AverageEffect`` (static) or ``PulseEffect`` / ``SustainedEffect`` (temporal).
     graph:
         Supplied edges. For temporal queries without ``discovery``, lagged edges
         ``(from, from_lag, to, to_lag)`` are required.
     discovery:
-        ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` for temporal discover→estimate
-        (auto-accepts oriented edges when ``accept_discovered=True``).
+        ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI`` for
+        temporal discover→estimate, or ``PC`` for static ``AverageEffect``.
+    regimes:
+        Required for ``discovery=RPCMCI(...)``: integer regime label per time index.
     inference:
         ``Frequentist()`` (default) or ``Bayesian(...)``.
     """
-    if discovery is not None and isinstance(query, AverageEffect):
-        raise ValueError("discovery= requires a temporal PulseEffect/SustainedEffect query")
-
-    names, columns = _as_columns(data)
     inference = inference or Frequentist()
+
+    if discovery is not None and isinstance(discovery, PC):
+        if not isinstance(query, AverageEffect):
+            raise ValueError("discovery=PC(...) requires AverageEffect")
+        names, columns = _as_columns(data)  # type: ignore[arg-type]
+        cfg = _discovery_algorithm(discovery)
+        inference_s = None
+        n_draws = 1000
+        prior_scale = 10.0
+        if isinstance(inference, Bayesian):
+            inference_s = "bayesian"
+            n_draws = inference.n_draws
+            prior_scale = inference.prior_scale
+        raw = _analyze_ate_discover(
+            names,
+            columns,
+            query.treatment,
+            query.outcome,
+            alpha=cfg["alpha"],
+            fdr=cfg["fdr"],
+            max_cond_size=cfg["max_cond_size"],
+            accept_discovered=accept_discovered,
+            identifier=identifier,
+            estimator=estimator,
+            inference=inference_s,
+            n_draws=n_draws,
+            prior_scale=prior_scale,
+            refute=refute,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+        )
+        return _wrap_ate(raw)
+
+    if discovery is not None and isinstance(query, AverageEffect) and not isinstance(discovery, PC):
+        raise ValueError(
+            "AverageEffect with discovery= requires PC(...); "
+            "temporal discovery algorithms need PulseEffect/SustainedEffect"
+        )
 
     if isinstance(query, AverageEffect):
         if graph is None:
             raise ValueError("graph= edge list is required for AverageEffect")
+        names, columns = _as_columns(data)  # type: ignore[arg-type]
         edges = [(str(a), str(b)) for a, b in graph]  # type: ignore[misc]
         inference_s = None
         n_draws = 1000
@@ -274,16 +369,71 @@ def analyze(
 
     if isinstance(query, (PulseEffect, SustainedEffect)):
         if discovery is not None:
-            algo, max_lag, alpha, fdr = _discovery_algorithm(discovery)
+            cfg = _discovery_algorithm(discovery)
+            algo = cfg["algorithm"]
+            if algo == "jpcmci_plus":
+                if not isinstance(data, Sequence) or isinstance(data, (str, bytes, Mapping)):
+                    raise TypeError(
+                        "discovery=JPCMCIPlus(...) requires data as a sequence of "
+                        "environment mappings/DataFrames"
+                    )
+                names, env_columns = _as_multi_env_columns(data)
+                raw = _analyze_temporal_discover(
+                    names,
+                    env_columns[0],
+                    query.treatment,
+                    query.outcome,
+                    algorithm=algo,
+                    max_lag=cfg["max_lag"],
+                    alpha=cfg["alpha"],
+                    fdr=cfg["fdr"],
+                    accept_discovered=accept_discovered,
+                    treatment_lag=query.treatment_lag,
+                    horizon_steps=query.horizon_steps,
+                    active_level=query.active_level,
+                    seed=seed,
+                    bootstrap=bootstrap,
+                    threads=threads,
+                    env_columns=env_columns,
+                    context_names=cfg["context_names"],
+                    include_space_dummy=cfg["include_space_dummy"],
+                    include_time_dummy=cfg["include_time_dummy"],
+                    space_dummy_ci=cfg["space_dummy_ci"],
+                )
+                return _wrap_temporal(raw)
+            if algo == "rpcmci":
+                if regimes is None:
+                    raise ValueError("discovery=RPCMCI(...) requires regimes=[…] labels")
+                names, columns = _as_columns(data)  # type: ignore[arg-type]
+                raw = _analyze_temporal_discover(
+                    names,
+                    columns,
+                    query.treatment,
+                    query.outcome,
+                    algorithm=algo,
+                    max_lag=cfg["max_lag"],
+                    alpha=cfg["alpha"],
+                    fdr=cfg["fdr"],
+                    accept_discovered=accept_discovered,
+                    treatment_lag=query.treatment_lag,
+                    horizon_steps=query.horizon_steps,
+                    active_level=query.active_level,
+                    seed=seed,
+                    bootstrap=bootstrap,
+                    threads=threads,
+                    regimes=list(regimes),
+                )
+                return _wrap_temporal(raw)
+            names, columns = _as_columns(data)  # type: ignore[arg-type]
             raw = _analyze_temporal_discover(
                 names,
                 columns,
                 query.treatment,
                 query.outcome,
                 algorithm=algo,
-                max_lag=max_lag,
-                alpha=alpha,
-                fdr=fdr,
+                max_lag=cfg["max_lag"],
+                alpha=cfg["alpha"],
+                fdr=cfg["fdr"],
                 accept_discovered=accept_discovered,
                 treatment_lag=query.treatment_lag,
                 horizon_steps=query.horizon_steps,
@@ -297,6 +447,7 @@ def analyze(
             raise ValueError(
                 "temporal queries require graph= lagged edges or discovery=PCMCI(...)"
             )
+        names, columns = _as_columns(data)  # type: ignore[arg-type]
         lagged = [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in graph]  # type: ignore[misc]
         raw = _analyze_temporal(
             names,

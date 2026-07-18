@@ -11,9 +11,11 @@ use std::collections::HashSet;
 
 use causal_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, TemporalPag};
 
-use crate::discriminating_paths::{discriminating_implies_collider, find_discriminating_paths};
+use crate::discriminating_paths::{
+    discriminating_implies_collider, find_discriminating_paths_with_budget,
+};
 use crate::orientation::{OrientationError, OrientationQueue, OrientationState, RuleDelta};
-use crate::uncovered_paths::{uncovered_pd_paths, EndpointPattern};
+use crate::uncovered_paths::{uncovered_pd_paths_with_budget, EndpointPattern};
 
 /// Drain the orientation queue into a focus set, or scan all nodes when empty
 /// (same contract as Meek [`crate::orientation`] rules).
@@ -423,7 +425,14 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
         let mut delta = RuleDelta::default();
         let focus = focus_nodes(graph, queue);
         let focus_set: HashSet<u32> = focus.iter().map(|n| n.raw()).collect();
-        let paths = find_discriminating_paths(graph, 64, 8);
+        let (paths, truncated) = find_discriminating_paths_with_budget(graph, 64, 8);
+        if truncated {
+            return Err(OrientationError::SearchBudgetExhausted {
+                rule: "lpcmci.discriminating_path",
+                max_paths: 64,
+                max_len: 8,
+            });
+        }
         for path in paths {
             if !path.nodes.iter().any(|n| focus_set.contains(&n.raw())) {
                 continue;
@@ -595,7 +604,15 @@ impl LpcmciOrientationRule for LpcmciR9 {
                         EndpointPattern::circle_arrow(),
                         EndpointPattern::directed(),
                     ];
-                    let paths = uncovered_pd_paths(graph, b1, c, &initial, 8, 8);
+                    let (paths, truncated) =
+                        uncovered_pd_paths_with_budget(graph, b1, c, &initial, 8, 8);
+                    if truncated {
+                        return Err(OrientationError::SearchBudgetExhausted {
+                            rule: "lpcmci.r9",
+                            max_paths: 8,
+                            max_len: 8,
+                        });
+                    }
                     let qualifies = paths.iter().any(|path| {
                         path.len() >= 3 && !path.contains(&a) && !graph.has_edge(a, path[1])
                     });
@@ -624,7 +641,11 @@ impl LpcmciOrientationRule for LpcmciR9 {
     }
 }
 
-/// FCI R10′: `a o→ c ← b` with uncovered PD paths into both parents → `a → c`.
+/// FCI R10′: `a o→ c` with **two node-disjoint** uncovered PD paths into two
+/// distinct parents of `c` (`→` or `o→`) → orient `a → c`.
+///
+/// A single path into one parent is not sufficient (Zhang 2008 R10′); the prior
+/// one-path rule could over-orient.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciR10;
 
@@ -640,14 +661,12 @@ impl LpcmciOrientationRule for LpcmciR10 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
-        let _ = state;
         let focus = focus_nodes(graph, queue);
         for c in focus {
             let nbrs: Vec<_> = graph.neighbors(c).map(|(x, _, _)| x).collect();
-            // Collect parents with definite tail into c: *← from c's view is Tail at nbr, Arrow at c? 
-            // Pattern: a o→ c and p_c → c (tail at p_c).
+            // `a o→ c` candidates and parents into c with arrow at c and tail/circle at parent.
             let mut o_arrow_into: Vec<DenseNodeId> = Vec::new();
-            let mut directed_into: Vec<DenseNodeId> = Vec::new();
+            let mut parents_into: Vec<DenseNodeId> = Vec::new();
             for &n in &nbrs {
                 let Some((at_n, at_c)) = marks_between(graph, n, c) else {
                     continue;
@@ -655,8 +674,10 @@ impl LpcmciOrientationRule for LpcmciR10 {
                 if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Circle) {
                     o_arrow_into.push(n);
                 }
-                if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Tail) {
-                    directed_into.push(n);
+                if matches!(at_c, Endpoint::Arrow)
+                    && matches!(at_n, Endpoint::Tail | Endpoint::Circle)
+                {
+                    parents_into.push(n);
                 }
             }
             let initial = [
@@ -665,18 +686,42 @@ impl LpcmciOrientationRule for LpcmciR10 {
                 EndpointPattern::directed(),
             ];
             for &a in &o_arrow_into {
-                let mut found = false;
-                for &p_c in &directed_into {
-                    if p_c == a {
+                // Need two distinct parents (≠ a) with node-disjoint uncovered PD paths from a.
+                let mut path_for_parent: Vec<(DenseNodeId, Vec<DenseNodeId>)> = Vec::new();
+                for &p in &parents_into {
+                    if p == a {
                         continue;
                     }
-                    let paths = uncovered_pd_paths(graph, a, p_c, &initial, 8, 8);
-                    if paths.iter().any(|p| p.len() >= 3 && !p.contains(&c)) {
-                        found = true;
-                        break;
+                    let (paths, truncated) =
+                        uncovered_pd_paths_with_budget(graph, a, p, &initial, 8, 8);
+                    if truncated {
+                        return Err(OrientationError::SearchBudgetExhausted {
+                            rule: "lpcmci.r10",
+                            max_paths: 8,
+                            max_len: 8,
+                        });
+                    }
+                    if let Some(path) = paths.into_iter().find(|p| p.len() >= 3 && !p.contains(&c))
+                    {
+                        path_for_parent.push((p, path));
                     }
                 }
-                if !found {
+                let mut found_pair = false;
+                'pair: for i in 0..path_for_parent.len() {
+                    for j in (i + 1)..path_for_parent.len() {
+                        let (p1, ref path1) = path_for_parent[i];
+                        let (p2, ref path2) = path_for_parent[j];
+                        if p1 == p2 {
+                            continue;
+                        }
+                        // Node-disjoint except shared endpoint `a` (and possibly the two parents).
+                        if paths_node_disjoint_except_a(path1, path2, a) {
+                            found_pair = true;
+                            break 'pair;
+                        }
+                    }
+                }
+                if !found_pair {
                     continue;
                 }
                 if set_marks_oriented(
@@ -697,6 +742,23 @@ impl LpcmciOrientationRule for LpcmciR10 {
         delta.fixed_point = delta.edges_changed == 0;
         Ok(delta)
     }
+}
+
+/// Two uncovered PD paths are node-disjoint except at the shared start `a`.
+fn paths_node_disjoint_except_a(
+    path1: &[DenseNodeId],
+    path2: &[DenseNodeId],
+    a: DenseNodeId,
+) -> bool {
+    for &n in path1 {
+        if n == a {
+            continue;
+        }
+        if path2.iter().any(|&m| m == n) {
+            return false;
+        }
+    }
+    true
 }
 
 /// Ancestor–parent rule (Lemma 1): clear middle marks on definite directed parents.

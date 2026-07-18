@@ -196,6 +196,27 @@ def analyze(
     threads: int = 1,
 ) -> AnalysisResult: ...
 
+def analyze_ate_discover(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    treatment: str,
+    outcome: str,
+    *,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    max_cond_size: int = 2,
+    accept_discovered: bool = True,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    refute: bool = True,
+    seed: int = 1,
+    bootstrap: int = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
+
 def analyze_temporal_discover(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -213,6 +234,12 @@ def analyze_temporal_discover(
     seed: int = 1,
     bootstrap: int = 0,
     threads: int = 1,
+    env_columns: list[Sequence[NDArray[np.float64]]] | None = None,
+    regimes: list[int] | None = None,
+    context_names: list[str] | None = None,
+    include_space_dummy: bool = True,
+    include_time_dummy: bool = False,
+    space_dummy_ci: str = "scalar",
 ) -> AnalysisResult: ...
 
 def discover_pcmci(
@@ -277,6 +304,10 @@ def discover_jpcmci_plus(
     ci: str = "parcorr",
     weights: list[float] | None = None,
     threads: int = 1,
+    context_names: list[str] | None = None,
+    include_space_dummy: bool = True,
+    include_time_dummy: bool = False,
+    space_dummy_ci: str = "scalar",
 ) -> PcmciDiscoveryResult: ...
 
 def discover_rpcmci(
@@ -290,6 +321,7 @@ def discover_rpcmci(
     ci: str = "parcorr",
     weights: list[float] | None = None,
     threads: int = 1,
+    regimes: list[int] | None = None,
 ) -> RpcmciDiscoverySummary: ...
 
 def mediation_effects_summary(

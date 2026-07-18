@@ -70,6 +70,8 @@ impl<G> IdentificationEnvelope<G> {
         for c in &cases {
             match c.result.status {
                 IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                | IdentificationStatus::IdentifiedUnderPriorRestrictions
                 | IdentificationStatus::PartiallyIdentified => {
                     any_id = true;
                     identified += c.weight.0;

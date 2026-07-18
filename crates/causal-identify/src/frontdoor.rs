@@ -2,18 +2,19 @@
 //!
 //! # Search completeness
 //!
-//! The mediator search is deliberately not exhaustive. Only two families of
-//! candidate sets are tested against the front-door criterion:
+//! Candidate mediator sets include:
 //!
-//! 1. every singleton `{v}` with `v ∉ {T, Y}`, and
-//! 2. the full set `children(T) \ {Y}` (when it has more than one member).
+//! 1. every singleton `{v}` with `v ∉ {T, Y}`,
+//! 2. every non-empty subset of `children(T) \ {Y}` up to
+//!    [`FrontDoorSearchConfig::max_mediator_set_size`] (cardinality bound), and
+//! 3. the full set `children(T) \ {Y}` when it exceeds that cardinality bound
+//!    (still tested as one candidate).
 //!
-//! Valid mediator sets outside these families are missed: in particular,
-//! multi-node sets that are proper subsets of `children(T) \ {Y}`, sets mixing
-//! children of `T` with downstream intermediates, and sets of non-child
-//! intermediates that jointly intercept all directed `T -> Y` paths where no
-//! single node does. A `NotIdentified` result therefore means "no candidate in
-//! the searched families qualifies", not that no front-door set exists.
+//! Valid mediator sets outside these families are still missed: sets mixing
+//! children of `T` with non-child intermediates, and sets of non-child
+//! intermediates that jointly intercept all directed `T -> Y` paths. A
+//! `NotIdentified` result therefore means "no candidate in the searched
+//! families qualifies", not that no front-door set exists.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -40,11 +41,16 @@ use crate::result::{
 pub struct FrontDoorSearchConfig {
     /// Maximum number of mediator sets to return.
     pub max_results: usize,
+    /// Maximum cardinality of subsets of `children(T)\{Y}` enumerated as candidates.
+    ///
+    /// Singletons outside that child set are still tested. Subsets larger than this
+    /// bound are skipped except the full child set (tested once when oversized).
+    pub max_mediator_set_size: usize,
 }
 
 impl Default for FrontDoorSearchConfig {
     fn default() -> Self {
-        Self { max_results: 64 }
+        Self { max_results: 64, max_mediator_set_size: 4 }
     }
 }
 
@@ -86,9 +92,8 @@ impl FrontDoorIdentifier {
 
     /// Identify an average-effect query via the front-door criterion.
     ///
-    /// Only singleton mediator sets and the full `children(T) \ {Y}` set are
-    /// searched (see the module docs for what this can miss); a
-    /// `NotIdentified` status is relative to those candidate families.
+    /// Searches singletons and bounded subsets of `children(T) \ {Y}` (see module
+    /// docs); a `NotIdentified` status is relative to those candidate families.
     ///
     /// # Errors
     ///
@@ -121,23 +126,37 @@ impl FrontDoorIdentifier {
         let t = var_to_dense(ate.treatment, dag)?;
         let y = var_to_dense(ate.outcome, dag)?;
 
-        // Candidate mediator sets: every singleton excluding T,Y, plus the
-        // full set of T's children (excluding Y) when it has more than one
-        // member. This is intentionally not a full subset search; valid
-        // intermediate multi-node sets outside these families are missed
-        // (see module docs).
         let mut candidates: Vec<Vec<DenseNodeId>> = Vec::new();
+        let mut seen = std::collections::BTreeSet::<Vec<u32>>::new();
+        let mut push_candidate = |m: Vec<DenseNodeId>, candidates: &mut Vec<Vec<DenseNodeId>>| {
+            let mut key: Vec<u32> = m.iter().map(|d| d.raw()).collect();
+            key.sort_unstable();
+            if seen.insert(key) {
+                candidates.push(m);
+            }
+        };
+
+        // Singletons excluding T,Y.
         for i in 0..dag.node_count() {
             let v = DenseNodeId::from_raw(u32::try_from(i).expect("node id fits u32"));
             if v == t || v == y {
                 continue;
             }
-            candidates.push(vec![v]);
+            push_candidate(vec![v], &mut candidates);
         }
+
+        // Non-empty subsets of children(T)\{Y} up to max_mediator_set_size.
         let children_of_t: Vec<DenseNodeId> =
             dag.children(t).iter().copied().filter(|&c| c != y).collect();
-        if children_of_t.len() > 1 {
-            candidates.push(children_of_t);
+        let max_k = self.config.max_mediator_set_size.min(children_of_t.len());
+        for k in 1..=max_k {
+            for subset in combinations(&children_of_t, k) {
+                push_candidate(subset, &mut candidates);
+            }
+        }
+        // If the full child set exceeds the cardinality bound, still test it once.
+        if children_of_t.len() > max_k {
+            push_candidate(children_of_t, &mut candidates);
         }
 
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
@@ -252,6 +271,34 @@ fn is_frontdoor_set(
     Ok(true)
 }
 
+/// Lexicographic combinations of `items` choose `k`.
+fn combinations(items: &[DenseNodeId], k: usize) -> Vec<Vec<DenseNodeId>> {
+    let n = items.len();
+    let mut out = Vec::new();
+    if k == 0 || k > n {
+        return out;
+    }
+    let mut idx: Vec<usize> = (0..k).collect();
+    loop {
+        out.push(idx.iter().map(|&i| items[i]).collect());
+        // Find rightmost index that can be incremented.
+        let mut i = k;
+        while i > 0 {
+            i -= 1;
+            if idx[i] < n - k + i {
+                idx[i] += 1;
+                for j in (i + 1)..k {
+                    idx[j] = idx[j - 1] + 1;
+                }
+                break;
+            }
+            if i == 0 {
+                return out;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,5 +373,47 @@ mod tests {
         let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NotIdentified);
         assert!(res.estimands.is_empty());
+    }
+
+    #[test]
+    fn proper_subset_of_children_identifies_when_full_set_fails_backdoor() {
+        // T→M1→Y, T→M2→Y, T→M3 with W confounding M3–Y and U confounding T–Y.
+        // No singleton intercepts both directed paths; {M1,M2} is FD; {M1,M2,M3} fails
+        // criterion 3 for M3. Pre-fix search (singletons + full only) missed {M1,M2}.
+        let mut g = Dag::with_variables(6);
+        let t = DenseNodeId::from_raw(0);
+        let m1 = DenseNodeId::from_raw(1);
+        let m2 = DenseNodeId::from_raw(2);
+        let m3 = DenseNodeId::from_raw(3);
+        let y = DenseNodeId::from_raw(4);
+        let w = DenseNodeId::from_raw(5);
+        g.insert_directed(t, m1).unwrap();
+        g.insert_directed(m1, y).unwrap();
+        g.insert_directed(t, m2).unwrap();
+        g.insert_directed(m2, y).unwrap();
+        g.insert_directed(t, m3).unwrap();
+        g.insert_directed(w, m3).unwrap();
+        g.insert_directed(w, y).unwrap();
+        g.insert_directed(w, t).unwrap();
+
+        let id = FrontDoorIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(4),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        let want = [VariableId::from_raw(1), VariableId::from_raw(2)];
+        assert!(
+            res.estimands.iter().any(|e| {
+                let mut m = e.mediators.to_vec();
+                m.sort_by_key(|v| v.raw());
+                m == want
+            }),
+            "expected mediators {{M1,M2}}; got {:?}",
+            res.estimands.iter().map(|e| e.mediators.clone()).collect::<Vec<_>>()
+        );
     }
 }

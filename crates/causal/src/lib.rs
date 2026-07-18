@@ -95,7 +95,8 @@ pub use causal_identify::{
 pub use result::CausalAnalysisResult;
 pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
-    compile_review_required_pag, compile_temporal_with_graph, ensure_review_complete,
+    compile_review_required_pag, compile_review_required_static_cpdag, compile_temporal_with_graph,
+    ensure_review_complete,
 };
 pub use state::{apply_state_event, new_causal_state};
 
@@ -510,6 +511,9 @@ mod tests {
 
     #[test]
     fn end_to_end_propensity_weighting_recovers_confounded_effect() {
+        // Dual of python/tests/test_analyze_ate_estimate.py
+        // (`test_analyze_propensity_weighting_recovers_ate_and_overlap`): true ATE=2;
+        // Rust band |ate−2|<0.3; shared cross-language floor is 0.4.
         let (data, graph, query) = confounded_scm(800, 1);
         let analysis = CausalAnalysis::builder()
             .data(data)
@@ -722,6 +726,7 @@ mod tests {
             }
             CompiledAnalysis::ReviewRequired(_)
             | CompiledAnalysis::ReviewRequiredCpdag(_)
+            | CompiledAnalysis::ReviewRequiredStaticCpdag(_)
             | CompiledAnalysis::ReviewRequiredPag(_) => {
                 panic!("expected Ready")
             }

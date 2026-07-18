@@ -579,8 +579,8 @@ mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-        VariableId,
+        CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
+        ValueType, VariableId,
     };
     use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
     use causal_stats::OracleCi;
@@ -664,6 +664,100 @@ mod tests {
                 .unwrap()
                 .parent_child(),
             Some((DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)))
+        );
+    }
+
+    fn independent_gaussians(ncols: usize, nrows: usize, seed: u64) -> TabularData {
+        let mut b = CausalSchemaBuilder::new();
+        for i in 0..ncols {
+            b.add_variable(
+                format!("v{i}"),
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut state = seed;
+        let mut next_gauss = || {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let u1 = ((state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let u2 = ((state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
+            (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
+        };
+        let owned: Vec<OwnedColumn> = (0..ncols)
+            .map(|i| {
+                let vals: Vec<f64> = (0..nrows).map(|_| next_gauss()).collect();
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(i as u32),
+                        Arc::from(vals),
+                        ValidityBitmap::all_valid(nrows),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
+        TabularData::new(storage)
+    }
+
+    /// Under independent Gaussian noise, PC skeleton edge retention should track α.
+    ///
+    /// Scheduled via `scripts/gate_calibration.sh` (DESIGN.md §28.3). Loose band:
+    /// with `N_SIM · C(p,2)` pair-trials the Monte Carlo SE near α=0.05 is small;
+    /// we accept roughly ±4 SE plus a hard floor/ceiling for small budgets.
+    /// Raised `N_SIM` (80) so total pair-trials ≈ 800 and MC SE(α) ≈ 0.0077.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn pc_null_fpr_near_alpha() {
+        const N_VARS: usize = 5;
+        const N_OBS: usize = 400;
+        const N_SIM: u32 = 80;
+        const ALPHA: f64 = 0.05;
+        let n_pairs = (N_VARS * (N_VARS - 1)) / 2;
+        let mut constraints = DiscoveryConstraints::default();
+        constraints.alpha = ALPHA;
+        constraints.max_cond_size = 2;
+        constraints.temporal = crate::TemporalConstraints {
+            max_lag: Lag::CONTEMPORANEOUS,
+            min_lag: Lag::CONTEMPORANEOUS,
+        };
+        let pc = Pc::new().with_fdr(false).with_constraints(constraints);
+        let vars: Vec<VariableId> =
+            (0..N_VARS as u32).map(VariableId::from_raw).collect();
+        let mut retained = 0u32;
+        let mut total = 0u32;
+        for s in 0..N_SIM {
+            let data = independent_gaussians(N_VARS, N_OBS, 9000 + u64::from(s));
+            let mut ws = DiscoveryWorkspace::default();
+            let ctx = ExecutionContext::for_tests(100 + u64::from(s));
+            let result = pc.run(&data, &vars, &mut ws, &ctx).unwrap();
+            let g = &result.evidence.graph;
+            let mut edges = 0u32;
+            for i in 0..N_VARS {
+                for j in (i + 1)..N_VARS {
+                    if g.has_edge(DenseNodeId::from_raw(i as u32), DenseNodeId::from_raw(j as u32))
+                    {
+                        edges += 1;
+                    }
+                }
+            }
+            retained += edges;
+            total += n_pairs as u32;
+        }
+        let rate = f64::from(retained) / f64::from(total);
+        let se = (ALPHA * (1.0 - ALPHA) / f64::from(total)).sqrt();
+        let lo = (ALPHA - 4.0 * se).max(0.01);
+        let hi = (ALPHA + 4.0 * se).min(0.15);
+        assert!(
+            rate >= lo && rate <= hi,
+            "PC null skeleton edge rate={rate:.3} outside [{lo:.3}, {hi:.3}] \
+             ({retained}/{total}; α={ALPHA})"
         );
     }
 }

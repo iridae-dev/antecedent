@@ -107,6 +107,20 @@ pub enum OrientationError {
         /// Detail.
         message: &'static str,
     },
+    /// Path / discriminating-path search hit `max_paths` or `max_len` mid-decision.
+    ///
+    /// Silent truncation can change orientations; callers must widen budgets or fail closed.
+    #[error(
+        "orientation path search budget exhausted in {rule} (max_paths={max_paths}, max_len={max_len})"
+    )]
+    SearchBudgetExhausted {
+        /// Rule id that hit the budget.
+        rule: &'static str,
+        /// Path-count budget.
+        max_paths: usize,
+        /// Path-length budget.
+        max_len: usize,
+    },
     /// Non-graph orientation failure message.
     #[error("{0}")]
     Message(String),
@@ -125,6 +139,11 @@ impl From<OrientationError> for DiscoveryError {
         match e {
             OrientationError::Graph(g) => DiscoveryError::Graph(g),
             OrientationError::Precondition { message } => DiscoveryError::Unsupported { message },
+            OrientationError::SearchBudgetExhausted { rule, max_paths, max_len } => {
+                DiscoveryError::Orientation(format!(
+                    "path search budget exhausted in {rule} (max_paths={max_paths}, max_len={max_len})"
+                ))
+            }
             OrientationError::Message(m) => DiscoveryError::Orientation(m),
         }
     }

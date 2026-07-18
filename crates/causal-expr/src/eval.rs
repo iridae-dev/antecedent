@@ -422,6 +422,124 @@ mod tests {
         assert!((after - 0.45).abs() < 1e-12);
     }
 
+    /// Empty adjustment (second Z set) + frontdoor: simplify must preserve numeric eval.
+    #[test]
+    fn simplify_preserves_backdoor_empty_and_frontdoor_evaluation() {
+        fn assert_simplify_preserves(
+            arena: &mut CausalExprArena,
+            expr: ExprId,
+            provider: &EmpiricalTableProvider,
+            expected: f64,
+            label: &str,
+        ) {
+            let before = arena
+                .compile(expr)
+                .unwrap()
+                .evaluate(arena, provider, &EvalContext::default())
+                .unwrap();
+            let simplified = arena.simplify(expr);
+            let after = arena
+                .compile(simplified)
+                .unwrap()
+                .evaluate(arena, provider, &EvalContext::default())
+                .unwrap();
+            assert!(
+                (before - after).abs() < 1e-12,
+                "{label}: before={before} after={after}"
+            );
+            assert!((after - expected).abs() < 1e-12, "{label}: after={after}");
+        }
+
+        // Backdoor with empty Z: E[Y|do(1)]=0.7, E[Y|do(0)]=0.2 → ATE = 0.5.
+        // Exercises simplify.empty_sum_out / singleton product on the adjustment set.
+        {
+            let mut arena = CausalExprArena::new();
+            let t = v(0);
+            let y = v(1);
+            let expr = arena.backdoor_ate(t, y, &[], f(1.0), f(0.0));
+            let mut p = EmpiricalTableProvider::new();
+            p.set_domain(y, [f(0.0), f(1.0)]);
+            p.set_domain(t, [f(0.0), f(1.0)]);
+            // Vacuous P(∅) factor from empty adjustment marginal.
+            let empty_spec = FactorSpec {
+                variables: &[],
+                conditioned_on: &[],
+                intervention: &[],
+                domain: DomainRef::Observational,
+            };
+            p.insert_probability(&empty_spec, &Assignment::from_pairs([]), 1.0).unwrap();
+            for tlev in [0.0, 1.0] {
+                let ey = if (tlev - 1.0_f64).abs() < f64::EPSILON { 0.7 } else { 0.2 };
+                let interv = [InterventionAssignment { variable: t, value: f(tlev) }];
+                for (yval, prob) in [(1.0, ey), (0.0, 1.0 - ey)] {
+                    let spec = FactorSpec {
+                        variables: &[y],
+                        conditioned_on: &[],
+                        intervention: &interv,
+                        domain: DomainRef::Interventional,
+                    };
+                    p.insert_probability(&spec, &Assignment::from_pairs([(y, f(yval))]), prob)
+                        .unwrap();
+                }
+            }
+            assert_simplify_preserves(&mut arena, expr, &p, 0.5, "backdoor_empty_z");
+        }
+
+        // Frontdoor (same tables as shallow_frontdoor_evaluates): ATE = 0.32.
+        {
+            let mut arena = CausalExprArena::new();
+            let t = v(0);
+            let y = v(1);
+            let m = v(2);
+            let expr = arena.frontdoor_ate(t, y, &[m], f(1.0), f(0.0));
+            let mut p = EmpiricalTableProvider::new();
+            p.set_domain(t, [f(0.0), f(1.0)]);
+            p.set_domain(y, [f(0.0), f(1.0)]);
+            p.set_domain(m, [f(0.0), f(1.0)]);
+            for (tval, prob) in [(0.0, 0.5), (1.0, 0.5)] {
+                let spec = FactorSpec {
+                    variables: &[t],
+                    conditioned_on: &[],
+                    intervention: &[],
+                    domain: DomainRef::Observational,
+                };
+                p.insert_probability(&spec, &Assignment::from_pairs([(t, f(tval))]), prob)
+                    .unwrap();
+            }
+            for tlev in [0.0, 1.0] {
+                let pm1 = if (tlev - 1.0_f64).abs() < f64::EPSILON { 0.7 } else { 0.3 };
+                let interv = [InterventionAssignment { variable: t, value: f(tlev) }];
+                for (mval, prob) in [(1.0, pm1), (0.0, 1.0 - pm1)] {
+                    let spec = FactorSpec {
+                        variables: &[m],
+                        conditioned_on: &[],
+                        intervention: &interv,
+                        domain: DomainRef::Interventional,
+                    };
+                    p.insert_probability(&spec, &Assignment::from_pairs([(m, f(mval))]), prob)
+                        .unwrap();
+                }
+            }
+            for tlev in [0.0, 1.0] {
+                for mlev in [0.0, 1.0] {
+                    let py1 = if (mlev - 1.0_f64).abs() < f64::EPSILON { 0.9 } else { 0.1 };
+                    for (yval, prob) in [(1.0, py1), (0.0, 1.0 - py1)] {
+                        let spec = FactorSpec {
+                            variables: &[y],
+                            conditioned_on: &[t, m],
+                            intervention: &[],
+                            domain: DomainRef::Observational,
+                        };
+                        let assign =
+                            Assignment::from_pairs([(y, f(yval)), (m, f(mlev)), (t, f(tlev))]);
+                        p.insert_probability(&spec, &assign, prob).unwrap();
+                    }
+                }
+            }
+            assert_simplify_preserves(&mut arena, expr, &p, 0.32, "frontdoor");
+        }
+    }
+
     #[test]
     fn shallow_frontdoor_evaluates() {
         // Minimal front-door: T→M→Y with no hidden confounding encoded in tables.

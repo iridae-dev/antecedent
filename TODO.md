@@ -13,7 +13,7 @@ Ordered foundations → dependents.
 - [x] **1.** Thread `ExecutionContext.kernel_policy` through stats/CI call sites (2026-07-22) — G², distance correlation, weighted ParCorr, ParCorr mode / block-shuffle, `standardize_columns`, and data gather (`LaggedSamplePlan` / `SampleRequest` / `LaggedFrame` / pooled frames). Call sites with `ctx` pass `&ctx.kernel_policy`; free helpers take `policy: &KernelPolicy`. `PartialCorrelation` no longer stores a default policy. Escape hatch for §23.2 differential tests is reachable from CI/stats/data.
 
 - [ ] **2. Deep identification** (DESIGN.md §10.1–10.3) — full semi-Markovian ID/IDC surface; highest scientific-correctness risk.
-    - [ ] Missing `IdentificationStatus` variants: `IdentifiedUnderParametricRestrictions`, `IdentifiedUnderPriorRestrictions` (`crates/causal-core/src/identification.rs`).
+    - [x] Missing `IdentificationStatus` variants: `IdentifiedUnderParametricRestrictions`, `IdentifiedUnderPriorRestrictions` (`crates/causal-core/src/identification.rs`) (2026-07-22) — vocabulary + analysis/posterior wire + envelope mass; estimation gates remain nonparametric-only (no fake producers).
     - [ ] ID algorithm for semi-Markovian models (Shpitser); memoized recursion over canonical subproblems; expression arena reuse (§10.5).
     - [ ] IDC for conditional interventional distributions.
     - [ ] Hedge certificates for non-identifiability.
@@ -32,7 +32,7 @@ Ordered foundations → dependents.
 - [ ] **4. Static (non-temporal) discovery** (DESIGN.md §13.3–13.6) — PCMCI family remains the temporal surface; static PC (4a–4b) now ships. Meek-rule and CI-test infrastructure already exist. Ship order below; parent stays unchecked until required sub-items are verified.
     - [x] **4a. Static `Cpdag` + Meek/collider** (2026-07-22) — Real static `Cpdag` (break `type Cpdag = TemporalCpdag` alias); `CpdagReview`; Meek R1–R4 + `OrientCollider` on static graphs. ContempMeek stays temporal-only. **Depends on:** shipped Meek on `TemporalCpdag`. Shipped: `causal_graph::Cpdag` / `CpdagReview`; `StaticOrientationRule` + `run_static_orientation_to_fixed_point`.
     - [x] **4b. Static PC** (2026-07-22) — Classic undirected skeleton + sepsets + collider/Meek orientation over `TabularData`; `Pc` algorithm type; Rust/Python `discover_pc`. Not PCMCI PC1. **Depends on:** 4a; shipped CI batch APIs. Soft input to item 6 (CI screening) and item 7 (`discovery=PC`). Shipped: `causal_discovery::Pc`, facade `discover_pc`, Python `PC` / `discover_pc`; parity `discovery.pc`. Parent item 4 stays unchecked until 4c–4g and 4i land (4h optional).
-    - [ ] **4c. `Pag` FCI plumbing** — Public `Pag::remove_edge`; portability so FCI orientation rules target static `Pag` (today LPCMCI rules are `TemporalPag`-only). **Depends on:** shipped LPCMCI FCI-like rules.
+    - [ ] **4c. `Pag` FCI plumbing** — Public `Pag::remove_edge` shipped (2026-07-22; matches `TemporalPag`). Remaining: portability so FCI orientation rules target static `Pag` (today LPCMCI rules are `TemporalPag`-only). **Depends on:** shipped LPCMCI FCI-like rules.
     - [ ] **4d. Static FCI** — Possible-D-Sep adjacency phase; port R1–R4 / R8–R10 + discriminating / uncovered paths to `Pag`; classic FCI pipeline → static `Pag`. **Depends on:** 4b, 4c.
     - [ ] **4e. RFCI** — Early-stop / reduced Possible-D-Sep on top of FCI; `pag.discovery.fci_rfci` → `done`. **Depends on:** 4d.
     - [ ] **4f. GES / score-based DAG search** — Equivalence-class insert/delete/reverse operators using shipped Gaussian BIC `LocalScoreCache` (`causal-state`). Soft: 4b skeleton as screening. **Depends on:** shipped BIC score cache.
@@ -62,14 +62,14 @@ Ordered foundations → dependents.
     - [ ] Parity: `bayes.discovery.dag_posterior` → `done`.
 
 - [ ] **7. Python `analyze()` / bindings completeness** (DESIGN §25.3–25.4) — remaining gaps after PCMCI-family temporal `discovery=` and broader native exports.
-    - [ ] **JPCMCI+ / RPCMCI one-shot**: wire `discover_jpcmci_plus` / `discover_rpcmci` through `analyze(discovery=…)` (multi-env columns / regime inputs on the OO path and `analyze_temporal_discover`). Rust facade builder methods already exist.
+    - [x] **JPCMCI+ / RPCMCI one-shot** (2026-07-22) — `analyze(discovery=JPCMCIPlus|RPCMCI)` with multi-env frames / caller `regimes=`; `DataInput::MultiEnv`; no silent half-split on analyze path; fixed `discover_jpcmci_plus` env_columns wrapper.
     - [ ] **Callback extensibility** (§25.4): explicit slow-path Python hooks for custom CI tests, mechanism wrappers, utility functions, and validators — GIL reacquire; plan marks callback regions as non-native-perf.
-    - [ ] **Static `discovery=`**: end-to-end static discover→estimate on `analyze()` (`discovery=PC(…)` or equivalent). **Depends on item 4b** (static PC + `discover_pc`). Today `AverageEffect` still requires a supplied `graph=`.
+    - [x] **Static `discovery=`** (2026-07-22) — `analyze(…, discovery=PC(…), query=AverageEffect)` via `GraphInput::DiscoverPc` + `analyze_ate_discover`; auto-finishes only when CPDAG fully oriented.
 
 - [ ] **8. Discovery validation** (DESIGN.md §18.3) — beyond shipped block-bootstrap link-frequency stability (`BlockBootstrapStability`). Effect refuters (§18.2) already ship.
-    - [ ] Lag-window sensitivity.
-    - [ ] Alpha-threshold sensitivity.
-    - [ ] CI-test sensitivity.
+    - [x] Lag-window sensitivity (2026-07-22) — `LagWindowSensitivity`; parity `discovery.validate.lag_window_sensitivity`.
+    - [x] Alpha-threshold sensitivity (2026-07-22) — `AlphaThresholdSensitivity`; parity `discovery.validate.alpha_threshold_sensitivity`.
+    - [x] CI-test sensitivity (2026-07-22) — `CiTestSensitivity`; parity `discovery.validate.ci_test_sensitivity`.
     - [ ] Orientation stability.
     - [ ] Regime stability.
     - [ ] Environment holdout.
@@ -96,13 +96,13 @@ Ordered foundations → dependents.
 
 Shipped algorithms with known incomplete or miscalibrated formulas that are too large for a quick fix. Do not silently alias wrong SE/ID variants; prefer fail-closed until these land. Unfinished DESIGN chapters (deep ID, Sustained, Structure attribution, nested CF, etc.) stay in the numbered list above.
 
-- [ ] **Discovery FCI R10** — needs two node-disjoint uncovered PD paths into two parents (`→` or `o→`); current one-path rule can over-orient (`rule_scheduling.rs` `LpcmciR10`).
-- [ ] **Front-door ID search** — only singleton + full `children(T)\{Y}` are tested; valid multi-mediator FD sets → false `NotIdentified` (`frontdoor.rs`).
-- [ ] **Natural mediation** — `NaturalDirect` / `NaturalIndirect` aliased to controlled `c'` / `ab`; refuse or gate on linear SEM assumptions (`temporal_mediation.rs`, estimate mediation).
-- [ ] **Path attribution multi-source** — path products summed across sources can double-count overlapping ancestry (`path.rs`).
-- [ ] **Wald Homoskedastic SE** — ignores first-stage sampling variability; influence-function path is safer (`iv.rs`).
-- [ ] **IPW Hájek analytic SE** — conditional on weights; no propensity IF → undercoverage vs bootstrap (`propensity/weighting.rs`).
-- [ ] **Matching cluster SE** — drops Abadie–Imbens `Kⱼ` inflation under donor reuse (`propensity/matching.rs`).
-- [ ] **Mechanism `MeanDiff`** — flags raw mean shifts, not residual/mechanism change (`mechanism_change.rs`).
-- [ ] **Path-search / MCI caps** — discriminating/PD path and MCI conditioning truncation can change orientations/skeleton without error.
-- [ ] **Latent projection** — silently drops cycle-conflicting directed edges; may fail to preserve d/m-separation (`projection.rs`).
+- [x] **Discovery FCI R10** (2026-07-22) — two node-disjoint uncovered PD paths into two parents (`→`/`o→`); budget exhaustion errors (`LpcmciR10`).
+- [x] **Front-door ID search** (2026-07-22) — enumerates bounded subsets of `children(T)\{Y}` (+ singletons / oversized full set); non-child intermediates still incomplete.
+- [x] **Natural mediation** (2026-07-22) — `NaturalDirect` / `NaturalIndirect` require `allow_natural_controlled_alias`; otherwise refuse.
+- [x] **Path attribution multi-source** (2026-07-22) — nested (ancestor) multi-source refused; disjoint sources OK.
+- [x] **Wald Homoskedastic SE** (2026-07-22) — Homoskedastic routes through first-stage-aware IF (same as HC).
+- [x] **IPW Hájek analytic SE** (2026-07-22) — Hajek IF orthogonalized against propensity scores (not weights-as-fixed).
+- [x] **Matching cluster SE** (2026-07-22) — Abadie–Imbens `Kⱼ` inflation applied before cluster sandwich.
+- [x] **Mechanism `MeanDiff`** (2026-07-22) — compares residuals, not raw node means.
+- [x] **Path-search / MCI caps** (2026-07-22) — PD / discriminating-path budget exhaustion → `OrientationError::SearchBudgetExhausted`; MCI still notes truncation.
+- [x] **Latent projection** (2026-07-22) — cycle-conflicting directed projection edges fail closed (`InvalidEndpoints`).

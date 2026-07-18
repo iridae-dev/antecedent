@@ -242,6 +242,21 @@ impl Pag {
         self.set_marks(a, b, Endpoint::Conflict, Endpoint::Conflict)
     }
 
+    /// Remove an edge (both adjacency halves).
+    ///
+    /// # Errors
+    ///
+    /// Unknown nodes or missing edge.
+    pub fn remove_edge(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        self.validate_node(a)?;
+        self.validate_node(b)?;
+        if self.edge_between(a, b).is_none() {
+            return Err(GraphError::UnknownNode { id: a.raw() });
+        }
+        marked_storage::remove_edge(&mut self.adj, a, b);
+        Ok(())
+    }
+
     /// Directed children (definite Tail→Arrow from this node).
     #[must_use]
     pub fn directed_children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
@@ -425,6 +440,17 @@ mod tests {
         let mut g = Pag::with_variables(2);
         g.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         assert!(g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+    }
+
+    #[test]
+    fn remove_edge_clears_both_halves() {
+        let mut g = Pag::with_variables(2);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        g.insert_directed(a, b).unwrap();
+        g.remove_edge(a, b).unwrap();
+        assert!(!g.has_edge(a, b));
+        assert!(g.remove_edge(a, b).is_err());
     }
 
     #[test]

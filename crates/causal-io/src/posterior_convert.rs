@@ -72,6 +72,12 @@ pub fn encode_causal_posterior(
             IdentificationStatus::NonparametricallyIdentified => {
                 "NonparametricallyIdentified".into()
             }
+            IdentificationStatus::IdentifiedUnderParametricRestrictions => {
+                "IdentifiedUnderParametricRestrictions".into()
+            }
+            IdentificationStatus::IdentifiedUnderPriorRestrictions => {
+                "IdentifiedUnderPriorRestrictions".into()
+            }
             IdentificationStatus::PartiallyIdentified => "PartiallyIdentified".into(),
             IdentificationStatus::GraphDependent => "GraphDependent".into(),
             IdentificationStatus::NotIdentified => "NotIdentified".into(),

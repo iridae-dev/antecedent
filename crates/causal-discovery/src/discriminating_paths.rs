@@ -45,15 +45,18 @@ impl DiscriminatingPath {
 }
 
 /// Find discriminating paths ending at edge `{c,b}` with a circle at `c`, bounded.
+///
+/// Returns `(paths, truncated)` when `max_paths` stopped further enumeration.
 #[must_use]
-pub fn find_discriminating_paths(
+pub fn find_discriminating_paths_with_budget(
     pag: &TemporalPag,
     max_paths: usize,
     max_len: usize,
-) -> Vec<DiscriminatingPath> {
+) -> (Vec<DiscriminatingPath>, bool) {
     let mut out = Vec::new();
+    let mut truncated = false;
     if max_paths == 0 || max_len < 4 {
-        return out;
+        return (out, false);
     }
     let n = pag.node_count();
     for i in 0..n {
@@ -66,12 +69,17 @@ pub fn find_discriminating_paths(
             let mut stack = vec![vec![c]];
             while let Some(path_to_c) = stack.pop() {
                 if out.len() >= max_paths {
-                    return out;
+                    truncated = true;
+                    return (out, truncated);
                 }
                 // Try to complete with endpoint `a` once we have ≥1 intermediate.
                 if path_to_c.len() >= 2 {
                     let head = path_to_c[0];
                     for (a, _, _) in pag.neighbors(head) {
+                        if out.len() >= max_paths {
+                            truncated = true;
+                            return (out, truncated);
+                        }
                         if a == b || path_to_c.contains(&a) || pag.has_edge(a, b) {
                             continue;
                         }
@@ -84,9 +92,6 @@ pub fn find_discriminating_paths(
                         }
                         if is_discriminating_path(pag, &full) {
                             out.push(DiscriminatingPath { nodes: full });
-                            if out.len() >= max_paths {
-                                return out;
-                            }
                         }
                     }
                 }
@@ -120,7 +125,17 @@ pub fn find_discriminating_paths(
             }
         }
     }
-    out
+    (out, truncated)
+}
+
+/// Find discriminating paths ending at edge `{c,b}` with a circle at `c`, bounded.
+#[must_use]
+pub fn find_discriminating_paths(
+    pag: &TemporalPag,
+    max_paths: usize,
+    max_len: usize,
+) -> Vec<DiscriminatingPath> {
+    find_discriminating_paths_with_budget(pag, max_paths, max_len).0
 }
 
 /// Whether `path` is a Zhang discriminating path for `c = path[n-2]` between `a` and `b`.

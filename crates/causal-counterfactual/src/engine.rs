@@ -451,13 +451,21 @@ pub fn simultaneous_hard_counterfactual(
 mod tests {
     use super::*;
     use causal_core::{
-        CausalSchemaBuilder, Intervention, MeasurementSpec, RoleHint, SmallRoleSet, Value,
-        ValueType,
+        CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec, RoleHint,
+        SequencedIntervention, SmallRoleSet, TemporalPolicy, ToleranceClass, Value, ValueType,
     };
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};
     use causal_graph::{Dag, DenseNodeId};
-    use causal_model::{MechanismRegistry, SelectionPolicy};
+    use causal_model::{
+        CompiledMechanismStore, MechanismRegistry, MechanismSlot, SelectionPolicy,
+    };
+
+    fn unit_normal(rng: &mut causal_core::CausalRng) -> f64 {
+        let u1 = rng.next_f64().clamp(1e-12, 1.0);
+        let u2 = rng.next_f64();
+        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
+    }
 
     fn toy() -> (CounterfactualEngine, TabularData) {
         let n = 20usize;
@@ -537,5 +545,313 @@ mod tests {
         let res = engine.predict(&exo, &worlds, &[y], false, &mut ws, &ctx).unwrap();
         assert!(streaming_matches_retained(&res, 0, DenseNodeId::from_raw(1)));
         assert!(res.notes.iter().any(|n| n.contains("noise_inference")));
+    }
+
+    #[test]
+    fn abduction_predicts_factual_and_ite_variance_finite() {
+        let (engine, data) = toy();
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+        assert_eq!(exo.kind, NoiseInferenceKind::Invertible);
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let t_vals = data.float64_values(t).unwrap();
+        let y_vals = data.float64_values(y).unwrap();
+
+        // Abduced noise + factual treatment level reproduces observed y per unit.
+        for u in 0..exo.n_units {
+            let world = CounterfactualWorld {
+                unit_rows: Some(Arc::from([u])),
+                interventions: Arc::from([Intervention::set(t, Value::f64(t_vals[u]))]),
+            };
+            let res = engine.predict(&exo, &[world], &[y], false, &mut ws, &ctx).unwrap();
+            let pred = res.get(0, DenseNodeId::from_raw(1), u);
+            assert!(
+                (pred - y_vals[u]).abs() < 1e-8,
+                "unit {u}: pred={pred} factual={}",
+                y_vals[u]
+            );
+        }
+
+        let ite = engine
+            .individual_treatment_effect(
+                &exo,
+                y,
+                Intervention::set(t, Value::f64(1.0)),
+                Intervention::set(t, Value::f64(0.0)),
+                &mut ws,
+                &ctx,
+            )
+            .unwrap();
+        let mean = ite.iter().sum::<f64>() / ite.len() as f64;
+        assert!((mean - 2.0).abs() < 0.15, "mean_ite={mean}");
+        let var = ite.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / ite.len() as f64;
+        assert!(var.is_finite() && var > 0.0, "ite variance={var}");
+
+        let do_world =
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([Intervention::set(t, Value::f64(1.0))]) };
+        let shift_world = CounterfactualWorld {
+            unit_rows: None,
+            interventions: Arc::from([Intervention::shift(t, Value::f64(0.5))]),
+        };
+        let res_do = engine.predict(&exo, &[do_world], &[y], false, &mut ws, &ctx).unwrap();
+        let res_shift = engine.predict(&exo, &[shift_world], &[y], false, &mut ws, &ctx).unwrap();
+        assert!(res_do.streaming_outcome_mean(0, DenseNodeId::from_raw(1)).is_finite());
+        assert!(res_shift.streaming_outcome_mean(0, DenseNodeId::from_raw(1)).is_finite());
+    }
+
+    /// Multi-world predict: streaming means match retained materialization for each
+    /// intervention level (do(1), do(0), shift), beyond the single-world check in
+    /// `ite_and_streaming_equivalence`.
+    #[test]
+    fn multi_world_streaming_matches_retained() {
+        let (engine, data) = toy();
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+        assert_eq!(exo.kind, NoiseInferenceKind::Invertible);
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let outcome = DenseNodeId::from_raw(1);
+
+        let worlds = [
+            CounterfactualWorld {
+                unit_rows: None,
+                interventions: Arc::from([Intervention::set(t, Value::f64(1.0))]),
+            },
+            CounterfactualWorld {
+                unit_rows: None,
+                interventions: Arc::from([Intervention::set(t, Value::f64(0.0))]),
+            },
+            CounterfactualWorld {
+                unit_rows: None,
+                interventions: Arc::from([Intervention::shift(t, Value::f64(0.5))]),
+            },
+        ];
+        let res = engine.predict(&exo, &worlds, &[y], false, &mut ws, &ctx).unwrap();
+        assert_eq!(res.n_worlds, 3);
+        for wi in 0..res.n_worlds {
+            assert!(
+                streaming_matches_retained(&res, wi, outcome),
+                "world {wi}: streaming mean diverged from retained draws"
+            );
+            assert!(res.streaming_outcome_mean(wi, outcome).is_finite());
+        }
+        // Distinct hard interventions should yield distinct retained means on this SCM.
+        let m1 = res.streaming_outcome_mean(0, outcome);
+        let m0 = res.streaming_outcome_mean(1, outcome);
+        assert!((m1 - m0 - 2.0).abs() < 0.15, "E[Y|do(1)]-E[Y|do(0)]={}", m1 - m0);
+    }
+
+    /// Invertible linear SEM with pinned β: mean ITE must recover structural β
+    /// (`ToleranceClass::StableFloat` under exact mechanisms; MonteCarlo floor if fit noise).
+    #[test]
+    fn random_linear_sem_mean_ite_matches_structural_beta() {
+        let mut rng = ExecutionContext::for_tests(0xCF_B7).rng.stream(0x1E_E7);
+        for trial in 0..12 {
+            let beta = 0.5 + 2.5 * rng.next_f64(); // [0.5, 3.0]
+            let n = 32 + (rng.next_u64() % 48) as usize;
+            let sigma_y = 0.05 + 0.2 * rng.next_f64();
+
+            let mut b = CausalSchemaBuilder::new();
+            b.add_variable(
+                "t",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+            b.add_variable(
+                "y",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+            let schema = b.build().unwrap();
+            let mut t = vec![0.0; n];
+            let mut y = vec![0.0; n];
+            for i in 0..n {
+                t[i] = unit_normal(&mut rng);
+                y[i] = beta * t[i] + sigma_y * unit_normal(&mut rng);
+            }
+            let validity = ValidityBitmap::all_valid(n);
+            let cols = vec![
+                OwnedColumn::Float64(
+                    Float64Column::new(VariableId::from_raw(0), Arc::from(t), validity.clone())
+                        .unwrap(),
+                ),
+                OwnedColumn::Float64(
+                    Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity).unwrap(),
+                ),
+            ];
+            let data =
+                TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+            let mut g = Dag::with_variables(2);
+            g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+            let compiled = CompiledCausalModel::compile(g).unwrap();
+            let store = CompiledMechanismStore {
+                slots: Arc::from([
+                    MechanismSlot::LinearGaussian {
+                        intercept: 0.0,
+                        coeffs: Arc::from([]),
+                        sigma: 1.0,
+                    },
+                    MechanismSlot::LinearGaussian {
+                        intercept: 0.0,
+                        coeffs: Arc::from([beta]),
+                        sigma: sigma_y,
+                    },
+                ]),
+            };
+            let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
+            let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+            assert_eq!(exo.kind, NoiseInferenceKind::Invertible);
+            let mut ws = MechanismWorkspace::default();
+            let ctx = ExecutionContext::for_tests(1);
+            let ite = engine
+                .individual_treatment_effect(
+                    &exo,
+                    VariableId::from_raw(1),
+                    Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+                    Intervention::set(VariableId::from_raw(0), Value::f64(0.0)),
+                    &mut ws,
+                    &ctx,
+                )
+                .unwrap();
+            let mean_ite = ite.iter().sum::<f64>() / ite.len() as f64;
+            assert!(
+                ToleranceClass::StableFloat.close(mean_ite, beta)
+                    || ToleranceClass::MonteCarlo.close(mean_ite, beta),
+                "trial {trial}: mean_ite={mean_ite} beta={beta} n={n}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_sequence_refused_when_not_allowed() {
+        let (engine, data) = toy();
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let nested = Intervention::sequence(InterventionSequence::new(vec![SequencedIntervention::new(
+            Intervention::set(t, Value::f64(1.0)),
+            TemporalPolicy::pulse(0),
+        )]));
+        let world =
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([nested]) };
+        let err = engine.predict(&exo, &[world], &[y], false, &mut ws, &ctx).unwrap_err();
+        assert_eq!(err, CounterfactualError::NestedNotAllowed);
+    }
+
+    #[test]
+    fn overlapping_simultaneous_interventions_fail_closed() {
+        let (engine, data) = toy();
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let err = simultaneous_hard_counterfactual(
+            &engine,
+            &data,
+            &[Intervention::set(t, Value::f64(1.0))],
+            &[Intervention::set(t, Value::f64(0.0))],
+            y,
+            &mut ws,
+            &ctx,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, CounterfactualError::Model(_)),
+            "overlapping targets must fail closed, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(msg.contains("overlapping"), "message={msg}");
+    }
+
+    /// Streaming ≡ retained under random unit counts and multi-world intervention sets.
+    #[test]
+    fn random_multi_world_streaming_matches_retained() {
+        let mut rng = ExecutionContext::for_tests(0xCF_57).rng.stream(0x57_EA);
+        for trial in 0..8 {
+            let n = 16 + (rng.next_u64() % 40) as usize;
+            let n_worlds = 2 + (rng.next_u64() % 4) as usize; // 2..=5
+            let mut b = CausalSchemaBuilder::new();
+            b.add_variable(
+                "t",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+            b.add_variable(
+                "y",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+            let schema = b.build().unwrap();
+            let mut t = vec![0.0; n];
+            let mut y = vec![0.0; n];
+            for i in 0..n {
+                t[i] = if i % 2 == 0 { 1.0 } else { 0.0 };
+                y[i] = 2.0 * t[i] + 0.1 * (i as f64);
+            }
+            let validity = ValidityBitmap::all_valid(n);
+            let cols = vec![
+                OwnedColumn::Float64(
+                    Float64Column::new(VariableId::from_raw(0), Arc::from(t), validity.clone())
+                        .unwrap(),
+                ),
+                OwnedColumn::Float64(
+                    Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity).unwrap(),
+                ),
+            ];
+            let data =
+                TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+            let mut g = Dag::with_variables(2);
+            g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+            let compiled = CompiledCausalModel::compile(g).unwrap();
+            let (store, _) = MechanismRegistry::standard()
+                .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+                .unwrap();
+            let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
+            let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+            let mut ws = MechanismWorkspace::default();
+            let ctx = ExecutionContext::for_tests(1);
+            let tid = VariableId::from_raw(0);
+            let yid = VariableId::from_raw(1);
+            let outcome = DenseNodeId::from_raw(1);
+            let worlds: Vec<CounterfactualWorld> = (0..n_worlds)
+                .map(|wi| {
+                    let level = wi as f64 * 0.5;
+                    CounterfactualWorld {
+                        unit_rows: None,
+                        interventions: Arc::from([Intervention::set(tid, Value::f64(level))]),
+                    }
+                })
+                .collect();
+            let res = engine.predict(&exo, &worlds, &[yid], false, &mut ws, &ctx).unwrap();
+            assert_eq!(res.n_worlds, n_worlds);
+            assert_eq!(res.n_units, n);
+            for wi in 0..n_worlds {
+                assert!(
+                    streaming_matches_retained(&res, wi, outcome),
+                    "trial {trial} world {wi}: streaming ≠ retained (n={n}, worlds={n_worlds})"
+                );
+            }
+        }
     }
 }

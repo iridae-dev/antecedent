@@ -427,7 +427,19 @@ pub(crate) fn matching_contrast(
                 return Err(EstimationError::unsupported("AnalyticSeKind::Cluster requires matching cluster_ids"));
             };
             let groups: Vec<u32> = effect_rows.iter().map(|&r| ids[r]).collect();
-            cluster_influence_se(&per_unit_effects, &groups)
+            // Abadie–Imbens donor-reuse inflation on unit scores before clustering.
+            let mut k = vec![0usize; n_donors.max(1)];
+            for &d in &donor_usage {
+                if d < k.len() {
+                    k[d] += 1;
+                }
+            }
+            let mut psi = Vec::with_capacity(per_unit_effects.len());
+            for (i, &d) in donor_usage.iter().enumerate() {
+                let kd = k.get(d).copied().unwrap_or(0) as f64;
+                psi.push((per_unit_effects[i] - ate) * (1.0 + kd));
+            }
+            cluster_influence_se(&psi, &groups)
         }
         AnalyticSeKind::NeweyWest { .. } => {
             return Err(EstimationError::unsupported(
@@ -588,6 +600,38 @@ mod tests {
         assert!(
             se_reuse > se_unique,
             "reuse={se_reuse} unique={se_unique}"
+        );
+    }
+
+    #[test]
+    fn cluster_se_grows_with_donor_reuse() {
+        let effects = vec![1.0, 1.2, 0.8, 1.1];
+        let ate = effects.iter().sum::<f64>() / effects.len() as f64;
+        let donors_reuse = vec![0usize, 0, 1, 1];
+        let donors_unique = vec![0usize, 1, 2, 3];
+        let groups = vec![0u32, 0, 1, 1];
+        let se = |donors: &[usize], n_donors: usize| {
+            let mut k = vec![0usize; n_donors.max(1)];
+            for &d in donors {
+                if d < k.len() {
+                    k[d] += 1;
+                }
+            }
+            let psi: Vec<f64> = effects
+                .iter()
+                .enumerate()
+                .map(|(i, &e)| {
+                    let kd = k.get(donors[i]).copied().unwrap_or(0) as f64;
+                    (e - ate) * (1.0 + kd)
+                })
+                .collect();
+            crate::se::cluster_influence_se(&psi, &groups)
+        };
+        let se_reuse = se(&donors_reuse, 2);
+        let se_unique = se(&donors_unique, 4);
+        assert!(
+            se_reuse > se_unique,
+            "cluster reuse={se_reuse} unique={se_unique}"
         );
     }
 }

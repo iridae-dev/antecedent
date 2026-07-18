@@ -543,4 +543,104 @@ mod tests {
             if message.contains("PathSpecific")
         ));
     }
+
+    fn random_dag(rng: &mut causal_core::CausalRng, n: u32) -> Dag {
+        let mut g = Dag::with_variables(n);
+        let mut order: Vec<u32> = (0..n).collect();
+        for i in (1..n as usize).rev() {
+            let j = (rng.next_u64() as usize) % (i + 1);
+            order.swap(i, j);
+        }
+        for i in 0..n as usize {
+            for j in (i + 1)..n as usize {
+                if rng.next_u64() % 3 == 0 {
+                    let a = DenseNodeId::from_raw(order[i]);
+                    let b = DenseNodeId::from_raw(order[j]);
+                    let _ = g.insert_directed(a, b);
+                }
+            }
+        }
+        g
+    }
+
+    fn descendants_of(g: &Dag, t: DenseNodeId) -> std::collections::HashSet<DenseNodeId> {
+        let mut s = std::collections::HashSet::new();
+        let mut stack = vec![t];
+        while let Some(u) = stack.pop() {
+            for &c in g.children(u) {
+                if s.insert(c) {
+                    stack.push(c);
+                }
+            }
+        }
+        s
+    }
+
+    fn assert_valid_adjustment_sets(
+        g: &Dag,
+        t: DenseNodeId,
+        y: DenseNodeId,
+        estimands: &[causal_expr::IdentifiedEstimand],
+        dsep: &mut causal_graph::DSeparationWorkspace,
+    ) {
+        let mutilated = remove_outgoing(g, t).unwrap();
+        let descendants = descendants_of(g, t);
+        for est in estimands {
+            let z: Vec<DenseNodeId> = est
+                .adjustment_set
+                .iter()
+                .map(|v| var_to_dense(*v, g).unwrap())
+                .collect();
+            for &zi in &z {
+                assert!(
+                    !descendants.contains(&zi),
+                    "adjustment set contains descendant of T: {zi:?}"
+                );
+                assert_ne!(zi, t);
+                assert_ne!(zi, y);
+            }
+            assert!(
+                is_backdoor_adjustment(&mutilated, t, y, &z, dsep).unwrap(),
+                "Z={z:?} does not block backdoors T={} Y={}",
+                t.raw(),
+                y.raw()
+            );
+        }
+    }
+
+    #[test]
+    fn property_backdoor_sets_block_and_exclude_descendants() {
+        let mut rng = causal_core::CausalRng::from_seed(99);
+        let id = BackdoorIdentifier::new();
+        let eff = crate::EfficientBackdoorIdentifier::new();
+        let mut ws = IdentificationWorkspace::default();
+        let mut dsep = causal_graph::DSeparationWorkspace::default();
+        for _ in 0..40 {
+            let n = 4 + (rng.next_u64() % 2) as u32; // 4..=5
+            let g = random_dag(&mut rng, n);
+            let t = DenseNodeId::from_raw((rng.next_u64() % u64::from(n)) as u32);
+            let mut y = DenseNodeId::from_raw((rng.next_u64() % u64::from(n)) as u32);
+            if y == t {
+                y = DenseNodeId::from_raw((t.raw() + 1) % n);
+            }
+            let prep = id.prepare(&g).unwrap();
+            let q = CausalQuery::average_effect(AverageEffectQuery::with_levels(
+                VariableId::from_raw(t.raw()),
+                VariableId::from_raw(y.raw()),
+                // Non-binary levels: identification is graph-theoretic.
+                -1.5,
+                2.25,
+            ));
+            if let Ok(res) = id.identify(&prep, &q, &mut ws) {
+                if res.status == IdentificationStatus::NonparametricallyIdentified {
+                    assert_valid_adjustment_sets(&g, t, y, &res.estimands, &mut dsep);
+                }
+            }
+            if let Ok(res) = eff.identify(&prep, &q, &mut ws) {
+                if res.status == IdentificationStatus::NonparametricallyIdentified {
+                    assert_valid_adjustment_sets(&g, t, y, &res.estimands, &mut dsep);
+                }
+            }
+        }
+    }
 }

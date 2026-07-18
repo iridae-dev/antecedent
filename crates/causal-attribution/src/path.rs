@@ -35,6 +35,27 @@ pub fn path_decompose(
         .ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
     let strengths = edge_strength_map(model)?;
 
+    if sources.len() > 1 {
+        for (i, &src_i) in sources.iter().enumerate() {
+            let src_i_dense = model
+                .dense_of(src_i)
+                .ok_or_else(|| AttributionError::missing_var("source", src_i))?;
+            for &src_j in sources.iter().skip(i + 1) {
+                let src_j_dense = model
+                    .dense_of(src_j)
+                    .ok_or_else(|| AttributionError::missing_var("source", src_j))?;
+                if model.graph.reaches(src_i_dense, src_j_dense)
+                    || model.graph.reaches(src_j_dense, src_i_dense)
+                {
+                    return Err(AttributionError::unsupported(
+                        "path_decompose with multiple sources requires disjoint ancestry; \
+                         one source is a directed ancestor of another",
+                    ));
+                }
+            }
+        }
+    }
+
     let mut path_breakdown = Vec::new();
     let mut component_scores: Vec<(ComponentId, f64)> = Vec::new();
     let mut evaluations = 0u64;
@@ -136,7 +157,10 @@ mod tests {
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage, TabularData};
     use causal_graph::{Dag, DenseNodeId};
-    use causal_model::{MechanismRegistry, SelectionPolicy};
+    use causal_model::{
+        CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
+        SelectionPolicy,
+    };
 
     #[test]
     fn path_share_on_chain() {
@@ -191,6 +215,181 @@ mod tests {
         )
         .unwrap();
         assert!(!result.path_breakdown.is_empty());
+        assert!(result.total_change > 0.0);
+    }
+
+    /// Pinned linear SEM X→M→Y with β=2,3: path product = 6 and Σ path shares = total_change.
+    #[test]
+    fn path_product_pins_and_sums_to_total_change() {
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let store = CompiledMechanismStore {
+            slots: Arc::from([
+                MechanismSlot::Constant { value: 0.0 },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([2.0]),
+                    sigma: 0.1,
+                },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([3.0]),
+                    sigma: 0.1,
+                },
+            ]),
+        };
+        let model = compiled.with_mechanisms(store);
+        let result = path_decompose(
+            &model,
+            &[VariableId::from_raw(0)],
+            VariableId::from_raw(2),
+            10,
+            8,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert_eq!(result.path_breakdown.len(), 1);
+        assert!(
+            (result.path_breakdown[0].contribution - 6.0).abs() < 1e-12,
+            "path product={}",
+            result.path_breakdown[0].contribution
+        );
+        let path_sum: f64 = result.path_breakdown.iter().map(|p| p.contribution).sum();
+        assert!(
+            (path_sum - result.total_change).abs() < 1e-12,
+            "sum(path)={path_sum} total={}",
+            result.total_change
+        );
+        assert!((result.total_change - 6.0).abs() < 1e-12);
+    }
+
+    fn chain_model() -> CompiledCausalModel {
+        let n = 30usize;
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["x", "m", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let mv: Vec<f64> = xv.iter().map(|x| 2.0 * x).collect();
+        let yv: Vec<f64> = mv.iter().map(|m| 3.0 * m).collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(mv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        compiled.with_mechanisms(store)
+    }
+
+    #[test]
+    fn nested_multi_source_errors() {
+        let model = chain_model();
+        let err = path_decompose(
+            &model,
+            &[VariableId::from_raw(0), VariableId::from_raw(1)],
+            VariableId::from_raw(2),
+            10,
+            8,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+        assert!(matches!(err, AttributionError::Unsupported { .. }));
+    }
+
+    #[test]
+    fn disjoint_multi_source_succeeds() {
+        let n = 30usize;
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["x", "z", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let zv: Vec<f64> = (0..n).map(|i| (n - i) as f64 * 0.05).collect();
+        let yv: Vec<f64> = xv
+            .iter()
+            .zip(zv.iter())
+            .enumerate()
+            .map(|(i, (x, z))| 2.0 * x + 3.0 * z + 0.3 * (i as f64 * 0.13).sin())
+            .collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(zv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let _data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let store = CompiledMechanismStore {
+            slots: Arc::from([
+                MechanismSlot::Constant { value: 0.0 },
+                MechanismSlot::Constant { value: 0.0 },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([2.0, 3.0]),
+                    sigma: 0.1,
+                },
+            ]),
+        };
+        let model = compiled.with_mechanisms(store);
+        let result = path_decompose(
+            &model,
+            &[VariableId::from_raw(0), VariableId::from_raw(1)],
+            VariableId::from_raw(2),
+            10,
+            8,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert_eq!(result.contributions.len(), 2);
         assert!(result.total_change > 0.0);
     }
 }

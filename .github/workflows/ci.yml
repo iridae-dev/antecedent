@@ -172,4 +172,10 @@ jobs:
         run: |
           pip install dist/*.whl numpy pytest
           python -c "import causal; print(causal.__version__)"
-          pytest -q tests/test_arrow_copy_gate.py tests/test_graph_interchange.py
+          pytest -q \
+            tests/test_arrow_copy_gate.py \
+            tests/test_graph_interchange.py \
+            tests/test_analyze_ate_estimate.py \
+            tests/test_discover_pcmci.py \
+            tests/test_discover_pcmci_plus.py \
+            tests/test_gcm_rich_returns.py

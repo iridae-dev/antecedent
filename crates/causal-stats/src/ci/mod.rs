@@ -16,7 +16,9 @@ mod types;
 pub use advanced::{Gpdc, KnnCmi, MixedKnnCmi, OracleCi, SymbolicCmi};
 pub use analytic::analytic_parcorr_ci;
 pub use calibration::{
-    CalibrationReport, calibrate_gsquared, calibrate_parcorr_like, type_i_within_two_se,
+    CalibrationReport, calibrate_gsquared, calibrate_parcorr_like, chi2_crit_approx,
+    collect_null_pvalues_parcorr_like, type_i_within_three_se, type_i_within_two_se,
+    uniform_bin_chi2,
 };
 pub use factory::ci_from_name;
 pub use gsquared::{GSquared, RegressionCi};

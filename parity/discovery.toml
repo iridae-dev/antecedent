@@ -185,6 +185,30 @@ owner = "context"
 notes = "Rpcmci; conformance/discovery/rpcmci_two_regime"
 
 [[capabilities]]
+id = "discovery.validate.alpha_threshold_sensitivity"
+group = "discovery_validation"
+description = "Alpha-threshold sensitivity (re-run PCMCI across alpha grid)"
+status = "done"
+owner = "discovery"
+notes = "causal-validate AlphaThresholdSensitivity; DiscoveryStabilityReport"
+
+[[capabilities]]
+id = "discovery.validate.lag_window_sensitivity"
+group = "discovery_validation"
+description = "Lag-window sensitivity (re-run PCMCI across max_lag grid)"
+status = "done"
+owner = "discovery"
+notes = "causal-validate LagWindowSensitivity; DiscoveryStabilityReport"
+
+[[capabilities]]
+id = "discovery.validate.ci_test_sensitivity"
+group = "discovery_validation"
+description = "CI-test sensitivity (re-run PCMCI across CI names)"
+status = "done"
+owner = "discovery"
+notes = "causal-validate CiTestSensitivity; DiscoveryStabilityReport"
+
+[[capabilities]]
 id = "discovery.fdr"
 group = "discovery"
 description = "FDR and confidence intervals"

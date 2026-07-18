@@ -1,4 +1,10 @@
-"""analyze() identifier/estimator kwargs and nested result schema."""
+"""analyze() identifier/estimator kwargs and nested result schema.
+
+IPW ATE dual: shares structural confounded SCM (true ATE=2) and acceptance band
+with Rust `end_to_end_propensity_weighting_recovers_confounded_effect`
+(`crates/causal/src/lib.rs`). Cross-language floor: |ate − 2| < 0.4
+(Rust unit test uses a tighter 0.3 on its RNG stream).
+"""
 
 from __future__ import annotations
 
@@ -13,6 +19,7 @@ import causal
 
 
 def _confounded_scm(n: int = 800, seed: int = 5):
+    """Confounded Z→T, Z→Y, T→Y with structural ATE=2 (Python dual of Rust IPW fixture)."""
     rng = random.Random(seed)
     z = np.empty(n, dtype=np.float64)
     t = np.empty(n, dtype=np.float64)
@@ -46,7 +53,8 @@ def test_analyze_default_pair_schema_and_fields():
 
 
 def test_analyze_propensity_weighting_recovers_ate_and_overlap():
-    data, edges = _confounded_scm()
+    # Shared dual band with Rust IPW ATE≈2 (see module docstring).
+    data, edges = _confounded_scm(n=800, seed=5)
     result = causal.analyze(
         data,
         graph=edges,

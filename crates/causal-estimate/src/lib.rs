@@ -37,6 +37,9 @@ pub mod temporal_adjustment;
 pub mod temporal_mediation;
 pub mod util;
 
+#[cfg(test)]
+mod calibration_coverage;
+
 pub use adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };

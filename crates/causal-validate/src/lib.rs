@@ -41,7 +41,10 @@ pub use placebo::{PlaceboMode, PlaceboTreatment};
 pub use rcc::RandomCommonCause;
 pub use reisz::ReiszSensitivity;
 pub use sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
-pub use stability::{BlockBootstrapStability, DiscoveryStabilityReport, LinkStability};
+pub use stability::{
+    AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity,
+    DiscoveryStabilityReport, LagWindowSensitivity, LinkStability,
+};
 pub use suite::{BayesianSuiteContext, ValidationOutcome, ValidationSuite, ValidatorId};
 pub use unobserved_common_cause::UnobservedCommonCause;
 pub use validator::{PreparedRefutation, Validator, run_validator};

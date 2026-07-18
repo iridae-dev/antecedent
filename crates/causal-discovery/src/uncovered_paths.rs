@@ -82,18 +82,22 @@ pub fn is_potentially_directed(graph: &TemporalPag, from: DenseNodeId, to: Dense
 ///
 /// Uncovered: no edge between non-consecutive nodes on the path (checked locally:
 /// `path[i]` not adjacent to `path[i+2]`).
+///
+/// Returns `(paths, truncated)` where `truncated` is true if the search stopped because
+/// `max_paths` was reached while further candidates remained.
 #[must_use]
-pub fn uncovered_pd_paths(
+pub fn uncovered_pd_paths_with_budget(
     graph: &TemporalPag,
     start: DenseNodeId,
     end: DenseNodeId,
     initial: &[EndpointPattern],
     max_paths: usize,
     max_len: usize,
-) -> Vec<Vec<DenseNodeId>> {
+) -> (Vec<Vec<DenseNodeId>>, bool) {
     let mut out = Vec::new();
+    let mut truncated = false;
     if start == end || max_paths == 0 || max_len < 3 {
-        return out;
+        return (out, false);
     }
     fn search(
         graph: &TemporalPag,
@@ -103,10 +107,8 @@ pub fn uncovered_pd_paths(
         max_paths: usize,
         max_len: usize,
         out: &mut Vec<Vec<DenseNodeId>>,
+        truncated: &mut bool,
     ) {
-        if out.len() >= max_paths {
-            return;
-        }
         let cur = *path.last().expect("non-empty");
         if cur == end {
             if path.len() >= 3 {
@@ -119,6 +121,10 @@ pub fn uncovered_pd_paths(
         }
         let nbrs: Vec<_> = graph.neighbors(cur).map(|(n, _, _)| n).collect();
         for next in nbrs {
+            if out.len() >= max_paths {
+                *truncated = true;
+                return;
+            }
             if path.contains(&next) {
                 continue;
             }
@@ -147,18 +153,18 @@ pub fn uncovered_pd_paths(
                 &[EndpointPattern::directed()]
             };
             path.push(next);
-            search(graph, end, path, next_allowed, max_paths, max_len, out);
+            search(graph, end, path, next_allowed, max_paths, max_len, out, truncated);
             path.pop();
-            if out.len() >= max_paths {
-                return;
-            }
         }
     }
 
     let mut path = vec![start];
-    // First step: only initial patterns.
     let nbrs: Vec<_> = graph.neighbors(start).map(|(n, _, _)| n).collect();
     for next in nbrs {
+        if out.len() >= max_paths {
+            truncated = true;
+            break;
+        }
         if next == end {
             continue; // need length ≥ 3
         }
@@ -181,11 +187,21 @@ pub fn uncovered_pd_paths(
             &[EndpointPattern::directed()]
         };
         path.push(next);
-        search(graph, end, &mut path, next_allowed, max_paths, max_len, &mut out);
+        search(graph, end, &mut path, next_allowed, max_paths, max_len, &mut out, &mut truncated);
         path.pop();
-        if out.len() >= max_paths {
-            break;
-        }
     }
-    out
+    (out, truncated)
+}
+
+/// Find uncovered potentially directed paths (paths only; ignores truncation).
+#[must_use]
+pub fn uncovered_pd_paths(
+    graph: &TemporalPag,
+    start: DenseNodeId,
+    end: DenseNodeId,
+    initial: &[EndpointPattern],
+    max_paths: usize,
+    max_len: usize,
+) -> Vec<Vec<DenseNodeId>> {
+    uncovered_pd_paths_with_budget(graph, start, end, initial, max_paths, max_len).0
 }

@@ -32,6 +32,9 @@ pub mod result;
 pub mod temporal_backdoor;
 pub mod temporal_mediation;
 
+#[cfg(test)]
+mod id_scm_property;
+
 pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};
 pub use efficient::EfficientBackdoorIdentifier;
 pub use envelope::{

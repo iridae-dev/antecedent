@@ -268,6 +268,53 @@ fn scheduler_honors_delta_queue_without_reseed() {
 }
 
 #[test]
+fn r10_does_not_orient_with_single_uncovered_pd_path() {
+    // a o→ c; one uncovered PD path a → d1 → p1 → c into parent p1 — insufficient for R10′.
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let d1 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let p1 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_circle_arrow(a, c).unwrap();
+    g.insert_directed(a, d1).unwrap();
+    g.insert_directed(d1, p1).unwrap();
+    g.insert_directed(p1, c).unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciR10.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Circle));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
+fn r10_orients_with_two_disjoint_uncovered_pd_paths() {
+    // a o→ c; node-disjoint paths a → d1 → p1 → c and a → d2 → p2 → c into distinct parents.
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let d1 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let d2 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let p1 = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let p2 = g.add_lagged(VariableId::from_raw(4), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(5), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_circle_arrow(a, c).unwrap();
+    g.insert_directed(a, d1).unwrap();
+    g.insert_directed(d1, p1).unwrap();
+    g.insert_directed(p1, c).unwrap();
+    g.insert_directed(a, d2).unwrap();
+    g.insert_directed(d2, p2).unwrap();
+    g.insert_directed(p2, c).unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciR10.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(d.edges_changed > 0);
+    let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Tail));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
 fn discriminating_r4_orients_collider_when_c_not_in_sep_ab() {
     // Zhang path ⟨a, d, c, b⟩: a → d ← c, d → b, c o→ b; c ∉ Sep(a,b) ⇒ d *→ c ←* b.
     let mut g = TemporalPag::empty();

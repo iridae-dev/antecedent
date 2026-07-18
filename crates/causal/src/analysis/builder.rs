@@ -17,7 +17,8 @@ use causal_core::{
     AverageEffectQuery, CausalQuery,
     TemporalEffectQuery, VariableId,
 };
-use causal_data::{DiscoveryEstimationSplit, TabularData, TimeSeriesData};
+use causal_data::{DiscoveryEstimationSplit, MultiEnvironmentData, TabularData, TimeSeriesData};
+use causal_discovery::{MultiDatasetConstraints, RegimeAssignment};
 use causal_estimate::OverlapPolicy;
 use causal_graph::{Dag, Pag, TemporalDag, TemporalPag};
 
@@ -46,6 +47,8 @@ pub enum RefuteSuite {
 pub(crate) enum DataInput {
     Tabular(TabularData),
     Temporal(TimeSeriesData),
+    /// Multi-environment series (J-PCMCI+ discover path).
+    MultiEnv(MultiEnvironmentData),
 }
 
 /// Running-variable configuration for the `rd.sharp` estimator; required when `rd.sharp` is
@@ -116,6 +119,13 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Supply multi-environment series (required for J-PCMCI+ discovery).
+    #[must_use]
+    pub fn series_multi(mut self, data: MultiEnvironmentData) -> Self {
+        self.data = Some(DataInput::MultiEnv(data));
+        self
+    }
+
     /// Supply a validated static DAG.
     #[must_use]
     pub fn graph(mut self, graph: Dag) -> Self {
@@ -169,7 +179,7 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Discover with J-PCMCI+ (multi-environment; typically review-required via Python path).
+    /// Discover with J-PCMCI+ (requires [`Self::series_multi`]; typically review-required).
     #[must_use]
     pub fn discover_jpcmci_plus(
         mut self,
@@ -177,17 +187,19 @@ impl CausalAnalysisBuilder {
         alpha: f64,
         fdr: crate::options::FdrControl,
         accept: crate::options::DiscoveryAccept,
+        multi_dataset: MultiDatasetConstraints,
     ) -> Self {
         self.graph = Some(GraphInput::DiscoverJpcmciPlus {
             max_lag,
             alpha,
             fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
+            multi_dataset,
         });
         self
     }
 
-    /// Discover with RPCMCI (regime graphs; typically review-required via Python path).
+    /// Discover with RPCMCI (requires caller-supplied regime assignment).
     #[must_use]
     pub fn discover_rpcmci(
         mut self,
@@ -195,12 +207,14 @@ impl CausalAnalysisBuilder {
         alpha: f64,
         fdr: crate::options::FdrControl,
         accept: crate::options::DiscoveryAccept,
+        regime_assignment: RegimeAssignment,
     ) -> Self {
         self.graph = Some(GraphInput::DiscoverRpcmci {
             max_lag,
             alpha,
             fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
+            regime_assignment,
         });
         self
     }
@@ -217,6 +231,24 @@ impl CausalAnalysisBuilder {
         self.graph = Some(GraphInput::DiscoverLpcmci {
             max_lag,
             alpha,
+            fdr: fdr.adjustment(),
+            accept_discovered: accept.auto(),
+        });
+        self
+    }
+
+    /// Discover with static PC (tabular CPDAG; auto-finishes only when fully oriented).
+    #[must_use]
+    pub fn discover_pc(
+        mut self,
+        alpha: f64,
+        max_cond_size: usize,
+        fdr: crate::options::FdrControl,
+        accept: crate::options::DiscoveryAccept,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverPc {
+            alpha,
+            max_cond_size,
             fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
         });

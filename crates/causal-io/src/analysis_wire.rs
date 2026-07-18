@@ -174,6 +174,12 @@ pub fn identification_to_wire(r: &IdentificationResult) -> Result<Identification
             IdentificationStatus::NonparametricallyIdentified => {
                 "nonparametrically_identified".into()
             }
+            IdentificationStatus::IdentifiedUnderParametricRestrictions => {
+                "identified_under_parametric_restrictions".into()
+            }
+            IdentificationStatus::IdentifiedUnderPriorRestrictions => {
+                "identified_under_prior_restrictions".into()
+            }
             IdentificationStatus::PartiallyIdentified => "partially_identified".into(),
             IdentificationStatus::GraphDependent => "graph_dependent".into(),
             IdentificationStatus::NotIdentified => "not_identified".into(),
@@ -212,6 +218,12 @@ pub fn identification_to_wire(r: &IdentificationResult) -> Result<Identification
 pub fn identification_from_wire(w: &IdentificationResultWire) -> Result<IdentificationResult, IoError> {
     let status = match w.status.as_str() {
         "nonparametrically_identified" => IdentificationStatus::NonparametricallyIdentified,
+        "identified_under_parametric_restrictions" => {
+            IdentificationStatus::IdentifiedUnderParametricRestrictions
+        }
+        "identified_under_prior_restrictions" => {
+            IdentificationStatus::IdentifiedUnderPriorRestrictions
+        }
         "partially_identified" => IdentificationStatus::PartiallyIdentified,
         "graph_dependent" => IdentificationStatus::GraphDependent,
         "not_identified" => IdentificationStatus::NotIdentified,
@@ -334,3 +346,38 @@ pub fn diagnostic_from_wire(w: &DiagnosticWire) -> Result<Diagnostic, IoError> {
 /// Silence unused.
 #[allow(dead_code)]
 fn _keep(_: VariableId) {}
+
+#[cfg(test)]
+mod tests {
+    use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery};
+    use causal_expr::CausalExprArena;
+
+    use super::*;
+
+    fn empty_id_result(status: IdentificationStatus) -> IdentificationResult {
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        IdentificationResult {
+            status,
+            query: CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(t, y)),
+            estimands: Vec::new(),
+            arena: CausalExprArena::new(),
+            derivation: DerivationTrace::default(),
+            required_assumptions: AssumptionSet::default(),
+            diagnostics: Vec::new(),
+            performance: IdentificationPerformanceRecord::default(),
+        }
+    }
+
+    #[test]
+    fn restricted_status_wire_round_trips() {
+        for status in [
+            IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            IdentificationStatus::IdentifiedUnderPriorRestrictions,
+        ] {
+            let wire = identification_to_wire(&empty_id_result(status)).unwrap();
+            let back = identification_from_wire(&wire).unwrap();
+            assert_eq!(back.status, status);
+        }
+    }
+}

@@ -401,4 +401,31 @@ mod tests {
         assert_eq!(est.interactions.len(), 1);
         assert!((est.interactions[0].value - 1.0).abs() < 1e-12);
     }
+
+    #[test]
+    fn exact_shapley_efficiency_on_interactive_game() {
+        // v(S) = |S| + 1{both bit0 and bit1}: non-additive interaction.
+        struct Interactive;
+        impl CoalitionPayoff for Interactive {
+            fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+                let size = (mask & 0b111).count_ones() as f64;
+                let bonus = f64::from((mask & 0b11) == 0b11);
+                Ok(size + bonus)
+            }
+        }
+        let players: Vec<_> = (0..3).map(ComponentId::from_raw).collect();
+        let mut payoff = Interactive;
+        let v_empty = payoff.value(0).unwrap();
+        let v_full = payoff.value(0b111).unwrap();
+        let cfg = ShapleyConfig::exact();
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.cache_policy = CachePolicy::enabled(Some(1_000_000));
+        let est = estimate_shapley(&players, &cfg, &mut payoff, &ctx).unwrap();
+        let sum: f64 = est.values.iter().sum();
+        assert!(
+            (sum - (v_full - v_empty)).abs() < 1e-9,
+            "efficiency: sum={sum} v(N)-v(∅)={}",
+            v_full - v_empty
+        );
+    }
 }

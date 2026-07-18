@@ -64,6 +64,10 @@ class JPCMCIPlus:
     alpha: float = 0.05
     fdr: bool = True
     ci: str = "parcorr"
+    context_names: tuple[str, ...] = ()
+    include_space_dummy: bool = True
+    include_time_dummy: bool = False
+    space_dummy_ci: Literal["scalar", "multivariate"] = "scalar"
     kind: Literal["jpcmci_plus"] = "jpcmci_plus"
 
 
@@ -176,7 +180,7 @@ def discover_lpcmci(
 
 def discover_jpcmci_plus(
     names: list[str],
-    columns: Sequence[NDArray[np.float64]],
+    env_columns: Sequence[Sequence[NDArray[np.float64]]],
     *,
     max_lag: int = 1,
     alpha: float = 0.05,
@@ -185,10 +189,14 @@ def discover_jpcmci_plus(
     ci: str = "parcorr",
     weights: list[float] | None = None,
     threads: int = 1,
+    context_names: Sequence[str] | None = None,
+    include_space_dummy: bool = True,
+    include_time_dummy: bool = False,
+    space_dummy_ci: str = "scalar",
 ) -> PcmciDiscoveryResult:
     return _discover_jpcmci_plus(
         names,
-        columns,
+        [list(cols) for cols in env_columns],
         max_lag=max_lag,
         alpha=alpha,
         fdr=fdr,
@@ -196,6 +204,10 @@ def discover_jpcmci_plus(
         ci=ci,
         weights=weights,
         threads=threads,
+        context_names=list(context_names) if context_names is not None else None,
+        include_space_dummy=include_space_dummy,
+        include_time_dummy=include_time_dummy,
+        space_dummy_ci=space_dummy_ci,
     )
 
 
@@ -210,6 +222,7 @@ def discover_rpcmci(
     ci: str = "parcorr",
     weights: list[float] | None = None,
     threads: int = 1,
+    regimes: Sequence[int] | None = None,
 ) -> RpcmciDiscoverySummary:
     return _discover_rpcmci(
         names,
@@ -221,6 +234,7 @@ def discover_rpcmci(
         ci=ci,
         weights=weights,
         threads=threads,
+        regimes=list(regimes) if regimes is not None else None,
     )
 
 

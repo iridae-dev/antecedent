@@ -26,7 +26,7 @@ use causal::{
     DiscoverParams, DiscoveryAccept, DiscoveryPerformanceRecord, DistributionChangeOptions,
     FdrAdjustment, FdrControl, GraphIdentFlag, InferenceMode, MeasurementPlan,
     MultiDatasetConstraints, RefuteSuite, SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent,
-    StaticDiscoverParams,
+    StaticDiscoverParams, RegimeAssignment,
     TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples,
     anomaly_attribution as facade_anomaly_attribution, apply_state_event,
     attribute_distribution_change as facade_attribute_distribution_change,
@@ -52,8 +52,9 @@ use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CacheBudget, CachePolicy,
     CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
     InterventionalDistributionQuery, KernelPolicy, Lag, MechanismChangeQuery, MediationContrast,
-    MediationQuery, PathSpecificEffectQuery, PopulationSelector, SchemaError, ShapleyConfig,
-    TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value, VariableId,
+    MediationQuery, PathSpecificEffectQuery, PopulationSelector, RegimeId, SchemaError,
+    ShapleyConfig, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value,
+    VariableId,
 };
 use causal_data::{
     ArrowCColumn, DataError, MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex,
@@ -572,6 +573,105 @@ fn analyze_ate(
             builder = builder.inference(InferenceMode::Bayesian(cfg));
             // Keep the caller's refute suite. Overwriting with None previously made
             // `refutation_passed=True` for checks that never ran.
+        }
+        let analysis = builder.build().map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        ate_result_from_analysis(&names, result)
+    })
+}
+
+/// Static ATE via PC discovery → DAG (when fully oriented).
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    treatment,
+    outcome,
+    *,
+    alpha=0.05,
+    fdr=true,
+    max_cond_size=2,
+    accept_discovered=true,
+    identifier=None,
+    estimator=None,
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
+    refute=true,
+    seed=1,
+    bootstrap=50,
+    threads=1
+))]
+fn analyze_ate_discover(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    treatment: String,
+    outcome: String,
+    alpha: f64,
+    fdr: bool,
+    max_cond_size: usize,
+    accept_discovered: bool,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    refute: bool,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let query = AverageEffectQuery::binary_ate(t_id, y_id);
+        let suite = if refute { RefuteSuite::PlaceboAndRcc } else { RefuteSuite::None };
+        let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
+        let accept = if accept_discovered {
+            DiscoveryAccept::AutoAccept
+        } else {
+            DiscoveryAccept::Review
+        };
+        let mut builder = CausalAnalysis::builder()
+            .data(data)
+            .discover_pc(alpha, max_cond_size, fdr_ctrl, accept)
+            .query(query)
+            .refute(suite)
+            .bootstrap_replicates(bootstrap);
+        if let Some(id) = identifier {
+            builder = builder.identifier(id);
+        }
+        if let Some(est) = estimator {
+            builder = builder.estimator(est);
+        }
+        if let Some(mode) = inference {
+            let cfg = match mode.to_ascii_lowercase().as_str() {
+                "bayesian" | "bayesian.laplace" | "laplace" => {
+                    BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
+                }
+                "bayesian.conjugate" | "conjugate" => {
+                    BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+                }
+                "frequentist" => {
+                    builder = builder.inference(InferenceMode::Frequentist);
+                    let analysis = builder.build().map_err(py_err)?;
+                    let ctx = py_execution_context(seed, threads);
+                    let result = analysis.run(&ctx).map_err(py_err)?;
+                    return ate_result_from_analysis(&names, result);
+                }
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown inference mode {other:?}; use frequentist|bayesian|conjugate"
+                    )));
+                }
+            };
+            builder = builder.inference(InferenceMode::Bayesian(cfg));
         }
         let analysis = builder.build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
@@ -1218,9 +1318,9 @@ fn discover_jpcmci_plus(
     })
 }
 
-/// RPCMCI with half-split regimes (one GIL crossing).
+/// RPCMCI with caller-supplied regimes (or half-split when `regimes` is omitted).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1, regimes=None))]
 fn discover_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -1232,13 +1332,28 @@ fn discover_rpcmci(
     ci: &str,
     weights: Option<Vec<f64>>,
     threads: u32,
+    regimes: Option<Vec<u32>>,
 ) -> PyResult<RpcmciDiscoverySummary> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
     drop(columns);
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let assign = two_regime_half_split(series.row_count());
+        let assign = if let Some(labels) = regimes {
+            if labels.len() != series.row_count() {
+                return Err(PyValueError::new_err(format!(
+                    "regimes length {} != series length {}",
+                    labels.len(),
+                    series.row_count()
+                )));
+            }
+            RegimeAssignment::try_new(
+                labels.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
+            )
+            .map_err(|e| PyValueError::new_err(e.to_string()))?
+        } else {
+            two_regime_half_split(series.row_count())
+        };
         let params = DiscoverParams {
             max_lag,
             alpha,
@@ -2207,7 +2322,13 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<(Vec<String>, Vec<(u32, u32)>, 
     active_level=1.0,
     seed=1,
     bootstrap=0,
-    threads=1
+    threads=1,
+    env_columns=None,
+    regimes=None,
+    context_names=None,
+    include_space_dummy=true,
+    include_time_dummy=false,
+    space_dummy_ci="scalar",
 ))]
 fn analyze_temporal_discover(
     py: Python<'_>,
@@ -2226,70 +2347,203 @@ fn analyze_temporal_discover(
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    env_columns: Option<Vec<Vec<PyReadonlyArray1<'_, f64>>>>,
+    regimes: Option<Vec<u32>>,
+    context_names: Option<Vec<String>>,
+    include_space_dummy: bool,
+    include_time_dummy: bool,
+    space_dummy_ci: &str,
 ) -> PyResult<AnalysisResult> {
-    let batch = columns_to_batch(&names, &columns)?;
     let algo = algorithm.to_string();
-    drop(columns);
-    detach_catch(py, move || {
-        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
-        let tabular = loaded.data;
-        let n = tabular.row_count();
-        let series = TimeSeriesData::try_new(
-            tabular.storage().clone(),
-            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
-        )
-        .map_err(py_err)?;
+    let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
+    let accept = if accept_discovered {
+        DiscoveryAccept::AutoAccept
+    } else {
+        DiscoveryAccept::Review
+    };
+    let context_names = context_names.unwrap_or_default();
+    let space_dummy_ci = space_dummy_ci.to_string();
 
-        let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
-        let pulse_at = -i32::try_from(treatment_lag)
-            .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
-        let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
-            .with_policy(TemporalPolicy::pulse(pulse_at))
-            .with_horizon_steps(horizon_steps);
-
-        let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-        let accept = if accept_discovered {
-            DiscoveryAccept::AutoAccept
-        } else {
-            DiscoveryAccept::Review
-        };
-
-        let mut builder = CausalAnalysis::builder()
-            .series(series)
-            .temporal_query(q)
-            .bootstrap_replicates(bootstrap);
-        builder = match algo.as_str() {
-            "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
-            "pcmci_plus" => builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept),
-            "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown discovery algorithm {other:?}; use pcmci|pcmci_plus|lpcmci"
-                )));
+    match algo.as_str() {
+        "jpcmci_plus" => {
+            let envs = env_columns.ok_or_else(|| {
+                PyValueError::new_err(
+                    "analyze_temporal_discover(algorithm='jpcmci_plus') requires env_columns",
+                )
+            })?;
+            if envs.is_empty() {
+                return Err(PyValueError::new_err("jpcmci_plus needs ≥1 environment in env_columns"));
             }
-        };
-        let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
-        let result = analysis.run(&ctx).map_err(py_err)?;
-        Ok(AnalysisResult {
-            ate: result.estimate.ate,
-            se_analytic: result.estimate.se_analytic,
-            se_bootstrap: result.estimate.se_bootstrap,
-            plan_id: result.logical_plan.plan_id.to_string(),
-            modality: format!("{:?}", result.logical_plan.data_classification),
-            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-            identification_status: format!("{:?}", result.identification.status),
-            method: result.estimand.method.to_string(),
-            diagnostics: result
-                .diagnostics
-                .iter()
-                .map(|d| format!("{}: {}", d.code, d.message))
-                .collect(),
-            provenance_node_count: result.provenance.len(),
-            refutation_count: result.refutations.len(),
-        })
-    })
+            let mut batches = Vec::with_capacity(envs.len());
+            for cols in &envs {
+                batches.push(columns_to_batch(&names, cols)?);
+            }
+            drop(envs);
+            drop(columns);
+            detach_catch(py, move || {
+                let mut series_list = Vec::with_capacity(batches.len());
+                for batch in &batches {
+                    let (series, _) = series_from_batch(batch)?;
+                    series_list.push(series);
+                }
+                let multi = MultiEnvironmentData::try_new(Arc::from(series_list)).map_err(py_err)?;
+                let t_id = multi.schema().id_of(&treatment).map_err(py_err)?;
+                let y_id = multi.schema().id_of(&outcome).map_err(py_err)?;
+                let mut context_ids = Vec::new();
+                for cname in &context_names {
+                    context_ids.push(multi.schema().id_of(cname).map_err(py_err)?);
+                }
+                let space_mode = match space_dummy_ci.as_str() {
+                    "scalar" | "scalar_one_hot" | "one_hot" => SpaceDummyCiMode::ScalarOneHot,
+                    "multivariate" | "multivariate_block" | "block" => {
+                        SpaceDummyCiMode::MultivariateBlock
+                    }
+                    other => {
+                        return Err(PyValueError::new_err(format!(
+                            "space_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
+                        )));
+                    }
+                };
+                let multi_dataset = MultiDatasetConstraints {
+                    context_variables: Arc::from(context_ids),
+                    include_space_dummy,
+                    include_time_dummy,
+                    space_dummy_ci: space_mode,
+                    ..MultiDatasetConstraints::default()
+                };
+                let pulse_at = -i32::try_from(treatment_lag)
+                    .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
+                let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
+                    .with_policy(TemporalPolicy::pulse(pulse_at))
+                    .with_horizon_steps(horizon_steps);
+                let analysis = CausalAnalysis::builder()
+                    .series_multi(multi)
+                    .temporal_query(q)
+                    .bootstrap_replicates(bootstrap)
+                    .discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset)
+                    .build()
+                    .map_err(py_err)?;
+                let ctx = py_execution_context(seed, threads);
+                let result = analysis.run(&ctx).map_err(py_err)?;
+                Ok(analysis_result_from_run(result))
+            })
+        }
+        "rpcmci" => {
+            let regimes = regimes.ok_or_else(|| {
+                PyValueError::new_err(
+                    "analyze_temporal_discover(algorithm='rpcmci') requires regimes=[…]",
+                )
+            })?;
+            let batch = columns_to_batch(&names, &columns)?;
+            drop(columns);
+            detach_catch(py, move || {
+                let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+                let tabular = loaded.data;
+                let n = tabular.row_count();
+                if regimes.len() != n {
+                    return Err(PyValueError::new_err(format!(
+                        "regimes length {} != series length {n}",
+                        regimes.len()
+                    )));
+                }
+                let series = TimeSeriesData::try_new(
+                    tabular.storage().clone(),
+                    TimeIndex {
+                        regularity: SamplingRegularity::Regular { interval_ns: 1 },
+                        length: n,
+                    },
+                )
+                .map_err(py_err)?;
+                let assign = RegimeAssignment::try_new(
+                    regimes
+                        .into_iter()
+                        .map(RegimeId::from_raw)
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+                let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+                let pulse_at = -i32::try_from(treatment_lag)
+                    .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
+                let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
+                    .with_policy(TemporalPolicy::pulse(pulse_at))
+                    .with_horizon_steps(horizon_steps);
+                let analysis = CausalAnalysis::builder()
+                    .series(series)
+                    .temporal_query(q)
+                    .bootstrap_replicates(bootstrap)
+                    .discover_rpcmci(max_lag, alpha, fdr_ctrl, accept, assign)
+                    .build()
+                    .map_err(py_err)?;
+                let ctx = py_execution_context(seed, threads);
+                let result = analysis.run(&ctx).map_err(py_err)?;
+                Ok(analysis_result_from_run(result))
+            })
+        }
+        "pcmci" | "pcmci_plus" | "lpcmci" => {
+            let batch = columns_to_batch(&names, &columns)?;
+            drop(columns);
+            detach_catch(py, move || {
+                let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+                let tabular = loaded.data;
+                let n = tabular.row_count();
+                let series = TimeSeriesData::try_new(
+                    tabular.storage().clone(),
+                    TimeIndex {
+                        regularity: SamplingRegularity::Regular { interval_ns: 1 },
+                        length: n,
+                    },
+                )
+                .map_err(py_err)?;
+
+                let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+                let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+                let pulse_at = -i32::try_from(treatment_lag)
+                    .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
+                let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
+                    .with_policy(TemporalPolicy::pulse(pulse_at))
+                    .with_horizon_steps(horizon_steps);
+
+                let mut builder = CausalAnalysis::builder()
+                    .series(series)
+                    .temporal_query(q)
+                    .bootstrap_replicates(bootstrap);
+                builder = match algo.as_str() {
+                    "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
+                    "pcmci_plus" => builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept),
+                    "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
+                    _ => unreachable!(),
+                };
+                let analysis = builder.build().map_err(py_err)?;
+                let ctx = py_execution_context(seed, threads);
+                let result = analysis.run(&ctx).map_err(py_err)?;
+                Ok(analysis_result_from_run(result))
+            })
+        }
+        other => Err(PyValueError::new_err(format!(
+            "unknown discovery algorithm {other:?}; use pcmci|pcmci_plus|lpcmci|jpcmci_plus|rpcmci"
+        ))),
+    }
+}
+
+fn analysis_result_from_run(result: causal::CausalAnalysisResult) -> AnalysisResult {
+    AnalysisResult {
+        ate: result.estimate.ate,
+        se_analytic: result.estimate.se_analytic,
+        se_bootstrap: result.estimate.se_bootstrap,
+        plan_id: result.logical_plan.plan_id.to_string(),
+        modality: format!("{:?}", result.logical_plan.data_classification),
+        peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+        identification_status: format!("{:?}", result.identification.status),
+        method: result.estimand.method.to_string(),
+        diagnostics: result
+            .diagnostics
+            .iter()
+            .map(|d| format!("{}: {}", d.code, d.message))
+            .collect(),
+        provenance_node_count: result.provenance.len(),
+        refutation_count: result.refutations.len(),
+    }
 }
 
 /// Anomaly scores: `(outcome, mean_score, n_units)`.
@@ -2685,6 +2939,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_discover, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;

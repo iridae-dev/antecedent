@@ -37,10 +37,19 @@ pub struct TemporalMediationEstimate {
 }
 
 /// Linear temporal mediation estimator (two-stage / path-product).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct TemporalMediationEstimator {
     /// Linear algebra backend.
     pub backend: FaerBackend,
+    /// When true, [`MediationContrast::NaturalDirect`] / [`MediationContrast::NaturalIndirect`]
+    /// are treated as their controlled counterparts (linear alias).
+    pub allow_natural_controlled_alias: bool,
+}
+
+impl Default for TemporalMediationEstimator {
+    fn default() -> Self {
+        Self { backend: FaerBackend, allow_natural_controlled_alias: false }
+    }
 }
 
 impl TemporalMediationEstimator {
@@ -65,6 +74,16 @@ impl TemporalMediationEstimator {
         ctx: &ExecutionContext,
     ) -> Result<TemporalMediationEstimate, EstimationError> {
         query.validate()?;
+        if matches!(
+            query.contrast,
+            MediationContrast::NaturalDirect | MediationContrast::NaturalIndirect
+        ) && !self.allow_natural_controlled_alias
+        {
+            return Err(EstimationError::unsupported(
+                "NaturalDirect/NaturalIndirect require allow_natural_controlled_alias; \
+                 natural effects alias controlled effects in linear temporal mediation",
+            ));
+        }
         if !(estimand.method_kind().ok().is_some_and(|m| {
             m.is_temporal_mediation() || m == causal_expr::EstimandMethod::FrontDoor
         })) {
@@ -136,6 +155,27 @@ impl TemporalMediationEstimator {
             }
         };
 
+        let mut assumptions = AssumptionSet::default();
+        if matches!(
+            query.contrast,
+            MediationContrast::NaturalDirect | MediationContrast::NaturalIndirect
+        ) {
+            assumptions.push(causal_core::AssumptionRecord {
+                assumption: causal_core::Assumption::Custom {
+                    id: Arc::from("natural_controlled_alias"),
+                    description: Arc::from(
+                        "natural direct/indirect effects are aliased to controlled \
+                         direct/mediated effects under linear temporal mediation",
+                    ),
+                },
+                source: causal_core::AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from("temporal_mediation"),
+                },
+                scope: causal_core::AssumptionScope::Estimation,
+                status: causal_core::AssumptionStatus::Declared,
+            });
+        }
+
         Ok(TemporalMediationEstimate {
             effect: EffectEstimate {
                 ate: point,
@@ -143,7 +183,7 @@ impl TemporalMediationEstimator {
                 se_bootstrap: None,
                 bootstrap_replicates_ok: None,
                 bootstrap_replicates_failed: None,
-                assumptions: AssumptionSet::default(),
+                assumptions,
                 overlap: crate::overlap::OverlapPolicy::ExplicitOverride,
                 overlap_report: None,
                 retained_memory_bytes: None,
@@ -343,5 +383,15 @@ mod tests {
             "se={}",
             est.effect.se_analytic
         );
+    }
+
+    #[test]
+    fn natural_contrast_without_flag_errors() {
+        let (data, mut q, estimand) = mediated_series(300);
+        q.contrast = MediationContrast::NaturalIndirect;
+        let err = TemporalMediationEstimator::new()
+            .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(1))
+            .unwrap_err();
+        assert!(matches!(err, EstimationError::Unsupported { .. }));
     }
 }

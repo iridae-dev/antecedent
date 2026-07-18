@@ -97,7 +97,14 @@ impl PropensityWeighting {
             trim,
         );
         let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
-        let se_analytic = hajek_analytic_se(&problem.treatment, &problem.outcome, &weights);
+        let se_analytic = hajek_influence_se(
+            &problem.treatment,
+            &problem.outcome,
+            &weights,
+            &model.clipped_scores,
+            &problem.design_matrix,
+            problem.design_ncols,
+        );
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -303,7 +310,134 @@ pub(crate) fn hajek_group_variance(
     if den > 0.0 { num / (den * den) } else { f64::NAN }
 }
 
-/// Linearized (ratio-estimator) analytic SE of the Hajek ATE/ATT/ATC difference.
+/// Hajek ATE/ATT/ATC analytic SE via linearized influence scores, with a
+/// first-order correction for estimated logistic propensity scores.
+///
+/// Orthogonalizes the Hajek ratio IF against the propensity score scores
+/// `x_i (T_i − e_i)` so the reported SE is not conditional on weights as fixed.
+pub(crate) fn hajek_influence_se(
+    treatment: &[f64],
+    outcome: &[f64],
+    weights: &[f64],
+    propensity: &[f64],
+    design_colmajor: &[f64],
+    ncols: usize,
+) -> f64 {
+    let n = treatment.len();
+    if n < 2 || weights.len() != n || propensity.len() != n {
+        return f64::NAN;
+    }
+    let mu1 = hajek_weighted_mean(treatment, outcome, weights, true);
+    let mu0 = hajek_weighted_mean(treatment, outcome, weights, false);
+    let (mut sum_w1, mut sum_w0) = (0.0, 0.0);
+    for i in 0..n {
+        if treatment[i] > 0.5 {
+            sum_w1 += weights[i];
+        } else {
+            sum_w0 += weights[i];
+        }
+    }
+    if sum_w1 <= 0.0 || sum_w0 <= 0.0 {
+        return f64::NAN;
+    }
+    let nf = n as f64;
+    let mut psi = vec![0.0; n];
+    for i in 0..n {
+        let (w1, w0) = if treatment[i] > 0.5 {
+            (weights[i], 0.0)
+        } else {
+            (0.0, weights[i])
+        };
+        // Linearized Hajek ratio contributions (E[ψ]=0).
+        psi[i] = nf * (w1 / sum_w1) * (outcome[i] - mu1) - nf * (w0 / sum_w0) * (outcome[i] - mu0);
+    }
+
+    // Propensity scores s_{i,c} = x_{ic} (T_i − e_i). Residualize ψ on the score space.
+    if ncols > 0 && design_colmajor.len() >= n * ncols {
+        let mut scores = vec![0.0; n * ncols];
+        for i in 0..n {
+            let resid = treatment[i] - propensity[i];
+            for c in 0..ncols {
+                scores[c * n + i] = design_colmajor[c * n + i] * resid;
+            }
+        }
+        // Gram matrix G = S'S / n and g = S'ψ / n; solve G α = g; ψ ← ψ − S α.
+        let mut gram = vec![0.0; ncols * ncols];
+        let mut rhs = vec![0.0; ncols];
+        for c in 0..ncols {
+            for i in 0..n {
+                rhs[c] += scores[c * n + i] * psi[i];
+            }
+            rhs[c] /= nf;
+            for d in 0..ncols {
+                let mut acc = 0.0;
+                for i in 0..n {
+                    acc += scores[c * n + i] * scores[d * n + i];
+                }
+                gram[c * ncols + d] = acc / nf;
+            }
+        }
+        if let Some(alpha) = solve_symmetric_posdef(&mut gram, &mut rhs, ncols) {
+            for i in 0..n {
+                let mut adj = 0.0;
+                for c in 0..ncols {
+                    adj += scores[c * n + i] * alpha[c];
+                }
+                psi[i] -= adj;
+            }
+        }
+    }
+
+    let mean = psi.iter().sum::<f64>() / nf;
+    let var = psi.iter().map(|p| (p - mean).powi(2)).sum::<f64>() / (nf - 1.0);
+    // Finite-sample inflation for estimated propensity (p design columns).
+    let df = (nf - ncols.max(1) as f64).max(1.0);
+    (var / nf * (nf / df)).max(0.0).sqrt()
+}
+
+/// Gaussian elimination for a small dense system (propensity score projection).
+fn solve_symmetric_posdef(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64>> {
+    for col in 0..p {
+        let mut pivot = col;
+        let mut best = a[col * p + col].abs();
+        for r in (col + 1)..p {
+            let v = a[r * p + col].abs();
+            if v > best {
+                best = v;
+                pivot = r;
+            }
+        }
+        if best < 1e-14 {
+            return None;
+        }
+        if pivot != col {
+            for c in 0..p {
+                a.swap(col * p + c, pivot * p + c);
+            }
+            b.swap(col, pivot);
+        }
+        let diag = a[col * p + col];
+        for r in (col + 1)..p {
+            let f = a[r * p + col] / diag;
+            for c in col..p {
+                a[r * p + c] -= f * a[col * p + c];
+            }
+            b[r] -= f * b[col];
+        }
+    }
+    let mut x = vec![0.0; p];
+    for i in (0..p).rev() {
+        let mut s = b[i];
+        for j in (i + 1)..p {
+            s -= a[i * p + j] * x[j];
+        }
+        x[i] = s / a[i * p + i];
+    }
+    Some(x)
+}
+
+/// Legacy weights-as-fixed Hajek SE (kept for differential reference in docs).
+#[allow(dead_code)]
 pub(crate) fn hajek_analytic_se(treatment: &[f64], outcome: &[f64], weights: &[f64]) -> f64 {
     let mu1 = hajek_weighted_mean(treatment, outcome, weights, true);
     let mu0 = hajek_weighted_mean(treatment, outcome, weights, false);
