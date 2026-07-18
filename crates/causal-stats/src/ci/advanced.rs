@@ -582,12 +582,9 @@ fn distance_correlation(x: &[f64], y: &[f64]) -> f64 {
     }
     let mut ax = vec![0.0; n * n];
     let mut ay = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..n {
-            ax[i * n + j] = (x[i] - x[j]).abs();
-            ay[i * n + j] = (y[i] - y[j]).abs();
-        }
-    }
+    let policy = causal_core::KernelPolicy::default_policy();
+    causal_kernels::pairwise_l1_fill(&policy, x, &mut ax);
+    causal_kernels::pairwise_l1_fill(&policy, y, &mut ay);
     double_center_inplace(&mut ax, n);
     double_center_inplace(&mut ay, n);
     let mut dcov2 = 0.0;

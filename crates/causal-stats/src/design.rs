@@ -6,7 +6,8 @@
 
 use std::sync::Arc;
 
-use causal_core::VariableId;
+use causal_core::{KernelPolicy, VariableId};
+use causal_kernels::standardize_inplace;
 
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
@@ -418,6 +419,7 @@ pub fn standardize_columns(
         return Err(StatsError::Shape { message: "matrix length mismatch" });
     }
     let eps = if eps.is_finite() && eps > 0.0 { eps } else { 1e-12 };
+    let policy = KernelPolicy::default_policy();
     let mut entries = Vec::with_capacity(col_idxs.len());
     for &col in col_idxs {
         if col >= ncols {
@@ -425,20 +427,7 @@ pub fn standardize_columns(
         }
         let base = col * nrows;
         let slice = &mut matrix[base..base + nrows];
-        let mean = slice.iter().sum::<f64>() / nrows as f64;
-        let mut var = 0.0;
-        for &v in slice.iter() {
-            let d = v - mean;
-            var += d * d;
-        }
-        let scale = if nrows > 1 {
-            (var / (nrows - 1) as f64).sqrt().max(eps)
-        } else {
-            1.0_f64.max(eps)
-        };
-        for v in slice.iter_mut() {
-            *v = (*v - mean) / scale;
-        }
+        let (mean, scale) = standardize_inplace(&policy, slice, eps);
         entries.push(StandardizedColumn { col_idx: col, mean, scale });
     }
     Ok(StandardizationRecord { entries })

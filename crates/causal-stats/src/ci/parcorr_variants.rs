@@ -12,7 +12,8 @@
     clippy::many_single_char_names
 )]
 
-use causal_core::ExecutionContext;
+use causal_core::{ExecutionContext, KernelPolicy};
+use causal_kernels::{sanitize_weight, weighted_mean};
 
 use super::parcorr::PartialCorrelation;
 use super::types::{
@@ -192,7 +193,7 @@ fn weighted_residuals(
     let mut rhs = vec![0.0; q];
     let mut d = vec![0.0; q];
     for r in 0..n {
-        let w = weights[r].max(0.0);
+        let w = sanitize_weight(weights[r]);
         d[0] = 1.0;
         for (j, &zc) in z.iter().enumerate() {
             d[j + 1] = columns[zc][r];
@@ -227,25 +228,14 @@ fn weighted_residuals(
 /// Weighted Pearson correlation with weighted centering.
 fn weighted_pearson(x: &[f64], y: &[f64], weights: &[f64]) -> Option<f64> {
     let n = x.len();
-    let mut sw = 0.0;
-    let mut mx = 0.0;
-    let mut my = 0.0;
-    for i in 0..n {
-        let w = weights[i].max(0.0);
-        sw += w;
-        mx += w * x[i];
-        my += w * y[i];
-    }
-    if sw <= 0.0 {
-        return None;
-    }
-    mx /= sw;
-    my /= sw;
+    let policy = KernelPolicy::default_policy();
+    let mx = weighted_mean(&policy, x, weights)?;
+    let my = weighted_mean(&policy, y, weights)?;
     let mut cxx = 0.0;
     let mut cyy = 0.0;
     let mut cxy = 0.0;
     for i in 0..n {
-        let w = weights[i].max(0.0);
+        let w = sanitize_weight(weights[i]);
         let dx = x[i] - mx;
         let dy = y[i] - my;
         cxx += w * dx * dx;
@@ -714,6 +704,49 @@ mod tests {
             out.results[0].statistic
         );
         assert!(out.results[0].p_value > 0.01, "p={}", out.results[0].p_value);
+    }
+
+    #[test]
+    fn weighted_nonfinite_weights_match_zeroed_weights() {
+        let n = 80usize;
+        let x: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| 2.0 * i as f64 + 1.0).collect();
+        let mut w_dirty = vec![1.0; n];
+        let mut w_clean = vec![1.0; n];
+        for i in (0..n).step_by(7) {
+            w_dirty[i] = f64::NAN;
+            w_clean[i] = 0.0;
+        }
+        for i in (3..n).step_by(11) {
+            w_dirty[i] = f64::NEG_INFINITY;
+            w_clean[i] = 0.0;
+        }
+        for i in (5..n).step_by(13) {
+            w_dirty[i] = -2.0;
+            w_clean[i] = 0.0;
+        }
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(8);
+        let dirty =
+            WeightedPartialCorrelation::new(w_dirty).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        let clean =
+            WeightedPartialCorrelation::new(w_clean).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        assert!(
+            (dirty.results[0].statistic - clean.results[0].statistic).abs() < 1e-12,
+            "dirty={} clean={}",
+            dirty.results[0].statistic,
+            clean.results[0].statistic
+        );
+        assert!(dirty.results[0].statistic.is_finite());
     }
 
     #[test]

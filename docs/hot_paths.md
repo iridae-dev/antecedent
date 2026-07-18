@@ -6,6 +6,7 @@ allocation/memory contracts, and owning crates (DESIGN.md §28).
 | Hot path | Owner crate | Bench | Baseline | Allocation / memory contract |
 |----------|-------------|-------|----------|------------------------------|
 | Sample gather | `causal-kernels` | `gather` | [gather.md](../benches/baselines/gather.md) | Dispatch entry; no per-index heap |
+| Kernel reductions | `causal-kernels` | `reductions` | [kernel_reductions.md](../benches/baselines/kernel_reductions.md) | Reuse out/table buffers; scalar↔portable differential |
 | Graph reachability | `causal-graph` | `traversal` | [graph_traversal.md](../benches/baselines/graph_traversal.md) | Reusable `GraphWorkspace` |
 | d-separation | `causal-graph` | `dseparation` | [dseparation.md](../benches/baselines/dseparation.md) | Batch / witness APIs; workspace reuse |
 | Adjustment search | `causal-identify` | `adjustment` | [adjustment.md](../benches/baselines/adjustment.md) | Minimal-set enumeration budgets |
@@ -25,6 +26,7 @@ Criterion smokes used by feature gates (`--test`):
 
 ```bash
 cargo bench -p causal-kernels --bench gather -- --test
+cargo bench -p causal-kernels --bench reductions -- --test
 cargo bench -p causal-graph --bench traversal -- --test
 cargo bench -p causal-graph --bench dseparation -- --test
 cargo bench -p causal-identify --bench adjustment -- --test

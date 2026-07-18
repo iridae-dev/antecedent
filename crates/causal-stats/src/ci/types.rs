@@ -323,6 +323,10 @@ pub struct CiWorkspace {
     pub shuffled: Vec<f64>,
     /// Block starts for shuffle / reusable permutation plan.
     pub block_perm: Vec<usize>,
+    /// Contingency X level-code scratch (G² / discrete CI).
+    pub contingency_x_codes: Vec<u32>,
+    /// Contingency Y level-code scratch (G² / discrete CI).
+    pub contingency_y_codes: Vec<u32>,
     /// kNN CMI index / permutation reuse state.
     pub knn: KnnCmiWorkspace,
 }

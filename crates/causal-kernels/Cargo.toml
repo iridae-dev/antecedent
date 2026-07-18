@@ -25,3 +25,7 @@ harness = false
 [[bench]]
 name = "partial_correlation"
 harness = false
+
+[[bench]]
+name = "reductions"
+harness = false

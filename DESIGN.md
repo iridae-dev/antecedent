@@ -2220,14 +2220,16 @@ Dispatch occurs once per batch or compiled plan. It does not occur per element. 
 
 Candidate kernels (scalar + portable required; arch SIMD optional after benches):
 
-- masked sums, means, variances, and covariance accumulation;
-- standardization and residual updates;
-- dot products and weighted dot products;
-- pairwise distance components;
-- contingency-table accumulation helpers;
-- lagged gather/copy kernels;
-- bootstrap weighted accumulation;
-- posterior draw reductions.
+- masked sums, means, variances, and covariance accumulation (**shipped**);
+- standardization (**shipped** as public `standardize_inplace`); residualization stays inside
+  `partial_correlation` / ParCorr workspaces rather than a separate public kernel;
+- weighted dot products and bootstrap weighted sum/mean (**shipped**); unweighted dots are
+  ordinary slice folds and are not a dedicated `causal-kernels` entry;
+- pairwise L1 distance fill (**shipped**);
+- contingency-table accumulation helpers (**shipped**);
+- lagged gather/copy kernels (**shipped**);
+- posterior draw reductions (**deferred** — add when Bayesian / posterior batch paths need a
+  shared reduction surface; see TODO).
 
 SIMD kernels must define:
 

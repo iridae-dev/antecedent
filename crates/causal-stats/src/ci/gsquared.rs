@@ -215,11 +215,24 @@ fn g_squared_on_rows(
     for v in &mut workspace.shuffled[..need] {
         *v = 0.0;
     }
-    for &r in rows {
-        let ix = levels_x.binary_search(&xi[r]).unwrap_or(0);
-        let iy = levels_y.binary_search(&yi[r]).unwrap_or(0);
-        workspace.shuffled[ix * ly + iy] += 1.0;
+    let n_rows = rows.len();
+    if workspace.contingency_x_codes.len() < n_rows {
+        workspace.contingency_x_codes.resize(n_rows, 0);
     }
+    if workspace.contingency_y_codes.len() < n_rows {
+        workspace.contingency_y_codes.resize(n_rows, 0);
+    }
+    for (i, &r) in rows.iter().enumerate() {
+        workspace.contingency_x_codes[i] = levels_x.binary_search(&xi[r]).unwrap_or(0) as u32;
+        workspace.contingency_y_codes[i] = levels_y.binary_search(&yi[r]).unwrap_or(0) as u32;
+    }
+    causal_kernels::accumulate_contingency(
+        &causal_core::KernelPolicy::default_policy(),
+        &workspace.contingency_x_codes[..n_rows],
+        &workspace.contingency_y_codes[..n_rows],
+        &mut workspace.shuffled[..need],
+        ly,
+    );
     let mut row_sum = vec![0.0; lx];
     let mut col_sum = vec![0.0; ly];
     let mut total = 0.0;
@@ -368,5 +381,33 @@ mod tests {
         let out = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!((out.results[0].df - 1.0).abs() < 1e-12, "df={}", out.results[0].df);
         assert!((out.results[0].p_value - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn gsq_reuses_contingency_code_scratch() {
+        let n = 120usize;
+        let x: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(4);
+        let _ = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        let x_ptr = ws.contingency_x_codes.as_ptr();
+        let y_ptr = ws.contingency_y_codes.as_ptr();
+        let x_cap = ws.contingency_x_codes.capacity();
+        let y_cap = ws.contingency_y_codes.capacity();
+        let _ = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        assert_eq!(ws.contingency_x_codes.as_ptr(), x_ptr);
+        assert_eq!(ws.contingency_y_codes.as_ptr(), y_ptr);
+        assert_eq!(ws.contingency_x_codes.capacity(), x_cap);
+        assert_eq!(ws.contingency_y_codes.capacity(), y_cap);
     }
 }

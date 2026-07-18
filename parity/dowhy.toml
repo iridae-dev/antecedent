@@ -82,7 +82,7 @@ group = "identification"
 description = "General ID"
 status = "pending"
 owner = "identify"
-notes = "Full Shpitser ID/IDC; generalized adjustment + envelope shipped — TODO.md item 5 / DESIGN §10.2"
+notes = "Full Shpitser ID/IDC; generalized adjustment + envelope shipped — TODO.md item 6 / DESIGN §10.2"
 
 [[capabilities]]
 id = "dowhy.identify.estimand"

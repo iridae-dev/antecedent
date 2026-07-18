@@ -66,22 +66,22 @@ notes = "causal-model MechanismRegistry + CompiledCausalModel"
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
 status = "pending"
-notes = "Bayesian DAG/DBN posterior search (§13.7) — TODO.md item 3; envelopes over supplied WeightedGraphSamples ship"
+notes = "Bayesian DAG/DBN posterior search (§13.7) — TODO.md item 4; envelopes over supplied WeightedGraphSamples ship"
 
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"
 status = "pending"
-notes = "Hierarchical / BVAR / state-space / GP after base Laplace/conjugate — TODO.md item 6 / DESIGN §14.4"
+notes = "Hierarchical / BVAR / state-space / GP after base Laplace/conjugate — TODO.md item 7 / DESIGN §14.4"
 
 [[capabilities]]
 id = "bayes.validate.mcmc_diagnostics"
 status = "pending"
-notes = "Chain ESS / divergences / SBC wait for HMC/SMC — TODO.md item 6"
+notes = "Chain ESS / divergences / SBC wait for HMC/SMC — TODO.md item 7"
 
 [[capabilities]]
 id = "bayes.ci.tests"
 status = "pending"
-notes = "Bayes-factor CI / posterior dependence (§12) — TODO.md item 6"
+notes = "Bayes-factor CI / posterior dependence (§12) — TODO.md item 7"
 
 # External Stan/PyMC adapters are optional forever (native Laplace is canonical;
 # DESIGN §14.5). Not tracked as a required inventory row.

@@ -136,6 +136,7 @@ for base in (root / "benches/baselines").glob("*.md"):
 
 required_baselines = [
     "gather.md",
+    "kernel_reductions.md",
     "graph_traversal.md",
     "dseparation.md",
     "adjustment.md",
@@ -179,6 +180,7 @@ cargo test -p causal --test artifact_migrate
 
 echo "== criterion smoke (designated hot paths) =="
 cargo bench -p causal-kernels --bench gather -- --test
+cargo bench -p causal-kernels --bench reductions -- --test
 cargo bench -p causal-graph --bench traversal -- --test
 cargo bench -p causal-graph --bench dseparation -- --test
 cargo bench -p causal-identify --bench adjustment -- --test
