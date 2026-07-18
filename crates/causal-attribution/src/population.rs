@@ -117,12 +117,10 @@ pub fn subset_table(data: &TabularData, rows: &[usize]) -> Result<TabularData, A
         }
         let validity = ValidityBitmap::all_valid(n);
         cols.push(OwnedColumn::Float64(
-            Float64Column::new(id, Arc::from(values), validity)
-                .map_err(|e| AttributionError::Message(e.to_string()))?,
+            Float64Column::new(id, Arc::from(values), validity)?,
         ));
     }
-    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None)
-        .map_err(|e| AttributionError::Message(e.to_string()))?;
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None)?;
     Ok(TabularData::new(storage))
 }
 

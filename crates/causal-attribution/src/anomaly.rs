@@ -61,7 +61,7 @@ pub fn score_anomalies(
         });
     }
 
-    let engine = CounterfactualEngine::new(model.clone());
+    let engine = CounterfactualEngine::from_ref(model);
     let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
     let ctx = ExecutionContext::for_tests(0xA10A);
     let shapley = ShapleyConfig::exact();
@@ -70,7 +70,7 @@ pub fn score_anomalies(
     for &target in query.targets.iter() {
         let dense = model
             .dense_of(target)
-            .ok_or_else(|| AttributionError::Message(format!("target {target} not in model")))?;
+            .ok_or_else(|| AttributionError::missing_var("target", target))?;
         let players_dense = ancestor_nodes(model, dense)?;
         if players_dense.len() > 64 {
             return Err(AttributionError::SizeLimit {
@@ -104,7 +104,7 @@ pub fn score_anomalies(
             // Factual anomaly score: −log p(y|parents) under observed parents.
             let gather = model
                 .gather_for(dense)
-                .ok_or_else(|| AttributionError::Message("missing gather".into()))?;
+                .ok_or(AttributionError::MissingArtifact("missing gather"))?;
             let n_par = gather.n_parents();
             let mut parent_mat = vec![0.0; n_par.max(1)];
             for (pi, &p) in gather.parents.iter().enumerate() {
@@ -273,7 +273,7 @@ pub fn population_do_contrast(
     let mut rng = ctx.rng.stream(0x1C1_u64);
     let mut ws = MechanismWorkspace::default();
     let child_dense =
-        model.dense_of(child).ok_or_else(|| AttributionError::Message("child missing".into()))?;
+        model.dense_of(child).ok_or_else(|| AttributionError::missing_var("child", child))?;
     let pcol = data.float64_values(parent)?;
     let pmean = pcol.iter().sum::<f64>() / pcol.len().max(1) as f64;
     let hi = sample_interventional(

@@ -124,13 +124,13 @@ impl ChangeAttribution {
     ) -> Result<ChangeAttributionResult, AttributionError> {
         let outcome = self
             .outcome
-            .ok_or_else(|| AttributionError::Message("ChangeAttribution missing outcome".into()))?;
-        let baseline = self.baseline.ok_or_else(|| {
-            AttributionError::Message("ChangeAttribution missing baseline".into())
-        })?;
-        let comparison = self.comparison.ok_or_else(|| {
-            AttributionError::Message("ChangeAttribution missing comparison".into())
-        })?;
+            .ok_or(AttributionError::invalid_input("ChangeAttribution missing outcome"))?;
+        let baseline = self
+            .baseline
+            .ok_or(AttributionError::invalid_input("ChangeAttribution missing baseline"))?;
+        let comparison = self
+            .comparison
+            .ok_or(AttributionError::invalid_input("ChangeAttribution missing comparison"))?;
         let query = ChangeAttributionQuery {
             outcome,
             baseline,

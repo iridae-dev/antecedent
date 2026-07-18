@@ -123,6 +123,8 @@ pub struct Rpcmci {
     pub min_regime_len: usize,
     /// Alternating assignment iterations (`0` = fixed labels only).
     pub alternating_iters: usize,
+    /// Optional regime assignment for [`crate::algorithm::DiscoveryAlgorithm`] dispatch.
+    pub(crate) assignment: Option<RegimeAssignment>,
 }
 
 impl Default for Rpcmci {
@@ -135,7 +137,12 @@ impl Rpcmci {
     /// Defaults: nested PCMCI+, min regime length 40, one alternating refinement pass.
     #[must_use]
     pub fn new() -> Self {
-        Self { pcmci_plus: PcmciPlus::new(), min_regime_len: 40, alternating_iters: 1 }
+        Self {
+            pcmci_plus: PcmciPlus::new(),
+            min_regime_len: 40,
+            alternating_iters: 1,
+            assignment: None,
+        }
     }
 
     /// Configure nested constraints via PCMCI+.
@@ -156,6 +163,13 @@ impl Rpcmci {
     #[must_use]
     pub fn with_alternating_iters(mut self, alternating_iters: usize) -> Self {
         self.alternating_iters = alternating_iters;
+        self
+    }
+
+    /// Store regime labels for [`crate::algorithm::DiscoveryAlgorithm::discover`].
+    #[must_use]
+    pub fn with_assignment(mut self, assignment: RegimeAssignment) -> Self {
+        self.assignment = Some(assignment);
         self
     }
 
@@ -243,7 +257,7 @@ impl Rpcmci {
             });
         }
 
-        let max_lag = self.pcmci_plus.engine.constraints.temporal.max_lag.raw();
+        let max_lag = self.pcmci_plus.engine().constraints.temporal.max_lag.raw();
         let frame_depth = 2 * max_lag;
         let full_frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
             .map_err(DiscoveryError::from)?;
@@ -306,7 +320,7 @@ impl Rpcmci {
                 "regimes={},min_len={},nested={},alternating={}",
                 graphs.len(),
                 self.min_regime_len,
-                self.pcmci_plus.engine.constraints.temporal.max_lag.raw(),
+                self.pcmci_plus.engine().constraints.temporal.max_lag.raw(),
                 self.alternating_iters
             )),
         };

@@ -13,6 +13,7 @@ use crate::pc::{Pc, StaticCpdagDiscoveryResult};
 use crate::pcmci::Pcmci;
 use crate::pcmci_plus::PcmciPlus;
 use crate::result::{CpdagDiscoveryResult, DagDiscoveryResult, PagDiscoveryResult};
+use crate::rpcmci::{RegimeAssignment, Rpcmci, RpcmciDiscoveryResult};
 
 /// Algorithm that accepts a concrete dataset type `D` (DESIGN.md §5.1).
 ///
@@ -105,5 +106,27 @@ impl DiscoveryAlgorithm<TabularData> for Pc {
         ctx: &ExecutionContext,
     ) -> Result<Self::Output, DiscoveryError> {
         self.run(data, variables, workspace, ctx)
+    }
+}
+
+impl DiscoveryAlgorithm<TimeSeriesData> for Rpcmci {
+    type Output = RpcmciDiscoveryResult;
+
+    fn discover(
+        &mut self,
+        data: &TimeSeriesData,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Self::Output, DiscoveryError> {
+        let assignment = self
+            .assignment
+            .as_ref()
+            .ok_or(DiscoveryError::unsupported(
+                "Rpcmci::discover requires with_assignment(...) before discover",
+            ))?;
+        // Need clone of assignment for run if run takes &
+        let assignment: RegimeAssignment = assignment.clone();
+        self.run(data, variables, &assignment, workspace, ctx)
     }
 }

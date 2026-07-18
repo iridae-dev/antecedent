@@ -30,12 +30,12 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
     for &o in observed {
         observed_set.insert(o);
     }
-    let k = u32::try_from(observed.len()).expect("node fit");
+    let k = u32::try_from(observed.len()).map_err(|_| GraphError::TooManyNodes)?;
     let mut admg = Admg::with_variables(k);
     // Map original dense id → projected dense id.
     let mut map = vec![None; dag.node_count()];
     for (i, &o) in observed.iter().enumerate() {
-        map[o.as_usize()] = Some(DenseNodeId::from_raw(u32::try_from(i).expect("node fit")));
+        map[o.as_usize()] = Some(DenseNodeId::try_from_usize(i)?);
     }
 
     let mut ws = GraphWorkspace::default();
@@ -64,7 +64,7 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
         for j in (i + 1)..observed.len() {
             let u = observed[i];
             let v = observed[j];
-            if share_latent_common_ancestor(dag, u, v, &observed_set, &mut ws) {
+            if share_latent_common_ancestor(dag, u, v, &observed_set, &mut ws)? {
                 let a = map[u.as_usize()].expect("mapped");
                 let b = map[v.as_usize()].expect("mapped");
                 match admg.insert_bidirected(a, b) {
@@ -124,10 +124,10 @@ fn share_latent_common_ancestor(
     v: DenseNodeId,
     observed: &BitSet,
     ws: &mut GraphWorkspace,
-) -> bool {
+) -> Result<bool, GraphError> {
     let n = dag.node_count();
     for i in 0..n {
-        let l = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+        let l = DenseNodeId::try_from_usize(i)?;
         if !is_latent(l, observed) {
             continue;
         }
@@ -136,10 +136,10 @@ fn share_latent_common_ancestor(
         if reaches_observed_via_latents(dag, l, u, observed, ws)
             && reaches_observed_via_latents(dag, l, v, observed, ws)
         {
-            return true;
+            return Ok(true);
         }
     }
-    false
+    Ok(false)
 }
 
 fn reaches_observed_via_latents(
@@ -186,7 +186,7 @@ pub fn projection_preserves_msep_sample(
     let admg = latent_project(dag, observed)?;
     let mut map = vec![None; dag.node_count()];
     for (i, &o) in observed.iter().enumerate() {
-        map[o.as_usize()] = Some(DenseNodeId::from_raw(u32::try_from(i).expect("node fit")));
+        map[o.as_usize()] = Some(DenseNodeId::try_from_usize(i)?);
     }
     let mut dws = DSeparationWorkspace::default();
     let mut mws = DSeparationWorkspace::default();

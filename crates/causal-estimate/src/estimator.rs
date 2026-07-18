@@ -50,9 +50,10 @@ pub trait Estimator<D, Q = AverageEffectQuery> {
 
 /// Batch estimation against a fitted estimator (DESIGN §14.1).
 ///
-/// Reserved extension point. No concrete estimator implements this yet; use
-/// inherent `fit` / bootstrap paths instead of fabricating batch wrappers.
-pub trait FittedEstimator<Q> {
+/// Reserved extension point — not part of the day-1 public surface. No concrete
+/// estimator implements this yet; use inherent `fit` / bootstrap paths instead.
+#[allow(dead_code)] // DESIGN §14.1 reserved contract
+pub(crate) trait FittedEstimator<Q> {
     /// Estimate one or more queries into `output`.
     ///
     /// # Errors

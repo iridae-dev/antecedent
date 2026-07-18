@@ -31,16 +31,12 @@ pub fn require_method(
 ///
 /// Unsupported query options.
 pub fn validate_simple_ate_query(query: &AverageEffectQuery) -> Result<(), EstimationError> {
-    query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+    query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::UnsupportedQuery(
-            "effect modifiers are not supported on this estimator path".into(),
-        ));
+        return Err(EstimationError::EffectModifiers);
     }
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::UnsupportedQuery(
-            "only TargetPopulation::AllObserved is supported on this estimator path".into(),
-        ));
+        return Err(EstimationError::TargetPopulation);
     }
     Ok(())
 }
@@ -58,8 +54,8 @@ pub fn treatment_contrast(
     let c = intervention_f64(control)?;
     let delta = a - c;
     if delta == 0.0 {
-        return Err(EstimationError::UnsupportedQuery(
-            "active and control treatment levels must differ".into(),
+        return Err(EstimationError::unsupported(
+            "active and control treatment levels must differ",
         ));
     }
     Ok((a, c, delta))

@@ -102,10 +102,7 @@ impl TemporalBackdoorIdentifier {
         let outcome_at = query.outcome_offset();
         // Pulse-only for single-node backdoor.
         if matches!(query.policy, TemporalPolicy::Sustained { .. }) {
-            return Err(IdentificationError::UnsupportedQuery {
-                message: "temporal backdoor identification supports Pulse policies only; \
-                          sustained interventions require sequential (g-formula) identification",
-            });
+            return Err(IdentificationError::SustainedPolicyUnsupported);
         }
         if !matches!(query.policy, TemporalPolicy::Pulse { .. }) {
             return Err(IdentificationError::UnsupportedQuery {
@@ -481,7 +478,7 @@ mod tests {
         let identifier = TemporalBackdoorIdentifier::new();
         assert!(matches!(
             identifier.identify_temporal(&template, &query),
-            Err(IdentificationError::UnsupportedQuery { .. })
+            Err(IdentificationError::SustainedPolicyUnsupported)
         ));
     }
 }

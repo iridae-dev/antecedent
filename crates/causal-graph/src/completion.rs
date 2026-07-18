@@ -42,7 +42,7 @@ impl CompletionSampler {
         let mut sites = Vec::new();
         let n = pag.node_count();
         for i in 0..n {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::try_from_usize(i)?;
             for (b, at_a, at_b) in pag.neighbors(a) {
                 if b.raw() < a.raw() {
                     continue;
@@ -100,7 +100,7 @@ pub fn is_mag_completion(g: &Pag) -> bool {
     let n = g.node_count();
     let mut ws = GraphWorkspace::default();
     for i in 0..n {
-        let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+        let a = DenseNodeId::try_from_usize(i).expect("node fit");
         for (b, at_a, at_b) in g.neighbors(a) {
             if b.raw() < a.raw() {
                 continue;

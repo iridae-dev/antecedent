@@ -21,7 +21,9 @@ use causal_model::{
 use causal_stats::{gaussian_kl, mean_var};
 
 use crate::error::AttributionError;
-use crate::population::{resolve_rows, subset_table};
+use crate::prep::{
+    require_mechanism_components, resolve_change_populations, resolve_outcome_dense,
+};
 use crate::result::ChangeAttributionResult;
 use crate::shapley::{CoalitionPayoff, estimate_shapley, sequential_allocate};
 
@@ -72,31 +74,12 @@ pub fn distribution_change(
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
     query.validate()?;
-    match query.components {
-        AttributionComponents::Mechanisms
-        | AttributionComponents::InputsAndMechanisms
-        | AttributionComponents::All => {}
-        AttributionComponents::Inputs | AttributionComponents::Structure => {
-            return Err(AttributionError::Message(
-                "distribution_change requires Mechanisms (or All / InputsAndMechanisms)".into(),
-            ));
-        }
-        _ => {
-            return Err(AttributionError::Message(
-                "unsupported AttributionComponents for distribution_change".into(),
-            ));
-        }
-    }
+    require_mechanism_components(
+        query.components,
+        "distribution_change requires Mechanisms (or All / InputsAndMechanisms)",
+    )?;
 
-    let baseline_rows = resolve_rows(data, &query.baseline)?;
-    let comparison_rows = resolve_rows(data, &query.comparison)?;
-    if baseline_rows.is_empty() || comparison_rows.is_empty() {
-        return Err(AttributionError::Message(
-            "baseline and comparison populations must be non-empty".into(),
-        ));
-    }
-    let baseline_data = subset_table(data, &baseline_rows)?;
-    let comparison_data = subset_table(data, &comparison_rows)?;
+    let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
 
     let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
         graph_model,
@@ -109,13 +92,11 @@ pub fn distribution_change(
         SelectionPolicy::BestScore,
     )?;
 
-    let outcome_dense = graph_model.dense_of(query.outcome).ok_or_else(|| {
-        AttributionError::Message(format!("outcome {} not in model", query.outcome))
-    })?;
+    let outcome_dense = resolve_outcome_dense(graph_model, query.outcome)?;
 
     let players = mechanism_players(graph_model, outcome_dense, query.max_components)?;
     if players.is_empty() {
-        return Err(AttributionError::Message("no mechanism components to attribute".into()));
+        return Err(AttributionError::invalid_input("no mechanism components to attribute"));
     }
 
     let mut payoff = MechanismSwapPayoff {
@@ -150,12 +131,12 @@ pub fn distribution_change(
             sequential_allocate(order, &index_of, &mut payoff, ctx)?
         }
         AllocationMethod::PathBased => {
-            return Err(AttributionError::Message(
-                "PathBased allocation is handled by path_decompose, not distribution_change".into(),
+            return Err(AttributionError::unsupported(
+                "PathBased allocation is handled by path_decompose, not distribution_change",
             ));
         }
         _ => {
-            return Err(AttributionError::Message("unsupported AllocationMethod".into()));
+            return Err(AttributionError::unsupported("unsupported AllocationMethod"));
         }
     };
 
@@ -283,8 +264,7 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
                     0.0
                 } else {
                     let (mu0, var0) = self.baseline_law.expect("cached above");
-                    gaussian_kl(mu, var, mu0, var0)
-                        .map_err(|e| AttributionError::Message(format!("gaussian_kl: {e}")))?
+                    gaussian_kl(mu, var, mu0, var0)?
                 }
             }
         })

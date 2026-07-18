@@ -1,0 +1,216 @@
+use super::*;
+use causal_core::{Lag, VariableId};
+
+#[test]
+fn r2_orients_circle_into_arrow() {
+    // a → b o→ c and a o-o c ⇒ a o→ c
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, b).unwrap();
+    g.insert_circle_arrow(b, c).unwrap();
+    g.insert_marked(causal_graph::MarkedEdge {
+        a,
+        b: c,
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciR2.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(d.edges_changed > 0);
+    let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Circle));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
+fn r2_fires_on_fully_directed_chain() {
+    // a → b → c and a *–o c (circle at c) ⇒ orient arrow at c.
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, b).unwrap();
+    g.insert_directed(b, c).unwrap();
+    g.insert_marked(causal_graph::MarkedEdge {
+        a,
+        b: c,
+        at_a: Endpoint::Tail,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciR2.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(d.edges_changed > 0);
+    let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Tail));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
+fn r2_does_not_overwrite_tail_at_c() {
+    // a → b → c and a → c already (tail at c would be illegal for R2 premise;
+    // use a *– Tail at c to ensure we refuse to overwrite).
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, b).unwrap();
+    g.insert_directed(b, c).unwrap();
+    // Circle at a, Tail at c on a–c — R2 must not turn the Tail into an Arrow.
+    g.insert_marked(causal_graph::MarkedEdge {
+        a,
+        b: c,
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Tail,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciR2.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    let (_, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_c, Endpoint::Tail));
+}
+
+#[test]
+fn r1_orients_from_circle_arrow_premise() {
+    // a o→ b o–o c, a ≁ c ⇒ b → c (both marks).
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_circle_arrow(a, b).unwrap();
+    g.insert_marked(causal_graph::MarkedEdge {
+        a: b,
+        b: c,
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciR1.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(d.edges_changed > 0);
+    let (at_b, at_c) = marks_between(&g, b, c).unwrap();
+    assert!(matches!(at_b, Endpoint::Tail));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
+fn r8_orients_triangle() {
+    // a → b → c and a o→ c ⇒ a → c
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, b).unwrap();
+    g.insert_directed(b, c).unwrap();
+    g.insert_circle_arrow(a, c).unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciR8.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(d.edges_changed > 0);
+    let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Tail));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
+fn rule_ids_cover_r1_r2_r3() {
+    assert_eq!(LpcmciR1.id(), "lpcmci.r1");
+    assert_eq!(LpcmciR2.id(), "lpcmci.r2");
+    assert_eq!(LpcmciR3.id(), "lpcmci.r3");
+    assert_eq!(LpcmciR8.id(), "lpcmci.r8");
+    assert_eq!(LpcmciR9.id(), "lpcmci.r9");
+    assert_eq!(LpcmciR10.id(), "lpcmci.r10");
+    assert_eq!(LpcmciApr.id(), "lpcmci.apr");
+    assert_eq!(LpcmciMmr.id(), "lpcmci.mmr");
+}
+
+#[test]
+fn scheduler_honors_delta_queue_without_reseed() {
+    // a → b o→ c and a o-o c ⇒ R2 orients a o→ c; subsequent rounds must not
+    // require a full-graph re-seed to finish.
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, b).unwrap();
+    g.insert_circle_arrow(b, c).unwrap();
+    g.insert_marked(causal_graph::MarkedEdge {
+        a,
+        b: c,
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    let mut state = OrientationState::default();
+    let rules: [&dyn LpcmciOrientationRule; 1] = [&LpcmciR2];
+    let d = run_lpcmci_orientation(&mut g, &rules, &mut state).unwrap();
+    assert!(d.edges_changed > 0);
+    assert!(d.fixed_point);
+    let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Circle));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
+fn discriminating_r4_orients_collider_when_c_not_in_sep_ab() {
+    // Zhang path ⟨a, d, c, b⟩: a → d ← c, d → b, c o→ b; c ∉ Sep(a,b) ⇒ d *→ c ←* b.
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let d = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, d).unwrap();
+    g.insert_directed(c, d).unwrap();
+    g.insert_directed(d, b).unwrap();
+    g.insert_circle_arrow(c, b).unwrap();
+
+    let mut state = OrientationState::default();
+    state.set_sepset(a, b, std::sync::Arc::from([])); // c ∉ Sep(a,b)
+    let mut queue = OrientationQueue::new();
+    let delta = LpcmciDiscriminatingPathRule.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(delta.edges_changed > 0);
+
+    let (at_c_cb, at_b) = marks_between(&g, c, b).unwrap();
+    assert!(matches!(at_c_cb, Endpoint::Arrow), "arrow into c from b");
+    assert!(matches!(at_b, Endpoint::Arrow));
+
+    let (at_c_cd, at_d) = marks_between(&g, c, d).unwrap();
+    assert!(matches!(at_c_cd, Endpoint::Arrow), "arrow into c from d");
+    assert!(matches!(at_d, Endpoint::Arrow), "keep arrow at d");
+}
+
+#[test]
+fn discriminating_r4_orients_noncollider_when_c_in_sep_ab() {
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let d = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, d).unwrap();
+    g.insert_directed(c, d).unwrap();
+    g.insert_directed(d, b).unwrap();
+    g.insert_circle_arrow(c, b).unwrap();
+
+    let mut state = OrientationState::default();
+    state.set_sepset(a, b, std::sync::Arc::from([c])); // c ∈ Sep(a,b)
+    let mut queue = OrientationQueue::new();
+    let delta = LpcmciDiscriminatingPathRule.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(delta.edges_changed > 0);
+
+    let (at_c, at_b) = marks_between(&g, c, b).unwrap();
+    assert!(matches!(at_c, Endpoint::Tail));
+    assert!(matches!(at_b, Endpoint::Arrow));
+}

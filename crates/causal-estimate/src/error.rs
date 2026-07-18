@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use causal_core::QueryError;
 use causal_data::DataError;
 use causal_prob::ProbError;
 use causal_stats::StatsError;
@@ -19,6 +20,9 @@ pub enum EstimationError {
     /// Probability / posterior backend.
     #[error(transparent)]
     Prob(#[from] ProbError),
+    /// Query validation failed (`AverageEffectQuery::validate`, …).
+    #[error(transparent)]
+    Query(#[from] QueryError),
     /// Missing overlap override when required.
     #[error("{message}")]
     Overlap {
@@ -31,12 +35,30 @@ pub enum EstimationError {
         /// Message.
         message: &'static str,
     },
-    /// Query options unsupported by this estimator.
+    /// Effect modifiers not supported on this estimator path.
+    #[error("effect modifiers are not supported on this estimator path")]
+    EffectModifiers,
+    /// Target population not supported on this estimator path.
+    #[error("only TargetPopulation::AllObserved is supported on this estimator path")]
+    TargetPopulation,
+    /// Query options unsupported by this estimator (fixed message).
+    #[error("{message}")]
+    Unsupported {
+        /// Explanation.
+        message: &'static str,
+    },
+    /// Legacy / dynamic unsupported detail (prefer [`Self::Unsupported`]).
     #[error("{0}")]
     UnsupportedQuery(String),
 }
 
 impl EstimationError {
+    /// Fixed unsupported query option.
+    #[must_use]
+    pub const fn unsupported(message: &'static str) -> Self {
+        Self::Unsupported { message }
+    }
+
     /// Ad-hoc data-layer message (maps to [`DataError::InvalidArgument`]).
     #[must_use]
     pub fn data_msg(message: impl Into<String>) -> Self {

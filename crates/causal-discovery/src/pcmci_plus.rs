@@ -21,7 +21,7 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::{LaggedFrame, TimeSeriesData};
 use causal_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
-use causal_stats::{ConfidenceMethod, ConditionalIndependence, FdrAdjustment};
+use causal_stats::{ConfidenceMethod, FdrAdjustment};
 
 use crate::combinations::for_each_combination;
 use crate::constraints::DiscoveryConstraints;
@@ -37,6 +37,7 @@ use crate::orientation::{
     ContempMeekR1, ContempMeekR2, ContempMeekR3, OrientationRule, OrientationState, RuleDelta,
     run_orientation_to_fixed_point, try_orient_undirected,
 };
+use crate::pcmci_family::pcmci_family_builders;
 use crate::pipeline::{
     algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
     with_links_retained,
@@ -49,8 +50,8 @@ use crate::result::{
 /// PCMCI+ discovery: contemporaneous + lagged links → oriented [`causal_graph::TemporalCpdag`].
 #[derive(Clone, Debug)]
 pub struct PcmciPlus {
-    /// Shared engine (`min_lag` typically 0).
-    pub engine: PcmciEngine,
+    /// Shared engine (`min_lag` typically 0; crate-private — use builders / [`Self::engine`]).
+    pub(crate) engine: PcmciEngine,
     /// Multiple-testing adjustment (`None` = off). Contemporaneous links are
     /// excluded from the family by default (pinned baseline).
     pub fdr: Option<FdrAdjustment>,
@@ -74,33 +75,7 @@ impl PcmciPlus {
         }
     }
 
-    /// Configure constraints (caller should keep `min_lag = 0` for contemporaneous discovery).
-    #[must_use]
-    pub fn with_constraints(mut self, constraints: DiscoveryConstraints) -> Self {
-        self.engine.constraints = constraints;
-        self
-    }
-
-    /// Enable / disable BH FDR (excludes contemporaneous by default).
-    #[must_use]
-    pub fn with_fdr(mut self, fdr: bool) -> Self {
-        self.fdr = fdr.then(FdrAdjustment::bh);
-        self
-    }
-
-    /// Full FDR / FWER configuration.
-    #[must_use]
-    pub fn with_fdr_adjustment(mut self, fdr: Option<FdrAdjustment>) -> Self {
-        self.fdr = fdr;
-        self
-    }
-
-    /// Replace the CI test on the shared engine.
-    #[must_use]
-    pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
-        self.engine = self.engine.with_ci(ci);
-        self
-    }
+    pcmci_family_builders!();
 
     /// Run PCMCI+ and return a CPDAG-backed discovery result.
     ///
@@ -626,13 +601,13 @@ fn majority_sep_counts(
     ctx: &ExecutionContext,
 ) -> Result<(u32, u32), DiscoveryError> {
     let (va, la) = node_var_lag(graph, a).ok_or_else(|| {
-        DiscoveryError::stats_msg("majority collider: missing node a")
+        DiscoveryError::unsupported("majority collider: missing node a")
     })?;
     let (vb, lb) = node_var_lag(graph, b).ok_or_else(|| {
-        DiscoveryError::stats_msg("majority collider: missing node b")
+        DiscoveryError::unsupported("majority collider: missing node b")
     })?;
     let (vc, lc) = node_var_lag(graph, c).ok_or_else(|| {
-        DiscoveryError::stats_msg("majority collider: missing node c")
+        DiscoveryError::unsupported("majority collider: missing node c")
     })?;
 
     // Candidate contemporaneous neighbors of a (excl b) and of b (excl a).

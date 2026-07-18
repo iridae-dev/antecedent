@@ -130,18 +130,14 @@ impl SharpRegressionDiscontinuity {
             });
         }
         if self.bandwidth <= 0.0 {
-            return Err(EstimationError::UnsupportedQuery("bandwidth must be positive".into()));
+            return Err(EstimationError::unsupported("bandwidth must be positive"));
         }
-        query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+        query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::UnsupportedQuery(
-                "sharp RD does not support effect modifiers".into(),
-            ));
+            return Err(EstimationError::unsupported("sharp RD does not support effect modifiers"));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::UnsupportedQuery(
-                "sharp RD only supports TargetPopulation::AllObserved".into(),
-            ));
+            return Err(EstimationError::unsupported("sharp RD only supports TargetPopulation::AllObserved"));
         }
         // The sharp-RD estimand is the outcome jump at the cutoff for the 0/1 crossing
         // indicator `T = 1{R ≥ c}` — a local ATE, not a per-unit-of-treatment slope. Scaling
@@ -151,11 +147,8 @@ impl SharpRegressionDiscontinuity {
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
         if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
-            return Err(EstimationError::UnsupportedQuery(
-                "sharp RD requires binary treatment levels coded active=1.0, control=0.0; the \
-                 RD estimand is the raw outcome jump at the cutoff for the 0/1 crossing \
-                 indicator and does not scale with query levels"
-                    .into(),
+            return Err(EstimationError::unsupported(
+                "sharp RD requires binary treatment levels coded active=1.0, control=0.0; the                  RD estimand is the raw outcome jump at the cutoff for the 0/1 crossing                  indicator and does not scale with query levels",
             ));
         }
 
@@ -450,7 +443,7 @@ mod tests {
             2.0,
         );
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::UnsupportedQuery(_)), "err={err:?}");
+        assert!(matches!(err, EstimationError::Unsupported { .. }), "err={err:?}");
     }
 
     #[test]
@@ -471,6 +464,6 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+        assert!(matches!(err, EstimationError::Unsupported { .. }));
     }
 }

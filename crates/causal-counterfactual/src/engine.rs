@@ -92,18 +92,30 @@ pub struct CompiledCounterfactualPlan {
 /// Counterfactual engine over an invertible SCM.
 #[derive(Clone, Debug)]
 pub struct CounterfactualEngine {
-    /// Fitted invertible model.
-    pub model: CompiledCausalModel,
+    /// Fitted invertible model (shared; clone of the engine is cheap).
+    pub model: Arc<CompiledCausalModel>,
     /// Compiled plan.
     pub compiled: CompiledCounterfactualPlan,
 }
 
 impl CounterfactualEngine {
-    /// Build from a fitted model (mechanisms should be invertible families).
+    /// Own the model behind an Arc.
     #[must_use]
     pub fn new(model: CompiledCausalModel) -> Self {
+        Self::shared(Arc::new(model))
+    }
+
+    /// Share an existing Arc-backed model (no clone of model contents).
+    #[must_use]
+    pub fn shared(model: Arc<CompiledCausalModel>) -> Self {
         let compiled = CompiledCounterfactualPlan { node_order: Arc::clone(&model.node_order) };
         Self { model, compiled }
+    }
+
+    /// Clone model into a new Arc (prefer [`Self::shared`] when already Arc-backed).
+    #[must_use]
+    pub fn from_ref(model: &CompiledCausalModel) -> Self {
+        Self::shared(Arc::new(model.clone()))
     }
 
     /// Abduce exogenous noise once from factual data (shared across worlds).

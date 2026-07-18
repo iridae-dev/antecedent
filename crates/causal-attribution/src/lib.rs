@@ -38,6 +38,7 @@ pub mod feature_relevance;
 pub mod mechanism_change;
 pub mod path;
 pub mod population;
+pub(crate) mod prep;
 pub mod result;
 pub mod robust;
 pub mod root_cause;

@@ -98,9 +98,7 @@ impl DistanceMatching {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         if problem.adjustment_set.is_empty() {
-            return Err(EstimationError::UnsupportedQuery(
-                "distance matching requires a non-empty adjustment set".into(),
-            ));
+            return Err(EstimationError::unsupported("distance matching requires a non-empty adjustment set"));
         }
         let trim = trim_of(problem.overlap);
         let dim = problem.covariates.len();

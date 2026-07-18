@@ -25,16 +25,25 @@ pub enum DiscoveryError {
         /// Message.
         message: &'static str,
     },
+    /// Orientation / rule-scheduling precondition or message.
+    #[error("orientation: {0}")]
+    Orientation(String),
 }
 
 impl DiscoveryError {
+    /// Fixed unsupported configuration.
+    #[must_use]
+    pub const fn unsupported(message: &'static str) -> Self {
+        Self::Unsupported { message }
+    }
+
     /// Ad-hoc data-layer message.
     #[must_use]
     pub fn data_msg(message: impl Into<String>) -> Self {
         Self::Data(DataError::InvalidArgument { message: message.into() })
     }
 
-    /// Ad-hoc stats-layer message.
+    /// Ad-hoc stats-layer message (CI / numerical only — not orientation).
     #[must_use]
     pub fn stats_msg(message: impl Into<String>) -> Self {
         Self::Stats(StatsError::Backend(message.into()))

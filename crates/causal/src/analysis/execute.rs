@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+//! Analysis execution.
+
 #![allow(
     clippy::similar_names,
     clippy::too_many_lines,
@@ -14,34 +16,25 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use causal_core::{
-    AssumptionSet, AverageEffectQuery, BufferMaterialization, CausalQuery, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord,
-    LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode,
-    TemporalEffectQuery, VERSION, VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext,
+    TemporalEffectQuery,
 };
 use causal_data::{
-    DiscoveryEstimationSplit, MultiEnvironmentData, TableView, TabularData, TimeSeriesData,
+    DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData,
 };
 use causal_estimate::{
-    BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, EffectEstimate,
+    BayesianGCompWorkspace, BayesianGComputationAte,
     EstimationWorkspace, OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity,
     TemporalLinearAdjustment,
 };
-use causal_expr::IdentifiedEstimand;
-use causal_graph::{Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag};
+use causal_graph::{Dag, TemporalCpdagReview, TemporalDag, TemporalGraphReview};
 use causal_identify::{
     IdentificationStatus, SharpRdConfig, SharpRdIdentifier, TemporalBackdoorIdentifier,
 };
 use causal_validate::{
-    BayesianSuiteContext, RefutationProblem, RefutationReport, ValidationSuite,
+    BayesianSuiteContext, ValidationSuite,
 };
 
-use crate::discovery::{
-    DiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pcmci, discover_pcmci_plus,
-    discover_rpcmci,
-};
-use crate::discovery_defaults::resolve_ci;
-use causal_discovery::{MultiDatasetConstraints, two_regime_half_split};
 use crate::error::AnalysisError;
 use crate::inference::{BayesianConfig, InferenceMode};
 use crate::planner::{
@@ -60,345 +53,27 @@ use crate::strategy_table::{
     identify_static,
 };
 
-/// Which refuters to run (static ATE path).
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum RefuteSuite {
-    /// Skip refutation.
-    None,
-    /// Placebo + random common cause (linear backdoor only).
-    PlaceboAndRcc,
-    /// Full validation suite (applicable validators only; others NotApplicable).
-    Full,
-}
-
-#[derive(Clone, Debug)]
-enum DataInput {
-    Tabular(TabularData),
-    Temporal(TimeSeriesData),
-}
-
-/// Running-variable configuration for the `rd.sharp` estimator; required when `rd.sharp` is
-/// selected as the estimator (see [`CausalAnalysisBuilder::rd_config`]).
-#[derive(Clone, Copy, Debug)]
-pub struct RdConfig {
-    /// Running (assignment) variable.
-    pub running_variable: VariableId,
-    /// Discontinuity cutoff.
-    pub cutoff: f64,
-    /// Symmetric bandwidth around the cutoff (`|R − cutoff| ≤ bandwidth` is retained).
-    pub bandwidth: f64,
-}
-
-/// Builder for static or temporal analysis.
-#[derive(Clone, Debug)]
-pub struct CausalAnalysisBuilder {
-    data: Option<DataInput>,
-    graph: Option<GraphInput>,
-    query: Option<CausalQuery>,
-    refute: RefuteSuite,
-    bootstrap_replicates: u32,
-    split: Option<DiscoveryEstimationSplit>,
-    identifier: Option<IdentifierId>,
-    estimator: Option<EstimatorId>,
-    rd: Option<RdConfig>,
-    inference: InferenceMode,
-    /// Optional override for propensity / AIPW overlap (clip/trim). `None` keeps estimator defaults.
-    overlap_policy: Option<OverlapPolicy>,
-}
-
-impl Default for CausalAnalysisBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl CausalAnalysisBuilder {
-    /// Start a builder.
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            data: None,
-            graph: None,
-            query: None,
-            refute: RefuteSuite::PlaceboAndRcc,
-            bootstrap_replicates: 100,
-            split: None,
-            identifier: None,
-            estimator: None,
-            rd: None,
-            inference: InferenceMode::Frequentist,
-            overlap_policy: None,
-        }
-    }
-
-    /// Supply tabular data.
-    #[must_use]
-    pub fn data(mut self, data: TabularData) -> Self {
-        self.data = Some(DataInput::Tabular(data));
-        self
-    }
-
-    /// Supply temporal series data.
-    #[must_use]
-    pub fn series(mut self, data: TimeSeriesData) -> Self {
-        self.data = Some(DataInput::Temporal(data));
-        self
-    }
-
-    /// Supply a validated static DAG.
-    #[must_use]
-    pub fn graph(mut self, graph: Dag) -> Self {
-        self.graph = Some(GraphInput::Static(graph));
-        self
-    }
-
-    /// Supply a temporal DAG template.
-    #[must_use]
-    pub fn temporal_graph(mut self, graph: TemporalDag) -> Self {
-        self.graph = Some(GraphInput::Temporal(graph));
-        self
-    }
-
-    /// Discover with PCMCI (typically yields [`CompiledAnalysis::ReviewRequired`]).
-    #[must_use]
-    pub fn discover_pcmci(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverPcmci {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with PCMCI+ (typically yields [`CompiledAnalysis::ReviewRequiredCpdag`]).
-    ///
-    /// `accept` only auto-completes when the oriented CPDAG has no undirected marks;
-    /// otherwise compile still returns review-required (no silent coercion).
-    #[must_use]
-    pub fn discover_pcmci_plus(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverPcmciPlus {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with J-PCMCI+ (multi-environment; typically review-required via Python path).
-    #[must_use]
-    pub fn discover_jpcmci_plus(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverJpcmciPlus {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with RPCMCI (regime graphs; typically review-required via Python path).
-    #[must_use]
-    pub fn discover_rpcmci(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverRpcmci {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Discover with LPCMCI (temporal PAG; typically [`CompiledAnalysis::ReviewRequiredPag`]).
-    #[must_use]
-    pub fn discover_lpcmci(
-        mut self,
-        max_lag: u32,
-        alpha: f64,
-        fdr: crate::options::FdrControl,
-        accept: crate::options::DiscoveryAccept,
-    ) -> Self {
-        self.graph = Some(GraphInput::DiscoverLpcmci {
-            max_lag,
-            alpha,
-            fdr: fdr.adjustment(),
-            accept_discovered: accept.auto(),
-        });
-        self
-    }
-
-    /// Supply a static PAG (class-aware identification required; DAG-only IDs are refused).
-    #[must_use]
-    pub fn pag(mut self, graph: Pag) -> Self {
-        self.graph = Some(GraphInput::Pag(graph));
-        self
-    }
-
-    /// Supply a temporal PAG (review / class-aware identification required).
-    #[must_use]
-    pub fn temporal_pag(mut self, graph: TemporalPag) -> Self {
-        self.graph = Some(GraphInput::TemporalPag(graph));
-        self
-    }
-
-    /// Average-effect query (static).
-    #[must_use]
-    pub fn query(mut self, query: AverageEffectQuery) -> Self {
-        self.query = Some(CausalQuery::AverageEffect(query));
-        self
-    }
-
-    /// Generic causal query (static or temporal).
-    #[must_use]
-    pub fn causal_query(mut self, query: CausalQuery) -> Self {
-        self.query = Some(query);
-        self
-    }
-
-    /// Temporal effect query.
-    #[must_use]
-    pub fn temporal_query(mut self, query: TemporalEffectQuery) -> Self {
-        self.query = Some(CausalQuery::TemporalEffect(query));
-        self
-    }
-
-    /// Discovery / estimation temporal-gap split.
-    #[must_use]
-    pub fn split(mut self, split: DiscoveryEstimationSplit) -> Self {
-        self.split = Some(split);
-        self
-    }
-
-    /// Configure refutation suite (static path).
-    #[must_use]
-    pub fn refute(mut self, suite: RefuteSuite) -> Self {
-        self.refute = suite;
-        self
-    }
-
-    /// Bootstrap replicates for the primary estimate.
-    #[must_use]
-    pub fn bootstrap_replicates(mut self, n: u32) -> Self {
-        self.bootstrap_replicates = n;
-        self
-    }
-
-    /// Select the identification strategy for the static ATE path.
-    ///
-    /// Defaults to [`IdentifierId::BackdoorAdjustment`] when unset. Wire strings such as
-    /// `"backdoor.adjustment"` are accepted via [`From<&str>`]. `compile` refuses any
-    /// identifier/estimator pair outside the allowlist. Ignored on the temporal path (which
-    /// always uses [`IdentifierId::TemporalBackdoorUnfolded`]).
-    #[must_use]
-    pub fn identifier(mut self, id: impl Into<IdentifierId>) -> Self {
-        self.identifier = Some(id.into());
-        self
-    }
-
-    /// Select the estimator for the static ATE path.
-    ///
-    /// Defaults to [`EstimatorId::LinearAdjustmentAte`] when unset. Wire strings such as
-    /// `"linear.adjustment.ate"` are accepted via [`From<&str>`]. `compile` refuses any
-    /// identifier/estimator pair outside the allowlist. Ignored on the temporal path (which
-    /// always uses [`EstimatorId::TemporalLinearAdjustment`]).
-    #[must_use]
-    pub fn estimator(mut self, id: impl Into<EstimatorId>) -> Self {
-        self.estimator = Some(id.into());
-        self
-    }
-
-    /// Configure frequentist vs Bayesian inference (DESIGN.md §34.1).
-    ///
-    /// [`InferenceMode::Bayesian`] selects estimator [`EstimatorId::BayesianGcomp`].
-    #[must_use]
-    pub fn inference(mut self, mode: InferenceMode) -> Self {
-        if matches!(mode, InferenceMode::Bayesian(_)) {
-            self.estimator = Some(EstimatorId::BayesianGcomp);
-        }
-        self.inference = mode;
-        self
-    }
-
-    /// Overlap / positivity policy for propensity and AIPW estimators (DESIGN.md §14.3).
-    ///
-    /// When unset, those estimators keep their built-in defaults (clip = 0.01, no trim).
-    /// Ignored by estimators that require [`OverlapPolicy::ExplicitOverride`] (linear, GLM, IV,
-    /// front-door, RD).
-    #[must_use]
-    pub fn overlap_policy(mut self, policy: OverlapPolicy) -> Self {
-        self.overlap_policy = Some(policy);
-        self
-    }
-
-    /// Configure the running variable / cutoff / bandwidth required by the `rd.sharp`
-    /// estimator. `compile` refuses `rd.sharp` without this.
-    #[must_use]
-    pub fn rd_config(mut self, running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
-        self.rd = Some(RdConfig { running_variable, cutoff, bandwidth });
-        self
-    }
-
-    /// Build the analysis object.
-    ///
-    /// # Errors
-    ///
-    /// Missing required fields.
-    pub fn build(self) -> Result<CausalAnalysis, AnalysisError> {
-        Ok(CausalAnalysis {
-            data: self.data.ok_or(AnalysisError::Missing { field: "data" })?,
-            graph: self.graph.ok_or(AnalysisError::Missing { field: "graph" })?,
-            query: self.query.ok_or(AnalysisError::Missing { field: "query" })?,
-            refute: self.refute,
-            bootstrap_replicates: self.bootstrap_replicates,
-            split: self.split,
-            identifier: self.identifier,
-            estimator: self.estimator,
-            rd: self.rd,
-            inference: self.inference,
-            overlap_policy: self.overlap_policy,
-        })
-    }
-}
+use super::builder::{CausalAnalysisBuilder, DataInput, RdConfig, RefuteSuite};
+use super::helpers::{
+    AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic,
+    provenance_pair, run_jpcmci_plus_review, run_lpcmci_review, run_pcmci_plus_review,
+    run_pcmci_review, run_refuters, run_rpcmci_discovery,
+};
 
 /// Prepared analysis (static or temporal).
 #[derive(Clone, Debug)]
 pub struct CausalAnalysis {
-    data: DataInput,
-    graph: GraphInput,
-    query: CausalQuery,
-    refute: RefuteSuite,
-    bootstrap_replicates: u32,
-    split: Option<DiscoveryEstimationSplit>,
-    identifier: Option<IdentifierId>,
-    estimator: Option<EstimatorId>,
-    rd: Option<RdConfig>,
-    inference: InferenceMode,
-    overlap_policy: Option<OverlapPolicy>,
+    pub(crate) data: DataInput,
+    pub(crate) graph: GraphInput,
+    pub(crate) query: CausalQuery,
+    pub(crate) refute: RefuteSuite,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) split: Option<DiscoveryEstimationSplit>,
+    pub(crate) identifier: Option<IdentifierId>,
+    pub(crate) estimator: Option<EstimatorId>,
+    pub(crate) rd: Option<RdConfig>,
+    pub(crate) inference: InferenceMode,
+    pub(crate) overlap_policy: Option<OverlapPolicy>,
 }
 
 impl CausalAnalysis {
@@ -1140,225 +815,5 @@ impl CausalAnalysis {
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
         }))
-    }
-}
-
-struct AssembleArgs<'a> {
-    logical: &'a LogicalAnalysisPlanRecord,
-    physical: &'a PhysicalExecutionPlanRecord,
-    identification: causal_identify::IdentificationResult,
-    estimand: IdentifiedEstimand,
-    estimate: EffectEstimate,
-    posterior: Option<causal_estimate::CausalPosterior>,
-    refutations: Vec<RefutationReport>,
-    diagnostics: Vec<Diagnostic>,
-    provenance: ProvenanceGraph,
-    treatment: VariableId,
-    outcome: VariableId,
-    /// Wall-clock nanoseconds for identify→estimate→refute.
-    wall_time_ns: u64,
-}
-
-fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
-    let copy_count = args
-        .physical
-        .materializations
-        .iter()
-        .filter(|(_, m)| !matches!(m, BufferMaterialization::Borrowed))
-        .count() as u64;
-    CausalAnalysisResult {
-        logical_plan: args.logical.clone(),
-        physical_plan: args.physical.clone(),
-        identification: args.identification,
-        estimand: args.estimand,
-        estimate: args.estimate,
-        posterior: args.posterior,
-        refutations: args.refutations,
-        diagnostics: args.diagnostics,
-        provenance: args.provenance,
-        performance: ExecutionPerformanceRecord {
-            wall_time_ns: Some(args.wall_time_ns),
-            peak_rss_bytes: None,
-            copy_count,
-            scalar_fallback_count: 0,
-        },
-        treatment: args.treatment,
-        outcome: args.outcome,
-    }
-}
-
-type ProvStep<'a> = (&'a str, &'a str, &'a [&'a str], &'a AssumptionSet);
-
-fn provenance_pair(first: ProvStep<'_>, second: ProvStep<'_>) -> ProvenanceGraph {
-    let mut provenance = ProvenanceGraph::new();
-    for (artifact_id, operation, parents, assumptions) in [first, second] {
-        let parent_arcs: Arc<[Arc<str>]> =
-            parents.iter().map(|p| Arc::<str>::from(*p)).collect::<Vec<_>>().into();
-        provenance.push(ProvenanceNode {
-            artifact_id: Arc::from(artifact_id),
-            operation: Arc::from(operation),
-            parents: parent_arcs,
-            assumptions: assumptions.clone(),
-            library_version: Arc::from(VERSION),
-            config_digest: Some(Arc::from("temporal")),
-        });
-    }
-    provenance
-}
-
-fn run_pcmci_review(
-    data: &TimeSeriesData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ctx: &ExecutionContext,
-) -> Result<TemporalGraphReview, AnalysisError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci: resolve_ci("parcorr", None)?,
-        multi_dataset: MultiDatasetConstraints::default(),
-    };
-    let result = discover_pcmci(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-fn run_pcmci_plus_review(
-    data: &TimeSeriesData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ctx: &ExecutionContext,
-) -> Result<TemporalCpdagReview, AnalysisError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci: resolve_ci("parcorr", None)?,
-        multi_dataset: MultiDatasetConstraints::default(),
-    };
-    let result = discover_pcmci_plus(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-fn run_jpcmci_plus_review(
-    data: &TimeSeriesData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ctx: &ExecutionContext,
-) -> Result<TemporalCpdagReview, AnalysisError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci: resolve_ci("parcorr", None)?,
-        multi_dataset: MultiDatasetConstraints::default(),
-    };
-    let multi = MultiEnvironmentData::try_new(Arc::from([data.clone()])).map_err(|e| {
-        AnalysisError::Compile { message: format!("jpcmci+ multi-env wrap failed: {e}") }
-    })?;
-    let result = discover_jpcmci_plus(&multi, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-fn run_rpcmci_discovery(
-    data: &TimeSeriesData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ctx: &ExecutionContext,
-) -> Result<causal_discovery::RpcmciDiscoveryResult, AnalysisError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci: resolve_ci("parcorr", None)?,
-        multi_dataset: MultiDatasetConstraints::default(),
-    };
-    let assign = two_regime_half_split(data.row_count());
-    discover_rpcmci(data, &vars, &assign, &params, None, ctx)
-}
-
-fn run_lpcmci_review(
-    data: &TimeSeriesData,
-    max_lag: u32,
-    alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ctx: &ExecutionContext,
-) -> Result<causal_graph::TemporalPagReview, AnalysisError> {
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = DiscoverParams {
-        max_lag,
-        alpha,
-        fdr,
-        ci: resolve_ci("parcorr", None)?,
-        multi_dataset: MultiDatasetConstraints::default(),
-    };
-    let result = discover_lpcmci(data, &vars, &params, ctx)?;
-    Ok(result.review)
-}
-
-fn run_refuters(
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
-    estimate: &EffectEstimate,
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-    suite: RefuteSuite,
-    estimator: &str,
-) -> Result<Vec<RefutationReport>, AnalysisError> {
-    let problem =
-        RefutationProblem { data, estimand, query, original: estimate, estimator: Some(estimator) };
-    let validation = match suite {
-        RefuteSuite::None => return Ok(Vec::new()),
-        RefuteSuite::PlaceboAndRcc => ValidationSuite::placebo_and_rcc(),
-        RefuteSuite::Full => ValidationSuite::full_effect(),
-    };
-    let outcomes = validation.run(&problem, workspace, ctx).map_err(AnalysisError::from)?;
-    Ok(ValidationSuite::reports_only(&outcomes))
-}
-
-fn effect_from_posterior(posterior: &CausalPosterior) -> Result<EffectEstimate, AnalysisError> {
-    let eq = posterior.effect_column().ok_or_else(|| AnalysisError::Compile {
-        message: "Bayesian posterior missing effect column".into(),
-    })?;
-    let ate = posterior.summaries.mean[eq];
-    // Report posterior SD of the effect (sampling uncertainty), not MCSE of the mean.
-    let se = posterior.summaries.sd[eq];
-    Ok(EffectEstimate {
-        ate,
-        se_analytic: se,
-        se_bootstrap: None,
-        bootstrap_replicates_ok: None,
-        bootstrap_replicates_failed: None,
-        assumptions: posterior.assumptions.clone(),
-        overlap: OverlapPolicy::ExplicitOverride,
-        overlap_report: None,
-        retained_memory_bytes: None,
-    })
-}
-
-/// Diagnostic recording which overlap policy an estimator applied.
-fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
-    match overlap {
-        OverlapPolicy::ExplicitOverride => Diagnostic::new(
-            "estimate.overlap.explicit_override",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "estimator used ExplicitOverride for positivity (not a propensity-based method)",
-        ),
-        OverlapPolicy::RequireDiagnostics { .. } => Diagnostic::new(
-            "estimate.overlap.require_diagnostics",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "estimator used RequireDiagnostics for mandatory positivity diagnostics",
-        ),
     }
 }

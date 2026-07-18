@@ -181,23 +181,17 @@ impl BayesianGComputationAte {
                 message: "BayesianGComputationAte expects backdoor.adjustment/efficient",
             });
         }
-        query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+        query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::UnsupportedQuery(
-                "Bayesian g-comp does not support effect modifiers".into(),
-            ));
+            return Err(EstimationError::unsupported("Bayesian g-comp does not support effect modifiers"));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::UnsupportedQuery(
-                "Bayesian g-comp only supports TargetPopulation::AllObserved".into(),
-            ));
+            return Err(EstimationError::unsupported("Bayesian g-comp only supports TargetPopulation::AllObserved"));
         }
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
         if (active - control).abs() < f64::EPSILON {
-            return Err(EstimationError::UnsupportedQuery(
-                "active and control treatment levels must differ".into(),
-            ));
+            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
         }
 
         let treatment = query.treatment;

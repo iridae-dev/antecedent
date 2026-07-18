@@ -5,8 +5,7 @@
 use std::sync::Arc;
 
 use causal_core::{
-    AllocationMethod, AttributionComponents, ComponentId, ExecutionContext, UnitChangeQuery,
-    VariableId,
+    ComponentId, ExecutionContext, UnitChangeQuery, VariableId,
 };
 use causal_counterfactual::{CounterfactualEngine, AbductionMissingPolicy};
 use causal_data::{TableView, TabularData};
@@ -16,6 +15,7 @@ use causal_model::{
 };
 
 use crate::error::AttributionError;
+use crate::prep::{require_input_components, require_shapley_config, resolve_outcome_dense};
 use crate::result::{ComputeBudget, UnitChangeResult};
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
 
@@ -49,40 +49,26 @@ pub fn unit_change(
         });
     }
 
-    match query.components {
-        AttributionComponents::Inputs
-        | AttributionComponents::InputsAndMechanisms
-        | AttributionComponents::All => {}
-        AttributionComponents::Mechanisms | AttributionComponents::Structure => {
-            return Err(AttributionError::Message(
-                "unit_change path attributes Inputs (use distribution_change for mechanisms)"
-                    .into(),
-            ));
-        }
-        _ => {
-            return Err(AttributionError::Message(
-                "unsupported AttributionComponents for unit_change".into(),
-            ));
-        }
-    }
+    require_input_components(
+        query.components,
+        "unit_change path attributes Inputs (use distribution_change for mechanisms)",
+    )?;
 
-    let outcome_dense = model
-        .dense_of(query.outcome)
-        .ok_or_else(|| AttributionError::Message(format!("outcome {} missing", query.outcome)))?;
+    let outcome_dense = resolve_outcome_dense(model, query.outcome)?;
     let gather = model
         .gather_for(outcome_dense)
-        .ok_or_else(|| AttributionError::Message("missing outcome gather".into()))?;
+        .ok_or(AttributionError::MissingArtifact("missing outcome gather"))?;
     let parents: Vec<VariableId> =
         gather.parents.iter().map(|&p| model.output_layout.variables[p.as_usize()]).collect();
     if parents.is_empty() {
-        return Err(AttributionError::Message(
-            "unit_change requires parents of the outcome".into(),
+        return Err(AttributionError::unsupported(
+            "unit_change requires parents of the outcome",
         ));
     }
     let players: Vec<ComponentId> =
         parents.iter().copied().map(ComponentId::from_variable).collect();
 
-    let engine = CounterfactualEngine::new(model.clone());
+    let engine = CounterfactualEngine::from_ref(model);
     let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
 
     // Reference parent means.
@@ -98,6 +84,11 @@ pub fn unit_change(
     let mut cache_stats = crate::result::CacheStats::default();
     let mut sum_se2 = 0.0;
     let mut n_se = 0usize;
+
+    let approximation = require_shapley_config(
+        &query.allocation,
+        "unit_change supports Shapley allocation",
+    )?;
 
     for (ui, &row) in rows.iter().enumerate() {
         let factual: Vec<f64> = parents
@@ -118,11 +109,6 @@ pub fn unit_change(
             ws: MechanismWorkspace::default(),
         };
 
-        let AllocationMethod::Shapley { approximation } = &query.allocation else {
-            return Err(AttributionError::Message(
-                "unit_change supports Shapley allocation".into(),
-            ));
-        };
         let est = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
         budget.evaluations += est.budget.evaluations;
         budget.samples += est.budget.samples;
@@ -198,7 +184,8 @@ impl CoalitionPayoff for UnitPayoff<'_> {
 mod tests {
     use super::*;
     use causal_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, ShapleyConfig, SmallRoleSet, ValueType,
+        AllocationMethod, CausalSchemaBuilder, MeasurementSpec, RoleHint, ShapleyConfig,
+        SmallRoleSet, ValueType,
     };
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};

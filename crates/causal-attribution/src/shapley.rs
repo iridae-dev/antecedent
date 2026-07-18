@@ -106,7 +106,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
 ) -> Result<ShapleyEstimate, AttributionError> {
     config.validate()?;
     if players.is_empty() {
-        return Err(AttributionError::Message("Shapley requires ≥1 player".into()));
+        return Err(AttributionError::unsupported("Shapley requires ≥1 player"));
     }
     let n = players.len();
     check_shapley_size(n, config)?;
@@ -201,7 +201,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
             cfg.mode = ShapleyMode::MonteCarlo { n_samples: n_permutations };
             estimate_shapley(players, &cfg, payoff, ctx)
         }
-        _ => Err(AttributionError::Message("unsupported ShapleyMode variant".into())),
+        _ => Err(AttributionError::unsupported("unsupported ShapleyMode variant")),
     }
 }
 
@@ -221,7 +221,7 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
     ctx: &ExecutionContext,
 ) -> Result<ShapleyEstimate, AttributionError> {
     if order.is_empty() {
-        return Err(AttributionError::Message("sequential order is empty".into()));
+        return Err(AttributionError::invalid_input("sequential order is empty"));
     }
     let mut cache = CoalitionCache::from_policy(ctx.cache_policy);
     let mut budget = ComputeBudget::default();

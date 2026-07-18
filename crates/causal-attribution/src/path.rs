@@ -32,7 +32,7 @@ pub fn path_decompose(
 ) -> Result<ChangeAttributionResult, AttributionError> {
     let outcome_dense = model
         .dense_of(outcome)
-        .ok_or_else(|| AttributionError::Message(format!("outcome {outcome} missing")))?;
+        .ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
     let strengths = edge_strength_map(model)?;
 
     let mut path_breakdown = Vec::new();
@@ -42,7 +42,7 @@ pub fn path_decompose(
     for &src in sources {
         let src_dense = model
             .dense_of(src)
-            .ok_or_else(|| AttributionError::Message(format!("source {src} missing")))?;
+            .ok_or_else(|| AttributionError::missing_var("source", src))?;
         let paths = model.graph.directed_paths(src_dense, outcome_dense, max_paths, max_len)?;
         for path in paths {
             evaluations += 1;

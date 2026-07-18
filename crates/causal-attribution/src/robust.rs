@@ -8,8 +8,7 @@
 use std::sync::Arc;
 
 use causal_core::{
-    AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
-    VariableId,
+    ChangeAttributionQuery, ComponentId, ExecutionContext, VariableId,
 };
 use causal_data::{TableView, TabularData};
 use causal_model::CompiledCausalModel;
@@ -17,7 +16,10 @@ use causal_stats::{FaerBackend, LeastSquaresWorkspace};
 
 use crate::distribution_change::mechanism_players;
 use crate::error::AttributionError;
-use crate::population::{resolve_rows, subset_table};
+use crate::prep::{
+    require_mechanism_components, require_shapley_config, resolve_change_populations,
+    resolve_outcome_dense,
+};
 use crate::result::ChangeAttributionResult;
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
 
@@ -47,21 +49,12 @@ pub fn distribution_change_robust(
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
     query.validate()?;
-    match query.components {
-        AttributionComponents::Mechanisms
-        | AttributionComponents::InputsAndMechanisms
-        | AttributionComponents::All => {}
-        _ => {
-            return Err(AttributionError::Message(
-                "distribution_change_robust requires Mechanisms components".into(),
-            ));
-        }
-    }
+    require_mechanism_components(
+        query.components,
+        "distribution_change_robust requires Mechanisms components",
+    )?;
 
-    let baseline_rows = resolve_rows(data, &query.baseline)?;
-    let comparison_rows = resolve_rows(data, &query.comparison)?;
-    let baseline_data = subset_table(data, &baseline_rows)?;
-    let comparison_data = subset_table(data, &comparison_rows)?;
+    let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
 
     if baseline_data.row_count() > options.max_rows
         || comparison_data.row_count() > options.max_rows
@@ -73,9 +66,7 @@ pub fn distribution_change_robust(
         });
     }
 
-    let outcome_dense = graph_model
-        .dense_of(query.outcome)
-        .ok_or_else(|| AttributionError::Message(format!("outcome {} missing", query.outcome)))?;
+    let outcome_dense = resolve_outcome_dense(graph_model, query.outcome)?;
     let players = mechanism_players(graph_model, outcome_dense, query.max_components)?;
 
     let mut payoff = RobustPayoff {
@@ -93,11 +84,10 @@ pub fn distribution_change_robust(
     let v_full = payoff.value(full)?;
     let total_change = v_full - v0;
 
-    let AllocationMethod::Shapley { approximation } = &query.allocation else {
-        return Err(AttributionError::Message(
-            "distribution_change_robust currently supports Shapley allocation".into(),
-        ));
-    };
+    let approximation = require_shapley_config(
+        &query.allocation,
+        "distribution_change_robust currently supports Shapley allocation",
+    )?;
     let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
     let mc_stderr = estimate.monte_carlo_stderr;
     let component_mc = estimate.component_mc_stderr.clone().map(Arc::from);
@@ -141,13 +131,14 @@ impl RobustPayoff<'_> {
         let backend = FaerBackend;
         let mut ws = LeastSquaresWorkspace::default();
         for &comp in &self.players {
-            let dense = self.model.dense_of(comp.variable()).ok_or_else(|| {
-                AttributionError::Message(format!("missing player {}", comp.variable()))
-            })?;
+            let dense = self
+                .model
+                .dense_of(comp.variable())
+                .ok_or_else(|| AttributionError::missing_var("player", comp.variable()))?;
             let gather = self
                 .model
                 .gather_for(dense)
-                .ok_or_else(|| AttributionError::Message("missing gather".into()))?;
+                .ok_or(AttributionError::MissingArtifact("missing gather"))?;
             let parents: Vec<VariableId> = gather
                 .parents
                 .iter()
@@ -195,8 +186,8 @@ impl CoalitionPayoff for RobustPayoff<'_> {
             node_pred.push(col);
         }
         if !outcome_seen {
-            return Err(AttributionError::Message(
-                "robust payoff: outcome is not among Shapley players".into(),
+            return Err(AttributionError::unsupported(
+                "robust payoff: outcome is not among Shapley players",
             ));
         }
         Ok(pred_out.iter().sum::<f64>() / n.max(1) as f64)
@@ -232,8 +223,8 @@ fn fit_linear(
 mod tests {
     use super::*;
     use causal_core::{
-        CachePolicy, CausalSchemaBuilder, MeasurementSpec, PopulationSelector, RoleHint,
-        ShapleyConfig, SmallRoleSet, ValueType,
+        AllocationMethod, CachePolicy, CausalSchemaBuilder, MeasurementSpec, PopulationSelector,
+        RoleHint, ShapleyConfig, SmallRoleSet, ValueType,
     };
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};

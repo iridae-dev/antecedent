@@ -68,7 +68,7 @@ impl ConditionalLinearAdjustment {
             self.overlap,
             "ConditionalLinearAdjustment requires ExplicitOverride overlap policy",
         )?;
-        query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+        query.validate()?;
         self.estimate_ate(data, estimand, &query.inner)
     }
 
@@ -84,19 +84,13 @@ impl ConditionalLinearAdjustment {
         query: &AverageEffectQuery,
     ) -> Result<EffectEstimate, EstimationError> {
         if query.effect_modifiers.is_empty() {
-            return Err(EstimationError::UnsupportedQuery(
-                "ConditionalLinearAdjustment requires effect modifiers".into(),
-            ));
+            return Err(EstimationError::unsupported("ConditionalLinearAdjustment requires effect modifiers"));
         }
         if query.effect_modifiers.len() != 1 {
-            return Err(EstimationError::UnsupportedQuery(
-                "ConditionalLinearAdjustment currently supports one effect modifier".into(),
-            ));
+            return Err(EstimationError::unsupported("ConditionalLinearAdjustment currently supports one effect modifier"));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::UnsupportedQuery(
-                "ConditionalLinearAdjustment only supports AllObserved".into(),
-            ));
+            return Err(EstimationError::unsupported("ConditionalLinearAdjustment only supports AllObserved"));
         }
         if estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::BackdoorAdjustment) {
             return Err(EstimationError::IncompatibleEstimand {
@@ -107,9 +101,7 @@ impl ConditionalLinearAdjustment {
         let control = intervention_f64(&query.control)?;
         let delta = active - control;
         if delta == 0.0 {
-            return Err(EstimationError::UnsupportedQuery(
-                "active and control treatment levels must differ".into(),
-            ));
+            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
         }
 
         let w_id = query.effect_modifiers[0];

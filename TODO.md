@@ -19,6 +19,7 @@ Ordered foundations → dependents.
     - [ ] Hedge certificates for non-identifiability.
     - [ ] `AutoIdentifier` that returns all valid estimands and selection rationale (no silent estimator choice); does not fork a second identifier for distribution queries.
     - [ ] Maximal (and remaining) adjustment-set search where defined beyond shipped backdoor / frontdoor / IV / RD / generalized adjustment (§10.4): cost-weighted selection, measurement-cost metadata, temporal history restrictions, positivity-aware ranking after a data check, and streaming enumeration (callbacks/iterators) so combinatorial sets need not be retained.
+    - [ ] Sustained temporal-effect identification (g-formula / sequential ID) — `TemporalPolicy::Sustained` types, overlay, and wire already ship; `identify_temporal` is Pulse-only today (`temporal_backdoor` rejects Sustained).
     - [ ] Parity: `estimate.identify.general_id`, `pag.identify.full_id_idc` → `done`.
 
 - [ ] **3. Distribution & path-specific pipelines** (DESIGN.md §8) — identify + estimate for shipped `CausalQuery::Distribution` / `PathSpecific`. Types, Unsupported plumbing, GCM sampling / path-contribution wrappers, and query wire exist; algorithms do not.
@@ -38,6 +39,7 @@ Ordered foundations → dependents.
     - [ ] **4g. LiNGAM (DirectLiNGAM MVP)** — ICA / residual independence → causal order → `Dag`. Greenfield (no stubs). Independent of Meek/PC orientation stack.
     - [ ] **4h. NOTEARS (optional)** — Continuous acyclicity soft-constraint optimization; feature-gated. Not required for this item’s DONE gate (DESIGN §13.3).
     - [ ] **4i. CPDAG MEC / equivalence-class sampling** (DESIGN §6.5 item 15) — enumerate or sample DAG completions of a static `Cpdag` (today `try_into_dag` only when fully oriented). PAG `CompletionSampler` already ships. Soft dep of FCI/GES class-aware ID.
+    - [ ] **4j. Pooled-frame time one-hot** — JPCMCI+ `DummyOptions` ships space one-hot + optional integer time-index dummy; high-dimensional one-hot of `T` remains deferred (`causal-data` `pooled_frame`).
 
 - [ ] **5. Mechanism families and Bayesian inference gaps** (DESIGN.md §14.4, §15.4, §16, §18.4, §12, §23.2) — complete native Bayesian 1.0 beyond conjugate Gaussian + Laplace GLM. External Stan/PyMC adapters are **not** required (DESIGN §14.5).
     - [ ] Mechanism families: hierarchical linear/GLM, BVAR, linear Gaussian state-space, Gaussian-process mechanisms (`bayes.backend.hierarchical_bvar_gp` → `done`).
@@ -75,7 +77,7 @@ Ordered foundations → dependents.
     - [ ] False-positive checks using permuted or phase-randomized data.
 
 - [ ] **9. Query-model Planned variants** (DESIGN.md §8.1–8.2) — types/comments exist as roadmap; not the Distribution/PathSpecific algorithms (item 3).
-    - [ ] `TemporalPolicy::Dynamic { rule }` for rule-driven temporal intervention schedules (Pulse / Sustained already ship).
+    - [ ] `TemporalPolicy::Dynamic { rule }` for rule-driven temporal intervention schedules (Pulse / Sustained *policy types* already ship; Sustained *identification* is item 2).
     - [ ] `TargetPopulation::Predicate` and `CustomDistribution` (AllObserved / Treated / Untreated / Environment already ship).
 
 - [ ] **10. Artifact mmap / stream / skip** (DESIGN.md §24.5) — container, CBOR wire, migration, and `model_bundle` already ship.

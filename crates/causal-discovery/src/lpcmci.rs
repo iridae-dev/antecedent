@@ -7,23 +7,22 @@
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 
-use std::sync::Arc;
-
 use causal_core::{ExecutionContext, Lag, VariableId};
 use causal_data::TimeSeriesData;
-use causal_stats::{ConditionalIndependence, FdrAdjustment};
+use causal_stats::FdrAdjustment;
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::lpcmci_phases::run_lpcmci_algorithm;
+use crate::pcmci_family::pcmci_family_builders;
 use crate::result::PagDiscoveryResult;
 
 /// LPCMCI: latent-confounder-aware PCMCI → oriented [`causal_graph::TemporalPag`].
 #[derive(Clone, Debug)]
 pub struct Lpcmci {
-    /// Shared PCMCI engine (`min_lag` typically 0).
-    pub engine: PcmciEngine,
+    /// Shared PCMCI engine (`min_lag` typically 0; crate-private — use builders / [`Self::engine`]).
+    pub(crate) engine: PcmciEngine,
     /// Multiple-testing adjustment (`None` = off).
     pub fdr: Option<FdrAdjustment>,
     /// Preliminary Alg-S2 iterations before the final ancestral/non-ancestral pass
@@ -50,38 +49,12 @@ impl Lpcmci {
         }
     }
 
-    /// Configure constraints.
-    #[must_use]
-    pub fn with_constraints(mut self, constraints: DiscoveryConstraints) -> Self {
-        self.engine.constraints = constraints;
-        self
-    }
-
-    /// Enable / disable BH FDR.
-    #[must_use]
-    pub fn with_fdr(mut self, fdr: bool) -> Self {
-        self.fdr = fdr.then(FdrAdjustment::bh);
-        self
-    }
-
-    /// Full FDR / FWER configuration.
-    #[must_use]
-    pub fn with_fdr_adjustment(mut self, fdr: Option<FdrAdjustment>) -> Self {
-        self.fdr = fdr;
-        self
-    }
+    pcmci_family_builders!();
 
     /// Number of preliminary ancestral phases (pinned baseline default: 1).
     #[must_use]
     pub fn with_n_preliminary_iterations(mut self, n: u32) -> Self {
         self.n_preliminary_iterations = n;
-        self
-    }
-
-    /// Replace CI test.
-    #[must_use]
-    pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
-        self.engine = self.engine.with_ci(ci);
         self
     }
 
@@ -111,6 +84,8 @@ impl Lpcmci {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use causal_core::{
         CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
     };

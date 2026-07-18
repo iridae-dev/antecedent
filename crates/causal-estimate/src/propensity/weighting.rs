@@ -193,9 +193,7 @@ impl IpwTarget {
             TargetPopulation::AllObserved => Ok(Self::Ate),
             TargetPopulation::Treated => Ok(Self::Att),
             TargetPopulation::Untreated => Ok(Self::Atc),
-            _ => Err(EstimationError::UnsupportedQuery(
-                "propensity weighting supports AllObserved, Treated, or Untreated target populations".into(),
-            )),
+            _ => Err(EstimationError::unsupported("propensity weighting supports AllObserved, Treated, or Untreated target populations")),
         }
     }
 

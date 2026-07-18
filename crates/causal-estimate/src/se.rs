@@ -54,9 +54,7 @@ pub(crate) fn require_clusters(
     n: usize,
 ) -> Result<&[u32], EstimationError> {
     let Some(ids) = ids.as_ref() else {
-        return Err(EstimationError::UnsupportedQuery(
-            "AnalyticSeKind::Cluster/PanelClusterHac requires estimator.cluster_ids".into(),
-        ));
+        return Err(EstimationError::unsupported("AnalyticSeKind::Cluster/PanelClusterHac requires estimator.cluster_ids"));
     };
     if ids.len() != n {
         return Err(EstimationError::data_msg(format!(
@@ -77,14 +75,10 @@ pub(crate) fn require_multiway(
     n: usize,
 ) -> Result<&[Vec<u32>], EstimationError> {
     let Some(ids) = ids.as_ref() else {
-        return Err(EstimationError::UnsupportedQuery(
-            "AnalyticSeKind::Multiway requires estimator.multiway_ids".into(),
-        ));
+        return Err(EstimationError::unsupported("AnalyticSeKind::Multiway requires estimator.multiway_ids"));
     };
     if ids.is_empty() {
-        return Err(EstimationError::UnsupportedQuery(
-            "AnalyticSeKind::Multiway requires at least one clustering dimension".into(),
-        ));
+        return Err(EstimationError::unsupported("AnalyticSeKind::Multiway requires at least one clustering dimension"));
     }
     for (i, dim) in ids.iter().enumerate() {
         if dim.len() != n {

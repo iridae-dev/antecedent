@@ -123,10 +123,10 @@ fn residuals(
 ) -> Result<Vec<f64>, AttributionError> {
     let dense = model
         .dense_of(target)
-        .ok_or_else(|| AttributionError::Message(format!("target {target} missing")))?;
+        .ok_or_else(|| AttributionError::missing_var("target", target))?;
     let gather = model
         .gather_for(dense)
-        .ok_or_else(|| AttributionError::Message("missing gather".into()))?;
+        .ok_or(AttributionError::MissingArtifact("missing gather"))?;
     let n = data.row_count();
     let y = data.float64_values(target)?;
     let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];

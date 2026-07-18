@@ -83,9 +83,7 @@ impl PropensityStratification {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         if !matches!(problem.target_population, TargetPopulation::AllObserved) {
-            return Err(EstimationError::UnsupportedQuery(
-                "propensity stratification only supports TargetPopulation::AllObserved".into(),
-            ));
+            return Err(EstimationError::unsupported("propensity stratification only supports TargetPopulation::AllObserved"));
         }
         let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(

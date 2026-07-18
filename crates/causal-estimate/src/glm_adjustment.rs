@@ -139,25 +139,19 @@ impl GlmAdjustmentAte {
                 message: "GlmAdjustmentAte expects backdoor.adjustment or backdoor.efficient",
             });
         }
-        query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+        query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::UnsupportedQuery(
-                "GLM adjustment does not support effect modifiers".into(),
-            ));
+            return Err(EstimationError::unsupported("GLM adjustment does not support effect modifiers"));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::UnsupportedQuery(
-                "GLM adjustment only supports TargetPopulation::AllObserved".into(),
-            ));
+            return Err(EstimationError::unsupported("GLM adjustment only supports TargetPopulation::AllObserved"));
         }
         let treatment = query.treatment;
         let outcome = query.outcome;
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
         if active == control {
-            return Err(EstimationError::UnsupportedQuery(
-                "active and control treatment levels must differ".into(),
-            ));
+            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
         }
 
         let mut ids = Vec::with_capacity(2 + estimand.adjustment_set.len());
@@ -171,18 +165,14 @@ impl GlmAdjustmentAte {
             GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
                 for &yi in &y {
                     if !(yi == 0.0 || yi == 1.0) {
-                        return Err(EstimationError::UnsupportedQuery(
-                            "Binomial GlmAdjustmentAte requires a binary (0/1) outcome".into(),
-                        ));
+                        return Err(EstimationError::unsupported("Binomial GlmAdjustmentAte requires a binary (0/1) outcome"));
                     }
                 }
             }
             GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => {
                 for &yi in &y {
                     if !(yi.is_finite() && yi >= 0.0) {
-                        return Err(EstimationError::UnsupportedQuery(
-                            "Poisson/NB GlmAdjustmentAte requires non-negative outcomes".into(),
-                        ));
+                        return Err(EstimationError::unsupported("Poisson/NB GlmAdjustmentAte requires non-negative outcomes"));
                     }
                 }
             }
@@ -992,7 +982,7 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+        assert!(matches!(err, EstimationError::Unsupported { .. }));
     }
 
     #[test]
@@ -1003,7 +993,7 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+        assert!(matches!(err, EstimationError::Unsupported { .. }));
     }
 
     #[test]

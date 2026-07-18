@@ -112,22 +112,16 @@ fn prepare_frontdoor_problem(
         });
     }
     if estimand.mediators.len() != 1 {
-        return Err(EstimationError::UnsupportedQuery(
-            "FrontDoorTwoStage supports exactly one mediator; multi-mediator front-door \
-             sets are unsupported"
-                .into(),
+        return Err(EstimationError::unsupported(
+            "FrontDoorTwoStage supports exactly one mediator; multi-mediator front-door              sets are unsupported",
         ));
     }
-    query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+    query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::UnsupportedQuery(
-            "FrontDoorTwoStage does not support effect modifiers".into(),
-        ));
+        return Err(EstimationError::unsupported("FrontDoorTwoStage does not support effect modifiers"));
     }
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::UnsupportedQuery(
-            "FrontDoorTwoStage only supports TargetPopulation::AllObserved".into(),
-        ));
+        return Err(EstimationError::unsupported("FrontDoorTwoStage only supports TargetPopulation::AllObserved"));
     }
     let treatment = query.treatment;
     let outcome = query.outcome;
@@ -135,9 +129,7 @@ fn prepare_frontdoor_problem(
     let control = intervention_f64(&query.control)?;
     let treatment_delta = active - control;
     if treatment_delta == 0.0 {
-        return Err(EstimationError::UnsupportedQuery(
-            "active and control treatment levels must differ".into(),
-        ));
+        return Err(EstimationError::unsupported("active and control treatment levels must differ"));
     }
     let mediator_id = estimand.mediators[0];
 
@@ -513,7 +505,7 @@ mod tests {
         estimand.mediators = Arc::from([VariableId::from_raw(2), VariableId::from_raw(0)]);
         let est = FrontDoorTwoStage::new();
         let err = est.prepare(&data, &estimand, &query()).unwrap_err();
-        assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+        assert!(matches!(err, EstimationError::Unsupported { .. }));
     }
 
     #[test]
@@ -522,6 +514,6 @@ mod tests {
         let est = FrontDoorTwoStage::new();
         let query = query().with_target_population(TargetPopulation::Treated);
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+        assert!(matches!(err, EstimationError::Unsupported { .. }));
     }
 }

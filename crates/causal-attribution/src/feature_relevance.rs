@@ -47,7 +47,7 @@ pub fn feature_relevance(
     }
     let outcome_dense = model
         .dense_of(outcome)
-        .ok_or_else(|| AttributionError::Message(format!("outcome {outcome} missing")))?;
+        .ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
 
     let mut means = Vec::with_capacity(features.len());
     for &feat in features {

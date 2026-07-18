@@ -2,14 +2,35 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use causal_core::VariableId;
 use thiserror::Error;
 
 /// Attribution errors (DESIGN.md §17).
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum AttributionError {
-    /// Model / data / query message.
+    /// Query / component / allocation combination not supported on this path.
+    #[error("{message}")]
+    Unsupported {
+        /// Explanation.
+        message: &'static str,
+    },
+    /// Required variable absent from model or data.
+    #[error("{kind} {id} missing")]
+    MissingVariable {
+        /// Role (`outcome`, `source`, `target`, …).
+        kind: &'static str,
+        /// Variable id.
+        id: VariableId,
+    },
+    /// Required model artifact missing (gather plan, edge coeff, …).
     #[error("{0}")]
-    Message(String),
+    MissingArtifact(&'static str),
+    /// Empty or out-of-range population / contribution inputs.
+    #[error("{message}")]
+    InvalidInput {
+        /// Explanation.
+        message: &'static str,
+    },
     /// Hard size limit exceeded.
     #[error("{kind} count {requested} exceeds max={max}")]
     SizeLimit {
@@ -42,6 +63,9 @@ pub enum AttributionError {
         /// Context.
         message: String,
     },
+    /// Ad-hoc detail that does not fit a structured variant (prefer structured).
+    #[error("{0}")]
+    Message(String),
     /// Passthrough from causal-model.
     #[error(transparent)]
     Model(#[from] causal_model::ModelError),
@@ -63,4 +87,24 @@ pub enum AttributionError {
     /// Passthrough from causal-prob.
     #[error(transparent)]
     Prob(#[from] causal_prob::ProbError),
+}
+
+impl AttributionError {
+    /// Unsupported path / combination.
+    #[must_use]
+    pub const fn unsupported(message: &'static str) -> Self {
+        Self::Unsupported { message }
+    }
+
+    /// Missing variable by role.
+    #[must_use]
+    pub const fn missing_var(kind: &'static str, id: VariableId) -> Self {
+        Self::MissingVariable { kind, id }
+    }
+
+    /// Invalid empty / out-of-range input.
+    #[must_use]
+    pub const fn invalid_input(message: &'static str) -> Self {
+        Self::InvalidInput { message }
+    }
 }

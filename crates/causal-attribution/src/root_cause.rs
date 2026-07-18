@@ -27,8 +27,8 @@ pub fn root_cause_rank(
     _ctx: &ExecutionContext,
 ) -> Result<Vec<RootCauseRank>, AttributionError> {
     if attribution.contributions.is_empty() {
-        return Err(AttributionError::Message(
-            "root_cause_rank requires non-empty contributions".into(),
+        return Err(AttributionError::invalid_input(
+            "root_cause_rank requires non-empty contributions",
         ));
     }
 
@@ -58,8 +58,8 @@ pub fn aggregate_model_collection_ranks(
     per_model: &[(f64, ChangeAttributionResult)],
 ) -> Result<Vec<RootCauseRank>, AttributionError> {
     if per_model.is_empty() {
-        return Err(AttributionError::Message(
-            "aggregate_model_collection_ranks requires ≥1 model result".into(),
+        return Err(AttributionError::invalid_input(
+            "aggregate_model_collection_ranks requires ≥1 model result",
         ));
     }
     let wsum: f64 = per_model.iter().map(|(w, _)| *w).sum::<f64>().max(1e-12);
@@ -97,8 +97,8 @@ pub fn posterior_contribution_ranks(
     block_size: usize,
 ) -> Result<Vec<RootCauseRank>, AttributionError> {
     if components.is_empty() {
-        return Err(AttributionError::Message(
-            "posterior_contribution_ranks requires components".into(),
+        return Err(AttributionError::invalid_input(
+            "posterior_contribution_ranks requires components",
         ));
     }
     if block_size == 0 {
@@ -138,8 +138,8 @@ fn rank_with_graph_uncertainty(
 ) -> Result<Vec<RootCauseRank>, AttributionError> {
     let n_comp = attribution.contributions.len();
     if draws.n_quantities() < n_comp {
-        return Err(AttributionError::Message(
-            "contribution_draws columns < contribution count".into(),
+        return Err(AttributionError::invalid_input(
+            "contribution_draws columns < contribution count",
         ));
     }
     let wsum = gs.total_weight().max(1e-12);

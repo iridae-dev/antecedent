@@ -89,16 +89,12 @@ fn prepare_iv_problem(
             message: "IV estimators require a non-empty instrument set",
         });
     }
-    query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+    query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::UnsupportedQuery(
-            "IV estimators do not support effect modifiers".into(),
-        ));
+        return Err(EstimationError::unsupported("IV estimators do not support effect modifiers"));
     }
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::UnsupportedQuery(
-            "IV estimators only support TargetPopulation::AllObserved".into(),
-        ));
+        return Err(EstimationError::unsupported("IV estimators only support TargetPopulation::AllObserved"));
     }
     let treatment = query.treatment;
     let outcome = query.outcome;
@@ -106,9 +102,7 @@ fn prepare_iv_problem(
     let control = intervention_f64(&query.control)?;
     let treatment_delta = active - control;
     if treatment_delta == 0.0 {
-        return Err(EstimationError::UnsupportedQuery(
-            "active and control treatment levels must differ".into(),
-        ));
+        return Err(EstimationError::unsupported("active and control treatment levels must differ"));
     }
 
     let mut ids =
@@ -229,16 +223,12 @@ impl WaldIv {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         if problem.instruments.len() != 1 {
-            return Err(EstimationError::UnsupportedQuery(
-                "WaldIv requires exactly one instrument; use TwoStageLeastSquares for multiple instruments".into(),
-            ));
+            return Err(EstimationError::unsupported("WaldIv requires exactly one instrument; use TwoStageLeastSquares for multiple instruments"));
         }
         let n = problem.nrows;
         let z: Vec<f64> = (0..n).map(|r| problem.instruments_matrix[n + r]).collect();
         if !z.iter().all(|&v| v == 0.0 || v == 1.0) {
-            return Err(EstimationError::UnsupportedQuery(
-                "WaldIv requires a binary (0/1) instrument; use TwoStageLeastSquares for continuous instruments".into(),
-            ));
+            return Err(EstimationError::unsupported("WaldIv requires a binary (0/1) instrument; use TwoStageLeastSquares for continuous instruments"));
         }
 
         let wald = wald_ratio(&z, &problem.treatment, &problem.outcome)?;
@@ -267,10 +257,7 @@ impl WaldIv {
                 )?
             }
             AnalyticSeKind::Multiway => {
-                return Err(EstimationError::UnsupportedQuery(
-                    "WaldIv AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"
-                        .into(),
-                ));
+                return Err(EstimationError::unsupported("WaldIv AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"));
             }
         };
         let se_analytic = se_unit * problem.treatment_delta.abs();
@@ -859,6 +846,6 @@ mod tests {
         let est = WaldIv::new();
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let err = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap_err();
-        assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+        assert!(matches!(err, EstimationError::Unsupported { .. }));
     }
 }

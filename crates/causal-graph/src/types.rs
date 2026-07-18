@@ -7,6 +7,8 @@
 
 pub use causal_core::NodeRef;
 
+use crate::error::GraphError;
+
 /// Compact dense node index used in algorithmic paths.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -17,6 +19,12 @@ impl DenseNodeId {
     #[must_use]
     pub const fn from_raw(raw: u32) -> Self {
         Self(raw)
+    }
+
+    /// Fallible index → dense id.
+    pub fn try_from_usize(i: usize) -> Result<Self, GraphError> {
+        let raw = u32::try_from(i).map_err(|_| GraphError::TooManyNodes)?;
+        Ok(Self::from_raw(raw))
     }
 
     /// Raw index.

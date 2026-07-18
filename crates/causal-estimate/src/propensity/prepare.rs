@@ -207,18 +207,14 @@ pub(crate) fn prepare_propensity_problem(
             message: "propensity estimators expect backdoor.adjustment or backdoor.efficient",
         });
     }
-    query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+    query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::UnsupportedQuery(
-            "propensity estimators do not support effect modifiers".into(),
-        ));
+        return Err(EstimationError::unsupported("propensity estimators do not support effect modifiers"));
     }
     let active = intervention_f64(&query.active)?;
     let control = intervention_f64(&query.control)?;
     if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
-        return Err(EstimationError::UnsupportedQuery(
-            "propensity estimators require binary treatment coded active=1.0, control=0.0".into(),
-        ));
+        return Err(EstimationError::unsupported("propensity estimators require binary treatment coded active=1.0, control=0.0"));
     }
 
     let treatment = query.treatment;

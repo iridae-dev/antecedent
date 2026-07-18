@@ -405,10 +405,7 @@ pub(crate) fn matching_contrast(
             (effects, donors, n_control + treated_y.len(), rows)
         }
         _ => {
-            return Err(EstimationError::UnsupportedQuery(
-                "matching estimators support AllObserved, Treated, or Untreated target populations"
-                    .into(),
-            ));
+            return Err(EstimationError::unsupported("matching estimators support AllObserved, Treated, or Untreated target populations"));
         }
     };
     if per_unit_effects.is_empty() {
@@ -428,18 +425,13 @@ pub(crate) fn matching_contrast(
         }
         AnalyticSeKind::Cluster | AnalyticSeKind::PanelClusterHac { .. } => {
             let Some(ids) = cluster_ids else {
-                return Err(EstimationError::UnsupportedQuery(
-                    "AnalyticSeKind::Cluster requires matching cluster_ids".into(),
-                ));
+                return Err(EstimationError::unsupported("AnalyticSeKind::Cluster requires matching cluster_ids"));
             };
             let groups: Vec<u32> = effect_rows.iter().map(|&r| ids[r]).collect();
             cluster_influence_se(&per_unit_effects, &groups)
         }
         AnalyticSeKind::Multiway => {
-            return Err(EstimationError::UnsupportedQuery(
-                "matching AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"
-                    .into(),
-            ));
+            return Err(EstimationError::unsupported("matching AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"));
         }
     };
     Ok(MatchedEstimate { ate, se_analytic })

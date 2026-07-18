@@ -79,7 +79,7 @@ impl TemporalLinearAdjustment {
                 message: "TemporalLinearAdjustment expects temporal.backdoor.unfolded",
             });
         }
-        query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+        query.validate()?;
 
         let t_lag = offset_to_lag(query.treatment_offset())?;
         let y_lag = offset_to_lag(query.outcome_offset())?;
@@ -139,9 +139,7 @@ impl TemporalLinearAdjustment {
         let control = intervention_f64(&query.control)?;
         let treatment_delta = active - control;
         if treatment_delta == 0.0 {
-            return Err(EstimationError::UnsupportedQuery(
-                "active and control treatment levels must differ".into(),
-            ));
+            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
         }
 
         Ok(PreparedEstimationProblem {
@@ -171,13 +169,10 @@ impl TemporalLinearAdjustment {
 
 fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
     if offset > 0 {
-        return Err(EstimationError::UnsupportedQuery(
-            "positive offsets (future treatment/outcome) unsupported for temporal adjustment"
-                .into(),
-        ));
+        return Err(EstimationError::unsupported("positive offsets (future treatment/outcome) unsupported for temporal adjustment"));
     }
     let lag = u32::try_from(-offset)
-        .map_err(|_| EstimationError::UnsupportedQuery("offset does not fit lag".into()))?;
+        .map_err(|_| EstimationError::unsupported("offset does not fit lag"))?;
     Ok(Lag::from_raw(lag))
 }
 

@@ -37,6 +37,7 @@ use crate::orientation::{
     ContempMeekR1, ContempMeekR2, ContempMeekR3, OrientationRule, run_orientation_to_fixed_point,
     try_orient_undirected,
 };
+use crate::pcmci_family::pcmci_family_builders;
 use crate::pcmci_plus::{contemp_mci_phase, lagged_pc1_parents, orient_majority_colliders};
 use crate::pipeline::{
     algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
@@ -54,8 +55,8 @@ pub type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
 /// Own type (not a PCMCI+ flag). Implements Günther et al. pooled four-phase search.
 #[derive(Clone, Debug)]
 pub struct JpcmciPlus {
-    /// Shared engine (`min_lag` typically 0).
-    pub engine: PcmciEngine,
+    /// Shared engine (`min_lag` typically 0; crate-private — use builders / [`Self::engine`]).
+    pub(crate) engine: PcmciEngine,
     /// Multiple-testing adjustment on scored links (`None` = off).
     pub fdr: Option<FdrAdjustment>,
 }
@@ -80,38 +81,12 @@ impl JpcmciPlus {
         }
     }
 
-    /// Configure constraints (caller should keep `min_lag = 0` for contemporaneous discovery).
-    #[must_use]
-    pub fn with_constraints(mut self, constraints: DiscoveryConstraints) -> Self {
-        self.engine.constraints = constraints;
-        self
-    }
+    pcmci_family_builders!();
 
     /// Replace multi-dataset / context settings.
     #[must_use]
     pub fn with_multi_dataset(mut self, multi: MultiDatasetConstraints) -> Self {
         self.engine.constraints.multi_dataset = multi;
-        self
-    }
-
-    /// Enable / disable BH FDR.
-    #[must_use]
-    pub fn with_fdr(mut self, fdr: bool) -> Self {
-        self.fdr = fdr.then(FdrAdjustment::bh);
-        self
-    }
-
-    /// Full FDR / FWER configuration.
-    #[must_use]
-    pub fn with_fdr_adjustment(mut self, fdr: Option<FdrAdjustment>) -> Self {
-        self.fdr = fdr;
-        self
-    }
-
-    /// Replace the CI test on the shared engine.
-    #[must_use]
-    pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
-        self.engine = self.engine.with_ci(ci);
         self
     }
 

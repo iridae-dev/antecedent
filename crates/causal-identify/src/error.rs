@@ -21,6 +21,12 @@ pub enum IdentificationError {
         /// Explanation.
         message: &'static str,
     },
+    /// Temporal backdoor is Pulse-only; Sustained needs g-formula / sequential ID.
+    #[error(
+        "temporal backdoor identification supports Pulse policies only; \
+         sustained interventions require sequential (g-formula) identification"
+    )]
+    SustainedPolicyUnsupported,
     /// No adjustment set exists / not identified.
     #[error("not identified: {message}")]
     NotIdentified {
@@ -46,5 +52,11 @@ impl IdentificationError {
     #[must_use]
     pub fn msg(message: impl Into<String>) -> Self {
         Self::Message(message.into())
+    }
+
+    /// Fixed unsupported query.
+    #[must_use]
+    pub const fn unsupported(message: &'static str) -> Self {
+        Self::UnsupportedQuery { message }
     }
 }

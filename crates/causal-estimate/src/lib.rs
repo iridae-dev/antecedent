@@ -54,7 +54,7 @@ pub use causal_expr::EstimandMethod;
 pub use conditional::ConditionalLinearAdjustment;
 pub use envelope::{EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope};
 pub use error::EstimationError;
-pub use estimator::{Estimator, FittedEstimator, TabularAteEstimator};
+pub use estimator::{Estimator, TabularAteEstimator};
 pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};

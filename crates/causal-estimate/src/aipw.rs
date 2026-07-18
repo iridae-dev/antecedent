@@ -69,7 +69,7 @@ pub struct AipwWorkspace {
 /// Doubly robust (AIPW) ATE estimator.
 ///
 // supports [`TargetPopulation::AllObserved`] only; ATT/ATC are rejected with a clear
-/// [`EstimationError::UnsupportedQuery`]. Positivity is mandatory: [`OverlapPolicy::ExplicitOverride`]
+/// [`EstimationError::Unsupported`]. Positivity is mandatory: [`OverlapPolicy::ExplicitOverride`]
 /// is refused.
 #[derive(Clone, Debug)]
 pub struct AipwAte {
@@ -139,10 +139,8 @@ impl AipwAte {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         if !matches!(problem.target_population, TargetPopulation::AllObserved) {
-            return Err(EstimationError::UnsupportedQuery(
-                "AIPW only supports TargetPopulation::AllObserved; ATT/ATC doubly \
-                 robust estimation is unsupported"
-                    .into(),
+            return Err(EstimationError::unsupported(
+                "AIPW only supports TargetPopulation::AllObserved; ATT/ATC doubly                  robust estimation is unsupported",
             ));
         }
 
@@ -215,8 +213,8 @@ impl AipwAte {
                 }
             }
             AnalyticSeKind::Multiway => {
-                return Err(EstimationError::UnsupportedQuery(
-                    "AIPW AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap".into(),
+                return Err(EstimationError::unsupported(
+                    "AIPW AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap",
                 ));
             }
         };
@@ -577,7 +575,7 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = AipwWorkspace::default();
         let err = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap_err();
-        assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+        assert!(matches!(err, EstimationError::Unsupported { .. } | EstimationError::TargetPopulation));
     }
 
     #[test]

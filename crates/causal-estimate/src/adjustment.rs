@@ -394,12 +394,10 @@ impl LinearAdjustmentAte {
 pub(crate) fn intervention_f64(intervention: &Intervention) -> Result<f64, EstimationError> {
     match intervention {
         Intervention::Set { value, .. } => value.as_f64().ok_or_else(|| {
-            EstimationError::UnsupportedQuery(
-                " linear adjustment requires numeric treatment levels".into(),
-            )
+            EstimationError::unsupported(" linear adjustment requires numeric treatment levels")
         }),
-        _ => Err(EstimationError::UnsupportedQuery(
-            " linear adjustment requires Set interventions".into(),
+        _ => Err(EstimationError::unsupported(
+            " linear adjustment requires Set interventions",
         )),
     }
 }
@@ -605,7 +603,7 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::UnsupportedQuery(_)));
+        assert!(matches!(err, EstimationError::TargetPopulation));
     }
 
     #[test]

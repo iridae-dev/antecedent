@@ -30,6 +30,7 @@ pub mod lpcmci_phases;
 pub mod orientation;
 pub mod pc;
 pub mod pcmci;
+pub mod pcmci_family;
 pub mod pcmci_plus;
 pub mod pipeline;
 pub mod result;
@@ -62,18 +63,12 @@ pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lpcmci::Lpcmci;
 pub use orientation::{
-    ContempMeekR1, ContempMeekR2, ContempMeekR3, CpdagOps, MeekR1, MeekR2, MeekR3, MeekR4,
-    OrientCollider, OrientationError, OrientationQueue, OrientationRule, OrientationState,
-    RuleDelta, StaticOrientationRule, run_orientation_to_fixed_point,
+    OrientCollider, OrientationError, OrientationRule, StaticOrientationRule,
     run_static_orientation_to_fixed_point,
 };
 pub use pc::{Pc, StaticCpdagDiscoveryResult};
 pub use pcmci::Pcmci;
 pub use pcmci_plus::PcmciPlus;
-pub use pipeline::{
-    algorithm_record, lagged_node_index, orientation_state_from_sepsets, push_diagnostic,
-    with_links_retained,
-};
 pub use result::{
     AlgorithmRecord, CpdagDiscoveryResult, CpdagGraphEvidence, DagDiscoveryResult,
     DagGraphEvidence, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
@@ -84,8 +79,6 @@ pub use rpcmci::{
     RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, regime_edge_counts,
     two_regime_half_split,
 };
-pub use rule_scheduling::{
-    LpcmciApr, LpcmciDiscriminatingPathRule, LpcmciMmr, LpcmciOrientCollider, LpcmciOrientationRule,
-    LpcmciR1, LpcmciR10, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9, default_lpcmci_rules,
-    run_lpcmci_orientation,
-};
+
+// Orientation / LPCMCI rule types stay under their modules for advanced callers:
+// `causal_discovery::orientation::*` and `causal_discovery::rule_scheduling::*`.

@@ -190,7 +190,7 @@ pub fn identification_to_wire(r: &IdentificationResult) -> Result<Identification
                 functional: e.functional.raw(),
             })
             .collect(),
-        arena: expr_arena_to_wire(&r.arena),
+        arena: expr_arena_to_wire(&r.arena)?,
         derivation: r
             .derivation
             .steps

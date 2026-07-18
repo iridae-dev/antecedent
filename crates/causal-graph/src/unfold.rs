@@ -47,7 +47,7 @@ impl TemporalDag {
     ) -> Result<LazyUnfoldedTemporalGraph, GraphError> {
         // Validate all nodes are lagged up front.
         for (i, _) in self.nodes().iter().enumerate() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = DenseNodeId::try_from_usize(i)?;
             let _ = self
                 .temporal_key(id)
                 .ok_or(GraphError::InvalidEndpoints { message: "unfold requires lagged nodes" })?;
@@ -79,7 +79,7 @@ impl LazyUnfoldedTemporalGraph {
             message: "unfold endpoint outside window",
         })?;
         for (from_i, _) in self.template.nodes().iter().enumerate() {
-            let from_id = DenseNodeId::from_raw(u32::try_from(from_i).expect("fit"));
+            let from_id = DenseNodeId::try_from_usize(from_i)?;
             let Some(from_key) = self.template.temporal_key(from_id) else {
                 continue;
             };
@@ -106,7 +106,7 @@ impl LazyUnfoldedTemporalGraph {
         let mut dag = Dag::with_variables(n_u32);
 
         for (from_i, _) in self.template.nodes().iter().enumerate() {
-            let from = DenseNodeId::from_raw(u32::try_from(from_i).expect("fit"));
+            let from = DenseNodeId::try_from_usize(from_i)?;
             let from_key = self
                 .template
                 .temporal_key(from)
@@ -196,7 +196,7 @@ impl TemporalGraphReview {
     pub fn from_graph(graph: TemporalDag, algorithm: impl Into<Arc<str>>) -> Self {
         let mut pending = Vec::new();
         for (i, _) in graph.nodes().iter().enumerate() {
-            let from = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let from = DenseNodeId::try_from_usize(i).expect("node fit");
             let Some(from_key) = graph.temporal_key(from) else {
                 continue;
             };
@@ -330,7 +330,7 @@ impl TemporalCpdagReview {
 
     fn resolve_key(&self, key: TemporalNodeKey) -> Result<DenseNodeId, GraphError> {
         for i in 0..self.graph.node_count() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = DenseNodeId::try_from_usize(i)?;
             if self.graph.temporal_key(id) == Some(key) {
                 return Ok(id);
             }
@@ -348,7 +348,7 @@ pub fn ensure_lagged(
     for (i, n) in graph.nodes().iter().enumerate() {
         if let NodeRef::Lagged { variable: v, lag: l } = n {
             if *v == variable && *l == lag {
-                return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+                return DenseNodeId::try_from_usize(i);
             }
         }
     }

@@ -9,19 +9,19 @@ use std::sync::Arc;
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::TimeSeriesData;
 use causal_graph::TemporalGraphReview;
-use causal_stats::{ConditionalIndependence, FdrAdjustment};
+use causal_stats::FdrAdjustment;
 
-use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::evidence::{graph_evidence_from_scored_with_sepsets, threshold_scored_links};
+use crate::pcmci_family::pcmci_family_builders;
 use crate::result::{AlgorithmRecord, DagDiscoveryResult};
 
 /// Lagged PCMCI discovery algorithm.
 #[derive(Clone, Debug)]
 pub struct Pcmci {
-    /// Engine.
-    pub engine: PcmciEngine,
+    /// Shared PCMCI engine (crate-private; use builders / [`Self::engine`]).
+    pub(crate) engine: PcmciEngine,
     /// Multiple-testing adjustment over the MCI family (`None` = off).
     pub fdr: Option<FdrAdjustment>,
 }
@@ -39,33 +39,7 @@ impl Pcmci {
         Self { engine: PcmciEngine::new(), fdr: Some(FdrAdjustment::bh()) }
     }
 
-    /// Configure constraints.
-    #[must_use]
-    pub fn with_constraints(mut self, constraints: DiscoveryConstraints) -> Self {
-        self.engine.constraints = constraints;
-        self
-    }
-
-    /// Enable / disable BH FDR (pinned baseline contemporaneous exclusion).
-    #[must_use]
-    pub fn with_fdr(mut self, fdr: bool) -> Self {
-        self.fdr = fdr.then(FdrAdjustment::bh);
-        self
-    }
-
-    /// Full FDR / FWER configuration.
-    #[must_use]
-    pub fn with_fdr_adjustment(mut self, fdr: Option<FdrAdjustment>) -> Self {
-        self.fdr = fdr;
-        self
-    }
-
-    /// Replace the CI test on the shared engine.
-    #[must_use]
-    pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
-        self.engine = self.engine.with_ci(ci);
-        self
-    }
+    pcmci_family_builders!();
 
     /// Run lagged PCMCI on `variables` in `data`.
     ///

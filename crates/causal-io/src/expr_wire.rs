@@ -91,16 +91,19 @@ pub enum ExprNodeWire {
 }
 
 /// Encode arena.
-#[must_use]
-pub fn expr_arena_to_wire(arena: &CausalExprArena) -> ExprArenaWire {
+///
+/// # Errors
+///
+/// Arena indexes that do not fit in `u32`.
+pub fn expr_arena_to_wire(arena: &CausalExprArena) -> Result<ExprArenaWire, IoError> {
     let mut var_sets = Vec::with_capacity(arena.var_set_count());
     for i in 0..arena.var_set_count() {
-        let id = VarSetId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
+        let id = VarSetId::from_raw(u32::try_from(i).map_err(|_| IoError::TooLarge)?);
         var_sets.push(arena.var_set(id).iter().map(|v| v.raw()).collect());
     }
     let mut interventions = Vec::with_capacity(arena.intervention_set_count());
     for i in 0..arena.intervention_set_count() {
-        let id = InterventionSetId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
+        let id = InterventionSetId::from_raw(u32::try_from(i).map_err(|_| IoError::TooLarge)?);
         interventions.push(
             arena
                 .intervention_assignments(id)
@@ -114,15 +117,15 @@ pub fn expr_arena_to_wire(arena: &CausalExprArena) -> ExprArenaWire {
     }
     let mut lists = Vec::with_capacity(arena.list_count());
     for i in 0..arena.list_count() {
-        let id = ExprListId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
+        let id = ExprListId::from_raw(u32::try_from(i).map_err(|_| IoError::TooLarge)?);
         lists.push(arena.list(id).iter().map(|e| e.raw()).collect());
     }
     let mut nodes = Vec::with_capacity(arena.len());
     for i in 0..arena.len() {
-        let id = ExprId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
+        let id = ExprId::from_raw(u32::try_from(i).map_err(|_| IoError::TooLarge)?);
         nodes.push(node_to_wire(arena.node(id)));
     }
-    ExprArenaWire { var_sets, interventions, lists, nodes }
+    Ok(ExprArenaWire { var_sets, interventions, lists, nodes })
 }
 
 /// Decode arena by re-interning in order.

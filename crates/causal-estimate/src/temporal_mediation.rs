@@ -64,7 +64,7 @@ impl TemporalMediationEstimator {
         query: &MediationQuery,
         ctx: &ExecutionContext,
     ) -> Result<TemporalMediationEstimate, EstimationError> {
-        query.validate().map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+        query.validate()?;
         if !(estimand.method_kind().ok().is_some_and(|m| {
             m.is_temporal_mediation() || m == causal_expr::EstimandMethod::FrontDoor
         })) {
@@ -73,18 +73,14 @@ impl TemporalMediationEstimator {
             });
         }
         if estimand.mediators.len() != 1 {
-            return Err(EstimationError::UnsupportedQuery(
-                "TemporalMediationEstimator supports exactly one mediator".into(),
-            ));
+            return Err(EstimationError::unsupported("TemporalMediationEstimator supports exactly one mediator"));
         }
         let mediator = estimand.mediators[0];
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
         let delta = active - control;
         if delta == 0.0 {
-            return Err(EstimationError::UnsupportedQuery(
-                "active and control treatment levels must differ".into(),
-            ));
+            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
         }
 
         let cols = Arc::from([
