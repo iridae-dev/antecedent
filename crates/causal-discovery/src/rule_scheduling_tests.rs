@@ -125,6 +125,109 @@ fn r8_orients_triangle() {
 }
 
 #[test]
+fn r8_orients_with_circle_arrow_middle() {
+    // a → b o→ c and a o→ c ⇒ a → c (Zhang R8 second case)
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, b).unwrap();
+    g.insert_circle_arrow(b, c).unwrap();
+    g.insert_circle_arrow(a, c).unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciR8.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(d.edges_changed > 0);
+    let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Tail));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
+fn r3_orients_under_zhang_circle_premises() {
+    // Collider a *→ b ←* c, a ≁ c; d *–o a, d *–o c, d *–o b ⇒ d *→ b.
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let d = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_circle_arrow(a, b).unwrap();
+    g.insert_circle_arrow(c, b).unwrap();
+    // Circles at a, c, b (Zhang); tails/arrows at d are free (*).
+    g.insert_marked(causal_graph::MarkedEdge {
+        a: d,
+        b: a,
+        at_a: Endpoint::Tail,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    g.insert_marked(causal_graph::MarkedEdge {
+        a: d,
+        b: c,
+        at_a: Endpoint::Tail,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    g.insert_marked(causal_graph::MarkedEdge {
+        a: d,
+        b,
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let delta = LpcmciR3.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(delta.edges_changed > 0);
+    let (at_d, at_b) = marks_between(&g, d, b).unwrap();
+    assert!(matches!(at_b, Endpoint::Arrow));
+    assert!(matches!(at_d, Endpoint::Circle));
+}
+
+#[test]
+fn r3_does_not_fire_with_circles_only_at_d() {
+    // Wrong premise (circles at d, not at a/c): must not orient.
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let d = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_circle_arrow(a, b).unwrap();
+    g.insert_circle_arrow(c, b).unwrap();
+    g.insert_marked(causal_graph::MarkedEdge {
+        a,
+        b: d,
+        at_a: Endpoint::Tail,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    g.insert_marked(causal_graph::MarkedEdge {
+        a: c,
+        b: d,
+        at_a: Endpoint::Tail,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    g.insert_marked(causal_graph::MarkedEdge {
+        a: d,
+        b,
+        at_a: Endpoint::Tail,
+        at_b: Endpoint::Circle,
+        middle: causal_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let delta = LpcmciR3.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(delta.edges_changed, 0);
+}
+
+#[test]
 fn rule_ids_cover_r1_r2_r3() {
     assert_eq!(LpcmciR1.id(), "lpcmci.r1");
     assert_eq!(LpcmciR2.id(), "lpcmci.r2");

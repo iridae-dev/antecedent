@@ -90,4 +90,19 @@ Ordered foundations → dependents.
     - [ ] Wire through attribution facade / GCM helpers without silently dropping the component.
 
 - [ ] **12. Rolling mechanism diagnostics** (DESIGN.md §20) — incremental OLS / streaming cov / lag indexes / particle filter / BIC score cache already ship (`parity/design_state.toml`).
-    - [ ] Rolling mechanism diagnostics maintained under `CausalState` events (bounded, versioned, reconstructible; eviction affects performance only).
+  - [ ] Rolling mechanism diagnostics maintained under `CausalState` events (bounded, versioned, reconstructible; eviction affects performance only).
+
+## Correctness follow-ups
+
+Shipped algorithms with known incomplete or miscalibrated formulas that are too large for a quick fix. Do not silently alias wrong SE/ID variants; prefer fail-closed until these land. Unfinished DESIGN chapters (deep ID, Sustained, Structure attribution, nested CF, etc.) stay in the numbered list above.
+
+- [ ] **Discovery FCI R10** — needs two node-disjoint uncovered PD paths into two parents (`→` or `o→`); current one-path rule can over-orient (`rule_scheduling.rs` `LpcmciR10`).
+- [ ] **Front-door ID search** — only singleton + full `children(T)\{Y}` are tested; valid multi-mediator FD sets → false `NotIdentified` (`frontdoor.rs`).
+- [ ] **Natural mediation** — `NaturalDirect` / `NaturalIndirect` aliased to controlled `c'` / `ab`; refuse or gate on linear SEM assumptions (`temporal_mediation.rs`, estimate mediation).
+- [ ] **Path attribution multi-source** — path products summed across sources can double-count overlapping ancestry (`path.rs`).
+- [ ] **Wald Homoskedastic SE** — ignores first-stage sampling variability; influence-function path is safer (`iv.rs`).
+- [ ] **IPW Hájek analytic SE** — conditional on weights; no propensity IF → undercoverage vs bootstrap (`propensity/weighting.rs`).
+- [ ] **Matching cluster SE** — drops Abadie–Imbens `Kⱼ` inflation under donor reuse (`propensity/matching.rs`).
+- [ ] **Mechanism `MeanDiff`** — flags raw mean shifts, not residual/mechanism change (`mechanism_change.rs`).
+- [ ] **Path-search / MCI caps** — discriminating/PD path and MCI conditioning truncation can change orientations/skeleton without error.
+- [ ] **Latent projection** — silently drops cycle-conflicting directed edges; may fail to preserve d/m-separation (`projection.rs`).

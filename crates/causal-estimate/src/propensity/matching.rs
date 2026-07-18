@@ -419,16 +419,25 @@ pub(crate) fn matching_contrast(
         AnalyticSeKind::Hc0
         | AnalyticSeKind::Hc1
         | AnalyticSeKind::Hc2
-        | AnalyticSeKind::Hc3
-        | AnalyticSeKind::NeweyWest { .. } => {
+        | AnalyticSeKind::Hc3 => {
             abadie_imbens_se_hetero(&per_unit_effects, &donor_usage, n_donors)
         }
-        AnalyticSeKind::Cluster | AnalyticSeKind::PanelClusterHac { .. } => {
+        AnalyticSeKind::Cluster => {
             let Some(ids) = cluster_ids else {
                 return Err(EstimationError::unsupported("AnalyticSeKind::Cluster requires matching cluster_ids"));
             };
             let groups: Vec<u32> = effect_rows.iter().map(|&r| ids[r]).collect();
             cluster_influence_se(&per_unit_effects, &groups)
+        }
+        AnalyticSeKind::NeweyWest { .. } => {
+            return Err(EstimationError::unsupported(
+                "matching AnalyticSeKind::NeweyWest is not supported; use Hc1, Cluster, or bootstrap",
+            ));
+        }
+        AnalyticSeKind::PanelClusterHac { .. } => {
+            return Err(EstimationError::unsupported(
+                "matching AnalyticSeKind::PanelClusterHac is not supported; use Cluster or bootstrap",
+            ));
         }
         AnalyticSeKind::Multiway => {
             return Err(EstimationError::unsupported("matching AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"));
@@ -461,7 +470,7 @@ fn abadie_imbens_se(effects: &[f64], donor_local: &[usize], n_donors: usize) -> 
     var.sqrt()
 }
 
-/// Heteroskedastic Abadie–Imbens SE using pair-level variance proxies.
+/// Heteroskedastic Abadie–Imbens SE using demeaned pair-level variance proxies.
 fn abadie_imbens_se_hetero(effects: &[f64], donor_local: &[usize], n_donors: usize) -> f64 {
     let n = effects.len();
     if n < 2 || donor_local.len() != n {
@@ -473,9 +482,11 @@ fn abadie_imbens_se_hetero(effects: &[f64], donor_local: &[usize], n_donors: usi
             k[d] += 1;
         }
     }
+    let mean = effects.iter().sum::<f64>() / n as f64;
     let mut var = 0.0;
     for (i, &d) in donor_local.iter().enumerate() {
-        let sigma2_i = 0.5 * effects[i] * effects[i];
+        let centered = effects[i] - mean;
+        let sigma2_i = 0.5 * centered * centered;
         let kd = k.get(d).copied().unwrap_or(0) as f64;
         var += sigma2_i * (1.0 + kd).powi(2);
     }

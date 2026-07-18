@@ -80,6 +80,17 @@ impl GeneralizedAdjustmentIdentifier {
         let y = query.outcome;
         let t_d = pag_var_to_dense(pag, t)?;
         let y_d = pag_var_to_dense(pag, y)?;
+        let (active, control) = match (&query.active, &query.control) {
+            (
+                causal_core::Intervention::Set { value: active, .. },
+                causal_core::Intervention::Set { value: control, .. },
+            ) => (active.clone(), control.clone()),
+            _ => {
+                return Err(IdentificationError::UnsupportedQuery {
+                    message: "generalized adjustment ATE requires Set interventions",
+                });
+            }
+        };
 
         let sampler = CompletionSampler::new(pag.clone(), self.config.max_completions)
             .map_err(IdentificationError::from)?;
@@ -92,6 +103,8 @@ impl GeneralizedAdjustmentIdentifier {
                 y,
                 t_d,
                 y_d,
+                active.clone(),
+                control.clone(),
                 self.config.max_candidates,
             )?;
             cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
@@ -117,9 +130,18 @@ fn identify_on_mag_completion(
     y: VariableId,
     t_d: DenseNodeId,
     y_d: DenseNodeId,
+    active: Value,
+    control: Value,
     max_candidates: usize,
 ) -> Result<IdentificationResult, IdentificationError> {
-    let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(t, y));
+    let query = CausalQuery::AverageEffect(AverageEffectQuery {
+        treatment: t,
+        outcome: y,
+        control: causal_core::Intervention::set(t, control.clone()),
+        active: causal_core::Intervention::set(t, active.clone()),
+        effect_modifiers: Arc::from([]),
+        target_population: causal_core::TargetPopulation::AllObserved,
+    });
     let Some(admg) = mag_to_admg(mag) else {
         return Ok(not_identified(query, "completion is not a MAG (undirected marks remain)"));
     };
@@ -187,7 +209,7 @@ fn identify_on_mag_completion(
         .collect::<Result<Vec<_>, _>>()?
         .into();
     let mut arena = CausalExprArena::new();
-    let functional = arena.backdoor_ate(t, y, &z_vars, Value::f64(1.0), Value::f64(0.0));
+    let functional = arena.backdoor_ate(t, y, &z_vars, active, control);
     let label = if z_vars.is_empty() {
         "generalized.adjustment.empty"
     } else {

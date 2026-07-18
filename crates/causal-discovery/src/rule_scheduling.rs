@@ -9,7 +9,7 @@
 
 use std::collections::HashSet;
 
-use causal_graph::{DenseNodeId, Endpoint, MiddleMark, TemporalPag};
+use causal_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, TemporalPag};
 
 use crate::discriminating_paths::{discriminating_implies_collider, find_discriminating_paths};
 use crate::orientation::{OrientationError, OrientationQueue, OrientationState, RuleDelta};
@@ -252,7 +252,8 @@ impl LpcmciOrientationRule for LpcmciR2 {
     }
 }
 
-/// FCI R3: collider `a *→ b ←* c` with nonadjacent a,c and `a *–o d o–* c`, `d *–o b` → orient `d *→ b`.
+/// FCI R3: collider `a *→ b ←* c` with nonadjacent a,c and `d *–o a`, `d *–o c`, `d *–o b`
+/// → orient `d *→ b` (Zhang: circles at a, c, and b — not at d).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciR3;
 
@@ -286,31 +287,24 @@ impl LpcmciOrientationRule for LpcmciR3 {
                     if !matches!(at_b_ab, Endpoint::Arrow) || !matches!(at_b_cb, Endpoint::Arrow) {
                         continue;
                     }
-                    // Find θ = d adjacent to a,c,b with circle marks into d from a/c and circle at b side.
+                    // Find θ = d with circles at a, c, b: d *–o a, d *–o c, d *–o b.
                     for j in 0..n {
                         let d = DenseNodeId::from_raw(j as u32);
                         if d == a || d == b || d == c {
                             continue;
                         }
-                        let Some((at_a_ad, at_d_ad)) = marks_between(graph, a, d) else {
+                        let Some((at_a_ad, _)) = marks_between(graph, a, d) else {
                             continue;
                         };
-                        let Some((at_c_cd, at_d_cd)) = marks_between(graph, c, d) else {
+                        let Some((at_c_cd, _)) = marks_between(graph, c, d) else {
                             continue;
                         };
                         let Some((at_d_db, at_b_db)) = marks_between(graph, d, b) else {
                             continue;
                         };
-                        let _ = (at_a_ad, at_c_cd);
-                        if !matches!(at_d_ad, Endpoint::Circle)
-                            || !matches!(at_d_cd, Endpoint::Circle)
-                        {
-                            continue;
-                        }
-                        if !matches!(at_b_db, Endpoint::Circle) {
-                            continue;
-                        }
-                        if matches!(at_d_db, Endpoint::Arrow) && matches!(at_b_db, Endpoint::Arrow)
+                        if !matches!(at_a_ad, Endpoint::Circle)
+                            || !matches!(at_c_cd, Endpoint::Circle)
+                            || !matches!(at_b_db, Endpoint::Circle)
                         {
                             continue;
                         }
@@ -343,6 +337,22 @@ fn marks_between(
 ) -> Option<(Endpoint, Endpoint)> {
     let e = graph.edge_between(a, b)?;
     if e.a == a { Some((e.at_a, e.at_b)) } else { Some((e.at_b, e.at_a)) }
+}
+
+/// Lag of a temporal node (`None` if missing). Smaller lag = later in time.
+fn node_lag(graph: &TemporalPag, id: DenseNodeId) -> Option<u32> {
+    match graph.nodes().get(id.as_usize())? {
+        NodeRef::Lagged { lag, .. } => Some(lag.raw()),
+        NodeRef::Static(_) | NodeRef::Context { .. } => Some(0),
+    }
+}
+
+/// Whether `a` is strictly later in time than `b` (smaller lag).
+fn is_later(graph: &TemporalPag, a: DenseNodeId, b: DenseNodeId) -> bool {
+    match (node_lag(graph, a), node_lag(graph, b)) {
+        (Some(la), Some(lb)) => la < lb,
+        _ => false,
+    }
 }
 
 fn set_marks_oriented(
@@ -471,7 +481,7 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
     }
 }
 
-/// FCI R8′: `a → b → c` and `a o–* c` → orient `a → c`.
+/// FCI R8′: `a → b → c` or `a → b o→ c`, and `a o–* c` → orient `a → c`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciR8;
 
@@ -501,10 +511,12 @@ impl LpcmciOrientationRule for LpcmciR8 {
                     let Some((at_b_bc, at_c_bc)) = marks_between(graph, b, c) else {
                         continue;
                     };
-                    if !matches!(at_a_ab, Endpoint::Tail)
-                        || !matches!(at_b_ab, Endpoint::Arrow)
-                        || !matches!(at_b_bc, Endpoint::Tail)
-                        || !matches!(at_c_bc, Endpoint::Arrow)
+                    // a → b required; b → c or b o→ c.
+                    if !matches!(at_a_ab, Endpoint::Tail) || !matches!(at_b_ab, Endpoint::Arrow) {
+                        continue;
+                    }
+                    if !matches!(at_c_bc, Endpoint::Arrow)
+                        || !matches!(at_b_bc, Endpoint::Tail | Endpoint::Circle)
                     {
                         continue;
                     }
@@ -722,10 +734,10 @@ impl LpcmciOrientationRule for LpcmciApr {
                 let clear = match mid {
                     MiddleMark::Both => true,
                     MiddleMark::Left | MiddleMark::Right => {
-                        // Ordered: clear Left when a > b (later/higher), Right when a < b.
-                        // Use dense id as total order proxy consistent with time-ordered nodes.
-                        (matches!(mid, MiddleMark::Left) && a.raw() > b.raw())
-                            || (matches!(mid, MiddleMark::Right) && a.raw() < b.raw())
+                        // Left = later-endpoint parent search; clear when a is later than b.
+                        // Right = earlier-endpoint parent search; clear when a is earlier than b.
+                        (matches!(mid, MiddleMark::Left) && is_later(graph, a, b))
+                            || (matches!(mid, MiddleMark::Right) && is_later(graph, b, a))
                     }
                     _ => false,
                 };
@@ -771,14 +783,36 @@ impl LpcmciOrientationRule for LpcmciMmr {
                 if !matches!(e.middle, MiddleMark::Unknown) {
                     continue;
                 }
-                // Arrow at either end → apply L/R by order (smaller node gets L toward larger).
+                // Arrow at either end → apply L/R by time order (Left = later endpoint).
                 let has_arrow =
                     matches!(e.at_a, Endpoint::Arrow) || matches!(e.at_b, Endpoint::Arrow);
                 if !has_arrow {
                     continue;
                 }
-                // Smaller id is "left" in dense order → Left on the edge.
-                graph.apply_middle(a, b, MiddleMark::Left)?;
+                let mark = if is_later(graph, a, b) {
+                    // a later than b: arrow into a → Left; else Right.
+                    if matches!(
+                        if e.a == a { e.at_a } else { e.at_b },
+                        Endpoint::Arrow
+                    ) {
+                        MiddleMark::Left
+                    } else {
+                        MiddleMark::Right
+                    }
+                } else if is_later(graph, b, a) {
+                    if matches!(
+                        if e.a == b { e.at_a } else { e.at_b },
+                        Endpoint::Arrow
+                    ) {
+                        MiddleMark::Left
+                    } else {
+                        MiddleMark::Right
+                    }
+                } else {
+                    // Contemporaneous: default Left (matches lagged-edge init convention).
+                    MiddleMark::Left
+                };
+                graph.apply_middle(a, b, mark)?;
                 delta.edges_changed += 1;
                 enqueue_local(graph, a, queue);
                 enqueue_local(graph, b, queue);

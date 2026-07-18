@@ -51,7 +51,7 @@ pub fn unit_change(
 
     require_input_components(
         query.components,
-        "unit_change path attributes Inputs (use distribution_change for mechanisms)",
+        "unit_change requires AttributionComponents::Inputs",
     )?;
 
     let outcome_dense = resolve_outcome_dense(model, query.outcome)?;

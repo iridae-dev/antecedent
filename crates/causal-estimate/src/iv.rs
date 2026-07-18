@@ -238,15 +238,14 @@ impl WaldIv {
             AnalyticSeKind::Hc0
             | AnalyticSeKind::Hc1
             | AnalyticSeKind::Hc2
-            | AnalyticSeKind::Hc3
-            | AnalyticSeKind::NeweyWest { .. } => wald_influence_se(
+            | AnalyticSeKind::Hc3 => wald_influence_se(
                 &z,
                 &problem.treatment,
                 &problem.outcome,
                 wald.ratio,
                 None,
             )?,
-            AnalyticSeKind::Cluster | AnalyticSeKind::PanelClusterHac { .. } => {
+            AnalyticSeKind::Cluster => {
                 let groups = require_clusters(&self.cluster_ids, problem.nrows)?;
                 wald_influence_se(
                     &z,
@@ -255,6 +254,16 @@ impl WaldIv {
                     wald.ratio,
                     Some(groups),
                 )?
+            }
+            AnalyticSeKind::NeweyWest { .. } => {
+                return Err(EstimationError::unsupported(
+                    "WaldIv AnalyticSeKind::NeweyWest is not supported; use Hc1, Cluster, or bootstrap",
+                ));
+            }
+            AnalyticSeKind::PanelClusterHac { .. } => {
+                return Err(EstimationError::unsupported(
+                    "WaldIv AnalyticSeKind::PanelClusterHac is not supported; use Cluster or bootstrap",
+                ));
             }
             AnalyticSeKind::Multiway => {
                 return Err(EstimationError::unsupported("WaldIv AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"));

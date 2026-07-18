@@ -27,7 +27,7 @@ pub struct AnomalyScores {
     pub rows: Arc<[usize]>,
     /// Anomaly scores (−log p under the fitted mechanism at factual parents; higher = more anomalous).
     pub scores: Arc<[f64]>,
-    /// Sum of absolute Shapley noise attributions per row (legacy residual magnitude).
+    /// Sum of absolute Shapley −log p attributions per row.
     pub residual_abs: Arc<[f64]>,
     /// Ancestor (incl. target) components used as Shapley players.
     pub noise_components: Arc<[ComponentId]>,
@@ -99,6 +99,7 @@ pub fn score_anomalies(
                 row,
                 noise_buf: vec![0.0; model.n_nodes()],
                 value_buf: vec![0.0; model.n_nodes()],
+                parent_buf: Vec::new(),
                 ws: MechanismWorkspace::default(),
             };
             // Factual anomaly score: −log p(y|parents) under observed parents.
@@ -165,6 +166,7 @@ struct NoiseShapleyPayoff<'a> {
     row: usize,
     noise_buf: Vec<f64>,
     value_buf: Vec<f64>,
+    parent_buf: Vec<f64>,
     ws: MechanismWorkspace,
 }
 
@@ -195,10 +197,25 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
             &mut values,
             &mut self.ws,
         )?;
-        // Payoff = reconstructed target under coalition noises. Shapley then attributes
-        // which noise terms move Y away from the all-reference reconstruction (Janzing:
-        // distribute the target outlier over ancestor noise coordinates).
-        Ok(self.value_buf[self.target.as_usize()])
+        // Payoff = −log p(y|parents) under the coalition reconstruction so Shapley
+        // redistributes the anomaly score (not the reconstructed Y level).
+        let gather = self
+            .model
+            .gather_for(self.target)
+            .ok_or(AttributionError::MissingArtifact("missing gather"))?;
+        let n_par = gather.n_parents();
+        if self.parent_buf.len() < n_par {
+            self.parent_buf.resize(n_par, 0.0);
+        }
+        for (pi, &p) in gather.parents.iter().enumerate() {
+            self.parent_buf[pi] = self.value_buf[p.as_usize()];
+        }
+        let parents =
+            ParentBatch { n_rows: 1, n_parents: n_par, values: &self.parent_buf[..n_par] };
+        let y = [self.value_buf[self.target.as_usize()]];
+        let mut lp = [0.0];
+        log_prob_column(self.model.mechanisms.get(self.target), &y, parents, &mut lp)?;
+        Ok(-lp[0])
     }
 }
 
@@ -363,6 +380,15 @@ mod tests {
             .expect("y player");
         let y_phi = scores[0].noise_contributions[(n - 1) * scores[0].noise_components.len() + y_idx];
         assert!(y_phi.abs() > 0.0, "y attribution={y_phi}");
+        // Efficiency: Σφ redistributes anomaly-score change (signed sum finite; abs sum = residual_abs).
+        let n_p = scores[0].noise_components.len();
+        let row = n - 1;
+        let phi_sum: f64 =
+            (0..n_p).map(|j| scores[0].noise_contributions[row * n_p + j]).sum();
+        let abs_sum: f64 =
+            (0..n_p).map(|j| scores[0].noise_contributions[row * n_p + j].abs()).sum();
+        assert!(phi_sum.is_finite());
+        assert!((abs_sum - scores[0].residual_abs[row]).abs() < 1e-9);
         let arrows = arrow_strengths(&model).unwrap();
         assert!(!arrows.is_empty());
         assert!(arrows.iter().any(|a| a.strength > 0.5), "arrows={arrows:?}");

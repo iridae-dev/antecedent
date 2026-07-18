@@ -432,7 +432,7 @@ impl UnitChangeQuery {
         Self {
             outcome,
             unit_rows: None,
-            components: AttributionComponents::InputsAndMechanisms,
+            components: AttributionComponents::Inputs,
             allocation: AllocationMethod::Shapley {
                 approximation: ShapleyConfig::monte_carlo(500),
             },

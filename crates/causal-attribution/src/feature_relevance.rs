@@ -14,9 +14,10 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 
 /// Score interventional relevance of each `feature` for `outcome` via Shapley values.
 ///
-/// For coalition `S`, `v(S) = E[Y | do(Xᵢ=μᵢ ∀ i∈S)]` (features outside `S` free under
-/// ancestral sampling). Shapley values `φᵢ` attribute the change from the empty
-/// intervention to intervening on all listed features; the reported score is `|φᵢ|`.
+/// For coalition `S`, `v(S) = E[Y | do(Xᵢ = μᵢ + δ ∀ i∈S)]` (features outside `S` free under
+/// ancestral sampling). `δ` is the shift from each feature's empirical mean. Shapley values
+/// `φᵢ` attribute the change from the empty intervention to intervening on all listed
+/// features; the reported score is `|φᵢ|`.
 ///
 /// # Errors
 ///
@@ -26,7 +27,7 @@ pub fn feature_relevance(
     data: &TabularData,
     outcome: VariableId,
     features: &[VariableId],
-    _delta: f64,
+    delta: f64,
     n_samples: usize,
     max_features: usize,
     ctx: &ExecutionContext,
@@ -61,6 +62,7 @@ pub fn feature_relevance(
         model,
         features,
         means: &means,
+        delta,
         outcome: outcome_dense,
         n_samples: n_samples.max(1),
         ctx,
@@ -82,6 +84,7 @@ struct FeaturePayoff<'a> {
     model: &'a CompiledCausalModel,
     features: &'a [VariableId],
     means: &'a [f64],
+    delta: f64,
     outcome: causal_graph::DenseNodeId,
     n_samples: usize,
     ctx: &'a ExecutionContext,
@@ -94,7 +97,8 @@ impl CoalitionPayoff for FeaturePayoff<'_> {
         let mut interventions = Vec::new();
         for (i, &feat) in self.features.iter().enumerate() {
             if mask & (1u64 << i) != 0 {
-                interventions.push(Intervention::set(feat, Value::f64(self.means[i])));
+                interventions
+                    .push(Intervention::set(feat, Value::f64(self.means[i] + self.delta)));
             }
         }
         // Common random numbers across coalitions (fixed seed).

@@ -51,7 +51,7 @@ pub fn distribution_change_robust(
     query.validate()?;
     require_mechanism_components(
         query.components,
-        "distribution_change_robust requires Mechanisms components",
+        "distribution_change_robust requires AttributionComponents::Mechanisms",
     )?;
 
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;

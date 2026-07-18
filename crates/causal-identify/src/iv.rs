@@ -200,10 +200,8 @@ fn is_valid_instrument(
         return Ok(false);
     }
 
-    // 1. Relevance: Z reaches T and is not d-separated from T given ∅.
-    if !dag.reaches(z, t) {
-        return Ok(false);
-    }
+    // 1. Relevance: Z is not d-separated from T given ∅ (association, not
+    // necessarily a directed path Z → … → T — e.g. Z ← C → T is relevant).
     let independent_of_t = dag.is_d_separated(z, t, &[], ws).map_err(IdentificationError::from)?;
     if independent_of_t {
         return Ok(false);
@@ -248,6 +246,30 @@ mod tests {
         assert!(res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(0)]));
         // The confounder U itself must never be reported as a valid instrument.
         assert!(!res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(3)]));
+    }
+
+    #[test]
+    fn relevance_via_common_cause_not_directed_path() {
+        // Z ← C → T → Y: Z does not reach T, but is associated with T and is a valid IV.
+        let mut g = Dag::with_variables(4);
+        let z = DenseNodeId::from_raw(0);
+        let c = DenseNodeId::from_raw(1);
+        let t = DenseNodeId::from_raw(2);
+        let y = DenseNodeId::from_raw(3);
+        g.insert_directed(c, z).unwrap();
+        g.insert_directed(c, t).unwrap();
+        g.insert_directed(t, y).unwrap();
+
+        let id = InstrumentalVariableIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(0)]));
     }
 
     #[test]

@@ -200,9 +200,8 @@ impl AipwAte {
             AnalyticSeKind::Hc0
             | AnalyticSeKind::Hc1
             | AnalyticSeKind::Hc2
-            | AnalyticSeKind::Hc3
-            | AnalyticSeKind::NeweyWest { .. } => hetero_influence_se(&workspace.psi),
-            AnalyticSeKind::Cluster | AnalyticSeKind::PanelClusterHac { .. } => {
+            | AnalyticSeKind::Hc3 => hetero_influence_se(&workspace.psi),
+            AnalyticSeKind::Cluster => {
                 let groups_full = require_clusters(&self.cluster_ids, problem.nrows)?;
                 match &retained {
                     Some(idx) => {
@@ -211,6 +210,16 @@ impl AipwAte {
                     }
                     None => cluster_influence_se(&workspace.psi, groups_full),
                 }
+            }
+            AnalyticSeKind::NeweyWest { .. } => {
+                return Err(EstimationError::unsupported(
+                    "AIPW AnalyticSeKind::NeweyWest is not supported; use Hc1, Cluster, or bootstrap",
+                ));
+            }
+            AnalyticSeKind::PanelClusterHac { .. } => {
+                return Err(EstimationError::unsupported(
+                    "AIPW AnalyticSeKind::PanelClusterHac is not supported; use Cluster or bootstrap",
+                ));
             }
             AnalyticSeKind::Multiway => {
                 return Err(EstimationError::unsupported(

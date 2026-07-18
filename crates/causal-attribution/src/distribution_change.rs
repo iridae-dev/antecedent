@@ -76,7 +76,7 @@ pub fn distribution_change(
     query.validate()?;
     require_mechanism_components(
         query.components,
-        "distribution_change requires Mechanisms (or All / InputsAndMechanisms)",
+        "distribution_change requires AttributionComponents::Mechanisms",
     )?;
 
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;

@@ -196,13 +196,45 @@ pub(crate) fn cluster_influence_se(psi: &[f64], groups: &[u32]) -> f64 {
     (scale * sum_s2).max(0.0).sqrt()
 }
 
-/// Heteroskedastic (HC1-style) SE for a scalar influence sequence: `√(Σ ψ_i² / (n(n−1)))`.
+/// Heteroskedastic (HC1-style) SE for a scalar influence sequence:
+/// `√(Σ (ψ_i − ψ̄)² / (n(n−1)))`.
+///
+/// Demeaning is required: without it the estimator targets `(Var(ψ) + ATE²)/n`
+/// whenever `E[ψ] = ATE ≠ 0`.
 #[must_use]
 pub(crate) fn hetero_influence_se(psi: &[f64]) -> f64 {
     let n = psi.len();
     if n < 2 {
         return f64::NAN;
     }
-    let sum_sq: f64 = psi.iter().map(|v| v * v).sum();
+    let mean = psi.iter().sum::<f64>() / n as f64;
+    let sum_sq: f64 = psi.iter().map(|v| {
+        let d = v - mean;
+        d * d
+    }).sum();
     (sum_sq / ((n * (n - 1)) as f64)).max(0.0).sqrt()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hetero_influence_se;
+
+    #[test]
+    fn hetero_influence_se_demeans() {
+        // Constant nonzero ψ: Var = 0 after demeaning → SE = 0 (not |ATE|/√(n−1)).
+        let psi = vec![2.0_f64; 10];
+        let se = hetero_influence_se(&psi);
+        assert!(se.is_finite());
+        assert!(se < 1e-12, "expected near-zero SE after demeaning, got {se}");
+    }
+
+    #[test]
+    fn hetero_influence_se_matches_sample_sd_over_sqrt_n() {
+        let psi = [1.0, 2.0, 3.0, 4.0, 5.0];
+        let se = hetero_influence_se(&psi);
+        let mean = 3.0;
+        let var: f64 = psi.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / 4.0;
+        let expected = (var / 5.0).sqrt();
+        assert!((se - expected).abs() < 1e-12);
+    }
 }

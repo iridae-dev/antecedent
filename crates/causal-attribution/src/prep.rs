@@ -13,15 +13,19 @@ use causal_model::CompiledCausalModel;
 use crate::error::AttributionError;
 use crate::population::{resolve_rows, subset_table};
 
-/// Require mechanism-capable attribution components (rejects Inputs / Structure alone).
+/// Require mechanism-only attribution components (rejects Inputs / Structure /
+/// InputsAndMechanisms / All until joint attribution is implemented).
 pub(crate) fn require_mechanism_components(
     components: AttributionComponents,
     message: &'static str,
 ) -> Result<(), AttributionError> {
     match components {
-        AttributionComponents::Mechanisms
-        | AttributionComponents::InputsAndMechanisms
-        | AttributionComponents::All => Ok(()),
+        AttributionComponents::Mechanisms => Ok(()),
+        AttributionComponents::InputsAndMechanisms | AttributionComponents::All => {
+            Err(AttributionError::unsupported(
+                "InputsAndMechanisms/All not implemented for this path; use Mechanisms only",
+            ))
+        }
         AttributionComponents::Inputs | AttributionComponents::Structure => {
             Err(AttributionError::unsupported(message))
         }
@@ -31,15 +35,19 @@ pub(crate) fn require_mechanism_components(
     }
 }
 
-/// Require input-capable attribution components (rejects Mechanisms / Structure alone).
+/// Require input-only attribution components (rejects Mechanisms / Structure /
+/// InputsAndMechanisms / All until joint attribution is implemented).
 pub(crate) fn require_input_components(
     components: AttributionComponents,
     message: &'static str,
 ) -> Result<(), AttributionError> {
     match components {
-        AttributionComponents::Inputs
-        | AttributionComponents::InputsAndMechanisms
-        | AttributionComponents::All => Ok(()),
+        AttributionComponents::Inputs => Ok(()),
+        AttributionComponents::InputsAndMechanisms | AttributionComponents::All => {
+            Err(AttributionError::unsupported(
+                "InputsAndMechanisms/All not implemented for this path; use Inputs only",
+            ))
+        }
         AttributionComponents::Mechanisms | AttributionComponents::Structure => {
             Err(AttributionError::unsupported(message))
         }
