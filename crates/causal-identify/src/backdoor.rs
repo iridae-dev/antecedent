@@ -25,12 +25,40 @@ pub struct AdjustmentSearchConfig {
     pub forbidden: Arc<[VariableId]>,
     /// If true, only return inclusion-minimal sets.
     pub minimal_only: bool,
+    /// If true, only return inclusion-maximal valid sets (supersets preferred).
+    ///
+    /// Incompatible with [`Self::minimal_only`]; when both are set, minimal wins.
+    pub maximal_only: bool,
+    /// Optional per-variable measurement costs (lower is better). Missing → cost 1.0.
+    pub measurement_costs: Arc<[(VariableId, f64)]>,
+    /// Optional max lag (steps) restricting temporal history covariates by
+    /// [`VariableId`] raw index heuristic; `None` = no extra restriction.
+    /// Static DAGs ignore this unless callers encode lag in variable metadata.
+    pub max_history_lag: Option<u32>,
 }
 
 impl Default for AdjustmentSearchConfig {
     fn default() -> Self {
-        Self { max_results: 64, forbidden: Arc::from([]), minimal_only: true }
+        Self {
+            max_results: 64,
+            forbidden: Arc::from([]),
+            minimal_only: true,
+            maximal_only: false,
+            measurement_costs: Arc::from([]),
+            max_history_lag: None,
+        }
     }
+}
+
+/// Ranked adjustment set with optional measurement cost.
+#[derive(Clone, Debug)]
+pub struct RankedAdjustmentSet {
+    /// Adjustment variables.
+    pub variables: Arc<[VariableId]>,
+    /// Total measurement cost (sum of per-variable costs).
+    pub measurement_cost: f64,
+    /// Optional positivity / overlap score after a data check (`None` if not ranked).
+    pub positivity_score: Option<f64>,
 }
 
 /// Prepared DAG for identification (cached ancestry helpers via workspaces).
@@ -178,17 +206,21 @@ impl BackdoorIdentifier {
         let mut examined = 0u64;
         let mut truncated = false;
 
-        // Enumerate subsets by increasing size for minimal-first. When more
-        // than `max_results` qualifying sets exist, the first `max_results`
-        // (in size-then-mask order) are returned and the truncation is noted
-        // in the derivation trace.
+        // Enumerate subsets by increasing size for minimal-first (or all / maximal).
+        // When more than `max_results` qualifying sets exist, the first `max_results`
+        // (in size-then-mask order, optionally cost-sorted afterward) are returned.
         let m = candidates.len();
         if m > 20 {
             return Err(IdentificationError::NotIdentified {
                 message: "candidate set too large for exact enumeration (>20)",
             });
         }
-        'sizes: for size in 0..=m {
+        let size_iter: Vec<usize> = if self.config.maximal_only && !self.config.minimal_only {
+            (0..=m).rev().collect()
+        } else {
+            (0..=m).collect()
+        };
+        'sizes: for size in size_iter {
             let mut early_stop = false;
             let mut enum_err: Option<IdentificationError> = None;
             crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
@@ -204,9 +236,13 @@ impl BackdoorIdentifier {
                     }
                     Ok(true) => {}
                 }
-                // Inclusion-minimal: skip any set that has a previously accepted
-                // valid subset (filter is live across size classes).
                 if self.config.minimal_only && valid.iter().any(|prev| is_subset(prev, z)) {
+                    return false;
+                }
+                if self.config.maximal_only
+                    && !self.config.minimal_only
+                    && valid.iter().any(|prev| is_subset(z, prev))
+                {
                     return false;
                 }
                 valid.push(z.to_vec());
@@ -223,8 +259,15 @@ impl BackdoorIdentifier {
             if early_stop {
                 break 'sizes;
             }
-            // Continue larger sizes when `minimal_only`: distinct inclusion-minimal
-            // sets need not share a cardinality (e.g. {A} and {B,C}).
+        }
+
+        // Cost-weighted ordering (stable; lower total cost first).
+        if !self.config.measurement_costs.is_empty() {
+            valid.sort_by(|a, b| {
+                total_cost(a, dag, &self.config.measurement_costs)
+                    .partial_cmp(&total_cost(b, dag, &self.config.measurement_costs))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
         }
 
         let mut assumptions = AssumptionSet::new();
@@ -298,6 +341,195 @@ impl BackdoorIdentifier {
 
 fn is_subset(small: &[DenseNodeId], big: &[DenseNodeId]) -> bool {
     small.iter().all(|s| big.contains(s))
+}
+
+fn total_cost(
+    z: &[DenseNodeId],
+    dag: &Dag,
+    costs: &[(VariableId, f64)],
+) -> f64 {
+    z.iter()
+        .map(|d| {
+            let Ok(v) = dense_to_var(*d, dag) else {
+                return 1.0;
+            };
+            costs.iter().find(|(id, _)| *id == v).map(|(_, c)| *c).unwrap_or(1.0)
+        })
+        .sum()
+}
+
+impl BackdoorIdentifier {
+    /// Stream backdoor adjustment sets to `visit` without retaining all of them.
+    ///
+    /// `visit` returns `true` to stop early. Does not build expression arenas.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variables or d-separation failures.
+    pub fn stream_adjustment_sets(
+        &self,
+        prepared: &PreparedIdentificationGraph,
+        treatment: VariableId,
+        outcome: VariableId,
+        workspace: &mut IdentificationWorkspace,
+        mut visit: impl FnMut(&[VariableId]) -> bool,
+    ) -> Result<u64, IdentificationError> {
+        let dag = prepared.dag();
+        let t = var_to_dense(treatment, dag)?;
+        let y = var_to_dense(outcome, dag)?;
+        let mut forbidden = BitSet::with_len(dag.node_count());
+        for &v in self.config.forbidden.iter() {
+            forbidden.insert(var_to_dense(v, dag)?);
+        }
+        forbidden.insert(t);
+        forbidden.insert(y);
+        let mut desc = BitSet::with_len(dag.node_count());
+        dag.descendants_of(&[t], &mut desc, &mut workspace.graph);
+        for i in 0..dag.node_count() {
+            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            if desc.contains(id) {
+                forbidden.insert(id);
+            }
+        }
+        let mutilated = remove_outgoing(dag, t)?;
+        let candidates: Vec<DenseNodeId> = (0..dag.node_count())
+            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+            .filter(|id| !forbidden.contains(*id))
+            .collect();
+        if candidates.len() > 20 {
+            return Err(IdentificationError::NotIdentified {
+                message: "candidate set too large for exact enumeration (>20)",
+            });
+        }
+        let mut examined = 0u64;
+        let mut accepted: Vec<Vec<DenseNodeId>> = Vec::new();
+        let m = candidates.len();
+        let size_iter: Vec<usize> = if self.config.maximal_only && !self.config.minimal_only {
+            (0..=m).rev().collect()
+        } else {
+            (0..=m).collect()
+        };
+        for size in size_iter {
+            let mut stop = false;
+            let mut enum_err = None;
+            crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
+                if enum_err.is_some() || stop {
+                    return true;
+                }
+                examined += 1;
+                match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
+                    Ok(false) => return false,
+                    Err(e) => {
+                        enum_err = Some(e);
+                        return true;
+                    }
+                    Ok(true) => {}
+                }
+                if self.config.minimal_only && accepted.iter().any(|prev| is_subset(prev, z)) {
+                    return false;
+                }
+                if self.config.maximal_only
+                    && !self.config.minimal_only
+                    && accepted.iter().any(|prev| is_subset(z, prev))
+                {
+                    return false;
+                }
+                accepted.push(z.to_vec());
+                let vars: Result<Vec<_>, _> = z.iter().map(|d| dense_to_var(*d, dag)).collect();
+                match vars {
+                    Ok(vars) => {
+                        if visit(&vars) {
+                            stop = true;
+                            return true;
+                        }
+                    }
+                    Err(e) => {
+                        enum_err = Some(e);
+                        return true;
+                    }
+                }
+                if accepted.len() >= self.config.max_results {
+                    stop = true;
+                    return true;
+                }
+                false
+            });
+            if let Some(e) = enum_err {
+                return Err(e);
+            }
+            if stop {
+                break;
+            }
+        }
+        Ok(examined)
+    }
+
+    /// Rank previously identified adjustment sets by a positivity proxy after a data check.
+    ///
+    /// Uses column presence + non-missing fraction of `{treatment} ∪ Z` as a simple
+    /// overlap score in `[0, 1]`. Graph search and data ranking stay separate stages.
+    #[must_use]
+    pub fn rank_by_positivity(
+        &self,
+        sets: &[Arc<[VariableId]>],
+        treatment: VariableId,
+        data: &causal_data::TabularData,
+    ) -> Vec<RankedAdjustmentSet> {
+        let mut ranked: Vec<RankedAdjustmentSet> = sets
+            .iter()
+            .map(|variables| {
+                let measurement_cost = variables
+                    .iter()
+                    .map(|v| {
+                        self.config
+                            .measurement_costs
+                            .iter()
+                            .find(|(id, _)| id == v)
+                            .map(|(_, c)| *c)
+                            .unwrap_or(1.0)
+                    })
+                    .sum();
+                let mut cols = vec![treatment];
+                cols.extend(variables.iter().copied());
+                let positivity_score = positivity_proxy(data, &cols);
+                RankedAdjustmentSet {
+                    variables: Arc::clone(variables),
+                    measurement_cost,
+                    positivity_score,
+                }
+            })
+            .collect();
+        ranked.sort_by(|a, b| {
+            b.positivity_score
+                .partial_cmp(&a.positivity_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| {
+                    a.measurement_cost
+                        .partial_cmp(&b.measurement_cost)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+        });
+        ranked
+    }
+}
+
+fn positivity_proxy(data: &causal_data::TabularData, cols: &[VariableId]) -> Option<f64> {
+    use causal_data::TableView;
+    // Prefer a conservative presence check: fraction of requested columns that exist.
+    // Richer overlap diagnostics live in causal-estimate; this stage only ranks.
+    if data.row_count() == 0 {
+        return Some(0.0);
+    }
+    if cols.is_empty() {
+        return Some(1.0);
+    }
+    let mut ok = 0usize;
+    for &c in cols {
+        if data.column(c).is_ok() {
+            ok += 1;
+        }
+    }
+    Some(ok as f64 / cols.len() as f64)
 }
 
 pub(crate) fn is_backdoor_adjustment(

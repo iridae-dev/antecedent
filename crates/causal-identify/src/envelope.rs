@@ -136,6 +136,7 @@ mod tests {
             required_assumptions: AssumptionSet::default(),
             diagnostics: Vec::new(),
             performance: IdentificationPerformanceRecord::default(),
+            hedge: None,
         }
     }
 

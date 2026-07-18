@@ -48,6 +48,9 @@ pub fn sample_noise_column(
             }
             Ok(())
         }
+        MechanismSlot::Dynamic { mechanism, .. } => {
+            mechanism.sample_noise_column(n_rows, rng, output)
+        }
     }
 }
 
@@ -124,6 +127,9 @@ pub fn evaluate_column(
             }
             Ok(())
         }
+        MechanismSlot::Dynamic { mechanism, .. } => {
+            mechanism.evaluate_column(parents, noise, output, _ws)
+        }
     }
 }
 
@@ -163,6 +169,9 @@ pub fn infer_noise_column(
                 output[r] = value[r] - *c;
             }
             Ok(())
+        }
+        MechanismSlot::Dynamic { mechanism, .. } => {
+            mechanism.infer_noise_column(value, parents, output)
         }
         _ => Err(ModelError::Unsupported {
             message: "noise inference requires invertible linear/constant mechanism".into(),
@@ -254,6 +263,9 @@ pub fn log_prob_column(
         }
         MechanismSlot::Vacant | MechanismSlot::Pending { .. } => {
             Err(ModelError::Unsupported { message: "mechanism not fitted".into() })
+        }
+        MechanismSlot::Dynamic { mechanism, .. } => {
+            mechanism.log_prob_column(values, parents, output)
         }
     }
 }
@@ -413,5 +425,41 @@ mod tests {
         infer_noise_column(&slot, &out, parents, &mut inferred).unwrap();
         assert!((inferred[0] - 0.1).abs() < 1e-12);
         assert!((inferred[1] - (-0.2)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn dynamic_mechanism_dispatch() {
+        struct ConstMech(f64);
+        impl crate::compile::DynamicMechanism for ConstMech {
+            fn sample_noise_column(
+                &self,
+                n_rows: usize,
+                _rng: &mut causal_core::CausalRng,
+                output: &mut [f64],
+            ) -> Result<(), ModelError> {
+                output[..n_rows].fill(0.0);
+                Ok(())
+            }
+            fn evaluate_column(
+                &self,
+                parents: ParentBatch<'_>,
+                _noise: &[f64],
+                output: &mut [f64],
+                _ws: &mut MechanismWorkspace,
+            ) -> Result<(), ModelError> {
+                output[..parents.n_rows].fill(self.0);
+                Ok(())
+            }
+        }
+        let slot = MechanismSlot::Dynamic {
+            id: Arc::from("y"),
+            mechanism: Arc::new(ConstMech(7.0)),
+        };
+        let parents = ParentBatch { n_rows: 3, n_parents: 0, values: &[] };
+        let noise = [0.0; 3];
+        let mut out = [0.0; 3];
+        let mut ws = MechanismWorkspace::default();
+        evaluate_column(&slot, parents, &noise, &mut out, &mut ws).unwrap();
+        assert_eq!(out, [7.0, 7.0, 7.0]);
     }
 }

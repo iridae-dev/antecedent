@@ -1,9 +1,8 @@
 //! Causal identification algorithms.
 //!
 //! Identify first; estimate second. Primary entry points include
-//! [`BackdoorIdentifier`], [`FrontDoorIdentifier`], and
-//! [`InstrumentalVariableIdentifier`]. Full ID/IDC (`AutoIdentifier`) is not
-//! shipped yet (DESIGN.md §10).
+//! [`BackdoorIdentifier`], [`FrontDoorIdentifier`], [`IdIdentifier`],
+//! [`IdcIdentifier`], and [`AutoIdentifier`] (DESIGN.md §10).
 //!
 //! ```
 //! use causal_identify::BackdoorIdentifier;
@@ -18,6 +17,7 @@
 #![deny(missing_docs)]
 
 pub mod assumptions;
+pub mod auto;
 pub mod backdoor;
 pub(crate) mod enum_masks;
 pub mod efficient;
@@ -25,8 +25,12 @@ pub mod envelope;
 pub mod error;
 pub mod frontdoor;
 pub mod generalized;
+pub mod hedge;
+pub mod id;
+pub mod idc;
 pub mod identifier;
 pub mod iv;
+pub mod prepared;
 pub mod rd;
 pub mod result;
 pub mod temporal_backdoor;
@@ -35,7 +39,10 @@ pub mod temporal_mediation;
 #[cfg(test)]
 mod id_scm_property;
 
-pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};
+pub use auto::{AutoIdentifier, PreparedAutoGraph};
+pub use backdoor::{
+    AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph, RankedAdjustmentSet,
+};
 pub use efficient::EfficientBackdoorIdentifier;
 pub use envelope::{
     GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass,
@@ -43,8 +50,12 @@ pub use envelope::{
 pub use error::IdentificationError;
 pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
 pub use generalized::{GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier};
+pub use hedge::HedgeCertificate;
+pub use id::IdIdentifier;
+pub use idc::IdcIdentifier;
 pub use identifier::{IdentificationWorkspace, Identifier};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
+pub use prepared::{PreparedAdmg, dag_to_admg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use result::{
     DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,

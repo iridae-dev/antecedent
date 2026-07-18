@@ -58,6 +58,11 @@ status = "done"
 notes = "Ranking + optional graph/posterior contribution blocks"
 
 [[capabilities]]
+id = "attribution.structure"
+status = "done"
+notes = "Dual-graph parent-set Shapley structure_change; non-ancestor diffs in unidentified"
+
+[[capabilities]]
 id = "attribution.facade"
 status = "done"
 notes = "Facade + conformance tests under crates/causal/tests/attribution.rs"

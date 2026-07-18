@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![deny(missing_docs)]
 
 pub mod analysis_wire;
@@ -19,12 +19,18 @@ pub mod graph_json;
 pub mod graph_networkx;
 pub mod mechanism_wire;
 pub mod migrate;
+/// Thin mmap wrapper — sole `unsafe` boundary in causal-io (DESIGN.md §24.5).
+///
+/// SPDX-License-Identifier: MIT OR Apache-2.0
+#[allow(unsafe_code)]
+pub mod mmap_file;
 pub mod model_bundle;
 pub mod plan_wire;
 pub mod posterior;
 pub mod posterior_convert;
 pub mod provenance_wire;
 pub mod query_wire;
+pub mod reader;
 pub mod trace;
 pub mod wire;
 
@@ -34,11 +40,11 @@ pub use analysis_wire::{
     effect_estimate_to_wire, identification_from_wire, identification_to_wire,
     refutation_from_wire, refutation_to_wire,
 };
-pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section};
+pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section, arrow_ipc_section_shared};
 pub use container::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, ArtifactManifest, COMPRESSION_ZSTD,
     CONTAINER_VERSION, CompressPolicy, EncodedArtifact, MAGIC, SectionBytes, pack_section,
-    section_descriptor, section_descriptor_with_policy,
+    pack_section_shared, section_descriptor, section_descriptor_with_policy,
 };
 pub use contrast_wire::{ContrastBundleWire, RecordedContrastWire};
 pub use convert::{
@@ -64,7 +70,7 @@ pub use mechanism_wire::{
 };
 pub use migrate::{
     STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact,
-    read_and_migrate,
+    migrate_from_seek, read_and_migrate,
 };
 pub use model_bundle::{
     ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle,
@@ -77,7 +83,7 @@ pub use plan_wire::{
 };
 pub use posterior::{
     CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,
-    encode_posterior_artifact,
+    decode_posterior_meta_from_path, decode_posterior_meta_from_seek, encode_posterior_artifact,
 };
 pub use posterior_convert::{
     decode_causal_posterior_bytes, encode_causal_posterior, encode_causal_posterior_bytes,
@@ -87,9 +93,13 @@ pub use provenance_wire::{
 };
 pub use query_wire::{
     CausalQueryWire, InterventionalDistributionQueryWire, InterventionWire,
-    PathSpecificEffectQueryWire, SetInterventionWire, TargetPopulationWire, ValueWire,
-    causal_query_from_wire, causal_query_to_wire, interventional_distribution_from_wire,
+    PathSpecificEffectQueryWire, SetInterventionWire, TargetPopulationWire, TemporalPolicyWire,
+    ValueWire, causal_query_from_wire, causal_query_to_wire, interventional_distribution_from_wire,
     interventional_distribution_to_wire, path_specific_from_wire, path_specific_to_wire,
+};
+pub use reader::{
+    ArtifactReader, MappedArtifactReader, MappedSection, SectionAccess, SectionIndexEntry,
+    SectionLoadStats,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,
@@ -153,8 +163,8 @@ mod tests {
                 provenance: ProvenanceWire { note: "roundtrip".into() },
             },
             sections: vec![
-                SectionBytes { id: "schema".into(), data: schema_bytes },
-                SectionBytes { id: "dag".into(), data: dag_bytes },
+                SectionBytes::new("schema", schema_bytes),
+                SectionBytes::new("dag", dag_bytes),
             ],
         };
 
@@ -208,7 +218,7 @@ mod tests {
                 sections: vec![desc],
                 provenance: ProvenanceWire { note: "trace".into() },
             },
-            sections: vec![SectionBytes { id: "analysis.trace".into(), data: bytes }],
+            sections: vec![SectionBytes::new("analysis.trace", bytes)],
         };
         let mut buf = Vec::new();
         artifact.write_to(&mut buf).unwrap();

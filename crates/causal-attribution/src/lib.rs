@@ -2,9 +2,9 @@
 //!
 //! # Modules
 //!
-//! Browse by concern: [`anomaly`], [`distribution_change`], [`unit_change`],
-//! [`path`], [`feature_relevance`], [`mechanism_change`], [`robust`], [`root_cause`],
-//! [`shapley`], [`builder`].
+//! Browse by concern: [`anomaly`], [`distribution_change`], [`structure_change`],
+//! [`unit_change`], [`path`], [`feature_relevance`], [`mechanism_change`], [`robust`],
+//! [`root_cause`], [`shapley`], [`builder`].
 //!
 //! # Example
 //!
@@ -43,6 +43,7 @@ pub mod result;
 pub mod robust;
 pub mod root_cause;
 pub mod shapley;
+pub mod structure_change;
 pub mod unit_change;
 
 pub use anomaly::{
@@ -69,5 +70,8 @@ pub use root_cause::{
 };
 pub use shapley::{
     CoalitionPayoff, ShapleyEstimate, check_shapley_size, estimate_shapley, sequential_allocate,
+};
+pub use structure_change::{
+    StructureChangeOptions, structure_change, structure_change_shapley,
 };
 pub use unit_change::unit_change;

@@ -74,9 +74,9 @@ owner = "estimate"
 id = "estimate.identify.general_id"
 group = "identification"
 description = "General ID"
-status = "pending"
+status = "done"
 owner = "identify"
-notes = "Full Shpitser ID/IDC; generalized adjustment + envelope shipped — TODO.md item 1 / DESIGN §10.2"
+notes = "Shpitser ID/IDC + hedges + AutoIdentifier — TODO.md item 1 / DESIGN §10.2"
 
 [[capabilities]]
 id = "estimate.identify.estimand"

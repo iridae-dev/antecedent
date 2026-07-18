@@ -50,5 +50,5 @@ notes = "Static FCI/RFCI — TODO.md item 3; LPCMCI is the current PAG discovery
 
 [[capabilities]]
 id = "pag.identify.full_id_idc"
-status = "pending"
-notes = "Full recursive semi-Markovian ID/IDC — TODO.md item 1; PAG uses generalized adjustment envelopes today"
+status = "done"
+notes = "Recursive semi-Markovian ID/IDC on ADMGs (IdIdentifier/IdcIdentifier); PAG class-aware path remains generalized adjustment envelopes"

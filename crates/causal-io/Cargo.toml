@@ -25,6 +25,7 @@ causal-prob = { path = "../causal-prob" }
 causal-validate = { path = "../causal-validate" }
 blake3 = { workspace = true }
 ciborium = { workspace = true }
+memmap2 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

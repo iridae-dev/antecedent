@@ -57,6 +57,28 @@ pub(crate) fn require_input_components(
     }
 }
 
+/// Require structure-only attribution components (rejects Inputs / Mechanisms /
+/// InputsAndMechanisms / All until joint attribution is implemented).
+pub(crate) fn require_structure_components(
+    components: AttributionComponents,
+    message: &'static str,
+) -> Result<(), AttributionError> {
+    match components {
+        AttributionComponents::Structure => Ok(()),
+        AttributionComponents::InputsAndMechanisms | AttributionComponents::All => {
+            Err(AttributionError::unsupported(
+                "InputsAndMechanisms/All not implemented for this path; use Structure only",
+            ))
+        }
+        AttributionComponents::Inputs | AttributionComponents::Mechanisms => {
+            Err(AttributionError::unsupported(message))
+        }
+        _ => Err(AttributionError::unsupported(
+            "unsupported AttributionComponents for this attribution path",
+        )),
+    }
+}
+
 /// Resolve dense outcome id from a compiled model.
 pub(crate) fn resolve_outcome_dense(
     model: &CompiledCausalModel,

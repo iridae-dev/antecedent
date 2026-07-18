@@ -25,7 +25,7 @@ pub use counterfactual::CounterfactualQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
-pub use target::TargetPopulation;
+pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
 
 

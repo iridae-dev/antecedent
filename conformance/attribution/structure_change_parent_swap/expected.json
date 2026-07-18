@@ -1,0 +1,7 @@
+{
+  "outcome": "y",
+  "total_change_min": 2.0,
+  "dominant_component": "y",
+  "allocation": "exact_shapley",
+  "notes": "Baseline X→Y vs comparison Z→Y; parent-set Shapley attributes to Y."
+}

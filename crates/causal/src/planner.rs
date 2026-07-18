@@ -130,8 +130,9 @@ impl LogicalAnalysisPlan {
         match (&self.query, self.record.data_classification) {
             (CausalQuery::Distribution(_), _) => {
                 return Err(AnalysisError::Unsupported {
-                    message: "CausalQuery::Distribution is not wired through CausalAnalysis; \
-                     use sample_interventional_distribution (identify/estimate deferred — IDC)",
+                    message: "CausalQuery::Distribution estimation is not wired through \
+                     CausalAnalysis; identify via IdIdentifier/IdcIdentifier/AutoIdentifier \
+                     (general.id), then sample_interventional_distribution for GCM sampling",
                 });
             }
             (CausalQuery::PathSpecific(_), _) => {
@@ -457,6 +458,15 @@ pub fn compile_logical_temporal_effect(
     review_required: bool,
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {
     query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    if query.target_population != TargetPopulation::AllObserved {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "temporal linear adjustment only supports TargetPopulation::AllObserved \
+                 (got {:?}); Predicate/CustomDistribution evaluation is deferred",
+                query.target_population
+            ),
+        });
+    }
     let row_count_hint =
         split.map_or_else(|| data.row_count() as u64, |s| s.estimation.len() as u64);
     let record = LogicalAnalysisPlanRecord {
@@ -484,6 +494,7 @@ mod tests {
     use causal_core::{
         AverageEffectQuery, ExecutionContext, MemoryBudget, TemporalEffectQuery, VariableId,
     };
+    use causal_graph::TemporalDag;
 
     use super::*;
 
@@ -696,6 +707,70 @@ mod tests {
             estimator: Arc::from("linear.adjustment.ate"),
         })
         .unwrap_err();
+        assert!(matches!(err, AnalysisError::Compile { .. }));
+    }
+
+    #[test]
+    fn refuses_planned_target_population_on_temporal_effect() {
+        use causal_core::{
+            CausalSchemaBuilder, MeasurementSpec, PredicateExpr, RoleHint, SmallRoleSet,
+            TargetPopulation, ValueType,
+        };
+        use causal_data::{
+            Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+            ValidityBitmap,
+        };
+        use std::sync::Arc as StdArc;
+
+        let n = 8usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    StdArc::from(vec![0.0; n]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    StdArc::from(vec![0.0; n]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap();
+        let graph = TemporalDag::empty();
+        let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_target_population(TargetPopulation::Predicate(PredicateExpr::named("cohort_a")));
+        let err = compile_logical_temporal_effect(&data, &graph, &query, None, false).unwrap_err();
         assert!(matches!(err, AnalysisError::Compile { .. }));
     }
 

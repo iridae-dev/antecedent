@@ -150,3 +150,37 @@ fn path_specific_query_validates() {
         Err(QueryError::PathNodeOverlapsTreatmentOrOutcome)
     ));
 }
+
+#[test]
+fn dynamic_policy_and_planned_populations() {
+    use crate::ids::{DistributionRef, DynamicRuleId};
+
+    let t = VariableId::from_raw(0);
+    let y = VariableId::from_raw(1);
+    let rule = DynamicRuleId::from_raw(7);
+    let q = TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::dynamic(rule));
+    q.validate().unwrap();
+    assert_eq!(q.try_treatment_offset(), Err(QueryError::DynamicPolicyHasNoTreatmentOffset));
+    assert_eq!(q.treatment_offset(), 0);
+
+    let named = AverageEffectQuery::binary_ate(t, y)
+        .with_target_population(TargetPopulation::Predicate(PredicateExpr::named("cohort_a")));
+    named.validate().unwrap();
+
+    let empty_name = AverageEffectQuery::binary_ate(t, y)
+        .with_target_population(TargetPopulation::Predicate(PredicateExpr::named("")));
+    assert!(matches!(empty_name.validate(), Err(QueryError::EmptyPredicateName)));
+
+    let empty_rows = AverageEffectQuery::binary_ate(t, y).with_target_population(
+        TargetPopulation::Predicate(PredicateExpr::rows(Arc::<[usize]>::from([]))),
+    );
+    assert!(matches!(empty_rows.validate(), Err(QueryError::EmptyPopulationRows)));
+
+    let rows = AverageEffectQuery::binary_ate(t, y)
+        .with_target_population(TargetPopulation::Predicate(PredicateExpr::rows([0usize, 2])));
+    rows.validate().unwrap();
+
+    let dist = AverageEffectQuery::binary_ate(t, y)
+        .with_target_population(TargetPopulation::CustomDistribution(DistributionRef::from_raw(3)));
+    dist.validate().unwrap();
+}

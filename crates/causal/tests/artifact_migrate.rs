@@ -61,7 +61,7 @@ fn conformance_migrate_0_1_schema_to_0_2() {
             sections: vec![section_descriptor("schema", "application/cbor", &payload)],
             provenance: ProvenanceWire { note: "v01".into() },
         },
-        sections: vec![SectionBytes { id: "schema".into(), data: payload }],
+        sections: vec![SectionBytes::new("schema", payload)],
     };
     let migrated = migrate_artifact(art).unwrap();
     assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
@@ -108,8 +108,8 @@ fn schema_graph_artifact() -> EncodedArtifact {
             provenance: ProvenanceWire { note: "release".into() },
         },
         sections: vec![
-            SectionBytes { id: "schema".into(), data: schema_bytes },
-            SectionBytes { id: "dag".into(), data: dag_bytes },
+            SectionBytes::new("schema", schema_bytes),
+            SectionBytes::new("dag", dag_bytes),
         ],
     }
 }
@@ -142,7 +142,7 @@ fn analysis_trace_artifact() -> EncodedArtifact {
             sections: vec![section_descriptor("analysis.trace", "application/cbor", &bytes)],
             provenance: ProvenanceWire { note: "release".into() },
         },
-        sections: vec![SectionBytes { id: "analysis.trace".into(), data: bytes }],
+        sections: vec![SectionBytes::new("analysis.trace", bytes)],
     }
 }
 

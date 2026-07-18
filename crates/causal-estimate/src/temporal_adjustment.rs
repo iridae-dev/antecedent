@@ -12,7 +12,9 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, ExecutionContext, Lag, TemporalEffectQuery, VariableId};
+use causal_core::{
+    AssumptionSet, ExecutionContext, Lag, TargetPopulation, TemporalEffectQuery, VariableId,
+};
 use causal_data::{
     DiscoveryEstimationSplit, LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData,
 };
@@ -81,7 +83,15 @@ impl TemporalLinearAdjustment {
         }
         query.validate()?;
 
-        let t_lag = offset_to_lag(query.treatment_offset())?;
+        if matches!(query.policy, causal_core::TemporalPolicy::Dynamic { .. }) {
+            return Err(EstimationError::unsupported(
+                "TemporalPolicy::Dynamic is not supported by temporal linear adjustment",
+            ));
+        }
+        if query.target_population != TargetPopulation::AllObserved {
+            return Err(EstimationError::TargetPopulation);
+        }
+        let t_lag = offset_to_lag(query.try_treatment_offset()?)?;
         let y_lag = offset_to_lag(query.outcome_offset())?;
 
         let mut cols = Vec::with_capacity(2 + estimand.adjustment_set.len());
@@ -180,8 +190,9 @@ fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
 #[allow(clippy::many_single_char_names)]
 mod tests {
     use causal_core::{
-        CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
-        TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
+        CausalSchemaBuilder, DistributionRef, ExecutionContext, Lag, MeasurementSpec,
+        PredicateExpr, RoleHint, SmallRoleSet, TargetPopulation, TemporalEffectQuery,
+        TemporalPolicy, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -270,5 +281,29 @@ mod tests {
         est2.inner.bootstrap_replicates = 0;
         let effect = est2.fit(&prep, &mut ws, &ctx, id_res.result.required_assumptions).unwrap();
         assert!((effect.ate - 0.8).abs() < 0.05, "ate={} expected ~0.8", effect.ate);
+    }
+
+    #[test]
+    fn rejects_planned_target_populations() {
+        let (data, g) = series();
+        let base = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &base).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let est = TemporalLinearAdjustment::new();
+        let policy = &ExecutionContext::for_tests(1).kernel_policy;
+        for population in [
+            TargetPopulation::Treated,
+            TargetPopulation::Predicate(PredicateExpr::named("cohort_a")),
+            TargetPopulation::CustomDistribution(DistributionRef::from_raw(1)),
+        ] {
+            let q = base.clone().with_target_population(population);
+            let err = est
+                .prepare(&data, estimand, &q, &id_res.indexer, None, policy)
+                .unwrap_err();
+            assert!(matches!(err, EstimationError::TargetPopulation));
+        }
     }
 }

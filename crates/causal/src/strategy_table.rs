@@ -20,8 +20,9 @@ use causal_estimate::{
 use causal_expr::IdentifiedEstimand;
 use causal_graph::Dag;
 use causal_identify::{
-    BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier, IdentificationError,
-    IdentificationResult, IdentificationStatus, IdentificationWorkspace, InstrumentalVariableIdentifier,
+    AutoIdentifier, BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier,
+    IdIdentifier, IdentificationError, IdentificationResult, IdentificationStatus,
+    IdentificationWorkspace, InstrumentalVariableIdentifier,
 };
 
 use crate::error::AnalysisError;
@@ -43,6 +44,10 @@ pub enum IdentifierId {
     TemporalBackdoorUnfolded,
     /// Class-aware / generalized adjustment (PAG-safe).
     GeneralizedAdjustment,
+    /// Shpitser–Pearl general ID (semi-Markovian).
+    GeneralId,
+    /// AutoIdentifier — all applicable estimands, no silent estimator choice.
+    Auto,
     /// Unknown / extension id (not in the compile-time allowlist).
     Other(Arc<str>),
 }
@@ -59,6 +64,8 @@ impl IdentifierId {
             "rd.sharp" => Self::RdSharp,
             "temporal.backdoor.unfolded" => Self::TemporalBackdoorUnfolded,
             "generalized.adjustment" => Self::GeneralizedAdjustment,
+            "general.id" => Self::GeneralId,
+            "auto" => Self::Auto,
             other => Self::Other(Arc::from(other)),
         }
     }
@@ -74,6 +81,8 @@ impl IdentifierId {
             Self::RdSharp => "rd.sharp",
             Self::TemporalBackdoorUnfolded => "temporal.backdoor.unfolded",
             Self::GeneralizedAdjustment => "generalized.adjustment",
+            Self::GeneralId => "general.id",
+            Self::Auto => "auto",
             Self::Other(s) => s.as_ref(),
         }
     }
@@ -89,6 +98,8 @@ impl IdentifierId {
                 | Self::Iv
                 | Self::RdSharp
                 | Self::TemporalBackdoorUnfolded
+                | Self::GeneralId
+                | Self::Auto
         )
     }
 }
@@ -338,6 +349,16 @@ pub fn identify_static(
         }
         IdentifierId::Iv => {
             let id = InstrumentalVariableIdentifier::new();
+            let prepared = id.prepare(graph).map_err(identify_err)?;
+            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
+        }
+        IdentifierId::GeneralId => {
+            let id = IdIdentifier::new();
+            let prepared = id.prepare_dag(graph).map_err(identify_err)?;
+            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
+        }
+        IdentifierId::Auto => {
+            let id = AutoIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
             id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
         }

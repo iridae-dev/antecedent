@@ -7,6 +7,8 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic};
 use causal_expr::CausalExprArena;
 
+use crate::hedge::HedgeCertificate;
+
 pub use causal_core::IdentificationStatus;
 pub use causal_expr::IdentifiedEstimand;
 
@@ -61,6 +63,8 @@ pub struct IdentificationResult {
     pub diagnostics: Vec<Diagnostic>,
     /// Performance.
     pub performance: IdentificationPerformanceRecord,
+    /// Hedge witness when [`IdentificationStatus::NotIdentified`] via general ID.
+    pub hedge: Option<HedgeCertificate>,
 }
 
 impl IdentificationResult {
@@ -92,6 +96,7 @@ impl IdentificationResult {
             required_assumptions,
             diagnostics: Vec::new(),
             performance,
+            hedge: None,
         }
     }
 
@@ -112,6 +117,30 @@ impl IdentificationResult {
             required_assumptions,
             diagnostics: Vec::new(),
             performance,
+            hedge: None,
+        }
+    }
+
+    /// Not-identified result with a hedge certificate.
+    #[must_use]
+    pub fn not_identified_hedge(
+        query: CausalQuery,
+        derivation: DerivationTrace,
+        required_assumptions: AssumptionSet,
+        performance: IdentificationPerformanceRecord,
+        hedge: HedgeCertificate,
+        diagnostics: Vec<Diagnostic>,
+    ) -> Self {
+        Self {
+            status: IdentificationStatus::NotIdentified,
+            query,
+            estimands: Vec::new(),
+            arena: CausalExprArena::new(),
+            derivation,
+            required_assumptions,
+            diagnostics,
+            performance,
+            hedge: Some(hedge),
         }
     }
 }

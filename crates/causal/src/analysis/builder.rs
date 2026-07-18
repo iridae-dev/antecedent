@@ -12,23 +12,22 @@
     clippy::cast_precision_loss
 )]
 
+use std::sync::Arc;
 
 use causal_core::{
-    AverageEffectQuery, CausalQuery,
-    TemporalEffectQuery, VariableId,
+    AverageEffectQuery, CausalQuery, TemporalEffectQuery, VariableId,
 };
 use causal_data::{DiscoveryEstimationSplit, MultiEnvironmentData, TabularData, TimeSeriesData};
 use causal_discovery::{MultiDatasetConstraints, RegimeAssignment};
 use causal_estimate::OverlapPolicy;
 use causal_graph::{Dag, Pag, TemporalDag, TemporalPag};
+use causal_stats::ConditionalIndependence;
+use causal_validate::CustomEffectValidator;
 
 use crate::error::AnalysisError;
 use crate::inference::InferenceMode;
 use crate::planner::GraphInput;
-use crate::strategy_table::{
-    EstimatorId,
-    IdentifierId,
-};
+use crate::strategy_table::{EstimatorId, IdentifierId};
 
 use super::execute::CausalAnalysis;
 
@@ -64,7 +63,7 @@ pub struct RdConfig {
 }
 
 /// Builder for static or temporal analysis.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct CausalAnalysisBuilder {
     data: Option<DataInput>,
     graph: Option<GraphInput>,
@@ -78,6 +77,30 @@ pub struct CausalAnalysisBuilder {
     inference: InferenceMode,
     /// Optional override for propensity / AIPW overlap (clip/trim). `None` keeps estimator defaults.
     overlap_policy: Option<OverlapPolicy>,
+    /// Optional CI test for discovery paths (defaults to partial correlation).
+    discovery_ci: Option<Arc<dyn ConditionalIndependence + Send + Sync>>,
+    /// Custom slow-path validators appended after the built-in refute suite.
+    custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
+}
+
+impl std::fmt::Debug for CausalAnalysisBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CausalAnalysisBuilder")
+            .field("data", &self.data.as_ref().map(|_| "<data>"))
+            .field("graph", &self.graph)
+            .field("query", &self.query.as_ref().map(|_| "<query>"))
+            .field("refute", &self.refute)
+            .field("bootstrap_replicates", &self.bootstrap_replicates)
+            .field("split", &self.split)
+            .field("identifier", &self.identifier)
+            .field("estimator", &self.estimator)
+            .field("rd", &self.rd)
+            .field("inference", &self.inference)
+            .field("overlap_policy", &self.overlap_policy)
+            .field("discovery_ci", &self.discovery_ci.as_ref().map(|_| "<dyn CI>"))
+            .field("custom_validators", &self.custom_validators.len())
+            .finish()
+    }
 }
 
 impl Default for CausalAnalysisBuilder {
@@ -102,6 +125,8 @@ impl CausalAnalysisBuilder {
             rd: None,
             inference: InferenceMode::Frequentist,
             overlap_policy: None,
+            discovery_ci: None,
+            custom_validators: Vec::new(),
         }
     }
 
@@ -255,6 +280,20 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Override the CI test used by discovery paths (defaults to partial correlation).
+    #[must_use]
+    pub fn discovery_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
+        self.discovery_ci = Some(ci);
+        self
+    }
+
+    /// Append custom effect validators (DESIGN §25.4 slow path).
+    #[must_use]
+    pub fn custom_validators(mut self, validators: Vec<Arc<dyn CustomEffectValidator>>) -> Self {
+        self.custom_validators = validators;
+        self
+    }
+
     /// Supply a static PAG (class-aware identification required; DAG-only IDs are refused).
     #[must_use]
     pub fn pag(mut self, graph: Pag) -> Self {
@@ -384,6 +423,8 @@ impl CausalAnalysisBuilder {
             rd: self.rd,
             inference: self.inference,
             overlap_policy: self.overlap_policy,
+            discovery_ci: self.discovery_ci,
+            custom_validators: self.custom_validators,
         })
     }
 }

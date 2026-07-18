@@ -35,6 +35,7 @@ use causal_validate::{
     BayesianSuiteContext, ValidationSuite,
 };
 
+use crate::callback_plan::mark_python_callback_plan;
 use crate::error::AnalysisError;
 use crate::inference::{BayesianConfig, InferenceMode};
 use crate::planner::{
@@ -56,12 +57,12 @@ use crate::strategy_table::{
 use super::builder::{CausalAnalysisBuilder, DataInput, RdConfig, RefuteSuite};
 use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic,
-    provenance_pair, run_jpcmci_plus_review, run_lpcmci_review, run_pcmci_plus_review,
-    run_pcmci_review, run_pc_review, run_refuters, run_rpcmci_discovery,
+    provenance_pair, resolve_analysis_ci, run_jpcmci_plus_review, run_lpcmci_review,
+    run_pcmci_plus_review, run_pcmci_review, run_pc_review, run_refuters, run_rpcmci_discovery,
 };
 
 /// Prepared analysis (static or temporal).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct CausalAnalysis {
     pub(crate) data: DataInput,
     pub(crate) graph: GraphInput,
@@ -74,6 +75,22 @@ pub struct CausalAnalysis {
     pub(crate) rd: Option<RdConfig>,
     pub(crate) inference: InferenceMode,
     pub(crate) overlap_policy: Option<OverlapPolicy>,
+    pub(crate) discovery_ci: Option<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>>,
+    pub(crate) custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+}
+
+impl std::fmt::Debug for CausalAnalysis {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CausalAnalysis")
+            .field("graph", &self.graph)
+            .field("refute", &self.refute)
+            .field("bootstrap_replicates", &self.bootstrap_replicates)
+            .field("identifier", &self.identifier)
+            .field("estimator", &self.estimator)
+            .field("discovery_ci", &self.discovery_ci.as_ref().map(|_| "<dyn CI>"))
+            .field("custom_validators", &self.custom_validators.len())
+            .finish()
+    }
 }
 
 impl CausalAnalysis {
@@ -90,6 +107,25 @@ impl CausalAnalysis {
     #[must_use]
     pub fn builder() -> CausalAnalysisBuilder {
         CausalAnalysisBuilder::new()
+    }
+
+    /// Mark physical plan when discovery CI override or custom validators are present.
+    fn apply_callback_plan_marks(
+        &self,
+        mut record: causal_core::PhysicalExecutionPlanRecord,
+        diagnostics: &mut Vec<causal_core::Diagnostic>,
+    ) -> causal_core::PhysicalExecutionPlanRecord {
+        if self.discovery_ci.is_some() {
+            let (r, d) = mark_python_callback_plan(record, "ci");
+            record = r;
+            diagnostics.push(d);
+        }
+        if !self.custom_validators.is_empty() {
+            let (r, d) = mark_python_callback_plan(record, "validator");
+            record = r;
+            diagnostics.push(d);
+        }
+        record
     }
 
     /// Compile logical plan only (inspectable semantics).
@@ -227,7 +263,8 @@ impl CausalAnalysis {
                 CausalQuery::TemporalEffect(q),
                 GraphInput::DiscoverPcmci { max_lag, alpha, fdr, accept_discovered },
             ) => {
-                let review = run_pcmci_review(data, *max_lag, *alpha, *fdr, ctx)?;
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let review = run_pcmci_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
                 if *accept_discovered {
                     PendingGraphReview::new(review, data.row_count(), q.clone(), self.split)
                         .accept_all()
@@ -241,7 +278,8 @@ impl CausalAnalysis {
                 CausalQuery::TemporalEffect(q),
                 GraphInput::DiscoverPcmciPlus { max_lag, alpha, fdr, accept_discovered },
             ) => {
-                let review = run_pcmci_plus_review(data, *max_lag, *alpha, *fdr, ctx)?;
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let review = run_pcmci_plus_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
                 if *accept_discovered && review.pending_undirected.is_empty() {
                     PendingCpdagReview::new(review, data.row_count(), q.clone(), self.split)
                         .accept_all_directed()
@@ -261,12 +299,14 @@ impl CausalAnalysis {
                     multi_dataset,
                 },
             ) => {
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
                 let review = run_jpcmci_plus_review(
                     multi,
                     *max_lag,
                     *alpha,
                     *fdr,
                     multi_dataset,
+                    ci,
                     ctx,
                 )?;
                 let data = multi.environment(0).map_err(|e| AnalysisError::Compile {
@@ -291,8 +331,9 @@ impl CausalAnalysis {
                     regime_assignment,
                 },
             ) => {
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
                 let result =
-                    run_rpcmci_discovery(data, *max_lag, *alpha, *fdr, regime_assignment, ctx)?;
+                    run_rpcmci_discovery(data, *max_lag, *alpha, *fdr, regime_assignment, ci, ctx)?;
                 // Multi-regime estimation is not auto-wired; surface the first regime's CPDAG
                 // for review. Auto-accept only when a single fully-oriented regime exists.
                 let Some(first) = result.per_regime.first() else {
@@ -321,7 +362,8 @@ impl CausalAnalysis {
                 CausalQuery::TemporalEffect(_),
                 GraphInput::DiscoverLpcmci { max_lag, alpha, fdr, accept_discovered },
             ) => {
-                let review = run_lpcmci_review(data, *max_lag, *alpha, *fdr, ctx)?;
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let review = run_lpcmci_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
                 // Temporal backdoor is DAG-only; never auto-finish a PAG into Ready.
                 let _ = accept_discovered;
                 Ok(compile_review_required_pag(review))
@@ -347,7 +389,8 @@ impl CausalAnalysis {
                     accept_discovered,
                 },
             ) => {
-                let review = run_pc_review(data, *alpha, *max_cond_size, *fdr, ctx)?;
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let review = run_pc_review(data, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 if *accept_discovered && review.pending_undirected.is_empty() {
                     let mut accepted = review;
                     accepted.pending_edges = Arc::from([]);
@@ -689,21 +732,19 @@ impl CausalAnalysis {
         diagnostics.push(overlap_diagnostic(estimate.overlap));
 
         // ValidationSuite skips incompatible validators with NotApplicable rather than failing.
-        let refutations = match self.refute {
-            RefuteSuite::None => Vec::new(),
-            RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
-                let mut refute_ws = EstimationWorkspace::default();
-                run_refuters(
-                    data,
-                    &estimand,
-                    query,
-                    &estimate,
-                    &mut refute_ws,
-                    ctx,
-                    self.refute,
-                    estimator,
-                )?
-            }
+        let refutations = {
+            let mut refute_ws = EstimationWorkspace::default();
+            run_refuters(
+                data,
+                &estimand,
+                query,
+                &estimate,
+                &mut refute_ws,
+                ctx,
+                self.refute,
+                estimator,
+                &self.custom_validators,
+            )?
         };
 
         let (id_artifact, id_op) = identify_provenance_step(identifier);
@@ -713,9 +754,10 @@ impl CausalAnalysis {
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
         );
 
+        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
-            physical: &physical.record,
+            physical: &physical_record,
             identification,
             estimand,
             estimate,
@@ -798,9 +840,10 @@ impl CausalAnalysis {
             ),
         );
 
+        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
-            physical: &physical.record,
+            physical: &physical_record,
             identification,
             estimand,
             estimate,
@@ -846,16 +889,17 @@ impl CausalAnalysis {
             .fit(&prep, &mut ws, ctx, identification.required_assumptions.clone())
             .map_err(AnalysisError::from)?;
 
-        let diagnostics = vec![overlap_diagnostic(estimate.overlap)];
+        let mut diagnostics = vec![overlap_diagnostic(estimate.overlap)];
 
         let provenance = provenance_pair(
             ("identify.rd_design", "identify.rd_sharp", &[], &identification.required_assumptions),
             ("estimate.rd", "estimate.rd_sharp", &["identify.rd_design"], &estimate.assumptions),
         );
 
+        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
-            physical: &physical.record,
+            physical: &physical_record,
             identification,
             estimand,
             estimate,
@@ -926,15 +970,17 @@ impl CausalAnalysis {
             ),
         );
 
+        let mut diagnostics = Vec::new();
+        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
-            physical: &physical.record,
+            physical: &physical_record,
             identification,
             estimand,
             estimate,
             posterior: None,
             refutations: Vec::new(),
-            diagnostics: Vec::new(),
+            diagnostics,
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,

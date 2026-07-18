@@ -1,22 +1,15 @@
-//! Temporal backdoor identification over finite unfolded graphs.
+//! Temporal identification over finite unfolded graphs.
 //!
-//! A stationary [`TemporalDag`] template is materialised into a static [`Dag`]
-//! over a finite window (history/horizon), the treatment and outcome are
-//! mapped to their dense unfolded nodes, and the existing [`BackdoorIdentifier`]
-//! runs unchanged on that static graph. Finiteness and stationarity of the
-//! template become declared assumptions on the result.
+//! **Pulse:** a stationary [`TemporalDag`] is unfolded to a static [`Dag`], then
+//! [`BackdoorIdentifier`] runs on the treatment/outcome nodes.
 //!
-//! The history depth is not fixed by the template's single-edge maximum lag:
-//! backdoor paths can chain template edges arbitrarily far into the past, so
-//! the window is grown iteratively until no ancestor of the treatment or
-//! outcome sits in the deepest time slice with in-template parents that were
-//! truncated away. Once the ancestral closure of `{treatment, outcome}` no
-//! longer touches the truncated boundary, enlarging the window further cannot
-//! add backdoor paths, so identification over the finite window is exact. If
-//! the growth cap (the query's `max_history_lag` when set, otherwise
-//! `variable_count * template_max_lag + |min_offset|`) is reached while the
-//! ancestral closure still touches the boundary, identification is refused
-//! rather than reported vacuously clean.
+//! **Sustained:** the same unfolding covers the sustained window; identification
+//! uses [`IdIdentifier`] (sequential / g-formula) over all treatment-time nodes.
+//!
+//! Finiteness and stationarity of the template become declared assumptions on the
+//! result. History depth grows until ancestral closure of `{treatment, outcome}`
+//! no longer touches the truncated boundary (or until `max_history_lag` / a
+//! derived cap refuses certification).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -34,7 +27,10 @@ use causal_graph::{
 use crate::identifier::IdentificationWorkspace;
 use crate::backdoor::BackdoorIdentifier;
 use crate::error::IdentificationError;
-use crate::result::IdentificationResult;
+use crate::id::IdIdentifier;
+use crate::prepared::PreparedAdmg;
+use crate::result::{IdentificationResult, IdentificationStatus};
+use causal_expr::EstimandMethod;
 
 /// Identifies [`TemporalEffectQuery`]s via backdoor adjustment over a finite
 /// unfolding of a stationary [`TemporalDag`] template.
@@ -98,16 +94,27 @@ impl TemporalBackdoorIdentifier {
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid temporal-effect query",
         })?;
-        let treatment_at = query.treatment_offset();
+        let treatment_at = query.try_treatment_offset().map_err(|_| {
+            IdentificationError::UnsupportedQuery {
+                message: "TemporalPolicy::Dynamic has no single treatment origin",
+            }
+        })?;
         let outcome_at = query.outcome_offset();
-        // Pulse-only for single-node backdoor.
-        if matches!(query.policy, TemporalPolicy::Sustained { .. }) {
-            return Err(IdentificationError::SustainedPolicyUnsupported);
-        }
-        if !matches!(query.policy, TemporalPolicy::Pulse { .. }) {
-            return Err(IdentificationError::UnsupportedQuery {
-                message: "unsupported temporal policy for backdoor identification",
-            });
+        match query.policy {
+            TemporalPolicy::Sustained { from, until } => {
+                return self.identify_sustained(template, query, from, until, outcome_at);
+            }
+            TemporalPolicy::Pulse { .. } => {}
+            TemporalPolicy::Dynamic { .. } => {
+                return Err(IdentificationError::UnsupportedQuery {
+                    message: "TemporalPolicy::Dynamic has no single treatment origin",
+                });
+            }
+            _ => {
+                return Err(IdentificationError::UnsupportedQuery {
+                    message: "unsupported temporal policy for identification",
+                });
+            }
         }
 
         let min_offset = treatment_at.min(outcome_at).min(0);
@@ -198,7 +205,127 @@ impl TemporalBackdoorIdentifier {
             outcome_key,
         })
     }
+
+    /// Sustained interventions: unfold, then identify via general ID (sequential / g-formula).
+    fn identify_sustained(
+        &self,
+        template: &TemporalDag,
+        query: &TemporalEffectQuery,
+        from: i32,
+        until: i32,
+        outcome_at: i32,
+    ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        let min_offset = from.min(outcome_at).min(0);
+        let max_offset = until.max(outcome_at).max(0);
+        let horizon = u32::try_from(max_offset)
+            .map_err(|_| IdentificationError::msg("negative horizon"))?
+            .saturating_add(1);
+
+        let variable_count = required_variable_count(template, query.treatment, query.outcome);
+        let max_lag = template_max_lag(template);
+        let base_history = min_offset.unsigned_abs().max(max_lag);
+        let history_cap = query
+            .max_history_lag
+            .unwrap_or_else(|| {
+                variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs())
+            })
+            .max(base_history);
+
+        let treatment_key = TemporalNodeKey { variable: query.treatment, offset: from };
+        let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
+        let truncatable = truncatable_variables(template, variable_count);
+
+        let mut history = base_history;
+        let (history, unfolded, treatment_nodes, outcome_dense) = loop {
+            let indexer = TemporalIndexer::new(variable_count, history, horizon)
+                .map_err(|e| IdentificationError::msg(e.to_string()))?;
+            let unfolded =
+                template.unfold(indexer).map_err(|e| IdentificationError::msg(e.to_string()))?;
+
+            let mut treatment_nodes = Vec::new();
+            for offset in from..=until {
+                let key = TemporalNodeKey { variable: query.treatment, offset };
+                let dense = unfolded
+                    .indexer
+                    .dense_id(key)
+                    .map_err(|_| IdentificationError::UnknownVariable { id: query.treatment })?;
+                treatment_nodes.push(dense);
+            }
+            let outcome_dense = unfolded
+                .indexer
+                .dense_id(outcome_key)
+                .map_err(|_| IdentificationError::UnknownVariable { id: query.outcome })?;
+
+            if treatment_nodes.is_empty() {
+                return Err(IdentificationError::msg("empty sustained treatment window"));
+            }
+            if !ancestry_touches_boundary(
+                &unfolded,
+                treatment_nodes[0],
+                outcome_dense,
+                history,
+                &truncatable,
+            ) {
+                break (history, unfolded, treatment_nodes, outcome_dense);
+            }
+            if history >= history_cap {
+                return Err(IdentificationError::NotIdentified {
+                    message: "temporal unfolding reached its history cap while confounder \
+                              ancestry still crossed the truncated boundary; cannot certify \
+                              sustained identification over the finite window",
+                });
+            }
+            history += 1;
+        };
+
+        let active = match &query.active {
+            Intervention::Set { value, .. } => value.clone(),
+            _ => {
+                return Err(IdentificationError::unsupported(
+                    "sustained ID requires Set interventions",
+                ));
+            }
+        };
+        let interventions: Vec<Intervention> = treatment_nodes
+            .iter()
+            .map(|&d| Intervention::set(VariableId::from_raw(d), active.clone()))
+            .collect();
+        let outcome_var = VariableId::from_raw(outcome_dense);
+        let q = CausalQuery::Distribution(causal_core::InterventionalDistributionQuery {
+            outcomes: Arc::from([outcome_var]),
+            interventions: Arc::from(interventions),
+            target_population: query.target_population.clone(),
+        });
+
+        let prepared = PreparedAdmg::from_dag(&unfolded.dag)?;
+        let id = IdIdentifier::new();
+        let mut ws = IdentificationWorkspace::default();
+        let mut result = id.identify(&prepared, &q, &mut ws)?;
+        result.derivation.push(
+            "temporal.sustained",
+            format!(
+                "sequential / g-formula ID on unfolded window history={history} \
+                 sustained=[{from},{until}] ({} treatment nodes)",
+                treatment_nodes.len()
+            ),
+        );
+        // Re-tag query as the original temporal effect for callers.
+        result.query = CausalQuery::TemporalEffect(query.clone());
+        if result.status == IdentificationStatus::NonparametricallyIdentified {
+            if let Some(est) = result.estimands.first_mut() {
+                est.method = Arc::from(EstimandMethod::GeneralId.as_str());
+            }
+        }
+        annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
+        Ok(TemporalIdentificationResult {
+            result,
+            indexer: unfolded.indexer,
+            treatment_key,
+            outcome_key,
+        })
+    }
 }
+
 
 fn template_max_lag(template: &TemporalDag) -> u32 {
     template
@@ -467,18 +594,45 @@ mod tests {
     }
 
     #[test]
-    fn sustained_policy_is_unsupported() {
-        let template = TemporalDag::empty();
+    fn sustained_policy_identifies_on_simple_chain() {
+        let mut template = TemporalDag::empty();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x, y).unwrap();
         let query = TemporalEffectQuery::sustained(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
-            2,
+            0,
             1.0,
         );
         let identifier = TemporalBackdoorIdentifier::new();
+        let res = identifier.identify_temporal(&template, &query).unwrap();
+        assert_eq!(
+            res.result.status,
+            IdentificationStatus::NonparametricallyIdentified
+        );
+        assert!(res
+            .result
+            .derivation
+            .steps
+            .iter()
+            .any(|s| s.rule.as_ref() == "temporal.sustained"));
+    }
+
+    #[test]
+    fn dynamic_policy_is_unsupported() {
+        use causal_core::{DynamicRuleId, TemporalPolicy};
+        let template = TemporalDag::empty();
+        let query = TemporalEffectQuery::pulse(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            1.0,
+        )
+        .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(1)));
+        let identifier = TemporalBackdoorIdentifier::new();
         assert!(matches!(
             identifier.identify_temporal(&template, &query),
-            Err(IdentificationError::SustainedPolicyUnsupported)
+            Err(IdentificationError::UnsupportedQuery { .. })
         ));
     }
 }

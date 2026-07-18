@@ -198,6 +198,7 @@ def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "max_lag": discovery.max_lag,
             "alpha": discovery.alpha,
             "fdr": discovery.fdr,
+            "ci": discovery.ci,
         }
     if isinstance(discovery, PCMCIPlus):
         return {
@@ -205,6 +206,7 @@ def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "max_lag": discovery.max_lag,
             "alpha": discovery.alpha,
             "fdr": discovery.fdr,
+            "ci": discovery.ci,
         }
     if isinstance(discovery, LPCMCI):
         return {
@@ -212,6 +214,7 @@ def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "max_lag": discovery.max_lag,
             "alpha": discovery.alpha,
             "fdr": discovery.fdr,
+            "ci": discovery.ci,
         }
     if isinstance(discovery, JPCMCIPlus):
         return {
@@ -219,6 +222,7 @@ def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "max_lag": discovery.max_lag,
             "alpha": discovery.alpha,
             "fdr": discovery.fdr,
+            "ci": discovery.ci,
             "context_names": list(discovery.context_names),
             "include_space_dummy": discovery.include_space_dummy,
             "include_time_dummy": discovery.include_time_dummy,
@@ -230,6 +234,7 @@ def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "max_lag": discovery.max_lag,
             "alpha": discovery.alpha,
             "fdr": discovery.fdr,
+            "ci": discovery.ci,
         }
     if isinstance(discovery, PC):
         return {
@@ -269,6 +274,7 @@ def analyze(
     identifier: str | None = None,
     estimator: str | None = None,
     refute: bool = True,
+    validators: Sequence[Any] | None = None,
     accept_discovered: bool = True,
     seed: int = 1,
     bootstrap: int = 50,
@@ -325,6 +331,8 @@ def analyze(
             n_draws=n_draws,
             prior_scale=prior_scale,
             refute=refute,
+            validators=list(validators) if validators is not None else None,
+            ci=cfg["ci"],
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
@@ -361,6 +369,7 @@ def analyze(
             n_draws=n_draws,
             prior_scale=prior_scale,
             refute=refute,
+            validators=list(validators) if validators is not None else None,
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
@@ -399,6 +408,7 @@ def analyze(
                     include_space_dummy=cfg["include_space_dummy"],
                     include_time_dummy=cfg["include_time_dummy"],
                     space_dummy_ci=cfg["space_dummy_ci"],
+                    ci=cfg.get("ci"),
                 )
                 return _wrap_temporal(raw)
             if algo == "rpcmci":
@@ -422,6 +432,7 @@ def analyze(
                     bootstrap=bootstrap,
                     threads=threads,
                     regimes=list(regimes),
+                    ci=cfg.get("ci"),
                 )
                 return _wrap_temporal(raw)
             names, columns = _as_columns(data)  # type: ignore[arg-type]
@@ -441,6 +452,7 @@ def analyze(
                 seed=seed,
                 bootstrap=bootstrap,
                 threads=threads,
+                ci=cfg.get("ci"),
             )
             return _wrap_temporal(raw)
         if graph is None:

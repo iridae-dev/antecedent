@@ -57,6 +57,7 @@ serde_json = "1"
 ciborium = "0.2"
 blake3 = "1"
 zstd = "0.13"
+memmap2 = "0.9"
 faer = "0.21"
 arrow-array = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }

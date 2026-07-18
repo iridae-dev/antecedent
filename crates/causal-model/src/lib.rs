@@ -22,8 +22,9 @@ pub use batch::{
     MechanismWorkspace, NoiseBatch, NoiseBatchMut, ParentBatch, ValueBatch, ValueBatchMut,
 };
 pub use compile::{
-    CompiledCausalModel, CompiledMechanismStore, InvertibleStructuralCausalModel, MechanismSlot,
-    ModelOutputLayout, ParentGatherPlan, ProbabilisticCausalModel, StructuralCausalModel,
+    CompiledCausalModel, CompiledMechanismStore, DynamicMechanism, InvertibleStructuralCausalModel,
+    MechanismSlot, ModelOutputLayout, ParentGatherPlan, ProbabilisticCausalModel,
+    StructuralCausalModel,
 };
 pub use do_sampler::{
     DoSampleResult, KdeDoSampler, McmcDoSampler, WeightingDoSampler, interventional_mean,

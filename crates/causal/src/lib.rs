@@ -26,6 +26,7 @@
 #![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
 pub mod analysis;
+pub mod callback_plan;
 pub mod design;
 pub mod discovery;
 pub mod discovery_defaults;
@@ -41,6 +42,7 @@ pub mod state;
 pub mod strategy_table;
 
 pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RdConfig, RefuteSuite};
+pub use callback_plan::mark_python_callback_plan;
 pub use design::rank_designs;
 pub use discovery::{
     DiscoverParams, StaticDiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pc,
@@ -57,8 +59,8 @@ pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use gcm::{
     FittedGcm, IteResult, anomaly_attribution, attribute_distribution_change,
     attribute_distribution_change_robust, attribute_feature_relevance, attribute_path_specific,
-    attribute_paths, attribute_unit_change, change_attribution_builder, counterfactual_ite,
-    fit_gcm, mechanism_change_detection, rank_root_causes, sample_do,
+    attribute_paths, attribute_structure_change, attribute_unit_change, change_attribution_builder,
+    counterfactual_ite, fit_gcm, mechanism_change_detection, rank_root_causes, sample_do,
     sample_interventional_distribution,
 };
 pub use inference::{BayesianConfig, InferenceMode};
@@ -268,9 +270,10 @@ pub fn decode_causal_posterior_bytes(
 pub use causal_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
-    MechanismChangeMethod, RobustChangeOptions, RootCauseRank, UnitChangeResult, arrow_strengths,
-    detect_mechanism_changes, distribution_change, distribution_change_robust, feature_relevance,
-    path_decompose, population_do_contrast, root_cause_rank, score_anomalies, unit_change,
+    MechanismChangeMethod, RobustChangeOptions, RootCauseRank, StructureChangeOptions,
+    UnitChangeResult, arrow_strengths, detect_mechanism_changes, distribution_change,
+    distribution_change_robust, feature_relevance, path_decompose, population_do_contrast,
+    root_cause_rank, score_anomalies, structure_change, unit_change,
 };
 pub use causal_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
@@ -278,11 +281,11 @@ pub use causal_counterfactual::{
     simultaneous_hard_counterfactual, streaming_matches_retained,
 };
 pub use causal_model::{
-    CompiledCausalModel, CompiledMechanismStore, DoSampleResult, InvertibleStructuralCausalModel,
-    KdeDoSampler, McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry,
-    MechanismSlot, MechanismWorkspace, ModelCollection, ModelError, ModelEvaluator,
-    ProbabilisticCausalModel, SelectionPolicy, StructuralCausalModel, WeightingDoSampler,
-    interventional_mean, sample_interventional, sample_observational,
+    CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
+    InvertibleStructuralCausalModel, KdeDoSampler, McmcDoSampler, MechanismAssignment,
+    MechanismFamily, MechanismRegistry, MechanismSlot, MechanismWorkspace, ModelCollection,
+    ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy, StructuralCausalModel,
+    WeightingDoSampler, interventional_mean, sample_interventional, sample_observational,
 };
 
 // design / incremental state surfaces.

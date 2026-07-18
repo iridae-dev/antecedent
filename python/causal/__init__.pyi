@@ -37,6 +37,7 @@ from ._native import (
     attribute_distribution_change_robust,
     attribute_feature_relevance,
     attribute_path_specific,
+    attribute_structure_change,
     attribute_unit_change,
     counterfactual_ite,
     dag_from_dot,

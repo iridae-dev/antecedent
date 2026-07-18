@@ -21,9 +21,9 @@ use std::sync::Arc;
 use causal_attribution::{
     AnomalyScores, AttributionError, ChangeAttribution, ChangeAttributionResult,
     DistributionChangeOptions, FeatureRelevance, MechanismChangeMethod, RobustChangeOptions,
-    RootCauseRank, UnitChangeResult, detect_mechanism_changes, distribution_change,
-    distribution_change_robust, feature_relevance, path_decompose, root_cause_rank,
-    score_anomalies, unit_change,
+    RootCauseRank, StructureChangeOptions, UnitChangeResult, detect_mechanism_changes,
+    distribution_change, distribution_change_robust, feature_relevance, path_decompose,
+    root_cause_rank, score_anomalies, structure_change, unit_change,
 };
 use causal_core::{
     AnomalyAttributionQuery, CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
@@ -170,6 +170,22 @@ pub fn attribute_distribution_change_robust(
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AnalysisError> {
     distribution_change_robust(model, data, query, options, ctx).map_err(map_attr)
+}
+
+/// Structure-change attribution between two DAGs (parent-set Shapley).
+///
+/// # Errors
+///
+/// Attribution failures.
+pub fn attribute_structure_change(
+    baseline_model: &CompiledCausalModel,
+    comparison_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &StructureChangeOptions,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AnalysisError> {
+    structure_change(baseline_model, comparison_model, data, query, options, ctx).map_err(map_attr)
 }
 
 /// Builder-style change attribution (§34.3).

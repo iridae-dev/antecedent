@@ -103,8 +103,8 @@ pub fn encode_posterior_artifact(
             provenance: ProvenanceWire { note: "causal_posterior".into() },
         },
         sections: vec![
-            SectionBytes { id: "posterior.meta".into(), data: meta_bytes },
-            SectionBytes { id: "posterior.draws".into(), data: draw_bytes },
+            SectionBytes::new("posterior.meta", meta_bytes),
+            SectionBytes::new("posterior.draws", draw_bytes),
         ],
     })
 }
@@ -154,6 +154,44 @@ pub fn decode_posterior_artifact(
     Ok((meta, draws))
 }
 
+/// Decode only posterior metadata from a seekable artifact (draws stay unread).
+///
+/// # Errors
+///
+/// Missing `posterior.meta`, wrong kind, or IO/framing failures.
+pub fn decode_posterior_meta_from_seek<R: std::io::Read + std::io::Seek>(
+    r: R,
+) -> Result<CausalPosteriorWire, IoError> {
+    let mut reader = crate::reader::ArtifactReader::open_seek(r)?;
+    if reader.manifest().artifact_kind != ArtifactKind::CausalPosterior {
+        return Err(IoError::Convert(format!(
+            "expected CausalPosterior, got {:?}",
+            reader.manifest().artifact_kind
+        )));
+    }
+    let access = reader.load_section("posterior.meta")?;
+    from_cbor(access.as_bytes())
+}
+
+/// Decode only posterior metadata from a memory-mapped artifact path.
+///
+/// # Errors
+///
+/// Same as [`decode_posterior_meta_from_seek`].
+pub fn decode_posterior_meta_from_path(
+    path: impl AsRef<std::path::Path>,
+) -> Result<CausalPosteriorWire, IoError> {
+    let mut reader = crate::reader::MappedArtifactReader::open_path(path)?;
+    if reader.manifest().artifact_kind != ArtifactKind::CausalPosterior {
+        return Err(IoError::Convert(format!(
+            "expected CausalPosterior, got {:?}",
+            reader.manifest().artifact_kind
+        )));
+    }
+    let access = reader.load_section("posterior.meta")?;
+    from_cbor(access.as_bytes())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,5 +221,30 @@ mod tests {
         assert_eq!(meta2.n_draws, 3);
         assert_eq!(draws2, draws);
         assert_eq!(meta2.backend_id, "laplace");
+    }
+
+    #[test]
+    fn posterior_meta_only_skips_draws() {
+        let meta = CausalPosteriorWire {
+            quantities: vec![PosteriorQuantityWire::Effect { name: "ate".into() }],
+            n_draws: 8192,
+            mean: vec![1.0],
+            sd: vec![0.1],
+            q025: vec![0.9],
+            q975: vec![1.1],
+            identification: "NonparametricallyIdentified".into(),
+            unidentified_mass: 0.0,
+            backend_id: "laplace".into(),
+            converged: true,
+            hessian_condition: 1.0,
+            draws_encoding: "f64_le_colmajor".into(),
+        };
+        let draws = vec![0.5f64; 8192];
+        let art = encode_posterior_artifact(&meta, &draws, "meta-only", "0.1.0").unwrap();
+        let mut buf = Vec::new();
+        art.write_to(&mut buf).unwrap();
+        let got = decode_posterior_meta_from_seek(std::io::Cursor::new(buf)).unwrap();
+        assert_eq!(got.n_draws, 8192);
+        assert_eq!(got.backend_id, "laplace");
     }
 }

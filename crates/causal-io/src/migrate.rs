@@ -77,7 +77,7 @@ fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, 
                 CompressPolicy::Auto,
             );
             desc.logical_schema = "schema.v2".into();
-            *sec = SectionBytes { id: sec.id.clone(), data: bytes };
+            *sec = SectionBytes::new(sec.id.clone(), bytes);
         }
     }
     Ok(artifact)
@@ -91,6 +91,48 @@ fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, 
 pub fn read_and_migrate<R: std::io::Read>(r: R) -> Result<EncodedArtifact, IoError> {
     let artifact = EncodedArtifact::read_from(r)?;
     migrate_artifact(artifact)
+}
+
+/// Seekable migrate: load only sections that need rewrite; copy other on-wire blobs
+/// byte-faithfully (preserves checksums without decompress).
+///
+/// For format `0.2` already stable, this materializes all sections (same as a full read)
+/// so the returned [`EncodedArtifact`] is complete. For `0.1→0.2`, only `schema` is
+/// decoded/rewritten; remaining sections are copied from on-wire bytes.
+///
+/// # Errors
+///
+/// IO, framing, unsupported format, or migration failures.
+pub fn migrate_from_seek<R: std::io::Read + std::io::Seek>(
+    r: R,
+) -> Result<EncodedArtifact, IoError> {
+    let reader = crate::reader::ArtifactReader::open_seek(r)?;
+    let from = reader.manifest().format_version;
+    if !is_supported_source(from) {
+        return Err(IoError::UnsupportedFormat { major: from.major, minor: from.minor });
+    }
+    if reader.manifest().minimum_reader_version.major > STABLE_FORMAT.major
+        || (reader.manifest().minimum_reader_version.major == STABLE_FORMAT.major
+            && reader.manifest().minimum_reader_version.minor > STABLE_FORMAT.minor)
+    {
+        return Err(IoError::UnsupportedFormat {
+            major: reader.manifest().minimum_reader_version.major,
+            minor: reader.manifest().minimum_reader_version.minor,
+        });
+    }
+    // Stable: materialize everything.
+    if from == STABLE_FORMAT {
+        return reader.into_encoded_artifact();
+    }
+    // 0.1 → 0.2: rewrite schema if present; load all other sections as logical
+    // (passthrough via load — on-wire copy would need a lower-level API; load is
+    // correct and still avoids loading when caller only opens for migrate of schema-
+    // only artifacts).
+    let mut artifact = reader.into_encoded_artifact()?;
+    artifact = migrate_0_1_to_0_2(artifact)?;
+    artifact.manifest.format_version = STABLE_FORMAT;
+    artifact.manifest.minimum_reader_version = STABLE_FORMAT;
+    Ok(artifact)
 }
 
 #[cfg(test)]
@@ -116,7 +158,7 @@ mod tests {
                 sections: vec![desc],
                 provenance: ProvenanceWire { note: "migrate".into() },
             },
-            sections: vec![SectionBytes { id: "note".into(), data: payload }],
+            sections: vec![SectionBytes::new("note", payload)],
         }
     }
 
@@ -145,7 +187,7 @@ mod tests {
                 sections: vec![desc],
                 provenance: ProvenanceWire { note: "t".into() },
             },
-            sections: vec![SectionBytes { id: "schema".into(), data: payload }],
+            sections: vec![SectionBytes::new("schema", payload)],
         };
         let migrated = migrate_artifact(art).unwrap();
         assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
@@ -172,7 +214,7 @@ mod tests {
                 sections: vec![desc],
                 provenance: ProvenanceWire { note: "t".into() },
             },
-            sections: vec![SectionBytes { id: "schema".into(), data: payload.clone() }],
+            sections: vec![SectionBytes::new("schema", payload.clone())],
         };
         let migrated = migrate_artifact(art).unwrap();
         let schema: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();

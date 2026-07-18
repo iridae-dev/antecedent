@@ -31,6 +31,8 @@ pub enum EstimandMethod {
     TemporalMediationDirect,
     /// Temporal mediation — mediated effect.
     TemporalMediationMediated,
+    /// General semi-Markovian ID / IDC (Shpitser–Pearl).
+    GeneralId,
 }
 
 impl EstimandMethod {
@@ -47,6 +49,7 @@ impl EstimandMethod {
             Self::TemporalMediationTotal => "temporal_mediation.total",
             Self::TemporalMediationDirect => "temporal_mediation.direct",
             Self::TemporalMediationMediated => "temporal_mediation.mediated",
+            Self::GeneralId => "general.id",
         }
     }
 
@@ -88,6 +91,7 @@ impl FromStr for EstimandMethod {
             "temporal_mediation.total" => Self::TemporalMediationTotal,
             "temporal_mediation.direct" => Self::TemporalMediationDirect,
             "temporal_mediation.mediated" => Self::TemporalMediationMediated,
+            "general.id" => Self::GeneralId,
             other => return Err(format!("unknown estimand method `{other}`")),
         })
     }

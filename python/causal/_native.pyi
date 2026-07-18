@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Callable, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
+
+CiArg = str | Callable[..., Any] | None
 
 __version__: str
 
@@ -64,6 +66,8 @@ class AteAnalysisResult:
     plan_id: str
     modality: str
     peak_memory_bytes: int | None
+    worker_threads: int
+    expected_python_crossings: int
 
 class PosteriorArtifact:
     n_draws: int
@@ -176,6 +180,7 @@ def analyze_ate(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     refute: bool = True,
+    validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,
@@ -212,6 +217,8 @@ def analyze_ate_discover(
     n_draws: int = 1000,
     prior_scale: float = 10.0,
     refute: bool = True,
+    validators: list[Callable[..., Any]] | None = None,
+    ci: CiArg = None,
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,
@@ -240,6 +247,7 @@ def analyze_temporal_discover(
     include_space_dummy: bool = True,
     include_time_dummy: bool = False,
     space_dummy_ci: str = "scalar",
+    ci: CiArg = None,
 ) -> AnalysisResult: ...
 
 def discover_pcmci(
@@ -250,7 +258,7 @@ def discover_pcmci(
     alpha: float = 0.05,
     fdr: bool = True,
     seed: int = 1,
-    ci: str = "parcorr",
+    ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
@@ -263,7 +271,7 @@ def discover_pcmci_plus(
     alpha: float = 0.05,
     fdr: bool = True,
     seed: int = 1,
-    ci: str = "parcorr",
+    ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
@@ -275,7 +283,7 @@ def discover_pc(
     alpha: float = 0.05,
     fdr: bool = True,
     seed: int = 1,
-    ci: str = "parcorr",
+    ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
@@ -288,7 +296,7 @@ def discover_lpcmci(
     alpha: float = 0.05,
     fdr: bool = True,
     seed: int = 1,
-    ci: str = "parcorr",
+    ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
@@ -301,7 +309,7 @@ def discover_jpcmci_plus(
     alpha: float = 0.05,
     fdr: bool = True,
     seed: int = 1,
-    ci: str = "parcorr",
+    ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
     context_names: list[str] | None = None,
@@ -318,7 +326,7 @@ def discover_rpcmci(
     alpha: float = 0.05,
     fdr: bool = True,
     seed: int = 1,
-    ci: str = "parcorr",
+    ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
     regimes: list[int] | None = None,
@@ -368,6 +376,7 @@ def sample_do(
     *,
     seed: int = 0,
     threads: int = 1,
+    mechanism_wrappers: dict[str, Any] | None = None,
 ) -> GcmSampleResult: ...
 
 def sample_interventional_distribution(
@@ -416,6 +425,22 @@ def attribute_distribution_change_robust(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     edges: list[tuple[str, str]],
+    outcome: str,
+    baseline_start: int,
+    baseline_end: int,
+    comparison_start: int,
+    comparison_end: int,
+    *,
+    n_samples: int = 500,
+    seed: int = 0,
+    threads: int = 1,
+) -> tuple[float, list[tuple[str, float]]]: ...
+
+def attribute_structure_change(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    baseline_edges: list[tuple[str, str]],
+    comparison_edges: list[tuple[str, str]],
     outcome: str,
     baseline_start: int,
     baseline_end: int,
@@ -482,6 +507,13 @@ def rank_designs(
     seed: int = 0,
     threads: int = 1,
 ) -> tuple[int, list[float], int]: ...
+
+
+def evaluate_decision_py(
+    actions: list[float],
+    outcomes: list[float],
+    utility: Callable[..., Any],
+) -> tuple[float, float, int | None]: ...
 
 def decode_posterior_artifact(bytes: list[int] | bytes) -> PosteriorArtifact: ...
 def encode_posterior_artifact(artifact: PosteriorArtifact) -> bytes: ...

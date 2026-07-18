@@ -111,6 +111,7 @@ impl AverageEffectQuery {
         if self.effect_modifiers.iter().any(|m| *m == self.treatment || *m == self.outcome) {
             return Err(QueryError::ModifierOverlapsTreatmentOrOutcome);
         }
+        self.target_population.validate()?;
         Ok(())
     }
 }

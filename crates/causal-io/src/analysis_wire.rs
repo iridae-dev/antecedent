@@ -262,6 +262,7 @@ pub fn identification_from_wire(w: &IdentificationResultWire) -> Result<Identifi
             candidates_examined: w.candidates_examined,
             sets_returned: w.sets_returned,
         },
+        hedge: None,
     })
 }
 
@@ -366,6 +367,7 @@ mod tests {
             required_assumptions: AssumptionSet::default(),
             diagnostics: Vec::new(),
             performance: IdentificationPerformanceRecord::default(),
+            hedge: None,
         }
     }
 

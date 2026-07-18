@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Sequence
+from typing import Callable, Literal, Sequence, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,12 +21,14 @@ from ._native import (
     discover_rpcmci as _discover_rpcmci,
 )
 
+CiSpec = Union[str, Callable[..., Sequence[tuple[float, float]]]]
+
 
 @dataclass(frozen=True)
 class PC:
     alpha: float = 0.05
     fdr: bool = True
-    ci: str = "parcorr"
+    ci: CiSpec = "parcorr"
     max_cond_size: int = 2
     kind: Literal["pc"] = "pc"
 
@@ -36,7 +38,7 @@ class PCMCI:
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = True
-    ci: str = "parcorr"
+    ci: CiSpec = "parcorr"
     kind: Literal["pcmci"] = "pcmci"
 
 
@@ -45,7 +47,7 @@ class PCMCIPlus:
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = True
-    ci: str = "parcorr"
+    ci: CiSpec = "parcorr"
     kind: Literal["pcmci_plus"] = "pcmci_plus"
 
 
@@ -54,7 +56,7 @@ class LPCMCI:
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = True
-    ci: str = "parcorr"
+    ci: CiSpec = "parcorr"
     kind: Literal["lpcmci"] = "lpcmci"
 
 
@@ -63,7 +65,7 @@ class JPCMCIPlus:
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = True
-    ci: str = "parcorr"
+    ci: CiSpec = "parcorr"
     context_names: tuple[str, ...] = ()
     include_space_dummy: bool = True
     include_time_dummy: bool = False
@@ -76,7 +78,7 @@ class RPCMCI:
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = True
-    ci: str = "parcorr"
+    ci: CiSpec = "parcorr"
     kind: Literal["rpcmci"] = "rpcmci"
 
 

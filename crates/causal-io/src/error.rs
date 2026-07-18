@@ -51,6 +51,11 @@ pub enum IoError {
         /// Explanation.
         message: String,
     },
+    /// Requested a mapped logical view of a compressed section.
+    MappedCompressed {
+        /// Section id.
+        section: String,
+    },
 }
 
 impl fmt::Display for IoError {
@@ -76,6 +81,12 @@ impl fmt::Display for IoError {
             }
             Self::Decompress { section, message } => {
                 write!(f, "decompress section `{section}`: {message}")
+            }
+            Self::MappedCompressed { section } => {
+                write!(
+                    f,
+                    "section `{section}` is compressed; mapped views require uncompressed sections"
+                )
             }
         }
     }

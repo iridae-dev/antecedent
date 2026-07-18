@@ -48,8 +48,71 @@ pub struct ModelOutputLayout {
     pub variables: Arc<[VariableId]>,
 }
 
+/// Slow-path dynamic mechanism (DESIGN.md §15.2 / §25.4).
+///
+/// Built-ins stay on concrete [`MechanismSlot`] variants; user/Python wrappers
+/// implement this trait and live in [`MechanismSlot::Dynamic`].
+pub trait DynamicMechanism: Send + Sync {
+    /// Sample structural noise into `output` (length ≥ `n_rows`).
+    ///
+    /// # Errors
+    ///
+    /// Shape / unsupported.
+    fn sample_noise_column(
+        &self,
+        n_rows: usize,
+        rng: &mut causal_core::CausalRng,
+        output: &mut [f64],
+    ) -> Result<(), ModelError>;
+
+    /// Evaluate `x = f(parents, noise)` into `output`.
+    ///
+    /// # Errors
+    ///
+    /// Shape / unsupported.
+    fn evaluate_column(
+        &self,
+        parents: crate::batch::ParentBatch<'_>,
+        noise: &[f64],
+        output: &mut [f64],
+        workspace: &mut crate::batch::MechanismWorkspace,
+    ) -> Result<(), ModelError>;
+
+    /// Infer exogenous noise (optional; default unsupported).
+    ///
+    /// # Errors
+    ///
+    /// Shape / unsupported.
+    fn infer_noise_column(
+        &self,
+        _value: &[f64],
+        _parents: crate::batch::ParentBatch<'_>,
+        _output: &mut [f64],
+    ) -> Result<(), ModelError> {
+        Err(ModelError::Unsupported {
+            message: "dynamic mechanism does not support noise inference".into(),
+        })
+    }
+
+    /// Log-density of observed values (optional; default unsupported).
+    ///
+    /// # Errors
+    ///
+    /// Shape / unsupported.
+    fn log_prob_column(
+        &self,
+        _values: &[f64],
+        _parents: crate::batch::ParentBatch<'_>,
+        _output: &mut [f64],
+    ) -> Result<(), ModelError> {
+        Err(ModelError::Unsupported {
+            message: "dynamic mechanism does not support log_prob".into(),
+        })
+    }
+}
+
 /// Mechanism slot filled by fitting / registry.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub enum MechanismSlot {
     /// Unassigned.
     #[default]
@@ -89,6 +152,40 @@ pub enum MechanismSlot {
         /// Fixed value.
         value: f64,
     },
+    /// Explicit slow-path dynamic / user mechanism (not serializable).
+    Dynamic {
+        /// Stable label for diagnostics (e.g. variable name).
+        id: Arc<str>,
+        /// Object-safe mechanism implementation.
+        mechanism: Arc<dyn DynamicMechanism>,
+    },
+}
+
+impl std::fmt::Debug for MechanismSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Vacant => write!(f, "Vacant"),
+            Self::Pending { family_id } => f.debug_struct("Pending").field("family_id", family_id).finish(),
+            Self::LinearGaussian { intercept, coeffs, sigma } => f
+                .debug_struct("LinearGaussian")
+                .field("intercept", intercept)
+                .field("coeffs", coeffs)
+                .field("sigma", sigma)
+                .finish(),
+            Self::Discrete { support, probs, logit_coeffs } => f
+                .debug_struct("Discrete")
+                .field("support", support)
+                .field("probs", probs)
+                .field("logit_coeffs", logit_coeffs)
+                .finish(),
+            Self::Constant { value } => f.debug_struct("Constant").field("value", value).finish(),
+            Self::Dynamic { id, .. } => f
+                .debug_struct("Dynamic")
+                .field("id", id)
+                .field("mechanism", &"<dyn DynamicMechanism>")
+                .finish(),
+        }
+    }
 }
 
 /// Per-node mechanism storage for a compiled model.
@@ -109,6 +206,27 @@ impl CompiledMechanismStore {
     #[must_use]
     pub fn get(&self, id: DenseNodeId) -> &MechanismSlot {
         &self.slots[id.as_usize()]
+    }
+
+    /// Replace the slot at `id`, returning a new store (copy-on-write).
+    ///
+    /// # Errors
+    ///
+    /// Out-of-range dense id.
+    pub fn with_replaced(
+        &self,
+        id: DenseNodeId,
+        slot: MechanismSlot,
+    ) -> Result<Self, ModelError> {
+        let idx = id.as_usize();
+        if idx >= self.slots.len() {
+            return Err(ModelError::Shape {
+                message: "mechanism slot index out of range".into(),
+            });
+        }
+        let mut slots = self.slots.as_ref().to_vec();
+        slots[idx] = slot;
+        Ok(Self { slots: Arc::from(slots) })
     }
 }
 

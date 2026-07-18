@@ -8,6 +8,7 @@
 pub mod bayesian_checks;
 pub mod bootstrap_refute;
 pub mod common;
+pub mod custom;
 pub mod data_subset;
 pub mod dummy_outcome;
 pub mod error;
@@ -30,6 +31,7 @@ pub use bayesian_checks::{
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport};
+pub use custom::CustomEffectValidator;
 pub use data_subset::DataSubsetRefuter;
 pub use dummy_outcome::DummyOutcome;
 pub use error::ValidationError;

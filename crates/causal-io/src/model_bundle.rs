@@ -167,7 +167,7 @@ pub fn encode_model_bundle(input: ModelBundleEncode<'_>) -> Result<EncodedArtifa
     push_cbor(
         "mechanisms",
         "mechanisms.v1",
-        to_cbor(&mechanisms_to_wire(input.mechanisms))?,
+        to_cbor(&mechanisms_to_wire(input.mechanisms)?)?,
         &mut descs,
         &mut sections,
     );

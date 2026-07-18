@@ -23,6 +23,23 @@ BLAKE3 checksum cover **on-wire** (possibly compressed) bytes.
 `uncompressed_size` is the logical payload length. Auto compression applies when
 the logical size is ≥ 4 KiB and compression improves size (≈95% ratio).
 
+Arrow IPC sections (`application/vnd.apache.arrow.file`) use
+`CompressPolicy::Never` so they remain mmap-eligible.
+
+### Selective read / mmap / shared writes (§24.5)
+
+| API | Behavior |
+|-----|----------|
+| `EncodedArtifact::read_from` | Full materialization (compat) |
+| `EncodedArtifact::read_selective` | Stream-hash + discard unselected sections; no retained payload |
+| `ArtifactReader::open_seek` | Index section offsets; seek-skip without allocating payloads |
+| `MappedArtifactReader::open_path` | `memmap2` map; `load_section_mapped` for uncompressed views |
+| `SectionBytes.data: Arc<[u8]>` | Shared logical buffers; Never-compress write avoids clone |
+| `decode_posterior_meta_from_seek` / `_from_path` | Metadata without loading draws |
+
+Compressed sections cannot be mapped as logical views (`IoError::MappedCompressed`);
+use `load_section` to decompress into owned bytes.
+
 ## Supported kinds
 
 | Kind | Sections |
@@ -34,11 +51,11 @@ the logical size is ≥ 4 KiB and compression improves size (≈95% ratio).
 
 ## Migration
 
-`causal_io::migrate_artifact` / `read_and_migrate` accept source formats `0.1`
-and `0.2`. Format `0.1` skinny `SchemaWireV01 { variable_names }` is rewritten
-to full `SchemaWire` with Continuous defaults. Unknown format versions fail with
-`IoError::UnsupportedFormat`. Breaking changes require migration from at least
-the previous two stable versions (DESIGN §24.3).
+`causal_io::migrate_artifact` / `read_and_migrate` / `migrate_from_seek` accept
+source formats `0.1` and `0.2`. Format `0.1` skinny `SchemaWireV01 { variable_names }`
+is rewritten to full `SchemaWire` with Continuous defaults. Unknown format
+versions fail with `IoError::UnsupportedFormat`. Breaking changes require
+migration from at least the previous two stable versions (DESIGN §24.3).
 
 ## Graph interchange (non-artifact)
 

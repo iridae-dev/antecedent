@@ -67,3 +67,8 @@ notes = "Per-unit input attribution via Shapley"
 id = "gcm.attribution.feature_relevance"
 status = "done"
 notes = "Interventional feature relevance scores"
+
+[[capabilities]]
+id = "gcm.attribution.structure"
+status = "done"
+notes = "Dual-graph parent-set structure-change attribution"

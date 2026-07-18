@@ -67,6 +67,60 @@ impl fmt::Display for EnvironmentId {
     }
 }
 
+/// Opaque handle for a rule-driven temporal intervention schedule (DESIGN.md §8.1).
+///
+/// Resolved by callers / future schedule interpreters; not evaluated in core.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct DynamicRuleId(u32);
+
+impl DynamicRuleId {
+    /// Create from a raw dense index.
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    /// Underlying dense index.
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+}
+
+impl fmt::Display for DynamicRuleId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DR{}", self.0)
+    }
+}
+
+/// Handle to a custom target distribution (DESIGN.md §8.2).
+///
+/// Resolved against a caller-supplied registry; sampling is deferred.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct DistributionRef(u32);
+
+impl DistributionRef {
+    /// Create from a raw dense index.
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    /// Underlying dense index.
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+}
+
+impl fmt::Display for DistributionRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DRef{}", self.0)
+    }
+}
+
 /// Regime identifier for regime-aware analysis.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -318,6 +372,8 @@ mod tests {
     fn ids_are_copyable_and_compact() {
         assert_eq!(size_of::<VariableId>(), 4);
         assert_eq!(size_of::<EnvironmentId>(), 4);
+        assert_eq!(size_of::<DynamicRuleId>(), 4);
+        assert_eq!(size_of::<DistributionRef>(), 4);
         assert_eq!(size_of::<RegimeId>(), 4);
         assert_eq!(size_of::<Lag>(), 4);
         assert_eq!(size_of::<CategoryDomainId>(), 4);

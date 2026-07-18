@@ -113,6 +113,7 @@ impl TemporalEffectQuery {
             }
             other => QueryError::InvalidIntervention(other.to_string()),
         })?;
+        self.target_population.validate()?;
         let control_var =
             self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if control_var != self.treatment {
@@ -132,14 +133,29 @@ impl TemporalEffectQuery {
         Ok(())
     }
 
-    /// Treatment time offset for the configured policy (Pulse `at` / Sustained `from`).
+    /// Treatment time offset for Pulse `at` / Sustained `from`.
+    ///
+    /// [`TemporalPolicy::Dynamic`] has no single origin; prefer
+    /// [`Self::try_treatment_offset`].
     #[must_use]
     pub fn treatment_offset(&self) -> i32 {
-        #[allow(unreachable_patterns)] // `TemporalPolicy` is `#[non_exhaustive]`
+        match self.try_treatment_offset() {
+            Ok(offset) => offset,
+            Err(_) => 0,
+        }
+    }
+
+    /// Treatment time offset when the policy has a single origin.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::DynamicPolicyHasNoTreatmentOffset`] for
+    /// [`TemporalPolicy::Dynamic`].
+    pub fn try_treatment_offset(&self) -> Result<i32, QueryError> {
         match self.policy {
-            TemporalPolicy::Pulse { at } => at,
-            TemporalPolicy::Sustained { from, .. } => from,
-            _ => 0,
+            TemporalPolicy::Pulse { at } => Ok(at),
+            TemporalPolicy::Sustained { from, .. } => Ok(from),
+            TemporalPolicy::Dynamic { .. } => Err(QueryError::DynamicPolicyHasNoTreatmentOffset),
         }
     }
 

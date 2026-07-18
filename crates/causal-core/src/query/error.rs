@@ -48,6 +48,10 @@ pub enum QueryError {
     EmptyEffectModifiers,
     /// Population selector has no rows.
     EmptyPopulationRows,
+    /// Named [`crate::query::PredicateExpr`] has an empty registry key.
+    EmptyPredicateName,
+    /// [`crate::intervention::TemporalPolicy::Dynamic`] has no single treatment origin.
+    DynamicPolicyHasNoTreatmentOffset,
     /// Time-range population has `end <= start`.
     InvalidPopulationTimeRange {
         /// Start.
@@ -108,6 +112,10 @@ impl core::fmt::Display for QueryError {
                 write!(f, "conditional effect requires non-empty effect modifiers")
             }
             Self::EmptyPopulationRows => write!(f, "population selector has no rows"),
+            Self::EmptyPredicateName => write!(f, "predicate name must be non-empty"),
+            Self::DynamicPolicyHasNoTreatmentOffset => {
+                write!(f, "TemporalPolicy::Dynamic has no single treatment offset")
+            }
             Self::InvalidPopulationTimeRange { start, end } => {
                 write!(f, "invalid population time range [{start}, {end})")
             }

@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use crate::ids::VariableId;
+use crate::ids::{DynamicRuleId, VariableId};
 use crate::value::Value;
 
 /// Temporal intervention policy over discrete time steps (DESIGN.md §8.1).
@@ -29,6 +29,14 @@ pub enum TemporalPolicy {
         /// Last intervened step (inclusive).
         until: i32,
     },
+    /// Rule-driven schedule resolved by callers (DESIGN.md §8.1).
+    ///
+    /// Schedule interpretation is deferred; identification/estimation reject
+    /// this variant until a rule interpreter ships.
+    Dynamic {
+        /// Opaque rule handle.
+        rule: DynamicRuleId,
+    },
 }
 
 impl TemporalPolicy {
@@ -44,6 +52,12 @@ impl TemporalPolicy {
         Self::Sustained { from, until }
     }
 
+    /// Dynamic rule-driven schedule.
+    #[must_use]
+    pub const fn dynamic(rule: DynamicRuleId) -> Self {
+        Self::Dynamic { rule }
+    }
+
     /// Validate policy bounds.
     ///
     /// # Errors
@@ -51,7 +65,7 @@ impl TemporalPolicy {
     /// Returns [`InterventionError`] when the sustained window is empty or inverted.
     pub const fn validate(self) -> Result<(), InterventionError> {
         match self {
-            Self::Pulse { .. } => Ok(()),
+            Self::Pulse { .. } | Self::Dynamic { .. } => Ok(()),
             Self::Sustained { from, until } => {
                 if until < from {
                     return Err(InterventionError::InvalidTemporalWindow { from, until });
@@ -458,5 +472,12 @@ mod tests {
         let m = MechanismOverride::constant(2.0);
         assert_eq!(&*m.family_id, "constant");
         assert_eq!(m.parameters.as_ref(), &[2.0]);
+    }
+
+    #[test]
+    fn dynamic_policy_validates() {
+        use crate::ids::DynamicRuleId;
+        let p = TemporalPolicy::dynamic(DynamicRuleId::from_raw(1));
+        p.validate().unwrap();
     }
 }

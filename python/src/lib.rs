@@ -14,6 +14,8 @@
     clippy::cast_precision_loss
 )]
 
+mod callbacks;
+
 use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
@@ -21,18 +23,19 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
-    AnalysisError, BayesianConfig, CandidateDesign, CausalAnalysis, DataBatchRef, DesignCost,
-    DesignEvaluationContext, DesignObjective, DesignRankConfig, DesignRanker, DifferenceMeasure,
-    DiscoverParams, DiscoveryAccept, DiscoveryPerformanceRecord, DistributionChangeOptions,
-    FdrAdjustment, FdrControl, GraphIdentFlag, InferenceMode, MeasurementPlan,
-    MultiDatasetConstraints, RefuteSuite, SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent,
-    StaticDiscoverParams, RegimeAssignment,
-    TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples,
-    anomaly_attribution as facade_anomaly_attribution, apply_state_event,
+    AnalysisError, BayesianConfig, CandidateDesign, CausalAnalysis, CompiledCausalModel,
+    DataBatchRef, DecisionProblem, DesignCost, DesignEvaluationContext, DesignObjective,
+    DesignRankConfig, DesignRanker, DifferenceMeasure, DiscoverParams, DiscoveryAccept,
+    DiscoveryPerformanceRecord, DistributionChangeOptions, FdrAdjustment, FdrControl,
+    GraphIdentFlag, InferenceMode, MeasurementPlan, MultiDatasetConstraints, RefuteSuite,
+    SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent, StaticDiscoverParams,
+    StructureChangeOptions, RegimeAssignment, TemporalLinearPredictor, TemporalMediationEstimator,
+    WeightedGraphSamples, anomaly_attribution as facade_anomaly_attribution, apply_state_event,
     attribute_distribution_change as facade_attribute_distribution_change,
     attribute_distribution_change_robust as facade_attribute_distribution_change_robust,
     attribute_feature_relevance as facade_attribute_feature_relevance,
     attribute_path_specific as facade_attribute_path_specific,
+    attribute_structure_change as facade_attribute_structure_change,
     attribute_unit_change as facade_attribute_unit_change,
     counterfactual_ite as facade_counterfactual_ite, dag_from_dot as facade_dag_from_dot,
     dag_from_networkx_adjacency as facade_dag_from_networkx_adjacency,
@@ -41,9 +44,10 @@ use causal::{
     decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lpcmci as facade_discover_lpcmci, discover_pc as facade_discover_pc,
     discover_pcmci as facade_discover_pcmci, discover_pcmci_plus as facade_discover_pcmci_plus,
-    discover_rpcmci as facade_discover_rpcmci, encode_causal_posterior_bytes, fit_gcm,
+    discover_rpcmci as facade_discover_rpcmci, encode_causal_posterior_bytes,
+    evaluate_decision as facade_evaluate_decision, fit_gcm,
     mechanism_change_detection as facade_mechanism_change_detection, new_causal_state,
-    pag_definite_directed_edge_count, rank_designs as facade_rank_designs, resolve_ci,
+    pag_definite_directed_edge_count, rank_designs as facade_rank_designs,
     sample_do as facade_sample_do,
     sample_interventional_distribution as facade_sample_interventional_distribution,
     two_regime_half_split,
@@ -73,6 +77,7 @@ use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
 use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 create_exception!(causal._native, CausalError, PyException);
 create_exception!(causal._native, CausalIdentifyError, CausalError);
@@ -296,6 +301,12 @@ struct AteAnalysisResult {
     /// Estimated peak memory from the physical plan.
     #[pyo3(get)]
     peak_memory_bytes: Option<u64>,
+    /// Worker threads from the physical plan (`0` = serial).
+    #[pyo3(get)]
+    worker_threads: u32,
+    /// Expected Python boundary crossings recorded on the physical plan.
+    #[pyo3(get)]
+    expected_python_crossings: u32,
 }
 
 /// Decoded posterior artifact for Python consumers .
@@ -485,6 +496,7 @@ fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
     n_draws=1000,
     prior_scale=10.0,
     refute=true,
+    validators=None,
     seed=1,
     bootstrap=50,
     threads=1
@@ -502,11 +514,14 @@ fn analyze_ate(
     n_draws: usize,
     prior_scale: f64,
     refute: bool,
+    validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
     // Drop NumPy borrows before releasing the GIL.
     drop(columns);
 
@@ -542,6 +557,7 @@ fn analyze_ate(
             .graph(dag)
             .query(query)
             .refute(suite)
+            .custom_validators(custom_validators)
             .bootstrap_replicates(bootstrap);
         if let Some(id) = identifier {
             builder = builder.identifier(id);
@@ -599,6 +615,8 @@ fn analyze_ate(
     n_draws=1000,
     prior_scale=10.0,
     refute=true,
+    validators=None,
+    ci=None,
     seed=1,
     bootstrap=50,
     threads=1
@@ -619,12 +637,21 @@ fn analyze_ate_discover(
     n_draws: usize,
     prior_scale: f64,
     refute: bool,
+    validators: Option<Bound<'_, PyAny>>,
+    ci: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
+    let threads = if is_ci_callback || !custom_validators.is_empty() {
+        1
+    } else {
+        threads
+    };
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
@@ -641,8 +668,10 @@ fn analyze_ate_discover(
         let mut builder = CausalAnalysis::builder()
             .data(data)
             .discover_pc(alpha, max_cond_size, fdr_ctrl, accept)
+            .discovery_ci(ci_impl)
             .query(query)
             .refute(suite)
+            .custom_validators(custom_validators)
             .bootstrap_replicates(bootstrap);
         if let Some(id) = identifier {
             builder = builder.identifier(id);
@@ -762,6 +791,8 @@ fn ate_result_from_analysis(
         plan_id: result.logical_plan.plan_id.to_string(),
         modality: format!("{:?}", result.logical_plan.data_classification),
         peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+        worker_threads: result.physical_plan.worker_threads,
+        expected_python_crossings: result.physical_plan.expected_python_crossings,
     })
 }
 
@@ -983,10 +1014,11 @@ fn discovery_result_fields(
 
 /// Run lagged PCMCI discovery.
 ///
-/// NumPy columns in, structured link list out once. No per-query Python callbacks.
-/// `ci` selects the conditional-independence test by name (default `parcorr`).
+/// NumPy columns in, structured link list out once. Batch CI only (no per-query Python loop
+/// unless `ci` is an explicit slow-path callable — DESIGN §25.4).
+/// `ci` selects a named test (default `parcorr`) or a Python batch callable.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1))]
 fn discover_pcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -995,14 +1027,14 @@ fn discover_pcmci(
     alpha: f64,
     fdr: bool,
     seed: u64,
-    ci: &str,
+    ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
-    let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
+    let threads = if is_callback { 1 } else { threads };
 
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
@@ -1033,7 +1065,7 @@ fn discover_pcmci(
 
 /// Run static PC discovery over tabular (non-temporal) columns.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci="parcorr", max_cond_size=2, threads=1))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=1))]
 fn discover_pc(
     py: Python<'_>,
     names: Vec<String>,
@@ -1041,14 +1073,14 @@ fn discover_pc(
     alpha: f64,
     fdr: bool,
     seed: u64,
-    ci: &str,
+    ci: Option<Bound<'_, PyAny>>,
     max_cond_size: usize,
     threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
-    let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci, None).map_err(py_err)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
+    let threads = if is_callback { 1 } else { threads };
 
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
@@ -1086,7 +1118,7 @@ fn discover_pc(
 
 /// Run PCMCI+ discovery returning links plus oriented temporal CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1))]
 fn discover_pcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
@@ -1095,14 +1127,14 @@ fn discover_pcmci_plus(
     alpha: f64,
     fdr: bool,
     seed: u64,
-    ci: &str,
+    ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
-    let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
+    let threads = if is_callback { 1 } else { threads };
 
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
@@ -1142,7 +1174,7 @@ fn discover_pcmci_plus(
 
 /// Run LPCMCI discovery returning links plus temporal PAG summary (no per-edge GIL).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1))]
 fn discover_lpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -1151,14 +1183,14 @@ fn discover_lpcmci(
     alpha: f64,
     fdr: bool,
     seed: u64,
-    ci: &str,
+    ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
-    let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
+    let threads = if is_callback { 1 } else { threads };
 
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
@@ -1207,7 +1239,7 @@ fn discover_lpcmci(
     alpha=0.05,
     fdr=true,
     seed=1,
-    ci="parcorr",
+    ci=None,
     weights=None,
     threads=1,
     context_names=None,
@@ -1223,7 +1255,7 @@ fn discover_jpcmci_plus(
     alpha: f64,
     fdr: bool,
     seed: u64,
-    ci: &str,
+    ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
     context_names: Option<Vec<String>>,
@@ -1238,9 +1270,9 @@ fn discover_jpcmci_plus(
     for cols in &env_columns {
         batches.push(columns_to_batch(&names, cols)?);
     }
-    let ci_name = ci.to_string();
-    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     let context_names = context_names.unwrap_or_default();
+    let threads = if is_callback { 1 } else { threads };
     drop(env_columns);
 
     detach_catch(py, move || {
@@ -1320,7 +1352,7 @@ fn discover_jpcmci_plus(
 
 /// RPCMCI with caller-supplied regimes (or half-split when `regimes` is omitted).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci="parcorr", weights=None, threads=1, regimes=None))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1, regimes=None))]
 fn discover_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -1329,14 +1361,15 @@ fn discover_rpcmci(
     alpha: f64,
     fdr: bool,
     seed: u64,
-    ci: &str,
+    ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
     regimes: Option<Vec<u32>>,
 ) -> PyResult<RpcmciDiscoverySummary> {
     let batch = columns_to_batch(&names, &columns)?;
-    let ci_impl = resolve_ci(ci, weights).map_err(py_err)?;
+    let (ci_impl, _ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
+    let threads = if is_callback { 1 } else { threads };
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         let assign = if let Some(labels) = regimes {
@@ -1524,6 +1557,10 @@ struct AnalysisResult {
     provenance_node_count: usize,
     #[pyo3(get)]
     refutation_count: usize,
+    #[pyo3(get)]
+    worker_threads: u32,
+    #[pyo3(get)]
+    expected_python_crossings: u32,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -1620,6 +1657,8 @@ fn analyze(
                 .collect(),
             provenance_node_count: result.provenance.len(),
             refutation_count: result.refutations.len(),
+            worker_threads: result.physical_plan.worker_threads,
+            expected_python_crossings: result.physical_plan.expected_python_crossings,
         })
     })
 }
@@ -1713,8 +1752,11 @@ fn counterfactual_ite(
 }
 
 /// Fit GCM and return interventional column means + draws under hard `do(treatment=value)`.
+///
+/// `mechanism_wrappers` maps variable name → object with `sample_noise(n)` / `evaluate(parents, noise)`
+/// (DESIGN §25.4 slow path).
 #[pyfunction]
-#[pyo3(name = "sample_do", signature = (names, columns, edges, treatment, do_value, n_draws, *, seed=0, threads=1))]
+#[pyo3(name = "sample_do", signature = (names, columns, edges, treatment, do_value, n_draws, *, seed=0, threads=1, mechanism_wrappers=None))]
 fn sample_do_py(
     py: Python<'_>,
     names: Vec<String>,
@@ -1725,9 +1767,12 @@ fn sample_do_py(
     n_draws: usize,
     seed: u64,
     threads: u32,
+    mechanism_wrappers: Option<Bound<'_, PyDict>>,
 ) -> PyResult<GcmSampleResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
+    let wrappers = mechanism_wrappers.map(|d| d.unbind());
+    let threads = if wrappers.is_some() { 1 } else { threads };
     let (means, n_rows, n_nodes, flat) = detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
@@ -1745,10 +1790,18 @@ fn sample_do_py(
             .map_err(py_err)?;
         }
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let model = if let Some(w) = wrappers {
+            Python::attach(|py| {
+                let dict = w.bind(py);
+                callbacks::apply_mechanism_wrappers(&fitted.model, &names, dict)
+            })?
+        } else {
+            fitted.model
+        };
         let ctx = py_execution_context(seed, threads);
         let mut rng = CausalRng::from_seed(seed);
         let samples = facade_sample_do(
-            &fitted.model,
+            &model,
             &[Intervention::set(t_id, Value::f64(do_value))],
             n_draws,
             &mut rng,
@@ -1993,6 +2046,116 @@ fn attribute_distribution_change(
         }
         Ok((result.total_change, pairs))
     })
+}
+
+/// Structure-change attribution between two edge lists (parent-set Shapley).
+///
+/// Returns `(total_change, [(component_name, contribution), ...])`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, baseline_edges, comparison_edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
+fn attribute_structure_change(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    baseline_edges: Vec<(String, String)>,
+    comparison_edges: Vec<(String, String)>,
+    outcome: String,
+    baseline_start: usize,
+    baseline_end: usize,
+    comparison_start: usize,
+    comparison_end: usize,
+    n_samples: usize,
+    seed: u64,
+    threads: u32,
+) -> PyResult<(f64, Vec<(String, f64)>)> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut g0 = Dag::with_variables(n_vars);
+        for (from, to) in &baseline_edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g0.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let mut g1 = Dag::with_variables(n_vars);
+        for (from, to) in &comparison_edges {
+            let from_id = data.schema().id_of(from).map_err(py_err)?;
+            let to_id = data.schema().id_of(to).map_err(py_err)?;
+            g1.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let baseline = CompiledCausalModel::compile(g0).map_err(py_msg)?;
+        let comparison = CompiledCausalModel::compile(g1).map_err(py_msg)?;
+        let query = ChangeAttributionQuery::new(
+            y_id,
+            PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
+            PopulationSelector::TimeRange { start: comparison_start, end: comparison_end },
+        )
+        .with_components(AttributionComponents::Structure)
+        .with_allocation(AllocationMethod::Shapley {
+            approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
+        });
+        let mut ctx = py_execution_context(seed, threads);
+        ctx.cache_policy = CachePolicy::enabled(Some(4_000_000));
+        let opts = StructureChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: n_samples.max(100),
+            seed,
+        };
+        let result = facade_attribute_structure_change(
+            &baseline,
+            &comparison,
+            &data,
+            &query,
+            &opts,
+            &ctx,
+        )
+        .map_err(py_err)?;
+        let mut pairs = Vec::with_capacity(result.contributions.len());
+        for c in result.contributions.iter() {
+            let name = data
+                .schema()
+                .get(c.component.variable())
+                .map_or_else(|_| format!("V{}", c.component.raw()), |v| v.name.to_string());
+            pairs.push((name, c.contribution));
+        }
+        Ok((result.total_change, pairs))
+    })
+}
+
+/// Evaluate a decision problem under a Python utility callback (DESIGN §25.4).
+///
+/// `utility(actions, outcomes) -> flat float64 ndarray` of length `len(actions) * len(outcomes)`.
+/// Returns `(expected_utility, posterior_regret, chosen_action)`.
+#[pyfunction]
+#[pyo3(signature = (actions, outcomes, utility))]
+fn evaluate_decision_py(
+    py: Python<'_>,
+    actions: Vec<f64>,
+    outcomes: Vec<f64>,
+    utility: Bound<'_, PyAny>,
+) -> PyResult<(f64, f64, Option<usize>)> {
+    if !utility.is_callable() {
+        return Err(PyValueError::new_err("utility must be callable"));
+    }
+    let util = Arc::new(callbacks::PyUtility::new(utility.unbind()));
+    let problem = DecisionProblem::new(actions, util, Vec::new());
+    // Keep GIL acquired: utility callback reacquires anyway; this is an explicit slow path.
+    let eval = facade_evaluate_decision(&problem, &outcomes);
+    let _ = py; // silence unused if optimized
+    Ok((eval.expected_utility, eval.posterior_regret, eval.chosen_action))
 }
 
 /// Rank measurement vs sampling candidates under graph-entropy EIG.
@@ -2329,6 +2492,7 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<(Vec<String>, Vec<(u32, u32)>, 
     include_space_dummy=true,
     include_time_dummy=false,
     space_dummy_ci="scalar",
+    ci=None,
 ))]
 fn analyze_temporal_discover(
     py: Python<'_>,
@@ -2353,6 +2517,7 @@ fn analyze_temporal_discover(
     include_space_dummy: bool,
     include_time_dummy: bool,
     space_dummy_ci: &str,
+    ci: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AnalysisResult> {
     let algo = algorithm.to_string();
     let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
@@ -2363,6 +2528,8 @@ fn analyze_temporal_discover(
     };
     let context_names = context_names.unwrap_or_default();
     let space_dummy_ci = space_dummy_ci.to_string();
+    let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
+    let threads = if is_ci_callback { 1 } else { threads };
 
     match algo.as_str() {
         "jpcmci_plus" => {
@@ -2420,6 +2587,7 @@ fn analyze_temporal_discover(
                     .series_multi(multi)
                     .temporal_query(q)
                     .bootstrap_replicates(bootstrap)
+                    .discovery_ci(ci_impl)
                     .discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset)
                     .build()
                     .map_err(py_err)?;
@@ -2472,6 +2640,7 @@ fn analyze_temporal_discover(
                     .series(series)
                     .temporal_query(q)
                     .bootstrap_replicates(bootstrap)
+                    .discovery_ci(ci_impl)
                     .discover_rpcmci(max_lag, alpha, fdr_ctrl, accept, assign)
                     .build()
                     .map_err(py_err)?;
@@ -2507,7 +2676,8 @@ fn analyze_temporal_discover(
                 let mut builder = CausalAnalysis::builder()
                     .series(series)
                     .temporal_query(q)
-                    .bootstrap_replicates(bootstrap);
+                    .bootstrap_replicates(bootstrap)
+                    .discovery_ci(ci_impl);
                 builder = match algo.as_str() {
                     "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
                     "pcmci_plus" => builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept),
@@ -2543,6 +2713,8 @@ fn analysis_result_from_run(result: causal::CausalAnalysisResult) -> AnalysisRes
             .collect(),
         provenance_node_count: result.provenance.len(),
         refutation_count: result.refutations.len(),
+        worker_threads: result.physical_plan.worker_threads,
+        expected_python_crossings: result.physical_plan.expected_python_crossings,
     }
 }
 
@@ -2762,7 +2934,7 @@ fn attribute_distribution_change_robust(
                 start: comparison_start,
                 end: comparison_end,
             },
-            components: AttributionComponents::All,
+            components: AttributionComponents::Mechanisms,
             allocation: AllocationMethod::Shapley {
                 approximation: ShapleyConfig::monte_carlo(200),
             },
@@ -2956,11 +3128,13 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(attribute_path_specific, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_distribution_change, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_distribution_change_robust, m)?)?;
+    m.add_function(wrap_pyfunction!(attribute_structure_change, m)?)?;
     m.add_function(wrap_pyfunction!(anomaly_attribution, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_unit_change, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_feature_relevance, m)?)?;
     m.add_function(wrap_pyfunction!(mechanism_change_detection, m)?)?;
     m.add_function(wrap_pyfunction!(rank_designs, m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_decision_py, m)?)?;
     m.add_function(wrap_pyfunction!(causal_state_append, m)?)?;
     m.add_function(wrap_pyfunction!(decode_posterior_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(encode_posterior_artifact, m)?)?;

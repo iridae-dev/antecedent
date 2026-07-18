@@ -6,15 +6,13 @@
 //!
 //! 1. every singleton `{v}` with `v ∉ {T, Y}`,
 //! 2. every non-empty subset of `children(T) \ {Y}` up to
-//!    [`FrontDoorSearchConfig::max_mediator_set_size`] (cardinality bound), and
-//! 3. the full set `children(T) \ {Y}` when it exceeds that cardinality bound
-//!    (still tested as one candidate).
+//!    [`FrontDoorSearchConfig::max_mediator_set_size`],
+//! 3. the full set `children(T) \ {Y}` when it exceeds that cardinality bound,
+//! 4. every non-empty subset of **all** intermediates `V \ {T,Y}` up to
+//!    `max_mediator_set_size` (covers non-child intermediates and mixed sets).
 //!
-//! Valid mediator sets outside these families are still missed: sets mixing
-//! children of `T` with non-child intermediates, and sets of non-child
-//! intermediates that jointly intercept all directed `T -> Y` paths. A
-//! `NotIdentified` result therefore means "no candidate in the searched
-//! families qualifies", not that no front-door set exists.
+//! Enumeration is still bounded by `max_mediator_set_size` and `max_results`.
+//! A `NotIdentified` result means no candidate within those bounds qualifies.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -157,6 +155,21 @@ impl FrontDoorIdentifier {
         // If the full child set exceeds the cardinality bound, still test it once.
         if children_of_t.len() > max_k {
             push_candidate(children_of_t, &mut candidates);
+        }
+
+        // Non-empty subsets of all intermediates V\{T,Y} (non-child + mixed sets).
+        let intermediates: Vec<DenseNodeId> = (0..dag.node_count())
+            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node id fits u32")))
+            .filter(|&v| v != t && v != y)
+            .collect();
+        // Cap pool to avoid combinatorial blow-ups (same spirit as backdoor's >20 guard).
+        if intermediates.len() <= 12 {
+            let max_all = self.config.max_mediator_set_size.min(intermediates.len());
+            for k in 1..=max_all {
+                for subset in combinations(&intermediates, k) {
+                    push_candidate(subset, &mut candidates);
+                }
+            }
         }
 
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();

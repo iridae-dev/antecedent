@@ -36,3 +36,8 @@ notes = "docs/hot_paths.md + benches/baselines owners/contracts"
 id = "release.security_review"
 status = "done"
 notes = "unsafe/license/dependency review + cargo-deny"
+
+[[capabilities]]
+id = "release.artifact_mmap_stream_skip"
+status = "done"
+notes = "ArtifactReader/MappedArtifactReader skip+mmap; SectionBytes Arc; Arrow Never-compress; posterior meta-only — TODO.md item 9"

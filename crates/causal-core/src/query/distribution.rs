@@ -15,8 +15,8 @@ use super::error::QueryError;
 /// Interventional distribution query P(Y | do(...)) (DESIGN.md §8).
 ///
 /// Distinct from [`ChangeAttributionQuery`] (population/period change attribution).
-/// Identify/estimate algorithms for this query are deferred (IDC); GCM sampling is
-/// the interim execution path.
+/// Identify via ID/IDC (`IdIdentifier` / `IdcIdentifier`); GCM sampling remains
+/// available via `sample_interventional_distribution`.
 pub struct InterventionalDistributionQuery {
     /// Outcome variable(s) whose interventional distribution is requested.
     pub outcomes: Arc<[VariableId]>,
@@ -63,6 +63,7 @@ impl InterventionalDistributionQuery {
         for iv in self.interventions.iter() {
             iv.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
         }
+        self.target_population.validate()?;
         Ok(())
     }
 }
@@ -170,6 +171,7 @@ impl PathSpecificEffectQuery {
                 got: active_var,
             });
         }
+        self.target_population.validate()?;
         Ok(())
     }
 }

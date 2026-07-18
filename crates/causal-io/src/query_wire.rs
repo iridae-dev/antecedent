@@ -7,11 +7,11 @@ use std::sync::Arc;
 use causal_core::{
     AllocationMethod, AnomalyAttributionQuery, AttributionComponents, AverageEffectQuery,
     CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery,
-    EnvironmentId, Intervention, InterventionSequence, InterventionalDistributionQuery,
-    MechanismChangeQuery, MechanismOverride, MediationContrast, MediationQuery,
-    OrderedFloatBits, PathSpecificEffectQuery, PopulationSelector, SequencedIntervention,
-    ShapleyConfig, ShapleyMode, StochasticPolicy, TargetPopulation, TemporalEffectQuery,
-    TemporalPolicy, UnitChangeQuery, Value, VariableId,
+    DistributionRef, DynamicRuleId, EnvironmentId, Intervention, InterventionSequence,
+    InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride, MediationContrast,
+    MediationQuery, OrderedFloatBits, PathSpecificEffectQuery, PopulationSelector, PredicateExpr,
+    SequencedIntervention, ShapleyConfig, ShapleyMode, StochasticPolicy, TargetPopulation,
+    TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, Value, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -81,6 +81,12 @@ pub enum TargetPopulationWire {
     Untreated,
     /// Environment-restricted.
     Environment(u32),
+    /// Named registry predicate.
+    PredicateNamed(String),
+    /// Explicit row indices.
+    PredicateRows(Vec<u64>),
+    /// Custom distribution handle.
+    CustomDistribution(u32),
 }
 
 impl TargetPopulationWire {
@@ -88,13 +94,27 @@ impl TargetPopulationWire {
     ///
     /// # Errors
     ///
-    /// Unknown variants.
+    /// Unknown variants or row indices that do not fit `u64`.
     pub fn from_domain(p: &TargetPopulation) -> Result<Self, IoError> {
         Ok(match p {
             TargetPopulation::AllObserved => Self::AllObserved,
             TargetPopulation::Treated => Self::Treated,
             TargetPopulation::Untreated => Self::Untreated,
             TargetPopulation::Environment(id) => Self::Environment(id.raw()),
+            TargetPopulation::Predicate(PredicateExpr::Named(name)) => {
+                Self::PredicateNamed(name.to_string())
+            }
+            TargetPopulation::Predicate(PredicateExpr::Rows(rows)) => Self::PredicateRows(
+                rows.iter()
+                    .map(|&r| u64::try_from(r).map_err(|_| IoError::TooLarge))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            TargetPopulation::Predicate(other) => {
+                return Err(IoError::Convert(format!(
+                    "unsupported PredicateExpr for query wire: {other:?}"
+                )));
+            }
+            TargetPopulation::CustomDistribution(r) => Self::CustomDistribution(r.raw()),
             other => {
                 return Err(IoError::Convert(format!(
                     "unsupported TargetPopulation for query wire: {other:?}"
@@ -104,14 +124,30 @@ impl TargetPopulationWire {
     }
 
     /// Decode.
-    #[must_use]
-    pub fn to_domain(&self) -> TargetPopulation {
-        match self {
+    ///
+    /// # Errors
+    ///
+    /// Row indices that do not fit `usize`.
+    pub fn to_domain(&self) -> Result<TargetPopulation, IoError> {
+        Ok(match self {
             Self::AllObserved => TargetPopulation::AllObserved,
             Self::Treated => TargetPopulation::Treated,
             Self::Untreated => TargetPopulation::Untreated,
             Self::Environment(raw) => TargetPopulation::Environment(EnvironmentId::from_raw(*raw)),
-        }
+            Self::PredicateNamed(name) => {
+                TargetPopulation::Predicate(PredicateExpr::named(name.as_str()))
+            }
+            Self::PredicateRows(rows) => {
+                let idxs = rows
+                    .iter()
+                    .map(|&r| usize::try_from(r).map_err(|_| IoError::TooLarge))
+                    .collect::<Result<Vec<_>, _>>()?;
+                TargetPopulation::Predicate(PredicateExpr::rows(idxs))
+            }
+            Self::CustomDistribution(raw) => {
+                TargetPopulation::CustomDistribution(DistributionRef::from_raw(*raw))
+            }
+        })
     }
 }
 
@@ -131,6 +167,11 @@ pub enum TemporalPolicyWire {
         /// Until.
         until: i32,
     },
+    /// Dynamic rule handle.
+    Dynamic {
+        /// Rule id.
+        rule: u32,
+    },
 }
 
 impl TemporalPolicyWire {
@@ -140,6 +181,7 @@ impl TemporalPolicyWire {
             TemporalPolicy::Sustained { from, until } => {
                 Self::Sustained { from: *from, until: *until }
             }
+            TemporalPolicy::Dynamic { rule } => Self::Dynamic { rule: rule.raw() },
             other => {
                 return Err(IoError::Convert(format!("unsupported TemporalPolicy: {other:?}")));
             }
@@ -151,6 +193,9 @@ impl TemporalPolicyWire {
         match self {
             Self::Pulse { at } => TemporalPolicy::Pulse { at: *at },
             Self::Sustained { from, until } => TemporalPolicy::Sustained { from: *from, until: *until },
+            Self::Dynamic { rule } => TemporalPolicy::Dynamic {
+                rule: DynamicRuleId::from_raw(*rule),
+            },
         }
     }
 }
@@ -821,7 +866,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             effect_modifiers: vars_from_raw(effect_modifiers),
             control: control.to_domain(),
             active: active.to_domain(),
-            target_population: target_population.to_domain(),
+            target_population: target_population.to_domain()?,
         }),
         CausalQueryWire::TemporalEffect {
             treatment,
@@ -840,7 +885,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             active: active.to_domain(),
             horizon_steps: *horizon_steps,
             max_history_lag: *max_history_lag,
-            target_population: target_population.to_domain(),
+            target_population: target_population.to_domain()?,
         }),
         CausalQueryWire::Counterfactual { outcomes, interventions, allow_nested } => {
             CausalQuery::Counterfactual(CounterfactualQuery {
@@ -928,7 +973,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             contrast: mediation_contrast_from_str(contrast)?,
             control: control.to_domain(),
             active: active.to_domain(),
-            target_population: target_population.to_domain(),
+            target_population: target_population.to_domain()?,
         }),
         CausalQueryWire::ConditionalEffect { inner } => {
             let CausalQuery::AverageEffect(inner_q) = causal_query_from_wire(inner)? else {
@@ -939,7 +984,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::ConditionalEffect(ConditionalEffectQuery { inner: inner_q })
         }
         CausalQueryWire::Distribution(w) => {
-            CausalQuery::Distribution(interventional_distribution_from_wire(w))
+            CausalQuery::Distribution(interventional_distribution_from_wire(w)?)
         }
         CausalQueryWire::PathSpecific(w) => CausalQuery::PathSpecific(path_specific_from_wire(w)?),
     })
@@ -965,15 +1010,18 @@ pub fn interventional_distribution_to_wire(
 }
 
 /// Decode an interventional distribution query.
-#[must_use]
+///
+/// # Errors
+///
+/// Row indices that do not fit `usize`.
 pub fn interventional_distribution_from_wire(
     w: &InterventionalDistributionQueryWire,
-) -> InterventionalDistributionQuery {
-    InterventionalDistributionQuery {
+) -> Result<InterventionalDistributionQuery, IoError> {
+    Ok(InterventionalDistributionQuery {
         outcomes: vars_from_raw(&w.outcomes),
         interventions: w.interventions.iter().map(InterventionWire::to_domain).collect::<Vec<_>>().into(),
-        target_population: w.target_population.to_domain(),
-    }
+        target_population: w.target_population.to_domain()?,
+    })
 }
 
 /// Encode a path-specific effect query.
@@ -1010,7 +1058,7 @@ pub fn path_specific_from_wire(
         path_nodes: vars_from_raw(&w.path_nodes),
         control: w.control.to_domain(),
         active: w.active.to_domain(),
-        target_population: w.target_population.to_domain(),
+        target_population: w.target_population.to_domain()?,
         max_paths: usize::try_from(w.max_paths)
             .map_err(|_| IoError::Convert("max_paths does not fit usize".into()))?,
         max_len: usize::try_from(w.max_len)
@@ -1045,7 +1093,7 @@ mod tests {
         let wire = interventional_distribution_to_wire(&q).unwrap();
         let bytes = to_cbor(&wire).unwrap();
         let decoded: InterventionalDistributionQueryWire = from_cbor(&bytes).unwrap();
-        let back = interventional_distribution_from_wire(&decoded);
+        let back = interventional_distribution_from_wire(&decoded).unwrap();
         assert_eq!(back.outcomes.as_ref(), q.outcomes.as_ref());
         assert_eq!(back.interventions.len(), 1);
         back.validate().unwrap();
@@ -1063,5 +1111,80 @@ mod tests {
         let back = path_specific_from_wire(&decoded).unwrap();
         assert_eq!(back.max_paths, 32);
         back.validate().unwrap();
+    }
+
+    #[test]
+    fn planned_variants_cbor_round_trip() {
+        let ate = CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Predicate(PredicateExpr::named(
+                    "cohort_a",
+                ))),
+        );
+        let wire = causal_query_to_wire(&ate).unwrap();
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+        let back = causal_query_from_wire(&decoded).unwrap();
+        match back {
+            CausalQuery::AverageEffect(q) => match q.target_population {
+                TargetPopulation::Predicate(PredicateExpr::Named(name)) => {
+                    assert_eq!(&*name, "cohort_a");
+                }
+                other => panic!("expected PredicateNamed, got {other:?}"),
+            },
+            other => panic!("expected AverageEffect, got {other:?}"),
+        }
+
+        let rows_q = CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Predicate(PredicateExpr::rows([
+                    1usize, 3,
+                ]))),
+        );
+        let back = causal_query_from_wire(&causal_query_to_wire(&rows_q).unwrap()).unwrap();
+        match back {
+            CausalQuery::AverageEffect(q) => match q.target_population {
+                TargetPopulation::Predicate(PredicateExpr::Rows(rows)) => {
+                    assert_eq!(rows.as_ref(), &[1, 3]);
+                }
+                other => panic!("expected PredicateRows, got {other:?}"),
+            },
+            other => panic!("expected AverageEffect, got {other:?}"),
+        }
+
+        let dist_q = CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::CustomDistribution(
+                    DistributionRef::from_raw(9),
+                )),
+        );
+        let back = causal_query_from_wire(&causal_query_to_wire(&dist_q).unwrap()).unwrap();
+        match back {
+            CausalQuery::AverageEffect(q) => {
+                assert_eq!(
+                    q.target_population,
+                    TargetPopulation::CustomDistribution(DistributionRef::from_raw(9))
+                );
+            }
+            other => panic!("expected AverageEffect, got {other:?}"),
+        }
+
+        let temporal = CausalQuery::TemporalEffect(
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(4)))
+                .with_horizon_steps(2),
+        );
+        let back = causal_query_from_wire(&causal_query_to_wire(&temporal).unwrap()).unwrap();
+        match back {
+            CausalQuery::TemporalEffect(q) => {
+                assert_eq!(
+                    q.policy,
+                    TemporalPolicy::Dynamic {
+                        rule: DynamicRuleId::from_raw(4)
+                    }
+                );
+            }
+            other => panic!("expected TemporalEffect, got {other:?}"),
+        }
     }
 }

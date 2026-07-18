@@ -814,9 +814,11 @@ Temporal sequences specify start, duration, cadence, and post-intervention behav
 pub enum TemporalPolicy {
     Pulse { at: TimeOffset },
     Sustained { from: TimeOffset, until: TimeOffset },
-    // Planned: Dynamic { rule: DynamicRuleId },
+    Dynamic { rule: DynamicRuleId },
 }
 ```
+
+`Dynamic` is query identity + wire only; schedule interpretation and identification remain deferred (`TODO.md` item 1 / future rule interpreters). Pulse identification ships; Sustained identification is deferred (g-formula / sequential ID).
 
 ### 8.2 Target population
 
@@ -826,9 +828,12 @@ pub enum TargetPopulation {
     Treated,
     Untreated,
     Environment(EnvironmentId),
-    // Planned: Predicate(PredicateExpr), CustomDistribution(DistributionRef),
+    Predicate(PredicateExpr),
+    CustomDistribution(DistributionRef),
 }
 ```
+
+`PredicateExpr` is a portable `Named` / `Rows` surface (no Python callables). Predicate evaluation and custom-distribution sampling are deferred; estimators that require `AllObserved` reject the new variants fail-closed.
 
 Target population is part of the query identity and serialization.
 
@@ -889,7 +894,7 @@ Do not:
 - recursively evaluate deep expressions without a compiled topological order;
 - allow simplification rules to depend on pointer identity or insertion order.
 
-## 10. Identification subsystem [partial]
+## 10. Identification subsystem [built]
 
 ### 10.1 Result model
 
@@ -2351,17 +2356,14 @@ Do not:
 - use wall-clock benchmarks as the only evidence when allocation or memory growth is the real risk;
 - defer all performance validation to a later release.
 
-## 24. Serialization and artifact format [partial]
+## 24. Serialization and artifact format [built]
 
 Shipped: versioned sectioned container with per-section Zstandard compression
 (Auto/Always/Never), BLAKE3 checksums, format `0.2` (`STABLE_FORMAT`) with
 `0.1→0.2` schema migration, CBOR wire types for graphs/queries/analysis/
 mechanisms/plans/provenance, DOT/GML/JSON and NetworkX-compatible DAG exchange,
-and `model_bundle` encode/decode. See `docs/artifacts.md`.
-
-Remaining: §24.5 memory-map / stream large Arrow sections without full buffer
-load; skip unread sections without materializing payloads; zero-copy write paths
-when Arrow buffers are already shared.
+`model_bundle` encode/decode, and §24.5 selective skip / mmap / Arc-shared
+zero-copy writes. See `docs/artifacts.md`.
 
 ### 24.1 Container format
 
@@ -2430,7 +2432,19 @@ Artifacts must not serialize arbitrary Python callables. Python-defined mechanis
 
 ### 24.5 Serialization performance requirements
 
-Required:
+**Shipped:**
+
+- `ArtifactReader` / `MappedArtifactReader` skip unread sections (seek or
+  stream-hash) without retaining payloads;
+- mmap zero-copy views for **uncompressed** sections (Arrow IPC defaults to
+  `CompressPolicy::Never`); compressed sections decompress into owned
+  `Arc<[u8]>` and reject mapped views fail-closed;
+- `SectionBytes` holds `Arc<[u8]>` so writers share Arrow/draw buffers;
+  Never-compress write paths hash/write the shared slice without cloning;
+- `decode_posterior_meta_from_seek` / `_from_path` inspect metadata without
+  loading draws.
+
+Required (met):
 
 - readers can skip unneeded sections;
 - large arrays can be memory-mapped or streamed where supported;

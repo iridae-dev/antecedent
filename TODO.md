@@ -8,18 +8,18 @@ DESIGN.md is the roadmap; these are its unimplemented chapters. Parity inventori
 
 Out of scope for these DONE gates (per DESIGN): selection/transport ID as later modules; external Stan/PyMC adapters; unsupervised RPCMCI regime search; NOTEARS as optional extension.
 
-**Verified done and removed (2026-07-22):** kernel-policy threading through stats/CI/data (§23.2 escape hatch); `IdentificationStatus` parametric/prior vocabulary + wire (estimation still nonparametric-only); static `Cpdag` + Meek/collider + classic PC (`discovery.pc`); `analyze(discovery=JPCMCIPlus|RPCMCI|PC)`; lag/alpha/CI discovery sensitivity validators; correctness follow-ups (FCI R10, front-door child-subset search, natural-mediation alias gate, multi-source path attribution, Wald/Hájek/matching SE, mechanism `MeanDiff` residuals, path-search budgets, latent-projection fail-closed). Front-door non-child intermediates remain incomplete under item 1’s adjustment-set work.
+**Verified done and removed (2026-07-22):** kernel-policy threading through stats/CI/data (§23.2 escape hatch); `IdentificationStatus` parametric/prior vocabulary + wire (estimation still nonparametric-only); static `Cpdag` + Meek/collider + classic PC (`discovery.pc`); `analyze(discovery=JPCMCIPlus|RPCMCI|PC)`; lag/alpha/CI discovery sensitivity validators; correctness follow-ups (FCI R10, front-door child-subset search, natural-mediation alias gate, multi-source path attribution, Wald/Hájek/matching SE, mechanism `MeanDiff` residuals, path-search budgets, latent-projection fail-closed). **Also removed after code verification:** Python `analyze()` / §25.4 callbacks (item 6); discovery validation OrientationStability / RegimeStability / EnvironmentHoldout / SyntheticNullCalibration / FalsePositiveCheck (item 7); query Planned variants `TemporalPolicy::Dynamic` + `TargetPopulation::{Predicate,CustomDistribution}` with fail-closed overlay/identify/estimate incl. temporal AllObserved gate (item 8); artifact mmap/stream/skip (item 9); structure-component attribution (item 10); rolling mechanism diagnostics (item 11). **Item 1 (deep identification) checked below (2026-07-22).**
 
 Ordered foundations → dependents.
 
-- [ ] **1. Deep identification** (DESIGN.md §10.1–10.3) — full semi-Markovian ID/IDC surface; highest scientific-correctness risk. Status vocabulary for parametric/prior ID already ships; estimation still gates on nonparametric ID only (no fake producers).
-    - [ ] ID algorithm for semi-Markovian models (Shpitser); memoized recursion over canonical subproblems; expression arena reuse (§10.5).
-    - [ ] IDC for conditional interventional distributions.
-    - [ ] Hedge certificates for non-identifiability.
-    - [ ] `AutoIdentifier` that returns all valid estimands and selection rationale (no silent estimator choice); does not fork a second identifier for distribution queries.
-    - [ ] Maximal (and remaining) adjustment-set search where defined beyond shipped backdoor / frontdoor / IV / RD / generalized adjustment (§10.4): cost-weighted selection, measurement-cost metadata, temporal history restrictions, positivity-aware ranking after a data check, and streaming enumeration (callbacks/iterators) so combinatorial sets need not be retained. Front-door today enumerates bounded subsets of `children(T)\{Y}` only — non-child intermediates still incomplete.
-    - [ ] Sustained temporal-effect identification (g-formula / sequential ID) — `TemporalPolicy::Sustained` types, overlay, and wire already ship; `identify_temporal` is Pulse-only today (`temporal_backdoor` rejects Sustained).
-    - [ ] Parity: `estimate.identify.general_id`, `pag.identify.full_id_idc` → `done`.
+- [x] **1. Deep identification** (DESIGN.md §10.1–10.3) — full semi-Markovian ID/IDC surface; highest scientific-correctness risk. Status vocabulary for parametric/prior ID already ships; estimation still gates on nonparametric ID only (no fake producers).
+    - [x] ID algorithm for semi-Markovian models (Shpitser); memoized recursion over canonical subproblems; expression arena reuse (§10.5).
+    - [x] IDC for conditional interventional distributions.
+    - [x] Hedge certificates for non-identifiability.
+    - [x] `AutoIdentifier` that returns all valid estimands and selection rationale (no silent estimator choice); does not fork a second identifier for distribution queries.
+    - [x] Maximal (and remaining) adjustment-set search where defined beyond shipped backdoor / frontdoor / IV / RD / generalized adjustment (§10.4): cost-weighted selection, measurement-cost metadata, temporal history restrictions, positivity-aware ranking after a data check, and streaming enumeration (callbacks/iterators) so combinatorial sets need not be retained. Front-door enumerates child subsets and bounded subsets of all intermediates `V\{T,Y}`.
+    - [x] Sustained temporal-effect identification (g-formula / sequential ID) — Pulse uses unfolded backdoor; Sustained uses general ID on the unfolded multi-treatment window.
+    - [x] Parity: `estimate.identify.general_id`, `pag.identify.full_id_idc` → `done`.
 
 - [ ] **2. Distribution & path-specific pipelines** (DESIGN.md §8) — identify + estimate for shipped `CausalQuery::Distribution` / `PathSpecific`. Types, Unsupported plumbing, GCM sampling / path-contribution wrappers, and query wire exist; algorithms do not.
     - [ ] **Depends on item 1** (IDC / path-restricted ID in the same ID/IDC family — do not fork a second `AutoIdentifier`).
@@ -57,28 +57,3 @@ Ordered foundations → dependents.
     - [ ] Candidate-edge posterior updates after CI screening (**uses** static PC from item 3 and Bayes-factor / posterior-dependence CI from item 4 as screening/proposal inputs).
     - [ ] Dynamic Bayesian network posterior search for bounded lag.
     - [ ] Parity: `bayes.discovery.dag_posterior` → `done`.
-
-- [ ] **6. Python `analyze()` / bindings completeness** (DESIGN §25.3–25.4) — PCMCI-family temporal `discovery=`, static `discovery=PC`, and JPCMCI+/RPCMCI one-shot (`DataInput::MultiEnv`, caller `regimes=`, no silent half-split on analyze) already ship.
-    - [ ] **Callback extensibility** (§25.4): explicit slow-path Python hooks for custom CI tests, mechanism wrappers, utility functions, and validators — GIL reacquire; plan marks callback regions as non-native-perf.
-
-- [x] **7. Discovery validation** (DESIGN.md §18.3) (2026-07-22) — block-bootstrap + lag/alpha/CI sensitivity already shipped; remaining validators landed. Awaits independent verification before removal. Effect refuters (§18.2) already ship.
-    - [x] Orientation stability (2026-07-22) — `OrientationStability` (PCMCI+); parity `discovery.validate.orientation_stability`.
-    - [x] Regime stability (2026-07-22) — `RegimeStability` (RPCMCI, fixed caller labels); parity `discovery.validate.regime_stability`.
-    - [x] Environment holdout (2026-07-22) — `EnvironmentHoldout` (J-PCMCI+ / `EnvHoldoutSplit`); parity `discovery.validate.environment_holdout`.
-    - [x] Synthetic-null calibration (2026-07-22) — `SyntheticNullCalibration`; parity `discovery.validate.synthetic_null_calibration`; scheduled gate hook.
-    - [x] False-positive checks using permuted or phase-randomized data (2026-07-22) — `FalsePositiveCheck` + `causal-data` surrogates; parity `discovery.validate.false_positive_permute_phase`.
-
-- [ ] **8. Query-model Planned variants** (DESIGN.md §8.1–8.2) — types/comments exist as roadmap; not the Distribution/PathSpecific algorithms (item 2).
-    - [ ] `TemporalPolicy::Dynamic { rule }` for rule-driven temporal intervention schedules (Pulse / Sustained *policy types* already ship; Sustained *identification* is item 1).
-    - [ ] `TargetPopulation::Predicate` and `CustomDistribution` (AllObserved / Treated / Untreated / Environment already ship).
-
-- [ ] **9. Artifact mmap / stream / skip** (DESIGN.md §24.5) — container, CBOR wire, migration, and `model_bundle` already ship.
-    - [ ] Memory-map or stream large Arrow sections without full buffer load.
-    - [ ] Skip unread sections without materializing payloads.
-    - [ ] Zero-copy write paths when Arrow buffers are already shared.
-
-- [ ] **10. Structure-component attribution** (DESIGN.md §17.1–17.2) — `AttributionComponents::Structure` is in the type/wire model; `distribution_change` / `unit_change` reject it today. Inputs / Mechanisms / path / Shapley surfaces already ship (`parity/attribution.toml`).
-    - [ ] Identify and estimate structure-change contributions between populations / units where defined.
-    - [ ] Wire through attribution facade / GCM helpers without silently dropping the component.
-
-- [x] **11. Rolling mechanism diagnostics** (DESIGN.md §20) (2026-07-22) — `RollingMechanismDiagnostics` under `SuffStatStore` (bounded window, versioned, reconstructible; `AppendData` invalidates without clear; `ReplaceData` clears). Parity `design_state.rolling_mechanism_diagnostics`. Awaits independent verification before removal.

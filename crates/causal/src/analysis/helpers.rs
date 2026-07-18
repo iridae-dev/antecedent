@@ -112,6 +112,7 @@ pub(crate) fn run_pcmci_review(
     max_lag: u32,
     alpha: f64,
     fdr: Option<causal_stats::FdrAdjustment>,
+    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalGraphReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -119,7 +120,7 @@ pub(crate) fn run_pcmci_review(
         max_lag,
         alpha,
         fdr,
-        ci: resolve_ci("parcorr", None)?,
+        ci,
         multi_dataset: MultiDatasetConstraints::default(),
     };
     let result = discover_pcmci(data, &vars, &params, ctx)?;
@@ -131,6 +132,7 @@ pub(crate) fn run_pcmci_plus_review(
     max_lag: u32,
     alpha: f64,
     fdr: Option<causal_stats::FdrAdjustment>,
+    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -138,7 +140,7 @@ pub(crate) fn run_pcmci_plus_review(
         max_lag,
         alpha,
         fdr,
-        ci: resolve_ci("parcorr", None)?,
+        ci,
         multi_dataset: MultiDatasetConstraints::default(),
     };
     let result = discover_pcmci_plus(data, &vars, &params, ctx)?;
@@ -151,6 +153,7 @@ pub(crate) fn run_jpcmci_plus_review(
     alpha: f64,
     fdr: Option<causal_stats::FdrAdjustment>,
     multi_dataset: &MultiDatasetConstraints,
+    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -167,7 +170,7 @@ pub(crate) fn run_jpcmci_plus_review(
         max_lag,
         alpha,
         fdr,
-        ci: resolve_ci("parcorr", None)?,
+        ci,
         multi_dataset: multi_dataset.clone(),
     };
     let result = discover_jpcmci_plus(data, &system, &params, ctx)?;
@@ -180,6 +183,7 @@ pub(crate) fn run_rpcmci_discovery(
     alpha: f64,
     fdr: Option<causal_stats::FdrAdjustment>,
     assignment: &RegimeAssignment,
+    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<causal_discovery::RpcmciDiscoveryResult, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -187,7 +191,7 @@ pub(crate) fn run_rpcmci_discovery(
         max_lag,
         alpha,
         fdr,
-        ci: resolve_ci("parcorr", None)?,
+        ci,
         multi_dataset: MultiDatasetConstraints::default(),
     };
     if assignment.len() != data.row_count() {
@@ -207,6 +211,7 @@ pub(crate) fn run_lpcmci_review(
     max_lag: u32,
     alpha: f64,
     fdr: Option<causal_stats::FdrAdjustment>,
+    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<causal_graph::TemporalPagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -214,7 +219,7 @@ pub(crate) fn run_lpcmci_review(
         max_lag,
         alpha,
         fdr,
-        ci: resolve_ci("parcorr", None)?,
+        ci,
         multi_dataset: MultiDatasetConstraints::default(),
     };
     let result = discover_lpcmci(data, &vars, &params, ctx)?;
@@ -226,6 +231,7 @@ pub(crate) fn run_pc_review(
     alpha: f64,
     max_cond_size: usize,
     fdr: Option<causal_stats::FdrAdjustment>,
+    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<CpdagReview, AnalysisError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -233,7 +239,7 @@ pub(crate) fn run_pc_review(
         alpha,
         max_cond_size,
         fdr,
-        ci: resolve_ci("parcorr", None)?,
+        ci,
     };
     let result = discover_pc(data, &vars, &params, ctx)?;
     Ok(result.review)
@@ -248,16 +254,34 @@ pub(crate) fn run_refuters(
     ctx: &ExecutionContext,
     suite: RefuteSuite,
     estimator: &str,
+    custom: &[Arc<dyn causal_validate::CustomEffectValidator>],
 ) -> Result<Vec<RefutationReport>, AnalysisError> {
     let problem =
         RefutationProblem { data, estimand, query, original: estimate, estimator: Some(estimator) };
-    let validation = match suite {
-        RefuteSuite::None => return Ok(Vec::new()),
+    let mut validation = match suite {
+        RefuteSuite::None => {
+            if custom.is_empty() {
+                return Ok(Vec::new());
+            }
+            ValidationSuite::new()
+        }
         RefuteSuite::PlaceboAndRcc => ValidationSuite::placebo_and_rcc(),
         RefuteSuite::Full => ValidationSuite::full_effect(),
     };
+    for v in custom {
+        validation = validation.with_custom(Arc::clone(v));
+    }
     let outcomes = validation.run(&problem, workspace, ctx).map_err(AnalysisError::from)?;
     Ok(ValidationSuite::reports_only(&outcomes))
+}
+
+pub(crate) fn resolve_analysis_ci(
+    discovery_ci: &Option<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>>,
+) -> Result<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>, AnalysisError> {
+    match discovery_ci {
+        Some(ci) => Ok(Arc::clone(ci)),
+        None => resolve_ci("parcorr", None),
+    }
 }
 
 pub(crate) fn effect_from_posterior(posterior: &CausalPosterior) -> Result<EffectEstimate, AnalysisError> {

@@ -40,6 +40,7 @@ EVIDENCE = {
     "attribution.path_decompose": "crates/causal-attribution/src/path.rs",
     "attribution.feature_relevance": "crates/causal-attribution/src/feature_relevance.rs",
     "attribution.root_cause": "crates/causal-attribution/src/root_cause.rs",
+    "attribution.structure": "crates/causal-attribution/src/structure_change.rs",
     "attribution.facade": "crates/causal/tests/attribution.rs",
 }
 
@@ -59,6 +60,7 @@ for c in caps(text):
 
 for path in [
     "conformance/attribution/distribution_change_y_shift/expected.json",
+    "conformance/attribution/structure_change_parent_swap/expected.json",
     "conformance/attribution/mechanism_change_detect/expected.json",
     "conformance/attribution/mechanism_change_kernel_shift/expected.json",
     "conformance/attribution/mechanism_change_change_point/expected.json",
@@ -90,6 +92,7 @@ for cid in (
     "gcm.attribution.robust",
     "gcm.attribution.unit_change",
     "gcm.attribution.feature_relevance",
+    "gcm.attribution.structure",
 ):
     require_done("parity/gcm.toml", cid)
 

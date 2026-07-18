@@ -163,6 +163,7 @@ impl TemporalMediationIdentifier {
                 candidates_examined: 1,
                 sets_returned: 1,
             },
+            hedge: None,
         })
     }
 

@@ -22,6 +22,7 @@ use crate::bayesian_checks::{
 };
 use crate::bootstrap_refute::BootstrapRefute;
 use crate::common::{RefutationProblem, RefutationReport};
+use crate::custom::CustomEffectValidator;
 use crate::data_subset::DataSubsetRefuter;
 use crate::dummy_outcome::DummyOutcome;
 use crate::error::ValidationError;
@@ -136,9 +137,19 @@ pub enum ValidationOutcome {
 }
 
 /// Ordered suite of validators (DESIGN §18.5).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct ValidationSuite {
     validators: Vec<ValidatorId>,
+    custom: Vec<Arc<dyn CustomEffectValidator>>,
+}
+
+impl std::fmt::Debug for ValidationSuite {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ValidationSuite")
+            .field("validators", &self.validators)
+            .field("custom", &self.custom.len())
+            .finish()
+    }
 }
 
 impl ValidationSuite {
@@ -152,6 +163,13 @@ impl ValidationSuite {
     #[must_use]
     pub fn with(mut self, id: ValidatorId) -> Self {
         self.validators.push(id);
+        self
+    }
+
+    /// Append a custom (dyn) effect validator; runs after built-ins.
+    #[must_use]
+    pub fn with_custom(mut self, validator: Arc<dyn CustomEffectValidator>) -> Self {
+        self.custom.push(validator);
         self
     }
 
@@ -192,9 +210,12 @@ impl ValidationSuite {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<Vec<ValidationOutcome>, ValidationError> {
-        let mut out = Vec::with_capacity(self.validators.len());
+        let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
         for &id in &self.validators {
             out.push(self.run_one(id, problem, workspace, ctx)?);
+        }
+        for custom in &self.custom {
+            out.push(ValidationOutcome::Report(custom.validate(problem, ctx)?));
         }
         Ok(out)
     }
@@ -224,10 +245,12 @@ impl ValidationSuite {
         bayes: &mut BayesianSuiteContext<'_>,
         ctx: &ExecutionContext,
     ) -> Result<Vec<ValidationOutcome>, ValidationError> {
-        let mut out = Vec::with_capacity(self.validators.len());
+        let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
         for &id in &self.validators {
             out.push(self.run_one_bayesian(id, bayes, ctx)?);
         }
+        // Custom validators need a RefutationProblem; Bayesian path leaves them unused here.
+        let _ = &self.custom;
         Ok(out)
     }
 

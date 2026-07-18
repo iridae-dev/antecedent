@@ -3,13 +3,15 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal_core::{AssumptionSet, CausalQuery};
-use causal_graph::{DSeparationWorkspace, Dag, GraphWorkspace};
+use causal_graph::{Admg, DSeparationWorkspace, Dag, GraphWorkspace};
 
 use crate::backdoor::{BackdoorIdentifier, PreparedIdentificationGraph};
 use crate::efficient::EfficientBackdoorIdentifier;
 use crate::error::IdentificationError;
 use crate::frontdoor::FrontDoorIdentifier;
+use crate::id::IdIdentifier;
 use crate::iv::InstrumentalVariableIdentifier;
+use crate::prepared::PreparedAdmg;
 use crate::result::IdentificationResult;
 
 /// Scratch buffers for identification algorithms (DESIGN §10.3).
@@ -31,6 +33,9 @@ pub struct IdentificationWorkspace {
 /// `assumptions` are stored on the prepared graph and merged into the result;
 /// `workspace` carries reusable graph-search scratch.
 pub trait Identifier<G> {
+    /// Prepared graph type for this identifier.
+    type Prepared;
+
     /// Compile `graph` (+ declared assumptions) into a reusable prepared form.
     ///
     /// # Errors
@@ -40,7 +45,7 @@ pub trait Identifier<G> {
         &self,
         graph: &G,
         assumptions: &AssumptionSet,
-    ) -> Result<PreparedIdentificationGraph, IdentificationError>;
+    ) -> Result<Self::Prepared, IdentificationError>;
 
     /// Identify `query` against a prepared graph.
     ///
@@ -49,24 +54,26 @@ pub trait Identifier<G> {
     /// Unsupported query, unknown variables, or algorithm limits.
     fn identify(
         &self,
-        prepared: &PreparedIdentificationGraph,
+        prepared: &Self::Prepared,
         query: &CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError>;
 }
 
 impl Identifier<Dag> for BackdoorIdentifier {
+    type Prepared = PreparedIdentificationGraph;
+
     fn prepare(
         &self,
         graph: &Dag,
         assumptions: &AssumptionSet,
-    ) -> Result<PreparedIdentificationGraph, IdentificationError> {
+    ) -> Result<Self::Prepared, IdentificationError> {
         Self::prepare_with_assumptions(self, graph, assumptions.clone())
     }
 
     fn identify(
         &self,
-        prepared: &PreparedIdentificationGraph,
+        prepared: &Self::Prepared,
         query: &CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
@@ -75,17 +82,19 @@ impl Identifier<Dag> for BackdoorIdentifier {
 }
 
 impl Identifier<Dag> for EfficientBackdoorIdentifier {
+    type Prepared = PreparedIdentificationGraph;
+
     fn prepare(
         &self,
         graph: &Dag,
         assumptions: &AssumptionSet,
-    ) -> Result<PreparedIdentificationGraph, IdentificationError> {
+    ) -> Result<Self::Prepared, IdentificationError> {
         Self::prepare_with_assumptions(self, graph, assumptions.clone())
     }
 
     fn identify(
         &self,
-        prepared: &PreparedIdentificationGraph,
+        prepared: &Self::Prepared,
         query: &CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
@@ -94,17 +103,19 @@ impl Identifier<Dag> for EfficientBackdoorIdentifier {
 }
 
 impl Identifier<Dag> for FrontDoorIdentifier {
+    type Prepared = PreparedIdentificationGraph;
+
     fn prepare(
         &self,
         graph: &Dag,
         assumptions: &AssumptionSet,
-    ) -> Result<PreparedIdentificationGraph, IdentificationError> {
+    ) -> Result<Self::Prepared, IdentificationError> {
         Self::prepare_with_assumptions(self, graph, assumptions.clone())
     }
 
     fn identify(
         &self,
-        prepared: &PreparedIdentificationGraph,
+        prepared: &Self::Prepared,
         query: &CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
@@ -113,17 +124,61 @@ impl Identifier<Dag> for FrontDoorIdentifier {
 }
 
 impl Identifier<Dag> for InstrumentalVariableIdentifier {
+    type Prepared = PreparedIdentificationGraph;
+
     fn prepare(
         &self,
         graph: &Dag,
         assumptions: &AssumptionSet,
-    ) -> Result<PreparedIdentificationGraph, IdentificationError> {
+    ) -> Result<Self::Prepared, IdentificationError> {
         Self::prepare_with_assumptions(self, graph, assumptions.clone())
     }
 
     fn identify(
         &self,
-        prepared: &PreparedIdentificationGraph,
+        prepared: &Self::Prepared,
+        query: &CausalQuery,
+        workspace: &mut IdentificationWorkspace,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        Self::identify(self, prepared, query, workspace)
+    }
+}
+
+impl Identifier<Admg> for IdIdentifier {
+    type Prepared = PreparedAdmg;
+
+    fn prepare(
+        &self,
+        graph: &Admg,
+        assumptions: &AssumptionSet,
+    ) -> Result<Self::Prepared, IdentificationError> {
+        Self::prepare_with_assumptions(self, graph, assumptions.clone())
+    }
+
+    fn identify(
+        &self,
+        prepared: &Self::Prepared,
+        query: &CausalQuery,
+        workspace: &mut IdentificationWorkspace,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        Self::identify(self, prepared, query, workspace)
+    }
+}
+
+impl Identifier<Dag> for IdIdentifier {
+    type Prepared = PreparedAdmg;
+
+    fn prepare(
+        &self,
+        graph: &Dag,
+        assumptions: &AssumptionSet,
+    ) -> Result<Self::Prepared, IdentificationError> {
+        PreparedAdmg::from_dag_with_assumptions(graph, assumptions.clone())
+    }
+
+    fn identify(
+        &self,
+        prepared: &Self::Prepared,
         query: &CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {

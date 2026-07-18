@@ -97,6 +97,7 @@ impl MediationQuery {
                 got: active_var,
             });
         }
+        self.target_population.validate()?;
         Ok(())
     }
 }

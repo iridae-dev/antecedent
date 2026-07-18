@@ -61,6 +61,7 @@ from ._native import (
     attribute_distribution_change_robust,
     attribute_feature_relevance,
     attribute_path_specific,
+    attribute_structure_change,
     attribute_unit_change,
     counterfactual_ite,
     dag_from_dot,
@@ -86,6 +87,7 @@ from ._native import (
     sample_do,
     sample_interventional_distribution,
 )
+from .design import evaluate_decision
 from .discovery import (
     JPCMCIPlus,
     LPCMCI,
@@ -151,6 +153,7 @@ __all__ = [
     "attribute_distribution_change_robust",
     "attribute_feature_relevance",
     "attribute_path_specific",
+    "attribute_structure_change",
     "attribute_unit_change",
     "attribution",
     "counterfactual",
@@ -179,6 +182,7 @@ __all__ = [
     "encode_model_bundle",
     "encode_posterior_artifact",
     "estimation",
+    "evaluate_decision",
     "graph",
     "inference",
     "load_float64_arrow_c_columns",

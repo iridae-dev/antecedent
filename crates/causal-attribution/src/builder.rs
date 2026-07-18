@@ -15,6 +15,7 @@ use crate::distribution_change::{
 use crate::error::AttributionError;
 use crate::result::ChangeAttributionResult;
 use crate::robust::{RobustChangeOptions, distribution_change_robust};
+use crate::structure_change::{StructureChangeOptions, structure_change};
 
 /// Builder matching DESIGN.md §34.3 `ChangeAttribution::new()...`.
 #[derive(Clone, Debug)]
@@ -113,15 +114,69 @@ impl ChangeAttribution {
 
     /// Run against a compiled graph model and tabular data.
     ///
+    /// Mechanism / robust paths only. For structure attribution use
+    /// [`Self::run_structure`] with dual graphs.
+    ///
     /// # Errors
     ///
-    /// Missing fields or attribution failures.
+    /// Missing fields, `AttributionComponents::Structure`, or attribution failures.
     pub fn run(
         self,
         model: &CompiledCausalModel,
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<ChangeAttributionResult, AttributionError> {
+        if matches!(self.components, AttributionComponents::Structure) {
+            return Err(AttributionError::unsupported(
+                "ChangeAttribution::run does not support Structure; use run_structure with dual graphs",
+            ));
+        }
+        let robust = self.robust;
+        let opts = DistributionChangeOptions {
+            measure: self.measure,
+            n_samples: self.n_samples,
+            seed: self.seed,
+        };
+        let query = self.into_query()?;
+        if robust {
+            distribution_change_robust(model, data, &query, &RobustChangeOptions::default(), ctx)
+        } else {
+            distribution_change(model, data, &query, &opts, ctx)
+        }
+    }
+
+    /// Run structure-change attribution over baseline vs comparison DAGs.
+    ///
+    /// # Errors
+    ///
+    /// Missing fields, non-Structure components, or attribution failures.
+    pub fn run_structure(
+        self,
+        baseline_model: &CompiledCausalModel,
+        comparison_model: &CompiledCausalModel,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<ChangeAttributionResult, AttributionError> {
+        if !matches!(self.components, AttributionComponents::Structure) {
+            return Err(AttributionError::unsupported(
+                "ChangeAttribution::run_structure requires AttributionComponents::Structure",
+            ));
+        }
+        if self.robust {
+            return Err(AttributionError::unsupported(
+                "robust estimator is not defined for structure-change attribution",
+            ));
+        }
+        let opts = StructureChangeOptions {
+            measure: self.measure,
+            n_samples: self.n_samples,
+            seed: self.seed,
+        };
+        let query = self.into_query()?;
+        structure_change(baseline_model, comparison_model, data, &query, &opts, ctx)
+    }
+
+    fn into_query(self) -> Result<ChangeAttributionQuery, AttributionError> {
         let outcome = self
             .outcome
             .ok_or(AttributionError::invalid_input("ChangeAttribution missing outcome"))?;
@@ -131,28 +186,13 @@ impl ChangeAttribution {
         let comparison = self
             .comparison
             .ok_or(AttributionError::invalid_input("ChangeAttribution missing comparison"))?;
-        let query = ChangeAttributionQuery {
+        Ok(ChangeAttributionQuery {
             outcome,
             baseline,
             comparison,
             components: self.components,
             allocation: self.allocation,
             max_components: 64,
-        };
-        if self.robust {
-            distribution_change_robust(model, data, &query, &RobustChangeOptions::default(), ctx)
-        } else {
-            distribution_change(
-                model,
-                data,
-                &query,
-                &DistributionChangeOptions {
-                    measure: self.measure,
-                    n_samples: self.n_samples,
-                    seed: self.seed,
-                },
-                ctx,
-            )
-        }
+        })
     }
 }

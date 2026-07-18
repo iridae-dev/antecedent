@@ -78,8 +78,8 @@ pub use execution::{
 };
 pub use identification::IdentificationStatus;
 pub use ids::{
-    CategoryDomainId, ComponentId, EnvironmentId, Lag, ModelId, QueryId, RegimeId, StateVersion,
-    VariableId,
+    CategoryDomainId, ComponentId, DistributionRef, DynamicRuleId, EnvironmentId, Lag, ModelId,
+    QueryId, RegimeId, StateVersion, VariableId,
 };
 pub use intervention::{
     Intervention, InterventionError, InterventionSequence, MechanismOverride,
@@ -95,8 +95,8 @@ pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AttributionComponents, AverageEffectQuery,
     CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery,
     InterventionalDistributionQuery, MechanismChangeQuery, MediationContrast, MediationQuery,
-    OrderedFloatBits, PathSpecificEffectQuery, PopulationSelector, QueryError, ShapleyConfig,
-    ShapleyMode, TargetPopulation, TemporalEffectQuery, UnitChangeQuery,
+    OrderedFloatBits, PathSpecificEffectQuery, PopulationSelector, PredicateExpr, QueryError,
+    ShapleyConfig, ShapleyMode, TargetPopulation, TemporalEffectQuery, UnitChangeQuery,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
