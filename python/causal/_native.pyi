@@ -241,6 +241,18 @@ def discover_pcmci_plus(
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
 
+def discover_pc(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str = "parcorr",
+    max_cond_size: int = 2,
+    threads: int = 1,
+) -> PcmciDiscoveryResult: ...
+
 def discover_lpcmci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],

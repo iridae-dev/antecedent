@@ -26,6 +26,7 @@ use causal::{
     DiscoverParams, DiscoveryAccept, DiscoveryPerformanceRecord, DistributionChangeOptions,
     FdrAdjustment, FdrControl, GraphIdentFlag, InferenceMode, MeasurementPlan,
     MultiDatasetConstraints, RefuteSuite, SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent,
+    StaticDiscoverParams,
     TemporalLinearPredictor, TemporalMediationEstimator, WeightedGraphSamples,
     anomaly_attribution as facade_anomaly_attribution, apply_state_event,
     attribute_distribution_change as facade_attribute_distribution_change,
@@ -38,9 +39,9 @@ use causal::{
     dag_to_dot as facade_dag_to_dot, dag_to_json as facade_dag_to_json,
     dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency,
     decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
-    discover_lpcmci as facade_discover_lpcmci, discover_pcmci as facade_discover_pcmci,
-    discover_pcmci_plus as facade_discover_pcmci_plus, discover_rpcmci as facade_discover_rpcmci,
-    encode_causal_posterior_bytes, fit_gcm,
+    discover_lpcmci as facade_discover_lpcmci, discover_pc as facade_discover_pc,
+    discover_pcmci as facade_discover_pcmci, discover_pcmci_plus as facade_discover_pcmci_plus,
+    discover_rpcmci as facade_discover_rpcmci, encode_causal_posterior_bytes, fit_gcm,
     mechanism_change_detection as facade_mechanism_change_detection, new_causal_state,
     pag_definite_directed_edge_count, rank_designs as facade_rank_designs, resolve_ci,
     sample_do as facade_sample_do,
@@ -50,9 +51,9 @@ use causal::{
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CacheBudget, CachePolicy,
     CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
-    InterventionalDistributionQuery, Lag, MechanismChangeQuery, MediationContrast, MediationQuery,
-    PathSpecificEffectQuery, PopulationSelector, SchemaError, ShapleyConfig, TemporalEffectQuery,
-    TemporalPolicy, UnitChangeQuery, VERSION, Value, VariableId,
+    InterventionalDistributionQuery, KernelPolicy, Lag, MechanismChangeQuery, MediationContrast,
+    MediationQuery, PathSpecificEffectQuery, PopulationSelector, SchemaError, ShapleyConfig,
+    TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value, VariableId,
 };
 use causal_data::{
     ArrowCColumn, DataError, MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex,
@@ -60,8 +61,8 @@ use causal_data::{
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{
-    Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark, NodeRef, TemporalCpdag, TemporalDag,
-    TemporalPag, ensure_lagged,
+    Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark, NodeRef, TemporalCpdag,
+    TemporalDag, TemporalPag, ensure_lagged,
 };
 use causal_io::{
     CausalPosteriorWire, IoError, PosteriorQuantityWire,
@@ -726,8 +727,11 @@ fn graph_edge_from_marked(names: &[String], nodes: &[NodeRef], edge: MarkedEdge)
 }
 
 fn cpdag_graph_edges(names: &[String], cpdag: &TemporalCpdag) -> Vec<GraphEdge> {
-    let nodes = cpdag.nodes();
-    cpdag.edges().into_iter().map(|e| graph_edge_from_marked(names, nodes, e)).collect()
+    cpdag.edges().into_iter().map(|e| graph_edge_from_marked(names, cpdag.nodes(), e)).collect()
+}
+
+fn static_cpdag_graph_edges(names: &[String], cpdag: &Cpdag) -> Vec<GraphEdge> {
+    cpdag.edges().into_iter().map(|e| graph_edge_from_marked(names, cpdag.nodes(), e)).collect()
 }
 
 fn pag_graph_edges(names: &[String], pag: &TemporalPag) -> Vec<GraphEdge> {
@@ -815,6 +819,15 @@ fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<Varia
     .map_err(py_err)?;
     let variables: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
     Ok((series, variables))
+}
+
+fn tabular_from_batch(
+    batch: &RecordBatch,
+) -> PyResult<(causal_data::TabularData, Vec<VariableId>)> {
+    let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
+    let tabular = loaded.data;
+    let variables: Vec<VariableId> = tabular.schema().variables().iter().map(|v| v.id).collect();
+    Ok((tabular, variables))
 }
 
 fn discovered_links(names: &[String], links: &[ScoredLink]) -> Vec<DiscoveredLink> {
@@ -914,6 +927,59 @@ fn discover_pcmci(
             0,
             0,
             Vec::new(),
+        ))
+    })
+}
+
+/// Run static PC discovery over tabular (non-temporal) columns.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci="parcorr", max_cond_size=2, threads=1))]
+fn discover_pc(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: &str,
+    max_cond_size: usize,
+    threads: u32,
+) -> PyResult<PcmciDiscoveryResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let ci_name = ci.to_string();
+    let ci_impl = resolve_ci(ci, None).map_err(py_err)?;
+    drop(columns);
+
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let params = StaticDiscoverParams {
+            alpha,
+            max_cond_size,
+            fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            ci: ci_impl,
+        };
+        let ctx = py_execution_context(seed, threads);
+        let result = facade_discover_pc(&data, &variables, &params, &ctx).map_err(py_err)?;
+
+        let cpdag = &result.evidence.graph;
+        let directed = cpdag.directed_edge_count() as u64;
+        let undirected = cpdag.undirected_edge_count() as u64;
+        let pending = result.review.pending_edges.len() as u64
+            + result.review.pending_undirected.len() as u64;
+        let graph_edges = static_cpdag_graph_edges(&names, cpdag);
+
+        Ok(discovery_result_fields(
+            &names,
+            &result.evidence.links,
+            result.algorithm.id.as_ref(),
+            result.algorithm.config.as_ref(),
+            &result.performance,
+            pending,
+            ci_name,
+            cpdag.node_count() as u64,
+            directed,
+            undirected,
+            graph_edges,
         ))
     })
 }
@@ -1268,13 +1334,15 @@ fn predict_intervened_summary(
         };
         let y = id(&target)?;
         let x = id(&parent)?;
+        let policy = KernelPolicy::default_policy();
         let pred = TemporalLinearPredictor::fit(
             &series,
             y,
             [causal_data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
+            &policy,
         )
         .map_err(py_estimate)?;
-        let yhat = pred.predict_intervened(&series, x, level).map_err(py_estimate)?;
+        let yhat = pred.predict_intervened(&series, x, level, &policy).map_err(py_estimate)?;
         let mean = yhat.iter().sum::<f64>() / yhat.len().max(1) as f64;
         Ok(PredictSummary { mean_prediction: mean, n: yhat.len() as u64 })
     })
@@ -2621,6 +2689,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_temporal_discover, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci_plus, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_pc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_lpcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_jpcmci_plus, m)?)?;
     m.add_function(wrap_pyfunction!(discover_rpcmci, m)?)?;

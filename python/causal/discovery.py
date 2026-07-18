@@ -15,10 +15,20 @@ from ._native import (
     RpcmciDiscoverySummary,
     discover_jpcmci_plus as _discover_jpcmci_plus,
     discover_lpcmci as _discover_lpcmci,
+    discover_pc as _discover_pc,
     discover_pcmci as _discover_pcmci,
     discover_pcmci_plus as _discover_pcmci_plus,
     discover_rpcmci as _discover_rpcmci,
 )
+
+
+@dataclass(frozen=True)
+class PC:
+    alpha: float = 0.05
+    fdr: bool = True
+    ci: str = "parcorr"
+    max_cond_size: int = 2
+    kind: Literal["pc"] = "pc"
 
 
 @dataclass(frozen=True)
@@ -64,6 +74,29 @@ class RPCMCI:
     fdr: bool = True
     ci: str = "parcorr"
     kind: Literal["rpcmci"] = "rpcmci"
+
+
+def discover_pc(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str = "parcorr",
+    max_cond_size: int = 2,
+    threads: int = 1,
+) -> PcmciDiscoveryResult:
+    return _discover_pc(
+        names,
+        columns,
+        alpha=alpha,
+        fdr=fdr,
+        seed=seed,
+        ci=ci,
+        max_cond_size=max_cond_size,
+        threads=threads,
+    )
 
 
 def discover_pcmci(
@@ -196,6 +229,7 @@ __all__ = [
     "GraphEdge",
     "JPCMCIPlus",
     "LPCMCI",
+    "PC",
     "PCMCI",
     "PCMCIPlus",
     "PcmciDiscoveryResult",
@@ -203,6 +237,7 @@ __all__ = [
     "RpcmciDiscoverySummary",
     "discover_jpcmci_plus",
     "discover_lpcmci",
+    "discover_pc",
     "discover_pcmci",
     "discover_pcmci_plus",
     "discover_rpcmci",

@@ -145,6 +145,14 @@ status = "done"
 owner = "discovery"
 
 [[capabilities]]
+id = "discovery.pc"
+group = "discovery"
+description = "Static PC (tabular CPDAG)"
+status = "done"
+owner = "discovery"
+notes = "Classic undirected skeleton + Meek on static Cpdag; discover_pc Rust/Python. FCI/GES/LiNGAM remain pending (TODO 4c–4h)."
+
+[[capabilities]]
 id = "discovery.pcmci_plus"
 group = "discovery"
 description = "PCMCI+"

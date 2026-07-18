@@ -9,9 +9,91 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use causal_graph::{DenseNodeId, GraphError, TemporalCpdag};
+use causal_graph::{Cpdag, DenseNodeId, GraphError, MarkedEdge, TemporalCpdag};
 
 use crate::error::DiscoveryError;
+
+/// Shared CPDAG operations for Meek / collider rules on static or temporal graphs.
+pub trait CpdagOps {
+    /// Node count.
+    fn node_count(&self) -> usize;
+    /// Directed parents.
+    fn parents(&self, id: DenseNodeId) -> Vec<DenseNodeId>;
+    /// Directed children.
+    fn children(&self, id: DenseNodeId) -> Vec<DenseNodeId>;
+    /// Undirected neighbors.
+    fn undirected_neighbors(&self, id: DenseNodeId) -> Vec<DenseNodeId>;
+    /// Whether any edge exists.
+    fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool;
+    /// Marked edge if present.
+    fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge>;
+    /// Orient undirected `from → to`.
+    ///
+    /// # Errors
+    ///
+    /// Graph mutation failures.
+    fn orient_undirected(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError>;
+    /// Mark conflict on `{a,b}`.
+    ///
+    /// # Errors
+    ///
+    /// Graph mutation failures.
+    fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError>;
+}
+
+impl CpdagOps for TemporalCpdag {
+    fn node_count(&self) -> usize {
+        Self::node_count(self)
+    }
+    fn parents(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+        Self::parents(self, id)
+    }
+    fn children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+        Self::children(self, id)
+    }
+    fn undirected_neighbors(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+        Self::undirected_neighbors(self, id)
+    }
+    fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
+        Self::has_edge(self, a, b)
+    }
+    fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
+        Self::edge_between(self, a, b)
+    }
+    fn orient_undirected(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError> {
+        Self::orient_undirected(self, from, to)
+    }
+    fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        Self::mark_conflict(self, a, b)
+    }
+}
+
+impl CpdagOps for Cpdag {
+    fn node_count(&self) -> usize {
+        Self::node_count(self)
+    }
+    fn parents(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+        Self::parents(self, id)
+    }
+    fn children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+        Self::children(self, id)
+    }
+    fn undirected_neighbors(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+        Self::undirected_neighbors(self, id)
+    }
+    fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
+        Self::has_edge(self, a, b)
+    }
+    fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
+        Self::edge_between(self, a, b)
+    }
+    fn orient_undirected(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError> {
+        Self::orient_undirected(self, from, to)
+    }
+    fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        Self::mark_conflict(self, a, b)
+    }
+}
 
 /// Orientation-layer errors.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -148,8 +230,8 @@ impl OrientationState {
 ///
 /// Cycle conflicts are recorded, the edge is marked `x-x`, and the run continues.
 /// Other graph errors propagate.
-pub(crate) fn try_orient_undirected(
-    graph: &mut TemporalCpdag,
+pub(crate) fn try_orient_undirected<G: CpdagOps>(
+    graph: &mut G,
     state: &mut OrientationState,
     delta: &mut RuleDelta,
     from: DenseNodeId,
@@ -190,7 +272,7 @@ pub struct RuleDelta {
     pub fixed_point: bool,
 }
 
-/// Named orientation transform.
+/// Named orientation transform on a [`TemporalCpdag`].
 pub trait OrientationRule {
     /// Rule id for diagnostics.
     fn name(&self) -> &'static str;
@@ -208,7 +290,25 @@ pub trait OrientationRule {
     ) -> Result<RuleDelta, OrientationError>;
 }
 
-fn enqueue_neighbors(graph: &TemporalCpdag, id: DenseNodeId, queue: &mut OrientationQueue) -> u32 {
+/// Named orientation transform on a static [`Cpdag`].
+pub trait StaticOrientationRule {
+    /// Rule id for diagnostics.
+    fn name(&self) -> &'static str;
+
+    /// Apply the rule on a static CPDAG.
+    ///
+    /// # Errors
+    ///
+    /// Graph mutation or precondition failures.
+    fn apply(
+        &self,
+        graph: &mut Cpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError>;
+}
+
+fn enqueue_neighbors<G: CpdagOps>(graph: &G, id: DenseNodeId, queue: &mut OrientationQueue) -> u32 {
     let before = queue.len();
     queue.push(id);
     for n in graph.children(id) {
@@ -224,7 +324,7 @@ fn enqueue_neighbors(graph: &TemporalCpdag, id: DenseNodeId, queue: &mut Orienta
 }
 
 /// Drain the orientation queue into a focus set, or scan all nodes when empty.
-fn focus_nodes(graph: &TemporalCpdag, queue: &mut OrientationQueue) -> Vec<DenseNodeId> {
+fn focus_nodes<G: CpdagOps>(graph: &G, queue: &mut OrientationQueue) -> Vec<DenseNodeId> {
     if queue.is_empty() {
         (0..graph.node_count())
             .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
@@ -242,6 +342,40 @@ fn focus_nodes(graph: &TemporalCpdag, queue: &mut OrientationQueue) -> Vec<Dense
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MeekR1;
 
+fn apply_meek_r1<G: CpdagOps>(
+    graph: &mut G,
+    state: &mut OrientationState,
+    queue: &mut OrientationQueue,
+) -> Result<RuleDelta, OrientationError> {
+    let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+    let focus = focus_nodes(graph, queue);
+    let mut changed_nodes = Vec::new();
+    for b in focus {
+        for a in graph.parents(b) {
+            for c in graph.undirected_neighbors(b) {
+                if !graph.has_edge(a, c) {
+                    let premise = format!(
+                        "meek.r1: {}→{}—{} and {} not adj {}",
+                        a.raw(),
+                        b.raw(),
+                        c.raw(),
+                        a.raw(),
+                        c.raw()
+                    );
+                    if try_orient_undirected(graph, state, &mut delta, b, c, premise)? {
+                        changed_nodes.push(b);
+                        changed_nodes.push(c);
+                    }
+                }
+            }
+        }
+    }
+    for n in changed_nodes {
+        delta.enqueued += enqueue_neighbors(graph, n, queue);
+    }
+    Ok(delta)
+}
+
 impl OrientationRule for MeekR1 {
     fn name(&self) -> &'static str {
         "meek.r1"
@@ -253,39 +387,62 @@ impl OrientationRule for MeekR1 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph, queue);
-        let mut changed_nodes = Vec::new();
-        for b in focus {
-            for a in graph.parents(b) {
-                for c in graph.undirected_neighbors(b) {
-                    if !graph.has_edge(a, c) {
-                        let premise = format!(
-                            "meek.r1: {}→{}—{} and {} not adj {}",
-                            a.raw(),
-                            b.raw(),
-                            c.raw(),
-                            a.raw(),
-                            c.raw()
-                        );
-                        if try_orient_undirected(graph, state, &mut delta, b, c, premise)? {
-                            changed_nodes.push(b);
-                            changed_nodes.push(c);
-                        }
-                    }
-                }
-            }
-        }
-        for n in changed_nodes {
-            delta.enqueued += enqueue_neighbors(graph, n, queue);
-        }
-        Ok(delta)
+        apply_meek_r1(graph, state, queue)
+    }
+}
+
+impl StaticOrientationRule for MeekR1 {
+    fn name(&self) -> &'static str {
+        "meek.r1"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut Cpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        apply_meek_r1(graph, state, queue)
     }
 }
 
 /// Meek R2: if `a → b → c` and `a — c`, orient `a → c`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MeekR2;
+
+fn apply_meek_r2<G: CpdagOps>(
+    graph: &mut G,
+    state: &mut OrientationState,
+    queue: &mut OrientationQueue,
+) -> Result<RuleDelta, OrientationError> {
+    let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+    let focus = focus_nodes(graph, queue);
+    let mut changed = Vec::new();
+    for a in &focus {
+        for b in graph.children(*a) {
+            for c in graph.children(b) {
+                if graph.edge_between(*a, c).is_some_and(|e| e.is_undirected()) {
+                    let premise = format!(
+                        "meek.r2: {}→{}→{} and {}—{}",
+                        a.raw(),
+                        b.raw(),
+                        c.raw(),
+                        a.raw(),
+                        c.raw()
+                    );
+                    if try_orient_undirected(graph, state, &mut delta, *a, c, premise)? {
+                        changed.push(*a);
+                        changed.push(c);
+                    }
+                }
+            }
+        }
+    }
+    for n in changed {
+        delta.enqueued += enqueue_neighbors(graph, n, queue);
+    }
+    Ok(delta)
+}
 
 impl OrientationRule for MeekR2 {
     fn name(&self) -> &'static str {
@@ -298,39 +455,73 @@ impl OrientationRule for MeekR2 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph, queue);
-        let mut changed = Vec::new();
-        for a in &focus {
-            for b in graph.children(*a) {
-                for c in graph.children(b) {
-                    if graph.edge_between(*a, c).is_some_and(|e| e.is_undirected()) {
-                        let premise = format!(
-                            "meek.r2: {}→{}→{} and {}—{}",
-                            a.raw(),
-                            b.raw(),
-                            c.raw(),
-                            a.raw(),
-                            c.raw()
-                        );
-                        if try_orient_undirected(graph, state, &mut delta, *a, c, premise)? {
-                            changed.push(*a);
-                            changed.push(c);
-                        }
-                    }
-                }
-            }
-        }
-        for n in changed {
-            delta.enqueued += enqueue_neighbors(graph, n, queue);
-        }
-        Ok(delta)
+        apply_meek_r2(graph, state, queue)
+    }
+}
+
+impl StaticOrientationRule for MeekR2 {
+    fn name(&self) -> &'static str {
+        "meek.r2"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut Cpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        apply_meek_r2(graph, state, queue)
     }
 }
 
 /// Meek R3: if `a — b` and ∃ `c,d` with `a — c → b`, `a — d → b`, `c` not adj `d`, orient `a → b`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MeekR3;
+
+fn apply_meek_r3<G: CpdagOps>(
+    graph: &mut G,
+    state: &mut OrientationState,
+    queue: &mut OrientationQueue,
+) -> Result<RuleDelta, OrientationError> {
+    let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+    let focus = focus_nodes(graph, queue);
+    let mut changed = Vec::new();
+    for a in &focus {
+        let und_a: Vec<DenseNodeId> = graph.undirected_neighbors(*a);
+        for &b in &und_a {
+            let mut mediators = Vec::new();
+            for &c in &und_a {
+                if c == b {
+                    continue;
+                }
+                if graph.children(c).contains(&b) {
+                    mediators.push(c);
+                }
+            }
+            let mut orient = false;
+            'pairs: for i in 0..mediators.len() {
+                for j in (i + 1)..mediators.len() {
+                    if !graph.has_edge(mediators[i], mediators[j]) {
+                        orient = true;
+                        break 'pairs;
+                    }
+                }
+            }
+            if orient {
+                let premise =
+                    format!("meek.r3: {}—{} via nonadjacent mediators", a.raw(), b.raw());
+                if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
+                    changed.push(*a);
+                    changed.push(b);
+                }
+            }
+        }
+    }
+    for n in changed {
+        delta.enqueued += enqueue_neighbors(graph, n, queue);
+    }
+    Ok(delta)
+}
 
 impl OrientationRule for MeekR3 {
     fn name(&self) -> &'static str {
@@ -343,54 +534,76 @@ impl OrientationRule for MeekR3 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph, queue);
-        let mut changed = Vec::new();
-        for a in &focus {
-            let und_a: Vec<DenseNodeId> = graph.undirected_neighbors(*a);
-            for &b in &und_a {
-                // Common children of paths a—c→b
-                let mut mediators = Vec::new();
-                for &c in &und_a {
-                    if c == b {
-                        continue;
-                    }
-                    if graph.children(c).contains(&b) {
-                        mediators.push(c);
-                    }
-                }
-                let mut orient = false;
-                'pairs: for i in 0..mediators.len() {
-                    for j in (i + 1)..mediators.len() {
-                        if !graph.has_edge(mediators[i], mediators[j]) {
-                            orient = true;
-                            break 'pairs;
-                        }
-                    }
-                }
-                if orient {
-                    let premise = format!(
-                        "meek.r3: {}—{} via nonadjacent mediators",
-                        a.raw(),
-                        b.raw()
-                    );
-                    if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
-                        changed.push(*a);
-                        changed.push(b);
-                    }
-                }
-            }
-        }
-        for n in changed {
-            delta.enqueued += enqueue_neighbors(graph, n, queue);
-        }
-        Ok(delta)
+        apply_meek_r3(graph, state, queue)
+    }
+}
+
+impl StaticOrientationRule for MeekR3 {
+    fn name(&self) -> &'static str {
+        "meek.r3"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut Cpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        apply_meek_r3(graph, state, queue)
     }
 }
 
 /// Meek R4: if `a — b` and ∃ `c,d` with `a — c → d → b`, adj(`a`,`d`), not adj(`c`,`b`), orient `a → b`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MeekR4;
+
+fn apply_meek_r4<G: CpdagOps>(
+    graph: &mut G,
+    state: &mut OrientationState,
+    queue: &mut OrientationQueue,
+) -> Result<RuleDelta, OrientationError> {
+    let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+    let focus = focus_nodes(graph, queue);
+    let mut changed = Vec::new();
+    for a in &focus {
+        for b in graph.undirected_neighbors(*a) {
+            let mut orient = false;
+            for c in graph.undirected_neighbors(*a) {
+                if c == b {
+                    continue;
+                }
+                for d in graph.children(c) {
+                    if !graph.children(d).contains(&b) {
+                        continue;
+                    }
+                    if !graph.has_edge(*a, d) {
+                        continue;
+                    }
+                    if graph.has_edge(c, b) {
+                        continue;
+                    }
+                    orient = true;
+                    break;
+                }
+                if orient {
+                    break;
+                }
+            }
+            if orient {
+                let premise =
+                    format!("meek.r4: {}—{} via discriminating path", a.raw(), b.raw());
+                if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
+                    changed.push(*a);
+                    changed.push(b);
+                }
+            }
+        }
+    }
+    for n in changed {
+        delta.enqueued += enqueue_neighbors(graph, n, queue);
+    }
+    Ok(delta)
+}
 
 impl OrientationRule for MeekR4 {
     fn name(&self) -> &'static str {
@@ -403,50 +616,22 @@ impl OrientationRule for MeekR4 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph, queue);
-        let mut changed = Vec::new();
-        for a in &focus {
-            for b in graph.undirected_neighbors(*a) {
-                let mut orient = false;
-                for c in graph.undirected_neighbors(*a) {
-                    if c == b {
-                        continue;
-                    }
-                    for d in graph.children(c) {
-                        if !graph.children(d).contains(&b) {
-                            continue;
-                        }
-                        if !graph.has_edge(*a, d) {
-                            continue;
-                        }
-                        if graph.has_edge(c, b) {
-                            continue;
-                        }
-                        orient = true;
-                        break;
-                    }
-                    if orient {
-                        break;
-                    }
-                }
-                if orient {
-                    let premise = format!(
-                        "meek.r4: {}—{} via discriminating path",
-                        a.raw(),
-                        b.raw()
-                    );
-                    if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
-                        changed.push(*a);
-                        changed.push(b);
-                    }
-                }
-            }
-        }
-        for n in changed {
-            delta.enqueued += enqueue_neighbors(graph, n, queue);
-        }
-        Ok(delta)
+        apply_meek_r4(graph, state, queue)
+    }
+}
+
+impl StaticOrientationRule for MeekR4 {
+    fn name(&self) -> &'static str {
+        "meek.r4"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut Cpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        apply_meek_r4(graph, state, queue)
     }
 }
 
@@ -630,6 +815,77 @@ impl OrientationRule for ContempMeekR3 {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct OrientCollider;
 
+fn apply_orient_collider<G: CpdagOps>(
+    graph: &mut G,
+    state: &mut OrientationState,
+    queue: &mut OrientationQueue,
+) -> Result<RuleDelta, OrientationError> {
+    let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+    let focus = focus_nodes(graph, queue);
+    let mut changed = Vec::new();
+    for c in &focus {
+        let mut legs: Vec<(DenseNodeId, LegKind)> =
+            graph.undirected_neighbors(*c).into_iter().map(|n| (n, LegKind::Undirected)).collect();
+        legs.extend(graph.parents(*c).into_iter().map(|n| (n, LegKind::IntoC)));
+        legs.extend(graph.children(*c).into_iter().map(|n| (n, LegKind::OutOfC)));
+        for i in 0..legs.len() {
+            for j in (i + 1)..legs.len() {
+                let (a, a_kind) = legs[i];
+                let (b, b_kind) = legs[j];
+                if matches!(a_kind, LegKind::IntoC) && matches!(b_kind, LegKind::IntoC) {
+                    continue;
+                }
+                if graph.has_edge(a, b) {
+                    continue;
+                }
+                let Some(sep) = state.sepset(a, b) else {
+                    continue;
+                };
+                if sep.iter().any(|x| *x == *c) {
+                    continue;
+                }
+                for &(endpoint, kind) in &[(a, a_kind), (b, b_kind)] {
+                    match kind {
+                        LegKind::OutOfC => {
+                            state.record_conflict(
+                                &mut delta,
+                                endpoint,
+                                *c,
+                                "opposite_direction",
+                            );
+                            if graph.mark_conflict(endpoint, *c).is_ok() {
+                                delta.edges_changed += 1;
+                                delta.fixed_point = false;
+                                changed.push(endpoint);
+                                changed.push(*c);
+                            }
+                        }
+                        LegKind::Undirected => {
+                            let premise = format!(
+                                "collider: {}→{}←{} (c not in sepset)",
+                                a.raw(),
+                                c.raw(),
+                                b.raw()
+                            );
+                            if try_orient_undirected(
+                                graph, state, &mut delta, endpoint, *c, premise,
+                            )? {
+                                changed.push(endpoint);
+                                changed.push(*c);
+                            }
+                        }
+                        LegKind::IntoC => {}
+                    }
+                }
+            }
+        }
+    }
+    for n in changed {
+        delta.enqueued += enqueue_neighbors(graph, n, queue);
+    }
+    Ok(delta)
+}
+
 impl OrientationRule for OrientCollider {
     fn name(&self) -> &'static str {
         "orient.collider"
@@ -641,74 +897,22 @@ impl OrientationRule for OrientCollider {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph, queue);
-        let mut changed = Vec::new();
-        for c in &focus {
-            // Adjacent endpoints that could form a→c←b: undirected, already into c,
-            // or already out of c (opposite — conflict if sepset wants a collider).
-            let mut legs: Vec<(DenseNodeId, LegKind)> =
-                graph.undirected_neighbors(*c).into_iter().map(|n| (n, LegKind::Undirected)).collect();
-            legs.extend(graph.parents(*c).into_iter().map(|n| (n, LegKind::IntoC)));
-            legs.extend(graph.children(*c).into_iter().map(|n| (n, LegKind::OutOfC)));
-            for i in 0..legs.len() {
-                for j in (i + 1)..legs.len() {
-                    let (a, a_kind) = legs[i];
-                    let (b, b_kind) = legs[j];
-                    // Need at least one leg still open or conflicting.
-                    if matches!(a_kind, LegKind::IntoC) && matches!(b_kind, LegKind::IntoC) {
-                        continue;
-                    }
-                    if graph.has_edge(a, b) {
-                        continue;
-                    }
-                    let Some(sep) = state.sepset(a, b) else {
-                        continue;
-                    };
-                    if sep.iter().any(|x| *x == *c) {
-                        continue;
-                    }
-                    // Orient / conflict each leg toward c.
-                    for &(endpoint, kind) in &[(a, a_kind), (b, b_kind)] {
-                        match kind {
-                            LegKind::OutOfC => {
-                                state.record_conflict(
-                                    &mut delta,
-                                    endpoint,
-                                    *c,
-                                    "opposite_direction",
-                                );
-                                if graph.mark_conflict(endpoint, *c).is_ok() {
-                                    delta.edges_changed += 1;
-                                    delta.fixed_point = false;
-                                    changed.push(endpoint);
-                                    changed.push(*c);
-                                }
-                            }
-                            LegKind::Undirected => {
-                                let premise = format!(
-                                    "collider: {}→{}←{} (c not in sepset)",
-                                    a.raw(),
-                                    c.raw(),
-                                    b.raw()
-                                );
-                                if try_orient_undirected(
-                                    graph, state, &mut delta, endpoint, *c, premise,
-                                )? {
-                                    changed.push(endpoint);
-                                    changed.push(*c);
-                                }
-                            }
-                            LegKind::IntoC => {}
-                        }
-                    }
-                }
-            }
-        }
-        for n in changed {
-            delta.enqueued += enqueue_neighbors(graph, n, queue);
-        }
-        Ok(delta)
+        apply_orient_collider(graph, state, queue)
+    }
+}
+
+impl StaticOrientationRule for OrientCollider {
+    fn name(&self) -> &'static str {
+        "orient.collider"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut Cpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        apply_orient_collider(graph, state, queue)
     }
 }
 
@@ -767,6 +971,53 @@ pub fn run_orientation_to_fixed_point(
     Ok(total)
 }
 
+/// Run static CPDAG orientation rules to a fixed point.
+///
+/// # Errors
+///
+/// Propagates rule failures.
+pub fn run_static_orientation_to_fixed_point(
+    graph: &mut Cpdag,
+    rules: &[&dyn StaticOrientationRule],
+    state: &mut OrientationState,
+) -> Result<RuleDelta, OrientationError> {
+    let mut queue = OrientationQueue::new();
+    for i in 0..graph.node_count() {
+        queue.push(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+    }
+    let mut total = RuleDelta::default();
+    let mut guard = 0u32;
+    loop {
+        guard += 1;
+        if guard > 10_000 {
+            return Err(OrientationError::Precondition {
+                message: "orientation did not reach fixed point within iteration budget",
+            });
+        }
+        let mut any = false;
+        for rule in rules {
+            let d = rule.apply(graph, state, &mut queue)?;
+            total.edges_changed += d.edges_changed;
+            total.conflicts += d.conflicts;
+            total.enqueued += d.enqueued;
+            total.premises.extend(d.premises);
+            if d.edges_changed > 0 {
+                any = true;
+            }
+        }
+        if !any && queue.is_empty() {
+            total.fixed_point = true;
+            break;
+        }
+        if !any {
+            while queue.pop().is_some() {}
+            total.fixed_point = true;
+            break;
+        }
+    }
+    Ok(total)
+}
+
 #[cfg(test)]
 mod tests {
     use causal_core::{Lag, VariableId};
@@ -809,7 +1060,7 @@ mod tests {
         let mut state = OrientationState::default();
         state.set_sepset(a, b, Arc::from([]));
         let mut queue = OrientationQueue::new();
-        let d = OrientCollider.apply(&mut g, &mut state, &mut queue).unwrap();
+        let d = OrientationRule::apply(&OrientCollider, &mut g, &mut state, &mut queue).unwrap();
         assert!(state.conflicts >= 1 || d.conflicts >= 1);
         assert!(
             g.edge_between(c, a).unwrap().is_conflict(),
@@ -830,7 +1081,7 @@ mod tests {
         let mut state = OrientationState::default();
         let mut queue = OrientationQueue::new();
         queue.push(b);
-        let d = MeekR1.apply(&mut g, &mut state, &mut queue).unwrap();
+        let d = OrientationRule::apply(&MeekR1, &mut g, &mut state, &mut queue).unwrap();
         assert!(d.edges_changed >= 1);
         assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
         assert!(d.enqueued > 0);
@@ -849,7 +1100,7 @@ mod tests {
         // Sep(a,b) empty ⇒ c not in sepset ⇒ collider
         state.set_sepset(a, b, Arc::from([]));
         let mut queue = OrientationQueue::new();
-        let d = OrientCollider.apply(&mut g, &mut state, &mut queue).unwrap();
+        let d = OrientationRule::apply(&OrientCollider, &mut g, &mut state, &mut queue).unwrap();
         assert!(d.edges_changed >= 2);
         assert_eq!(g.edge_between(a, c).unwrap().parent_child(), Some((a, c)));
         assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
@@ -889,9 +1140,24 @@ mod tests {
         g.insert_directed(d, b).unwrap();
         let mut state = OrientationState::default();
         let mut queue = OrientationQueue::new();
-        let delta = MeekR3.apply(&mut g, &mut state, &mut queue).unwrap();
+        let delta = OrientationRule::apply(&MeekR3, &mut g, &mut state, &mut queue).unwrap();
         assert!(delta.edges_changed >= 1);
         assert_eq!(g.edge_between(a, b).unwrap().parent_child(), Some((a, b)));
+    }
+
+    #[test]
+    fn static_meek_r1_orients_chain() {
+        let mut g = Cpdag::with_variables(3);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let c = DenseNodeId::from_raw(2);
+        g.insert_directed(a, b).unwrap();
+        g.insert_undirected(b, c).unwrap();
+        let mut state = OrientationState::default();
+        let rules: [&dyn StaticOrientationRule; 1] = [&MeekR1];
+        let d = run_static_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
+        assert!(d.edges_changed >= 1);
+        assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
     }
 
     #[test]

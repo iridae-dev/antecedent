@@ -3,12 +3,13 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal_core::{ExecutionContext, VariableId};
-use causal_data::{MultiEnvironmentData, TimeSeriesData};
+use causal_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::jpcmci_plus::JpcmciPlus;
 use crate::lpcmci::Lpcmci;
+use crate::pc::{Pc, StaticCpdagDiscoveryResult};
 use crate::pcmci::Pcmci;
 use crate::pcmci_plus::PcmciPlus;
 use crate::result::{CpdagDiscoveryResult, DagDiscoveryResult, PagDiscoveryResult};
@@ -85,6 +86,20 @@ impl DiscoveryAlgorithm<MultiEnvironmentData> for JpcmciPlus {
     fn discover(
         &mut self,
         data: &MultiEnvironmentData,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Self::Output, DiscoveryError> {
+        self.run(data, variables, workspace, ctx)
+    }
+}
+
+impl DiscoveryAlgorithm<TabularData> for Pc {
+    type Output = StaticCpdagDiscoveryResult;
+
+    fn discover(
+        &mut self,
+        data: &TabularData,
         variables: &[VariableId],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,

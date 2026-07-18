@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use causal_core::{Lag, VariableId};
+use causal_core::{KernelPolicy, Lag, VariableId};
 use causal_data::{LaggedColumn, LaggedSampleWorkspace, TimeSeriesData};
 use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
@@ -43,6 +43,7 @@ impl TemporalLinearPredictor {
         data: &TimeSeriesData,
         target: VariableId,
         parents: impl Into<Arc<[LaggedColumn]>>,
+        policy: &KernelPolicy,
     ) -> Result<Self, EstimationError> {
         let parents = parents.into();
         let max_lag = parents.iter().map(|p| p.lag.raw()).max().unwrap_or(0);
@@ -53,9 +54,7 @@ impl TemporalLinearPredictor {
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan
-            .prepare(data, &mut ws, &causal_core::KernelPolicy::default_policy())
-            .map_err(EstimationError::from)?;
+        let prep = plan.prepare(data, &mut ws, policy).map_err(EstimationError::from)?;
         let n = prep.n;
         let y = prep.column(0);
         let ncols = 1 + parents.len();
@@ -89,6 +88,7 @@ impl TemporalLinearPredictor {
         data: &TimeSeriesData,
         intervene_var: VariableId,
         level: f64,
+        policy: &KernelPolicy,
     ) -> Result<Arc<[f64]>, EstimationError> {
         let mut cols = Vec::with_capacity(1 + self.parents.len());
         cols.push(LaggedColumn { variable: self.target, lag: Lag::CONTEMPORANEOUS });
@@ -97,9 +97,7 @@ impl TemporalLinearPredictor {
             .plan_lagged_sample(self.max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan
-            .prepare(data, &mut ws, &causal_core::KernelPolicy::default_policy())
-            .map_err(EstimationError::from)?;
+        let prep = plan.prepare(data, &mut ws, policy).map_err(EstimationError::from)?;
         let n = prep.n;
         let mut out = vec![0.0; n];
         for i in 0..n {
@@ -118,7 +116,8 @@ impl TemporalLinearPredictor {
 #[cfg(test)]
 mod tests {
     use causal_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
+        CausalSchemaBuilder, KernelPolicy, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -173,13 +172,15 @@ mod tests {
             TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap();
+        let policy = KernelPolicy::default_policy();
         let pred = TemporalLinearPredictor::fit(
             &data,
             VariableId::from_raw(1),
             [LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::from_raw(1) }],
+            &policy,
         )
         .unwrap();
-        let yhat = pred.predict_intervened(&data, VariableId::from_raw(0), 1.0).unwrap();
+        let yhat = pred.predict_intervened(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
         assert_eq!(yhat.len(), n - 1);
         let mean: f64 = yhat.iter().sum::<f64>() / yhat.len() as f64;
         assert!((mean - 2.0).abs() < 0.2);

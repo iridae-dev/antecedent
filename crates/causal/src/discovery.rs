@@ -10,18 +10,18 @@
 use std::sync::Arc;
 
 use causal_core::{ExecutionContext, VariableId};
-use causal_data::{MultiEnvironmentData, TimeSeriesData};
+use causal_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
 use causal_discovery::{
     CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryWorkspace, JpcmciPlus, Lpcmci,
-    MultiDatasetConstraints, PagDiscoveryResult, Pcmci, PcmciPlus, RegimeAssignment, Rpcmci,
-    RpcmciDiscoveryResult,
+    MultiDatasetConstraints, PagDiscoveryResult, Pc, Pcmci, PcmciPlus, RegimeAssignment, Rpcmci,
+    RpcmciDiscoveryResult, StaticCpdagDiscoveryResult,
 };
 use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
-use causal_stats::ConditionalIndependence;
+use causal_stats::{ConditionalIndependence, FdrAdjustment};
 
 use crate::discovery_defaults::{
     DEFAULT_RPCMCI_MIN_REGIME_LEN, contemporaneous_constraints, jpcmci_constraints,
-    pcmci_constraints,
+    pcmci_constraints, static_pc_constraints,
 };
 use crate::error::AnalysisError;
 
@@ -48,6 +48,30 @@ impl std::fmt::Debug for DiscoverParams {
             .field("fdr", &self.fdr)
             .field("ci", &"<dyn ConditionalIndependence>")
             .field("multi_dataset", &self.multi_dataset)
+            .finish()
+    }
+}
+
+/// Parameters for static (non-temporal) discovery stage calls.
+#[derive(Clone)]
+pub struct StaticDiscoverParams {
+    /// Significance level.
+    pub alpha: f64,
+    /// Max conditioning-set size.
+    pub max_cond_size: usize,
+    /// Multiple-testing adjustment (`None` = off).
+    pub fdr: Option<FdrAdjustment>,
+    /// Conditional-independence test.
+    pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
+}
+
+impl std::fmt::Debug for StaticDiscoverParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StaticDiscoverParams")
+            .field("alpha", &self.alpha)
+            .field("max_cond_size", &self.max_cond_size)
+            .field("fdr", &self.fdr)
+            .field("ci", &"<dyn ConditionalIndependence>")
             .finish()
     }
 }
@@ -154,6 +178,26 @@ pub fn discover_rpcmci(
         .with_pcmci_plus(plus);
     let mut ws = DiscoveryWorkspace::default();
     alg.run(data, variables, assignment, &mut ws, ctx).map_err(AnalysisError::from)
+}
+
+/// Run static PC over tabular data.
+///
+/// # Errors
+///
+/// Discovery failures.
+pub fn discover_pc(
+    data: &TabularData,
+    variables: &[VariableId],
+    params: &StaticDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<StaticCpdagDiscoveryResult, AnalysisError> {
+    let fdr = params.fdr.map(|f| f.with_exclude_contemporaneous(false));
+    let alg = Pc::new()
+        .with_fdr_adjustment(fdr)
+        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_ci(Arc::clone(&params.ci));
+    let mut ws = DiscoveryWorkspace::default();
+    alg.run(data, variables, &mut ws, ctx).map_err(AnalysisError::from)
 }
 
 /// Count definite directed edges in a temporal PAG (Tail–Arrow or Arrow–Tail).

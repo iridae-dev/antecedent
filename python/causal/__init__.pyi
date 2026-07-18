@@ -65,11 +65,13 @@ from ._native import (
 from .discovery import (
     JPCMCIPlus,
     LPCMCI,
+    PC,
     PCMCI,
     PCMCIPlus,
     RPCMCI,
     discover_jpcmci_plus,
     discover_lpcmci,
+    discover_pc,
     discover_pcmci,
     discover_pcmci_plus,
     discover_rpcmci,

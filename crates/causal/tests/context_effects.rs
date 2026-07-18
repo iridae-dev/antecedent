@@ -17,8 +17,9 @@ use causal::{
     TemporalMediationEstimator, two_regime_half_split,
 };
 use causal_core::{
-    CausalSchemaBuilder, ConditionalEffectQuery, ExecutionContext, Lag, MeasurementSpec,
-    MediationContrast, MediationQuery, RoleHint, SmallRoleSet, Value, ValueType, VariableId,
+    CausalSchemaBuilder, ConditionalEffectQuery, ExecutionContext, KernelPolicy, Lag,
+    MeasurementSpec, MediationContrast, MediationQuery, RoleHint, SmallRoleSet, Value, ValueType,
+    VariableId,
 };
 use causal_data::{
     Float64Column, LaggedColumn, MultiEnvironmentData, OwnedColumn, OwnedColumnarStorage,
@@ -371,13 +372,15 @@ fn prediction_smoke_pin() {
         TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap();
+    let policy = KernelPolicy::default_policy();
     let pred = TemporalLinearPredictor::fit(
         &data,
         VariableId::from_raw(1),
         [LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::from_raw(1) }],
+        &policy,
     )
     .unwrap();
-    let yhat = pred.predict_intervened(&data, VariableId::from_raw(0), 1.0).unwrap();
+    let yhat = pred.predict_intervened(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
     let mean: f64 = yhat.iter().sum::<f64>() / yhat.len() as f64;
     assert!((mean - target).abs() < tol);
 }

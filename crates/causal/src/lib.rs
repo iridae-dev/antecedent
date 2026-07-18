@@ -43,12 +43,13 @@ pub mod strategy_table;
 pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RdConfig, RefuteSuite};
 pub use design::rank_designs;
 pub use discovery::{
-    DiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pcmci, discover_pcmci_plus,
-    discover_rpcmci, pag_definite_directed_edge_count,
+    DiscoverParams, StaticDiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pc,
+    discover_pcmci, discover_pcmci_plus, discover_rpcmci, pag_definite_directed_edge_count,
 };
 pub use discovery_defaults::{
     DEFAULT_ALPHA, DEFAULT_MAX_COND_SIZE, DEFAULT_RPCMCI_MIN_REGIME_LEN,
     contemporaneous_constraints, jpcmci_constraints, pcmci_constraints, resolve_ci,
+    static_pc_constraints,
 };
 pub use error::{AnalysisError, CausalError};
 pub use options::{DiscoveryAccept, FdrControl};
@@ -75,16 +76,17 @@ pub use strategy_table::{
 // PAG / LPCMCI surfaces.
 pub use causal_discovery::{
     ContextKind, CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryPerformanceRecord, JpcmciPlus,
-    JpcmciNodeRole, Lpcmci, MultiDatasetConstraints, PagDiscoveryResult, RegimeAssignment,
+    JpcmciNodeRole, Lpcmci, MultiDatasetConstraints, PagDiscoveryResult, Pc, RegimeAssignment,
     RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode,
-    two_regime_half_split,
+    StaticCpdagDiscoveryResult, two_regime_half_split,
 };
 pub use causal_estimate::{
     ConditionalLinearAdjustment, OverlapPolicy, TemporalEffectSurface, TemporalLinearPredictor,
     TemporalMediationEstimator,
 };
 pub use causal_graph::{
-    Admg, CompletionSampler, Pag, PagCompletion, TemporalPag, TemporalPagReview, latent_project,
+    Admg, CompletionSampler, Cpdag, CpdagReview, Pag, PagCompletion, TemporalCpdag, TemporalPag,
+    TemporalPagReview, latent_project,
 };
 pub use causal_identify::{
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,

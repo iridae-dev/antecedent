@@ -46,9 +46,9 @@ notes = "reject_dag_only_on_pag"
 [[capabilities]]
 id = "pag.discovery.fci_rfci"
 status = "pending"
-notes = "Static FCI/RFCI — TODO.md item 5; LPCMCI is the current PAG discovery surface"
+notes = "Static FCI/RFCI — TODO.md item 4; LPCMCI is the current PAG discovery surface"
 
 [[capabilities]]
 id = "pag.identify.full_id_idc"
 status = "pending"
-notes = "Full recursive semi-Markovian ID/IDC — TODO.md item 6; PAG uses generalized adjustment envelopes today"
+notes = "Full recursive semi-Markovian ID/IDC — TODO.md item 2; PAG uses generalized adjustment envelopes today"

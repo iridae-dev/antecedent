@@ -1,31 +1,62 @@
 # Remaining Work
 
-Items are marked DONE with notes until independently verified and removed. Do not remove an item that you have just finished fixing. DESIGN.md is the roadmap; these are its unimplemented chapters, listed so nothing is lost.
+Each numbered item is a **1.0 deliverable**. Check the parent box only when every required sub-item is complete, verified, and the matching `parity/*.toml` rows are `done`. Partial slices do not count.
 
-Parity inventories use `pending` / `in_progress` / `done` only. Unfinished DESIGN chapters stay `pending` here and in `parity/*.toml` until shipped.
+Use `- [x]` / `- [ ]` for status. Do not remove or check off an item you just finished — leave notes until independently verified.
 
-Ordered by remaining difficulty/scope (simplest → hardest).
+DESIGN.md is the roadmap; these are its unimplemented chapters. Parity inventories use `pending` / `in_progress` / `done` only. Unfinished chapters stay `pending` here and in `parity/*.toml` until the parent item is checked.
 
-1. **DONE** (2026-07-22): Thread `ExecutionContext.kernel_policy` through stats/CI call sites — G², distance correlation, weighted ParCorr, ParCorr mode / block-shuffle, `standardize_columns`, and data gather (`LaggedSamplePlan` / `SampleRequest` / `LaggedFrame` / pooled frames). Call sites with `ctx` pass `&ctx.kernel_policy`; free helpers take `policy: &KernelPolicy`. `PartialCorrelation` no longer stores a default policy. Escape hatch for §23.2 differential tests is reachable from CI/stats/data.
+Out of scope for these DONE gates (per DESIGN): selection/transport ID as later modules; external Stan/PyMC adapters; unsupervised RPCMCI regime search; NOTEARS as optional extension.
 
-2. **Posterior draw reduction kernels** (DESIGN.md §23.2 deferred): Shared scalar+portable reductions over posterior draw batches when Bayesian estimation / PPC paths need them. Soft-coupled to mechanism / Bayes work in item 7; skip until a concrete caller exists.
+Ordered foundations → dependents.
 
-3. **Distribution & path-specific pipelines** (DESIGN.md §8): Identify + estimate for shipped `CausalQuery::Distribution` / `PathSpecific` (types, Unsupported plumbing, GCM sampling / path-contribution wrappers, and minimal query wire are done). Interventional-distribution identification is **IDC** — implement only with/after deep identification (**item 6**); do not fork a second `AutoIdentifier`. Path-specific *natural effects* need path-restricted ID (same ID/IDC family); nonparametric path-specific remains `pending` on `context.mediation.nonparametric`. Path *contribution* attribution already exists (`path_decompose` / `attribute_path_specific`). Full `CausalQuery` CBOR model-bundle embedding ships with `causal-io` model bundles / `query_wire`. Medium once IDC exists.
+- [x] **1.** Thread `ExecutionContext.kernel_policy` through stats/CI call sites (2026-07-22) — G², distance correlation, weighted ParCorr, ParCorr mode / block-shuffle, `standardize_columns`, and data gather (`LaggedSamplePlan` / `SampleRequest` / `LaggedFrame` / pooled frames). Call sites with `ctx` pass `&ctx.kernel_policy`; free helpers take `policy: &KernelPolicy`. `PartialCorrelation` no longer stores a default policy. Escape hatch for §23.2 differential tests is reachable from CI/stats/data.
 
-4. **Bayesian graph discovery** (DESIGN.md §13.7): `GraphPosteriorEngine`, MCMC / enumeration / DBN structure search. Requires the documented `causal-discovery → causal-prob` dependency (absent today). High mixing/convergence and test burden; tiny-DAG enumeration is a medium-risk MVP. Softly helped by PC screening (item 5) and Bayes-factor / ESS work in item 7. Graph-weighted effect envelopes over supplied `WeightedGraphSamples` already ship.
+- [ ] **2. Deep identification** (DESIGN.md §10.1–10.3) — full semi-Markovian ID/IDC surface; highest scientific-correctness risk.
+    - [ ] Missing `IdentificationStatus` variants: `IdentifiedUnderParametricRestrictions`, `IdentifiedUnderPriorRestrictions` (`crates/causal-core/src/identification.rs`).
+    - [ ] ID algorithm for semi-Markovian models (Shpitser); memoized recursion over canonical subproblems; expression arena reuse (§10.5).
+    - [ ] IDC for conditional interventional distributions.
+    - [ ] Hedge certificates for non-identifiability.
+    - [ ] `AutoIdentifier` that returns all valid estimands and selection rationale (no silent estimator choice); does not fork a second identifier for distribution queries.
+    - [ ] Maximal (and remaining) adjustment-set search where defined beyond shipped backdoor / frontdoor / IV / RD / generalized adjustment.
+    - [ ] Parity: `estimate.identify.general_id`, `pag.identify.full_id_idc` → `done`.
 
-5. **Static (non-temporal) discovery** (DESIGN.md §13.3–13.6): PC, FCI, RFCI, GES, LiNGAM, score-based search / NOTEARS. `causal-discovery` is temporal-only today (PCMCI family; LPCMCI is the PAG surface). Meek-rule and CI-test infrastructure already exists and is verified — PC is the natural first target. Full list is high surface; PC-only MVP is medium risk because CI/Meek reuse.
+- [ ] **3. Distribution & path-specific pipelines** (DESIGN.md §8) — identify + estimate for shipped `CausalQuery::Distribution` / `PathSpecific`. Types, Unsupported plumbing, GCM sampling / path-contribution wrappers, and query wire exist; algorithms do not.
+    - [ ] **Depends on item 2** (IDC / path-restricted ID in the same ID/IDC family — do not fork a second `AutoIdentifier`).
+    - [ ] Interventional-distribution identification + estimation via IDC.
+    - [ ] Path-restricted *natural effects* identification (path-restricted ID).
+    - [ ] Nonparametric path-specific natural effects (`context.mediation.nonparametric` → `done`). Path *contribution* attribution already ships (`path_decompose` / `attribute_path_specific`).
+    - [ ] Full `CausalQuery` CBOR model-bundle embedding for these queries via `causal-io` / `query_wire` where still incomplete.
 
-6. **Deep identification** (DESIGN.md §10.1–10.3): ID algorithm for semi-Markovian models, IDC, hedge certificates, `AutoIdentifier`, memoized recursion; maximal adjustment sets; missing `IdentificationStatus` variants (`IdentifiedUnderParametricRestrictions`, `IdentifiedUnderPriorRestrictions` — `crates/causal-core/src/identification.rs`). Backdoor / frontdoor / IV / RD and generalized adjustment shipped; not full ID/IDC. Highest scientific-correctness risk; status-variant plumbing alone is a smaller first slice. Softly helped by expr simplification (shipped in `causal-expr`).
+- [ ] **4. Static (non-temporal) discovery** (DESIGN.md §13.3–13.6) — PCMCI family remains the temporal surface; static PC (4a–4b) now ships. Meek-rule and CI-test infrastructure already exist. Ship order below; parent stays unchecked until required sub-items are verified.
+    - [x] **4a. Static `Cpdag` + Meek/collider** (2026-07-22) — Real static `Cpdag` (break `type Cpdag = TemporalCpdag` alias); `CpdagReview`; Meek R1–R4 + `OrientCollider` on static graphs. ContempMeek stays temporal-only. **Depends on:** shipped Meek on `TemporalCpdag`. Shipped: `causal_graph::Cpdag` / `CpdagReview`; `StaticOrientationRule` + `run_static_orientation_to_fixed_point`.
+    - [x] **4b. Static PC** (2026-07-22) — Classic undirected skeleton + sepsets + collider/Meek orientation over `TabularData`; `Pc` algorithm type; Rust/Python `discover_pc`. Not PCMCI PC1. **Depends on:** 4a; shipped CI batch APIs. Soft input to item 6 (CI screening) and item 7 (`discovery=PC`). Shipped: `causal_discovery::Pc`, facade `discover_pc`, Python `PC` / `discover_pc`; parity `discovery.pc`. Parent item 4 stays unchecked until 4c–4g land.
+    - [ ] **4c. `Pag` FCI plumbing** — Public `Pag::remove_edge`; portability so FCI orientation rules target static `Pag` (today LPCMCI rules are `TemporalPag`-only). **Depends on:** shipped LPCMCI FCI-like rules.
+    - [ ] **4d. Static FCI** — Possible-D-Sep adjacency phase; port R1–R4 / R8–R10 + discriminating / uncovered paths to `Pag`; classic FCI pipeline → static `Pag`. **Depends on:** 4b, 4c.
+    - [ ] **4e. RFCI** — Early-stop / reduced Possible-D-Sep on top of FCI; `pag.discovery.fci_rfci` → `done`. **Depends on:** 4d.
+    - [ ] **4f. GES / score-based DAG search** — Equivalence-class insert/delete/reverse operators using shipped Gaussian BIC `LocalScoreCache` (`causal-state`). Soft: 4b skeleton as screening. **Depends on:** shipped BIC score cache.
+    - [ ] **4g. LiNGAM (DirectLiNGAM MVP)** — ICA / residual independence → causal order → `Dag`. Greenfield (no stubs). Independent of Meek/PC orientation stack.
+    - [ ] **4h. NOTEARS (optional)** — Continuous acyclicity soft-constraint optimization; feature-gated. Not required for this item’s DONE gate (DESIGN §13.3).
 
-7. **Mechanism families and Bayesian gaps** (DESIGN.md §14.4, §16, §18.4, §12): Largest multi-backend bundle.
-    - Mechanism families: BVAR, state-space, GP, hierarchical (only conjugate Gaussian + Laplace GLM exist today).
-    - Counterfactual trajectories; simulation-based calibration (SBC).
-    - ESS / R-hat diagnostics (`crates/causal-prob/src/diagnostics.rs` explicitly defers).
-    - Bayes-factor CI and posterior dependence probability.
-    ESS/SBC wait on HMC/SMC backends; overlaps optional feature flags in DESIGN §30. External Stan/PyMC adapters are **not** required for completion (native Laplace is canonical; see DESIGN §14.5).
+- [ ] **5. Mechanism families and Bayesian inference gaps** (DESIGN.md §14.4, §16, §18.4, §12, §23.2) — complete native Bayesian 1.0 beyond conjugate Gaussian + Laplace GLM. External Stan/PyMC adapters are **not** required (DESIGN §14.5).
+    - [ ] Mechanism families: hierarchical linear/GLM, BVAR, linear Gaussian state-space, Gaussian-process mechanisms (`bayes.backend.hierarchical_bvar_gp` → `done`).
+    - [ ] Native sampling backends needed for chain diagnostics (HMC and/or SMC) so ESS / R-hat / divergences are meaningful.
+    - [ ] MCMC diagnostics: ESS, R-hat / convergence, divergence counts (`causal-prob` diagnostics; `bayes.validate.mcmc_diagnostics` → `done`).
+    - [ ] Simulation-based calibration (SBC) and remaining §18.4 workflow diagnostics not already shipped (PPC / prior sensitivity already ship).
+    - [ ] Bayes-factor CI, posterior dependence probability, and posterior-predictive CI diagnostics for supported conjugate models (`bayes.ci.tests` → `done`).
+    - [ ] Counterfactual trajectories (§16) with shared-noise / batched evaluation (point/ITE/abduction paths that already exist stay; trajectories complete the subsystem).
+    - [ ] Posterior draw reduction kernels (§23.2 deferred): shared scalar + portable reductions over posterior draw batches, wired through Bayesian estimation / PPC / SBC callers.
 
-8. **Python `analyze()` / bindings completeness** (post API-surface pass; DESIGN §25.3–25.4): Three gaps left after PCMCI-family temporal `discovery=` and the broader native exports.
-    - **JPCMCI+ / RPCMCI one-shot**: `discover_jpcmci_plus` / `discover_rpcmci` helpers exist; wire them through `analyze(discovery=…)` (multi-env columns / regime inputs on the OO path and `analyze_temporal_discover`). Builder methods already exist on the Rust facade.
-    - **Callback extensibility** (§25.4): explicit slow-path Python hooks for custom CI tests, mechanism wrappers, utility functions, and validators — GIL reacquire, plan marks callback regions as non-native-perf. No plugin surface yet.
-    - **Static `discovery=`**: `AverageEffect` still requires a supplied `graph=`. End-to-end static discover→estimate needs PC (or another static algorithm) from **item 5**, then `discovery=PC(…)` (or equivalent) on `analyze()`.
+- [ ] **6. Bayesian graph discovery** (DESIGN.md §13.7) — additive to constraint-based discovery; graph-weighted effect envelopes over supplied `WeightedGraphSamples` already ship.
+    - [ ] Wire documented `causal-discovery → causal-prob` dependency (absent today).
+    - [ ] `GraphPosteriorEngine` trait + columnar/indexed `GraphPosterior` (weights, edge/orientation marginals, ESS, chain diagnostics, rejected invalid graphs).
+    - [ ] Exact enumeration for very small DAGs.
+    - [ ] Order MCMC and/or structure MCMC for discrete / small continuous models.
+    - [ ] Candidate-edge posterior updates after CI screening (**uses** static PC from **item 4b** and Bayes-factor / posterior-dependence CI from item 5 as screening/proposal inputs).
+    - [ ] Dynamic Bayesian network posterior search for bounded lag.
+    - [ ] Parity: `bayes.discovery.dag_posterior` → `done`.
+
+- [ ] **7. Python `analyze()` / bindings completeness** (DESIGN §25.3–25.4) — remaining gaps after PCMCI-family temporal `discovery=` and broader native exports.
+    - [ ] **JPCMCI+ / RPCMCI one-shot**: wire `discover_jpcmci_plus` / `discover_rpcmci` through `analyze(discovery=…)` (multi-env columns / regime inputs on the OO path and `analyze_temporal_discover`). Rust facade builder methods already exist.
+    - [ ] **Callback extensibility** (§25.4): explicit slow-path Python hooks for custom CI tests, mechanism wrappers, utility functions, and validators — GIL reacquire; plan marks callback regions as non-native-perf.
+    - [ ] **Static `discovery=`**: end-to-end static discover→estimate on `analyze()` (`discovery=PC(…)` or equivalent). **Depends on item 4b** (static PC + `discover_pc`). Today `AverageEffect` still requires a supplied `graph=`.

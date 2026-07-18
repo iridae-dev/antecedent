@@ -1,8 +1,8 @@
 //! Causal discovery algorithms.
 //!
-//! Shipped surface is the PCMCI family ([`Pcmci`], [`PcmciPlus`], [`Lpcmci`],
-//! [`JpcmciPlus`], [`Rpcmci`]). Static PC/FCI/GES are not shipped yet
-//! (DESIGN.md §13.3).
+//! Shipped surface: PCMCI family ([`Pcmci`], [`PcmciPlus`], [`Lpcmci`],
+//! [`JpcmciPlus`], [`Rpcmci`]) and static [`Pc`] (DESIGN.md §13.3). FCI/GES/LiNGAM
+//! remain unshipped.
 //!
 //! ```
 //! use causal_discovery::Pcmci;
@@ -28,6 +28,7 @@ pub mod jpcmci_plus;
 pub mod lpcmci;
 pub mod lpcmci_phases;
 pub mod orientation;
+pub mod pc;
 pub mod pcmci;
 pub mod pcmci_plus;
 pub mod pipeline;
@@ -61,10 +62,12 @@ pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lpcmci::Lpcmci;
 pub use orientation::{
-    ContempMeekR1, ContempMeekR2, ContempMeekR3, MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider,
-    OrientationError, OrientationQueue, OrientationRule, OrientationState, RuleDelta,
-    run_orientation_to_fixed_point,
+    ContempMeekR1, ContempMeekR2, ContempMeekR3, CpdagOps, MeekR1, MeekR2, MeekR3, MeekR4,
+    OrientCollider, OrientationError, OrientationQueue, OrientationRule, OrientationState,
+    RuleDelta, StaticOrientationRule, run_orientation_to_fixed_point,
+    run_static_orientation_to_fixed_point,
 };
+pub use pc::{Pc, StaticCpdagDiscoveryResult};
 pub use pcmci::Pcmci;
 pub use pcmci_plus::PcmciPlus;
 pub use pipeline::{

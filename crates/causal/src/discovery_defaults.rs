@@ -50,6 +50,20 @@ pub fn contemporaneous_constraints(max_lag: u32, alpha: f64) -> DiscoveryConstra
     }
 }
 
+/// Static PC constraints (no lag search; contemp-only temporal fields).
+#[must_use]
+pub fn static_pc_constraints(alpha: f64, max_cond_size: usize) -> DiscoveryConstraints {
+    DiscoveryConstraints {
+        temporal: TemporalConstraints {
+            max_lag: Lag::CONTEMPORANEOUS,
+            min_lag: Lag::CONTEMPORANEOUS,
+        },
+        alpha,
+        max_cond_size,
+        ..DiscoveryConstraints::default()
+    }
+}
+
 /// J-PCMCI+ constraints: contemporaneous search plus multi-dataset / context settings.
 #[must_use]
 pub fn jpcmci_constraints(

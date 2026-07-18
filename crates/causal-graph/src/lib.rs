@@ -40,7 +40,7 @@ pub mod workspace;
 
 pub use admg::Admg;
 pub use completion::{CompletionSampler, PagCompletion, is_mag_completion};
-pub use cpdag::{Cpdag, TemporalCpdag};
+pub use cpdag::{Cpdag, CpdagReview, TemporalCpdag};
 pub use dag::Dag;
 pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
 pub use error::GraphError;
