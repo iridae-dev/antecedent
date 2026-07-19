@@ -11,20 +11,19 @@
     clippy::too_many_lines
 )]
 
-use std::collections::HashMap;
-
 use causal_core::{CausalRng, ExecutionContext, VariableId};
 use causal_data::TabularData;
 use causal_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::exact_enumeration::{score_dag_mask, tabular_score_data};
-use crate::graph_posterior::{
-    accumulate_marginals, allows_graph_posterior, graph_chain_diagnostics, has_edge, kish_ess,
-    mcmc_graph_diagnostics, n_directed_edges, set_edge, GraphPosterior, GraphPosteriorEngine,
-    GraphPrior,
+use crate::graph_mcmc::{
+    run_parallel_mask_chains, FinishMaskPosterior, GraphMcmcSchedule,
 };
+use crate::graph_posterior::{
+    has_edge, n_directed_edges, set_edge, GraphPosterior, GraphPosteriorEngine, GraphPrior,
+};
+use crate::graph_score::{score_dag_mask, tabular_score_data};
 
 /// Order MCMC over topological orders and compatible forward edges.
 #[derive(Clone, Debug)]
@@ -37,7 +36,7 @@ pub struct OrderMcmc {
     pub n_draws: u32,
     /// Keep every `thin`-th post-warmup draw.
     pub thin: u32,
-    /// When true (default), refuse if [`allows_graph_posterior`] fails.
+    /// When true (default), refuse if [`crate::graph_posterior::allows_graph_posterior`] fails.
     pub require_diagnostics_gate: bool,
 }
 
@@ -63,10 +62,11 @@ impl OrderMcmc {
     /// Configure chain lengths.
     #[must_use]
     pub fn with_schedule(mut self, n_chains: u32, n_warmup: u32, n_draws: u32, thin: u32) -> Self {
-        self.n_chains = n_chains.max(1);
-        self.n_warmup = n_warmup;
-        self.n_draws = n_draws.max(4);
-        self.thin = thin.max(1);
+        let s = GraphMcmcSchedule::normalize(n_chains, n_warmup, n_draws, thin);
+        self.n_chains = s.n_chains;
+        self.n_warmup = s.n_warmup;
+        self.n_draws = s.n_draws;
+        self.thin = s.thin;
         self
     }
 
@@ -75,6 +75,15 @@ impl OrderMcmc {
     pub fn with_diagnostics_gate(mut self, require: bool) -> Self {
         self.require_diagnostics_gate = require;
         self
+    }
+
+    fn schedule(&self) -> GraphMcmcSchedule {
+        GraphMcmcSchedule {
+            n_chains: self.n_chains,
+            n_warmup: self.n_warmup,
+            n_draws: self.n_draws,
+            thin: self.thin,
+        }
     }
 
     /// Run order MCMC.
@@ -109,165 +118,109 @@ impl OrderMcmc {
                 "order MCMC currently supports GaussianBic only",
             ));
         }
-        if self.n_chains < 2 {
-            return Err(DiscoveryError::unsupported(
-                "order MCMC requires at least 2 chains for R-hat",
-            ));
-        }
+        let schedule = self.schedule();
+        schedule.require_min_chains(2, "order MCMC requires at least 2 chains for R-hat")?;
 
         let score_data = tabular_score_data(data, variables)?;
-        let n_chains = self.n_chains as usize;
-        let n_warmup = self.n_warmup as usize;
-        let n_draws = self.n_draws as usize;
-        let thin = self.thin as usize;
+        let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = n_directed_edges(n);
-        let mut traces = vec![0.0f64; n_chains * n_draws * n_params];
-        let mut sample_masks: Vec<Vec<u64>> = vec![Vec::new(); n_chains];
-        let mut rejected = 0u64;
-
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-        let chunk = (n_chains / threads).max(1);
 
-        std::thread::scope(|scope| {
-            let mut handles = Vec::new();
-            for start in (0..n_chains).step_by(chunk) {
-                let end = (start + chunk).min(n_chains);
-                let score_ref = &score_data;
-                let vars_ref = variables;
-                handles.push(scope.spawn(move || {
-                    let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
-                    let mut local_samples = vec![Vec::new(); end - start];
-                    let mut local_rej = 0u64;
-                    for li in 0..(end - start) {
-                        let chain = start + li;
-                        let mut rng = ctx.rng.stream(2000 + chain as u64);
-                        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-                            data_version: 1,
-                            family: score_family,
-                            var_fingerprint: n as u64,
-                            penalty_fingerprint: score_data.n_rows as u64,
-                        });
-                        let mut order: Vec<usize> = (0..n).collect();
-                        // Shuffle initial order.
-                        for i in (1..n).rev() {
-                            let j = (rng.next_u64() as usize) % (i + 1);
-                            order.swap(i, j);
-                        }
-                        // Seed a random forward-edge subset under this order.
-                        let mut mask = 0u64;
-                        let pos = position_map(&order);
-                        for i in 0..n {
-                            for j in 0..n {
-                                if i != j && pos[i] < pos[j] && rng.next_f64() < 0.3 {
-                                    mask = set_edge(mask, n, i, j, true);
-                                }
-                            }
-                        }
-                        let mut cur =
-                            score_dag_mask(mask, n, score_ref, &mut cache, prior, vars_ref)
-                                .unwrap_or(f64::NEG_INFINITY);
-                        let total_steps = n_warmup + n_draws * thin;
-                        let mut kept = 0usize;
-                        for step in 0..total_steps {
-                            let (new_order, new_mask, rej) =
-                                propose_order(&order, mask, n, &mut rng);
-                            local_rej += rej;
-                            let prop_score = score_dag_mask(
-                                new_mask, n, score_ref, &mut cache, prior, vars_ref,
-                            );
-                            let accept = match prop_score {
-                                Some(ps) if cur.is_finite() => {
-                                    let log_r = ps - cur;
-                                    log_r >= 0.0 || rng.next_f64() < log_r.exp()
-                                }
-                                Some(ps) => {
-                                    order = new_order.clone();
-                                    mask = new_mask;
-                                    cur = ps;
-                                    false
-                                }
-                                None => false,
-                            };
-                            if accept {
-                                if let Some(ps) = prop_score {
-                                    order = new_order;
-                                    mask = new_mask;
-                                    cur = ps;
-                                }
-                            }
-                            if step >= n_warmup && (step - n_warmup) % thin == 0 && kept < n_draws {
-                                let mut p = 0usize;
-                                for i in 0..n {
-                                    for j in 0..n {
-                                        if i == j {
-                                            continue;
-                                        }
-                                        local_traces[(li * n_draws + kept) * n_params + p] =
-                                            if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
-                                        p += 1;
-                                    }
-                                }
-                                local_samples[li].push(mask);
-                                kept += 1;
+        let (traces, sample_masks, rejected) = run_parallel_mask_chains(
+            n_chains,
+            n_draws,
+            n_params,
+            threads,
+            |start, end| {
+                let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
+                let mut local_samples = vec![Vec::new(); end - start];
+                let mut local_rej = 0u64;
+                for li in 0..(end - start) {
+                    let chain = start + li;
+                    let mut rng = ctx.rng.stream(2000 + chain as u64);
+                    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
+                        data_version: 1,
+                        family: score_family,
+                        var_fingerprint: n as u64,
+                        penalty_fingerprint: score_data.n_rows as u64,
+                    });
+                    let mut order: Vec<usize> = (0..n).collect();
+                    for i in (1..n).rev() {
+                        let j = (rng.next_u64() as usize) % (i + 1);
+                        order.swap(i, j);
+                    }
+                    let mut mask = 0u64;
+                    let pos = position_map(&order);
+                    for i in 0..n {
+                        for j in 0..n {
+                            if i != j && pos[i] < pos[j] && rng.next_f64() < 0.3 {
+                                mask = set_edge(mask, n, i, j, true);
                             }
                         }
                     }
-                    (start, local_traces, local_samples, local_rej)
-                }));
-            }
-            for h in handles {
-                let (start, local_traces, local_samples, local_rej) =
-                    h.join().expect("order mcmc worker");
-                rejected += local_rej;
-                let n_local = local_samples.len();
-                for li in 0..n_local {
-                    let chain = start + li;
-                    sample_masks[chain] = local_samples[li].clone();
-                    for d in 0..n_draws {
-                        for p in 0..n_params {
-                            traces[(chain * n_draws + d) * n_params + p] =
-                                local_traces[(li * n_draws + d) * n_params + p];
+                    let mut cur =
+                        score_dag_mask(mask, n, &score_data, &mut cache, prior, variables)
+                            .unwrap_or(f64::NEG_INFINITY);
+                    let total_steps = n_warmup + n_draws * thin;
+                    let mut kept = 0usize;
+                    for step in 0..total_steps {
+                        let (new_order, new_mask, rej) = propose_order(&order, mask, n, &mut rng);
+                        local_rej += rej;
+                        let prop_score =
+                            score_dag_mask(new_mask, n, &score_data, &mut cache, prior, variables);
+                        let accept = match prop_score {
+                            Some(ps) if cur.is_finite() => {
+                                let log_r = ps - cur;
+                                log_r >= 0.0 || rng.next_f64() < log_r.exp()
+                            }
+                            Some(ps) => {
+                                order = new_order.clone();
+                                mask = new_mask;
+                                cur = ps;
+                                false
+                            }
+                            None => false,
+                        };
+                        if accept {
+                            if let Some(ps) = prop_score {
+                                order = new_order;
+                                mask = new_mask;
+                                cur = ps;
+                            }
+                        }
+                        if step >= n_warmup && (step - n_warmup) % thin == 0 && kept < n_draws {
+                            let mut p = 0usize;
+                            for i in 0..n {
+                                for j in 0..n {
+                                    if i == j {
+                                        continue;
+                                    }
+                                    local_traces[(li * n_draws + kept) * n_params + p] =
+                                        if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
+                                    p += 1;
+                                }
+                            }
+                            local_samples[li].push(mask);
+                            kept += 1;
                         }
                     }
                 }
-            }
-        });
-
-        let (rhat, ess_bulk) = graph_chain_diagnostics(&traces, n_chains, n_draws, n_params);
-        let diagnostics = mcmc_graph_diagnostics(
-            self.n_chains,
-            self.n_warmup,
-            self.n_draws,
-            ess_bulk,
-            rhat,
-            0,
-            true,
+                (start, local_traces, local_samples, local_rej)
+            },
         );
-        if !allows_graph_posterior(&diagnostics) {
-            return Err(DiscoveryError::unsupported(
-                "order MCMC diagnostics gate refused posterior",
-            ));
-        }
 
-        let mut counts: HashMap<u64, u64> = HashMap::new();
-        for chain_samples in &sample_masks {
-            for &m in chain_samples {
-                *counts.entry(m).or_insert(0) += 1;
-            }
+        FinishMaskPosterior {
+            n,
+            schedule: &schedule,
+            traces: &traces,
+            sample_masks: &sample_masks,
+            rejected,
+            n_params,
+            require_gate: self.require_diagnostics_gate,
+            refuse_msg: "order MCMC diagnostics gate refused posterior",
+            empty_msg: "order MCMC produced no samples",
         }
-        let total: f64 = counts.values().map(|&c| c as f64).sum();
-        if !(total > 0.0) {
-            return Err(DiscoveryError::unsupported("order MCMC produced no samples"));
-        }
-        let mut masks = Vec::with_capacity(counts.len());
-        let mut weights = Vec::with_capacity(counts.len());
-        for (m, c) in counts {
-            masks.push(m);
-            weights.push(c as f64 / total);
-        }
-        let ess = kish_ess(&weights);
-        let (edge, orient) = accumulate_marginals(n, &weights, &masks);
-        GraphPosterior::new(n, weights, masks, edge, orient, ess, diagnostics, rejected)
+        .run()
     }
 }
 
@@ -296,7 +249,6 @@ fn propose_order(
     let mut rejected = 0u64;
     let u = rng.next_f64();
     if u < 0.35 && n >= 2 {
-        // Adjacent transposition: drop edges that violate the new order.
         let k = (rng.next_u64() as usize) % (n - 1);
         new_order.swap(k, k + 1);
         let pos = position_map(&new_order);
@@ -312,7 +264,6 @@ fn propose_order(
             }
         }
     } else if u < 0.55 && n >= 3 {
-        // Random transposition of two positions.
         let a = (rng.next_u64() as usize) % n;
         let b = (rng.next_u64() as usize) % n;
         if a != b {
@@ -331,7 +282,6 @@ fn propose_order(
             }
         }
     } else {
-        // Flip a random forward edge under the current order.
         let a = (rng.next_u64() as usize) % n;
         let b = (rng.next_u64() as usize) % n;
         if a != b {

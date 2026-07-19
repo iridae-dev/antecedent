@@ -13,70 +13,49 @@ use causal_model::CompiledCausalModel;
 use crate::error::AttributionError;
 use crate::population::{resolve_rows, subset_table};
 
-/// Require mechanism-only attribution components (rejects Inputs / Structure /
-/// InputsAndMechanisms / All until joint attribution is implemented).
+/// Require `got == allowed` for a singleton component mode.
+///
+/// Joint `InputsAndMechanisms` / `All` are refused until implemented.
+pub(crate) fn require_components(
+    allowed: AttributionComponents,
+    got: AttributionComponents,
+    wrong_msg: &'static str,
+) -> Result<(), AttributionError> {
+    if got == allowed {
+        return Ok(());
+    }
+    match got {
+        AttributionComponents::InputsAndMechanisms | AttributionComponents::All => {
+            Err(AttributionError::unsupported(
+                "InputsAndMechanisms/All not implemented for this path; use the singleton component mode",
+            ))
+        }
+        _ => Err(AttributionError::unsupported(wrong_msg)),
+    }
+}
+
+/// Require mechanism-only attribution components.
 pub(crate) fn require_mechanism_components(
     components: AttributionComponents,
     message: &'static str,
 ) -> Result<(), AttributionError> {
-    match components {
-        AttributionComponents::Mechanisms => Ok(()),
-        AttributionComponents::InputsAndMechanisms | AttributionComponents::All => {
-            Err(AttributionError::unsupported(
-                "InputsAndMechanisms/All not implemented for this path; use Mechanisms only",
-            ))
-        }
-        AttributionComponents::Inputs | AttributionComponents::Structure => {
-            Err(AttributionError::unsupported(message))
-        }
-        _ => Err(AttributionError::unsupported(
-            "unsupported AttributionComponents for this attribution path",
-        )),
-    }
+    require_components(AttributionComponents::Mechanisms, components, message)
 }
 
-/// Require input-only attribution components (rejects Mechanisms / Structure /
-/// InputsAndMechanisms / All until joint attribution is implemented).
+/// Require input-only attribution components.
 pub(crate) fn require_input_components(
     components: AttributionComponents,
     message: &'static str,
 ) -> Result<(), AttributionError> {
-    match components {
-        AttributionComponents::Inputs => Ok(()),
-        AttributionComponents::InputsAndMechanisms | AttributionComponents::All => {
-            Err(AttributionError::unsupported(
-                "InputsAndMechanisms/All not implemented for this path; use Inputs only",
-            ))
-        }
-        AttributionComponents::Mechanisms | AttributionComponents::Structure => {
-            Err(AttributionError::unsupported(message))
-        }
-        _ => Err(AttributionError::unsupported(
-            "unsupported AttributionComponents for this attribution path",
-        )),
-    }
+    require_components(AttributionComponents::Inputs, components, message)
 }
 
-/// Require structure-only attribution components (rejects Inputs / Mechanisms /
-/// InputsAndMechanisms / All until joint attribution is implemented).
+/// Require structure-only attribution components.
 pub(crate) fn require_structure_components(
     components: AttributionComponents,
     message: &'static str,
 ) -> Result<(), AttributionError> {
-    match components {
-        AttributionComponents::Structure => Ok(()),
-        AttributionComponents::InputsAndMechanisms | AttributionComponents::All => {
-            Err(AttributionError::unsupported(
-                "InputsAndMechanisms/All not implemented for this path; use Structure only",
-            ))
-        }
-        AttributionComponents::Inputs | AttributionComponents::Mechanisms => {
-            Err(AttributionError::unsupported(message))
-        }
-        _ => Err(AttributionError::unsupported(
-            "unsupported AttributionComponents for this attribution path",
-        )),
-    }
+    require_components(AttributionComponents::Structure, components, message)
 }
 
 /// Resolve dense outcome id from a compiled model.

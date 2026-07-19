@@ -31,6 +31,7 @@
 
 pub mod anomaly;
 pub mod builder;
+pub mod change_common;
 pub mod coalition;
 pub mod distribution_change;
 pub mod error;

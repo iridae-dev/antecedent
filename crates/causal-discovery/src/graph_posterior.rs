@@ -539,6 +539,27 @@ pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
     let div_ok = diagnostics.n_divergences.is_some();
     diagnostics.converged && rhat_ok && ess_ok && div_ok
 }
+
+/// Set `converged` from [`allows_graph_posterior`]; optionally refuse publication.
+///
+/// # Errors
+///
+/// When `require_gate` is true and the graph-MCMC diagnostics bar fails.
+pub fn publish_graph_posterior(
+    mut diagnostics: InferenceDiagnostics,
+    require_gate: bool,
+    refuse_msg: &'static str,
+) -> Result<InferenceDiagnostics, DiscoveryError> {
+    diagnostics.converged = true;
+    let ok = allows_graph_posterior(&diagnostics);
+    diagnostics.converged = ok;
+    if require_gate && !ok {
+        return Err(DiscoveryError::unsupported(refuse_msg));
+    }
+    Ok(diagnostics)
+}
+
+/// Edge-indicator chain diagnostics (R-hat / ESS), dropping constant parameters.
 ///
 /// Zero-variance indicators (never/always present) would otherwise inflate R-hat
 /// to infinity and fail the diagnostics gate spuriously.

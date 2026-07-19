@@ -245,9 +245,7 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
     let mut interactions = Vec::new();
     let mut prev_component: Option<(ComponentId, usize)> = None;
     for &comp in order {
-        let idx = player_index(comp).ok_or_else(|| {
-            AttributionError::Message(format!("component {comp} not in player set"))
-        })?;
+        let idx = player_index(comp).ok_or(AttributionError::UnknownPlayer)?;
         let bit = 1u64 << idx;
         let s_mask = mask; // coalition before adding `comp`
         let v_s = v_prev;

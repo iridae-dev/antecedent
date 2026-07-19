@@ -72,10 +72,7 @@ pub fn path_decompose(
             for w in path.windows(2) {
                 let key = (w[0], w[1]);
                 let Some(&beta) = strengths.get(&key) else {
-                    return Err(AttributionError::Message(format!(
-                        "missing linear-Gaussian coefficient on edge {:?}→{:?}",
-                        w[0], w[1]
-                    )));
+                    return Err(AttributionError::MissingEdgeCoefficient);
                 };
                 share *= beta;
             }
@@ -129,20 +126,15 @@ fn edge_strength_map(
         match model.mechanisms.get(child) {
             causal_model::MechanismSlot::LinearGaussian { coeffs, .. } => {
                 if coeffs.len() < gather.parents.len() {
-                    return Err(AttributionError::Message(format!(
-                        "linear-Gaussian coeffs shorter than parents for node {}",
-                        child.as_usize()
-                    )));
+                    return Err(AttributionError::MechanismCoeffMismatch);
                 }
                 for (i, &p) in gather.parents.iter().enumerate() {
                     m.insert((p, child), coeffs[i]);
                 }
             }
             other if !gather.parents.is_empty() => {
-                return Err(AttributionError::Message(format!(
-                    "path_decompose requires linear-Gaussian mechanisms; node {} has {other:?}",
-                    child.as_usize()
-                )));
+                let _ = other;
+                return Err(AttributionError::NonLinearGaussianMechanism);
             }
             _ => {}
         }

@@ -25,27 +25,29 @@ fn resolve_rows_n(n: usize, selector: &PopulationSelector) -> Result<Vec<usize>,
         PopulationSelector::Rows(rows) => {
             for &r in rows.iter() {
                 if r >= n {
-                    return Err(AttributionError::Message(format!(
-                        "population row {r} out of range (n={n})"
-                    )));
+                    return Err(AttributionError::PopulationOutOfRange {
+                        kind: "row",
+                        index: r,
+                        limit: n,
+                    });
                 }
             }
             Ok(rows.to_vec())
         }
         PopulationSelector::TimeRange { start, end } => {
             if *end > n {
-                return Err(AttributionError::Message(format!(
-                    "time range end {end} exceeds row_count {n}"
-                )));
+                return Err(AttributionError::PopulationOutOfRange {
+                    kind: "time_range_end",
+                    index: *end,
+                    limit: n,
+                });
             }
             Ok((*start..*end).collect())
         }
-        PopulationSelector::Environment { env_index } => Err(AttributionError::Message(format!(
-            "environment selector (env_index={env_index}) requires MultiEnvironmentData"
-        ))),
-        other => {
-            Err(AttributionError::Message(format!("unsupported population selector: {other:?}")))
-        }
+        PopulationSelector::Environment { .. } => Err(AttributionError::unsupported(
+            "environment selector requires MultiEnvironmentData",
+        )),
+        _ => Err(AttributionError::unsupported("unsupported population selector")),
     }
 }
 
@@ -75,10 +77,9 @@ pub fn resolve_multi_env_rows(
             let env = data.environment(0)?;
             Ok((0, resolve_rows_n(env.row_count(), selector)?))
         }
-        other => Err(AttributionError::Message(format!(
-            "cannot resolve {other:?} against multi-env with {} environments",
-            data.env_count()
-        ))),
+        _ => Err(AttributionError::unsupported(
+            "cannot resolve selector against multi-env data",
+        )),
     }
 }
 

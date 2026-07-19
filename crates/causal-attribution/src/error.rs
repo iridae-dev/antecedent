@@ -66,6 +66,28 @@ pub enum AttributionError {
     /// Ad-hoc detail that does not fit a structured variant (prefer structured).
     #[error("{0}")]
     Message(String),
+    /// Population index / range out of bounds.
+    #[error("population {kind} {index} out of range (limit {limit})")]
+    PopulationOutOfRange {
+        /// What was indexed (`row`, `time_range_end`, …).
+        kind: &'static str,
+        /// Requested index or end.
+        index: usize,
+        /// Inclusive exclusive limit (e.g. row count).
+        limit: usize,
+    },
+    /// Ordered component missing from the Shapley player set.
+    #[error("component not in player set")]
+    UnknownPlayer,
+    /// Path decomposition missing an edge coefficient.
+    #[error("missing linear-Gaussian coefficient on a path edge")]
+    MissingEdgeCoefficient,
+    /// Linear-Gaussian mechanism coeffs shorter than parents.
+    #[error("linear-Gaussian coeffs shorter than parents")]
+    MechanismCoeffMismatch,
+    /// Path decomposition requires linear-Gaussian mechanisms.
+    #[error("path_decompose requires linear-Gaussian mechanisms")]
+    NonLinearGaussianMechanism,
     /// Passthrough from causal-model.
     #[error(transparent)]
     Model(#[from] causal_model::ModelError),

@@ -200,14 +200,16 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        use crate::graph_posterior::{
-            allows_graph_posterior, graph_chain_diagnostics, mcmc_graph_diagnostics,
-        };
+        use crate::graph_mcmc::{diagnostics_from_traces, GraphMcmcSchedule};
         use std::collections::HashMap;
 
-        let n_chains = self.n_chains as usize;
-        let n_warmup = self.n_warmup as usize;
-        let n_draws = self.n_draws as usize;
+        let schedule = GraphMcmcSchedule {
+            n_chains: self.n_chains,
+            n_warmup: self.n_warmup,
+            n_draws: self.n_draws,
+            thin: 1,
+        };
+        let (n_chains, n_warmup, n_draws, _) = schedule.as_usize();
         let n_lag_bits = (max_lag as usize) * p * p;
         let n_params = n_directed_edges(p) + n_lag_bits;
         let mut traces = vec![0.0f64; n_chains * n_draws * n_params];
@@ -278,21 +280,13 @@ impl DbnPosterior {
             }
         }
 
-        let (rhat, ess_bulk) = graph_chain_diagnostics(&traces, n_chains, n_draws, n_params);
-        let diagnostics = mcmc_graph_diagnostics(
-            self.n_chains,
-            self.n_warmup,
-            self.n_draws,
-            ess_bulk,
-            rhat,
-            0,
+        let diagnostics = diagnostics_from_traces(
+            &schedule,
+            &traces,
+            n_params,
             true,
-        );
-        if !allows_graph_posterior(&diagnostics) {
-            return Err(DiscoveryError::unsupported(
-                "DBN MCMC diagnostics gate refused posterior",
-            ));
-        }
+            "DBN MCMC diagnostics gate refused posterior",
+        )?;
 
         let mut counts: HashMap<(u64, u64), u64> = HashMap::new();
         for chain in &samples {

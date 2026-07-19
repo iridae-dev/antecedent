@@ -9,22 +9,19 @@
 )]
 
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::TabularData;
-use causal_state::{
-    GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache,
-};
+use causal_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    accumulate_marginals, analytic_graph_diagnostics, kish_ess, log_prior_mask, mask_is_dag,
-    normalize_log_weights, n_directed_edges, parents_of, set_edge, GraphPosterior,
-    GraphPosteriorEngine, GraphPrior, EXACT_ENUM_MAX_NODES,
+    accumulate_marginals, analytic_graph_diagnostics, kish_ess, mask_is_dag, normalize_log_weights,
+    n_directed_edges, set_edge, GraphPosterior, GraphPosteriorEngine, GraphPrior,
+    EXACT_ENUM_MAX_NODES,
 };
-use crate::pc::collect_float_columns;
+use crate::graph_score::{score_dag_mask, tabular_score_data};
 
 /// Exact enumeration engine for labeled DAGs on `n ≤ `[`EXACT_ENUM_MAX_NODES`] nodes.
 #[derive(Clone, Debug, Default)]
@@ -184,56 +181,6 @@ impl GraphPosteriorEngine for ExactDagPosterior {
     }
 }
 
-/// Build column-major [`GraphScoreData`] from tabular float columns.
-pub(crate) fn tabular_score_data(
-    data: &TabularData,
-    variables: &[VariableId],
-) -> Result<GraphScoreData, DiscoveryError> {
-    let col_owned = collect_float_columns(data, variables)?;
-    let n_rows = col_owned[0].len();
-    if n_rows < 2 {
-        return Err(DiscoveryError::stats_msg(
-            "insufficient rows for graph score",
-        ));
-    }
-    for c in &col_owned {
-        if c.len() != n_rows {
-            return Err(DiscoveryError::data_msg("column length mismatch"));
-        }
-    }
-    let n_vars = variables.len();
-    let mut flat = Vec::with_capacity(n_vars.saturating_mul(n_rows));
-    for c in &col_owned {
-        flat.extend_from_slice(c.as_ref());
-    }
-    Ok(GraphScoreData::new(n_rows, n_vars, Arc::from(flat))?)
-}
-
-/// Score one DAG: BIC + log prior (`None` if invalid).
-///
-/// Uses [`LocalScoreCache::local_score`] only (does not mutate cached parent sets),
-/// so MCMC proposals can reject without restoring graph state.
-pub(crate) fn score_dag_mask(
-    mask: u64,
-    n: usize,
-    data: &GraphScoreData,
-    cache: &mut LocalScoreCache,
-    prior: &GraphPrior,
-    variables: &[VariableId],
-) -> Option<f64> {
-    let lp = log_prior_mask(mask, n, prior, variables)?;
-    let mut total = lp;
-    for node in 0..n as u32 {
-        let pa = Arc::from(parents_of(mask, n, node as usize));
-        let s = cache.local_score(data, node, &pa).ok()?;
-        if !s.is_finite() {
-            return None;
-        }
-        total += s;
-    }
-    Some(total)
-}
-
 /// Unique labeled DAGs on `n` nodes via topo-order × forward-edge subsets + dedup.
 pub(crate) fn enumerate_unique_dags(n: usize) -> Vec<u64> {
     let mut seen = HashSet::new();
@@ -282,6 +229,8 @@ pub(crate) fn empty_mask() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+
     use causal_core::{
         CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
     };
@@ -359,10 +308,14 @@ mod tests {
             .unwrap();
         assert!(post.diagnostics.converged);
         let n = 3;
-        // P(0→1) and P(1→2) should dominate reverse / skip.
-        assert!(post.edge_marginals[0 * n + 1] > 0.5);
-        assert!(post.edge_marginals[1 * n + 2] > 0.5);
-        assert!(post.edge_marginals[1 * n + 0] < 0.3);
+        // Chain A→B→C is Markov-equivalent to A←B←C and A←B→C; assert skeleton
+        // mass, not a single orientation.
+        let sk01 = post.edge_marginals[0 * n + 1] + post.edge_marginals[1 * n + 0];
+        let sk12 = post.edge_marginals[1 * n + 2] + post.edge_marginals[2 * n + 1];
+        let sk02 = post.edge_marginals[0 * n + 2] + post.edge_marginals[2 * n + 0];
+        assert!(sk01 > 0.5, "P(A—B)={sk01}");
+        assert!(sk12 > 0.5, "P(B—C)={sk12}");
+        assert!(sk02 < 0.3, "P(A—C)={sk02}");
         let samples = post.to_weighted_samples().unwrap();
         assert!((samples.total_weight() - 1.0).abs() < 1e-9);
     }

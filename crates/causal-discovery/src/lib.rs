@@ -33,7 +33,9 @@ pub mod evidence;
 pub mod exact_enumeration;
 pub mod fci;
 pub mod ges;
+pub mod graph_mcmc;
 pub mod graph_posterior;
+pub mod graph_score;
 pub mod jpcmci_plus;
 pub mod lpcmci;
 pub mod lpcmci_phases;
@@ -82,8 +84,9 @@ pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
 pub use graph_posterior::{
-    allows_graph_posterior, edge_bit, has_edge, mask_is_dag, n_directed_edges, parents_of, set_edge,
-    GraphPosterior, GraphPosteriorEngine, GraphPrior, EXACT_ENUM_MAX_NODES,
+    allows_graph_posterior, edge_bit, has_edge, mask_is_dag, n_directed_edges, parents_of,
+    publish_graph_posterior, set_edge, GraphPosterior, GraphPosteriorEngine, GraphPrior,
+    EXACT_ENUM_MAX_NODES,
 };
 pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lingam::{DirectLingam, StaticDagDiscoveryResult};

@@ -19,15 +19,16 @@ use causal_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismWorkspace,
     SelectionPolicy, sample_observational,
 };
-use causal_stats::{gaussian_kl, mean_var};
+use causal_stats::mean_var;
 
-use crate::distribution_change::{DifferenceMeasure, hybrid_mechanisms};
+use crate::change_common::{measure_value, run_change_allocation, total_change, ChangeOptions};
+use crate::distribution_change::{hybrid_mechanisms, DifferenceMeasure};
 use crate::error::AttributionError;
 use crate::prep::{
     require_structure_components, resolve_change_populations, resolve_outcome_dense,
 };
 use crate::result::ChangeAttributionResult;
-use crate::shapley::{CoalitionPayoff, estimate_shapley, sequential_allocate};
+use crate::shapley::CoalitionPayoff;
 
 /// Options for structure-change attribution.
 #[derive(Clone, Debug)]
@@ -42,7 +43,8 @@ pub struct StructureChangeOptions {
 
 impl Default for StructureChangeOptions {
     fn default() -> Self {
-        Self { measure: DifferenceMeasure::MeanDiff, n_samples: 2_000, seed: 0 }
+        let o = ChangeOptions::default_mean();
+        Self { measure: o.measure, n_samples: o.n_samples, seed: o.seed }
     }
 }
 
@@ -108,49 +110,17 @@ pub fn structure_change(
     let v0 = payoff.value(0)?;
     let full_mask = (1u64 << players.len()) - 1;
     let v_full = payoff.value(full_mask)?;
-    let total_change = match options.measure {
-        DifferenceMeasure::GaussianKl => v_full,
-        _ => v_full - v0,
-    };
+    let total = total_change(options.measure, v0, v_full);
 
-    let estimate = match &query.allocation {
-        AllocationMethod::Shapley { approximation } => {
-            estimate_shapley(&players, approximation, &mut payoff, ctx)?
-        }
-        AllocationMethod::Sequential { order } => {
-            let index_of = |c: ComponentId| players.iter().position(|&p| p == c);
-            sequential_allocate(order, &index_of, &mut payoff, ctx)?
-        }
-        AllocationMethod::PathBased => {
-            return Err(AttributionError::unsupported(
-                "PathBased allocation is handled by path_decompose, not structure_change",
-            ));
-        }
-        _ => {
-            return Err(AttributionError::unsupported("unsupported AllocationMethod"));
-        }
-    };
-
-    let mc_stderr = estimate.monte_carlo_stderr;
-    let component_mc = estimate.component_mc_stderr.clone().map(Arc::from);
-    let interactions = Arc::from(estimate.interactions.clone());
-    let cache_stats = estimate.cache_stats.clone();
-    let budget = estimate.budget.clone();
-    let contributions = Arc::from(estimate.into_contributions());
-
-    Ok(ChangeAttributionResult {
-        outcome: query.outcome,
-        total_change,
-        contributions,
-        interactions,
-        path_breakdown: Arc::from([]),
-        unidentified: Arc::from(unidentified),
-        graph_sensitivity: None,
-        budget,
-        monte_carlo_stderr: mc_stderr,
-        component_mc_stderr: component_mc,
-        cache_stats,
-    })
+    run_change_allocation(
+        query.outcome,
+        &players,
+        &query.allocation,
+        &mut payoff,
+        total,
+        Arc::from(unidentified),
+        ctx,
+    )
 }
 
 /// Convenience: Shapley Monte Carlo structure-change with defaults.
@@ -313,18 +283,7 @@ impl CoalitionPayoff for StructureSwapPayoff<'_> {
             }
         }
         let (mu, var) = self.sample_outcome_law(mask)?;
-        Ok(match self.measure {
-            DifferenceMeasure::MeanDiff => mu,
-            DifferenceMeasure::VarianceDiff => var,
-            DifferenceMeasure::GaussianKl => {
-                if mask == 0 {
-                    0.0
-                } else {
-                    let (mu0, var0) = self.baseline_law.expect("cached above");
-                    gaussian_kl(mu, var, mu0, var0)?
-                }
-            }
-        })
+        measure_value(self.measure, mask, mu, var, self.baseline_law)
     }
 }
 

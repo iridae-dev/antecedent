@@ -8,7 +8,6 @@
     clippy::too_many_lines
 )]
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use causal_core::{CausalRng, ExecutionContext, VariableId};
@@ -17,12 +16,14 @@ use causal_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::exact_enumeration::{score_dag_mask, tabular_score_data};
-use crate::graph_posterior::{
-    accumulate_marginals, allows_graph_posterior, graph_chain_diagnostics, has_edge, kish_ess,
-    mask_is_dag, mcmc_graph_diagnostics, n_directed_edges, set_edge, GraphPosterior,
-    GraphPosteriorEngine, GraphPrior,
+use crate::graph_mcmc::{
+    run_parallel_mask_chains, FinishMaskPosterior, GraphMcmcSchedule,
 };
+use crate::graph_posterior::{
+    has_edge, mask_is_dag, n_directed_edges, set_edge, GraphPosterior, GraphPosteriorEngine,
+    GraphPrior,
+};
+use crate::graph_score::{score_dag_mask, tabular_score_data};
 
 /// Structure MCMC with single-edge add / delete / reverse proposals.
 #[derive(Clone, Debug)]
@@ -37,6 +38,8 @@ pub struct StructureMcmc {
     pub thin: u32,
     /// Optional undirected candidate pairs `(lo, hi)` from CI screening.
     pub candidate_pairs: Option<Arc<[(u32, u32)]>>,
+    /// When true (default), refuse if [`crate::graph_posterior::allows_graph_posterior`] fails.
+    pub require_diagnostics_gate: bool,
 }
 
 impl Default for StructureMcmc {
@@ -55,16 +58,18 @@ impl StructureMcmc {
             n_draws: 1000,
             thin: 1,
             candidate_pairs: None,
+            require_diagnostics_gate: true,
         }
     }
 
     /// Configure chain lengths.
     #[must_use]
     pub fn with_schedule(mut self, n_chains: u32, n_warmup: u32, n_draws: u32, thin: u32) -> Self {
-        self.n_chains = n_chains.max(1);
-        self.n_warmup = n_warmup;
-        self.n_draws = n_draws.max(4);
-        self.thin = thin.max(1);
+        let s = GraphMcmcSchedule::normalize(n_chains, n_warmup, n_draws, thin);
+        self.n_chains = s.n_chains;
+        self.n_warmup = s.n_warmup;
+        self.n_draws = s.n_draws;
+        self.thin = s.thin;
         self
     }
 
@@ -73,6 +78,22 @@ impl StructureMcmc {
     pub fn with_candidate_pairs(mut self, pairs: impl Into<Arc<[(u32, u32)]>>) -> Self {
         self.candidate_pairs = Some(pairs.into());
         self
+    }
+
+    /// Enable / disable the multi-chain diagnostics publish gate.
+    #[must_use]
+    pub fn with_diagnostics_gate(mut self, require: bool) -> Self {
+        self.require_diagnostics_gate = require;
+        self
+    }
+
+    fn schedule(&self) -> GraphMcmcSchedule {
+        GraphMcmcSchedule {
+            n_chains: self.n_chains,
+            n_warmup: self.n_warmup,
+            n_draws: self.n_draws,
+            thin: self.thin,
+        }
     }
 
     /// Run structure MCMC.
@@ -107,11 +128,8 @@ impl StructureMcmc {
                 "structure MCMC currently supports GaussianBic only",
             ));
         }
-        if self.n_chains < 2 {
-            return Err(DiscoveryError::unsupported(
-                "structure MCMC requires at least 2 chains for R-hat",
-            ));
-        }
+        let schedule = self.schedule();
+        schedule.require_min_chains(2, "structure MCMC requires at least 2 chains for R-hat")?;
 
         let score_data = tabular_score_data(data, variables)?;
         let pairs = candidate_directed_list(n, self.candidate_pairs.as_deref());
@@ -121,137 +139,84 @@ impl StructureMcmc {
             ));
         }
 
-        let n_chains = self.n_chains as usize;
-        let n_warmup = self.n_warmup as usize;
-        let n_draws = self.n_draws as usize;
-        let thin = self.thin as usize;
+        let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = pairs.len();
-        // Edge-indicator traces: (chain, draw, param)
-        let mut traces = vec![0.0f64; n_chains * n_draws * n_params];
-        let mut sample_masks: Vec<Vec<u64>> = vec![Vec::new(); n_chains];
-        let mut rejected = 0u64;
-
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-        let chain_ids: Vec<usize> = (0..n_chains).collect();
-        let chunk = (n_chains / threads).max(1);
 
-        std::thread::scope(|scope| {
-            let mut handles = Vec::new();
-            for start in (0..n_chains).step_by(chunk) {
-                let end = (start + chunk).min(n_chains);
-                let ids = &chain_ids[start..end];
-                let score_ref = &score_data;
-                let pairs_ref = &pairs;
-                let vars_ref = variables;
-                handles.push(scope.spawn(move || {
-                    let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
-                    let mut local_samples = vec![Vec::new(); end - start];
-                    let mut local_rej = 0u64;
-                    for (li, &chain) in ids.iter().enumerate() {
-                        let mut rng = ctx.rng.stream(1000 + chain as u64);
-                        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-                            data_version: 1,
-                            family: score_family,
-                            var_fingerprint: n as u64,
-                            penalty_fingerprint: score_data.n_rows as u64,
-                        });
-                        let mut mask = 0u64;
-                        let mut cur = score_dag_mask(mask, n, score_ref, &mut cache, prior, vars_ref)
+        let (traces, sample_masks, rejected) = run_parallel_mask_chains(
+            n_chains,
+            n_draws,
+            n_params,
+            threads,
+            |start, end| {
+                let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
+                let mut local_samples = vec![Vec::new(); end - start];
+                let mut local_rej = 0u64;
+                for li in 0..(end - start) {
+                    let chain = start + li;
+                    let mut rng = ctx.rng.stream(1000 + chain as u64);
+                    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
+                        data_version: 1,
+                        family: score_family,
+                        var_fingerprint: n as u64,
+                        penalty_fingerprint: score_data.n_rows as u64,
+                    });
+                    let mut mask = 0u64;
+                    let mut cur =
+                        score_dag_mask(mask, n, &score_data, &mut cache, prior, variables)
                             .unwrap_or(f64::NEG_INFINITY);
-                        let total_steps = n_warmup + n_draws * thin;
-                        let mut kept = 0usize;
-                        for step in 0..total_steps {
-                            let (prop, q_ratio, rej_inc) =
-                                propose_structure(mask, n, pairs_ref, &mut rng);
-                            local_rej += rej_inc;
-                            let prop_score =
-                                score_dag_mask(prop, n, score_ref, &mut cache, prior, vars_ref);
-                            let accept = match prop_score {
-                                Some(ps) if cur.is_finite() => {
-                                    let log_r = ps - cur + q_ratio.ln();
-                                    log_r >= 0.0 || rng.next_f64() < log_r.exp()
-                                }
-                                Some(ps) if !cur.is_finite() => {
-                                    cur = ps;
-                                    mask = prop;
-                                    false // already applied
-                                }
-                                _ => false,
-                            };
-                            if accept {
-                                if let Some(ps) = prop_score {
-                                    mask = prop;
-                                    cur = ps;
-                                }
+                    let total_steps = n_warmup + n_draws * thin;
+                    let mut kept = 0usize;
+                    for step in 0..total_steps {
+                        let (prop, q_ratio, rej_inc) =
+                            propose_structure(mask, n, &pairs, &mut rng);
+                        local_rej += rej_inc;
+                        let prop_score =
+                            score_dag_mask(prop, n, &score_data, &mut cache, prior, variables);
+                        let accept = match prop_score {
+                            Some(ps) if cur.is_finite() => {
+                                let log_r = ps - cur + q_ratio.ln();
+                                log_r >= 0.0 || rng.next_f64() < log_r.exp()
                             }
-                            if step >= n_warmup && (step - n_warmup) % thin == 0 && kept < n_draws {
-                                for (p, &(i, j)) in pairs_ref.iter().enumerate() {
-                                    let v = if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
-                                    local_traces[(li * n_draws + kept) * n_params + p] = v;
-                                }
-                                local_samples[li].push(mask);
-                                kept += 1;
+                            Some(ps) if !cur.is_finite() => {
+                                cur = ps;
+                                mask = prop;
+                                false
+                            }
+                            _ => false,
+                        };
+                        if accept {
+                            if let Some(ps) = prop_score {
+                                mask = prop;
+                                cur = ps;
                             }
                         }
-                    }
-                    (start, local_traces, local_samples, local_rej)
-                }));
-            }
-            for h in handles {
-                let (start, local_traces, local_samples, local_rej) =
-                    h.join().expect("structure mcmc worker");
-                rejected += local_rej;
-                let n_local = local_samples.len();
-                for li in 0..n_local {
-                    let chain = start + li;
-                    sample_masks[chain] = local_samples[li].clone();
-                    for d in 0..n_draws {
-                        for p in 0..n_params {
-                            traces[(chain * n_draws + d) * n_params + p] =
-                                local_traces[(li * n_draws + d) * n_params + p];
+                        if step >= n_warmup && (step - n_warmup) % thin == 0 && kept < n_draws {
+                            for (p, &(i, j)) in pairs.iter().enumerate() {
+                                let v = if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
+                                local_traces[(li * n_draws + kept) * n_params + p] = v;
+                            }
+                            local_samples[li].push(mask);
+                            kept += 1;
                         }
                     }
                 }
-            }
-        });
-
-        let (rhat, ess_bulk) = graph_chain_diagnostics(&traces, n_chains, n_draws, n_params);
-        let mut diagnostics = mcmc_graph_diagnostics(
-            self.n_chains,
-            self.n_warmup,
-            self.n_draws,
-            ess_bulk,
-            rhat,
-            0,
-            true,
+                (start, local_traces, local_samples, local_rej)
+            },
         );
-        diagnostics.converged = diagnostics.allows_posterior();
-        if !diagnostics.allows_posterior() {
-            return Err(DiscoveryError::unsupported(
-                "structure MCMC diagnostics gate refused posterior",
-            ));
-        }
 
-        // Aggregate unique masks by visit frequency across chains.
-        let mut counts: HashMap<u64, u64> = HashMap::new();
-        for chain_samples in &sample_masks {
-            for &m in chain_samples {
-                *counts.entry(m).or_insert(0) += 1;
-            }
+        FinishMaskPosterior {
+            n,
+            schedule: &schedule,
+            traces: &traces,
+            sample_masks: &sample_masks,
+            rejected,
+            n_params,
+            require_gate: self.require_diagnostics_gate,
+            refuse_msg: "structure MCMC diagnostics gate refused posterior",
+            empty_msg: "structure MCMC produced no samples",
         }
-        let total: f64 = counts.values().map(|&c| c as f64).sum();
-        if !(total > 0.0) {
-            return Err(DiscoveryError::unsupported("structure MCMC produced no samples"));
-        }
-        let mut masks = Vec::with_capacity(counts.len());
-        let mut weights = Vec::with_capacity(counts.len());
-        for (m, c) in counts {
-            masks.push(m);
-            weights.push(c as f64 / total);
-        }
-        let ess = kish_ess(&weights);
-        let (edge, orient) = accumulate_marginals(n, &weights, &masks);
-        GraphPosterior::new(n, weights, masks, edge, orient, ess, diagnostics, rejected)
+        .run()
     }
 }
 
@@ -311,7 +276,6 @@ fn propose_structure(
     let backward = has_edge(mask, n, j, i);
     let u = rng.next_f64();
     if !forward && !backward {
-        // Propose add i→j
         let prop = set_edge(mask, n, i, j, true);
         if mask_is_dag(prop, n) {
             (prop, 1.0, 0)
@@ -320,10 +284,8 @@ fn propose_structure(
         }
     } else if forward && !backward {
         if u < 0.5 {
-            // Delete
             (set_edge(mask, n, i, j, false), 1.0, 0)
         } else {
-            // Reverse
             let mut prop = set_edge(mask, n, i, j, false);
             prop = set_edge(prop, n, j, i, true);
             if mask_is_dag(prop, n) {
@@ -333,7 +295,6 @@ fn propose_structure(
             }
         }
     } else if backward && !forward {
-        // Symmetric handling when we sampled the opposite ordered pair.
         if u < 0.5 {
             (set_edge(mask, n, j, i, false), 1.0, 0)
         } else {
@@ -346,7 +307,6 @@ fn propose_structure(
             }
         }
     } else {
-        // Both directions should not happen in a simple DAG; delete one.
         (set_edge(mask, n, i, j, false), 1.0, 1)
     }
 }
@@ -422,7 +382,6 @@ mod tests {
             )
             .unwrap();
         let n = 3;
-        // Fork X→Y, X→Z: skeleton mass on those pairs.
         let sk_xy = post.edge_marginals[0 * n + 1] + post.edge_marginals[1 * n + 0];
         let sk_xz = post.edge_marginals[0 * n + 2] + post.edge_marginals[2 * n + 0];
         assert!(sk_xy > 0.4, "P(X—Y)={sk_xy}");
