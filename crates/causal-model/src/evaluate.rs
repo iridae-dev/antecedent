@@ -163,7 +163,12 @@ fn residual_summary(
     for gather in model.parent_gathers.iter() {
         let node = gather.child;
         let slot = model.mechanisms.get(node);
-        if !matches!(slot, MechanismSlot::LinearGaussian { .. }) {
+        if !matches!(
+            slot,
+            MechanismSlot::LinearGaussian { .. }
+                | MechanismSlot::HierarchicalLinear { .. }
+                | MechanismSlot::Bvar { .. }
+        ) {
             continue;
         }
         let var = model.output_layout.variables[node.as_usize()];

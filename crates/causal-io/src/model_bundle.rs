@@ -448,4 +448,134 @@ mod tests {
         assert!(bundle.query.is_some());
         let _ = VariableId::from_raw(0);
     }
+
+    #[test]
+    fn model_bundle_embeds_distribution_and_path_specific_queries() {
+        use causal_core::{
+            CausalQuery, Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery,
+            Value, VariableId as Vid,
+        };
+        use crate::query_wire::{
+            causal_query_from_wire, causal_query_to_wire, CausalQueryWire,
+        };
+
+        let dist = CausalQuery::Distribution(
+            InterventionalDistributionQuery::new(
+                Vid::from_raw(1),
+                [Intervention::set(Vid::from_raw(0), Value::f64(1.0))],
+            )
+            .with_conditioning([Vid::from_raw(2)]),
+        );
+        let dist_wire = causal_query_to_wire(&dist).unwrap();
+        assert!(matches!(
+            &dist_wire,
+            CausalQueryWire::Distribution(w) if w.conditioning == vec![2]
+        ));
+        let back = causal_query_from_wire(&dist_wire).unwrap();
+        assert!(matches!(back, CausalQuery::Distribution(q) if q.conditioning.len() == 1));
+
+        let path = CausalQuery::PathSpecific(
+            PathSpecificEffectQuery::binary(Vid::from_raw(0), Vid::from_raw(2))
+                .with_path_nodes([Vid::from_raw(1)]),
+        );
+        let path_wire = causal_query_to_wire(&path).unwrap();
+        let path_back = causal_query_from_wire(&path_wire).unwrap();
+        assert!(matches!(
+            path_back,
+            CausalQuery::PathSpecific(q) if q.path_nodes.as_ref() == [Vid::from_raw(1)]
+        ));
+
+        // Full bundle round-trip with Distribution query section.
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let mechanisms = CompiledMechanismStore {
+            slots: vec![
+                MechanismSlot::Constant { value: 0.0 },
+                MechanismSlot::Constant { value: 1.0 },
+            ]
+            .into(),
+        };
+        let art = encode_model_bundle(ModelBundleEncode {
+            header: ModelBundleHeaderWire {
+                model_kind: ModelKindWire::Scm,
+                label: Some("dist-bundle".into()),
+            },
+            schema: &schema,
+            dag: &dag,
+            mechanisms: &mechanisms,
+            artifact_id: "bundle-dist",
+            contrast: None,
+            query: Some(&dist_wire),
+            analysis_trace: None,
+            identification: None,
+            estimate: None,
+            refutations: None,
+            logical_plan: None,
+            physical_plan: None,
+            performance: None,
+            diagnostics: None,
+            provenance: None,
+            posterior: None,
+            discovery: None,
+        })
+        .unwrap();
+        let mut buf = Vec::new();
+        art.write_to(&mut buf).unwrap();
+        let decoded = EncodedArtifact::read_from(buf.as_slice()).unwrap();
+        let bundle = decode_model_bundle(&decoded).unwrap();
+        let q = bundle.query.expect("query section");
+        assert!(matches!(q, CausalQueryWire::Distribution(_)));
+
+        // PathSpecific query section in a second bundle.
+        let art2 = encode_model_bundle(ModelBundleEncode {
+            header: ModelBundleHeaderWire {
+                model_kind: ModelKindWire::Scm,
+                label: Some("path-bundle".into()),
+            },
+            schema: &schema,
+            dag: &dag,
+            mechanisms: &mechanisms,
+            artifact_id: "bundle-path",
+            contrast: None,
+            query: Some(&path_wire),
+            analysis_trace: None,
+            identification: None,
+            estimate: None,
+            refutations: None,
+            logical_plan: None,
+            physical_plan: None,
+            performance: None,
+            diagnostics: None,
+            provenance: None,
+            posterior: None,
+            discovery: None,
+        })
+        .unwrap();
+        let mut buf2 = Vec::new();
+        art2.write_to(&mut buf2).unwrap();
+        let decoded2 = EncodedArtifact::read_from(buf2.as_slice()).unwrap();
+        let bundle2 = decode_model_bundle(&decoded2).unwrap();
+        let q2 = bundle2.query.expect("path query section");
+        assert!(matches!(q2, CausalQueryWire::PathSpecific(_)));
+    }
 }

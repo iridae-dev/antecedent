@@ -63,8 +63,8 @@ impl IdcIdentifier {
         self.inner.prepare_with_assumptions(graph, assumptions)
     }
 
-    /// Identify a distribution query. With empty conditioning this is ID; with
-    /// an explicit conditioning set use [`Self::identify_conditional`].
+    /// Identify a distribution query. Empty conditioning delegates to ID;
+    /// nonempty conditioning runs IDC.
     ///
     /// # Errors
     ///
@@ -76,9 +76,34 @@ impl IdcIdentifier {
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         match query {
-            CausalQuery::Distribution(_q) => {
-                // Unconditional: delegate to ID.
-                self.inner.identify(prepared, query, workspace)
+            CausalQuery::Distribution(q) => {
+                if q.conditioning.is_empty() {
+                    return self.inner.identify(prepared, query, workspace);
+                }
+                if !q.interventions.iter().all(|iv| matches!(iv, Intervention::Set { .. })) {
+                    return Err(IdentificationError::unsupported(
+                        "IDC supports hard Set interventions only",
+                    ));
+                }
+                let intervention_vars: Result<Vec<_>, _> = q
+                    .interventions
+                    .iter()
+                    .map(|iv| {
+                        iv.primary_variable().ok_or(IdentificationError::unsupported(
+                            "intervention missing primary variable",
+                        ))
+                    })
+                    .collect();
+                let mut result = self.identify_conditional(
+                    prepared,
+                    q.outcomes.as_ref(),
+                    &intervention_vars?,
+                    q.conditioning.as_ref(),
+                    workspace,
+                )?;
+                // Preserve the caller's query (values + conditioning) on success.
+                result.query = query.clone();
+                Ok(result)
             }
             CausalQuery::AverageEffect(_) => self.inner.identify(prepared, query, workspace),
             _ => Err(IdentificationError::unsupported(
@@ -147,6 +172,7 @@ impl IdcIdentifier {
                                 .map(|&variable| Intervention::set(variable, causal_core::Value::f64(f64::NAN)))
                                 .collect::<Vec<_>>(),
                         ),
+                        conditioning: Arc::from(conditioning.to_vec()),
                         target_population: causal_core::TargetPopulation::AllObserved,
                     }),
                     vec![estimand],
@@ -237,6 +263,7 @@ fn distribution_query_from_sets(
     Ok(CausalQuery::Distribution(InterventionalDistributionQuery {
         outcomes: Arc::from(outcomes?),
         interventions: Arc::from(interventions?),
+        conditioning: Arc::from([]),
         target_population: causal_core::TargetPopulation::AllObserved,
     }))
 }

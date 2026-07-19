@@ -265,6 +265,11 @@ pub fn fit_laplace_glm(
         separation_warning,
         notes,
         backend_id: Arc::from("laplace"),
+        n_chains: None,
+        n_warmup: None,
+        ess_bulk_min: None,
+        rhat_max: None,
+        n_divergences: None,
     };
 
     if !diagnostics.allows_posterior() {
@@ -284,7 +289,7 @@ pub fn fit_laplace_glm(
     Ok(BayesFitResult { draws, map, diagnostics })
 }
 
-fn validate_design(design: BayesDesignRef<'_>) -> Result<(), ProbError> {
+pub(crate) fn validate_design(design: BayesDesignRef<'_>) -> Result<(), ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
     if design.y.len() != nrows {
@@ -313,7 +318,7 @@ fn validate_design(design: BayesDesignRef<'_>) -> Result<(), ProbError> {
 ///
 /// `gaussian_sigma2` scales the GaussianIdentity working weights / scores (`1/σ²`). Other
 /// likelihoods ignore it.
-fn accumulate_likelihood(
+pub(crate) fn accumulate_likelihood(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
     beta: &[f64],
@@ -411,7 +416,7 @@ fn accumulate_likelihood(
     Ok((ginf, separation))
 }
 
-fn gaussian_residual_sigma2(design: BayesDesignRef<'_>, beta: &[f64]) -> f64 {
+pub(crate) fn gaussian_residual_sigma2(design: BayesDesignRef<'_>, beta: &[f64]) -> f64 {
     let nrows = design.nrows;
     let ncols = design.ncols;
     let mut rss = 0.0;
@@ -431,7 +436,7 @@ fn gaussian_residual_sigma2(design: BayesDesignRef<'_>, beta: &[f64]) -> f64 {
     (rss / df).max(1e-12)
 }
 
-fn log_posterior_value(
+pub(crate) fn log_posterior_value(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
     beta: &[f64],
@@ -666,6 +671,11 @@ mod tests {
             separation_warning: false,
             notes: Vec::new(),
             backend_id: Arc::from("laplace"),
+            n_chains: None,
+            n_warmup: None,
+            ess_bulk_min: None,
+            rhat_max: None,
+            n_divergences: None,
         };
         assert!(!d.allows_posterior());
     }

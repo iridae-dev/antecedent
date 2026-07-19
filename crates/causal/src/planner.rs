@@ -13,13 +13,16 @@ use causal_core::{
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
 use causal_graph::{
-    CpdagReview, Dag, Pag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
-    TemporalPagReview,
+    CpdagReview, Dag, DagReview, Pag, PagReview, TemporalCpdagReview, TemporalDag,
+    TemporalGraphReview, TemporalPag, TemporalPagReview,
 };
 use causal_stats::FdrAdjustment;
 
 use crate::error::AnalysisError;
-use crate::strategy_table::{EstimatorId, IdentifierId, validate_static_pair};
+use crate::strategy_table::{
+    EstimatorId, IdentifierId, validate_distribution_pair, validate_path_specific_pair,
+    validate_static_pair,
+};
 
 /// How the causal graph is supplied to the planner.
 #[derive(Clone, Debug)]
@@ -105,6 +108,48 @@ pub enum GraphInput {
         /// Auto-accept when no undirected marks remain.
         accept_discovered: bool,
     },
+    /// Discover with classic static FCI (tabular PAG).
+    DiscoverFci {
+        /// Significance level.
+        alpha: f64,
+        /// Max conditioning-set size.
+        max_cond_size: usize,
+        /// Multiple-testing adjustment (`None` = off).
+        fdr: Option<FdrAdjustment>,
+        /// Auto-accept when no circle marks remain (ATE still unwired for PAG).
+        accept_discovered: bool,
+    },
+    /// Discover with classic static RFCI (tabular PAG; no Possible-D-Sep search).
+    DiscoverRfci {
+        /// Significance level.
+        alpha: f64,
+        /// Max conditioning-set size.
+        max_cond_size: usize,
+        /// Multiple-testing adjustment (`None` = off).
+        fdr: Option<FdrAdjustment>,
+        /// Auto-accept when no circle marks remain (ATE still unwired for PAG).
+        accept_discovered: bool,
+    },
+    /// Discover with GES (tabular CPDAG via Gaussian BIC).
+    DiscoverGes {
+        /// Significance level (used when PC screening is enabled on the algorithm).
+        alpha: f64,
+        /// Max conditioning-set size / parent bound hint.
+        max_cond_size: usize,
+        /// Multiple-testing adjustment for optional PC screening (`None` = off).
+        fdr: Option<FdrAdjustment>,
+        /// Auto-accept when no undirected marks remain.
+        accept_discovered: bool,
+    },
+    /// Discover with DirectLiNGAM (tabular DAG; auto-accept clears pending edges).
+    DiscoverLingam {
+        /// Max parent bound hint (via static constraints).
+        max_cond_size: usize,
+        /// Absolute OLS prune threshold.
+        prune_threshold: f64,
+        /// Auto-accept all discovered edges (skip review).
+        accept_discovered: bool,
+    },
 }
 
 /// Logical plan after compile (semantics only).
@@ -128,19 +173,6 @@ impl LogicalAnalysisPlan {
     /// Invalid combinations.
     pub fn validate(&self) -> Result<(), AnalysisError> {
         match (&self.query, self.record.data_classification) {
-            (CausalQuery::Distribution(_), _) => {
-                return Err(AnalysisError::Unsupported {
-                    message: "CausalQuery::Distribution estimation is not wired through \
-                     CausalAnalysis; identify via IdIdentifier/IdcIdentifier/AutoIdentifier \
-                     (general.id), then sample_interventional_distribution for GCM sampling",
-                });
-            }
-            (CausalQuery::PathSpecific(_), _) => {
-                return Err(AnalysisError::Unsupported {
-                    message: "CausalQuery::PathSpecific is not wired through CausalAnalysis; \
-                     use attribute_path_specific for path contribution (identify/estimate deferred)",
-                });
-            }
             (CausalQuery::TemporalEffect(_), DataClassification::Tabular) => {
                 return Err(AnalysisError::Compile {
                     message: "temporal effect query requires temporal data".into(),
@@ -320,6 +352,10 @@ pub enum CompiledAnalysis {
     ReviewRequiredCpdag(TemporalCpdagReview),
     /// Static PC CPDAG needs orientation before ATE estimation.
     ReviewRequiredStaticCpdag(CpdagReview),
+    /// DirectLiNGAM (or other full-DAG discovery) needs edge acceptance.
+    ReviewRequiredStaticDag(DagReview),
+    /// Classic static FCI PAG needs circle resolution or class-aware identification.
+    ReviewRequiredStaticPag(PagReview),
     /// LPCMCI / PAG needs circle resolution or class-aware identification.
     ReviewRequiredPag(TemporalPagReview),
 }
@@ -342,7 +378,11 @@ pub fn reject_dag_only_on_pag(
     let identifier = identifier.into();
     let is_pag = matches!(
         graph,
-        GraphInput::Pag(_) | GraphInput::TemporalPag(_) | GraphInput::DiscoverLpcmci { .. }
+        GraphInput::Pag(_)
+            | GraphInput::TemporalPag(_)
+            | GraphInput::DiscoverLpcmci { .. }
+            | GraphInput::DiscoverFci { .. }
+            | GraphInput::DiscoverRfci { .. }
     );
     if is_pag && identifier.is_dag_only() {
         return Err(AnalysisError::Compile {
@@ -411,6 +451,140 @@ pub fn compile_logical_static_ate(
     let plan = LogicalAnalysisPlan {
         record,
         query: CausalQuery::AverageEffect(input.query.clone()),
+        split: None,
+        row_count_hint: input.data.row_count() as u64,
+    };
+    plan.validate()?;
+    Ok(plan)
+}
+
+/// Compile input for interventional-distribution queries.
+#[derive(Clone, Debug)]
+pub struct StaticDistributionCompileInput<'a> {
+    /// Tabular data.
+    pub data: &'a TabularData,
+    /// Graph.
+    pub graph: &'a Dag,
+    /// Distribution query.
+    pub query: &'a causal_core::InterventionalDistributionQuery,
+    /// Validation suite id.
+    pub validation_suite: Option<Arc<str>>,
+    /// Identifier (`general.id` / `auto`).
+    pub identifier: Arc<str>,
+    /// Estimator (`functional.distribution`).
+    pub estimator: Arc<str>,
+}
+
+/// Compile logical plan for an interventional distribution.
+///
+/// # Errors
+///
+/// Query validation or incompatible identifier/estimator.
+pub fn compile_logical_distribution(
+    input: StaticDistributionCompileInput<'_>,
+) -> Result<LogicalAnalysisPlan, AnalysisError> {
+    input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    if input.query.target_population != TargetPopulation::AllObserved {
+        return Err(AnalysisError::Compile {
+            message: "functional.distribution only supports TargetPopulation::AllObserved".into(),
+        });
+    }
+    let treatment = input
+        .query
+        .interventions
+        .first()
+        .and_then(|iv| iv.primary_variable())
+        .ok_or_else(|| AnalysisError::Compile {
+            message: "distribution query requires at least one intervention with a primary variable"
+                .into(),
+        })?;
+    let outcome = *input.query.outcomes.first().ok_or_else(|| AnalysisError::Compile {
+        message: "distribution query requires at least one outcome".into(),
+    })?;
+    validate_query_vars_in_dag(input.graph, treatment, outcome)?;
+    let identifier = IdentifierId::parse(&input.identifier);
+    let estimator = EstimatorId::parse(&input.estimator);
+    validate_distribution_pair(identifier, estimator)?;
+    let mut qvars = vec![treatment, outcome];
+    for &z in input.query.conditioning.iter() {
+        if !qvars.contains(&z) {
+            qvars.push(z);
+        }
+    }
+    let record = LogicalAnalysisPlanRecord {
+        plan_id: Arc::from("static_distribution"),
+        data_classification: DataClassification::Tabular,
+        discovery_algorithm: None,
+        graph_review_required: false,
+        identifier: Some(Arc::clone(&input.identifier)),
+        estimator: Some(Arc::clone(&input.estimator)),
+        validation_suite: input.validation_suite,
+        query_variables: Arc::from(qvars),
+    };
+    let plan = LogicalAnalysisPlan {
+        record,
+        query: CausalQuery::Distribution(input.query.clone()),
+        split: None,
+        row_count_hint: input.data.row_count() as u64,
+    };
+    plan.validate()?;
+    Ok(plan)
+}
+
+/// Compile input for path-specific natural-effect queries.
+#[derive(Clone, Debug)]
+pub struct StaticPathSpecificCompileInput<'a> {
+    /// Tabular data.
+    pub data: &'a TabularData,
+    /// Graph.
+    pub graph: &'a Dag,
+    /// Path-specific query.
+    pub query: &'a causal_core::PathSpecificEffectQuery,
+    /// Validation suite id.
+    pub validation_suite: Option<Arc<str>>,
+    /// Identifier.
+    pub identifier: Arc<str>,
+    /// Estimator.
+    pub estimator: Arc<str>,
+}
+
+/// Compile logical plan for path-specific natural effects.
+///
+/// # Errors
+///
+/// Query validation or incompatible identifier/estimator.
+pub fn compile_logical_path_specific(
+    input: StaticPathSpecificCompileInput<'_>,
+) -> Result<LogicalAnalysisPlan, AnalysisError> {
+    input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    if input.query.target_population != TargetPopulation::AllObserved {
+        return Err(AnalysisError::Compile {
+            message: "functional.effect only supports TargetPopulation::AllObserved".into(),
+        });
+    }
+    validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
+    let identifier = IdentifierId::parse(&input.identifier);
+    let estimator = EstimatorId::parse(&input.estimator);
+    validate_path_specific_pair(identifier, estimator)?;
+    let mut qvars = vec![input.query.treatment, input.query.outcome];
+    for &m in input.query.path_nodes.iter() {
+        if !qvars.contains(&m) {
+            qvars.push(m);
+        }
+    }
+    let record = LogicalAnalysisPlanRecord {
+        plan_id: Arc::from("static_path_specific"),
+        data_classification: DataClassification::Tabular,
+        discovery_algorithm: None,
+        graph_review_required: false,
+        identifier: Some(Arc::clone(&input.identifier)),
+        estimator: Some(Arc::clone(&input.estimator)),
+        validation_suite: input.validation_suite,
+        query_variables: Arc::from(qvars),
+    };
+    let plan = LogicalAnalysisPlan {
+        record,
+        query: CausalQuery::PathSpecific(input.query.clone()),
         split: None,
         row_count_hint: input.data.row_count() as u64,
     };

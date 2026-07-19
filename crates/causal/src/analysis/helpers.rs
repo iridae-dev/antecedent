@@ -33,8 +33,9 @@ use causal_validate::{
 };
 
 use crate::discovery::{
-    DiscoverParams, StaticDiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pc,
-    discover_pcmci, discover_pcmci_plus, discover_rpcmci,
+    DiscoverParams, StaticDiscoverParams, discover_fci, discover_ges, discover_jpcmci_plus,
+    discover_lingam, discover_lpcmci, discover_pc, discover_pcmci, discover_pcmci_plus,
+    discover_rfci, discover_rpcmci,
 };
 use crate::discovery_defaults::resolve_ci;
 use causal_discovery::{MultiDatasetConstraints, RegimeAssignment};
@@ -50,6 +51,7 @@ pub(crate) struct AssembleArgs<'a> {
     pub(crate) identification: causal_identify::IdentificationResult,
     pub(crate) estimand: IdentifiedEstimand,
     pub(crate) estimate: EffectEstimate,
+    pub(crate) distribution: Option<causal_estimate::InterventionalDistributionEstimate>,
     pub(crate) posterior: Option<causal_estimate::CausalPosterior>,
     pub(crate) refutations: Vec<RefutationReport>,
     pub(crate) diagnostics: Vec<Diagnostic>,
@@ -73,6 +75,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
         identification: args.identification,
         estimand: args.estimand,
         estimate: args.estimate,
+        distribution: args.distribution,
         posterior: args.posterior,
         refutations: args.refutations,
         diagnostics: args.diagnostics,
@@ -242,6 +245,80 @@ pub(crate) fn run_pc_review(
         ci,
     };
     let result = discover_pc(data, &vars, &params, ctx)?;
+    Ok(result.review)
+}
+
+pub(crate) fn run_ges_review(
+    data: &TabularData,
+    alpha: f64,
+    max_cond_size: usize,
+    fdr: Option<causal_stats::FdrAdjustment>,
+    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    ctx: &ExecutionContext,
+) -> Result<CpdagReview, AnalysisError> {
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = StaticDiscoverParams {
+        alpha,
+        max_cond_size,
+        fdr,
+        ci,
+    };
+    let result = discover_ges(data, &vars, &params, ctx)?;
+    Ok(result.review)
+}
+
+pub(crate) fn run_lingam_review(
+    data: &TabularData,
+    max_cond_size: usize,
+    prune_threshold: f64,
+    ctx: &ExecutionContext,
+) -> Result<causal_graph::DagReview, AnalysisError> {
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = StaticDiscoverParams {
+        alpha: 0.05,
+        max_cond_size,
+        fdr: None,
+        ci: resolve_ci("parcorr", None)?,
+    };
+    let result = discover_lingam(data, &vars, &params, prune_threshold, ctx)?;
+    Ok(result.review)
+}
+
+pub(crate) fn run_fci_review(
+    data: &TabularData,
+    alpha: f64,
+    max_cond_size: usize,
+    fdr: Option<causal_stats::FdrAdjustment>,
+    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    ctx: &ExecutionContext,
+) -> Result<causal_graph::PagReview, AnalysisError> {
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = StaticDiscoverParams {
+        alpha,
+        max_cond_size,
+        fdr,
+        ci,
+    };
+    let result = discover_fci(data, &vars, &params, ctx)?;
+    Ok(result.review)
+}
+
+pub(crate) fn run_rfci_review(
+    data: &TabularData,
+    alpha: f64,
+    max_cond_size: usize,
+    fdr: Option<causal_stats::FdrAdjustment>,
+    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    ctx: &ExecutionContext,
+) -> Result<causal_graph::PagReview, AnalysisError> {
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = StaticDiscoverParams {
+        alpha,
+        max_cond_size,
+        fdr,
+        ci,
+    };
+    let result = discover_rfci(data, &vars, &params, ctx)?;
     Ok(result.review)
 }
 

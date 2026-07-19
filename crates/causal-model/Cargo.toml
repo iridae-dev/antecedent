@@ -21,6 +21,11 @@ causal-prob = { path = "../causal-prob" }
 causal-stats = { path = "../causal-stats" }
 thiserror = { workspace = true }
 
+[features]
+default = []
+# Gaussian-process mechanism family (DESIGN.md §14.4 / §30).
+gaussian-process = []
+
 [dev-dependencies]
 criterion = { workspace = true }
 

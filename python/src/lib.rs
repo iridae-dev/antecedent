@@ -42,8 +42,12 @@ use causal::{
     dag_to_dot as facade_dag_to_dot, dag_to_json as facade_dag_to_json,
     dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency,
     decode_causal_posterior_bytes, discover_jpcmci_plus as facade_discover_jpcmci_plus,
-    discover_lpcmci as facade_discover_lpcmci, discover_pc as facade_discover_pc,
-    discover_pcmci as facade_discover_pcmci, discover_pcmci_plus as facade_discover_pcmci_plus,
+    discover_lpcmci as facade_discover_lpcmci, discover_fci as facade_discover_fci,
+    discover_ges as facade_discover_ges,
+    discover_lingam as facade_discover_lingam,
+    discover_pc as facade_discover_pc, discover_pcmci as facade_discover_pcmci,
+    discover_pcmci_plus as facade_discover_pcmci_plus,
+    discover_rfci as facade_discover_rfci,
     discover_rpcmci as facade_discover_rpcmci, encode_causal_posterior_bytes,
     evaluate_decision as facade_evaluate_decision, fit_gcm,
     mechanism_change_detection as facade_mechanism_change_detection, new_causal_state,
@@ -52,6 +56,7 @@ use causal::{
     sample_interventional_distribution as facade_sample_interventional_distribution,
     two_regime_half_split,
 };
+use causal_stats::PartialCorrelation;
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CacheBudget, CachePolicy,
     CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
@@ -66,8 +71,8 @@ use causal_data::{
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{
-    Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark, NodeRef, TemporalCpdag,
-    TemporalDag, TemporalPag, ensure_lagged,
+    Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark, NodeRef, Pag,
+    TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged,
 };
 use causal_io::{
     CausalPosteriorWire, IoError, PosteriorQuantityWire,
@@ -865,6 +870,10 @@ fn static_cpdag_graph_edges(names: &[String], cpdag: &Cpdag) -> Vec<GraphEdge> {
     cpdag.edges().into_iter().map(|e| graph_edge_from_marked(names, cpdag.nodes(), e)).collect()
 }
 
+fn static_dag_graph_edges(names: &[String], dag: &Dag) -> Vec<GraphEdge> {
+    dag.edges().map(|e| graph_edge_from_marked(names, dag.nodes(), e)).collect()
+}
+
 fn pag_graph_edges(names: &[String], pag: &TemporalPag) -> Vec<GraphEdge> {
     let nodes = pag.nodes();
     let mut out = Vec::new();
@@ -882,6 +891,44 @@ fn pag_graph_edges(names: &[String], pag: &TemporalPag) -> Vec<GraphEdge> {
         }
     }
     out
+}
+
+fn static_pag_graph_edges(names: &[String], pag: &Pag) -> Vec<GraphEdge> {
+    let nodes = pag.nodes();
+    let mut out = Vec::new();
+    for i in 0..pag.node_count() {
+        let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+        for (b, at_a, at_b) in pag.neighbors(a) {
+            if b.raw() < a.raw() {
+                continue;
+            }
+            out.push(graph_edge_from_marked(
+                names,
+                nodes,
+                MarkedEdge { a, b, at_a, at_b, middle: MiddleMark::Empty },
+            ));
+        }
+    }
+    out
+}
+
+fn static_pag_definite_directed_count(pag: &Pag) -> u64 {
+    let mut directed = 0u64;
+    for i in 0..pag.node_count() {
+        let a = DenseNodeId::from_raw(i as u32);
+        for (b, at_a, at_b) in pag.neighbors(a) {
+            if b.raw() < a.raw() {
+                continue;
+            }
+            if matches!(
+                (at_a, at_b),
+                (Endpoint::Tail, Endpoint::Arrow) | (Endpoint::Arrow, Endpoint::Tail)
+            ) {
+                directed += 1;
+            }
+        }
+    }
+    directed
 }
 
 /// One discovered lagged link for Python.
@@ -1111,6 +1158,209 @@ fn discover_pc(
             cpdag.node_count() as u64,
             directed,
             undirected,
+            graph_edges,
+        ))
+    })
+}
+
+/// Run GES discovery over tabular columns → CPDAG summary.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=1))]
+fn discover_ges(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: Option<Bound<'_, PyAny>>,
+    max_cond_size: usize,
+    threads: u32,
+) -> PyResult<PcmciDiscoveryResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
+    drop(columns);
+    let threads = if is_callback { 1 } else { threads };
+
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let params = StaticDiscoverParams {
+            alpha,
+            max_cond_size,
+            fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            ci: ci_impl,
+        };
+        let ctx = py_execution_context(seed, threads);
+        let result = facade_discover_ges(&data, &variables, &params, &ctx).map_err(py_err)?;
+
+        let cpdag = &result.evidence.graph;
+        let directed = cpdag.directed_edge_count() as u64;
+        let undirected = cpdag.undirected_edge_count() as u64;
+        let pending = result.review.pending_edges.len() as u64
+            + result.review.pending_undirected.len() as u64;
+        let graph_edges = static_cpdag_graph_edges(&names, cpdag);
+
+        Ok(discovery_result_fields(
+            &names,
+            &result.evidence.links,
+            result.algorithm.id.as_ref(),
+            result.algorithm.config.as_ref(),
+            &result.performance,
+            pending,
+            ci_name,
+            cpdag.node_count() as u64,
+            directed,
+            undirected,
+            graph_edges,
+        ))
+    })
+}
+
+/// Run DirectLiNGAM discovery over tabular columns → DAG summary.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, prune_threshold=0.05, seed=1, max_cond_size=8, threads=1))]
+fn discover_lingam(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    prune_threshold: f64,
+    seed: u64,
+    max_cond_size: usize,
+    threads: u32,
+) -> PyResult<PcmciDiscoveryResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let params = StaticDiscoverParams {
+            alpha: 0.05,
+            max_cond_size,
+            fdr: None,
+            ci: Arc::new(PartialCorrelation::default()),
+        };
+        let ctx = py_execution_context(seed, threads);
+        let result =
+            facade_discover_lingam(&data, &variables, &params, prune_threshold, &ctx).map_err(py_err)?;
+
+        let dag = &result.evidence.graph;
+        let directed = dag.edges().count() as u64;
+        let pending = result.review.pending_edges.len() as u64;
+        let graph_edges = static_dag_graph_edges(&names, dag);
+
+        Ok(discovery_result_fields(
+            &names,
+            &result.evidence.links,
+            result.algorithm.id.as_ref(),
+            result.algorithm.config.as_ref(),
+            &result.performance,
+            pending,
+            "direct_lingam".into(),
+            dag.node_count() as u64,
+            directed,
+            0,
+            graph_edges,
+        ))
+    })
+}
+
+/// Run classic static FCI discovery over tabular columns → PAG summary.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=1))]
+fn discover_fci(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: Option<Bound<'_, PyAny>>,
+    max_cond_size: usize,
+    threads: u32,
+) -> PyResult<PcmciDiscoveryResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
+    drop(columns);
+    let threads = if is_callback { 1 } else { threads };
+
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let params = StaticDiscoverParams {
+            alpha,
+            max_cond_size,
+            fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            ci: ci_impl,
+        };
+        let ctx = py_execution_context(seed, threads);
+        let result = facade_discover_fci(&data, &variables, &params, &ctx).map_err(py_err)?;
+
+        let pag = &result.evidence.graph;
+        let pending = result.review.pending_circles.len() as u64;
+        let directed = static_pag_definite_directed_count(pag);
+        let graph_edges = static_pag_graph_edges(&names, pag);
+
+        Ok(discovery_result_fields(
+            &names,
+            &result.evidence.links,
+            result.algorithm.id.as_ref(),
+            result.algorithm.config.as_ref(),
+            &result.performance,
+            pending,
+            ci_name,
+            pag.node_count() as u64,
+            directed,
+            pending,
+            graph_edges,
+        ))
+    })
+}
+
+/// Run classic static RFCI discovery over tabular columns → PAG summary.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=1))]
+fn discover_rfci(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: Option<Bound<'_, PyAny>>,
+    max_cond_size: usize,
+    threads: u32,
+) -> PyResult<PcmciDiscoveryResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
+    drop(columns);
+    let threads = if is_callback { 1 } else { threads };
+
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let params = StaticDiscoverParams {
+            alpha,
+            max_cond_size,
+            fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            ci: ci_impl,
+        };
+        let ctx = py_execution_context(seed, threads);
+        let result = facade_discover_rfci(&data, &variables, &params, &ctx).map_err(py_err)?;
+
+        let pag = &result.evidence.graph;
+        let pending = result.review.pending_circles.len() as u64;
+        let directed = static_pag_definite_directed_count(pag);
+        let graph_edges = static_pag_graph_edges(&names, pag);
+
+        Ok(discovery_result_fields(
+            &names,
+            &result.evidence.links,
+            result.algorithm.id.as_ref(),
+            result.algorithm.config.as_ref(),
+            &result.performance,
+            pending,
+            ci_name,
+            pag.node_count() as u64,
+            directed,
+            pending,
             graph_edges,
         ))
     })
@@ -3117,6 +3367,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci_plus, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pc, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_ges, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_lingam, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_fci, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_rfci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_lpcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_jpcmci_plus, m)?)?;
     m.add_function(wrap_pyfunction!(discover_rpcmci, m)?)?;

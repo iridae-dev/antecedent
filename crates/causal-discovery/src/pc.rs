@@ -542,7 +542,7 @@ impl Pc {
     }
 }
 
-fn edge_key(a: VariableId, b: VariableId) -> (u32, u32) {
+pub(crate) fn edge_key(a: VariableId, b: VariableId) -> (u32, u32) {
     if a.raw() <= b.raw() {
         (a.raw(), b.raw())
     } else {
@@ -550,7 +550,7 @@ fn edge_key(a: VariableId, b: VariableId) -> (u32, u32) {
     }
 }
 
-fn adjacent_vars(
+pub(crate) fn adjacent_vars(
     v: VariableId,
     adj: &HashMap<(u32, u32), ()>,
     variables: &[VariableId],
@@ -562,7 +562,7 @@ fn adjacent_vars(
         .collect()
 }
 
-fn collect_float_columns(
+pub(crate) fn collect_float_columns(
     data: &TabularData,
     variables: &[VariableId],
 ) -> Result<Vec<Arc<[f64]>>, DiscoveryError> {

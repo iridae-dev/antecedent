@@ -14,6 +14,7 @@
 pub mod dispatch;
 pub mod parcorr;
 pub mod portable;
+pub mod posterior_reduce;
 pub mod rng;
 pub mod scalar;
 pub mod special;
@@ -25,6 +26,7 @@ pub use dispatch::{
     partial_correlation, select_impl, standardize_inplace, weighted_dot, weighted_mean,
     weighted_sum,
 };
+pub use posterior_reduce::{PosteriorReduceOp, reduce_posterior_draws};
 pub use scalar::sanitize_weight;
 pub use parcorr::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson};
 pub use rng::{

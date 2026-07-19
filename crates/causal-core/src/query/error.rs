@@ -77,6 +77,8 @@ pub enum QueryError {
     NonPositivePathLimit,
     /// Path node overlaps treatment or outcome.
     PathNodeOverlapsTreatmentOrOutcome,
+    /// Distribution conditioning overlaps an outcome or intervention target.
+    ConditioningOverlapsOutcomeOrIntervention,
 }
 
 impl core::fmt::Display for QueryError {
@@ -143,6 +145,9 @@ impl core::fmt::Display for QueryError {
             }
             Self::PathNodeOverlapsTreatmentOrOutcome => {
                 write!(f, "path node overlaps treatment or outcome")
+            }
+            Self::ConditioningOverlapsOutcomeOrIntervention => {
+                write!(f, "distribution conditioning overlaps outcome or intervention")
             }
         }
     }

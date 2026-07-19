@@ -19,6 +19,9 @@ pub enum DiscoveryError {
     /// Graph mutation / validation failure.
     #[error(transparent)]
     Graph(#[from] GraphError),
+    /// Score / state cache failure.
+    #[error(transparent)]
+    State(#[from] causal_state::StateError),
     /// Unsupported configuration.
     #[error("{message}")]
     Unsupported {

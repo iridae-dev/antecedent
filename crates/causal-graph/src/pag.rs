@@ -4,6 +4,8 @@
 
 #![allow(clippy::many_single_char_names)]
 
+use std::sync::Arc;
+
 use causal_core::VariableId;
 
 use crate::error::GraphError;
@@ -465,5 +467,64 @@ mod tests {
         assert!(!paths.paths.is_empty());
         assert!(g.path_active_given(&paths.paths[0].nodes, &[]));
         assert!(!g.path_active_given(&paths.paths[0].nodes, &[b]));
+    }
+}
+
+/// Review artifact for a discovered static PAG (pending circle marks).
+#[derive(Clone, Debug)]
+pub struct PagReview {
+    /// Proposed PAG.
+    pub graph: Pag,
+    /// Edges that still have at least one circle endpoint `(a,b)` with `a.raw() <= b.raw()`.
+    pub pending_circles: Arc<[(DenseNodeId, DenseNodeId)]>,
+    /// Algorithm id.
+    pub algorithm: Arc<str>,
+}
+
+impl PagReview {
+    /// Build review listing all circle-bearing edges.
+    #[must_use]
+    pub fn from_pag(graph: Pag, algorithm: impl Into<Arc<str>>) -> Self {
+        let mut pending = Vec::new();
+        for i in 0..graph.node_count() {
+            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            for (b, at_a, at_b) in graph.neighbors(a) {
+                if b.raw() < a.raw() {
+                    continue;
+                }
+                if matches!(at_a, Endpoint::Circle) || matches!(at_b, Endpoint::Circle) {
+                    pending.push((a, b));
+                }
+            }
+        }
+        Self { graph, pending_circles: Arc::from(pending), algorithm: algorithm.into() }
+    }
+
+    /// Whether no circle marks remain.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.pending_circles.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod review_tests {
+    use super::*;
+
+    #[test]
+    fn review_lists_circle_edges() {
+        let mut g = Pag::with_variables(2);
+        g.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let review = PagReview::from_pag(g, "fci");
+        assert_eq!(review.pending_circles.len(), 1);
+        assert!(!review.is_complete());
+    }
+
+    #[test]
+    fn directed_only_is_complete() {
+        let mut g = Pag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let review = PagReview::from_pag(g, "fci");
+        assert!(review.is_complete());
     }
 }

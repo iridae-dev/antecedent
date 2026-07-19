@@ -152,6 +152,57 @@ pub enum MechanismSlot {
         /// Fixed value.
         value: f64,
     },
+    /// Hierarchical linear Gaussian (partial-pooling / ridge toward prior mean 0).
+    HierarchicalLinear {
+        /// Intercept.
+        intercept: f64,
+        /// Parent coefficients (shrunk).
+        coeffs: Arc<[f64]>,
+        /// Residual standard deviation.
+        sigma: f64,
+        /// Shrinkage strength used at fit (`λ` on diagonal of XtX).
+        shrinkage: f64,
+    },
+    /// Bayesian VAR-style linear Gaussian on parent lags (single-equation).
+    Bvar {
+        /// Intercept.
+        intercept: f64,
+        /// Parent / lag coefficients.
+        coeffs: Arc<[f64]>,
+        /// Residual standard deviation.
+        sigma: f64,
+    },
+    /// Linear Gaussian state-space observation mechanism (1-D LGSSM).
+    ///
+    /// Latent: `x_t = a x_{t-1} + σ_proc ε`; observation: `y_t = x_t + σ_obs η`.
+    /// Parents unused at evaluate time (state evolves from shared noise).
+    LinearGaussianStateSpace {
+        /// AR coefficient.
+        a: f64,
+        /// Process noise std.
+        process_std: f64,
+        /// Observation noise std.
+        obs_std: f64,
+        /// Initial latent mean.
+        initial_mean: f64,
+    },
+    /// Gaussian-process mechanism (RBF dual form); requires `gaussian-process` feature to fit.
+    GaussianProcess {
+        /// Length scale.
+        length_scale: f64,
+        /// Signal variance.
+        variance: f64,
+        /// Observation noise std.
+        noise_std: f64,
+        /// Training parent rows, row-major `[n_train * n_parents]`.
+        x_train: Arc<[f64]>,
+        /// Training rows.
+        n_train: usize,
+        /// Parent arity.
+        n_parents: usize,
+        /// Dual coefficients `α = (K + σ²I)^{-1} y`.
+        alpha: Arc<[f64]>,
+    },
     /// Explicit slow-path dynamic / user mechanism (not serializable).
     Dynamic {
         /// Stable label for diagnostics (e.g. variable name).
@@ -179,6 +230,41 @@ impl std::fmt::Debug for MechanismSlot {
                 .field("logit_coeffs", logit_coeffs)
                 .finish(),
             Self::Constant { value } => f.debug_struct("Constant").field("value", value).finish(),
+            Self::HierarchicalLinear { intercept, coeffs, sigma, shrinkage } => f
+                .debug_struct("HierarchicalLinear")
+                .field("intercept", intercept)
+                .field("coeffs", coeffs)
+                .field("sigma", sigma)
+                .field("shrinkage", shrinkage)
+                .finish(),
+            Self::Bvar { intercept, coeffs, sigma } => f
+                .debug_struct("Bvar")
+                .field("intercept", intercept)
+                .field("coeffs", coeffs)
+                .field("sigma", sigma)
+                .finish(),
+            Self::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => f
+                .debug_struct("LinearGaussianStateSpace")
+                .field("a", a)
+                .field("process_std", process_std)
+                .field("obs_std", obs_std)
+                .field("initial_mean", initial_mean)
+                .finish(),
+            Self::GaussianProcess {
+                length_scale,
+                variance,
+                noise_std,
+                n_train,
+                n_parents,
+                ..
+            } => f
+                .debug_struct("GaussianProcess")
+                .field("length_scale", length_scale)
+                .field("variance", variance)
+                .field("noise_std", noise_std)
+                .field("n_train", n_train)
+                .field("n_parents", n_parents)
+                .finish(),
             Self::Dynamic { id, .. } => f
                 .debug_struct("Dynamic")
                 .field("id", id)

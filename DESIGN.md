@@ -789,12 +789,13 @@ pub enum CausalQuery {
 `Distribution` and `PathSpecific` are first-class variants (not overloads of
 `ChangeAttribution` / `Mediation`). Types validate and register in state; GCM
 wrappers sample interventional distributions (`sample_interventional_distribution`)
-and path *contribution* (`attribute_path_specific` → `path_decompose`). Minimal
-IO wire forms exist for those two queries. **Identify / estimate algorithms** for
-interventional distributions (IDC) and path-restricted natural effects remain
-planned — coordinate with deep identification (§10); do not fork a second
-`AutoIdentifier`. Nonparametric path-specific natural effects are `pending` on
-`context.mediation.nonparametric` (see `TODO.md`).
+and path *contribution* (`attribute_path_specific` → `path_decompose`). IO wire
+forms exist for those two queries. **Interventional-distribution** identify
+(ID/IDC) + discrete functional plug-in estimation ship through `CausalAnalysis`
+(`general.id` / `auto` + `functional.distribution`). **Path-restricted natural
+effects** identify (`path_specific.natural` / `auto`) + discrete plug-in
+estimation (`functional.effect`) also ship; do not fork a second
+`AutoIdentifier`. Parity `context.mediation.nonparametric` is `done`.
 
 ### 8.1 Interventions
 

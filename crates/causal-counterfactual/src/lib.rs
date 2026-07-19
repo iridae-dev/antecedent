@@ -7,13 +7,17 @@
 
 pub mod engine;
 pub mod error;
+pub mod trajectory;
 
 pub use engine::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualResult,
-    CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind, simultaneous_hard_counterfactual,
-    streaming_matches_retained,
+    CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind, nested_hard_counterfactual,
+    simultaneous_hard_counterfactual, streaming_matches_retained,
 };
 pub use error::CounterfactualError;
+pub use trajectory::{
+    CounterfactualTrajectoryRequest, TrajectoryArm, TrajectoryResult, evaluate_trajectories,
+};
 
 /// Crate version.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

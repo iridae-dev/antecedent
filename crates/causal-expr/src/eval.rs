@@ -87,7 +87,22 @@ impl CompiledEvaluator {
         provider: &dyn DistributionProvider,
         ctx: &EvalContext,
     ) -> Result<f64, EvalError> {
-        self.eval_slot(arena, provider, ctx, &Assignment::new(), self.root)
+        self.evaluate_with(arena, provider, ctx, &Assignment::new())
+    }
+
+    /// Evaluate with an initial variable binding (e.g. `do(X=x)` and outcome levels).
+    ///
+    /// # Errors
+    ///
+    /// Provider / numeric failures.
+    pub fn evaluate_with(
+        &self,
+        arena: &CausalExprArena,
+        provider: &dyn DistributionProvider,
+        ctx: &EvalContext,
+        env: &Assignment,
+    ) -> Result<f64, EvalError> {
+        self.eval_slot(arena, provider, ctx, env, self.root)
     }
 
     /// Evaluate over all posterior draws (`provider.n_draws()`), or a single
@@ -289,8 +304,16 @@ fn free_vars_rec(
     match &compiled.ops[slot] {
         EvalOp::Distribution { variables, conditioned_on, intervention, .. } => {
             out.extend_from_slice(arena.var_set(*variables));
-            out.extend_from_slice(arena.var_set(*conditioned_on));
-            let _ = intervention; // bound by do(·)
+            let bound: Vec<VariableId> = arena
+                .intervention_assignments(*intervention)
+                .iter()
+                .map(|a| a.variable)
+                .collect();
+            for &v in arena.var_set(*conditioned_on) {
+                if !bound.iter().any(|b| *b == v) {
+                    out.push(v);
+                }
+            }
         }
         EvalOp::Product { children } => {
             for &c in children.iter() {

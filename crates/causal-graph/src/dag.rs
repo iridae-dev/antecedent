@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use causal_core::VariableId;
 
 use crate::algo::{bfs_reaches, kahn_order};
@@ -279,5 +281,76 @@ mod tests {
             assert_eq!(ws.frontier.as_ptr(), ptr);
             assert_eq!(ws.frontier.capacity(), cap);
         }
+    }
+}
+
+/// Review-required static DAG artifact (DirectLiNGAM and other full-DAG discovery).
+#[derive(Clone, Debug)]
+pub struct DagReview {
+    /// Proposed discovery DAG.
+    pub graph: Dag,
+    /// Directed edges awaiting explicit acceptance `(from, to)` as [`VariableId`]s.
+    pub pending_edges: Arc<[(VariableId, VariableId)]>,
+    /// Algorithm id that produced the proposal.
+    pub algorithm: Arc<str>,
+}
+
+impl DagReview {
+    /// Construct a review listing all current edges as pending.
+    #[must_use]
+    pub fn from_dag(graph: Dag, algorithm: impl Into<Arc<str>>) -> Self {
+        let mut pending = Vec::new();
+        for e in graph.edges() {
+            if let Some((from, to)) = e.parent_child() {
+                if let (Some(fv), Some(tv)) = (variable_id_of(&graph, from), variable_id_of(&graph, to))
+                {
+                    pending.push((fv, tv));
+                }
+            }
+        }
+        Self { graph, pending_edges: Arc::from(pending), algorithm: algorithm.into() }
+    }
+
+    /// Accept a pending directed edge (no-op if absent).
+    #[must_use]
+    pub fn accept_edge(mut self, from: VariableId, to: VariableId) -> Self {
+        let pending: Vec<_> =
+            self.pending_edges.iter().copied().filter(|e| *e != (from, to)).collect();
+        self.pending_edges = Arc::from(pending);
+        self
+    }
+
+    /// Accept all remaining pending edges.
+    #[must_use]
+    pub fn accept_all(mut self) -> Self {
+        self.pending_edges = Arc::from([]);
+        self
+    }
+
+    /// Whether all pending edges have been accepted.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.pending_edges.is_empty()
+    }
+
+    /// Borrow the accepted DAG when review is complete.
+    ///
+    /// # Errors
+    ///
+    /// Incomplete review.
+    pub fn try_into_dag(self) -> Result<Dag, GraphError> {
+        if !self.is_complete() {
+            return Err(GraphError::InvalidEndpoints {
+                message: "cannot finish DagReview while pending edges remain",
+            });
+        }
+        Ok(self.graph)
+    }
+}
+
+fn variable_id_of(dag: &Dag, id: DenseNodeId) -> Option<VariableId> {
+    match dag.nodes().get(id.as_usize()) {
+        Some(NodeRef::Static(v)) => Some(*v),
+        _ => None,
     }
 }

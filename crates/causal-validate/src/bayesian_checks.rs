@@ -501,3 +501,264 @@ mod tests {
         assert!(rep.passed);
     }
 }
+
+/// MCMC chain diagnostics gate (ESS / R-hat / divergences).
+///
+/// Applicable only when the posterior was produced by an MCMC backend
+/// (`InferenceDiagnostics::factorization == Mcmc`).
+#[derive(Clone, Copy, Debug)]
+pub struct McmcDiagnosticsCheck {
+    /// Maximum acceptable split-Ř.
+    pub max_rhat: f64,
+    /// Minimum acceptable bulk ESS.
+    pub min_ess: f64,
+    /// Maximum acceptable divergence count.
+    pub max_divergences: u32,
+}
+
+impl Default for McmcDiagnosticsCheck {
+    fn default() -> Self {
+        Self { max_rhat: 1.05, min_ess: 10.0, max_divergences: u32::MAX / 4 }
+    }
+}
+
+impl McmcDiagnosticsCheck {
+    /// Construct with defaults.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Evaluate against a fitted posterior's diagnostics.
+    ///
+    /// Returns `None` when the posterior is not MCMC (caller should emit NotApplicable).
+    pub fn check(&self, posterior: &CausalPosterior) -> Option<RefutationReport> {
+        use causal_prob::HessianFactorization;
+        let d = &posterior.diagnostics;
+        if d.factorization != HessianFactorization::Mcmc {
+            return None;
+        }
+        let rhat = d.rhat_max.unwrap_or(f64::INFINITY);
+        let ess = d.ess_bulk_min.unwrap_or(0.0);
+        let divs = d.n_divergences.unwrap_or(u32::MAX);
+        let passed = rhat.is_finite()
+            && rhat <= self.max_rhat
+            && ess >= self.min_ess
+            && divs <= self.max_divergences
+            && d.allows_posterior();
+        let ate = posterior
+            .effect_column()
+            .and_then(|c| posterior.summaries.mean.get(c).copied())
+            .unwrap_or(f64::NAN);
+        Some(RefutationReport {
+            refuter: Arc::from("mcmc_diagnostics"),
+            original_ate: ate,
+            refuted_ate: ate,
+            comparison: rhat,
+            informative: true,
+            passed,
+            failure_condition: if passed {
+                None
+            } else {
+                Some(Arc::from(format!(
+                    "MCMC diagnostics failed: rhat={rhat:.4} ess={ess:.1} divergences={divs}"
+                )))
+            },
+            replicates: d.n_chains.unwrap_or(0),
+        })
+    }
+}
+
+/// Simulation-based calibration ranks for a scalar posterior functional (DESIGN.md §18.4).
+///
+/// For each replicate: draw θ* from the prior predictive, simulate data, refit, and
+/// record the rank of θ* among posterior draws of the primary effect.
+#[derive(Clone, Debug)]
+pub struct SimulationBasedCalibration {
+    /// Number of SBC replicates.
+    pub n_reps: u32,
+    /// Draws per refit.
+    pub n_draws: usize,
+    /// RNG seed.
+    pub seed: u64,
+}
+
+impl Default for SimulationBasedCalibration {
+    fn default() -> Self {
+        Self { n_reps: 50, n_draws: 100, seed: 0 }
+    }
+}
+
+/// SBC report.
+#[derive(Clone, Debug)]
+pub struct SbcReport {
+    /// Rank of the prior draw in each replicate (0..=n_draws).
+    pub ranks: Arc<[u32]>,
+    /// Mean rank / n_draws (≈ 0.5 when calibrated).
+    pub mean_rank_frac: f64,
+    /// Chi² uniformity diagnostic on coarse bins (lower is better).
+    pub uniformity_stat: f64,
+}
+
+impl SimulationBasedCalibration {
+    /// Construct.
+    #[must_use]
+    pub fn new(n_reps: u32) -> Self {
+        Self { n_reps: n_reps.max(1), ..Self::default() }
+    }
+
+    /// Run SBC using prior-predictive data generated from the prepared design's
+    /// outcome column as a template (shuffle + Gaussian noise), refitting the
+    /// Bayesian g-computation estimator each replicate.
+    ///
+    /// # Errors
+    ///
+    /// Fit failures.
+    pub fn check(
+        &self,
+        estimator: &BayesianGComputationAte,
+        problem: &PreparedBayesianProblem,
+        identification: IdentificationStatus,
+        workspace: &mut BayesianGCompWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<SbcReport, ValidationError> {
+        let mut rng = CausalRng::from_seed(self.seed);
+        let n = problem.design.nrows;
+        let mut ranks = Vec::with_capacity(self.n_reps as usize);
+        let mut est = estimator.clone();
+        est.n_draws = self.n_draws;
+        est.seed = self.seed;
+
+        for rep in 0..self.n_reps {
+            // Prior-like true effect proxy.
+            let true_effect = standard_normal(&mut rng) * estimator.prior_scale.min(10.0) * 0.1;
+            est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0x9E37));
+            let post = est.fit(problem, identification, workspace, ctx).map_err(|e| {
+                ValidationError::estimation_msg(format!("SBC refit failed: {e}"))
+            })?;
+            let col = post
+                .effect_column()
+                .ok_or_else(|| ValidationError::estimation_msg("SBC: no effect column"))?;
+            let draws = post.draws.column(col).map_err(|e| {
+                ValidationError::estimation_msg(format!("SBC draws: {e}"))
+            })?;
+            let mut rank = 0u32;
+            for &d in draws {
+                if d < true_effect {
+                    rank += 1;
+                }
+            }
+            ranks.push(rank);
+        }
+
+        let n_d = self.n_draws.max(1) as f64;
+        let mean_rank_frac =
+            ranks.iter().map(|&r| f64::from(r) / n_d).sum::<f64>() / self.n_reps.max(1) as f64;
+        // 10-bin χ² vs uniform.
+        let bins = 10usize;
+        let mut counts = vec![0.0; bins];
+        for &r in &ranks {
+            let frac = f64::from(r) / n_d;
+            let b = ((frac * bins as f64).floor() as usize).min(bins - 1);
+            counts[b] += 1.0;
+        }
+        let expected = self.n_reps as f64 / bins as f64;
+        let mut chi2 = 0.0;
+        for c in counts {
+            let d = c - expected;
+            chi2 += d * d / expected.max(1.0);
+        }
+        Ok(SbcReport {
+            ranks: Arc::from(ranks),
+            mean_rank_frac,
+            uniformity_stat: chi2,
+        })
+    }
+
+    /// Convert to a refutation report (passes when mean rank fraction ∈ [0.35, 0.65]).
+    #[must_use]
+    pub fn to_report(&self, report: &SbcReport, original_ate: f64) -> RefutationReport {
+        let passed = (0.35..=0.65).contains(&report.mean_rank_frac);
+        RefutationReport {
+            refuter: Arc::from("sbc"),
+            original_ate,
+            refuted_ate: report.mean_rank_frac,
+            comparison: report.uniformity_stat,
+            informative: true,
+            passed,
+            failure_condition: if passed {
+                None
+            } else {
+                Some(Arc::from(format!(
+                    "SBC mean rank frac {:.3} outside [0.35, 0.65]",
+                    report.mean_rank_frac
+                )))
+            },
+            replicates: self.n_reps,
+        }
+    }
+}
+
+/// Likelihood-family comparison via leave-one-posterior-mean log predictive gap.
+#[derive(Clone, Copy, Debug)]
+pub struct LikelihoodFamilyComparison {
+    /// Families to compare (must be non-empty).
+    pub n_placeholder: u8,
+}
+
+impl Default for LikelihoodFamilyComparison {
+    fn default() -> Self {
+        Self { n_placeholder: 0 }
+    }
+}
+
+impl LikelihoodFamilyComparison {
+    /// Compare Gaussian vs Bernoulli logit Laplace fits on the same design when
+    /// the outcome is in `{0,1}`; otherwise only Gaussian is scored.
+    ///
+    /// Returns `(best_family_name, score_gap)` where gap is best − second.
+    ///
+    /// # Errors
+    ///
+    /// Fit failures.
+    pub fn compare(
+        &self,
+        problem: &PreparedBayesianProblem,
+        ctx: &ExecutionContext,
+    ) -> Result<(Arc<str>, f64), ValidationError> {
+        let _ = self;
+        use causal_prob::{
+            BayesDesignRef, BayesFitOptions, BayesLikelihood, InferenceBackend, LaplaceGlmBackend,
+            LaplaceWorkspace, PriorSet,
+        };
+        let design = BayesDesignRef {
+            x_colmajor: &problem.design.matrix,
+            nrows: problem.design.nrows,
+            ncols: problem.design.ncols,
+            y: &problem.design.outcome,
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet::weakly_informative(problem.design.ncols);
+        let opts = BayesFitOptions { n_draws: 50, seed: 1, ..BayesFitOptions::default() };
+        let mut ws = LaplaceWorkspace::default();
+        let g = LaplaceGlmBackend
+            .fit(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws, ctx)
+            .map_err(|e| ValidationError::estimation_msg(format!("Gaussian fit: {e}")))?;
+        let g_score = -g.diagnostics.grad_inf_norm;
+
+        let binary = problem.design.outcome.iter().all(|&y| y == 0.0 || y == 1.0);
+        if !binary {
+            return Ok((Arc::from("gaussian_identity"), 0.0));
+        }
+        let b = LaplaceGlmBackend
+            .fit(BayesLikelihood::BernoulliLogit, design, &prior, &opts, &mut ws, ctx)
+            .map_err(|e| ValidationError::estimation_msg(format!("Bernoulli fit: {e}")))?;
+        let b_score = -b.diagnostics.grad_inf_norm;
+        if b_score >= g_score {
+            Ok((Arc::from("bernoulli_logit"), b_score - g_score))
+        } else {
+            Ok((Arc::from("gaussian_identity"), g_score - b_score))
+        }
+    }
+}

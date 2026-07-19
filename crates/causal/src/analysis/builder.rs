@@ -280,6 +280,76 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Discover with classic static FCI (tabular PAG; review-required for ATE).
+    #[must_use]
+    pub fn discover_fci(
+        mut self,
+        alpha: f64,
+        max_cond_size: usize,
+        fdr: crate::options::FdrControl,
+        accept: crate::options::DiscoveryAccept,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverFci {
+            alpha,
+            max_cond_size,
+            fdr: fdr.adjustment(),
+            accept_discovered: accept.auto(),
+        });
+        self
+    }
+
+    /// Discover with classic static RFCI (tabular PAG; review-required for ATE).
+    #[must_use]
+    pub fn discover_rfci(
+        mut self,
+        alpha: f64,
+        max_cond_size: usize,
+        fdr: crate::options::FdrControl,
+        accept: crate::options::DiscoveryAccept,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverRfci {
+            alpha,
+            max_cond_size,
+            fdr: fdr.adjustment(),
+            accept_discovered: accept.auto(),
+        });
+        self
+    }
+
+    /// Discover with GES (tabular CPDAG; auto-finishes only when fully oriented).
+    #[must_use]
+    pub fn discover_ges(
+        mut self,
+        alpha: f64,
+        max_cond_size: usize,
+        fdr: crate::options::FdrControl,
+        accept: crate::options::DiscoveryAccept,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverGes {
+            alpha,
+            max_cond_size,
+            fdr: fdr.adjustment(),
+            accept_discovered: accept.auto(),
+        });
+        self
+    }
+
+    /// Discover with DirectLiNGAM (tabular DAG; auto-accept clears pending edges).
+    #[must_use]
+    pub fn discover_lingam(
+        mut self,
+        max_cond_size: usize,
+        prune_threshold: f64,
+        accept: crate::options::DiscoveryAccept,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverLingam {
+            max_cond_size,
+            prune_threshold,
+            accept_discovered: accept.auto(),
+        });
+        self
+    }
+
     /// Override the CI test used by discovery paths (defaults to partial correlation).
     #[must_use]
     pub fn discovery_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {

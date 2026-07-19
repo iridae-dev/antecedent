@@ -7,12 +7,16 @@ use causal_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
+use crate::fci::{Fci, StaticPagDiscoveryResult};
+use crate::ges::Ges;
 use crate::jpcmci_plus::JpcmciPlus;
+use crate::lingam::{DirectLingam, StaticDagDiscoveryResult};
 use crate::lpcmci::Lpcmci;
 use crate::pc::{Pc, StaticCpdagDiscoveryResult};
 use crate::pcmci::Pcmci;
 use crate::pcmci_plus::PcmciPlus;
 use crate::result::{CpdagDiscoveryResult, DagDiscoveryResult, PagDiscoveryResult};
+use crate::rfci::Rfci;
 use crate::rpcmci::{RegimeAssignment, Rpcmci, RpcmciDiscoveryResult};
 
 /// Algorithm that accepts a concrete dataset type `D` (DESIGN.md §5.1).
@@ -97,6 +101,62 @@ impl DiscoveryAlgorithm<MultiEnvironmentData> for JpcmciPlus {
 
 impl DiscoveryAlgorithm<TabularData> for Pc {
     type Output = StaticCpdagDiscoveryResult;
+
+    fn discover(
+        &mut self,
+        data: &TabularData,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Self::Output, DiscoveryError> {
+        self.run(data, variables, workspace, ctx)
+    }
+}
+
+impl DiscoveryAlgorithm<TabularData> for Fci {
+    type Output = StaticPagDiscoveryResult;
+
+    fn discover(
+        &mut self,
+        data: &TabularData,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Self::Output, DiscoveryError> {
+        self.run(data, variables, workspace, ctx)
+    }
+}
+
+impl DiscoveryAlgorithm<TabularData> for Rfci {
+    type Output = StaticPagDiscoveryResult;
+
+    fn discover(
+        &mut self,
+        data: &TabularData,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Self::Output, DiscoveryError> {
+        self.run(data, variables, workspace, ctx)
+    }
+}
+
+impl DiscoveryAlgorithm<TabularData> for Ges {
+    type Output = StaticCpdagDiscoveryResult;
+
+    fn discover(
+        &mut self,
+        data: &TabularData,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Self::Output, DiscoveryError> {
+        self.run(data, variables, workspace, ctx)
+    }
+}
+
+impl DiscoveryAlgorithm<TabularData> for DirectLingam {
+    type Output = StaticDagDiscoveryResult;
 
     fn discover(
         &mut self,

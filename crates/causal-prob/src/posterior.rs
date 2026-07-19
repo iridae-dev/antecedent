@@ -150,21 +150,19 @@ impl PosteriorDraws {
     /// Summary statistics per quantity.
     #[must_use]
     pub fn summarize(&self) -> PosteriorSummary {
+        use causal_core::KernelPolicy;
+        use causal_kernels::{PosteriorReduceOp, reduce_posterior_draws};
+
         let n_q = self.n_quantities();
         let mut mean = vec![0.0; n_q];
         let mut sd = vec![0.0; n_q];
         let mut q025 = vec![0.0; n_q];
         let mut q975 = vec![0.0; n_q];
+        let policy = KernelPolicy::default_policy();
         for q in 0..n_q {
             let col = &self.values[q * self.n_draws..(q + 1) * self.n_draws];
-            let m = col.iter().sum::<f64>() / self.n_draws.max(1) as f64;
-            mean[q] = m;
-            let var = if self.n_draws > 1 {
-                col.iter().map(|x| (x - m) * (x - m)).sum::<f64>() / (self.n_draws - 1) as f64
-            } else {
-                0.0
-            };
-            sd[q] = var.sqrt();
+            mean[q] = reduce_posterior_draws(col, PosteriorReduceOp::Mean, &policy).unwrap_or(0.0);
+            sd[q] = reduce_posterior_draws(col, PosteriorReduceOp::Std, &policy).unwrap_or(0.0);
             let mut sorted = col.to_vec();
             sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             q025[q] = quantile_sorted(&sorted, 0.025);

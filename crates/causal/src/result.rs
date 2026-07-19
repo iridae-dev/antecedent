@@ -8,6 +8,7 @@ use causal_core::{
 };
 use causal_estimate::CausalPosterior;
 use causal_estimate::EffectEstimate;
+use causal_estimate::InterventionalDistributionEstimate;
 use causal_identify::{IdentificationResult, IdentifiedEstimand};
 use causal_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
 use causal_validate::RefutationReport;
@@ -24,7 +25,12 @@ pub struct CausalAnalysisResult {
     /// Primary estimand used for estimation.
     pub estimand: IdentifiedEstimand,
     /// Point estimate + uncertainty (frequentist, or Bayesian posterior mean summary).
+    ///
+    /// For [`CausalQuery::Distribution`](causal_core::CausalQuery::Distribution) this holds the
+    /// interventional mean of the first numeric outcome when defined (`ate` field), else NaN.
     pub estimate: EffectEstimate,
+    /// Full interventional distribution when the query was [`CausalQuery::Distribution`].
+    pub distribution: Option<InterventionalDistributionEstimate>,
     /// Bayesian posterior when `InferenceMode::Bayesian` was used.
     pub posterior: Option<CausalPosterior>,
     /// Refutation reports (may be empty).

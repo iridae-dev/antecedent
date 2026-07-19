@@ -125,9 +125,17 @@ fn interventional_distribution_query_validates() {
     let empty = InterventionalDistributionQuery {
         outcomes: Arc::from([]),
         interventions: Arc::from([]),
+        conditioning: Arc::from([]),
         target_population: TargetPopulation::AllObserved,
     };
     assert!(matches!(empty.validate(), Err(QueryError::EmptyDistributionOutcomes)));
+
+    let overlap = InterventionalDistributionQuery::new(y, [Intervention::set(t, Value::f64(1.0))])
+        .with_conditioning([y]);
+    assert!(matches!(
+        overlap.validate(),
+        Err(QueryError::ConditioningOverlapsOutcomeOrIntervention)
+    ));
 }
 
 #[test]

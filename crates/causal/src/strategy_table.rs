@@ -46,6 +46,8 @@ pub enum IdentifierId {
     GeneralizedAdjustment,
     /// Shpitser–Pearl general ID (semi-Markovian).
     GeneralId,
+    /// Path-restricted natural effects.
+    PathSpecificNatural,
     /// AutoIdentifier — all applicable estimands, no silent estimator choice.
     Auto,
     /// Unknown / extension id (not in the compile-time allowlist).
@@ -65,6 +67,7 @@ impl IdentifierId {
             "temporal.backdoor.unfolded" => Self::TemporalBackdoorUnfolded,
             "generalized.adjustment" => Self::GeneralizedAdjustment,
             "general.id" => Self::GeneralId,
+            "path_specific.natural" => Self::PathSpecificNatural,
             "auto" => Self::Auto,
             other => Self::Other(Arc::from(other)),
         }
@@ -82,6 +85,7 @@ impl IdentifierId {
             Self::TemporalBackdoorUnfolded => "temporal.backdoor.unfolded",
             Self::GeneralizedAdjustment => "generalized.adjustment",
             Self::GeneralId => "general.id",
+            Self::PathSpecificNatural => "path_specific.natural",
             Self::Auto => "auto",
             Self::Other(s) => s.as_ref(),
         }
@@ -99,6 +103,7 @@ impl IdentifierId {
                 | Self::RdSharp
                 | Self::TemporalBackdoorUnfolded
                 | Self::GeneralId
+                | Self::PathSpecificNatural
                 | Self::Auto
         )
     }
@@ -157,6 +162,10 @@ pub enum EstimatorId {
     BayesianGcomp,
     /// Temporal linear adjustment.
     TemporalLinearAdjustment,
+    /// Discrete plug-in evaluation of an identified interventional distribution.
+    FunctionalDistribution,
+    /// Discrete plug-in evaluation of an identified scalar functional (ATE / path NE).
+    FunctionalEffect,
     /// Unknown / extension id.
     Other(Arc<str>),
 }
@@ -179,6 +188,8 @@ impl EstimatorId {
             "rd.sharp" => Self::RdSharp,
             "bayesian.gcomp" => Self::BayesianGcomp,
             "temporal.linear.adjustment" => Self::TemporalLinearAdjustment,
+            "functional.distribution" => Self::FunctionalDistribution,
+            "functional.effect" => Self::FunctionalEffect,
             other => Self::Other(Arc::from(other)),
         }
     }
@@ -200,6 +211,8 @@ impl EstimatorId {
             Self::RdSharp => "rd.sharp",
             Self::BayesianGcomp => "bayesian.gcomp",
             Self::TemporalLinearAdjustment => "temporal.linear.adjustment",
+            Self::FunctionalDistribution => "functional.distribution",
+            Self::FunctionalEffect => "functional.effect",
             Self::Other(s) => s.as_ref(),
         }
     }
@@ -219,7 +232,9 @@ impl EstimatorId {
             | Self::FrontDoorTwoStage
             | Self::IvWald
             | Self::Iv2Sls
-            | Self::RdSharp => "bootstrap.replicate",
+            | Self::RdSharp
+            | Self::FunctionalDistribution
+            | Self::FunctionalEffect => "bootstrap.replicate",
             Self::BayesianGcomp | Self::Other(_) => "analysis",
         }
     }
@@ -238,6 +253,8 @@ impl EstimatorId {
             Self::IvWald => "iv.wald",
             Self::Iv2Sls => "2sls",
             Self::RdSharp => "rd.local_linear",
+            Self::FunctionalDistribution => "functional.distribution",
+            Self::FunctionalEffect => "functional.effect",
             Self::LinearAdjustmentAte | Self::BayesianGcomp | Self::Other(_) => "ols.faer",
         }
     }
@@ -279,6 +296,15 @@ pub const DEFAULT_IDENTIFIER_ID: IdentifierId = IdentifierId::BackdoorAdjustment
 /// Default estimator as a closed enum.
 pub const DEFAULT_ESTIMATOR_ID: EstimatorId = EstimatorId::LinearAdjustmentAte;
 
+/// Default distribution identifier.
+pub const DEFAULT_DISTRIBUTION_IDENTIFIER: &str = "general.id";
+/// Default distribution estimator.
+pub const DEFAULT_DISTRIBUTION_ESTIMATOR: &str = "functional.distribution";
+/// Default distribution identifier enum.
+pub const DEFAULT_DISTRIBUTION_IDENTIFIER_ID: IdentifierId = IdentifierId::GeneralId;
+/// Default distribution estimator enum.
+pub const DEFAULT_DISTRIBUTION_ESTIMATOR_ID: EstimatorId = EstimatorId::FunctionalDistribution;
+
 /// Compile-time allowlist of identifier/estimator pairs for the static ATE path.
 ///
 /// # Errors
@@ -318,6 +344,77 @@ pub fn validate_static_pair(
     Ok(())
 }
 
+/// Default path-specific identifier.
+pub const DEFAULT_PATH_IDENTIFIER: &str = "path_specific.natural";
+/// Default path-specific estimator.
+pub const DEFAULT_PATH_ESTIMATOR: &str = "functional.effect";
+/// Default path-specific identifier enum.
+pub const DEFAULT_PATH_IDENTIFIER_ID: IdentifierId = IdentifierId::PathSpecificNatural;
+/// Default path-specific estimator enum.
+pub const DEFAULT_PATH_ESTIMATOR_ID: EstimatorId = EstimatorId::FunctionalEffect;
+
+/// Allowlist for interventional-distribution identify+estimate.
+///
+/// # Errors
+///
+/// Incompatible identifier/estimator pair.
+pub fn validate_distribution_pair(
+    identifier: impl Into<IdentifierId>,
+    estimator: impl Into<EstimatorId>,
+) -> Result<(), AnalysisError> {
+    let identifier = identifier.into();
+    let estimator = estimator.into();
+    let supported = matches!(
+        (&identifier, &estimator),
+        (
+            IdentifierId::GeneralId | IdentifierId::Auto,
+            EstimatorId::FunctionalDistribution
+        )
+    );
+    if !supported {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "Distribution requires identifier general.id|auto with estimator \
+                 functional.distribution (got {:?} / {:?})",
+                identifier.as_str(),
+                estimator.as_str()
+            ),
+        });
+    }
+    Ok(())
+}
+
+/// Allowlist for path-specific natural-effect identify+estimate.
+///
+/// # Errors
+///
+/// Incompatible identifier/estimator pair.
+pub fn validate_path_specific_pair(
+    identifier: impl Into<IdentifierId>,
+    estimator: impl Into<EstimatorId>,
+) -> Result<(), AnalysisError> {
+    let identifier = identifier.into();
+    let estimator = estimator.into();
+    let supported = matches!(
+        (&identifier, &estimator),
+        (
+            IdentifierId::PathSpecificNatural | IdentifierId::Auto,
+            EstimatorId::FunctionalEffect
+        )
+    );
+    if !supported {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "PathSpecific requires identifier path_specific.natural|auto with estimator \
+                 functional.effect (got {:?} / {:?})",
+                identifier.as_str(),
+                estimator.as_str()
+            ),
+        });
+    }
+    Ok(())
+}
+
 /// Run the identifier named by `identifier` against `graph`/`query`.
 ///
 /// # Errors
@@ -328,39 +425,62 @@ pub fn identify_static(
     graph: &Dag,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, AnalysisError> {
+    identify_static_query(identifier, graph, &CausalQuery::AverageEffect(query.clone()))
+}
+
+/// Run a static identifier against an arbitrary [`CausalQuery`].
+///
+/// # Errors
+///
+/// Unknown identifier, identification failure, or non-identified status.
+pub fn identify_static_query(
+    identifier: impl Into<IdentifierId>,
+    graph: &Dag,
+    query: &CausalQuery,
+) -> Result<IdentificationResult, AnalysisError> {
     let identifier = identifier.into();
-    let q = CausalQuery::AverageEffect(query.clone());
     let mut id_ws = IdentificationWorkspace::default();
     let result = match identifier {
         IdentifierId::BackdoorAdjustment => {
             let id = BackdoorIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
+            id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::BackdoorEfficient => {
             let id = EfficientBackdoorIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
+            id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::Frontdoor => {
             let id = FrontDoorIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
+            id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::Iv => {
             let id = InstrumentalVariableIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
+            id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::GeneralId => {
             let id = IdIdentifier::new();
             let prepared = id.prepare_dag(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
+            // Conditional Distribution → IDC.
+            if matches!(query, CausalQuery::Distribution(q) if !q.conditioning.is_empty()) {
+                let idc = causal_identify::IdcIdentifier::new();
+                idc.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
+            } else {
+                id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
+            }
+        }
+        IdentifierId::PathSpecificNatural => {
+            let id = causal_identify::PathSpecificIdentifier::new();
+            let prepared = id.prepare_dag(graph).map_err(identify_err)?;
+            id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::Auto => {
             let id = AutoIdentifier::new();
             let prepared = id.prepare(graph).map_err(identify_err)?;
-            id.identify(&prepared, &q, &mut id_ws).map_err(identify_err)?
+            id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         _ => {
             return Err(AnalysisError::Unsupported { message: "unknown static identifier" });
@@ -382,6 +502,9 @@ pub fn identify_provenance_step(identifier: impl Into<IdentifierId>) -> (&'stati
         }
         IdentifierId::Frontdoor => ("identify.frontdoor", "identify.frontdoor"),
         IdentifierId::Iv => ("identify.iv", "identify.iv"),
+        IdentifierId::GeneralId => ("identify.general_id", "identify.general_id"),
+        IdentifierId::PathSpecificNatural => ("identify.path_specific", "identify.path_specific"),
+        IdentifierId::Auto => ("identify.auto", "identify.auto"),
         _ => ("identify.unknown", "identify.unknown"),
     }
 }
@@ -405,6 +528,10 @@ pub fn estimate_provenance_step(estimator: impl Into<EstimatorId>) -> (&'static 
         EstimatorId::IvWald => ("estimate.iv", "estimate.wald_iv"),
         EstimatorId::Iv2Sls => ("estimate.iv", "estimate.two_stage_least_squares"),
         EstimatorId::BayesianGcomp => ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
+        EstimatorId::FunctionalDistribution => {
+            ("estimate.functional_distribution", "estimate.functional_distribution")
+        }
+        EstimatorId::FunctionalEffect => ("estimate.functional_effect", "estimate.functional_effect"),
         _ => ("estimate.unknown", "estimate.unknown"),
     }
 }

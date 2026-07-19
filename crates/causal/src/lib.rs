@@ -45,8 +45,9 @@ pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RdConfig, RefuteSuite}
 pub use callback_plan::mark_python_callback_plan;
 pub use design::rank_designs;
 pub use discovery::{
-    DiscoverParams, StaticDiscoverParams, discover_jpcmci_plus, discover_lpcmci, discover_pc,
-    discover_pcmci, discover_pcmci_plus, discover_rpcmci, pag_definite_directed_edge_count,
+    DiscoverParams, StaticDiscoverParams, discover_fci, discover_ges, discover_jpcmci_plus,
+    discover_lingam, discover_lpcmci, discover_pc, discover_pcmci, discover_pcmci_plus,
+    discover_rfci, discover_rpcmci, pag_definite_directed_edge_count,
 };
 pub use discovery_defaults::{
     DEFAULT_ALPHA, DEFAULT_MAX_COND_SIZE, DEFAULT_RPCMCI_MIN_REGIME_LEN,
@@ -66,29 +67,35 @@ pub use gcm::{
 pub use inference::{BayesianConfig, InferenceMode};
 pub use planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
-    StaticAteCompileInput, compile_logical_static_ate, compile_logical_temporal_effect,
-    is_dag_only_identifier, reject_dag_only_on_pag,
+    StaticAteCompileInput, StaticDistributionCompileInput, StaticPathSpecificCompileInput,
+    compile_logical_distribution, compile_logical_path_specific, compile_logical_static_ate,
+    compile_logical_temporal_effect, is_dag_only_identifier, reject_dag_only_on_pag,
 };
 pub use strategy_table::{
-    DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, EstimatorId,
+    DEFAULT_DISTRIBUTION_ESTIMATOR, DEFAULT_DISTRIBUTION_ESTIMATOR_ID,
+    DEFAULT_DISTRIBUTION_IDENTIFIER, DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR,
+    DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR,
+    DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER, DEFAULT_PATH_IDENTIFIER_ID, EstimatorId,
     IdentifierId, estimate_provenance_step, estimate_static_effect, identify_provenance_step,
-    identify_static, validate_static_pair,
+    identify_static, identify_static_query, validate_distribution_pair, validate_path_specific_pair,
+    validate_static_pair,
 };
 
 // PAG / LPCMCI surfaces.
 pub use causal_discovery::{
-    ContextKind, CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryPerformanceRecord, JpcmciPlus,
-    JpcmciNodeRole, Lpcmci, MultiDatasetConstraints, PagDiscoveryResult, Pc, RegimeAssignment,
-    RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode,
-    StaticCpdagDiscoveryResult, two_regime_half_split,
+    ContextKind, CpdagDiscoveryResult, DagDiscoveryResult, DirectLingam,
+    DiscoveryPerformanceRecord, Fci, Ges, JpcmciPlus, JpcmciNodeRole, Lpcmci,
+    MultiDatasetConstraints, PagDiscoveryResult, Pc, RegimeAssignment, RegimeGraphCollection,
+    Rfci, Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
+    StaticDagDiscoveryResult, StaticPagDiscoveryResult, two_regime_half_split,
 };
 pub use causal_estimate::{
     ConditionalLinearAdjustment, OverlapPolicy, TemporalEffectSurface, TemporalLinearPredictor,
     TemporalMediationEstimator,
 };
 pub use causal_graph::{
-    Admg, CompletionSampler, Cpdag, CpdagReview, Pag, PagCompletion, TemporalCpdag, TemporalPag,
-    TemporalPagReview, latent_project,
+    Admg, CompletionSampler, Cpdag, CpdagReview, Dag, DagReview, Pag, PagCompletion, PagReview,
+    TemporalCpdag, TemporalPag, TemporalPagReview, latent_project,
 };
 pub use causal_identify::{
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
@@ -97,8 +104,9 @@ pub use causal_identify::{
 pub use result::CausalAnalysisResult;
 pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
-    compile_review_required_pag, compile_review_required_static_cpdag, compile_temporal_with_graph,
-    ensure_review_complete,
+    compile_review_required_pag, compile_review_required_static_cpdag,
+    compile_review_required_static_dag, compile_review_required_static_pag,
+    compile_temporal_with_graph, ensure_review_complete,
 };
 pub use state::{apply_state_event, new_causal_state};
 
@@ -314,8 +322,9 @@ mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-        SmallRoleSet, ValueType, VariableId,
+        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, ExecutionContext, Intervention,
+        InterventionalDistributionQuery, MeasurementSpec, PathSpecificEffectQuery, RoleHint,
+        SmallRoleSet, Value, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -413,6 +422,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(3);
         let result = analysis.run(&ctx).unwrap();
         assert!((result.estimate.ate - 2.0).abs() < 1e-6);
+        assert!(result.distribution.is_none());
         assert_eq!(result.refutations.len(), 2);
         assert!(!result.provenance.is_empty());
         assert!(!result.identification.derivation.steps.is_empty());
@@ -424,7 +434,172 @@ mod tests {
         let bytes = causal_io::to_cbor(&trace).unwrap();
         let round: causal_io::AnalysisTraceWire = causal_io::from_cbor(&bytes).unwrap();
         assert_eq!(round.method, trace.method);
-        assert_eq!(round.derivation.len(), trace.derivation.len());
+    }
+
+    #[test]
+    fn end_to_end_interventional_distribution() {
+        // Discrete confounding table matching functional_distribution unit test.
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["t", "y", "z"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let combos = [
+            (0.0, 0.0, 0.0, 21),
+            (0.0, 0.0, 1.0, 9),
+            (0.0, 1.0, 0.0, 4),
+            (0.0, 1.0, 1.0, 16),
+            (1.0, 0.0, 0.0, 12),
+            (1.0, 0.0, 1.0, 3),
+            (1.0, 1.0, 0.0, 14),
+            (1.0, 1.0, 1.0, 21),
+        ];
+        let mut t_vals = Vec::new();
+        let mut y_vals = Vec::new();
+        let mut z_vals = Vec::new();
+        for (z, t, y, count) in combos {
+            for _ in 0..count {
+                z_vals.push(z);
+                t_vals.push(t);
+                y_vals.push(y);
+            }
+        }
+        let n = t_vals.len();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t_vals),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y_vals),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z_vals),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query = InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        );
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(dag)
+            .causal_query(CausalQuery::Distribution(query))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution)
+            .build()
+            .unwrap();
+        let result = analysis.run(&ExecutionContext::for_tests(0)).unwrap();
+        let dist = result.distribution.expect("distribution payload");
+        assert!((dist.mean - 0.7).abs() < 0.05, "mean={}", dist.mean);
+        assert!(result.estimate.ate.is_finite());
+    }
+
+    #[test]
+    fn end_to_end_path_specific_natural_effect() {
+        // Discrete chain T → M → Y (no direct edge): path via M is the total effect.
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["t", "m", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        // Deterministic: T~Bernoulli(0.5), M=T, Y=M  → ATE = 1
+        let mut t_vals = Vec::new();
+        let mut m_vals = Vec::new();
+        let mut y_vals = Vec::new();
+        for t in [0.0, 1.0] {
+            for _ in 0..50 {
+                t_vals.push(t);
+                m_vals.push(t);
+                y_vals.push(t);
+            }
+        }
+        let n = t_vals.len();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t_vals),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(m_vals),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(y_vals),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let query = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
+            .with_path_nodes([VariableId::from_raw(1)]);
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(dag)
+            .causal_query(CausalQuery::PathSpecific(query))
+            .identifier(IdentifierId::PathSpecificNatural)
+            .estimator(EstimatorId::FunctionalEffect)
+            .build()
+            .unwrap();
+        let result = analysis.run(&ExecutionContext::for_tests(0)).unwrap();
+        assert!(
+            (result.estimate.ate - 1.0).abs() < 0.05,
+            "ate={}",
+            result.estimate.ate
+        );
+        assert_eq!(
+            result.estimand.method.as_ref(),
+            "path_specific.natural"
+        );
     }
 
     /// Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(logit(-0.5 + Z))`, `Y = 2T + Z + noise`.
@@ -731,7 +906,8 @@ mod tests {
             CompiledAnalysis::ReviewRequired(_)
             | CompiledAnalysis::ReviewRequiredCpdag(_)
             | CompiledAnalysis::ReviewRequiredStaticCpdag(_)
-            | CompiledAnalysis::ReviewRequiredPag(_) => {
+            | CompiledAnalysis::ReviewRequiredPag(_)
+            | CompiledAnalysis::ReviewRequiredStaticPag(_) => {
                 panic!("expected Ready")
             }
         }

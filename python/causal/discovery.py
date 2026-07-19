@@ -16,8 +16,12 @@ from ._native import (
     discover_jpcmci_plus as _discover_jpcmci_plus,
     discover_lpcmci as _discover_lpcmci,
     discover_pc as _discover_pc,
+    discover_ges as _discover_ges,
+    discover_lingam as _discover_lingam,
+    discover_fci as _discover_fci,
     discover_pcmci as _discover_pcmci,
     discover_pcmci_plus as _discover_pcmci_plus,
+    discover_rfci as _discover_rfci,
     discover_rpcmci as _discover_rpcmci,
 )
 
@@ -94,6 +98,94 @@ def discover_pc(
     threads: int = 1,
 ) -> PcmciDiscoveryResult:
     return _discover_pc(
+        names,
+        columns,
+        alpha=alpha,
+        fdr=fdr,
+        seed=seed,
+        ci=ci,
+        max_cond_size=max_cond_size,
+        threads=threads,
+    )
+
+
+def discover_ges(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str = "parcorr",
+    max_cond_size: int = 2,
+    threads: int = 1,
+) -> PcmciDiscoveryResult:
+    return _discover_ges(
+        names,
+        columns,
+        alpha=alpha,
+        fdr=fdr,
+        seed=seed,
+        ci=ci,
+        max_cond_size=max_cond_size,
+        threads=threads,
+    )
+
+
+def discover_lingam(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    prune_threshold: float = 0.05,
+    seed: int = 1,
+    max_cond_size: int = 8,
+    threads: int = 1,
+) -> PcmciDiscoveryResult:
+    return _discover_lingam(
+        names,
+        columns,
+        prune_threshold=prune_threshold,
+        seed=seed,
+        max_cond_size=max_cond_size,
+        threads=threads,
+    )
+
+
+def discover_fci(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str = "parcorr",
+    max_cond_size: int = 2,
+    threads: int = 1,
+) -> PcmciDiscoveryResult:
+    return _discover_fci(
+        names,
+        columns,
+        alpha=alpha,
+        fdr=fdr,
+        seed=seed,
+        ci=ci,
+        max_cond_size=max_cond_size,
+        threads=threads,
+    )
+
+
+def discover_rfci(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str = "parcorr",
+    max_cond_size: int = 2,
+    threads: int = 1,
+) -> PcmciDiscoveryResult:
+    return _discover_rfci(
         names,
         columns,
         alpha=alpha,
@@ -254,6 +346,10 @@ __all__ = [
     "discover_jpcmci_plus",
     "discover_lpcmci",
     "discover_pc",
+    "discover_ges",
+    "discover_lingam",
+    "discover_fci",
+    "discover_rfci",
     "discover_pcmci",
     "discover_pcmci_plus",
     "discover_rpcmci",

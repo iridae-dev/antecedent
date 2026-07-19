@@ -150,7 +150,23 @@ group = "discovery"
 description = "Static PC (tabular CPDAG)"
 status = "done"
 owner = "discovery"
-notes = "Classic undirected skeleton + Meek on static Cpdag; discover_pc Rust/Python. FCI/GES/LiNGAM remain pending (TODO 3a–3f)."
+notes = "Classic undirected skeleton + Meek on static Cpdag; discover_pc Rust/Python. Static FCI/RFCI, GES, and DirectLiNGAM ship."
+
+[[capabilities]]
+id = "discovery.ges"
+group = "discovery"
+description = "Static GES (Gaussian BIC CPDAG)"
+status = "done"
+owner = "discovery"
+notes = "Chickering Insert/Delete/Reverse on Cpdag; LocalScoreCache Gaussian BIC; discover_ges Rust/Python; soft PC screening via with_pc_screening"
+
+[[capabilities]]
+id = "discovery.lingam"
+group = "discovery"
+description = "Static DirectLiNGAM (DAG)"
+status = "done"
+owner = "discovery"
+notes = "Residual–predictor dCor order search + OLS prune → Dag/DagReview; discover_lingam Rust/Python; no ICA"
 
 [[capabilities]]
 id = "discovery.pcmci_plus"

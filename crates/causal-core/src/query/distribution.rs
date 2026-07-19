@@ -12,16 +12,18 @@ use super::TargetPopulation;
 use super::error::QueryError;
 
 #[derive(Clone, Debug, PartialEq)]
-/// Interventional distribution query P(Y | do(...)) (DESIGN.md §8).
+/// Interventional distribution query P(Y | do(...), Z) (DESIGN.md §8).
 ///
 /// Distinct from [`ChangeAttributionQuery`] (population/period change attribution).
-/// Identify via ID/IDC (`IdIdentifier` / `IdcIdentifier`); GCM sampling remains
-/// available via `sample_interventional_distribution`.
+/// Identify via ID (empty conditioning) or IDC (nonempty conditioning);
+/// GCM sampling remains available via `sample_interventional_distribution`.
 pub struct InterventionalDistributionQuery {
     /// Outcome variable(s) whose interventional distribution is requested.
     pub outcomes: Arc<[VariableId]>,
     /// Interventions defining the `do(...)` world.
     pub interventions: Arc<[Intervention]>,
+    /// Observational conditioning set Z for `P(Y | do(X), Z)` (empty = unconditional).
+    pub conditioning: Arc<[VariableId]>,
     /// Target population.
     pub target_population: TargetPopulation,
 }
@@ -33,6 +35,7 @@ impl InterventionalDistributionQuery {
         Self {
             outcomes: Arc::from([outcome]),
             interventions: interventions.into(),
+            conditioning: Arc::from([]),
             target_population: TargetPopulation::AllObserved,
         }
     }
@@ -44,6 +47,13 @@ impl InterventionalDistributionQuery {
         self
     }
 
+    /// Observational conditioning set for IDC (`P(Y | do(X), Z)`).
+    #[must_use]
+    pub fn with_conditioning(mut self, conditioning: impl Into<Arc<[VariableId]>>) -> Self {
+        self.conditioning = conditioning.into();
+        self
+    }
+
     /// Set target population.
     #[must_use]
     pub fn with_target_population(mut self, population: TargetPopulation) -> Self {
@@ -51,17 +61,25 @@ impl InterventionalDistributionQuery {
         self
     }
 
-    /// Validate outcomes and interventions.
+    /// Validate outcomes, interventions, and conditioning.
     ///
     /// # Errors
     ///
-    /// Empty outcomes or invalid interventions.
+    /// Empty outcomes, invalid interventions, or conditioning overlap.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.outcomes.is_empty() {
             return Err(QueryError::EmptyDistributionOutcomes);
         }
         for iv in self.interventions.iter() {
             iv.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+        }
+        for &z in self.conditioning.iter() {
+            if self.outcomes.iter().any(|&y| y == z) {
+                return Err(QueryError::ConditioningOverlapsOutcomeOrIntervention);
+            }
+            if self.interventions.iter().any(|iv| iv.primary_variable() == Some(z)) {
+                return Err(QueryError::ConditioningOverlapsOutcomeOrIntervention);
+            }
         }
         self.target_population.validate()?;
         Ok(())
@@ -72,7 +90,8 @@ impl InterventionalDistributionQuery {
 ///
 /// Prefer this over overloading [`MediationQuery`]. Path *contribution*
 /// attribution is available via GCM `path_decompose`; path-restricted natural
-/// effects (identify/estimate) are deferred.
+/// effects identify/estimate via the ID family (`path_specific.natural`) and
+/// `functional.effect` plug-in estimation.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PathSpecificEffectQuery {
     /// Treatment / source variable.
@@ -175,4 +194,3 @@ impl PathSpecificEffectQuery {
         Ok(())
     }
 }
-

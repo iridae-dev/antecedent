@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use super::advanced::{Gpdc, KnnCmi, MixedKnnCmi, OracleCi, SymbolicCmi};
+use super::bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 use super::gsquared::{GSquared, RegressionCi};
 use super::pairwise_mv::PairwiseMultivariateCi;
 use super::parcorr::PartialCorrelation;
@@ -31,6 +32,9 @@ use crate::error::StatsError;
 /// - `symbolic_cmi`
 /// - `gpdc`
 /// - `oracle` (empty dependent set ⇒ all independent)
+/// - `bayes_factor` / `bayes_factor_ci`
+/// - `posterior_dependence` / `posterior_dependence_ci`
+/// - `posterior_predictive_ci` / `ppc_ci`
 ///
 /// # Errors
 ///
@@ -60,6 +64,11 @@ pub fn ci_from_name(
         "symbolic_cmi" => Arc::new(SymbolicCmi::new()),
         "gpdc" => Arc::new(Gpdc::new()),
         "oracle" => Arc::new(OracleCi::new([])),
+        "bayes_factor" | "bayes_factor_ci" => Arc::new(BayesFactorCi::new()),
+        "posterior_dependence" | "posterior_dependence_ci" => {
+            Arc::new(PosteriorDependenceCi::new())
+        }
+        "posterior_predictive_ci" | "ppc_ci" => Arc::new(PosteriorPredictiveCi::new(199)),
         _ => {
             return Err(StatsError::Backend(format!("unknown CI test name: {name}")));
         }

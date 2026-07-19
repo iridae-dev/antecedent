@@ -24,9 +24,9 @@ use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, ConjugateGaussianBackend, EffectBatch,
-    InferenceBackend, InferenceDiagnostics, LaplaceGlmBackend, LaplaceWorkspace, PosteriorBatch,
-    PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind, PosteriorSchema,
-    PosteriorSummary, PriorSensitivitySummary, PriorSet, PriorSpec,
+    HmcGlmBackend, HmcOptions, InferenceBackend, InferenceDiagnostics, LaplaceGlmBackend,
+    LaplaceWorkspace, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,
+    PosteriorSchema, PosteriorSummary, PriorSensitivitySummary, PriorSet, PriorSpec,
 };
 use causal_stats::{CompiledDesign, GlmFamily};
 
@@ -106,6 +106,8 @@ pub enum BayesianBackendKind {
     ConjugateGaussian,
     /// Native Laplace GLM.
     Laplace,
+    /// Native HMC GLM (multi-chain; ESS / R-hat gated).
+    Hmc,
 }
 
 /// Bayesian g-computation ATE estimator.
@@ -261,7 +263,7 @@ impl BayesianGComputationAte {
 
         let likelihood = match self.backend {
             BayesianBackendKind::ConjugateGaussian => BayesLikelihood::GaussianIdentity,
-            BayesianBackendKind::Laplace => self.likelihood,
+            BayesianBackendKind::Laplace | BayesianBackendKind::Hmc => self.likelihood,
         };
         let opts = BayesFitOptions {
             n_draws: self.n_draws,
@@ -294,6 +296,13 @@ impl BayesianGComputationAte {
                 &mut workspace.laplace,
                 ctx,
             ),
+            BayesianBackendKind::Hmc => HmcGlmBackend::new()
+                .with_options(HmcOptions {
+                    n_chains: 2,
+                    n_warmup: (self.n_draws / 2).max(50),
+                    ..HmcOptions::default()
+                })
+                .fit(likelihood, design_ref, &prior, &opts, &mut workspace.laplace, ctx),
         }
         .map_err(prob_err)?;
 

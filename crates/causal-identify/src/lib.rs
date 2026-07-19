@@ -30,6 +30,7 @@ pub mod id;
 pub mod idc;
 pub mod identifier;
 pub mod iv;
+pub mod path_specific;
 pub mod prepared;
 pub mod rd;
 pub mod result;
@@ -55,6 +56,7 @@ pub use id::IdIdentifier;
 pub use idc::IdcIdentifier;
 pub use identifier::{IdentificationWorkspace, Identifier};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
+pub use path_specific::PathSpecificIdentifier;
 pub use prepared::{PreparedAdmg, dag_to_admg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use result::{

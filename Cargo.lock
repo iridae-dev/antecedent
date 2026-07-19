@@ -271,6 +271,7 @@ dependencies = [
  "causal-core",
  "causal-data",
  "causal-graph",
+ "causal-state",
  "causal-stats",
  "criterion",
  "serde_json",

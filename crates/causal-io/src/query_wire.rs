@@ -394,6 +394,9 @@ pub struct InterventionalDistributionQueryWire {
     pub outcomes: Vec<u32>,
     /// Interventions (full).
     pub interventions: Vec<InterventionWire>,
+    /// Observational conditioning raw ids (empty = unconditional / ID).
+    #[serde(default)]
+    pub conditioning: Vec<u32>,
     /// Target population.
     pub target_population: TargetPopulationWire,
 }
@@ -1005,6 +1008,7 @@ pub fn interventional_distribution_to_wire(
             .iter()
             .map(InterventionWire::from_domain)
             .collect::<Result<Vec<_>, _>>()?,
+        conditioning: vars_to_raw(&q.conditioning),
         target_population: TargetPopulationWire::from_domain(&q.target_population)?,
     })
 }
@@ -1020,6 +1024,7 @@ pub fn interventional_distribution_from_wire(
     Ok(InterventionalDistributionQuery {
         outcomes: vars_from_raw(&w.outcomes),
         interventions: w.interventions.iter().map(InterventionWire::to_domain).collect::<Vec<_>>().into(),
+        conditioning: vars_from_raw(&w.conditioning),
         target_population: w.target_population.to_domain()?,
     })
 }
@@ -1089,12 +1094,14 @@ mod tests {
         let q = InterventionalDistributionQuery::new(
             VariableId::from_raw(1),
             [Intervention::set(VariableId::from_raw(0), Value::f64(3.0))],
-        );
+        )
+        .with_conditioning([VariableId::from_raw(2)]);
         let wire = interventional_distribution_to_wire(&q).unwrap();
         let bytes = to_cbor(&wire).unwrap();
         let decoded: InterventionalDistributionQueryWire = from_cbor(&bytes).unwrap();
         let back = interventional_distribution_from_wire(&decoded).unwrap();
         assert_eq!(back.outcomes.as_ref(), q.outcomes.as_ref());
+        assert_eq!(back.conditioning.as_ref(), q.conditioning.as_ref());
         assert_eq!(back.interventions.len(), 1);
         back.validate().unwrap();
     }

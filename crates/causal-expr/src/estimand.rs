@@ -33,6 +33,8 @@ pub enum EstimandMethod {
     TemporalMediationMediated,
     /// General semi-Markovian ID / IDC (Shpitser–Pearl).
     GeneralId,
+    /// Path-restricted natural effect (Avin–Shpitser–Pearl).
+    PathSpecificNatural,
 }
 
 impl EstimandMethod {
@@ -50,6 +52,7 @@ impl EstimandMethod {
             Self::TemporalMediationDirect => "temporal_mediation.direct",
             Self::TemporalMediationMediated => "temporal_mediation.mediated",
             Self::GeneralId => "general.id",
+            Self::PathSpecificNatural => "path_specific.natural",
         }
     }
 
@@ -92,6 +95,7 @@ impl FromStr for EstimandMethod {
             "temporal_mediation.direct" => Self::TemporalMediationDirect,
             "temporal_mediation.mediated" => Self::TemporalMediationMediated,
             "general.id" => Self::GeneralId,
+            "path_specific.natural" => Self::PathSpecificNatural,
             other => return Err(format!("unknown estimand method `{other}`")),
         })
     }

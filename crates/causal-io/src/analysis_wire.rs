@@ -382,4 +382,49 @@ mod tests {
             assert_eq!(back.status, status);
         }
     }
+
+    #[test]
+    fn distribution_and_path_specific_query_identification_wire() {
+        use causal_core::{
+            Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, Value,
+        };
+
+        let dist_q = CausalQuery::Distribution(
+            InterventionalDistributionQuery::new(
+                VariableId::from_raw(1),
+                [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+            )
+            .with_conditioning([VariableId::from_raw(2)]),
+        );
+        let mut dist = empty_id_result(IdentificationStatus::NonparametricallyIdentified);
+        dist.query = dist_q;
+        let wire = identification_to_wire(&dist).unwrap();
+        let back = identification_from_wire(&wire).unwrap();
+        assert!(matches!(
+            back.query,
+            CausalQuery::Distribution(q) if q.conditioning.len() == 1
+        ));
+
+        let path_q = CausalQuery::PathSpecific(
+            PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
+                .with_path_nodes([VariableId::from_raw(1)]),
+        );
+        let mut path = empty_id_result(IdentificationStatus::NonparametricallyIdentified);
+        path.query = path_q;
+        path.estimands.push(IdentifiedEstimand {
+            method: Arc::from("path_specific.natural"),
+            adjustment_set: Arc::from([]),
+            instruments: Arc::from([]),
+            mediators: Arc::from([]),
+            functional: ExprId::from_raw(0),
+        });
+        let wire = identification_to_wire(&path).unwrap();
+        assert_eq!(wire.estimands[0].method, "path_specific.natural");
+        let back = identification_from_wire(&wire).unwrap();
+        assert!(matches!(
+            back.query,
+            CausalQuery::PathSpecific(q) if q.path_nodes.len() == 1
+        ));
+        assert_eq!(back.estimands[0].method.as_ref(), "path_specific.natural");
+    }
 }

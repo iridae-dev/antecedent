@@ -56,6 +56,17 @@ impl BayesianConfig {
         }
     }
 
+    /// Native HMC defaults.
+    #[must_use]
+    pub fn hmc() -> Self {
+        Self {
+            backend: BayesianBackendKind::Hmc,
+            likelihood: BayesLikelihood::GaussianIdentity,
+            n_draws: 200,
+            prior_scale: 10.0,
+        }
+    }
+
     /// Weakly informative prior scale.
     #[must_use]
     pub fn prior_scale(mut self, scale: f64) -> Self {

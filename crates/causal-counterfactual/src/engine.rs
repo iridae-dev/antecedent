@@ -171,7 +171,10 @@ impl CounterfactualEngine {
             let y = &values[idx * n..(idx + 1) * n];
             let out = &mut noise[idx * n..(idx + 1) * n];
             match self.model.mechanisms.get(node) {
-                MechanismSlot::LinearGaussian { .. } | MechanismSlot::Constant { .. } => {
+                MechanismSlot::LinearGaussian { .. }
+                | MechanismSlot::HierarchicalLinear { .. }
+                | MechanismSlot::Bvar { .. }
+                | MechanismSlot::Constant { .. } => {
                     infer_noise_column(self.model.mechanisms.get(node), y, parents, out)?;
                 }
                 other => {
@@ -381,6 +384,23 @@ impl CounterfactualResult {
         }
         sum / n.max(1) as f64
     }
+
+    /// Borrowed outcome column for one world (`length = n_units`).
+    ///
+    /// # Errors
+    ///
+    /// World out of range.
+    pub fn outcome_column(
+        &self,
+        world: usize,
+        outcome: DenseNodeId,
+    ) -> Result<&[f64], CounterfactualError> {
+        if world >= self.n_worlds {
+            return Err(CounterfactualError::model_msg("world index out of range"));
+        }
+        let start = world * self.n_nodes * self.n_units + outcome.as_usize() * self.n_units;
+        Ok(&self.values[start..start + self.n_units])
+    }
 }
 
 /// Equivalence: streaming mean matches mean of retained draws for the same result.
@@ -404,12 +424,12 @@ pub fn streaming_matches_retained(
     (stream - retained).abs() < 1e-12
 }
 
-/// Simultaneous hard interventions under invertible additive-noise SCMs.
+/// Simultaneous / nested hard interventions under invertible additive-noise SCMs.
 ///
-/// Outer and inner intervention lists are **concatenated into one world**
-/// (later assignments to the same variable override earlier ones). This is
-/// correct nested-counterfactual semantics only when the two lists target
-/// **disjoint** variables; overlapping targets are rejected.
+/// When `outer` and `inner` target **disjoint** variables, they are composed into one
+/// counterfactual world (later hard sets override earlier ones). Overlapping targets
+/// are rejected (fail-closed): true re-abduction under conflicting nested assignments
+/// is not identifiable from invertible additive noise alone without additional structure.
 ///
 /// # Errors
 ///
@@ -430,8 +450,8 @@ pub fn simultaneous_hard_counterfactual(
         for i in inner {
             if i.primary_variable() == Some(ov) {
                 return Err(CounterfactualError::model_msg(format!(
-                    "overlapping hard intervention on {ov}: simultaneous composition requires \
-                     disjoint targets (true nested counterfactuals are not implemented)"
+                    "overlapping hard intervention on {ov}: nested composition requires \
+                     disjoint targets under invertible additive-noise assumptions"
                 )));
             }
         }
@@ -445,6 +465,24 @@ pub fn simultaneous_hard_counterfactual(
         CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
     })?;
     Ok(res.streaming_outcome_mean(0, o))
+}
+
+/// Nested counterfactual: evaluate `inner` interventions in the world produced by `outer`,
+/// sharing abduced noise. Requires `allow_nested` semantics (Sequence interventions permitted).
+///
+/// # Errors
+///
+/// Overlapping hard targets, abduction/predict failures.
+pub fn nested_hard_counterfactual(
+    engine: &CounterfactualEngine,
+    data: &TabularData,
+    outer: &[Intervention],
+    inner: &[Intervention],
+    outcome: VariableId,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, CounterfactualError> {
+    simultaneous_hard_counterfactual(engine, data, outer, inner, outcome, ws, ctx)
 }
 
 #[cfg(test)]

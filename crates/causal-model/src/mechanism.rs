@@ -35,9 +35,21 @@ pub fn sample_noise_column(
             output[..n_rows].fill(0.0);
             Ok(())
         }
-        MechanismSlot::LinearGaussian { sigma, .. } => {
+        MechanismSlot::LinearGaussian { sigma, .. }
+        | MechanismSlot::HierarchicalLinear { sigma, .. }
+        | MechanismSlot::Bvar { sigma, .. }
+        | MechanismSlot::GaussianProcess { noise_std: sigma, .. } => {
             for i in 0..n_rows {
                 output[i] = *sigma * standard_normal(rng);
+            }
+            Ok(())
+        }
+        MechanismSlot::LinearGaussianStateSpace { process_std, obs_std, .. } => {
+            // Pack process + obs noise in interleaved fashion into output as obs-scale noise;
+            // evaluate consumes noise as observation residual and evolves latent separately.
+            let scale = (process_std * process_std + obs_std * obs_std).sqrt();
+            for i in 0..n_rows {
+                output[i] = scale * standard_normal(rng);
             }
             Ok(())
         }
@@ -78,7 +90,9 @@ pub fn evaluate_column(
             output[..n].fill(*value);
             Ok(())
         }
-        MechanismSlot::LinearGaussian { intercept, coeffs, .. } => {
+        MechanismSlot::LinearGaussian { intercept, coeffs, .. }
+        | MechanismSlot::HierarchicalLinear { intercept, coeffs, .. }
+        | MechanismSlot::Bvar { intercept, coeffs, .. } => {
             if coeffs.len() != parents.n_parents {
                 return Err(ModelError::Shape {
                     message: "linear gaussian coeff length != n_parents".into(),
@@ -90,6 +104,47 @@ pub fn evaluate_column(
                     eta += coeffs[p] * parents.column(p)?[r];
                 }
                 output[r] = eta;
+            }
+            Ok(())
+        }
+        MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
+            // Evolve latent along the row axis using shared noise scale.
+            let mut x = *initial_mean;
+            let scale = (process_std * process_std + obs_std * obs_std).sqrt().max(1e-12);
+            for r in 0..n {
+                let eps = noise[r] / scale;
+                x = a * x + process_std * eps;
+                output[r] = x;
+            }
+            let _ = obs_std;
+            Ok(())
+        }
+        MechanismSlot::GaussianProcess {
+            length_scale,
+            variance,
+            x_train,
+            n_train,
+            n_parents,
+            alpha,
+            ..
+        } => {
+            if *n_parents != parents.n_parents {
+                return Err(ModelError::Shape {
+                    message: "GP n_parents mismatch".into(),
+                });
+            }
+            let inv_l2 = 1.0 / (length_scale * length_scale);
+            for r in 0..n {
+                let mut mean = 0.0;
+                for i in 0..*n_train {
+                    let mut d2 = 0.0;
+                    for p in 0..parents.n_parents {
+                        let d = parents.column(p)?[r] - x_train[i * n_parents + p];
+                        d2 += d * d;
+                    }
+                    mean += alpha[i] * variance * (-0.5 * d2 * inv_l2).exp();
+                }
+                output[r] = mean + noise[r];
             }
             Ok(())
         }
@@ -149,7 +204,9 @@ pub fn infer_noise_column(
         return Err(ModelError::Shape { message: "infer_noise buffers too short".into() });
     }
     match slot {
-        MechanismSlot::LinearGaussian { intercept, coeffs, .. } => {
+        MechanismSlot::LinearGaussian { intercept, coeffs, .. }
+        | MechanismSlot::HierarchicalLinear { intercept, coeffs, .. }
+        | MechanismSlot::Bvar { intercept, coeffs, .. } => {
             if coeffs.len() != parents.n_parents {
                 return Err(ModelError::Shape {
                     message: "linear gaussian coeff length != n_parents".into(),
@@ -174,7 +231,8 @@ pub fn infer_noise_column(
             mechanism.infer_noise_column(value, parents, output)
         }
         _ => Err(ModelError::Unsupported {
-            message: "noise inference requires invertible linear/constant mechanism".into(),
+            message: "noise inference requires invertible linear/constant/hierarchical/bvar mechanism"
+                .into(),
         }),
     }
 }
@@ -195,7 +253,9 @@ pub fn log_prob_column(
         return Err(ModelError::Shape { message: "log_prob buffers too short".into() });
     }
     match slot {
-        MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
+        MechanismSlot::LinearGaussian { intercept, coeffs, sigma }
+        | MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, .. }
+        | MechanismSlot::Bvar { intercept, coeffs, sigma } => {
             if !(sigma.is_finite() && *sigma > 0.0) {
                 return Err(ModelError::Numerical { message: "sigma must be > 0".into() });
             }
@@ -263,6 +323,32 @@ pub fn log_prob_column(
         }
         MechanismSlot::Vacant | MechanismSlot::Pending { .. } => {
             Err(ModelError::Unsupported { message: "mechanism not fitted".into() })
+        }
+        MechanismSlot::LinearGaussianStateSpace { obs_std, .. } => {
+            if !(obs_std.is_finite() && *obs_std > 0.0) {
+                return Err(ModelError::Numerical { message: "obs_std must be > 0".into() });
+            }
+            let inv_s = 1.0 / obs_std;
+            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - obs_std.ln();
+            for r in 0..n {
+                // Marginal N(0, obs) approximation for scoring.
+                let z = values[r] * inv_s;
+                output[r] = log_norm - 0.5 * z * z;
+            }
+            Ok(())
+        }
+        MechanismSlot::GaussianProcess { noise_std, .. } => {
+            if !(noise_std.is_finite() && *noise_std > 0.0) {
+                return Err(ModelError::Numerical { message: "noise_std must be > 0".into() });
+            }
+            // Predictive mean already in evaluate; here use noise-scale residual approx.
+            let inv_s = 1.0 / noise_std;
+            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - noise_std.ln();
+            for r in 0..n {
+                let z = values[r] * inv_s;
+                output[r] = log_norm - 0.5 * z * z;
+            }
+            Ok(())
         }
         MechanismSlot::Dynamic { mechanism, .. } => {
             mechanism.log_prob_column(values, parents, output)

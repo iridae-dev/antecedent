@@ -7,7 +7,8 @@
 use causal_core::{ExecutionContext, TemporalEffectQuery};
 use causal_data::{DiscoveryEstimationSplit, TableView, TemporalNodeKey, TimeSeriesData};
 use causal_graph::{
-    CpdagReview, DenseNodeId, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPagReview,
+    CpdagReview, DagReview, DenseNodeId, PagReview, TemporalCpdagReview, TemporalDag,
+    TemporalGraphReview, TemporalPagReview,
 };
 
 use crate::error::AnalysisError;
@@ -278,6 +279,18 @@ pub fn compile_review_required_cpdag(review: TemporalCpdagReview) -> CompiledAna
 #[must_use]
 pub fn compile_review_required_static_cpdag(review: CpdagReview) -> CompiledAnalysis {
     CompiledAnalysis::ReviewRequiredStaticCpdag(review)
+}
+
+/// Wrap DirectLiNGAM / static DAG discovery as review-required.
+#[must_use]
+pub fn compile_review_required_static_dag(review: DagReview) -> CompiledAnalysis {
+    CompiledAnalysis::ReviewRequiredStaticDag(review)
+}
+
+/// Wrap classic static FCI output as PAG review-required.
+#[must_use]
+pub fn compile_review_required_static_pag(review: PagReview) -> CompiledAnalysis {
+    CompiledAnalysis::ReviewRequiredStaticPag(review)
 }
 
 /// Wrap LPCMCI / temporal PAG output as PAG review-required.

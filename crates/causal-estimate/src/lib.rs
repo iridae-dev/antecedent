@@ -24,6 +24,7 @@ pub mod envelope;
 pub mod error;
 pub mod estimator;
 pub mod frontdoor;
+pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
 pub mod iv;
@@ -59,6 +60,10 @@ pub use envelope::{EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope}
 pub use error::EstimationError;
 pub use estimator::{Estimator, TabularAteEstimator};
 pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
+pub use functional_distribution::{
+    DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect,
+    InterventionalDistributionEstimate, PreparedFunctionalDistribution, PreparedFunctionalEffect,
+};
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
 pub use overlap::{ClipSensitivity, OverlapPolicy, OverlapReport, PropensityInterval};

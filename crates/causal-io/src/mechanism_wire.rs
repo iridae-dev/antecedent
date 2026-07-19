@@ -55,6 +55,54 @@ pub enum MechanismSlotWire {
         /// Value.
         value: f64,
     },
+    /// Hierarchical linear Gaussian.
+    HierarchicalLinear {
+        /// Intercept.
+        intercept: f64,
+        /// Coeffs.
+        coeffs: Vec<f64>,
+        /// Sigma.
+        sigma: f64,
+        /// Shrinkage.
+        shrinkage: f64,
+    },
+    /// BVAR-style linear.
+    Bvar {
+        /// Intercept.
+        intercept: f64,
+        /// Coeffs.
+        coeffs: Vec<f64>,
+        /// Sigma.
+        sigma: f64,
+    },
+    /// LGSSM.
+    LinearGaussianStateSpace {
+        /// AR.
+        a: f64,
+        /// Process std.
+        process_std: f64,
+        /// Obs std.
+        obs_std: f64,
+        /// Initial mean.
+        initial_mean: f64,
+    },
+    /// GP dual form.
+    GaussianProcess {
+        /// Length scale.
+        length_scale: f64,
+        /// Variance.
+        variance: f64,
+        /// Noise std.
+        noise_std: f64,
+        /// Training X row-major.
+        x_train: Vec<f64>,
+        /// n_train.
+        n_train: usize,
+        /// n_parents.
+        n_parents: usize,
+        /// Dual coefficients.
+        alpha: Vec<f64>,
+    },
 }
 
 /// Mechanism store wire.
@@ -109,6 +157,44 @@ fn slot_to_wire(s: &MechanismSlot) -> Result<MechanismSlotWire, IoError> {
             })
         }
         MechanismSlot::Constant { value } => Ok(MechanismSlotWire::Constant { value: *value }),
+        MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, shrinkage } => {
+            Ok(MechanismSlotWire::HierarchicalLinear {
+                intercept: *intercept,
+                coeffs: coeffs.to_vec(),
+                sigma: *sigma,
+                shrinkage: *shrinkage,
+            })
+        }
+        MechanismSlot::Bvar { intercept, coeffs, sigma } => Ok(MechanismSlotWire::Bvar {
+            intercept: *intercept,
+            coeffs: coeffs.to_vec(),
+            sigma: *sigma,
+        }),
+        MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
+            Ok(MechanismSlotWire::LinearGaussianStateSpace {
+                a: *a,
+                process_std: *process_std,
+                obs_std: *obs_std,
+                initial_mean: *initial_mean,
+            })
+        }
+        MechanismSlot::GaussianProcess {
+            length_scale,
+            variance,
+            noise_std,
+            x_train,
+            n_train,
+            n_parents,
+            alpha,
+        } => Ok(MechanismSlotWire::GaussianProcess {
+            length_scale: *length_scale,
+            variance: *variance,
+            noise_std: *noise_std,
+            x_train: x_train.to_vec(),
+            n_train: *n_train,
+            n_parents: *n_parents,
+            alpha: alpha.to_vec(),
+        }),
         MechanismSlot::Dynamic { id, .. } => Err(IoError::Convert(format!(
             "cannot serialize Dynamic mechanism slot `{id}` (Python/user callbacks are not artifact-safe)"
         ))),
@@ -134,6 +220,44 @@ fn slot_from_wire(s: &MechanismSlotWire) -> MechanismSlot {
             logit_coeffs: logit_coeffs.as_ref().map(|c| Arc::from(c.as_slice())),
         },
         MechanismSlotWire::Constant { value } => MechanismSlot::Constant { value: *value },
+        MechanismSlotWire::HierarchicalLinear { intercept, coeffs, sigma, shrinkage } => {
+            MechanismSlot::HierarchicalLinear {
+                intercept: *intercept,
+                coeffs: Arc::from(coeffs.as_slice()),
+                sigma: *sigma,
+                shrinkage: *shrinkage,
+            }
+        }
+        MechanismSlotWire::Bvar { intercept, coeffs, sigma } => MechanismSlot::Bvar {
+            intercept: *intercept,
+            coeffs: Arc::from(coeffs.as_slice()),
+            sigma: *sigma,
+        },
+        MechanismSlotWire::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
+            MechanismSlot::LinearGaussianStateSpace {
+                a: *a,
+                process_std: *process_std,
+                obs_std: *obs_std,
+                initial_mean: *initial_mean,
+            }
+        }
+        MechanismSlotWire::GaussianProcess {
+            length_scale,
+            variance,
+            noise_std,
+            x_train,
+            n_train,
+            n_parents,
+            alpha,
+        } => MechanismSlot::GaussianProcess {
+            length_scale: *length_scale,
+            variance: *variance,
+            noise_std: *noise_std,
+            x_train: Arc::from(x_train.as_slice()),
+            n_train: *n_train,
+            n_parents: *n_parents,
+            alpha: Arc::from(alpha.as_slice()),
+        },
     }
 }
 

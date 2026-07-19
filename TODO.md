@@ -21,33 +21,33 @@ Ordered foundations → dependents.
     - [x] Sustained temporal-effect identification (g-formula / sequential ID) — Pulse uses unfolded backdoor; Sustained uses general ID on the unfolded multi-treatment window.
     - [x] Parity: `estimate.identify.general_id`, `pag.identify.full_id_idc` → `done`.
 
-- [ ] **2. Distribution & path-specific pipelines** (DESIGN.md §8) — identify + estimate for shipped `CausalQuery::Distribution` / `PathSpecific`. Types, Unsupported plumbing, GCM sampling / path-contribution wrappers, and query wire exist; algorithms do not.
-    - [ ] **Depends on item 1** (IDC / path-restricted ID in the same ID/IDC family — do not fork a second `AutoIdentifier`).
-    - [ ] Interventional-distribution identification + estimation via IDC.
-    - [ ] Path-restricted *natural effects* identification (path-restricted ID).
-    - [ ] Nonparametric path-specific natural effects (`context.mediation.nonparametric` → `done`). Path *contribution* attribution already ships (`path_decompose` / `attribute_path_specific`).
-    - [ ] Full `CausalQuery` CBOR model-bundle embedding for these queries via `causal-io` / `query_wire` where still incomplete.
+- [x] **2. Distribution & path-specific pipelines** (DESIGN.md §8) — identify + estimate for shipped `CausalQuery::Distribution` / `PathSpecific`. ID/IDC + discrete functional plug-in for Distribution; path-restricted NE ID + `functional.effect` for PathSpecific; CBOR model-bundle / analysis_wire complete.
+    - [x] **Depends on item 1** (IDC / path-restricted ID in the same ID/IDC family — do not fork a second `AutoIdentifier`).
+    - [x] Interventional-distribution identification + estimation via IDC.
+    - [x] Path-restricted *natural effects* identification (path-restricted ID).
+    - [x] Nonparametric path-specific natural effects (`context.mediation.nonparametric` → `done`). Path *contribution* attribution already ships (`path_decompose` / `attribute_path_specific`).
+    - [x] Full `CausalQuery` CBOR model-bundle embedding for these queries via `causal-io` / `query_wire` where still incomplete.
 
-- [ ] **3. Static (non-temporal) discovery** (DESIGN.md §13.3–13.6) — PCMCI family remains the temporal surface. **Shipped:** static `Cpdag` / `CpdagReview`, Meek R1–R4 + `OrientCollider`, classic PC (`Pc` / `discover_pc` / `discovery.pc`). ContempMeek stays temporal-only. Parent stays unchecked until required sub-items below are verified.
-    - [ ] **3a. `Pag` FCI plumbing** — Public `Pag::remove_edge` shipped (matches `TemporalPag`). Remaining: portability so FCI orientation rules target static `Pag` (today LPCMCI rules are `TemporalPag`-only). **Depends on:** shipped LPCMCI FCI-like rules.
-    - [ ] **3b. Static FCI** — Possible-D-Sep adjacency phase; port R1–R4 / R8–R10 + discriminating / uncovered paths to `Pag`; classic FCI pipeline → static `Pag`. **Depends on:** shipped PC; 3a.
-    - [ ] **3c. RFCI** — Early-stop / reduced Possible-D-Sep on top of FCI; `pag.discovery.fci_rfci` → `done`. **Depends on:** 3b.
-    - [ ] **3d. GES / score-based DAG search** — Equivalence-class insert/delete/reverse operators using shipped Gaussian BIC `LocalScoreCache` (`causal-state`). Soft: PC skeleton as screening. **Depends on:** shipped BIC score cache.
-    - [ ] **3e. LiNGAM (DirectLiNGAM MVP)** — ICA / residual independence → causal order → `Dag`. Greenfield (no stubs). Independent of Meek/PC orientation stack.
+- [ ] **3. Static (non-temporal) discovery** (DESIGN.md §13.3–13.6) — PCMCI family remains the temporal surface. **Shipped:** static `Cpdag` / `CpdagReview`, Meek R1–R4 + `OrientCollider`, classic PC (`Pc` / `discover_pc` / `discovery.pc`); static `Pag` / `PagReview`, Zhang FCI rules (`PagOps` / `FciOrientationRule`), classic FCI + RFCI (`Fci` / `Rfci` / `discover_fci` / `discover_rfci` / `pag.discovery.fci_rfci`); GES (`Ges` / `discover_ges` / `discovery.ges`); DirectLiNGAM (`DirectLingam` / `discover_lingam` / `discovery.lingam` / `DagReview`). ContempMeek stays temporal-only. Parent stays unchecked until required sub-items below are verified.
+    - [x] **3a. `Pag` FCI plumbing** — Public `Pag::remove_edge` shipped (matches `TemporalPag`). FCI orientation rules target static `Pag` via `PagOps` / `FciOrientationRule` (Zhang R1–R4 / R8–R10 + collider + discriminating); LPCMCI APR/MMR remain temporal-only. **Depends on:** shipped LPCMCI FCI-like rules.
+    - [x] **3b. Static FCI** — Possible-D-Sep adjacency phase; Zhang R1–R4 / R8–R10 + discriminating / uncovered paths on `Pag`; classic FCI pipeline → static `Pag` (`Fci` / `discover_fci` / `PagReview`). **Depends on:** shipped PC; 3a.
+    - [x] **3c. RFCI** — Early-stop / reduced Possible-D-Sep on top of FCI; `pag.discovery.fci_rfci` → `done`. **Depends on:** 3b.
+    - [x] **3d. GES / score-based DAG search** — Equivalence-class insert/delete/reverse operators using shipped Gaussian BIC `LocalScoreCache` (`causal-state`). Soft: PC skeleton as screening. **Depends on:** shipped BIC score cache.
+    - [x] **3e. LiNGAM (DirectLiNGAM MVP)** — ICA / residual independence → causal order → `Dag`. Greenfield (no stubs). Independent of Meek/PC orientation stack.
     - [ ] **3f. NOTEARS (optional)** — Continuous acyclicity soft-constraint optimization; feature-gated. Not required for this item’s DONE gate (DESIGN §13.3).
     - [ ] **3g. CPDAG MEC / equivalence-class sampling** (DESIGN §6.5 item 15) — enumerate or sample DAG completions of a static `Cpdag` (today `try_into_dag` only when fully oriented). PAG `CompletionSampler` already ships. Soft dep of FCI/GES class-aware ID.
     - [ ] **3h. Pooled-frame time one-hot** — JPCMCI+ `DummyOptions` ships space one-hot + optional integer time-index dummy; high-dimensional one-hot of `T` remains deferred (`causal-data` `pooled_frame`).
 
-- [ ] **4. Mechanism families and Bayesian inference gaps** (DESIGN.md §14.4, §15.4, §16, §18.4, §12, §23.2) — complete native Bayesian 1.0 beyond conjugate Gaussian + Laplace GLM. External Stan/PyMC adapters are **not** required (DESIGN §14.5).
-    - [ ] Mechanism families: hierarchical linear/GLM, BVAR, linear Gaussian state-space, Gaussian-process mechanisms (`bayes.backend.hierarchical_bvar_gp` → `done`).
-    - [ ] Native sampling backends needed for chain diagnostics (HMC and/or SMC) so ESS / R-hat / divergences are meaningful.
-    - [ ] MCMC diagnostics: ESS, R-hat / convergence, divergence counts (`causal-prob` diagnostics; `bayes.validate.mcmc_diagnostics` → `done`).
-    - [ ] Simulation-based calibration (SBC) and remaining §18.4 workflow diagnostics not already shipped: likelihood-family comparison and posterior calibration on synthetic SCMs (PPC / prior predictive / prior sensitivity already ship).
-    - [ ] Bayes-factor CI, posterior dependence probability, and posterior-predictive CI diagnostics for supported conjugate models (`bayes.ci.tests` → `done`).
-    - [ ] Counterfactual trajectories (§16) with shared-noise / batched evaluation (point/ITE/abduction paths that already exist stay; trajectories complete the subsystem).
-    - [ ] Nested counterfactual expressions (§16) where identifiable under model assumptions (`allow_nested` exists; engine rejects true nested interventions today).
-    - [ ] Conditional interventional sampling (§15.4) where supported (observational / hard / soft / stochastic / sequence / posterior-predictive sampling already ship).
-    - [ ] Posterior draw reduction kernels (§23.2 deferred): shared scalar + portable reductions over posterior draw batches, wired through Bayesian estimation / PPC / SBC callers.
+- [x] **4. Mechanism families and Bayesian inference gaps** (DESIGN.md §14.4, §15.4, §16, §18.4, §12, §23.2) — complete native Bayesian 1.0 beyond conjugate Gaussian + Laplace GLM. External Stan/PyMC adapters are **not** required (DESIGN §14.5).
+    - [x] Mechanism families: hierarchical linear/GLM, BVAR, linear Gaussian state-space, Gaussian-process mechanisms (`bayes.backend.hierarchical_bvar_gp` → `done`).
+    - [x] Native sampling backends needed for chain diagnostics (HMC and/or SMC) so ESS / R-hat / divergences are meaningful.
+    - [x] MCMC diagnostics: ESS, R-hat / convergence, divergence counts (`causal-prob` diagnostics; `bayes.validate.mcmc_diagnostics` → `done`).
+    - [x] Simulation-based calibration (SBC) and remaining §18.4 workflow diagnostics not already shipped: likelihood-family comparison and posterior calibration on synthetic SCMs (PPC / prior predictive / prior sensitivity already ship).
+    - [x] Bayes-factor CI, posterior dependence probability, and posterior-predictive CI diagnostics for supported conjugate models (`bayes.ci.tests` → `done`).
+    - [x] Counterfactual trajectories (§16) with shared-noise / batched evaluation (point/ITE/abduction paths that already exist stay; trajectories complete the subsystem).
+    - [x] Nested counterfactual expressions (§16) where identifiable under model assumptions (`allow_nested` exists; engine rejects true nested interventions today).
+    - [x] Conditional interventional sampling (§15.4) where supported (observational / hard / soft / stochastic / sequence / posterior-predictive sampling already ship).
+    - [x] Posterior draw reduction kernels (§23.2 deferred): shared scalar + portable reductions over posterior draw batches, wired through Bayesian estimation / PPC / SBC callers.
 
 - [ ] **5. Bayesian graph discovery** (DESIGN.md §13.7) — additive to constraint-based discovery; graph-weighted effect envelopes over supplied `WeightedGraphSamples` already ship.
     - [ ] Wire documented `causal-discovery → causal-prob` dependency (absent today).

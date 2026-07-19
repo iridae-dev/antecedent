@@ -1,4 +1,4 @@
-//! Discriminating paths for LPCMCI PAG orientation (DESIGN.md §13.6).
+//! Discriminating paths for FCI / LPCMCI PAG orientation (DESIGN.md §13.6).
 //!
 //! Zhang (2008) FCI R4: a path ⟨a, d₁, …, dₖ, c, b⟩ (k ≥ 1) is discriminating for `c`
 //! between `a` and `b` when `a` and `b` are non-adjacent, every intermediate `dᵢ` is a
@@ -9,9 +9,11 @@
 
 #![allow(clippy::cast_possible_truncation, clippy::many_single_char_names)]
 
-use causal_graph::{DenseNodeId, Endpoint, MarkedEdge, TemporalPag};
+use causal_graph::{DenseNodeId, Endpoint, MarkedEdge};
 
-/// A discriminating path `⟨a, …, c, b⟩` used by LPCMCI orientation rules.
+use crate::orientation::PagOps;
+
+/// A discriminating path `⟨a, …, c, b⟩` used by FCI / LPCMCI orientation rules.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiscriminatingPath {
     /// Path nodes from `a` to `b` inclusive (`len >= 4`).
@@ -48,8 +50,8 @@ impl DiscriminatingPath {
 ///
 /// Returns `(paths, truncated)` when `max_paths` stopped further enumeration.
 #[must_use]
-pub fn find_discriminating_paths_with_budget(
-    pag: &TemporalPag,
+pub fn find_discriminating_paths_with_budget<G: PagOps>(
+    pag: &G,
     max_paths: usize,
     max_len: usize,
 ) -> (Vec<DiscriminatingPath>, bool) {
@@ -130,8 +132,8 @@ pub fn find_discriminating_paths_with_budget(
 
 /// Find discriminating paths ending at edge `{c,b}` with a circle at `c`, bounded.
 #[must_use]
-pub fn find_discriminating_paths(
-    pag: &TemporalPag,
+pub fn find_discriminating_paths<G: PagOps>(
+    pag: &G,
     max_paths: usize,
     max_len: usize,
 ) -> Vec<DiscriminatingPath> {
@@ -140,7 +142,7 @@ pub fn find_discriminating_paths(
 
 /// Whether `path` is a Zhang discriminating path for `c = path[n-2]` between `a` and `b`.
 #[must_use]
-pub fn is_discriminating_path(pag: &TemporalPag, path: &[DenseNodeId]) -> bool {
+pub fn is_discriminating_path<G: PagOps>(pag: &G, path: &[DenseNodeId]) -> bool {
     if path.len() < 4 {
         return false;
     }
@@ -191,12 +193,12 @@ fn mark_at(edge: &MarkedEdge, node: DenseNodeId) -> Endpoint {
     }
 }
 
-fn arrow_into(pag: &TemporalPag, into: DenseNodeId, from: DenseNodeId) -> bool {
+fn arrow_into<G: PagOps>(pag: &G, into: DenseNodeId, from: DenseNodeId) -> bool {
     pag.edge_between(into, from).is_some_and(|e| matches!(mark_at(&e, into), Endpoint::Arrow))
 }
 
-fn is_collider_at(
-    pag: &TemporalPag,
+fn is_collider_at<G: PagOps>(
+    pag: &G,
     v: DenseNodeId,
     pred: DenseNodeId,
     succ: DenseNodeId,
@@ -205,7 +207,7 @@ fn is_collider_at(
 }
 
 /// Definite directed parent: `parent → child` (tail at parent, arrow at child).
-fn is_definite_parent(pag: &TemporalPag, parent: DenseNodeId, child: DenseNodeId) -> bool {
+fn is_definite_parent<G: PagOps>(pag: &G, parent: DenseNodeId, child: DenseNodeId) -> bool {
     pag.edge_between(parent, child).is_some_and(|e| {
         matches!(mark_at(&e, parent), Endpoint::Tail) && matches!(mark_at(&e, child), Endpoint::Arrow)
     })
@@ -215,7 +217,7 @@ fn is_definite_parent(pag: &TemporalPag, parent: DenseNodeId, child: DenseNodeId
 mod tests {
     use super::*;
     use causal_core::{Lag, VariableId};
-    use causal_graph::TemporalPag;
+    use causal_graph::{Pag, TemporalPag};
 
     /// Zhang minimal discriminating path ⟨a, d, c, b⟩ at lag 0.
     fn zhang_minimal() -> (TemporalPag, DenseNodeId, DenseNodeId, DenseNodeId, DenseNodeId) {
@@ -232,9 +234,32 @@ mod tests {
         (g, a, d, c, b)
     }
 
+    fn zhang_minimal_static() -> (Pag, DenseNodeId, DenseNodeId, DenseNodeId, DenseNodeId) {
+        let mut g = Pag::with_variables(4);
+        let a = DenseNodeId::from_raw(0);
+        let d = DenseNodeId::from_raw(1);
+        let c = DenseNodeId::from_raw(2);
+        let b = DenseNodeId::from_raw(3);
+        g.insert_directed(a, d).unwrap();
+        g.insert_directed(c, d).unwrap();
+        g.insert_directed(d, b).unwrap();
+        g.insert_circle_arrow(c, b).unwrap();
+        (g, a, d, c, b)
+    }
+
     #[test]
     fn finds_zhang_minimal_discriminating_path() {
         let (g, a, d, c, b) = zhang_minimal();
+        let paths = find_discriminating_paths(&g, 16, 8);
+        assert!(
+            paths.iter().any(|p| p.nodes == [a, d, c, b]),
+            "paths={paths:?}"
+        );
+    }
+
+    #[test]
+    fn finds_zhang_minimal_on_static_pag() {
+        let (g, a, d, c, b) = zhang_minimal_static();
         let paths = find_discriminating_paths(&g, 16, 8);
         assert!(
             paths.iter().any(|p| p.nodes == [a, d, c, b]),

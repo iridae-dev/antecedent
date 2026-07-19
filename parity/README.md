@@ -56,8 +56,8 @@ GitHub Actions workflow [`.github/workflows/calibration.yml`](../.github/workflo
 (`schedule` + `workflow_dispatch`).
 
 PAG: inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
-DAG-only-reject conformance; FCI/RFCI and full ID/IDC remain `pending`
-(`TODO.md`).
+DAG-only-reject conformance; static FCI/RFCI `done`; class-aware PAG ID
+beyond generalized adjustment remains as noted in `pag.toml` / `TODO.md`.
 
 Context: J/RPCMCI, effects, conditional ATE gated by `gate_context.sh`.
 RPCMCI uses caller-supplied regime labels.

@@ -151,10 +151,10 @@ impl BackdoorIdentifier {
             return Err(IdentificationError::UnsupportedQuery {
                 message: match query {
                     CausalQuery::Distribution(_) => {
-                        "Distribution identification deferred (requires IDC; coordinate with deep identification)"
+                        "backdoor does not identify Distribution queries; use IdIdentifier / IdcIdentifier / AutoIdentifier"
                     }
                     CausalQuery::PathSpecific(_) => {
-                        "PathSpecific identification deferred (path-restricted ID / natural effects)"
+                        "backdoor does not identify PathSpecific queries; use PathSpecificIdentifier / AutoIdentifier"
                     }
                     _ => "backdoor only supports AverageEffect",
                 },
@@ -761,7 +761,7 @@ mod tests {
         assert!(matches!(
             err,
             IdentificationError::UnsupportedQuery { message }
-            if message.contains("IDC")
+            if message.contains("Distribution")
         ));
 
         let path = CausalQuery::path_specific(PathSpecificEffectQuery::binary(

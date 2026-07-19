@@ -13,8 +13,10 @@ use crate::efficient::EfficientBackdoorIdentifier;
 use crate::error::IdentificationError;
 use crate::frontdoor::FrontDoorIdentifier;
 use crate::id::IdIdentifier;
+use crate::idc::IdcIdentifier;
 use crate::identifier::{IdentificationWorkspace, Identifier};
 use crate::iv::InstrumentalVariableIdentifier;
+use crate::path_specific::PathSpecificIdentifier;
 use crate::prepared::PreparedAdmg;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
@@ -31,7 +33,7 @@ pub struct PreparedAutoGraph {
 
 /// Tries every applicable shipped identifier and returns **all** valid estimands.
 ///
-/// Does not choose an estimator. Distribution queries use the ID family only
+/// Does not choose an estimator. Distribution queries use the ID/IDC family only
 /// (no second identifier stack).
 #[derive(Clone, Debug, Default)]
 pub struct AutoIdentifier {
@@ -45,6 +47,10 @@ pub struct AutoIdentifier {
     pub iv: InstrumentalVariableIdentifier,
     /// General ID.
     pub general_id: IdIdentifier,
+    /// Conditional interventional distributions (IDC).
+    pub idc: IdcIdentifier,
+    /// Path-restricted natural effects.
+    pub path_specific: PathSpecificIdentifier,
 }
 
 impl AutoIdentifier {
@@ -171,12 +177,22 @@ impl AutoIdentifier {
                     &mut hedge,
                 );
             }
-            CausalQuery::Distribution(_) => {
-                match self.general_id.identify(&prepared.admg, query, workspace) {
+            CausalQuery::Distribution(q) => {
+                let method = if q.conditioning.is_empty() {
+                    "general.id"
+                } else {
+                    "general.idc"
+                };
+                let run = if q.conditioning.is_empty() {
+                    self.general_id.identify(&prepared.admg, query, workspace)
+                } else {
+                    self.idc.identify(&prepared.admg, query, workspace)
+                };
+                match run {
                     Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
                         derivation.push(
                             "auto.method",
-                            format!("general.id: identified ({} estimand(s))", res.estimands.len()),
+                            format!("{method}: identified ({} estimand(s))", res.estimands.len()),
                         );
                         arena = res.arena;
                         estimands = res.estimands;
@@ -186,17 +202,45 @@ impl AutoIdentifier {
                     Ok(res) => {
                         derivation.push(
                             "auto.method",
-                            format!("general.id: not identified ({:?})", res.status),
+                            format!("{method}: not identified ({:?})", res.status),
                         );
                         hedge = res.hedge;
                         perf = res.performance;
                     }
-                    Err(e) => derivation.push("auto.method", format!("general.id: error ({e})")),
+                    Err(e) => derivation.push("auto.method", format!("{method}: error ({e})")),
+                }
+            }
+            CausalQuery::PathSpecific(_) => {
+                match self.path_specific.identify(&prepared.admg, query, workspace) {
+                    Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
+                        derivation.push(
+                            "auto.method",
+                            format!(
+                                "path_specific.natural: identified ({} estimand(s))",
+                                res.estimands.len()
+                            ),
+                        );
+                        arena = res.arena;
+                        estimands = res.estimands;
+                        assumptions = res.required_assumptions;
+                        perf = res.performance;
+                    }
+                    Ok(res) => {
+                        derivation.push(
+                            "auto.method",
+                            format!("path_specific.natural: not identified ({:?})", res.status),
+                        );
+                        hedge = res.hedge;
+                        perf = res.performance;
+                    }
+                    Err(e) => {
+                        derivation.push("auto.method", format!("path_specific.natural: error ({e})"))
+                    }
                 }
             }
             _ => {
                 return Err(IdentificationError::unsupported(
-                    "AutoIdentifier supports AverageEffect and Distribution queries",
+                    "AutoIdentifier supports AverageEffect, Distribution, and PathSpecific queries",
                 ));
             }
         }
@@ -379,5 +423,31 @@ mod tests {
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(!res.estimands.is_empty());
         assert!(res.derivation.steps.iter().any(|s| s.rule.as_ref() == "auto.method"));
+    }
+
+    #[test]
+    fn auto_distribution_uses_idc_when_conditioned() {
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::Distribution(
+            causal_core::InterventionalDistributionQuery::new(
+                VariableId::from_raw(2),
+                [causal_core::Intervention::set(
+                    VariableId::from_raw(1),
+                    causal_core::Value::f64(1.0),
+                )],
+            )
+            .with_conditioning([VariableId::from_raw(0)]),
+        );
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(res.derivation.steps.iter().any(|s| {
+            s.detail.as_ref().contains("general.idc") || s.rule.as_ref().contains("idc")
+        }));
     }
 }

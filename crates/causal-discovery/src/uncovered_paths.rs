@@ -4,7 +4,9 @@
 
 #![allow(clippy::many_single_char_names)]
 
-use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
+use causal_graph::{DenseNodeId, Endpoint};
+
+use crate::orientation::PagOps;
 
 /// Edge pattern: left endpoint, right endpoint (from `from`'s perspective toward `to`).
 #[derive(Clone, Copy, Debug)]
@@ -41,8 +43,8 @@ impl EndpointPattern {
     }
 }
 
-fn marks_from_to(
-    graph: &TemporalPag,
+fn marks_from_to<G: PagOps>(
+    graph: &G,
     from: DenseNodeId,
     to: DenseNodeId,
 ) -> Option<(Endpoint, Endpoint)> {
@@ -66,15 +68,14 @@ fn matches_pattern(at_from: Endpoint, at_to: Endpoint, pat: EndpointPattern) -> 
 
 /// Whether the edge from `from` toward `to` is potentially directed (`o→`, `→`, or `o–o`).
 #[must_use]
-pub fn is_potentially_directed(graph: &TemporalPag, from: DenseNodeId, to: DenseNodeId) -> bool {
+pub fn is_potentially_directed<G: PagOps>(graph: &G, from: DenseNodeId, to: DenseNodeId) -> bool {
     let Some((at_from, at_to)) = marks_from_to(graph, from, to) else {
         return false;
     };
     matches!(
         (at_from, at_to),
         (Endpoint::Tail, Endpoint::Arrow)
-            | (Endpoint::Circle, Endpoint::Arrow)
-            | (Endpoint::Circle, Endpoint::Circle)
+            | (Endpoint::Circle, Endpoint::Arrow | Endpoint::Circle)
     )
 }
 
@@ -86,8 +87,8 @@ pub fn is_potentially_directed(graph: &TemporalPag, from: DenseNodeId, to: Dense
 /// Returns `(paths, truncated)` where `truncated` is true if the search stopped because
 /// `max_paths` was reached while further candidates remained.
 #[must_use]
-pub fn uncovered_pd_paths_with_budget(
-    graph: &TemporalPag,
+pub fn uncovered_pd_paths_with_budget<G: PagOps>(
+    graph: &G,
     start: DenseNodeId,
     end: DenseNodeId,
     initial: &[EndpointPattern],
@@ -99,8 +100,9 @@ pub fn uncovered_pd_paths_with_budget(
     if start == end || max_paths == 0 || max_len < 3 {
         return (out, false);
     }
-    fn search(
-        graph: &TemporalPag,
+    #[allow(clippy::too_many_arguments, clippy::items_after_statements)]
+    fn search<G: PagOps>(
+        graph: &G,
         end: DenseNodeId,
         path: &mut Vec<DenseNodeId>,
         allowed: &[EndpointPattern],
@@ -119,7 +121,7 @@ pub fn uncovered_pd_paths_with_budget(
         if path.len() >= max_len {
             return;
         }
-        let nbrs: Vec<_> = graph.neighbors(cur).map(|(n, _, _)| n).collect();
+        let nbrs: Vec<_> = graph.neighbors(cur).into_iter().map(|(n, _, _)| n).collect();
         for next in nbrs {
             if out.len() >= max_paths {
                 *truncated = true;
@@ -159,7 +161,7 @@ pub fn uncovered_pd_paths_with_budget(
     }
 
     let mut path = vec![start];
-    let nbrs: Vec<_> = graph.neighbors(start).map(|(n, _, _)| n).collect();
+    let nbrs: Vec<_> = graph.neighbors(start).into_iter().map(|(n, _, _)| n).collect();
     for next in nbrs {
         if out.len() >= max_paths {
             truncated = true;
@@ -195,8 +197,8 @@ pub fn uncovered_pd_paths_with_budget(
 
 /// Find uncovered potentially directed paths (paths only; ignores truncation).
 #[must_use]
-pub fn uncovered_pd_paths(
-    graph: &TemporalPag,
+pub fn uncovered_pd_paths<G: PagOps>(
+    graph: &G,
     start: DenseNodeId,
     end: DenseNodeId,
     initial: &[EndpointPattern],

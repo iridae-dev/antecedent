@@ -18,7 +18,7 @@ use causal_core::ExecutionContext;
 use causal_estimate::EstimationWorkspace;
 
 use crate::bayesian_checks::{
-    PosteriorPredictiveCheck, PriorPredictiveCheck, PriorSensitivity,
+    McmcDiagnosticsCheck, PosteriorPredictiveCheck, PriorPredictiveCheck, PriorSensitivity,
 };
 use crate::bootstrap_refute::BootstrapRefute;
 use crate::common::{RefutationProblem, RefutationReport};
@@ -120,6 +120,8 @@ pub enum ValidatorId {
     PosteriorPredictive,
     /// Prior sensitivity grid (Bayesian).
     PriorSensitivity,
+    /// MCMC ESS / R-hat / divergence diagnostics (Bayesian HMC/SMC).
+    McmcDiagnostics,
 }
 
 /// Outcome of one validator in a suite.
@@ -408,9 +410,10 @@ impl ValidationSuite {
             )?)),
             ValidatorId::PriorPredictive
             | ValidatorId::PosteriorPredictive
-            | ValidatorId::PriorSensitivity => Ok(na(
+            | ValidatorId::PriorSensitivity
+            | ValidatorId::McmcDiagnostics => Ok(na(
                 id,
-                "Bayesian PPC/prior-sensitivity require ValidationSuite::run_bayesian with a fitted posterior",
+                "Bayesian PPC/prior-sensitivity/MCMC diagnostics require ValidationSuite::run_bayesian with a fitted posterior",
             )),
         }
     }
@@ -451,6 +454,15 @@ impl ValidationSuite {
                 )?;
                 Ok(ValidationOutcome::Report(sens.to_report(&summary, bayes.original_ate)))
             }
+            ValidatorId::McmcDiagnostics => {
+                match McmcDiagnosticsCheck::new().check(bayes.posterior) {
+                    Some(rep) => Ok(ValidationOutcome::Report(rep)),
+                    None => Ok(na(
+                        ValidatorId::McmcDiagnostics,
+                        "MCMC diagnostics require an HMC/SMC posterior (Laplace/conjugate NotApplicable)",
+                    )),
+                }
+            }
             other => Ok(na(
                 other,
                 "validator is not a Bayesian diagnostic; use ValidationSuite::run",
@@ -465,6 +477,7 @@ impl ValidationSuite {
             .with(ValidatorId::PriorPredictive)
             .with(ValidatorId::PosteriorPredictive)
             .with(ValidatorId::PriorSensitivity)
+            .with(ValidatorId::McmcDiagnostics)
     }
 }
 

@@ -37,6 +37,14 @@ pub enum MechanismFamily {
     Constant,
     /// Discrete categorical (unconditional root or parent-conditional softmax).
     Discrete,
+    /// Hierarchical linear Gaussian (ridge / partial pooling).
+    HierarchicalLinear,
+    /// Single-equation Bayesian VAR-style linear Gaussian.
+    Bvar,
+    /// Linear Gaussian state-space observation mechanism.
+    LinearGaussianStateSpace,
+    /// Gaussian-process regression mechanism (feature `gaussian-process`).
+    GaussianProcess,
 }
 
 impl MechanismFamily {
@@ -47,6 +55,10 @@ impl MechanismFamily {
             Self::LinearGaussian => "linear_gaussian",
             Self::Constant => "constant",
             Self::Discrete => "discrete",
+            Self::HierarchicalLinear => "hierarchical_linear",
+            Self::Bvar => "bvar",
+            Self::LinearGaussianStateSpace => "lgssm",
+            Self::GaussianProcess => "gaussian_process",
         }
     }
 }
@@ -97,13 +109,39 @@ impl Default for MechanismRegistry {
 }
 
 impl MechanismRegistry {
-    /// Standard registry.
+    /// Standard registry (core families).
     #[must_use]
     pub fn standard() -> Self {
         Self {
             continuous: Arc::from(vec![MechanismFamily::LinearGaussian, MechanismFamily::Constant]),
             discrete: Arc::from(vec![MechanismFamily::Discrete, MechanismFamily::Constant]),
         }
+    }
+
+    /// Extended continuous registry including hierarchical / BVAR / LGSSM / GP.
+    #[must_use]
+    pub fn with_bayesian_families() -> Self {
+        #[cfg(feature = "gaussian-process")]
+        let continuous = {
+            let mut continuous = vec![
+                MechanismFamily::LinearGaussian,
+                MechanismFamily::HierarchicalLinear,
+                MechanismFamily::Bvar,
+                MechanismFamily::LinearGaussianStateSpace,
+                MechanismFamily::Constant,
+            ];
+            continuous.insert(continuous.len() - 1, MechanismFamily::GaussianProcess);
+            continuous
+        };
+        #[cfg(not(feature = "gaussian-process"))]
+        let continuous = vec![
+            MechanismFamily::LinearGaussian,
+            MechanismFamily::HierarchicalLinear,
+            MechanismFamily::Bvar,
+            MechanismFamily::LinearGaussianStateSpace,
+            MechanismFamily::Constant,
+        ];
+        Self { continuous: Arc::from(continuous), discrete: Self::standard().discrete }
     }
 
     /// Assign and fit all nodes. Requires an explicit selection policy.
@@ -217,7 +255,9 @@ fn score_family(
 ) -> Result<MechanismCandidate, ModelError> {
     let fitted = fit_family(family, gather, model, data, y, backend, ls_ws)?;
     let score = match &fitted {
-        MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
+        MechanismSlot::LinearGaussian { intercept, coeffs, sigma }
+        | MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, .. }
+        | MechanismSlot::Bvar { intercept, coeffs, sigma } => {
             let mse = residual_mse(gather, model, data, y, *intercept, coeffs)?;
             -mse - sigma.ln().abs() * 0.01
         }
@@ -232,10 +272,17 @@ fn score_family(
                 -ent
             }
             Some(logits) => {
-                // Mean log-likelihood under the multinomial-logit fit (model comparison).
                 discrete_mean_loglik(gather, model, data, y, support, logits)?
             }
         },
+        MechanismSlot::LinearGaussianStateSpace { process_std, obs_std, .. } => {
+            let mse = y.iter().map(|yi| yi.powi(2)).sum::<f64>() / y.len().max(1) as f64;
+            -mse - (process_std + obs_std).ln().abs() * 0.01
+        }
+        MechanismSlot::GaussianProcess { noise_std, .. } => {
+            let mse = y.iter().map(|yi| yi.powi(2)).sum::<f64>() / y.len().max(1) as f64;
+            -mse - noise_std.ln().abs() * 0.01
+        }
         _ => f64::NEG_INFINITY,
     };
     Ok(MechanismCandidate {
@@ -346,26 +393,257 @@ fn fit_family(
             })
         }
         MechanismFamily::LinearGaussian => {
-            let p = gather.n_parents();
-            let ncols = 1 + p;
-            let mut x = vec![0.0; n * ncols];
-            for r in 0..n {
-                x[r] = 1.0;
+            fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)
+        }
+        MechanismFamily::HierarchicalLinear => {
+            // Empirical-Bayes ridge: λ = n * 0.1 on the coefficient block.
+            let shrink = (y.len() as f64) * 0.1;
+            let slot = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, shrink)?;
+            match slot {
+                MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
+                    Ok(MechanismSlot::HierarchicalLinear {
+                        intercept,
+                        coeffs,
+                        sigma,
+                        shrinkage: shrink,
+                    })
+                }
+                other => Ok(other),
             }
-            for (pi, &parent) in gather.parents.iter().enumerate() {
-                let var = model.output_layout.variables[parent.as_usize()];
-                let col = data.float64_values(var).map_err(ModelError::from)?;
-                let base = (1 + pi) * n;
-                x[base..base + n].copy_from_slice(&col[..n]);
+        }
+        MechanismFamily::Bvar => {
+            let slot = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 1e-3)?;
+            match slot {
+                MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
+                    Ok(MechanismSlot::Bvar { intercept, coeffs, sigma })
+                }
+                other => Ok(other),
             }
-            let fit = backend.least_squares(&x, n, ncols, y, ls_ws).map_err(ModelError::from)?;
-            let intercept = fit.coefficients[0];
-            let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
-            let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
-            Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma })
+        }
+        MechanismFamily::LinearGaussianStateSpace => {
+            // Fit AR(1)+noise on residuals after parent OLS mean, or on y if root.
+            let lg = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?;
+            let (intercept, coeffs, sigma) = match lg {
+                MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
+                    (intercept, coeffs, sigma)
+                }
+                _ => {
+                    return Err(ModelError::Unsupported {
+                        message: "lgssm fit requires linear base".into(),
+                    });
+                }
+            };
+            let mut resid = vec![0.0; y.len()];
+            let parent_cols = gather_parent_cols(gather, model, data)?;
+            for r in 0..y.len() {
+                let mut pred = intercept;
+                for (p, col) in parent_cols.iter().enumerate() {
+                    pred += coeffs[p] * col[r];
+                }
+                resid[r] = y[r] - pred;
+            }
+            let (a, process_std) = fit_ar1(&resid);
+            Ok(MechanismSlot::LinearGaussianStateSpace {
+                a,
+                process_std: process_std.max(1e-8),
+                obs_std: sigma.max(1e-8),
+                initial_mean: resid.first().copied().unwrap_or(0.0),
+            })
+        }
+        MechanismFamily::GaussianProcess => {
+            #[cfg(feature = "gaussian-process")]
+            {
+                fit_gaussian_process(gather, model, data, y)
+            }
+            #[cfg(not(feature = "gaussian-process"))]
+            {
+                let _ = (gather, model, data, y, backend, ls_ws);
+                Err(ModelError::Unsupported {
+                    message: "GaussianProcess requires feature `gaussian-process`".into(),
+                })
+            }
         }
     }
 }
+
+fn gather_parent_cols(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+) -> Result<Vec<Vec<f64>>, ModelError> {
+    let mut parent_cols: Vec<Vec<f64>> = Vec::with_capacity(gather.n_parents());
+    for &parent in gather.parents.iter() {
+        let var = model.output_layout.variables[parent.as_usize()];
+        parent_cols.push(data.float64_values(var).map_err(ModelError::from)?);
+    }
+    Ok(parent_cols)
+}
+
+fn fit_ar1(series: &[f64]) -> (f64, f64) {
+    let n = series.len();
+    if n < 3 {
+        return (0.0, series.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-8));
+    }
+    let mut num = 0.0;
+    let mut den = 0.0;
+    for t in 1..n {
+        num += series[t] * series[t - 1];
+        den += series[t - 1] * series[t - 1];
+    }
+    let a = if den > 1e-12 { (num / den).clamp(-0.999, 0.999) } else { 0.0 };
+    let mut rss = 0.0;
+    for t in 1..n {
+        let e = series[t] - a * series[t - 1];
+        rss += e * e;
+    }
+    let process_std = (rss / (n - 1) as f64).sqrt().max(1e-8);
+    (a, process_std)
+}
+
+fn fit_linear_gaussian(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+    ridge: f64,
+) -> Result<MechanismSlot, ModelError> {
+    let n = y.len();
+    let p = gather.n_parents();
+    let ncols = 1 + p;
+    let mut x = vec![0.0; n * ncols];
+    for r in 0..n {
+        x[r] = 1.0;
+    }
+    for (pi, &parent) in gather.parents.iter().enumerate() {
+        let var = model.output_layout.variables[parent.as_usize()];
+        let col = data.float64_values(var).map_err(ModelError::from)?;
+        let base = (1 + pi) * n;
+        x[base..base + n].copy_from_slice(&col[..n]);
+    }
+    if ridge > 0.0 {
+        // Augment with ridge rows for coefficients (not intercept).
+        let extra = p;
+        let mut x2 = vec![0.0; (n + extra) * ncols];
+        let mut y2 = vec![0.0; n + extra];
+        for c in 0..ncols {
+            for r in 0..n {
+                x2[c * (n + extra) + r] = x[c * n + r];
+            }
+        }
+        y2[..n].copy_from_slice(y);
+        let sqrt_r = ridge.sqrt();
+        for j in 0..p {
+            x2[(1 + j) * (n + extra) + (n + j)] = sqrt_r;
+        }
+        let fit =
+            backend.least_squares(&x2, n + extra, ncols, &y2, ls_ws).map_err(ModelError::from)?;
+        let intercept = fit.coefficients[0];
+        let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
+        let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
+        return Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma });
+    }
+    let fit = backend.least_squares(&x, n, ncols, y, ls_ws).map_err(ModelError::from)?;
+    let intercept = fit.coefficients[0];
+    let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
+    let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
+    Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma })
+}
+
+#[cfg(feature = "gaussian-process")]
+fn fit_gaussian_process(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+) -> Result<MechanismSlot, ModelError> {
+    let n = y.len();
+    let p = gather.n_parents();
+    if p == 0 {
+        return Err(ModelError::Unsupported {
+            message: "GaussianProcess requires at least one parent".into(),
+        });
+    }
+    let parent_cols = gather_parent_cols(gather, model, data)?;
+    let mut x_train = vec![0.0; n * p];
+    for r in 0..n {
+        for c in 0..p {
+            x_train[r * p + c] = parent_cols[c][r];
+        }
+    }
+    let length_scale = 1.0;
+    let variance = 1.0;
+    let noise_std = 0.1;
+    // K_ij = variance * exp(-0.5 ||xi-xj||² / ℓ²) + noise² δ_ij
+    let mut k = vec![0.0; n * n];
+    let inv_l2 = 1.0 / (length_scale * length_scale);
+    for i in 0..n {
+        for j in i..n {
+            let mut d2 = 0.0;
+            for c in 0..p {
+                let d = x_train[i * p + c] - x_train[j * p + c];
+                d2 += d * d;
+            }
+            let kij = variance * (-0.5 * d2 * inv_l2).exp();
+            k[i * n + j] = kij;
+            k[j * n + i] = kij;
+        }
+        k[i * n + i] += noise_std * noise_std;
+    }
+    // Solve K α = y via Gauss elimination (n small / MVP).
+    let alpha = solve_dense(&k, n, y)?;
+    Ok(MechanismSlot::GaussianProcess {
+        length_scale,
+        variance,
+        noise_std,
+        x_train: Arc::from(x_train),
+        n_train: n,
+        n_parents: p,
+        alpha: Arc::from(alpha),
+    })
+}
+
+#[cfg(feature = "gaussian-process")]
+fn solve_dense(a: &[f64], n: usize, b: &[f64]) -> Result<Vec<f64>, ModelError> {
+    let mut m = a.to_vec();
+    let mut x = b.to_vec();
+    for col in 0..n {
+        let mut piv = col;
+        for r in (col + 1)..n {
+            if m[r * n + col].abs() > m[piv * n + col].abs() {
+                piv = r;
+            }
+        }
+        if m[piv * n + col].abs() < 1e-12 {
+            return Err(ModelError::Numerical { message: "singular GP kernel".into() });
+        }
+        if piv != col {
+            for c in 0..n {
+                m.swap(col * n + c, piv * n + c);
+            }
+            x.swap(col, piv);
+        }
+        let diag = m[col * n + col];
+        for r in (col + 1)..n {
+            let f = m[r * n + col] / diag;
+            for c in col..n {
+                m[r * n + c] -= f * m[col * n + c];
+            }
+            x[r] -= f * x[col];
+        }
+    }
+    for col in (0..n).rev() {
+        let mut acc = x[col];
+        for c in (col + 1)..n {
+            acc -= m[col * n + c] * x[c];
+        }
+        x[col] = acc / m[col * n + col];
+    }
+    Ok(x)
+}
+
+// Keep the old LinearGaussian arm body removed — already handled above.
 
 fn residual_mse(
     gather: &ParentGatherPlan,
@@ -537,6 +815,43 @@ mod tests {
         assert!(matches!(
             store.get(DenseNodeId::from_raw(1)),
             MechanismSlot::LinearGaussian { .. }
+        ));
+    }
+
+    #[test]
+    fn bayesian_families_fit_hierarchical_and_bvar() {
+        let (data, g) = toy_data();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let reg = MechanismRegistry::with_bayesian_families();
+        let (store, _) = reg
+            .assign_and_fit(
+                &compiled,
+                &data,
+                SelectionPolicy::RequireFamily(MechanismFamily::HierarchicalLinear),
+            )
+            .unwrap();
+        assert!(matches!(
+            store.get(DenseNodeId::from_raw(1)),
+            MechanismSlot::HierarchicalLinear { .. }
+        ));
+        let (store2, _) = reg
+            .assign_and_fit(
+                &compiled,
+                &data,
+                SelectionPolicy::RequireFamily(MechanismFamily::Bvar),
+            )
+            .unwrap();
+        assert!(matches!(store2.get(DenseNodeId::from_raw(1)), MechanismSlot::Bvar { .. }));
+        let (store3, _) = reg
+            .assign_and_fit(
+                &compiled,
+                &data,
+                SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussianStateSpace),
+            )
+            .unwrap();
+        assert!(matches!(
+            store3.get(DenseNodeId::from_raw(1)),
+            MechanismSlot::LinearGaussianStateSpace { .. }
         ));
     }
 

@@ -107,6 +107,82 @@ pub fn sample_with_overlay(
     Ok(values.into_batch())
 }
 
+/// Sample under interventions conditioned on observed node values (rejection sampling).
+///
+/// Draws from `P(V | do(interventions), condition_nodes = condition_values)`.
+/// Conditioning nodes must not be hard-intervened. Absolute tolerance `1e-9` for matches.
+///
+/// # Errors
+///
+/// Empty condition, intervened condition nodes, or insufficient accepts within budget.
+pub fn sample_conditional_interventional(
+    model: &CompiledCausalModel,
+    interventions: &[Intervention],
+    condition_nodes: &[causal_graph::DenseNodeId],
+    condition_values: &[f64],
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<ValueBatch, ModelError> {
+    if condition_nodes.is_empty() || condition_values.len() != condition_nodes.len() {
+        return Err(ModelError::Shape {
+            message: "conditional interventional sampling needs matching condition_nodes/values"
+                .into(),
+        });
+    }
+    if n_rows == 0 {
+        return Err(ModelError::Shape { message: "n_rows must be > 0".into() });
+    }
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    for &node in condition_nodes {
+        let idx = node.as_usize();
+        if idx >= model.n_nodes() {
+            return Err(ModelError::Shape { message: "condition node out of range".into() });
+        }
+        if overlay.hard_set[idx].is_some() {
+            return Err(ModelError::Unsupported {
+                message: "cannot condition on a hard-intervened node".into(),
+            });
+        }
+    }
+
+    let n_nodes = model.n_nodes();
+    let mut accepted = vec![0.0; n_rows * n_nodes];
+    let mut got = 0usize;
+    let max_attempts = n_rows.saturating_mul(100).max(100);
+    for _ in 0..max_attempts {
+        if got >= n_rows {
+            break;
+        }
+        let batch = sample_interventional(model, interventions, 1, rng, ws, ctx)?;
+        let mut ok = true;
+        for (i, &node) in condition_nodes.iter().enumerate() {
+            let v = batch.column(node.as_usize())?[0];
+            if (v - condition_values[i]).abs() > 1e-9 {
+                ok = false;
+                break;
+            }
+        }
+        if !ok {
+            continue;
+        }
+        for node in 0..n_nodes {
+            accepted[node * n_rows + got] = batch.column(node)?[0];
+        }
+        got += 1;
+    }
+    if got < n_rows {
+        return Err(ModelError::Unsupported {
+            message: format!(
+                "conditional interventional sampling accepted {got}/{n_rows} within budget"
+            ),
+        });
+    }
+    let _ = ctx;
+    Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() })
+}
+
 /// Posterior-predictive interventional sampling: for each coefficient draw block,
 /// refresh `LinearGaussian` slots then sample. `draw_updater` mutates slots in place.
 ///

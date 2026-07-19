@@ -76,7 +76,7 @@ group = "identification"
 description = "General ID"
 status = "done"
 owner = "identify"
-notes = "Shpitser ID/IDC + hedges + AutoIdentifier — TODO.md item 1 / DESIGN §10.2"
+notes = "Shpitser ID/IDC + hedges + AutoIdentifier; Distribution via ID/IDC + functional.distribution; PathSpecific via path_specific.natural + functional.effect — TODO.md item 2 / DESIGN §8"
 
 [[capabilities]]
 id = "estimate.identify.estimand"

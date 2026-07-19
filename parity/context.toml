@@ -62,9 +62,9 @@ notes = "conformance/context/prediction_smoke"
 id = "context.mediation.nonparametric"
 group = "identify_estimate"
 description = "Nonparametric / path-specific natural-effect ID beyond linear SEM"
-status = "pending"
+status = "done"
 owner = "context"
-notes = "Linear temporal NDE/NIE shipped; nonparametric path-specific natural effects — TODO.md item 2 (full Distribution/PathSpecific pipelines)"
+notes = "PathSpecificIdentifier (recanting + surgery + ID) + functional.effect plug-in through CausalAnalysis; contribution remains path_decompose"
 
 [[capabilities]]
 id = "context.query_model_planned_variants"

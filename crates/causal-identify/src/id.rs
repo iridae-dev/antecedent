@@ -25,12 +25,16 @@ use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
 };
 
-/// Memo key: canonical (Y, X, V) bitsets for a subproblem.
+/// Memo key: canonical (Y, X, V) plus optional hard assignment for ATE contrast sides.
+///
+/// Assignment must be part of the key: left (`do(T=t₁)`) and right (`do(T=t₀)`) share
+/// the same (Y,X,V) geometry but produce distinct expressions.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 struct SubproblemKey {
     y: BitSet,
     x: BitSet,
     v: BitSet,
+    assign: Option<(DenseNodeId, Value)>,
 }
 
 /// Outcome of a recursive ID call.
@@ -96,7 +100,13 @@ impl IdIdentifier {
         match query {
             CausalQuery::AverageEffect(q) => self.identify_ate(prepared, q, workspace),
             CausalQuery::Distribution(q) => {
-                // Unconditional interventional distribution via ID (conditioning → IDC).
+                // Unconditional interventional distribution via ID.
+                // Nonempty conditioning belongs to IdcIdentifier / AutoIdentifier.
+                if !q.conditioning.is_empty() {
+                    return Err(IdentificationError::unsupported(
+                        "conditional Distribution requires IdcIdentifier (or AutoIdentifier)",
+                    ));
+                }
                 if !q.interventions.iter().all(|iv| matches!(iv, Intervention::Set { .. })) {
                     return Err(IdentificationError::unsupported(
                         "general ID supports hard Set interventions only",
@@ -368,7 +378,12 @@ fn id_recurse(
     assign: Option<(DenseNodeId, Value)>,
 ) -> Result<IdOutcome, IdentificationError> {
     perf.candidates_examined = perf.candidates_examined.saturating_add(1);
-    let key = SubproblemKey { y: y.clone(), x: x.clone(), v: v.clone() };
+    let key = SubproblemKey {
+        y: y.clone(),
+        x: x.clone(),
+        v: v.clone(),
+        assign: assign.clone(),
+    };
     if let Some(hit) = memo.get(&key) {
         perf.sets_returned = perf.sets_returned.saturating_add(1);
         return Ok(hit.clone());
@@ -565,21 +580,12 @@ fn q_component_product(
         if s.contains(vi) {
             let var_i = prepared.dense_to_var(vi)?;
             let vars = arena.intern_var_set([var_i]);
-            // Condition on preceding nodes in V (Tian/Shpitser line 6).
             let cond_vars: Result<Vec<_>, _> =
                 preceding.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
-            let conditioned_on = arena.intern_var_set(cond_vars?);
-            let intervention = match assign {
-                Some((t, ref val)) if t == vi => arena.intern_intervention_assignments([
-                    InterventionAssignment { variable: var_i, value: val.clone() },
-                ]),
-                _ => empty_i,
-            };
-            let domain = if matches!(assign, Some((t, _)) if t == vi) {
-                DomainRef::Interventional
-            } else {
-                DomainRef::Observational
-            };
+            let cond_vars = cond_vars?;
+            let conditioned_on = arena.intern_var_set(cond_vars.clone());
+            let (intervention, domain) =
+                intervention_for_factor(arena, prepared, assign.as_ref(), vi, &cond_vars)?;
             factors.push(arena.intern(ExprNode::Distribution {
                 variables: vars,
                 conditioned_on,
@@ -628,18 +634,10 @@ fn markov_product(
             .filter(|p| v.contains(*p))
             .map(|p| prepared.dense_to_var(p))
             .collect();
-        let conditioned_on = arena.intern_var_set(parents?);
-        let intervention = match assign {
-            Some((t, ref val)) if t == vi => arena.intern_intervention_assignments([
-                InterventionAssignment { variable: var_i, value: val.clone() },
-            ]),
-            _ => empty_i,
-        };
-        let domain = if matches!(assign, Some((t, _)) if t == vi) {
-            DomainRef::Interventional
-        } else {
-            DomainRef::Observational
-        };
+        let parents = parents?;
+        let conditioned_on = arena.intern_var_set(parents.clone());
+        let (intervention, domain) =
+            intervention_for_factor(arena, prepared, assign.as_ref(), vi, &parents)?;
         factors.push(arena.intern(ExprNode::Distribution {
             variables: vars,
             conditioned_on,
@@ -661,6 +659,36 @@ fn markov_product(
     }
     let list = arena.intern_list(factors);
     Ok(arena.intern(ExprNode::Product(list)))
+}
+
+/// Bake `do(T=t)` into the factor that generates `T`, or into factors that condition on `T`.
+fn intervention_for_factor(
+    arena: &mut CausalExprArena,
+    prepared: &PreparedAdmg,
+    assign: Option<&(DenseNodeId, Value)>,
+    vi: DenseNodeId,
+    conditioned_on: &[VariableId],
+) -> Result<(causal_expr::InterventionSetId, DomainRef), IdentificationError> {
+    let empty_i = arena.empty_intervention_set();
+    let Some((t, val)) = assign else {
+        return Ok((empty_i, DomainRef::Observational));
+    };
+    let t_var = prepared.dense_to_var(*t)?;
+    if *t == vi {
+        let intervention = arena.intern_intervention_assignments([InterventionAssignment {
+            variable: t_var,
+            value: val.clone(),
+        }]);
+        return Ok((intervention, DomainRef::Interventional));
+    }
+    if conditioned_on.iter().any(|&v| v == t_var) {
+        let intervention = arena.intern_intervention_assignments([InterventionAssignment {
+            variable: t_var,
+            value: val.clone(),
+        }]);
+        return Ok((intervention, DomainRef::Interventional));
+    }
+    Ok((empty_i, DomainRef::Observational))
 }
 
 #[cfg(test)]

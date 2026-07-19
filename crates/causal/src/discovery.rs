@@ -12,9 +12,10 @@ use std::sync::Arc;
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
 use causal_discovery::{
-    CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryWorkspace, JpcmciPlus, Lpcmci,
-    MultiDatasetConstraints, PagDiscoveryResult, Pc, Pcmci, PcmciPlus, RegimeAssignment, Rpcmci,
-    RpcmciDiscoveryResult, StaticCpdagDiscoveryResult,
+    CpdagDiscoveryResult, DagDiscoveryResult, DirectLingam, DiscoveryWorkspace, Fci, Ges,
+    JpcmciPlus, Lpcmci, MultiDatasetConstraints, PagDiscoveryResult, Pc, Pcmci, PcmciPlus,
+    RegimeAssignment, Rfci, Rpcmci, RpcmciDiscoveryResult, StaticCpdagDiscoveryResult,
+    StaticDagDiscoveryResult, StaticPagDiscoveryResult,
 };
 use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
 use causal_stats::{ConditionalIndependence, FdrAdjustment};
@@ -196,6 +197,85 @@ pub fn discover_pc(
         .with_fdr_adjustment(fdr)
         .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
         .with_ci(Arc::clone(&params.ci));
+    let mut ws = DiscoveryWorkspace::default();
+    alg.run(data, variables, &mut ws, ctx).map_err(AnalysisError::from)
+}
+
+/// Run classic static FCI over tabular data → PAG.
+///
+/// # Errors
+///
+/// Discovery failures.
+pub fn discover_fci(
+    data: &TabularData,
+    variables: &[VariableId],
+    params: &StaticDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<StaticPagDiscoveryResult, AnalysisError> {
+    let fdr = params.fdr.map(|f| f.with_exclude_contemporaneous(false));
+    let alg = Fci::new()
+        .with_fdr_adjustment(fdr)
+        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_ci(Arc::clone(&params.ci));
+    let mut ws = DiscoveryWorkspace::default();
+    alg.run(data, variables, &mut ws, ctx).map_err(AnalysisError::from)
+}
+
+/// Run classic static RFCI over tabular data → PAG.
+///
+/// # Errors
+///
+/// Discovery failures.
+pub fn discover_rfci(
+    data: &TabularData,
+    variables: &[VariableId],
+    params: &StaticDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<StaticPagDiscoveryResult, AnalysisError> {
+    let fdr = params.fdr.map(|f| f.with_exclude_contemporaneous(false));
+    let alg = Rfci::new()
+        .with_fdr_adjustment(fdr)
+        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_ci(Arc::clone(&params.ci));
+    let mut ws = DiscoveryWorkspace::default();
+    alg.run(data, variables, &mut ws, ctx).map_err(AnalysisError::from)
+}
+
+/// Run GES (Gaussian BIC) over tabular data → CPDAG.
+///
+/// # Errors
+///
+/// Discovery failures.
+pub fn discover_ges(
+    data: &TabularData,
+    variables: &[VariableId],
+    params: &StaticDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<StaticCpdagDiscoveryResult, AnalysisError> {
+    let fdr = params.fdr.map(|f| f.with_exclude_contemporaneous(false));
+    let alg = Ges::new()
+        .with_fdr_adjustment(fdr)
+        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_ci(Arc::clone(&params.ci));
+    let mut ws = DiscoveryWorkspace::default();
+    alg.run(data, variables, &mut ws, ctx).map_err(AnalysisError::from)
+}
+
+/// Run DirectLiNGAM over tabular data → DAG.
+///
+/// # Errors
+///
+/// Discovery failures.
+pub fn discover_lingam(
+    data: &TabularData,
+    variables: &[VariableId],
+    params: &StaticDiscoverParams,
+    prune_threshold: f64,
+    ctx: &ExecutionContext,
+) -> Result<StaticDagDiscoveryResult, AnalysisError> {
+    let alg = DirectLingam::new()
+        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_prune_threshold(prune_threshold);
     let mut ws = DiscoveryWorkspace::default();
     alg.run(data, variables, &mut ws, ctx).map_err(AnalysisError::from)
 }

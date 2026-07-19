@@ -4,6 +4,7 @@
 
 mod advanced;
 mod analytic;
+mod bayes;
 mod block_shuffle;
 mod calibration;
 mod factory;
@@ -14,6 +15,7 @@ mod parcorr_variants;
 mod types;
 
 pub use advanced::{Gpdc, KnnCmi, MixedKnnCmi, OracleCi, SymbolicCmi};
+pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 pub use analytic::analytic_parcorr_ci;
 pub use calibration::{
     CalibrationReport, calibrate_gsquared, calibrate_parcorr_like, chi2_crit_approx,

@@ -288,6 +288,52 @@ def discover_pc(
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
 
+def discover_ges(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: CiArg = None,
+    max_cond_size: int = 2,
+    threads: int = 1,
+) -> PcmciDiscoveryResult: ...
+
+def discover_lingam(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    prune_threshold: float = 0.05,
+    seed: int = 1,
+    max_cond_size: int = 8,
+    threads: int = 1,
+) -> PcmciDiscoveryResult: ...
+
+def discover_fci(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: CiArg = None,
+    max_cond_size: int = 2,
+    threads: int = 1,
+) -> PcmciDiscoveryResult: ...
+
+def discover_rfci(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: CiArg = None,
+    max_cond_size: int = 2,
+    threads: int = 1,
+) -> PcmciDiscoveryResult: ...
+
 def discover_lpcmci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],

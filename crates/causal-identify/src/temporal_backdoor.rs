@@ -294,6 +294,7 @@ impl TemporalBackdoorIdentifier {
         let q = CausalQuery::Distribution(causal_core::InterventionalDistributionQuery {
             outcomes: Arc::from([outcome_var]),
             interventions: Arc::from(interventions),
+            conditioning: Arc::from([]),
             target_population: query.target_population.clone(),
         });
 

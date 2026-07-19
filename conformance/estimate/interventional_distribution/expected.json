@@ -1,0 +1,6 @@
+{
+  "method": "general.id",
+  "estimator": "functional.distribution",
+  "mean": 0.7,
+  "tolerance": 0.05
+}

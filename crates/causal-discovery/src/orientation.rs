@@ -9,7 +9,9 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use causal_graph::{Cpdag, DenseNodeId, GraphError, MarkedEdge, TemporalCpdag};
+use causal_graph::{
+    Cpdag, DenseNodeId, Endpoint, GraphError, MarkedEdge, Pag, TemporalCpdag, TemporalPag,
+};
 
 use crate::error::DiscoveryError;
 
@@ -92,6 +94,104 @@ impl CpdagOps for Cpdag {
     }
     fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
         Self::mark_conflict(self, a, b)
+    }
+}
+
+/// Shared PAG operations for Zhang FCI / LPCMCI orientation on static or temporal graphs.
+///
+/// Middle-mark and lag helpers stay off this trait (LPCMCI APR/MMR are temporal-only).
+pub trait PagOps {
+    /// Node count.
+    fn node_count(&self) -> usize;
+    /// Whether any edge exists.
+    fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool;
+    /// Marked edge if present.
+    fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge>;
+    /// Neighbors with marks at `(self, neighbor)` from `id`'s perspective.
+    fn neighbors(&self, id: DenseNodeId) -> Vec<(DenseNodeId, Endpoint, Endpoint)>;
+    /// Set marks on an existing edge (from `a`'s perspective).
+    ///
+    /// # Errors
+    ///
+    /// Graph mutation failures.
+    fn set_marks(
+        &mut self,
+        a: DenseNodeId,
+        b: DenseNodeId,
+        at_a: Endpoint,
+        at_b: Endpoint,
+    ) -> Result<(), GraphError>;
+    /// Mark conflict on `{a,b}`.
+    ///
+    /// # Errors
+    ///
+    /// Graph mutation failures.
+    fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError>;
+    /// Remove edge `{a,b}`.
+    ///
+    /// # Errors
+    ///
+    /// Graph mutation failures.
+    fn remove_edge(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError>;
+}
+
+impl PagOps for Pag {
+    fn node_count(&self) -> usize {
+        Self::node_count(self)
+    }
+    fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
+        Self::has_edge(self, a, b)
+    }
+    fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
+        Self::edge_between(self, a, b)
+    }
+    fn neighbors(&self, id: DenseNodeId) -> Vec<(DenseNodeId, Endpoint, Endpoint)> {
+        Self::neighbors(self, id).collect()
+    }
+    fn set_marks(
+        &mut self,
+        a: DenseNodeId,
+        b: DenseNodeId,
+        at_a: Endpoint,
+        at_b: Endpoint,
+    ) -> Result<(), GraphError> {
+        Self::set_marks(self, a, b, at_a, at_b)
+    }
+    fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        Self::mark_conflict(self, a, b)
+    }
+    fn remove_edge(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        Self::remove_edge(self, a, b)
+    }
+}
+
+impl PagOps for TemporalPag {
+    fn node_count(&self) -> usize {
+        Self::node_count(self)
+    }
+    fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
+        Self::has_edge(self, a, b)
+    }
+    fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
+        Self::edge_between(self, a, b)
+    }
+    fn neighbors(&self, id: DenseNodeId) -> Vec<(DenseNodeId, Endpoint, Endpoint)> {
+        Self::neighbors(self, id).collect()
+    }
+    fn set_marks(
+        &mut self,
+        a: DenseNodeId,
+        b: DenseNodeId,
+        at_a: Endpoint,
+        at_b: Endpoint,
+    ) -> Result<(), GraphError> {
+        Self::set_marks(self, a, b, at_a, at_b)
+    }
+    fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        Self::mark_conflict(self, a, b)
+    }
+    fn remove_edge(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
+        Self::remove_edge(self, a, b)
     }
 }
 

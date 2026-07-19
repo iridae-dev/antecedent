@@ -70,18 +70,18 @@ notes = "Bayesian DAG/DBN posterior search (§13.7) — TODO.md item 5; envelope
 
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"
-status = "pending"
-notes = "Hierarchical / BVAR / state-space / GP after base Laplace/conjugate — TODO.md item 4 / DESIGN §14.4"
+status = "done"
+notes = "Hierarchical / BVAR / LGSSM / GP (feature gaussian-process) mechanism families — TODO.md item 4 / DESIGN §14.4"
 
 [[capabilities]]
 id = "bayes.validate.mcmc_diagnostics"
-status = "pending"
-notes = "Chain ESS / divergences / SBC wait for HMC/SMC — TODO.md item 4"
+status = "done"
+notes = "Chain ESS / R-hat / divergences via HMC + McmcDiagnosticsCheck — TODO.md item 4; SBC separate"
 
 [[capabilities]]
 id = "bayes.ci.tests"
-status = "pending"
-notes = "Bayes-factor CI / posterior dependence (§12) — TODO.md item 4"
+status = "done"
+notes = "Bayes-factor CI / posterior dependence / PPC-CI for conjugate Gaussian (§12) — TODO.md item 4"
 
 # External Stan/PyMC adapters are optional forever (native Laplace is canonical;
 # DESIGN §14.5). Not tracked as a required inventory row.

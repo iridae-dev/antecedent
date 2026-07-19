@@ -41,8 +41,9 @@ pub use registry::{
     SelectionPolicy,
 };
 pub use sample::{
-    sample_interventional, sample_observational, sample_posterior_predictive, sample_stochastic,
-    sample_structural_with_overlay, sample_with_overlay, soft_to_slot,
+    sample_conditional_interventional, sample_interventional, sample_observational,
+    sample_posterior_predictive, sample_stochastic, sample_structural_with_overlay,
+    sample_with_overlay, soft_to_slot,
 };
 
 /// Crate version.

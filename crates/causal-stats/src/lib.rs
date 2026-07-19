@@ -24,13 +24,14 @@ pub mod special;
 pub mod twosls;
 
 pub use ci::{
-    CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult,
-    CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, GSquared,
-    Gpdc, KnnCmi, KnnCmiWorkspace, MixedKnnCmi, MultivariatePartialCorrelation, OracleCi,
-    PairwiseMultivariateCi, PartialCorrelation, PreparedCiTest, RegressionCi,
-    RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
-    analytic_confidence_level, analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
-    nonparametric_permutation_count, pairwise_multivariate_test,
+    BayesFactorCi, CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery,
+    CiResult, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod,
+    GSquared, Gpdc, KnnCmi, KnnCmiWorkspace, MixedKnnCmi, MultivariatePartialCorrelation, OracleCi,
+    PairwiseMultivariateCi, PartialCorrelation, PosteriorDependenceCi, PosteriorPredictiveCi,
+    PreparedCiTest, RegressionCi, RobustPartialCorrelation, SignificanceMethod, SymbolicCmi,
+    WeightedPartialCorrelation, analytic_confidence_level, analytic_parcorr_ci,
+    calibrate_parcorr_like, ci_from_name, nonparametric_permutation_count,
+    pairwise_multivariate_test,
 };
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use design::{
