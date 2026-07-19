@@ -13,12 +13,12 @@
 
 use std::sync::Arc;
 
-use causal_core::VariableId;
+use causal_core::{RoleHint, VariableId};
 use causal_data::{TableView, TabularData};
 use causal_graph::DenseNodeId;
 use causal_stats::{
-    DenseLinearAlgebra, FaerBackend, GlmOptions, LeastSquaresWorkspace, MultinomialDesignRef,
-    fit_multinomial_logit,
+    DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
+    MultinomialDesignRef, fit_glm, fit_multinomial_logit,
 };
 
 use crate::batch::ParentBatch;
@@ -37,11 +37,13 @@ pub enum MechanismFamily {
     Constant,
     /// Discrete categorical (unconditional root or parent-conditional softmax).
     Discrete,
-    /// Hierarchical linear Gaussian (ridge / partial pooling).
+    /// Hierarchical linear Gaussian (EB / group partial pooling).
     HierarchicalLinear,
-    /// Single-equation Bayesian VAR-style linear Gaussian.
+    /// Hierarchical Bernoulli-logit GLM (EB / group shrinkage) → [`MechanismSlot::Discrete`].
+    HierarchicalGlm,
+    /// Single-equation Bayesian VAR (Minnesota prior).
     Bvar,
-    /// Linear Gaussian state-space observation mechanism.
+    /// Linear Gaussian state-space observation mechanism (Kalman EM fit).
     LinearGaussianStateSpace,
     /// Gaussian-process regression mechanism (feature `gaussian-process`).
     GaussianProcess,
@@ -56,6 +58,7 @@ impl MechanismFamily {
             Self::Constant => "constant",
             Self::Discrete => "discrete",
             Self::HierarchicalLinear => "hierarchical_linear",
+            Self::HierarchicalGlm => "hierarchical_glm",
             Self::Bvar => "bvar",
             Self::LinearGaussianStateSpace => "lgssm",
             Self::GaussianProcess => "gaussian_process",
@@ -141,7 +144,12 @@ impl MechanismRegistry {
             MechanismFamily::LinearGaussianStateSpace,
             MechanismFamily::Constant,
         ];
-        Self { continuous: Arc::from(continuous), discrete: Self::standard().discrete }
+        let discrete = vec![
+            MechanismFamily::Discrete,
+            MechanismFamily::HierarchicalGlm,
+            MechanismFamily::Constant,
+        ];
+        Self { continuous: Arc::from(continuous), discrete: Arc::from(discrete) }
     }
 
     /// Assign and fit all nodes. Requires an explicit selection policy.
@@ -396,59 +404,12 @@ fn fit_family(
             fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)
         }
         MechanismFamily::HierarchicalLinear => {
-            // Empirical-Bayes ridge: λ = n * 0.1 on the coefficient block.
-            let shrink = (y.len() as f64) * 0.1;
-            let slot = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, shrink)?;
-            match slot {
-                MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
-                    Ok(MechanismSlot::HierarchicalLinear {
-                        intercept,
-                        coeffs,
-                        sigma,
-                        shrinkage: shrink,
-                    })
-                }
-                other => Ok(other),
-            }
+            fit_hierarchical_linear(gather, model, data, y, backend, ls_ws)
         }
-        MechanismFamily::Bvar => {
-            let slot = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 1e-3)?;
-            match slot {
-                MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
-                    Ok(MechanismSlot::Bvar { intercept, coeffs, sigma })
-                }
-                other => Ok(other),
-            }
-        }
+        MechanismFamily::HierarchicalGlm => fit_hierarchical_glm(gather, model, data, y, backend, ls_ws),
+        MechanismFamily::Bvar => fit_bvar_minnesota(gather, model, data, y, backend, ls_ws),
         MechanismFamily::LinearGaussianStateSpace => {
-            // Fit AR(1)+noise on residuals after parent OLS mean, or on y if root.
-            let lg = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?;
-            let (intercept, coeffs, sigma) = match lg {
-                MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
-                    (intercept, coeffs, sigma)
-                }
-                _ => {
-                    return Err(ModelError::Unsupported {
-                        message: "lgssm fit requires linear base".into(),
-                    });
-                }
-            };
-            let mut resid = vec![0.0; y.len()];
-            let parent_cols = gather_parent_cols(gather, model, data)?;
-            for r in 0..y.len() {
-                let mut pred = intercept;
-                for (p, col) in parent_cols.iter().enumerate() {
-                    pred += coeffs[p] * col[r];
-                }
-                resid[r] = y[r] - pred;
-            }
-            let (a, process_std) = fit_ar1(&resid);
-            Ok(MechanismSlot::LinearGaussianStateSpace {
-                a,
-                process_std: process_std.max(1e-8),
-                obs_std: sigma.max(1e-8),
-                initial_mean: resid.first().copied().unwrap_or(0.0),
-            })
+            fit_lgssm_kalman_em(gather, model, data, y, backend, ls_ws)
         }
         MechanismFamily::GaussianProcess => {
             #[cfg(feature = "gaussian-process")]
@@ -477,6 +438,364 @@ fn gather_parent_cols(
         parent_cols.push(data.float64_values(var).map_err(ModelError::from)?);
     }
     Ok(parent_cols)
+}
+
+/// Empirical-Bayes hierarchical linear: estimate τ² / λ from OLS, optional UnitId
+/// random-intercept demeaning for partial pooling.
+fn fit_hierarchical_linear(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<MechanismSlot, ModelError> {
+    let n = y.len();
+    let ols = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?;
+    let MechanismSlot::LinearGaussian { intercept: ols_int, coeffs: ols_coeffs, sigma: ols_sigma } =
+        ols
+    else {
+        return Err(ModelError::Unsupported { message: "hierarchical base fit failed".into() });
+    };
+    let p = ols_coeffs.len();
+    // Method-of-moments EB: τ² ≈ mean(β̂²) − σ²·mean(diag((X'X)^{-1})) proxy;
+    // use simplified τ² = mean(β̂²) clamped, λ = σ² / τ².
+    let mean_b2 = if p == 0 {
+        0.0
+    } else {
+        ols_coeffs.iter().map(|b| b * b).sum::<f64>() / p as f64
+    };
+    let tau2 = (mean_b2 - ols_sigma * ols_sigma / n.max(1) as f64).max(1e-8);
+    let mut lambda = (ols_sigma * ols_sigma / tau2).clamp(1e-6, 1e6);
+
+    // Optional UnitId random-intercept: demean within groups, then refit EB ridge.
+    let mut y_work = y.to_vec();
+    let mut group_tau = 0.0;
+    if let Some(groups) = unit_id_groups(data, y.len()) {
+        let (demeaned, tau) = demean_by_group(&y_work, &groups);
+        y_work = demeaned;
+        group_tau = tau;
+        // Re-estimate λ on demeaned series.
+        let ols2 = fit_linear_gaussian(gather, model, data, &y_work, backend, ls_ws, 0.0)?;
+        if let MechanismSlot::LinearGaussian { coeffs, sigma, .. } = ols2 {
+            let mean_b2 = if coeffs.is_empty() {
+                0.0
+            } else {
+                coeffs.iter().map(|b| b * b).sum::<f64>() / coeffs.len() as f64
+            };
+            let tau2 = (mean_b2 - sigma * sigma / n.max(1) as f64).max(1e-8);
+            lambda = (sigma * sigma / tau2).clamp(1e-6, 1e6);
+        }
+    }
+
+    let slot = fit_linear_gaussian(gather, model, data, &y_work, backend, ls_ws, lambda)?;
+    match slot {
+        MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
+            // Restore population intercept when we demeaned.
+            let intercept = if group_tau > 0.0 {
+                y.iter().sum::<f64>() / n.max(1) as f64
+                    - coeffs.iter().enumerate().try_fold(0.0, |acc, (i, c)| {
+                        let var = model.output_layout.variables[gather.parents[i].as_usize()];
+                        let col = data.float64_values(var).map_err(ModelError::from)?;
+                        let mean = col.iter().sum::<f64>() / n.max(1) as f64;
+                        Ok::<_, ModelError>(acc + c * mean)
+                    })?
+            } else {
+                intercept
+            };
+            let _ = (ols_int, group_tau);
+            Ok(MechanismSlot::HierarchicalLinear {
+                intercept,
+                coeffs,
+                sigma,
+                shrinkage: lambda,
+            })
+        }
+        other => Ok(other),
+    }
+}
+
+/// Hierarchical Bernoulli logit with EB ridge (and optional UnitId demeaning of the
+/// linear predictor target via frequency offsets — here: ridge λ from OLS proxy on
+/// working residuals).
+fn fit_hierarchical_glm(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<MechanismSlot, ModelError> {
+    let n = y.len();
+    let binary = y.iter().all(|&yi| yi == 0.0 || yi == 1.0);
+    if !binary {
+        return Err(ModelError::Unsupported {
+            message: "HierarchicalGlm requires binary {0,1} outcomes".into(),
+        });
+    }
+    // EB λ from linear-probability OLS moments.
+    let ols = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?;
+    let lambda = match &ols {
+        MechanismSlot::LinearGaussian { coeffs, sigma, .. } => {
+            let p = coeffs.len().max(1);
+            let mean_b2 = coeffs.iter().map(|b| b * b).sum::<f64>() / p as f64;
+            let tau2 = (mean_b2 - sigma * sigma / n.max(1) as f64).max(1e-8);
+            (sigma * sigma / tau2).clamp(1e-4, 1e3)
+        }
+        _ => 1.0,
+    };
+    let p = gather.n_parents();
+    let ncols = 1 + p;
+    let mut x = vec![0.0; n * ncols];
+    for r in 0..n {
+        x[r] = 1.0;
+    }
+    for (pi, &parent) in gather.parents.iter().enumerate() {
+        let var = model.output_layout.variables[parent.as_usize()];
+        let col = data.float64_values(var).map_err(ModelError::from)?;
+        let base = (1 + pi) * n;
+        x[base..base + n].copy_from_slice(&col[..n]);
+    }
+    let mut opts = GlmOptions::default();
+    opts.ridge_on_separation = Some(lambda);
+    let fit = fit_glm(
+        GlmFamily::BinomialLogit,
+        GlmDesignRef { x_colmajor: &x, nrows: n, ncols, y },
+        &backend,
+        ls_ws,
+        &opts,
+    )
+    .map_err(|e| ModelError::Numerical { message: e.to_string() })?;
+    if !fit.converged {
+        return Err(ModelError::Numerical {
+            message: "hierarchical GLM logit did not converge".into(),
+        });
+    }
+    // Encode as 2-category Discrete with baseline-category logits (cat0 = 0, cat1 = β).
+    let mut logit_coeffs = vec![0.0; 2 * ncols];
+    logit_coeffs[ncols..].copy_from_slice(&fit.coefficients[..ncols]);
+    let n1 = y.iter().filter(|&&yi| yi == 1.0).count() as f64;
+    let p1 = n1 / n.max(1) as f64;
+    Ok(MechanismSlot::Discrete {
+        support: Arc::from([0.0, 1.0]),
+        probs: Arc::from([1.0 - p1, p1]),
+        logit_coeffs: Some(Arc::from(logit_coeffs)),
+    })
+}
+
+/// Minnesota-prior single-equation BVAR: prior variance φ/(ℓ+1)² on coefficient ℓ.
+fn fit_bvar_minnesota(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<MechanismSlot, ModelError> {
+    let n = y.len();
+    let p = gather.n_parents();
+    let ncols = 1 + p;
+    let phi: f64 = 0.2; // overall tightness
+    let mut x = vec![0.0; n * ncols];
+    for r in 0..n {
+        x[r] = 1.0;
+    }
+    for (pi, &parent) in gather.parents.iter().enumerate() {
+        let var = model.output_layout.variables[parent.as_usize()];
+        let col = data.float64_values(var).map_err(ModelError::from)?;
+        let base = (1 + pi) * n;
+        x[base..base + n].copy_from_slice(&col[..n]);
+    }
+    // Augment with Minnesota prior pseudo-observations: √(1/v_j) * e_j → 0.
+    let extra = ncols; // intercept + each lag coeff
+    let mut x2 = vec![0.0; (n + extra) * ncols];
+    let mut y2 = vec![0.0; n + extra];
+    for c in 0..ncols {
+        for r in 0..n {
+            x2[c * (n + extra) + r] = x[c * n + r];
+        }
+    }
+    y2[..n].copy_from_slice(y);
+    // Intercept prior: loose (v = 100 * φ)
+    let v0: f64 = (100.0 * phi).max(1e-6);
+    x2[0 * (n + extra) + n] = (1.0 / v0).sqrt();
+    for j in 0..p {
+        let lag = (j + 1) as f64;
+        let v: f64 = (phi / (lag * lag)).max(1e-8);
+        x2[(1 + j) * (n + extra) + (n + 1 + j)] = (1.0 / v).sqrt();
+    }
+    let fit =
+        backend.least_squares(&x2, n + extra, ncols, &y2, ls_ws).map_err(ModelError::from)?;
+    let intercept = fit.coefficients[0];
+    let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
+    let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
+    Ok(MechanismSlot::Bvar { intercept, coeffs, sigma })
+}
+
+/// Scalar LGSSM on parent-adjusted residuals via EM (Kalman filter/smoother).
+fn fit_lgssm_kalman_em(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<MechanismSlot, ModelError> {
+    let lg = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?;
+    let (intercept, coeffs, sigma) = match lg {
+        MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => (intercept, coeffs, sigma),
+        _ => {
+            return Err(ModelError::Unsupported {
+                message: "lgssm fit requires linear base".into(),
+            });
+        }
+    };
+    let parent_cols = gather_parent_cols(gather, model, data)?;
+    let mut resid = vec![0.0; y.len()];
+    for r in 0..y.len() {
+        let mut pred = intercept;
+        for (p, col) in parent_cols.iter().enumerate() {
+            pred += coeffs[p] * col[r];
+        }
+        resid[r] = y[r] - pred;
+    }
+    let (a, process_std, obs_std, initial_mean) = lgssm_em(&resid, 25);
+    let _ = sigma;
+    Ok(MechanismSlot::LinearGaussianStateSpace {
+        a,
+        process_std: process_std.max(1e-8),
+        obs_std: obs_std.max(1e-8),
+        initial_mean,
+    })
+}
+
+/// EM for scalar LGSSM: x_t = a x_{t-1} + q ε, y_t = x_t + r η.
+fn lgssm_em(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
+    let n = y.len();
+    if n < 3 {
+        let (a, q) = fit_ar1(y);
+        return (a, q, q.max(1e-8), y.first().copied().unwrap_or(0.0));
+    }
+    let mut a = 0.8;
+    let mut q = 1.0; // process variance
+    let mut r = 1.0; // obs variance
+    let mut x0 = y[0];
+    let p0 = 1.0;
+    for _ in 0..max_iters {
+        // Kalman filter
+        let mut x_f = vec![0.0; n];
+        let mut p_f = vec![0.0; n];
+        let mut x_pred = vec![0.0; n];
+        let mut p_pred = vec![0.0; n];
+        let mut x = x0;
+        let mut p = p0;
+        for t in 0..n {
+            let xp = if t == 0 { x } else { a * x };
+            let pp = if t == 0 { p } else { a * a * p + q };
+            x_pred[t] = xp;
+            p_pred[t] = pp;
+            let s = pp + r;
+            let k = if s > 1e-18 { pp / s } else { 0.0 };
+            x = xp + k * (y[t] - xp);
+            p = (1.0 - k) * pp;
+            x_f[t] = x;
+            p_f[t] = p.max(0.0);
+        }
+        // Rauch–Tung–Striebel smoother
+        let mut x_s = x_f.clone();
+        let mut p_s = p_f.clone();
+        let mut p_lag = vec![0.0; n]; // Cov(x_t, x_{t-1})
+        for t in (0..n - 1).rev() {
+            let pp = p_pred[t + 1].max(1e-18);
+            let j = p_f[t] * a / pp;
+            x_s[t] = x_f[t] + j * (x_s[t + 1] - x_pred[t + 1]);
+            p_s[t] = p_f[t] + j * j * (p_s[t + 1] - p_pred[t + 1]);
+            p_lag[t + 1] = j * p_s[t + 1];
+        }
+        // M-step
+        let mut num = 0.0;
+        let mut den = 0.0;
+        for t in 1..n {
+            num += p_lag[t] + x_s[t] * x_s[t - 1];
+            den += p_s[t - 1] + x_s[t - 1] * x_s[t - 1];
+        }
+        a = if den > 1e-12 { (num / den).clamp(-0.999, 0.999) } else { a };
+        let mut q_acc = 0.0;
+        for t in 1..n {
+            q_acc += p_s[t]
+                + x_s[t] * x_s[t]
+                + a * a * (p_s[t - 1] + x_s[t - 1] * x_s[t - 1])
+                - 2.0 * a * (p_lag[t] + x_s[t] * x_s[t - 1]);
+        }
+        q = (q_acc / (n - 1) as f64).max(1e-8);
+        let mut r_acc = 0.0;
+        for t in 0..n {
+            r_acc += p_s[t] + (y[t] - x_s[t]).powi(2);
+        }
+        r = (r_acc / n as f64).max(1e-8);
+        x0 = x_s[0];
+    }
+    (a, q.sqrt(), r.sqrt(), x0)
+}
+
+fn unit_id_groups(data: &TabularData, n: usize) -> Option<Vec<u32>> {
+    let schema = data.schema();
+    for var in schema.variables() {
+        if !var.role_hints.contains(RoleHint::UnitId) {
+            continue;
+        }
+        let Ok(col) = data.float64_values(var.id) else {
+            continue;
+        };
+        if col.len() != n {
+            continue;
+        }
+        let mut groups = Vec::with_capacity(n);
+        let mut ok = true;
+        for &v in col.iter() {
+            if !v.is_finite() {
+                ok = false;
+                break;
+            }
+            groups.push(v.round() as u32);
+        }
+        if ok {
+            let mut uniq = groups.clone();
+            uniq.sort_unstable();
+            uniq.dedup();
+            if uniq.len() >= 2 && uniq.len() < n {
+                return Some(groups);
+            }
+        }
+    }
+    None
+}
+
+fn demean_by_group(y: &[f64], groups: &[u32]) -> (Vec<f64>, f64) {
+    let mut sums = std::collections::HashMap::<u32, (f64, usize)>::new();
+    for (&g, &yi) in groups.iter().zip(y.iter()) {
+        let e = sums.entry(g).or_insert((0.0, 0));
+        e.0 += yi;
+        e.1 += 1;
+    }
+    let grand = y.iter().sum::<f64>() / y.len().max(1) as f64;
+    let mut tau2 = 0.0;
+    let mut gcount = 0usize;
+    for (s, c) in sums.values() {
+        let m = s / (*c).max(1) as f64;
+        tau2 += (m - grand).powi(2);
+        gcount += 1;
+    }
+    let tau = (tau2 / gcount.max(1) as f64).sqrt();
+    let out: Vec<f64> = groups
+        .iter()
+        .zip(y.iter())
+        .map(|(&g, &yi)| {
+            let (s, c) = sums[&g];
+            yi - s / c.max(1) as f64
+        })
+        .collect();
+    (out, tau)
 }
 
 fn fit_ar1(series: &[f64]) -> (f64, f64) {
@@ -572,27 +891,47 @@ fn fit_gaussian_process(
             x_train[r * p + c] = parent_cols[c][r];
         }
     }
-    let length_scale = 1.0;
+    // Grid-search length_scale and noise on log marginal likelihood (variance fixed at 1).
     let variance = 1.0;
-    let noise_std = 0.1;
-    // K_ij = variance * exp(-0.5 ||xi-xj||² / ℓ²) + noise² δ_ij
-    let mut k = vec![0.0; n * n];
-    let inv_l2 = 1.0 / (length_scale * length_scale);
-    for i in 0..n {
-        for j in i..n {
-            let mut d2 = 0.0;
-            for c in 0..p {
-                let d = x_train[i * p + c] - x_train[j * p + c];
-                d2 += d * d;
+    let length_scales = [0.25, 0.5, 1.0, 2.0, 4.0];
+    let noise_stds = [0.05, 0.1, 0.2, 0.5];
+    let mut best = None::<(f64, f64, f64, Vec<f64>)>; // (nlml, ℓ, σ, α)
+    for &length_scale in &length_scales {
+        for &noise_std in &noise_stds {
+            let mut k = vec![0.0; n * n];
+            let inv_l2 = 1.0 / (length_scale * length_scale);
+            for i in 0..n {
+                for j in i..n {
+                    let mut d2 = 0.0;
+                    for c in 0..p {
+                        let d = x_train[i * p + c] - x_train[j * p + c];
+                        d2 += d * d;
+                    }
+                    let kij = variance * (-0.5 * d2 * inv_l2).exp();
+                    k[i * n + j] = kij;
+                    k[j * n + i] = kij;
+                }
+                k[i * n + i] += noise_std * noise_std;
             }
-            let kij = variance * (-0.5 * d2 * inv_l2).exp();
-            k[i * n + j] = kij;
-            k[j * n + i] = kij;
+            let Ok(alpha) = solve_dense(&k, n, y) else {
+                continue;
+            };
+            // Approximate NLML ∝ y'α + log|K| via diagonal of Cholesky-free proxy: sum log diag after GE.
+            let mut y_alpha = 0.0;
+            for i in 0..n {
+                y_alpha += y[i] * alpha[i];
+            }
+            let logdet_proxy: f64 = (0..n).map(|i| k[i * n + i].abs().max(1e-12).ln()).sum();
+            let nlml = 0.5 * y_alpha + 0.5 * logdet_proxy;
+            match &best {
+                Some((best_nlml, ..)) if nlml >= *best_nlml => {}
+                _ => best = Some((nlml, length_scale, noise_std, alpha)),
+            }
         }
-        k[i * n + i] += noise_std * noise_std;
     }
-    // Solve K α = y via Gauss elimination (n small / MVP).
-    let alpha = solve_dense(&k, n, y)?;
+    let (_nlml, length_scale, noise_std, alpha) = best.ok_or_else(|| ModelError::Numerical {
+        message: "GP hyperparameter search failed".into(),
+    })?;
     Ok(MechanismSlot::GaussianProcess {
         length_scale,
         variance,

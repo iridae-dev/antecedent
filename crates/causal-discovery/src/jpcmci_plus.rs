@@ -27,6 +27,7 @@ use causal_stats::{
 
 use crate::constraints::{
     ContextKind, DiscoveryConstraints, JpcmciNodeRole, MultiDatasetConstraints, SpaceDummyCiMode,
+    TimeDummyCiMode,
 };
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
@@ -134,27 +135,37 @@ impl JpcmciPlus {
         let dummies = DummyOptions {
             include_space_dummy: md.include_space_dummy && data.env_count() > 1,
             include_time_dummy: md.include_time_dummy,
+            time_dummy_encoding: md.time_dummy_encoding,
+            max_time_one_hot_levels: md.max_time_one_hot_levels,
         };
         let pooled =
             pool_multi_env_lagged_frame(data, &observed, frame_depth, dummies, &ctx.kernel_policy)
                 .map_err(DiscoveryError::from)?;
 
         let space_ids_full = Arc::clone(&pooled.space_dummy_variables);
+        let time_ids_full = Arc::clone(&pooled.time_dummy_variables);
         let use_mv_space_dummy = md.space_dummy_ci == SpaceDummyCiMode::MultivariateBlock
-            && !space_ids_full.is_empty();
+            && space_ids_full.len() > 1;
+        let use_mv_time_dummy = md.time_dummy_ci == TimeDummyCiMode::MultivariateBlock
+            && time_ids_full.len() > 1;
         let logical_space_dummies: Arc<[VariableId]> = if use_mv_space_dummy {
             Arc::from([space_ids_full[0]])
         } else {
             Arc::clone(&space_ids_full)
         };
+        let logical_time_dummies: Arc<[VariableId]> = if use_mv_time_dummy {
+            Arc::from([time_ids_full[0]])
+        } else {
+            Arc::clone(&time_ids_full)
+        };
 
         let mut constraints = self.engine.constraints.clone();
         constraints.multi_dataset.space_dummy_variables = Arc::clone(&logical_space_dummies);
-        constraints.multi_dataset.time_dummy_variables = pooled
-            .time_dummy_variable
-            .map(|t| Arc::from([t]) as Arc<[VariableId]>)
-            .unwrap_or_else(|| Arc::from([]));
+        constraints.multi_dataset.time_dummy_variables = Arc::clone(&logical_time_dummies);
         constraints.multi_dataset.space_dummy_ci = md.space_dummy_ci;
+        constraints.multi_dataset.time_dummy_ci = md.time_dummy_ci;
+        constraints.multi_dataset.time_dummy_encoding = md.time_dummy_encoding;
+        constraints.multi_dataset.max_time_one_hot_levels = md.max_time_one_hot_levels;
 
         let system: Vec<VariableId> = variables.to_vec();
         let context: Vec<VariableId> = md.context_variables.to_vec();
@@ -163,12 +174,10 @@ impl JpcmciPlus {
             .copied()
             .filter(|&v| constraints.multi_dataset.context_kind(v) == ContextKind::Time)
             .collect();
-        // Search graph uses the logical space-dummy id in MV mode (one-hot cols stay in frame).
+        // Search graph uses logical dummy ids in MV mode (one-hot cols stay in frame).
         let mut all_vars = pooled.observed_variables.to_vec();
         all_vars.extend_from_slice(&logical_space_dummies);
-        if let Some(t) = pooled.time_dummy_variable {
-            all_vars.push(t);
-        }
+        all_vars.extend_from_slice(&logical_time_dummies);
         let frame = &pooled.frame;
 
         if let Some(hard) = ctx.memory.hard_limit_bytes {
@@ -179,17 +188,26 @@ impl JpcmciPlus {
             }
         }
 
-        let ci: Arc<dyn ConditionalIndependence + Send + Sync> = if use_mv_space_dummy {
-            let groups = causal_data::VectorVariableGroups::try_new(Arc::from([Arc::from(
-                space_ids_full.to_vec(),
-            )]))
-            .map_err(DiscoveryError::from)?;
-            let blocks = causal_data::column_blocks_for_frame(&groups, frame)
-                .map_err(DiscoveryError::from)?;
-            Arc::new(PairwiseMultivariateCi::with_column_blocks(blocks))
-        } else {
-            Arc::clone(&self.engine.ci)
-        };
+        let mut mv_groups: Vec<Arc<[VariableId]>> = Vec::new();
+        if use_mv_space_dummy {
+            mv_groups.push(Arc::from(space_ids_full.to_vec()));
+        }
+        if use_mv_time_dummy {
+            mv_groups.push(Arc::from(time_ids_full.to_vec()));
+        }
+        let (ci, column_blocks): (Arc<dyn ConditionalIndependence + Send + Sync>, _) =
+            if mv_groups.is_empty() {
+                (Arc::clone(&self.engine.ci), Arc::from([]) as Arc<[Arc<[usize]>]>)
+            } else {
+                let groups = causal_data::VectorVariableGroups::try_new(Arc::from(mv_groups))
+                    .map_err(DiscoveryError::from)?;
+                let blocks = causal_data::column_blocks_for_frame(&groups, frame)
+                    .map_err(DiscoveryError::from)?;
+                (
+                    Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::clone(&blocks))),
+                    blocks,
+                )
+            };
 
         let threads = ctx.parallelism.max_threads.get().max(1);
         {
@@ -205,36 +223,31 @@ impl JpcmciPlus {
         let engine = PcmciEngine {
             constraints: constraints.clone(),
             ci: Arc::clone(&ci),
-            column_blocks: if use_mv_space_dummy {
-                let groups = causal_data::VectorVariableGroups::try_new(Arc::from([Arc::from(
-                    space_ids_full.to_vec(),
-                )]))
-                .map_err(DiscoveryError::from)?;
-                causal_data::column_blocks_for_frame(&groups, frame).map_err(DiscoveryError::from)?
-            } else {
-                Arc::from([])
-            },
+            column_blocks,
         };
 
         let mut diagnostics = Vec::new();
         let space_diag = if use_mv_space_dummy {
-            format!(
-                "multivariate(k={})",
-                space_ids_full.len()
-            )
+            format!("multivariate(k={})", space_ids_full.len())
         } else {
             format!("{}", space_ids_full.len())
+        };
+        let time_diag = if use_mv_time_dummy {
+            format!("multivariate(k={})", time_ids_full.len())
+        } else {
+            format!("{}", time_ids_full.len())
         };
         push_diagnostic(
             &mut diagnostics,
             "jpcmci_plus.pooled_frame",
             format!(
-                "pooled {} envs → {} effective rows, {} observed + {} space-dummy + {} time-dummy cols",
+                "pooled {} envs → {} effective rows, {} observed + {} space-dummy + {} time-dummy cols (encoding={:?})",
                 data.env_count(),
                 frame.n_effective(),
                 observed.len(),
                 space_diag,
-                usize::from(pooled.time_dummy_variable.is_some())
+                time_diag,
+                md.time_dummy_encoding,
             ),
         );
 
@@ -297,7 +310,7 @@ impl JpcmciPlus {
         // --- Phase 3: MCI dummy–system (if any dummies) ---
         let mut dummy_scored = Vec::new();
         let mut trunc_b = 0u64;
-        if !space_ids_full.is_empty() || pooled.time_dummy_variable.is_some() {
+        if !space_ids_full.is_empty() || !time_ids_full.is_empty() {
             let mut cons3 = constraints.clone();
             // Fix discovered context → system as required.
             let mut required = cons3.required.to_vec();
@@ -394,17 +407,20 @@ impl JpcmciPlus {
 
         // Merge phase scored survivors only (PCMCI+ style: no PC1 re-injection).
         let space_rep = logical_space_dummies.first().copied();
+        let time_rep = logical_time_dummies.first().copied();
         let mut scored = Vec::new();
         scored.extend(ctx_scored);
         scored.extend(dummy_scored);
         scored.extend(sys_scored);
-        scored = remap_space_dummy_links(scored, &space_ids_full, space_rep);
+        scored = remap_dummy_block_links(scored, &space_ids_full, space_rep);
+        scored = remap_dummy_block_links(scored, &time_ids_full, time_rep);
         scored = threshold_scored_links(scored, self.fdr, constraints.alpha);
         scored = symmetrize_contemporaneous_links(scored);
         // Exogenous → system: force directed (no undirected symmetrize residue).
         scored = orient_exogenous_links(scored, &constraints);
 
-        let logical_exog = logical_exogenous_ids(&context, space_rep, pooled.time_dummy_variable);
+        let logical_exog =
+            logical_exogenous_ids(&context, &logical_space_dummies, &logical_time_dummies);
         let mut cpdag = cpdag_from_jpcmci_links(&scored, &system, &logical_exog, max_lag)?;
         let node_ids = lagged_node_index(cpdag.nodes());
         let mut state = orientation_state_from_sepsets(&node_ids, &sepsets);
@@ -427,7 +443,7 @@ impl JpcmciPlus {
         let algorithm = algorithm_record(
             "jpcmci_plus",
             format!(
-                "alpha={},max_lag={},fdr={:?},envs={},context={},space_dummy={},space_dummy_ci={:?},time_dummy={}",
+                "alpha={},max_lag={},fdr={:?},envs={},context={},space_dummy={},space_dummy_ci={:?},time_dummy={},time_dummy_encoding={:?},time_dummy_ci={:?}",
                 constraints.alpha,
                 max_lag,
                 self.fdr,
@@ -435,7 +451,9 @@ impl JpcmciPlus {
                 context.len(),
                 space_ids_full.len(),
                 md.space_dummy_ci,
-                usize::from(pooled.time_dummy_variable.is_some())
+                time_ids_full.len(),
+                md.time_dummy_encoding,
+                md.time_dummy_ci,
             ),
         );
         let evidence = cpdag_evidence_from_oriented(cpdag.clone(), scored, &sepsets);
@@ -480,16 +498,12 @@ impl JpcmciPlus {
 
 fn logical_exogenous_ids(
     context: &[VariableId],
-    space_rep: Option<VariableId>,
-    time_dummy: Option<VariableId>,
+    space_dummies: &[VariableId],
+    time_dummies: &[VariableId],
 ) -> Vec<VariableId> {
     let mut out = context.to_vec();
-    if let Some(s) = space_rep {
-        out.push(s);
-    }
-    if let Some(t) = time_dummy {
-        out.push(t);
-    }
+    out.extend_from_slice(space_dummies);
+    out.extend_from_slice(time_dummies);
     out
 }
 
@@ -555,24 +569,24 @@ fn replace_exogenous_parents(
     }
 }
 
-fn remap_space_dummy_links(
+fn remap_dummy_block_links(
     scored: Vec<ScoredLink>,
-    space_dummies: &[VariableId],
+    dummy_ids: &[VariableId],
     rep: Option<VariableId>,
 ) -> Vec<ScoredLink> {
     let Some(rep) = rep else {
         return scored;
     };
-    if space_dummies.len() <= 1 {
+    if dummy_ids.len() <= 1 {
         return scored;
     }
     scored
         .into_iter()
         .map(|mut s| {
-            if space_dummies.contains(&s.link.source) {
+            if dummy_ids.contains(&s.link.source) {
                 s.link.source = rep;
             }
-            if space_dummies.contains(&s.link.target) {
+            if dummy_ids.contains(&s.link.target) {
                 s.link.target = rep;
             }
             s

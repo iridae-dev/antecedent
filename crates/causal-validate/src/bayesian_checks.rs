@@ -12,12 +12,12 @@
 
 use std::sync::Arc;
 
-use causal_core::{CausalRng, ExecutionContext};
+use causal_core::{CausalRng, ExecutionContext, KernelPolicy};
 use causal_estimate::{
     BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, PreparedBayesianProblem,
 };
 use causal_identify::IdentificationStatus;
-use causal_kernels::standard_normal;
+use causal_kernels::{PosteriorReduceOp, reduce_posterior_draws, standard_normal};
 use causal_prob::{PriorSensitivitySummary, PriorSet};
 use causal_stats::GlmFamily;
 
@@ -326,14 +326,10 @@ fn summarize_check(
     summaries: &[f64],
     n_sims: u32,
 ) -> PredictiveCheckReport {
+    let policy = KernelPolicy::default_policy();
+    let mean = reduce_posterior_draws(summaries, PosteriorReduceOp::Mean, &policy).unwrap_or(0.0);
+    let sd = reduce_posterior_draws(summaries, PosteriorReduceOp::Std, &policy).unwrap_or(0.0);
     let n = summaries.len() as f64;
-    let mean = summaries.iter().sum::<f64>() / n.max(1.0);
-    let var = if summaries.len() > 1 {
-        summaries.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / (n - 1.0)
-    } else {
-        0.0
-    };
-    let sd = var.sqrt();
     let below = summaries.iter().filter(|&&x| x <= observed).count() as f64;
     let p = (2.0 * (below / n.max(1.0)).min(1.0 - below / n.max(1.0))).min(1.0);
     PredictiveCheckReport {
@@ -607,9 +603,9 @@ impl SimulationBasedCalibration {
         Self { n_reps: n_reps.max(1), ..Self::default() }
     }
 
-    /// Run SBC using prior-predictive data generated from the prepared design's
-    /// outcome column as a template (shuffle + Gaussian noise), refitting the
-    /// Bayesian g-computation estimator each replicate.
+    /// Run SBC: draw θ from the prior, simulate `y` from the prior predictive under
+    /// the fixed design matrix, refit the Bayesian g-computation estimator, and
+    /// rank the true ATE among posterior effect draws.
     ///
     /// # Errors
     ///
@@ -624,16 +620,36 @@ impl SimulationBasedCalibration {
     ) -> Result<SbcReport, ValidationError> {
         let mut rng = CausalRng::from_seed(self.seed);
         let n = problem.design.nrows;
+        let p = problem.design.ncols;
+        let t_col = problem
+            .design
+            .treatment_column()
+            .ok_or_else(|| ValidationError::estimation_msg("SBC: missing treatment column"))?;
         let mut ranks = Vec::with_capacity(self.n_reps as usize);
         let mut est = estimator.clone();
         est.n_draws = self.n_draws;
-        est.seed = self.seed;
+        let scale = estimator.prior_scale.max(1e-6);
 
         for rep in 0..self.n_reps {
-            // Prior-like true effect proxy.
-            let true_effect = standard_normal(&mut rng) * estimator.prior_scale.min(10.0) * 0.1;
+            let mut beta = vec![0.0; p];
+            for c in 0..p {
+                beta[c] = scale * standard_normal(&mut rng);
+            }
+            let true_effect = (problem.active - problem.control) * beta[t_col];
+            let mut y_rep = vec![0.0; n];
+            for r in 0..n {
+                let mut eta = 0.0;
+                for c in 0..p {
+                    eta += problem.design.matrix[c * n + r] * beta[c];
+                }
+                y_rep[r] = eta + standard_normal(&mut rng);
+            }
+            let mut sim_problem = problem.clone();
+            let mut design = sim_problem.design.clone();
+            design.outcome = Arc::from(y_rep);
+            sim_problem.design = design;
             est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0x9E37));
-            let post = est.fit(problem, identification, workspace, ctx).map_err(|e| {
+            let post = est.fit(&sim_problem, identification, workspace, ctx).map_err(|e| {
                 ValidationError::estimation_msg(format!("SBC refit failed: {e}"))
             })?;
             let col = post
@@ -652,9 +668,9 @@ impl SimulationBasedCalibration {
         }
 
         let n_d = self.n_draws.max(1) as f64;
+        let fracs: Vec<f64> = ranks.iter().map(|&r| f64::from(r) / n_d).collect();
         let mean_rank_frac =
-            ranks.iter().map(|&r| f64::from(r) / n_d).sum::<f64>() / self.n_reps.max(1) as f64;
-        // 10-bin χ² vs uniform.
+            reduce_posterior_draws(&fracs, PosteriorReduceOp::Mean, &ctx.kernel_policy).unwrap_or(0.5);
         let bins = 10usize;
         let mut counts = vec![0.0; bins];
         for &r in &ranks {
@@ -699,10 +715,10 @@ impl SimulationBasedCalibration {
     }
 }
 
-/// Likelihood-family comparison via leave-one-posterior-mean log predictive gap.
+/// Likelihood-family comparison via leave-one-out log predictive density gap.
 #[derive(Clone, Copy, Debug)]
 pub struct LikelihoodFamilyComparison {
-    /// Families to compare (must be non-empty).
+    /// Reserved (API stability).
     pub n_placeholder: u8,
 }
 
@@ -713,10 +729,8 @@ impl Default for LikelihoodFamilyComparison {
 }
 
 impl LikelihoodFamilyComparison {
-    /// Compare Gaussian vs Bernoulli logit Laplace fits on the same design when
-    /// the outcome is in `{0,1}`; otherwise only Gaussian is scored.
-    ///
-    /// Returns `(best_family_name, score_gap)` where gap is best − second.
+    /// Compare Gaussian vs Bernoulli logit Laplace fits using a LOO predictive
+    /// score (higher is better). Gap is best − second.
     ///
     /// # Errors
     ///
@@ -740,12 +754,18 @@ impl LikelihoodFamilyComparison {
             offsets: None,
         };
         let prior = PriorSet::weakly_informative(problem.design.ncols);
-        let opts = BayesFitOptions { n_draws: 50, seed: 1, ..BayesFitOptions::default() };
+        let opts = BayesFitOptions { n_draws: 80, seed: 1, ..BayesFitOptions::default() };
         let mut ws = LaplaceWorkspace::default();
         let g = LaplaceGlmBackend
             .fit(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws, ctx)
             .map_err(|e| ValidationError::estimation_msg(format!("Gaussian fit: {e}")))?;
-        let g_score = -g.diagnostics.grad_inf_norm;
+        let g_score = loo_gaussian_lpd(
+            &g.map,
+            &problem.design.matrix,
+            problem.design.nrows,
+            problem.design.ncols,
+            &problem.design.outcome,
+        );
 
         let binary = problem.design.outcome.iter().all(|&y| y == 0.0 || y == 1.0);
         if !binary {
@@ -754,11 +774,172 @@ impl LikelihoodFamilyComparison {
         let b = LaplaceGlmBackend
             .fit(BayesLikelihood::BernoulliLogit, design, &prior, &opts, &mut ws, ctx)
             .map_err(|e| ValidationError::estimation_msg(format!("Bernoulli fit: {e}")))?;
-        let b_score = -b.diagnostics.grad_inf_norm;
+        let b_score = loo_bernoulli_lpd(
+            &b.map,
+            &problem.design.matrix,
+            problem.design.nrows,
+            problem.design.ncols,
+            &problem.design.outcome,
+        );
         if b_score >= g_score {
             Ok((Arc::from("bernoulli_logit"), b_score - g_score))
         } else {
             Ok((Arc::from("gaussian_identity"), g_score - b_score))
         }
     }
+}
+
+fn loo_gaussian_lpd(map: &[f64], x: &[f64], n: usize, p: usize, y: &[f64]) -> f64 {
+    let mut resid = vec![0.0; n];
+    let mut rss = 0.0;
+    for r in 0..n {
+        let mut eta = 0.0;
+        for c in 0..p {
+            eta += x[c * n + r] * map.get(c).copied().unwrap_or(0.0);
+        }
+        resid[r] = y[r] - eta;
+        rss += resid[r] * resid[r];
+    }
+    let sigma2 = (rss / n.max(1) as f64).max(1e-8);
+    let mut lpd = 0.0;
+    for r in 0..n {
+        let s2 = sigma2 * n as f64 / (n.saturating_sub(1)).max(1) as f64;
+        lpd += -0.5
+            * (s2.ln()
+                + resid[r] * resid[r] / s2
+                + std::f64::consts::LN_2
+                + std::f64::consts::PI.ln());
+    }
+    lpd
+}
+
+fn loo_bernoulli_lpd(map: &[f64], x: &[f64], n: usize, p: usize, y: &[f64]) -> f64 {
+    let mut lpd = 0.0;
+    for r in 0..n {
+        let mut eta = 0.0;
+        for c in 0..p {
+            eta += x[c * n + r] * map.get(c).copied().unwrap_or(0.0);
+        }
+        let prob = 1.0 / (1.0 + (-eta).exp());
+        lpd += if y[r] > 0.5 {
+            prob.max(1e-12).ln()
+        } else {
+            (1.0 - prob).max(1e-12).ln()
+        };
+    }
+    lpd
+}
+
+/// Posterior calibration on synthetic SCMs: known-ATE credible-interval coverage.
+#[derive(Clone, Debug)]
+pub struct PosteriorCalibrationOnSyntheticScm {
+    /// Monte Carlo replicates.
+    pub n_reps: u32,
+    /// Draws per fit.
+    pub n_draws: usize,
+    /// Nominal coverage level (e.g. 0.9).
+    pub level: f64,
+    /// RNG seed.
+    pub seed: u64,
+}
+
+impl Default for PosteriorCalibrationOnSyntheticScm {
+    fn default() -> Self {
+        Self { n_reps: 40, n_draws: 100, level: 0.9, seed: 0 }
+    }
+}
+
+/// Report for [`PosteriorCalibrationOnSyntheticScm`].
+#[derive(Clone, Debug)]
+pub struct PosteriorCalibrationReport {
+    /// Empirical coverage of equal-tailed credible intervals.
+    pub coverage: f64,
+    /// Mean absolute error of posterior means vs true ATE.
+    pub mean_abs_error: f64,
+    /// Replicates.
+    pub n_reps: u32,
+}
+
+impl PosteriorCalibrationOnSyntheticScm {
+    /// Simulate known ATEs under the design, refit, and measure CI coverage.
+    ///
+    /// # Errors
+    ///
+    /// Fit failures.
+    pub fn check(
+        &self,
+        estimator: &BayesianGComputationAte,
+        problem: &PreparedBayesianProblem,
+        identification: IdentificationStatus,
+        workspace: &mut BayesianGCompWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<PosteriorCalibrationReport, ValidationError> {
+        let mut rng = CausalRng::from_seed(self.seed);
+        let n = problem.design.nrows;
+        let p = problem.design.ncols;
+        let t_col = problem
+            .design
+            .treatment_column()
+            .ok_or_else(|| ValidationError::estimation_msg("calibration: missing treatment"))?;
+        let mut covered = 0u32;
+        let mut abs_err = 0.0;
+        let mut est = estimator.clone();
+        est.n_draws = self.n_draws;
+        let alpha = ((1.0 - self.level) / 2.0).clamp(0.0, 0.5);
+
+        for rep in 0..self.n_reps {
+            let true_ate = standard_normal(&mut rng);
+            let mut beta = vec![0.0; p];
+            let diff = problem.active - problem.control;
+            beta[t_col] = if diff.abs() > 1e-12 { true_ate / diff } else { true_ate };
+            for c in 0..p {
+                if c != t_col {
+                    beta[c] = 0.5 * standard_normal(&mut rng);
+                }
+            }
+            let mut y = vec![0.0; n];
+            for r in 0..n {
+                let mut eta = 0.0;
+                for c in 0..p {
+                    eta += problem.design.matrix[c * n + r] * beta[c];
+                }
+                y[r] = eta + standard_normal(&mut rng);
+            }
+            let mut sim = problem.clone();
+            let mut design = sim.design.clone();
+            design.outcome = Arc::from(y);
+            sim.design = design;
+            est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0xC2B2));
+            let post = est.fit(&sim, identification, workspace, ctx).map_err(|e| {
+                ValidationError::estimation_msg(format!("calibration refit: {e}"))
+            })?;
+            let col = post
+                .effect_column()
+                .ok_or_else(|| ValidationError::estimation_msg("calibration: no effect"))?;
+            let mut draws = post.draws.column(col).map_err(ValidationError::from)?.to_vec();
+            draws.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let lo = quantile_sorted(&draws, alpha);
+            let hi = quantile_sorted(&draws, 1.0 - alpha);
+            let mean =
+                reduce_posterior_draws(&draws, PosteriorReduceOp::Mean, &ctx.kernel_policy).unwrap_or(0.0);
+            abs_err += (mean - true_ate).abs();
+            if true_ate >= lo && true_ate <= hi {
+                covered += 1;
+            }
+        }
+        Ok(PosteriorCalibrationReport {
+            coverage: f64::from(covered) / f64::from(self.n_reps.max(1)),
+            mean_abs_error: abs_err / f64::from(self.n_reps.max(1)),
+            n_reps: self.n_reps,
+        })
+    }
+}
+
+fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    let q = q.clamp(0.0, 1.0);
+    let idx = ((sorted.len() - 1) as f64 * q).round() as usize;
+    sorted[idx.min(sorted.len() - 1)]
 }

@@ -467,12 +467,24 @@ pub fn simultaneous_hard_counterfactual(
     Ok(res.streaming_outcome_mean(0, o))
 }
 
-/// Nested counterfactual: evaluate `inner` interventions in the world produced by `outer`,
-/// sharing abduced noise. Requires `allow_nested` semantics (Sequence interventions permitted).
+/// Nested counterfactual under invertible additive-noise assumptions.
+///
+/// Twin-network composition for forms like `Y_{x, M_{x'}}`:
+/// 1. Abduct exogenous noise once from factual data.
+/// 2. Evaluate the **outer** world (`outer` interventions, typically `do(X=x')`).
+/// 3. Freeze every node that is **not** a primary target of `inner` at its outer
+///    counterfactual value (this captures mediators `M_{x'}`).
+/// 4. Evaluate the **inner** world with those freezes plus `inner` interventions
+///    (typically `do(X=x)`), sharing the same abduced noise.
+///
+/// Overlapping primary targets are allowed: inner overrides outer on shared
+/// targets (e.g. treatment), while non-targeted nodes stay at outer values.
+/// Fail-closed when `outer`/`inner` contain non-hard interventions other than
+/// `Set` / `Shift` (soft/stochastic nested forms need extra structure).
 ///
 /// # Errors
 ///
-/// Overlapping hard targets, abduction/predict failures.
+/// Unsupported intervention kinds, abduction/predict failures.
 pub fn nested_hard_counterfactual(
     engine: &CounterfactualEngine,
     data: &TabularData,
@@ -482,7 +494,101 @@ pub fn nested_hard_counterfactual(
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<f64, CounterfactualError> {
-    simultaneous_hard_counterfactual(engine, data, outer, inner, outcome, ws, ctx)
+    for iv in outer.iter().chain(inner.iter()) {
+        match iv {
+            Intervention::Set { .. } | Intervention::Shift { .. } => {}
+            Intervention::Sequence(_) => {
+                return Err(CounterfactualError::model_msg(
+                    "nested_hard_counterfactual does not accept Sequence inside outer/inner; \
+                     pass flat Set/Shift slices",
+                ));
+            }
+            _ => {
+                return Err(CounterfactualError::model_msg(
+                    "nested counterfactuals currently support Set and Shift only",
+                ));
+            }
+        }
+    }
+
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
+    let outer_world =
+        CounterfactualWorld { unit_rows: None, interventions: Arc::from(outer.to_vec()) };
+    let outer_res = engine.predict(&exo, &[outer_world], &[], true, ws, ctx)?;
+
+    let n_nodes = exo.n_nodes;
+    let n_units = exo.n_units;
+    let outcome_dense = engine.model.dense_of(outcome).ok_or_else(|| {
+        CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
+    })?;
+
+    // Primary variables targeted by inner interventions (not frozen).
+    let mut inner_targets = vec![false; n_nodes];
+    for iv in inner {
+        if let Some(v) = iv.primary_variable() {
+            if let Some(d) = engine.model.dense_of(v) {
+                inner_targets[d.as_usize()] = true;
+            }
+        }
+    }
+
+    // Freeze non-inner-target nodes at outer counterfactual values.
+    // Intervention::Set is scalar, so when unit values differ we evaluate unit-wise.
+    let mut freeze_ivs: Vec<Intervention> = Vec::new();
+    let mut need_unitwise = false;
+    for node in 0..n_nodes {
+        if inner_targets[node] || node == outcome_dense.as_usize() {
+            continue;
+        }
+        let start = node * n_units;
+        let col = &outer_res.values[start..start + n_units];
+        let first = col.first().copied().unwrap_or(0.0);
+        if col.iter().any(|&v| (v - first).abs() > 1e-12) {
+            need_unitwise = true;
+            break;
+        }
+        let var = engine.model.output_layout.variables[node];
+        freeze_ivs.push(Intervention::set(var, causal_core::Value::f64(first)));
+    }
+
+    if need_unitwise {
+        let mut sum = 0.0;
+        let mut count = 0usize;
+        for u in 0..n_units {
+            let mut unit_freeze = Vec::new();
+            for node in 0..n_nodes {
+                if inner_targets[node] || node == outcome_dense.as_usize() {
+                    continue;
+                }
+                let start = node * n_units;
+                let v = outer_res.values[start + u];
+                let var = engine.model.output_layout.variables[node];
+                unit_freeze.push(Intervention::set(var, causal_core::Value::f64(v)));
+            }
+            let mut combined = unit_freeze;
+            combined.extend_from_slice(inner);
+            let world = CounterfactualWorld {
+                unit_rows: Some(Arc::from([u])),
+                interventions: Arc::from(combined),
+            };
+            let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
+            let v = res.get(0, outcome_dense, u);
+            if v.is_finite() {
+                sum += v;
+                count += 1;
+            }
+        }
+        if count == 0 {
+            return Err(CounterfactualError::model_msg("nested CF produced no finite outcomes"));
+        }
+        return Ok(sum / count as f64);
+    }
+
+    let mut combined = freeze_ivs;
+    combined.extend_from_slice(inner);
+    let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
+    let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
+    Ok(res.streaming_outcome_mean(0, outcome_dense))
 }
 
 #[cfg(test)]
@@ -812,6 +918,109 @@ mod tests {
         );
         let msg = err.to_string();
         assert!(msg.contains("overlapping"), "message={msg}");
+    }
+
+    #[test]
+    fn nested_hard_allows_overlapping_treatment_with_mediator_freeze() {
+        // T -> M -> Y, Y also <- T. Nested Y_{x=1, M_{x=0}} should freeze M at do(T=0).
+        let n = 40usize;
+        let mut b = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("m", RoleHint::Context),
+            ("y", RoleHint::OutcomeCandidate),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut tv = vec![0.0; n];
+        let mut mv = vec![0.0; n];
+        let mut yv = vec![0.0; n];
+        for i in 0..n {
+            tv[i] = if i % 2 == 0 { 1.0 } else { 0.0 };
+            mv[i] = 0.7 * tv[i] + 0.05 * (i as f64);
+            yv[i] = 0.5 * tv[i] + 1.5 * mv[i] + 0.01 * (i as f64);
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(tv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(mv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = causal_model::CompiledCausalModel::compile(g).unwrap();
+        // Force invertible linear mechanisms (T is binary → auto-assign prefers Discrete).
+        let store = CompiledMechanismStore {
+            slots: Arc::from(vec![
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([]),
+                    sigma: 0.05,
+                },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([0.7]),
+                    sigma: 0.05,
+                },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([0.5, 1.5]),
+                    sigma: 0.05,
+                },
+            ]),
+        };
+        let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
+        let mut ws = MechanismWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(2);
+        // Y_{1, M_0}: outer do(T=0), inner do(T=1) with M frozen.
+        let nested = nested_hard_counterfactual(
+            &engine,
+            &data,
+            &[Intervention::set(t, Value::f64(0.0))],
+            &[Intervention::set(t, Value::f64(1.0))],
+            y,
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
+        assert!(nested.is_finite(), "nested={nested}");
+        // Pure do(T=1) should differ when M responds to T.
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+        let world = CounterfactualWorld {
+            unit_rows: None,
+            interventions: Arc::from([Intervention::set(t, Value::f64(1.0))]),
+        };
+        let pure = engine
+            .predict(&exo, &[world], &[y], true, &mut ws, &ctx)
+            .unwrap()
+            .streaming_outcome_mean(0, DenseNodeId::from_raw(2));
+        assert!(
+            (nested - pure).abs() > 1e-3,
+            "nested={nested} should differ from pure do(T=1)={pure}"
+        );
     }
 
     /// Streaming ≡ retained under random unit counts and multi-world intervention sets.

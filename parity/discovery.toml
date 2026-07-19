@@ -190,7 +190,7 @@ group = "discovery"
 description = "J-PCMCI+"
 status = "done"
 owner = "context"
-notes = "JpcmciPlus; structure jpcmci_plus_two_env + edge-set jpcmci_plus_two_env_edges; SpaceDummyCiMode"
+notes = "JpcmciPlus; structure jpcmci_plus_two_env + edge-set jpcmci_plus_two_env_edges; SpaceDummyCiMode; TimeDummyEncoding OneHot + TimeDummyCiMode"
 
 [[capabilities]]
 id = "discovery.rpcmci"

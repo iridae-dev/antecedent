@@ -227,6 +227,8 @@ def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "include_space_dummy": discovery.include_space_dummy,
             "include_time_dummy": discovery.include_time_dummy,
             "space_dummy_ci": discovery.space_dummy_ci,
+            "time_dummy_encoding": discovery.time_dummy_encoding,
+            "time_dummy_ci": discovery.time_dummy_ci,
         }
     if isinstance(discovery, RPCMCI):
         return {
@@ -408,6 +410,8 @@ def analyze(
                     include_space_dummy=cfg["include_space_dummy"],
                     include_time_dummy=cfg["include_time_dummy"],
                     space_dummy_ci=cfg["space_dummy_ci"],
+                    time_dummy_encoding=cfg["time_dummy_encoding"],
+                    time_dummy_ci=cfg["time_dummy_ci"],
                     ci=cfg.get("ci"),
                 )
                 return _wrap_temporal(raw)

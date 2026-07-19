@@ -106,6 +106,17 @@ pub enum SpaceDummyCiMode {
     MultivariateBlock,
 }
 
+/// How time one-hot dummies enter CI tests in J-PCMCI+ (ignored for integer-index encoding).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+pub enum TimeDummyCiMode {
+    /// Production default: each one-hot column is a scalar ParCorr variable.
+    #[default]
+    ScalarOneHot,
+    /// One logical time-dummy node; CI expands to the full one-hot block
+    /// via [`causal_stats::PairwiseMultivariateCi`] (paper-faithful single `D_time`).
+    MultivariateBlock,
+}
+
 /// Multi-dataset / context-aware discovery constraints (J-PCMCI+).
 #[derive(Clone, Debug)]
 pub struct MultiDatasetConstraints {
@@ -119,10 +130,16 @@ pub struct MultiDatasetConstraints {
     pub time_dummy_variables: Arc<[VariableId]>,
     /// When true (and ≥2 envs), synthesize a space dummy.
     pub include_space_dummy: bool,
-    /// When true, synthesize a time-index dummy.
+    /// When true, synthesize a time dummy under [`Self::time_dummy_encoding`].
     pub include_time_dummy: bool,
+    /// Integer index vs one-hot of `T` for the time dummy.
+    pub time_dummy_encoding: causal_data::TimeDummyEncoding,
+    /// Cap on distinct time levels for one-hot encoding (fail-closed).
+    pub max_time_one_hot_levels: usize,
     /// How space dummies enter CI (scalar one-hot vs multivariate block).
     pub space_dummy_ci: SpaceDummyCiMode,
+    /// How time one-hot dummies enter CI (scalar vs multivariate block).
+    pub time_dummy_ci: TimeDummyCiMode,
     /// Cross-environment link assumptions (API compatibility; unused by Günther path).
     pub cross_env: CrossEnvLinkAssumption,
     /// Legacy intersection-pool flag; ignored by Günther pooled search.
@@ -138,7 +155,10 @@ impl Default for MultiDatasetConstraints {
             time_dummy_variables: Arc::from([]),
             include_space_dummy: true,
             include_time_dummy: false,
+            time_dummy_encoding: causal_data::TimeDummyEncoding::IntegerIndex,
+            max_time_one_hot_levels: causal_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS,
             space_dummy_ci: SpaceDummyCiMode::ScalarOneHot,
+            time_dummy_ci: TimeDummyCiMode::ScalarOneHot,
             cross_env: CrossEnvLinkAssumption::default(),
             pool_lagged_ci: true,
         }

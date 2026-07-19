@@ -31,10 +31,15 @@ pub struct AdjustmentSearchConfig {
     pub maximal_only: bool,
     /// Optional per-variable measurement costs (lower is better). Missing → cost 1.0.
     pub measurement_costs: Arc<[(VariableId, f64)]>,
-    /// Optional max lag (steps) restricting temporal history covariates by
-    /// [`VariableId`] raw index heuristic; `None` = no extra restriction.
-    /// Static DAGs ignore this unless callers encode lag in variable metadata.
+    /// Optional max history lag (steps before the query reference time).
+    /// When set, candidates listed in [`Self::history_lags`] with lag `>` this
+    /// value are excluded from adjustment-set enumeration. Variables absent from
+    /// `history_lags` are unrestricted (static DAGs / unknown lag).
     pub max_history_lag: Option<u32>,
+    /// Per-variable history lag in steps (0 = contemporaneous or future relative
+    /// to the query). Used with [`Self::max_history_lag`]. Unfolded temporal
+    /// graphs populate this from [`causal_core::TemporalIndexer`].
+    pub history_lags: Arc<[(VariableId, u32)]>,
 }
 
 impl Default for AdjustmentSearchConfig {
@@ -46,7 +51,22 @@ impl Default for AdjustmentSearchConfig {
             maximal_only: false,
             measurement_costs: Arc::from([]),
             max_history_lag: None,
+            history_lags: Arc::from([]),
         }
+    }
+}
+
+impl AdjustmentSearchConfig {
+    /// Whether `id` exceeds [`Self::max_history_lag`] given [`Self::history_lags`].
+    #[must_use]
+    pub fn exceeds_history_lag(&self, id: VariableId) -> bool {
+        let Some(max_lag) = self.max_history_lag else {
+            return false;
+        };
+        self.history_lags
+            .iter()
+            .find(|(v, _)| *v == id)
+            .is_some_and(|(_, lag)| *lag > max_lag)
     }
 }
 
@@ -200,6 +220,11 @@ impl BackdoorIdentifier {
         let candidates: Vec<DenseNodeId> = (0..dag.node_count())
             .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
             .filter(|id| !forbidden.contains(*id))
+            .filter(|id| {
+                dense_to_var(*id, dag)
+                    .map(|v| !self.config.exceeds_history_lag(v))
+                    .unwrap_or(true)
+            })
             .collect();
 
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
@@ -395,6 +420,11 @@ impl BackdoorIdentifier {
         let candidates: Vec<DenseNodeId> = (0..dag.node_count())
             .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
             .filter(|id| !forbidden.contains(*id))
+            .filter(|id| {
+                dense_to_var(*id, dag)
+                    .map(|v| !self.config.exceeds_history_lag(v))
+                    .unwrap_or(true)
+            })
             .collect();
         if candidates.len() > 20 {
             return Err(IdentificationError::NotIdentified {
@@ -874,5 +904,38 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn max_history_lag_excludes_deep_covariates() {
+        // T <- Z_deep, T <- Z_near -> Y, T -> Y.
+        // With history lag metadata, capping max_history_lag drops Z_deep from Z.
+        let mut g = Dag::with_variables(4);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let z_near = DenseNodeId::from_raw(2);
+        let z_deep = DenseNodeId::from_raw(3);
+        g.insert_directed(z_near, t).unwrap();
+        g.insert_directed(z_near, y).unwrap();
+        g.insert_directed(z_deep, t).unwrap();
+        g.insert_directed(t, y).unwrap();
+
+        let mut id = BackdoorIdentifier::new();
+        id.config.max_history_lag = Some(1);
+        id.config.history_lags = Arc::from([
+            (VariableId::from_raw(2), 1), // near
+            (VariableId::from_raw(3), 3), // deep — excluded
+        ]);
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        let z = res.estimands[0].adjustment_set.as_ref();
+        assert!(z.contains(&VariableId::from_raw(2)));
+        assert!(!z.contains(&VariableId::from_raw(3)));
     }
 }

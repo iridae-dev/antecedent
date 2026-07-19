@@ -29,6 +29,11 @@ status = "done"
 notes = "CompletionSampler max_completions bound"
 
 [[capabilities]]
+id = "pag.graph.cpdag_mec_completions"
+status = "done"
+notes = "CpdagCompletionSampler + is_mec_member (acyclic, no new unshielded colliders)"
+
+[[capabilities]]
 id = "pag.identify.generalized_adjustment"
 status = "done"
 notes = "GeneralizedAdjustmentIdentifier + IdentificationEnvelope"

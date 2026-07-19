@@ -247,6 +247,8 @@ def analyze_temporal_discover(
     include_space_dummy: bool = True,
     include_time_dummy: bool = False,
     space_dummy_ci: str = "scalar",
+    time_dummy_encoding: str = "integer",
+    time_dummy_ci: str = "scalar",
     ci: CiArg = None,
 ) -> AnalysisResult: ...
 
@@ -362,6 +364,8 @@ def discover_jpcmci_plus(
     include_space_dummy: bool = True,
     include_time_dummy: bool = False,
     space_dummy_ci: str = "scalar",
+    time_dummy_encoding: str = "integer",
+    time_dummy_ci: str = "scalar",
 ) -> PcmciDiscoveryResult: ...
 
 def discover_rpcmci(

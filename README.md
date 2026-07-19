@@ -238,7 +238,7 @@ Static methods include:
 * constraint-based discovery;
 * latent-variable discovery;
 * score-based DAG search;
-* continuous-optimization extensions;
+* continuous SEM discovery (NOTEARS);
 * Bayesian graph search.
 
 Temporal methods include:

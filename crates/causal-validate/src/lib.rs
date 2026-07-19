@@ -27,8 +27,9 @@ pub mod validator;
 
 pub use bayesian_checks::{
     DEFAULT_MAX_RELATIVE_PRIOR_RANGE, LikelihoodFamilyComparison, McmcDiagnosticsCheck,
-    PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
-    PriorSensitivity, SbcReport, SimulationBasedCalibration, with_prior_sensitivity,
+    PosteriorCalibrationOnSyntheticScm, PosteriorCalibrationReport, PosteriorPredictiveCheck,
+    PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck, PriorSensitivity, SbcReport,
+    SimulationBasedCalibration, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport};

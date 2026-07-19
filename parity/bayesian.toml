@@ -71,7 +71,7 @@ notes = "Bayesian DAG/DBN posterior search (§13.7) — TODO.md item 5; envelope
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"
 status = "done"
-notes = "Hierarchical / BVAR / LGSSM / GP (feature gaussian-process) mechanism families — TODO.md item 4 / DESIGN §14.4"
+notes = "EB hierarchical linear + HierarchicalGlm (Bernoulli logit); Minnesota BVAR; LGSSM Kalman EM; GP hyperparam grid (feature gaussian-process) — DESIGN §14.4"
 
 [[capabilities]]
 id = "bayes.validate.mcmc_diagnostics"

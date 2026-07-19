@@ -22,6 +22,7 @@ use std::sync::Arc;
 
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
+use causal_data::TimeDummyEncoding;
 use causal::{
     AnalysisError, BayesianConfig, CandidateDesign, CausalAnalysis, CompiledCausalModel,
     DataBatchRef, DecisionProblem, DesignCost, DesignEvaluationContext, DesignObjective,
@@ -30,7 +31,7 @@ use causal::{
     GraphIdentFlag, InferenceMode, MeasurementPlan, MultiDatasetConstraints, RefuteSuite,
     SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent, StaticDiscoverParams,
     StructureChangeOptions, RegimeAssignment, TemporalLinearPredictor, TemporalMediationEstimator,
-    WeightedGraphSamples, anomaly_attribution as facade_anomaly_attribution, apply_state_event,
+    TimeDummyCiMode, WeightedGraphSamples, anomaly_attribution as facade_anomaly_attribution, apply_state_event,
     attribute_distribution_change as facade_attribute_distribution_change,
     attribute_distribution_change_robust as facade_attribute_distribution_change_robust,
     attribute_feature_relevance as facade_attribute_feature_relevance,
@@ -1496,6 +1497,8 @@ fn discover_lpcmci(
     include_space_dummy=true,
     include_time_dummy=false,
     space_dummy_ci="scalar",
+    time_dummy_encoding="integer",
+    time_dummy_ci="scalar",
 ))]
 fn discover_jpcmci_plus(
     py: Python<'_>,
@@ -1512,6 +1515,8 @@ fn discover_jpcmci_plus(
     include_space_dummy: bool,
     include_time_dummy: bool,
     space_dummy_ci: &str,
+    time_dummy_encoding: &str,
+    time_dummy_ci: &str,
 ) -> PyResult<PcmciDiscoveryResult> {
     if env_columns.is_empty() {
         return Err(PyValueError::new_err("discover_jpcmci_plus needs ≥1 environment"));
@@ -1566,6 +1571,24 @@ fn discover_jpcmci_plus(
                 )));
             }
         };
+        let time_dummy_encoding = match time_dummy_encoding {
+            "integer" | "integer_index" | "index" => TimeDummyEncoding::IntegerIndex,
+            "one_hot" | "onehot" | "oh" => TimeDummyEncoding::OneHot,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "time_dummy_encoding must be 'integer' or 'one_hot', got '{other}'"
+                )));
+            }
+        };
+        let time_dummy_ci = match time_dummy_ci {
+            "scalar" | "scalar_one_hot" | "one_hot" => TimeDummyCiMode::ScalarOneHot,
+            "multivariate" | "multivariate_block" | "block" => TimeDummyCiMode::MultivariateBlock,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "time_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
+                )));
+            }
+        };
         let params = DiscoverParams {
             max_lag,
             alpha,
@@ -1576,6 +1599,8 @@ fn discover_jpcmci_plus(
                 include_space_dummy,
                 include_time_dummy,
                 space_dummy_ci,
+                time_dummy_encoding,
+                time_dummy_ci,
                 ..MultiDatasetConstraints::default()
             },
         };
@@ -2742,6 +2767,8 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<(Vec<String>, Vec<(u32, u32)>, 
     include_space_dummy=true,
     include_time_dummy=false,
     space_dummy_ci="scalar",
+    time_dummy_encoding="integer",
+    time_dummy_ci="scalar",
     ci=None,
 ))]
 fn analyze_temporal_discover(
@@ -2767,6 +2794,8 @@ fn analyze_temporal_discover(
     include_space_dummy: bool,
     include_time_dummy: bool,
     space_dummy_ci: &str,
+    time_dummy_encoding: &str,
+    time_dummy_ci: &str,
     ci: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AnalysisResult> {
     let algo = algorithm.to_string();
@@ -2778,6 +2807,8 @@ fn analyze_temporal_discover(
     };
     let context_names = context_names.unwrap_or_default();
     let space_dummy_ci = space_dummy_ci.to_string();
+    let time_dummy_encoding = time_dummy_encoding.to_string();
+    let time_dummy_ci = time_dummy_ci.to_string();
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     let threads = if is_ci_callback { 1 } else { threads };
 
@@ -2821,11 +2852,33 @@ fn analyze_temporal_discover(
                         )));
                     }
                 };
+                let time_enc = match time_dummy_encoding.as_str() {
+                    "integer" | "integer_index" | "index" => TimeDummyEncoding::IntegerIndex,
+                    "one_hot" | "onehot" | "oh" => TimeDummyEncoding::OneHot,
+                    other => {
+                        return Err(PyValueError::new_err(format!(
+                            "time_dummy_encoding must be 'integer' or 'one_hot', got '{other}'"
+                        )));
+                    }
+                };
+                let time_mode = match time_dummy_ci.as_str() {
+                    "scalar" | "scalar_one_hot" | "one_hot" => TimeDummyCiMode::ScalarOneHot,
+                    "multivariate" | "multivariate_block" | "block" => {
+                        TimeDummyCiMode::MultivariateBlock
+                    }
+                    other => {
+                        return Err(PyValueError::new_err(format!(
+                            "time_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
+                        )));
+                    }
+                };
                 let multi_dataset = MultiDatasetConstraints {
                     context_variables: Arc::from(context_ids),
                     include_space_dummy,
                     include_time_dummy,
                     space_dummy_ci: space_mode,
+                    time_dummy_encoding: time_enc,
+                    time_dummy_ci: time_mode,
                     ..MultiDatasetConstraints::default()
                 };
                 let pulse_at = -i32::try_from(treatment_lag)

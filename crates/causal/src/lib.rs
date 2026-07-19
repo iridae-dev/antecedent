@@ -87,15 +87,16 @@ pub use causal_discovery::{
     DiscoveryPerformanceRecord, Fci, Ges, JpcmciPlus, JpcmciNodeRole, Lpcmci,
     MultiDatasetConstraints, PagDiscoveryResult, Pc, RegimeAssignment, RegimeGraphCollection,
     Rfci, Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
-    StaticDagDiscoveryResult, StaticPagDiscoveryResult, two_regime_half_split,
+    StaticDagDiscoveryResult, StaticPagDiscoveryResult, TimeDummyCiMode, two_regime_half_split,
 };
 pub use causal_estimate::{
     ConditionalLinearAdjustment, OverlapPolicy, TemporalEffectSurface, TemporalLinearPredictor,
     TemporalMediationEstimator,
 };
 pub use causal_graph::{
-    Admg, CompletionSampler, Cpdag, CpdagReview, Dag, DagReview, Pag, PagCompletion, PagReview,
-    TemporalCpdag, TemporalPag, TemporalPagReview, latent_project,
+    Admg, CompletionSampler, Cpdag, CpdagCompletion, CpdagCompletionSampler, CpdagReview, Dag,
+    DagReview, Pag, PagCompletion, PagReview, TemporalCpdag, TemporalPag, TemporalPagReview,
+    is_mec_member, latent_project,
 };
 pub use causal_identify::{
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
@@ -906,6 +907,7 @@ mod tests {
             CompiledAnalysis::ReviewRequired(_)
             | CompiledAnalysis::ReviewRequiredCpdag(_)
             | CompiledAnalysis::ReviewRequiredStaticCpdag(_)
+            | CompiledAnalysis::ReviewRequiredStaticDag(_)
             | CompiledAnalysis::ReviewRequiredPag(_)
             | CompiledAnalysis::ReviewRequiredStaticPag(_) => {
                 panic!("expected Ready")

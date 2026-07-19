@@ -80,9 +80,7 @@ impl TemporalBackdoorIdentifier {
     ///
     /// # Errors
     ///
-    /// Invalid query, unfolding failures, sustained policies (not yet
-    /// supported; they require sequential/g-formula identification rather
-    /// than a single-node backdoor criterion), backdoor identification
+    /// Invalid query, unfolding failures, backdoor / general-ID identification
     /// errors, or [`IdentificationError::NotIdentified`] when the history
     /// cap is reached while confounder ancestry still crosses the truncated
     /// boundary (a clean result cannot be certified).
@@ -193,9 +191,17 @@ impl TemporalBackdoorIdentifier {
             target_population: query.target_population.clone(),
         };
 
-        let prepared = self.inner.prepare(&unfolded.dag)?;
+        let mut identifier = self.inner.clone();
+        apply_history_lag_filter(
+            &mut identifier.config,
+            &unfolded.indexer,
+            treatment_key.offset.max(outcome_key.offset),
+            query.max_history_lag,
+        );
+        let prepared = identifier.prepare(&unfolded.dag)?;
         let mut id_ws = IdentificationWorkspace::default();
-        let mut result = self.inner.identify(&prepared, &CausalQuery::average_effect(ate), &mut id_ws)?;
+        let mut result =
+            identifier.identify(&prepared, &CausalQuery::average_effect(ate), &mut id_ws)?;
         annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
 
         Ok(TemporalIdentificationResult {
@@ -399,6 +405,29 @@ fn ancestry_touches_boundary(
         }
     }
     false
+}
+
+/// Populate [`AdjustmentSearchConfig`] history-lag filter from an unfolded indexer.
+///
+/// Lag for dense node `i` is `max(0, reference_offset - node.offset)`. When
+/// `max_history_lag` is set, covariates older than that many steps are excluded
+/// from static backdoor enumeration on the unfolded DAG.
+fn apply_history_lag_filter(
+    config: &mut crate::backdoor::AdjustmentSearchConfig,
+    indexer: &TemporalIndexer,
+    reference_offset: i32,
+    max_history_lag: Option<u32>,
+) {
+    config.max_history_lag = max_history_lag;
+    let mut lags = Vec::with_capacity(indexer.dense_len());
+    for dense in 0..indexer.dense_len() as u32 {
+        let Ok(key) = indexer.key_of(dense) else {
+            continue;
+        };
+        let lag = reference_offset.saturating_sub(key.offset).max(0) as u32;
+        lags.push((VariableId::from_raw(dense), lag));
+    }
+    config.history_lags = Arc::from(lags);
 }
 
 fn required_variable_count(

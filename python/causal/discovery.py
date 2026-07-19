@@ -74,6 +74,8 @@ class JPCMCIPlus:
     include_space_dummy: bool = True
     include_time_dummy: bool = False
     space_dummy_ci: Literal["scalar", "multivariate"] = "scalar"
+    time_dummy_encoding: Literal["integer", "one_hot"] = "integer"
+    time_dummy_ci: Literal["scalar", "multivariate"] = "scalar"
     kind: Literal["jpcmci_plus"] = "jpcmci_plus"
 
 
@@ -287,6 +289,8 @@ def discover_jpcmci_plus(
     include_space_dummy: bool = True,
     include_time_dummy: bool = False,
     space_dummy_ci: str = "scalar",
+    time_dummy_encoding: str = "integer",
+    time_dummy_ci: str = "scalar",
 ) -> PcmciDiscoveryResult:
     return _discover_jpcmci_plus(
         names,
@@ -302,6 +306,8 @@ def discover_jpcmci_plus(
         include_space_dummy=include_space_dummy,
         include_time_dummy=include_time_dummy,
         space_dummy_ci=space_dummy_ci,
+        time_dummy_encoding=time_dummy_encoding,
+        time_dummy_ci=time_dummy_ci,
     )
 
 

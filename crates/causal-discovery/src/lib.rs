@@ -5,7 +5,7 @@
 //! [`causal_graph::Pag`], score-based [`Ges`] → [`causal_graph::Cpdag`],
 //! [`DirectLingam`] → [`causal_graph::Dag`], and Zhang FCI orientation plumbing
 //! via [`PagOps`] / [`FciOrientationRule`] (DESIGN.md §13.3 / §13.6).
-//! NOTEARS remains optional / unshipped.
+//! NOTEARS is tracked under TODO item 3.5 (not yet shipped).
 //!
 //! ```
 //! use causal_discovery::Pcmci;
@@ -57,7 +57,7 @@ pub use ci::{
 pub use constraints::{
     CandidateCatalog, CompiledConstraints, ContextKind, CrossEnvLinkAssumption,
     DiscoveryConstraints, JpcmciNodeRole, MultiDatasetConstraints, SpaceDummyCiMode,
-    TemporalConstraints,
+    TemporalConstraints, TimeDummyCiMode,
 };
 pub use discriminating_paths::{DiscriminatingPath, find_discriminating_paths};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};

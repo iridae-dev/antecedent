@@ -100,7 +100,10 @@ pub use materialize::{MaterializationReason, materialization_diagnostic};
 pub use multi_env::MultiEnvironmentData;
 pub use multi_env_plan::{MultiEnvSamplePlan, PanelSamplePlan, plans_for_series_lengths};
 pub use panel::{PanelData, PanelUnit, PanelUnitView};
-pub use pooled_frame::{DummyOptions, PooledLaggedFrame, pool_multi_env_lagged_frame};
+pub use pooled_frame::{
+    DEFAULT_MAX_TIME_ONE_HOT_LEVELS, DummyOptions, PooledLaggedFrame, TimeDummyEncoding,
+    pool_multi_env_lagged_frame,
+};
 pub use reference::ReferencePointPolicy;
 pub use resample::{
     PermutationScheme, ResamplingPlan, fill_resample_index_batch, fill_resample_indexes,

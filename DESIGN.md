@@ -819,7 +819,7 @@ pub enum TemporalPolicy {
 }
 ```
 
-`Dynamic` is query identity + wire only; schedule interpretation and identification remain deferred (`TODO.md` item 1 / future rule interpreters). Pulse identification ships; Sustained identification is deferred (g-formula / sequential ID).
+`Dynamic` is query identity + wire only; schedule interpretation and identification remain deferred (future rule interpreters). Pulse identification ships; Sustained identification ships (g-formula / sequential ID on the unfolded multi-treatment window via `TemporalBackdoorIdentifier`).
 
 ### 8.2 Target population
 
@@ -1287,7 +1287,7 @@ Parity and extension target:
 - GES;
 - LiNGAM variants where assumptions apply;
 - score-based DAG search;
-- NOTEARS-style continuous optimization as an optional extension;
+- NOTEARS-style continuous SEM discovery (first-class 1.0 — driver-graph / intervene-simulate persona; see TODO item 3.5);
 - Bayesian DAG posterior search.
 
 Implement PC first because it shares CI machinery and orientation code with temporal discovery.
@@ -3147,8 +3147,8 @@ Removing one of these guarantees is an API change even if function signatures re
 
 ## 32. Initial public API examples [partial]
 
-Examples below match the shipped `0.1.0` surface. Unshipped algorithms (PC, AutoIdentifier,
-full ID/IDC) are documented in §10 / §13, not here.
+Examples below match the shipped `0.1.0` surface. Shipped algorithms include PC, AutoIdentifier,
+and full ID/IDC (see §10 / §13). NOTEARS and Bayesian graph discovery remain on the roadmap (`TODO.md` items 3.5 / 5).
 
 ### 32.1 Static, Bayesian
 
