@@ -14,7 +14,11 @@
     clippy::cast_precision_loss
 )]
 
+mod bayesian;
 mod callbacks;
+mod gcm_api;
+mod graphs;
+mod state_api;
 
 use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
@@ -25,13 +29,13 @@ use arrow_schema::{DataType, Field, Schema};
 use causal_data::TimeDummyEncoding;
 use causal::{
     AnalysisError, BayesianConfig, CandidateDesign, CausalAnalysis, CompiledCausalModel,
-    DataBatchRef, DecisionProblem, DesignCost, DesignEvaluationContext, DesignObjective,
+    DecisionProblem, DesignCost, DesignEvaluationContext, DesignObjective,
     DesignRankConfig, DesignRanker, DifferenceMeasure, DiscoverParams, DiscoveryAccept,
-    DiscoveryPerformanceRecord, DistributionChangeOptions, FdrAdjustment, FdrControl,
-    GraphIdentFlag, InferenceMode, MeasurementPlan, MultiDatasetConstraints, RefuteSuite,
-    SamplingPlan, ScoredLink, SpaceDummyCiMode, StateEvent, StaticDiscoverParams,
+    DiscoveryPerformanceRecord, DistributionChangeOptions, EstimatorId, FdrAdjustment, FdrControl,
+    GraphIdentFlag, IdentifierId, InferenceMode, MeasurementPlan, MultiDatasetConstraints, RefuteSuite,
+    SamplingPlan, ScoredLink, SpaceDummyCiMode, StaticDiscoverParams,
     StructureChangeOptions, RegimeAssignment, TemporalLinearPredictor, TemporalMediationEstimator,
-    TimeDummyCiMode, WeightedGraphSamples, anomaly_attribution as facade_anomaly_attribution, apply_state_event,
+    TimeDummyCiMode, WeightedGraphSamples, anomaly_attribution as facade_anomaly_attribution,
     attribute_distribution_change as facade_attribute_distribution_change,
     attribute_distribution_change_robust as facade_attribute_distribution_change_robust,
     attribute_feature_relevance as facade_attribute_feature_relevance,
@@ -46,12 +50,13 @@ use causal::{
     discover_lpcmci as facade_discover_lpcmci, discover_fci as facade_discover_fci,
     discover_ges as facade_discover_ges,
     discover_lingam as facade_discover_lingam,
+    discover_notears as facade_discover_notears,
     discover_pc as facade_discover_pc, discover_pcmci as facade_discover_pcmci,
     discover_pcmci_plus as facade_discover_pcmci_plus,
     discover_rfci as facade_discover_rfci,
     discover_rpcmci as facade_discover_rpcmci, encode_causal_posterior_bytes,
     evaluate_decision as facade_evaluate_decision, fit_gcm,
-    mechanism_change_detection as facade_mechanism_change_detection, new_causal_state,
+    mechanism_change_detection as facade_mechanism_change_detection,
     pag_definite_directed_edge_count, rank_designs as facade_rank_designs,
     sample_do as facade_sample_do,
     sample_interventional_distribution as facade_sample_interventional_distribution,
@@ -59,8 +64,8 @@ use causal::{
 };
 use causal_stats::PartialCorrelation;
 use causal_core::{
-    AllocationMethod, AttributionComponents, AverageEffectQuery, CacheBudget, CachePolicy,
-    CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
+    AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy,
+    CausalQuery, CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
     InterventionalDistributionQuery, KernelPolicy, Lag, MechanismChangeQuery, MediationContrast,
     MediationQuery, PathSpecificEffectQuery, PopulationSelector, RegimeId, SchemaError,
     ShapleyConfig, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value,
@@ -107,12 +112,12 @@ trait IntoCausalPyErr {
     fn into_causal_py_err(self) -> PyErr;
 }
 
-fn py_err<E: IntoCausalPyErr>(e: E) -> PyErr {
+pub(crate) fn py_err<E: IntoCausalPyErr>(e: E) -> PyErr {
     e.into_causal_py_err()
 }
 
 /// Fallback for domain errors not re-exported at the binding crate boundary.
-fn py_msg(e: impl ToString) -> PyErr {
+pub(crate) fn py_msg(e: impl ToString) -> PyErr {
     CausalError::new_err(e.to_string())
 }
 
@@ -121,7 +126,7 @@ fn py_estimate(e: impl ToString) -> PyErr {
 }
 
 /// Convert a Rust panic payload into a typed Python error so panics never cross FFI.
-fn catch_ffi<F, T>(f: F) -> PyResult<T>
+pub(crate) fn catch_ffi<F, T>(f: F) -> PyResult<T>
 where
     F: FnOnce() -> PyResult<T>,
 {
@@ -145,7 +150,7 @@ fn panic_payload_msg(payload: &(dyn Any + Send)) -> String {
 }
 
 /// Release the GIL for native work and convert any panic into [`CausalError`].
-fn detach_catch<F, T>(py: Python<'_>, f: F) -> PyResult<T>
+pub(crate) fn detach_catch<F, T>(py: Python<'_>, f: F) -> PyResult<T>
 where
     F: FnOnce() -> PyResult<T> + Send,
     T: Send,
@@ -215,7 +220,7 @@ impl IntoCausalPyErr for arrow_schema::ArrowError {
     }
 }
 
-/// Result of the DESIGN §25.6 conversion probe (same Arrow→tabular path as analyze/discover).
+/// Result of the conversion probe (same Arrow→tabular path as analyze/discover).
 #[pyclass]
 struct ArrowLoadInfo {
     #[pyo3(get)]
@@ -344,7 +349,7 @@ struct PosteriorArtifact {
     quantity_names: Vec<String>,
 }
 
-fn columns_to_batch(
+pub(crate) fn columns_to_batch(
     names: &[String],
     columns: &[PyReadonlyArray1<'_, f64>],
 ) -> PyResult<RecordBatch> {
@@ -375,7 +380,7 @@ fn columns_to_batch(
     RecordBatch::try_new(Arc::new(schema), arrays).map_err(py_err)
 }
 
-/// Conversion probe: NumPy → Arrow → library-owned tabular storage (DESIGN.md §25.6).
+/// Conversion probe: NumPy → Arrow → library-owned tabular storage.
 ///
 /// Shares the same ingestion path as `analyze*` / `discover_*`. The loaded table is not
 /// retained across the FFI boundary; call analysis APIs with the original NumPy columns.
@@ -402,7 +407,7 @@ fn load_float64_columns(
 
 /// Load float64 columns from Arrow C Data Interface exporters (PyArrow / `__arrow_c_array__`).
 ///
-/// Prefers zero-copy borrow of contiguous float64 value buffers (DESIGN.md §5.2 / §25.2).
+/// Prefers zero-copy borrow of contiguous float64 value buffers.
 #[pyfunction]
 fn load_float64_arrow_c_columns(
     py: Python<'_>,
@@ -475,7 +480,7 @@ fn take_arrow_c_array(
 }
 
 
-fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
+pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
     ExecutionContext::production(seed, threads)
 }
 
@@ -496,6 +501,8 @@ fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
     treatment,
     outcome,
     *,
+    control_level=0.0,
+    active_level=1.0,
     identifier=None,
     estimator=None,
     inference=None,
@@ -514,6 +521,8 @@ fn analyze_ate(
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
+    control_level: f64,
+    active_level: f64,
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
@@ -556,7 +565,7 @@ fn analyze_ate(
             .map_err(py_err)?;
         }
 
-        let query = AverageEffectQuery::binary_ate(t_id, y_id);
+        let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
         let suite = if refute { RefuteSuite::PlaceboAndRcc } else { RefuteSuite::None };
         let mut builder = CausalAnalysis::builder()
             .data(data)
@@ -603,7 +612,7 @@ fn analyze_ate(
     })
 }
 
-/// Static ATE via PC discovery → DAG (when fully oriented).
+/// Static ATE via static discovery → DAG (when fully oriented).
 #[pyfunction]
 #[pyo3(signature = (
     names,
@@ -611,10 +620,17 @@ fn analyze_ate(
     treatment,
     outcome,
     *,
+    algorithm="pc",
     alpha=0.05,
     fdr=true,
     max_cond_size=2,
+    prune_threshold=0.0,
+    l1=0.1,
+    threshold=0.3,
+    standardize=true,
     accept_discovered=true,
+    control_level=0.0,
+    active_level=1.0,
     identifier=None,
     estimator=None,
     inference=None,
@@ -633,10 +649,17 @@ fn analyze_ate_discover(
     columns: Vec<PyReadonlyArray1<'_, f64>>,
     treatment: String,
     outcome: String,
+    algorithm: &str,
     alpha: f64,
     fdr: bool,
     max_cond_size: usize,
+    prune_threshold: f64,
+    l1: f64,
+    threshold: f64,
+    standardize: bool,
     accept_discovered: bool,
+    control_level: f64,
+    active_level: f64,
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
@@ -649,6 +672,7 @@ fn analyze_ate_discover(
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
+    let algo = algorithm.to_ascii_lowercase();
     let batch = columns_to_batch(&names, &columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
@@ -663,7 +687,7 @@ fn analyze_ate_discover(
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let query = AverageEffectQuery::binary_ate(t_id, y_id);
+        let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
         let suite = if refute { RefuteSuite::PlaceboAndRcc } else { RefuteSuite::None };
         let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
         let accept = if accept_discovered {
@@ -671,9 +695,24 @@ fn analyze_ate_discover(
         } else {
             DiscoveryAccept::Review
         };
-        let mut builder = CausalAnalysis::builder()
-            .data(data)
-            .discover_pc(alpha, max_cond_size, fdr_ctrl, accept)
+        let mut builder = CausalAnalysis::builder().data(data);
+        builder = match algo.as_str() {
+            "pc" => builder.discover_pc(alpha, max_cond_size, fdr_ctrl, accept),
+            "ges" => builder.discover_ges(alpha, max_cond_size, fdr_ctrl, accept),
+            "lingam" => builder.discover_lingam(max_cond_size, prune_threshold, accept),
+            "notears" => {
+                builder.discover_notears(max_cond_size, l1, threshold, standardize, accept)
+            }
+            "fci" => builder.discover_fci(alpha, max_cond_size, fdr_ctrl, accept),
+            "rfci" => builder.discover_rfci(alpha, max_cond_size, fdr_ctrl, accept),
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown static discovery algorithm {other:?}; \
+                     use pc|ges|lingam|notears|fci|rfci"
+                )));
+            }
+        };
+        let mut builder = builder
             .discovery_ci(ci_impl)
             .query(query)
             .refute(suite)
@@ -709,6 +748,159 @@ fn analyze_ate_discover(
             builder = builder.inference(InferenceMode::Bayesian(cfg));
         }
         let analysis = builder.build().map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        ate_result_from_analysis(&names, result)
+    })
+}
+
+fn build_static_dag(
+    data: &causal_data::TabularData,
+    edges: &[(String, String)],
+) -> PyResult<Dag> {
+    let n_vars = u32::try_from(data.schema().len())
+        .map_err(|_| PyValueError::new_err("too many variables"))?;
+    let mut dag = Dag::with_variables(n_vars);
+    for (from, to) in edges {
+        let from_id = data
+            .schema()
+            .id_of(from)
+            .map_err(|e| CausalDataError::new_err(format!("edge from: {e}")))?;
+        let to_id = data
+            .schema()
+            .id_of(to)
+            .map_err(|e| CausalDataError::new_err(format!("edge to: {e}")))?;
+        dag.insert_directed(
+            DenseNodeId::from_raw(from_id.raw()),
+            DenseNodeId::from_raw(to_id.raw()),
+        )
+        .map_err(py_err)?;
+    }
+    Ok(dag)
+}
+
+/// Interventional distribution via ID/IDC + functional distribution estimator.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    edges,
+    outcome,
+    interventions,
+    *,
+    conditioning=None,
+    seed=1,
+    threads=1
+))]
+fn analyze_distribution(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    outcome: String,
+    interventions: std::collections::HashMap<String, f64>,
+    conditioning: Option<Vec<String>>,
+    seed: u64,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let mut ivs = Vec::with_capacity(interventions.len());
+        for (name, level) in &interventions {
+            let id = data.schema().id_of(name).map_err(py_err)?;
+            ivs.push(Intervention::set(id, Value::f64(*level)));
+        }
+        let mut query = InterventionalDistributionQuery::new(y_id, ivs);
+        if let Some(cond) = conditioning {
+            let mut z = Vec::with_capacity(cond.len());
+            for name in &cond {
+                z.push(data.schema().id_of(name).map_err(py_err)?);
+            }
+            query = query.with_conditioning(z);
+        }
+        let dag = build_static_dag(&data, &edges)?;
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(dag)
+            .causal_query(CausalQuery::Distribution(query))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution)
+            .build()
+            .map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        ate_result_from_analysis(&names, result)
+    })
+}
+
+/// Path-specific natural effect via ID + functional effect estimator.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    edges,
+    treatment,
+    outcome,
+    *,
+    control_level=0.0,
+    active_level=1.0,
+    path_nodes=None,
+    max_paths=64,
+    max_len=16,
+    seed=1,
+    bootstrap=50,
+    threads=1
+))]
+fn analyze_path_specific(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    control_level: f64,
+    active_level: f64,
+    path_nodes: Option<Vec<String>>,
+    max_paths: usize,
+    max_len: usize,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
+            .with_max_paths(max_paths)
+            .with_max_len(max_len);
+        // Override levels via control/active interventions.
+        query.control = Intervention::set(t_id, Value::f64(control_level));
+        query.active = Intervention::set(t_id, Value::f64(active_level));
+        if let Some(nodes) = path_nodes {
+            let mut ids = Vec::with_capacity(nodes.len());
+            for name in &nodes {
+                ids.push(data.schema().id_of(name).map_err(py_err)?);
+            }
+            query = query.with_path_nodes(ids);
+        }
+        let dag = build_static_dag(&data, &edges)?;
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(dag)
+            .causal_query(CausalQuery::PathSpecific(query))
+            .identifier(IdentifierId::PathSpecificNatural)
+            .estimator(EstimatorId::FunctionalEffect)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
         ate_result_from_analysis(&names, result)
@@ -987,7 +1179,7 @@ struct PcmciDiscoveryResult {
     graph_edges: Vec<GraphEdge>,
 }
 
-fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<VariableId>)> {
+pub(crate) fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<VariableId>)> {
     let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
     let tabular = loaded.data;
     let n = tabular.row_count();
@@ -1000,7 +1192,7 @@ fn series_from_batch(batch: &RecordBatch) -> PyResult<(TimeSeriesData, Vec<Varia
     Ok((series, variables))
 }
 
-fn tabular_from_batch(
+pub(crate) fn tabular_from_batch(
     batch: &RecordBatch,
 ) -> PyResult<(causal_data::TabularData, Vec<VariableId>)> {
     let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
@@ -1063,7 +1255,7 @@ fn discovery_result_fields(
 /// Run lagged PCMCI discovery.
 ///
 /// NumPy columns in, structured link list out once. Batch CI only (no per-query Python loop
-/// unless `ci` is an explicit slow-path callable — DESIGN §25.4).
+/// unless `ci` is an explicit slow-path callable — ).
 /// `ci` selects a named test (default `parcorr`) or a Python batch callable.
 #[pyfunction]
 #[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1))]
@@ -1257,6 +1449,64 @@ fn discover_lingam(
             &result.performance,
             pending,
             "direct_lingam".into(),
+            dag.node_count() as u64,
+            directed,
+            0,
+            graph_edges,
+        ))
+    })
+}
+
+/// Run NOTEARS discovery over tabular columns → DAG summary.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, l1=0.1, threshold=0.3, standardize=true, seed=1, max_cond_size=8, threads=1))]
+fn discover_notears(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    l1: f64,
+    threshold: f64,
+    standardize: bool,
+    seed: u64,
+    max_cond_size: usize,
+    threads: u32,
+) -> PyResult<PcmciDiscoveryResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let params = StaticDiscoverParams {
+            alpha: 0.05,
+            max_cond_size,
+            fdr: None,
+            ci: Arc::new(PartialCorrelation::default()),
+        };
+        let ctx = py_execution_context(seed, threads);
+        let result = facade_discover_notears(
+            &data,
+            &variables,
+            &params,
+            l1,
+            threshold,
+            standardize,
+            &ctx,
+        )
+        .map_err(py_err)?;
+
+        let dag = &result.discovery.evidence.graph;
+        let directed = dag.edges().count() as u64;
+        let pending = result.discovery.review.pending_edges.len() as u64;
+        let graph_edges = static_dag_graph_edges(&names, dag);
+
+        Ok(discovery_result_fields(
+            &names,
+            &result.discovery.evidence.links,
+            result.discovery.algorithm.id.as_ref(),
+            result.discovery.algorithm.config.as_ref(),
+            &result.discovery.performance,
+            pending,
+            "notears".into(),
             dag.node_count() as u64,
             directed,
             0,
@@ -1841,7 +2091,9 @@ struct AnalysisResult {
 /// Run temporal effect analysis with a supplied lagged edge list.
 ///
 /// `edges` are `(source, source_lag, target, target_lag)` with lags ≥ 0.
-/// `treatment_lag` is the pulse offset as a non-negative lag (pulse at `-treatment_lag`).
+/// `treatment_lag` is the pulse/sustained offset as a non-negative lag
+/// (policy origin at `-treatment_lag`).
+/// `policy` is `"pulse"` (default) or `"sustained"`.
 #[pyfunction]
 #[pyo3(signature = (
     names,
@@ -1853,6 +2105,7 @@ struct AnalysisResult {
     treatment_lag=1,
     horizon_steps=1,
     active_level=1.0,
+    policy="pulse",
     seed=1,
     bootstrap=0,
     threads=1
@@ -1867,11 +2120,13 @@ fn analyze(
     treatment_lag: u32,
     horizon_steps: u32,
     active_level: f64,
+    policy: &str,
     seed: u64,
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
+    let policy = policy.to_ascii_lowercase();
     drop(columns);
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
@@ -1901,11 +2156,14 @@ fn analyze(
             g.insert_directed(s, t).map_err(py_err)?;
         }
 
-        let pulse_at = -i32::try_from(treatment_lag)
-            .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
-        let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
-            .with_policy(TemporalPolicy::pulse(pulse_at))
-            .with_horizon_steps(horizon_steps);
+        let q = temporal_query_from_policy(
+            &policy,
+            t_id,
+            y_id,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+        )?;
 
         let analysis = CausalAnalysis::builder()
             .series(series)
@@ -1938,34 +2196,60 @@ fn analyze(
     })
 }
 
+fn temporal_query_from_policy(
+    policy: &str,
+    t_id: VariableId,
+    y_id: VariableId,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+) -> PyResult<TemporalEffectQuery> {
+    let at = -i32::try_from(treatment_lag)
+        .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
+    match policy {
+        "pulse" => Ok(TemporalEffectQuery::pulse(t_id, y_id, active_level)
+            .with_policy(TemporalPolicy::pulse(at))
+            .with_horizon_steps(horizon_steps)),
+        "sustained" => {
+            // Sustained from `-treatment_lag` through step 0; evaluate at `horizon_steps`.
+            Ok(TemporalEffectQuery::sustained(t_id, y_id, 0, active_level)
+                .with_policy(TemporalPolicy::sustained(at, 0))
+                .with_horizon_steps(horizon_steps))
+        }
+        other => Err(PyValueError::new_err(format!(
+            "unknown temporal policy {other:?}; use pulse|sustained"
+        ))),
+    }
+}
+
 /// Result of a GCM counterfactual ITE (single boundary crossing).
 #[pyclass]
-struct GcmIteResult {
+pub(crate) struct GcmIteResult {
     #[pyo3(get)]
-    mean_ite: f64,
+    pub(crate) mean_ite: f64,
     #[pyo3(get)]
-    n_units: usize,
+    pub(crate) n_units: usize,
     #[pyo3(get)]
-    noise_inference: String,
+    pub(crate) noise_inference: String,
     #[pyo3(get)]
-    n_assignments: usize,
+    pub(crate) n_assignments: usize,
     /// Per-unit treatment effects (float64 NumPy array).
     #[pyo3(get)]
-    unit_effects: Py<PyArray1<f64>>,
+    pub(crate) unit_effects: Py<PyArray1<f64>>,
 }
 
 /// Interventional samples under hard `do` (means + full draws).
 #[pyclass]
-struct GcmSampleResult {
+pub(crate) struct GcmSampleResult {
     #[pyo3(get)]
-    column_means: Vec<f64>,
+    pub(crate) column_means: Vec<f64>,
     #[pyo3(get)]
-    n_draws: usize,
+    pub(crate) n_draws: usize,
     #[pyo3(get)]
-    n_nodes: usize,
+    pub(crate) n_nodes: usize,
     /// Column-major draws shaped `(n_nodes, n_draws)`.
     #[pyo3(get)]
-    draws: Py<PyArray2<f64>>,
+    pub(crate) draws: Py<PyArray2<f64>>,
 }
 
 /// Fit a linear-Gaussian GCM and return mean ITE under hard interventions.
@@ -2029,7 +2313,7 @@ fn counterfactual_ite(
 /// Fit GCM and return interventional column means + draws under hard `do(treatment=value)`.
 ///
 /// `mechanism_wrappers` maps variable name → object with `sample_noise(n)` / `evaluate(parents, noise)`
-/// (DESIGN §25.4 slow path).
+/// ( slow path).
 #[pyfunction]
 #[pyo3(name = "sample_do", signature = (names, columns, edges, treatment, do_value, n_draws, *, seed=0, threads=1, mechanism_wrappers=None))]
 fn sample_do_py(
@@ -2170,8 +2454,6 @@ fn sample_interventional_distribution(
 }
 
 /// Path-specific contribution via [`PathSpecificEffectQuery`] / `path_decompose`.
-///
-/// Returns `(total_change, [([node_names...], contribution), ...])`.
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, treatment, outcome, *, path_nodes=None, max_paths=64, max_len=16, seed=0, threads=1))]
 fn attribute_path_specific(
@@ -2186,7 +2468,7 @@ fn attribute_path_specific(
     max_len: usize,
     seed: u64,
     threads: u32,
-) -> PyResult<(f64, Vec<(Vec<String>, f64)>)> {
+) -> PyResult<gcm_api::ChangeAttributionResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -2221,25 +2503,7 @@ fn attribute_path_specific(
         }
         let ctx = py_execution_context(seed, threads);
         let result = facade_attribute_path_specific(&fitted.model, &query, &ctx).map_err(py_err)?;
-        let schema = data.schema();
-        let paths: Vec<(Vec<String>, f64)> = result
-            .path_breakdown
-            .iter()
-            .map(|p| {
-                let path_names: Vec<String> = p
-                    .path
-                    .iter()
-                    .map(|id| {
-                        schema
-                            .get(*id)
-                            .map(|v| v.name.to_string())
-                            .unwrap_or_else(|_| format!("V{}", id.raw()))
-                    })
-                    .collect();
-                (path_names, p.contribution)
-            })
-            .collect();
-        Ok((result.total_change, paths))
+        Ok(gcm_api::change_result_from_rust(result, &names))
     })
 }
 
@@ -2256,8 +2520,6 @@ fn quantity_wire_name(q: &PosteriorQuantityWire) -> String {
 }
 
 /// Fit GCM and attribute distribution change between two row ranges via Shapley.
-///
-/// Returns `(total_change, [(component_name, contribution), ...])`.
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
 fn attribute_distribution_change(
@@ -2273,7 +2535,7 @@ fn attribute_distribution_change(
     n_samples: usize,
     seed: u64,
     threads: u32,
-) -> PyResult<(f64, Vec<(String, f64)>)> {
+) -> PyResult<gcm_api::ChangeAttributionResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -2311,21 +2573,11 @@ fn attribute_distribution_change(
         };
         let result = facade_attribute_distribution_change(&fitted.model, &data, &query, &opts, &ctx)
             .map_err(py_err)?;
-        let mut pairs = Vec::with_capacity(result.contributions.len());
-        for c in result.contributions.iter() {
-            let name = data
-                .schema()
-                .get(c.component.variable())
-                .map_or_else(|_| format!("V{}", c.component.raw()), |v| v.name.to_string());
-            pairs.push((name, c.contribution));
-        }
-        Ok((result.total_change, pairs))
+        Ok(gcm_api::change_result_from_rust(result, &names))
     })
 }
 
 /// Structure-change attribution between two edge lists (parent-set Shapley).
-///
-/// Returns `(total_change, [(component_name, contribution), ...])`.
 #[pyfunction]
 #[pyo3(signature = (names, columns, baseline_edges, comparison_edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
 fn attribute_structure_change(
@@ -2342,7 +2594,7 @@ fn attribute_structure_change(
     n_samples: usize,
     seed: u64,
     threads: u32,
-) -> PyResult<(f64, Vec<(String, f64)>)> {
+) -> PyResult<gcm_api::ChangeAttributionResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -2398,22 +2650,13 @@ fn attribute_structure_change(
             &ctx,
         )
         .map_err(py_err)?;
-        let mut pairs = Vec::with_capacity(result.contributions.len());
-        for c in result.contributions.iter() {
-            let name = data
-                .schema()
-                .get(c.component.variable())
-                .map_or_else(|_| format!("V{}", c.component.raw()), |v| v.name.to_string());
-            pairs.push((name, c.contribution));
-        }
-        Ok((result.total_change, pairs))
+        Ok(gcm_api::change_result_from_rust(result, &names))
     })
 }
 
-/// Evaluate a decision problem under a Python utility callback (DESIGN §25.4).
+/// Evaluate a decision problem under a Python utility callback .
 ///
 /// `utility(actions, outcomes) -> flat float64 ndarray` of length `len(actions) * len(outcomes)`.
-/// Returns `(expected_utility, posterior_regret, chosen_action)`.
 #[pyfunction]
 #[pyo3(signature = (actions, outcomes, utility))]
 fn evaluate_decision_py(
@@ -2421,7 +2664,7 @@ fn evaluate_decision_py(
     actions: Vec<f64>,
     outcomes: Vec<f64>,
     utility: Bound<'_, PyAny>,
-) -> PyResult<(f64, f64, Option<usize>)> {
+) -> PyResult<gcm_api::DecisionEvaluation> {
     if !utility.is_callable() {
         return Err(PyValueError::new_err("utility must be callable"));
     }
@@ -2430,13 +2673,14 @@ fn evaluate_decision_py(
     // Keep GIL acquired: utility callback reacquires anyway; this is an explicit slow path.
     let eval = facade_evaluate_decision(&problem, &outcomes);
     let _ = py; // silence unused if optimized
-    Ok((eval.expected_utility, eval.posterior_regret, eval.chosen_action))
+    Ok(gcm_api::DecisionEvaluation {
+        expected_utility: eval.expected_utility,
+        posterior_regret: eval.posterior_regret,
+        chosen_action: eval.chosen_action,
+    })
 }
 
 /// Rank measurement vs sampling candidates under graph-entropy EIG.
-///
-/// `graph_weights`, `identified` (0/1), and `graph_keys` form the discrete posterior.
-/// Returns `(best_index, scores, mc_samples)`.
 #[pyfunction]
 #[pyo3(signature = (graph_weights, identified, graph_keys, measure_var_ids, sampling_increments, *, seed=0, threads=1))]
 fn rank_designs(
@@ -2447,7 +2691,7 @@ fn rank_designs(
     sampling_increments: Vec<u64>,
     seed: u64,
     threads: u32,
-) -> PyResult<(usize, Vec<f64>, u64)> {
+) -> PyResult<gcm_api::DesignRanking> {
     catch_ffi(|| {
         let flags: Vec<GraphIdentFlag> = identified
             .into_iter()
@@ -2493,7 +2737,11 @@ fn rank_designs(
                 .map_err(py_err)?;
         let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
         let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
-        Ok((best, scores, ranking.budget.samples))
+        Ok(gcm_api::DesignRanking {
+            best_index: best,
+            scores,
+            mc_samples: ranking.budget.samples,
+        })
     })
 }
 
@@ -2758,6 +3006,7 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<(Vec<String>, Vec<(u32, u32)>, 
     treatment_lag=1,
     horizon_steps=1,
     active_level=1.0,
+    policy="pulse",
     seed=1,
     bootstrap=0,
     threads=1,
@@ -2785,6 +3034,7 @@ fn analyze_temporal_discover(
     treatment_lag: u32,
     horizon_steps: u32,
     active_level: f64,
+    policy: &str,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -2799,6 +3049,7 @@ fn analyze_temporal_discover(
     ci: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AnalysisResult> {
     let algo = algorithm.to_string();
+    let policy = policy.to_ascii_lowercase();
     let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
     let accept = if accept_discovered {
         DiscoveryAccept::AutoAccept
@@ -2881,11 +3132,14 @@ fn analyze_temporal_discover(
                     time_dummy_ci: time_mode,
                     ..MultiDatasetConstraints::default()
                 };
-                let pulse_at = -i32::try_from(treatment_lag)
-                    .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
-                let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
-                    .with_policy(TemporalPolicy::pulse(pulse_at))
-                    .with_horizon_steps(horizon_steps);
+                let q = temporal_query_from_policy(
+                    &policy,
+                    t_id,
+                    y_id,
+                    treatment_lag,
+                    horizon_steps,
+                    active_level,
+                )?;
                 let analysis = CausalAnalysis::builder()
                     .series_multi(multi)
                     .temporal_query(q)
@@ -2934,11 +3188,14 @@ fn analyze_temporal_discover(
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
                 let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
                 let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
-                let pulse_at = -i32::try_from(treatment_lag)
-                    .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
-                let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
-                    .with_policy(TemporalPolicy::pulse(pulse_at))
-                    .with_horizon_steps(horizon_steps);
+                let q = temporal_query_from_policy(
+                    &policy,
+                    t_id,
+                    y_id,
+                    treatment_lag,
+                    horizon_steps,
+                    active_level,
+                )?;
                 let analysis = CausalAnalysis::builder()
                     .series(series)
                     .temporal_query(q)
@@ -2970,11 +3227,14 @@ fn analyze_temporal_discover(
 
                 let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
                 let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
-                let pulse_at = -i32::try_from(treatment_lag)
-                    .map_err(|_| PyValueError::new_err("treatment_lag too large"))?;
-                let q = TemporalEffectQuery::pulse(t_id, y_id, active_level)
-                    .with_policy(TemporalPolicy::pulse(pulse_at))
-                    .with_horizon_steps(horizon_steps);
+                let q = temporal_query_from_policy(
+                    &policy,
+                    t_id,
+                    y_id,
+                    treatment_lag,
+                    horizon_steps,
+                    active_level,
+                )?;
 
                 let mut builder = CausalAnalysis::builder()
                     .series(series)
@@ -3021,7 +3281,7 @@ fn analysis_result_from_run(result: causal::CausalAnalysisResult) -> AnalysisRes
     }
 }
 
-/// Anomaly scores: `(outcome, mean_score, n_units)`.
+/// Anomaly scores for listed outcomes.
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, outcomes, *, max_units=0))]
 fn anomaly_attribution(
@@ -3031,7 +3291,7 @@ fn anomaly_attribution(
     edges: Vec<(String, String)>,
     outcomes: Vec<String>,
     max_units: usize,
-) -> PyResult<Vec<(String, f64, usize)>> {
+) -> PyResult<Vec<gcm_api::AnomalyScores>> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -3068,13 +3328,17 @@ fn anomaly_attribution(
                 } else {
                     s.scores.iter().sum::<f64>() / s.scores.len() as f64
                 };
-                (name, mean, s.rows.len())
+                gcm_api::AnomalyScores {
+                    outcome: name,
+                    mean_score: mean,
+                    n_units: s.rows.len(),
+                }
             })
             .collect())
     })
 }
 
-/// Unit-level change attribution: `(mean_abs_total, [(component, mean_contrib), ...])`.
+/// Unit-level change attribution.
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, outcome, *, max_units=0, seed=0, threads=1))]
 fn attribute_unit_change(
@@ -3086,7 +3350,7 @@ fn attribute_unit_change(
     max_units: usize,
     seed: u64,
     threads: u32,
-) -> PyResult<(f64, Vec<(String, f64)>)> {
+) -> PyResult<gcm_api::ChangeAttributionResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -3111,20 +3375,14 @@ fn attribute_unit_change(
         let query = UnitChangeQuery::new(y_id, max_u);
         let result =
             facade_attribute_unit_change(&fitted.model, &data, &query, &ctx).map_err(py_err)?;
-        let comps: Vec<(String, f64)> = result
+        let pairs: Vec<(causal_core::ComponentId, f64)> = result
             .components
             .iter()
             .zip(result.mean_contributions.iter())
-            .map(|(c, v)| {
-                let name = names
-                    .get(c.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("comp{}", c.raw()));
-                (name, *v)
-            })
+            .map(|(c, v)| (*c, *v))
             .collect();
         let total = result.mean_contributions.iter().map(|x| x.abs()).sum();
-        Ok((total, comps))
+        Ok(gcm_api::synthetic_change_result(y_id, total, pairs, &names))
     })
 }
 
@@ -3141,7 +3399,7 @@ fn attribute_feature_relevance(
     n_samples: usize,
     seed: u64,
     threads: u32,
-) -> PyResult<Vec<(String, f64)>> {
+) -> PyResult<Vec<gcm_api::FeatureRelevance>> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -3184,7 +3442,7 @@ fn attribute_feature_relevance(
                     .get(s.feature.as_usize())
                     .cloned()
                     .unwrap_or_else(|| format!("var{}", s.feature.raw()));
-                (name, s.score)
+                gcm_api::FeatureRelevance { feature: name, score: s.score }
             })
             .collect())
     })
@@ -3206,7 +3464,7 @@ fn attribute_distribution_change_robust(
     n_samples: usize,
     seed: u64,
     threads: u32,
-) -> PyResult<(f64, Vec<(String, f64)>)> {
+) -> PyResult<gcm_api::ChangeAttributionResult> {
     let _ = n_samples;
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -3253,22 +3511,11 @@ fn attribute_distribution_change_robust(
             &ctx,
         )
         .map_err(py_err)?;
-        let comps: Vec<(String, f64)> = result
-            .contributions
-            .iter()
-            .map(|c| {
-                let name = names
-                    .get(c.component.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("comp{}", c.component.raw()));
-                (name, c.contribution)
-            })
-            .collect();
-        Ok((result.total_change, comps))
+        Ok(gcm_api::change_result_from_rust(result, &names))
     })
 }
 
-/// Detect mechanism changes; returns `(node, statistic, p_value, changed)`.
+/// Detect mechanism changes across two row ranges.
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, baseline_start, baseline_end, comparison_start, comparison_end, *, seed=0, threads=1))]
 fn mechanism_change_detection(
@@ -3282,7 +3529,7 @@ fn mechanism_change_detection(
     comparison_end: usize,
     seed: u64,
     threads: u32,
-) -> PyResult<Vec<(String, f64, f64, bool)>> {
+) -> PyResult<Vec<gcm_api::MechanismChangeDetection>> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
@@ -3333,7 +3580,12 @@ fn mechanism_change_detection(
                     .get(d.variable.as_usize())
                     .cloned()
                     .unwrap_or_else(|| format!("var{}", d.variable.raw()));
-                (name, d.statistic, d.p_value, d.changed)
+                gcm_api::MechanismChangeDetection {
+                    node: name,
+                    statistic: d.statistic,
+                    p_value: d.p_value,
+                    changed: d.changed,
+                }
             })
             .collect())
     })
@@ -3363,34 +3615,6 @@ fn dag_to_networkx_adjacency(
     })
 }
 
-/// Create a causal state and apply AppendData events; returns `(version, stale_query_count)`.
-#[pyfunction]
-#[pyo3(signature = (n_appends=2, cache_bytes=1_048_576))]
-fn causal_state_append(n_appends: u64, cache_bytes: u64) -> PyResult<(u64, usize)> {
-    catch_ffi(|| {
-        use causal_core::{AverageEffectQuery, CausalQuery};
-        let mut state = new_causal_state(CacheBudget::new(cache_bytes));
-        let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-        )));
-        let _ = state.refresh_results(&[(q, 1, 16)]);
-        for i in 0..n_appends {
-            apply_state_event(
-                &mut state,
-                StateEvent::AppendData(DataBatchRef {
-                    id: Arc::from(format!("b{i}")),
-                    nrows: 8,
-                    bytes: 64,
-                }),
-            )
-            .map_err(py_err)?;
-        }
-        Ok((state.version.raw(), state.stale_queries().len()))
-    })
-}
-
-
 /// Python module `causal._native`.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -3415,6 +3639,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_discover, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_path_specific, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_discover, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
@@ -3422,6 +3648,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(discover_pc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_ges, m)?)?;
     m.add_function(wrap_pyfunction!(discover_lingam, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_notears, m)?)?;
     m.add_function(wrap_pyfunction!(discover_fci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_rfci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_lpcmci, m)?)?;
@@ -3442,7 +3669,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mechanism_change_detection, m)?)?;
     m.add_function(wrap_pyfunction!(rank_designs, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_decision_py, m)?)?;
-    m.add_function(wrap_pyfunction!(causal_state_append, m)?)?;
     m.add_function(wrap_pyfunction!(decode_posterior_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(encode_posterior_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(dag_from_dot, m)?)?;
@@ -3469,6 +3695,14 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PredictSummary>()?;
     m.add_class::<GcmIteResult>()?;
     m.add_class::<GcmSampleResult>()?;
+    m.add_class::<graphs::Dag>()?;
+    m.add_class::<graphs::Cpdag>()?;
+    m.add_class::<graphs::Pag>()?;
+    m.add_class::<graphs::Admg>()?;
+    m.add_class::<graphs::TemporalDag>()?;
+    gcm_api::register(m)?;
+    state_api::register(m)?;
+    bayesian::register(m)?;
     m.add("__version__", causal_core::VERSION)?;
     Ok(())
 }

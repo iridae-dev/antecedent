@@ -1,4 +1,4 @@
-//! Once-per-batch kernel dispatch (DESIGN.md §23.2).
+//! Once-per-batch kernel dispatch.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -19,7 +19,7 @@ pub enum KernelImpl {
 
 /// Whether an arch-SIMD path is compiled in and available on this CPU.
 ///
-/// Always `false` until a justified `simd-runtime` kernel lands (DESIGN.md §23.2).
+/// Always `false` until a justified `simd-runtime` kernel lands.
 /// `KernelPolicy::allow_arch_simd` is still consulted by [`select_impl`]; when this
 /// returns false, selection falls through to portable/scalar.
 #[must_use]
@@ -29,7 +29,7 @@ pub fn arch_simd_available() -> bool {
 
 /// Resolve the implementation for a batch from policy.
 ///
-/// Selection order (DESIGN.md §23.2 / §30):
+/// Selection order:
 /// 1. `force_scalar`, or neither portable nor arch allowed → [`KernelImpl::Scalar`]
 /// 2. `allow_arch_simd` and compiled `simd-runtime` and CPU support → [`KernelImpl::ArchSimd`]
 /// 3. `allow_portable_optimized` → [`KernelImpl::PortableOptimized`]

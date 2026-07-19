@@ -1,4 +1,4 @@
-//! DOT digraph subset import/export for causal DAGs (DESIGN.md §24).
+//! DOT digraph subset import/export for causal DAGs.
 //!
 //! Supports `digraph [name] { A -> B; ... }` with identifier or quoted node ids.
 //! Attribute lists `[...]` are skipped. Undirected edges and subgraphs are rejected.

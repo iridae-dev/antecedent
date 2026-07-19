@@ -1,0 +1,31 @@
+{
+  "algorithm_id": "notears",
+  "tolerance_class": "RequiredDirectedEdges",
+  "n": 800,
+  "variables": ["x0", "x1", "x2"],
+  "scm": "x0 = e0; x1 = 0.8*x0 + e1; x2 = 0.8*x1 + e2; ei = ((i*a)%1)-0.5 with a in {0.137,0.271,0.419}",
+  "true_directed_edges": [
+    {"source": "x0", "target": "x1"},
+    {"source": "x1", "target": "x2"}
+  ],
+  "max_false_positive_edges": 0,
+  "notears": {
+    "lambda": 0.05,
+    "threshold": 0.2,
+    "standardize": true
+  },
+  "notes": "Synthetic linear SEM chain for NOTEARS continuous discovery. Tolerance RequiredDirectedEdges: every true edge must appear oriented correctly; at most max_false_positive_edges extras. Not an Exact black-box pin against an upstream NOTEARS oracle (non-convex / threshold-sensitive).",
+  "generation": {
+    "script": "scripts/conformance/generate_notears_chain.py",
+    "baseline_pin": null,
+    "env": "python3"
+  },
+  "reference": {
+    "project": "causal-library",
+    "available": true,
+    "version": "synthetic",
+    "commit": null,
+    "command": "python3 scripts/conformance/generate_notears_chain.py",
+    "note": "Frozen synthetic SEM; regeneration refreshes data.csv only — expected edges are the SCM ground truth, not an external solver dump."
+  }
+}

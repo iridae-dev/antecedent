@@ -1,4 +1,4 @@
-//! Physical-plan marking for Python / slow-path callbacks (DESIGN.md §21.5 / §25.4).
+//! Physical-plan marking for Python / slow-path callbacks.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,4 +1,4 @@
-//! Estimator contracts (DESIGN.md §14.1).
+//! Estimator contracts.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -9,7 +9,7 @@ use causal_expr::IdentifiedEstimand;
 use crate::adjustment::{EffectEstimate, EstimationWorkspace, PreparedEstimationProblem};
 use crate::error::EstimationError;
 
-/// Estimator preparation + fit (DESIGN §14.1).
+/// Estimator preparation + fit .
 ///
 /// Extension / dispatch surface. Most concrete estimators expose inherent
 /// `prepare` / `fit` with estimator-specific prepared types, workspaces, and
@@ -48,11 +48,11 @@ pub trait Estimator<D, Q = AverageEffectQuery> {
     ) -> Result<Self::Fit, EstimationError>;
 }
 
-/// Batch estimation against a fitted estimator (DESIGN §14.1).
+/// Batch estimation against a fitted estimator .
 ///
 /// Reserved extension point — not part of the day-1 public surface. No concrete
 /// estimator implements this yet; use inherent `fit` / bootstrap paths instead.
-#[allow(dead_code)] // DESIGN §14.1 reserved contract
+#[allow(dead_code)] // reserved contract
 pub(crate) trait FittedEstimator<Q> {
     /// Estimate one or more queries into `output`.
     ///

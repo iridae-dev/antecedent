@@ -1,4 +1,4 @@
-//! Retention policies for state components (DESIGN.md §20).
+//! Retention policies for state components.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

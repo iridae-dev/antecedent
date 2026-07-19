@@ -19,7 +19,7 @@ pub mod graph_json;
 pub mod graph_networkx;
 pub mod mechanism_wire;
 pub mod migrate;
-/// Thin mmap wrapper — sole `unsafe` boundary in causal-io (DESIGN.md §24.5).
+/// Thin mmap wrapper — sole `unsafe` boundary in causal-io.
 ///
 /// SPDX-License-Identifier: MIT OR Apache-2.0
 #[allow(unsafe_code)]

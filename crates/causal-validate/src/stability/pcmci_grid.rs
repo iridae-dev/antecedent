@@ -1,4 +1,4 @@
-//! PCMCI link-frequency stability and parameter grids (DESIGN.md §18.3).
+//! PCMCI link-frequency stability and parameter grids.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

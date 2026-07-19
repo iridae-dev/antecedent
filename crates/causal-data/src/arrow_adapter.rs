@@ -2,17 +2,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::num::NonZeroU32;
 use std::sync::Arc;
 
-use arrow_array::{Array, Float64Array, RecordBatch};
+use arrow_array::{Array, FixedSizeListArray, Float64Array, RecordBatch};
 use causal_core::{
-    CausalSchema, CausalSchemaBuilder, DiagnosticSet, MeasurementSpec, RoleHint, SmallRoleSet,
-    ValueType, VariableId,
+    CausalSchema, CausalSchemaBuilder, DiagnosticSet, MeasurementSpec, RoleHint, ScalarType,
+    SmallRoleSet, ValueType, VariableId,
 };
 
 use crate::arrow_ffi::{ArrowCColumn, float64_column_from_array};
 use crate::buffer::F64Buffer;
-use crate::column::{Float64Column, OwnedColumn, ValidityBitmap};
+use crate::column::{FixedVectorColumn, Float64Column, OwnedColumn, ValidityBitmap};
 use crate::dataset::TabularData;
 use crate::error::DataError;
 use crate::materialize::{MaterializationReason, materialization_diagnostic};
@@ -31,7 +32,7 @@ pub struct ArrowLoadResult {
     pub bytes_borrowed: u64,
 }
 
-/// Load float64 columns from an Arrow record batch into [`TabularData`].
+/// Load float64 and fixed-size float64-list columns from an Arrow record batch.
 ///
 /// Always copies into library-owned buffers (in-process `RecordBatch` path).
 /// Prefer [`tabular_from_arrow_c_columns`] for Arrow C Data Interface zero-copy.
@@ -51,47 +52,67 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
 
     for (i, field) in batch.schema().fields().iter().enumerate() {
         let name = field.name().clone();
-        builder
-            .add_variable(
-                Arc::<str>::from(name),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .map_err(|e| DataError::Schema(e.to_string()))?;
-
+        let id = VariableId::from_raw(u32::try_from(i).expect("col"));
         let array = batch.column(i);
-        let floats =
-            array.as_any().downcast_ref::<Float64Array>().ok_or(DataError::TypeMismatch {
-                id: VariableId::from_raw(u32::try_from(i).expect("col")),
-                expected: "float64",
-            })?;
 
-        let mut values = Vec::with_capacity(n_rows);
-        let mut validity_bytes = vec![0u8; n_rows.div_ceil(8)];
-        for row in 0..n_rows {
-            if floats.is_null(row) {
-                values.push(0.0);
-            } else {
-                values.push(floats.value(row));
-                validity_bytes[row / 8] |= 1 << (row % 8);
-            }
+        if let Some(floats) = array.as_any().downcast_ref::<Float64Array>() {
+            builder
+                .add_variable(
+                    Arc::<str>::from(name),
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::Context),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .map_err(|e| DataError::Schema(e.to_string()))?;
+            let (col, copied) = float64_owned_from_array(id, floats, n_rows)?;
+            bytes_copied += copied;
+            diagnostics.push(materialization_diagnostic(
+                MaterializationReason::ForeignBufferIncompatible,
+                copied,
+            ));
+            columns.push(OwnedColumn::Float64(col));
+            continue;
         }
-        let copied = (values.len() * core::mem::size_of::<f64>() + validity_bytes.len()) as u64;
-        bytes_copied += copied;
-        diagnostics.push(materialization_diagnostic(
-            MaterializationReason::ForeignBufferIncompatible,
-            copied,
-        ));
 
-        let col = Float64Column::new(
-            VariableId::from_raw(u32::try_from(i).expect("col")),
-            F64Buffer::owned(Arc::from(values)),
-            ValidityBitmap::from_bytes(validity_bytes, n_rows)?,
-        )?;
-        columns.push(OwnedColumn::Float64(col));
+        if let Some(list) = array.as_any().downcast_ref::<FixedSizeListArray>() {
+            let dim = usize::try_from(list.value_length()).map_err(|_| DataError::InvalidArgument {
+                message: "FixedSizeList width must fit usize".into(),
+            })?;
+            if dim == 0 {
+                return Err(DataError::InvalidArgument {
+                    message: "FixedSizeList width must be > 0".into(),
+                });
+            }
+            let width = NonZeroU32::new(u32::try_from(dim).map_err(|_| DataError::InvalidArgument {
+                message: "FixedSizeList width must fit u32".into(),
+            })?)
+            .expect("dim > 0");
+            builder
+                .add_variable(
+                    Arc::<str>::from(name),
+                    ValueType::Vector { width, element: ScalarType::Float64 },
+                    SmallRoleSet::from_hint(RoleHint::Context),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .map_err(|e| DataError::Schema(e.to_string()))?;
+            let (col, copied) = fixed_vector_from_list(id, list, n_rows, dim)?;
+            bytes_copied += copied;
+            diagnostics.push(materialization_diagnostic(
+                MaterializationReason::ForeignBufferIncompatible,
+                copied,
+            ));
+            columns.push(OwnedColumn::FixedVector(col));
+            continue;
+        }
+
+        return Err(DataError::TypeMismatch {
+            id,
+            expected: "float64 or FixedSizeList<float64>",
+        });
     }
 
     let schema: CausalSchema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
@@ -102,6 +123,69 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
         bytes_copied,
         bytes_borrowed: 0,
     })
+}
+
+fn float64_owned_from_array(
+    id: VariableId,
+    floats: &Float64Array,
+    n_rows: usize,
+) -> Result<(Float64Column, u64), DataError> {
+    let mut values = Vec::with_capacity(n_rows);
+    let mut validity_bytes = vec![0u8; n_rows.div_ceil(8)];
+    for row in 0..n_rows {
+        if floats.is_null(row) {
+            values.push(0.0);
+        } else {
+            values.push(floats.value(row));
+            validity_bytes[row / 8] |= 1 << (row % 8);
+        }
+    }
+    let copied = (values.len() * core::mem::size_of::<f64>() + validity_bytes.len()) as u64;
+    let col = Float64Column::new(
+        id,
+        F64Buffer::owned(Arc::from(values)),
+        ValidityBitmap::from_bytes(validity_bytes, n_rows)?,
+    )?;
+    Ok((col, copied))
+}
+
+fn fixed_vector_from_list(
+    id: VariableId,
+    list: &FixedSizeListArray,
+    n_rows: usize,
+    dim: usize,
+) -> Result<(FixedVectorColumn, u64), DataError> {
+    let values = list.values();
+    let floats = values.as_any().downcast_ref::<Float64Array>().ok_or(DataError::TypeMismatch {
+        id,
+        expected: "FixedSizeList<float64>",
+    })?;
+    let mut flat = Vec::with_capacity(n_rows.saturating_mul(dim));
+    let mut validity_bytes = vec![0u8; n_rows.div_ceil(8)];
+    for row in 0..n_rows {
+        if list.is_null(row) {
+            flat.extend(std::iter::repeat_n(0.0, dim));
+            continue;
+        }
+        validity_bytes[row / 8] |= 1 << (row % 8);
+        let start = row.saturating_mul(dim);
+        for k in 0..dim {
+            let idx = start + k;
+            if floats.is_null(idx) {
+                flat.push(0.0);
+            } else {
+                flat.push(floats.value(idx));
+            }
+        }
+    }
+    let copied = (flat.len() * core::mem::size_of::<f64>() + validity_bytes.len()) as u64;
+    let col = FixedVectorColumn::new(
+        id,
+        dim,
+        Arc::from(flat),
+        ValidityBitmap::from_bytes(validity_bytes, n_rows)?,
+    )?;
+    Ok((col, copied))
 }
 
 /// Load float64 columns from Arrow C Data Interface exports, preferring zero-copy.
@@ -206,6 +290,40 @@ mod tests {
                 assert!(!c.values.is_foreign());
             }
             _ => panic!("expected float"),
+        }
+    }
+
+    #[test]
+    fn arrow_load_fixed_size_list_float64() {
+        use arrow_array::FixedSizeListArray;
+        use arrow_buffer::NullBuffer;
+
+        let values = Float64Array::from(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let list = FixedSizeListArray::new(
+            Arc::new(Field::new("item", DataType::Float64, true)),
+            2,
+            Arc::new(values),
+            Some(NullBuffer::from(vec![true, false, true])),
+        );
+        let schema = Schema::new(vec![Field::new(
+            "v",
+            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, true)), 2),
+            true,
+        )]);
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(list)]).unwrap();
+        let loaded = tabular_from_record_batch(&batch).unwrap();
+        assert_eq!(loaded.data.row_count(), 3);
+        match loaded.data.column(VariableId::from_raw(0)).unwrap() {
+            crate::column::ColumnView::FixedVector(c) => {
+                assert_eq!(c.dim, 2);
+                assert!(c.validity.is_valid(0));
+                assert!(!c.validity.is_valid(1));
+                assert!(c.validity.is_valid(2));
+                assert!((c.values[0] - 1.0).abs() < f64::EPSILON);
+                assert!((c.values[1] - 2.0).abs() < f64::EPSILON);
+                assert!((c.values[4] - 5.0).abs() < f64::EPSILON);
+            }
+            _ => panic!("expected FixedVector"),
         }
     }
 

@@ -1,4 +1,4 @@
-//! Classic static FCI over [`TabularData`] → [`Pag`] (DESIGN.md §13.3).
+//! Classic static FCI over [`TabularData`] → [`Pag`].
 //!
 //! Phases (Spirtes et al.):
 //! 1. PC-style adjacency skeleton

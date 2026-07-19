@@ -1,4 +1,4 @@
-//! Exact and approximate Shapley value estimation (DESIGN.md §17.4).
+//! Exact and approximate Shapley value estimation.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -61,7 +61,7 @@ impl ShapleyEstimate {
     }
 }
 
-/// Enforce exact Shapley size limits (DESIGN.md §17.4).
+/// Enforce exact Shapley size limits.
 ///
 /// # Errors
 ///

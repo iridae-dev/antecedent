@@ -94,20 +94,23 @@ impl TemporalBackdoorIdentifier {
         })?;
         let treatment_at = query.try_treatment_offset().map_err(|_| {
             IdentificationError::UnsupportedQuery {
-                message: "TemporalPolicy::Dynamic has no single treatment origin",
+                message: "TemporalPolicy::Dynamic requires a non-empty active_at schedule",
             }
         })?;
         let outcome_at = query.outcome_offset();
-        match query.policy {
+        match &query.policy {
             TemporalPolicy::Sustained { from, until } => {
-                return self.identify_sustained(template, query, from, until, outcome_at);
+                return self.identify_active_offsets(
+                    template,
+                    query,
+                    &(*from..=*until).collect::<Vec<_>>(),
+                    outcome_at,
+                );
+            }
+            TemporalPolicy::Dynamic { active_at, .. } => {
+                return self.identify_active_offsets(template, query, active_at, outcome_at);
             }
             TemporalPolicy::Pulse { .. } => {}
-            TemporalPolicy::Dynamic { .. } => {
-                return Err(IdentificationError::UnsupportedQuery {
-                    message: "TemporalPolicy::Dynamic has no single treatment origin",
-                });
-            }
             _ => {
                 return Err(IdentificationError::UnsupportedQuery {
                     message: "unsupported temporal policy for identification",
@@ -212,15 +215,20 @@ impl TemporalBackdoorIdentifier {
         })
     }
 
-    /// Sustained interventions: unfold, then identify via general ID (sequential / g-formula).
-    fn identify_sustained(
+    /// Multi-time-point interventions (sustained windows or dynamic schedules):
+    /// unfold, then identify via general ID (sequential / g-formula).
+    fn identify_active_offsets(
         &self,
         template: &TemporalDag,
         query: &TemporalEffectQuery,
-        from: i32,
-        until: i32,
+        offsets: &[i32],
         outcome_at: i32,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        if offsets.is_empty() {
+            return Err(IdentificationError::msg("empty treatment schedule"));
+        }
+        let from = *offsets.iter().min().expect("non-empty");
+        let until = *offsets.iter().max().expect("non-empty");
         let min_offset = from.min(outcome_at).min(0);
         let max_offset = until.max(outcome_at).max(0);
         let horizon = u32::try_from(max_offset)
@@ -248,8 +256,8 @@ impl TemporalBackdoorIdentifier {
             let unfolded =
                 template.unfold(indexer).map_err(|e| IdentificationError::msg(e.to_string()))?;
 
-            let mut treatment_nodes = Vec::new();
-            for offset in from..=until {
+            let mut treatment_nodes = Vec::with_capacity(offsets.len());
+            for &offset in offsets {
                 let key = TemporalNodeKey { variable: query.treatment, offset };
                 let dense = unfolded
                     .indexer
@@ -263,7 +271,7 @@ impl TemporalBackdoorIdentifier {
                 .map_err(|_| IdentificationError::UnknownVariable { id: query.outcome })?;
 
             if treatment_nodes.is_empty() {
-                return Err(IdentificationError::msg("empty sustained treatment window"));
+                return Err(IdentificationError::msg("empty treatment schedule"));
             }
             if !ancestry_touches_boundary(
                 &unfolded,
@@ -278,7 +286,7 @@ impl TemporalBackdoorIdentifier {
                 return Err(IdentificationError::NotIdentified {
                     message: "temporal unfolding reached its history cap while confounder \
                               ancestry still crossed the truncated boundary; cannot certify \
-                              sustained identification over the finite window",
+                              identification over the finite window",
                 });
             }
             history += 1;
@@ -288,7 +296,7 @@ impl TemporalBackdoorIdentifier {
             Intervention::Set { value, .. } => value.clone(),
             _ => {
                 return Err(IdentificationError::unsupported(
-                    "sustained ID requires Set interventions",
+                    "multi-time temporal ID requires Set interventions",
                 ));
             }
         };
@@ -309,10 +317,10 @@ impl TemporalBackdoorIdentifier {
         let mut ws = IdentificationWorkspace::default();
         let mut result = id.identify(&prepared, &q, &mut ws)?;
         result.derivation.push(
-            "temporal.sustained",
+            "temporal.schedule",
             format!(
                 "sequential / g-formula ID on unfolded window history={history} \
-                 sustained=[{from},{until}] ({} treatment nodes)",
+                 active_offsets={offsets:?} ({} treatment nodes)",
                 treatment_nodes.len()
             ),
         );
@@ -646,23 +654,33 @@ mod tests {
             .derivation
             .steps
             .iter()
-            .any(|s| s.rule.as_ref() == "temporal.sustained"));
+            .any(|s| s.rule.as_ref() == "temporal.schedule"));
     }
 
     #[test]
-    fn dynamic_policy_is_unsupported() {
+    fn dynamic_policy_identifies_like_schedule() {
         use causal_core::{DynamicRuleId, TemporalPolicy};
-        let template = TemporalDag::empty();
+        let mut template = TemporalDag::empty();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x, y).unwrap();
         let query = TemporalEffectQuery::pulse(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
             1.0,
         )
-        .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(1)));
+        .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), [0, 1]));
         let identifier = TemporalBackdoorIdentifier::new();
-        assert!(matches!(
-            identifier.identify_temporal(&template, &query),
-            Err(IdentificationError::UnsupportedQuery { .. })
-        ));
+        let res = identifier.identify_temporal(&template, &query).unwrap();
+        assert_eq!(
+            res.result.status,
+            IdentificationStatus::NonparametricallyIdentified
+        );
+        assert!(res
+            .result
+            .derivation
+            .steps
+            .iter()
+            .any(|s| s.rule.as_ref() == "temporal.schedule"));
     }
 }

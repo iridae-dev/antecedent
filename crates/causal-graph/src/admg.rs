@@ -1,4 +1,4 @@
-//! Acyclic directed mixed graphs (ADMGs): directed + bidirected edges (DESIGN.md §6.2).
+//! Acyclic directed mixed graphs (ADMGs): directed + bidirected edges.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

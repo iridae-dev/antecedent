@@ -1,4 +1,4 @@
-//! Reisz-representer diagnostics for binary ATE (DESIGN.md §18.2).
+//! Reisz-representer diagnostics for binary ATE.
 //!
 //! For binary treatment the Riesz representer of the ATE functional under
 //! unconfoundedness is

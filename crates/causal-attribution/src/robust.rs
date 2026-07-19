@@ -1,7 +1,6 @@
 //! Robust distribution-change attribution (`pinned baseline` `distribution_change_robust`).
 //!
 //! Uses conditional-mean regression rather than full density estimation
-//! (DESIGN.md §17 / pinned baseline-GCM robust variants).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

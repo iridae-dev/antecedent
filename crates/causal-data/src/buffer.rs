@@ -1,8 +1,8 @@
-//! Contiguous f64 column buffers — owned or foreign-backed (DESIGN.md §5.2).
+//! Contiguous f64 column buffers — owned or foreign-backed.
 //!
 //! Foreign buffers never expose Arrow types; the owner is type-erased.
 //! Unsafe code here is limited to pointer→slice projection under an owner
-//! lifetime contract (DESIGN.md §29).
+//! lifetime contract.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

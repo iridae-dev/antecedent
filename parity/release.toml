@@ -5,7 +5,7 @@ library = "causal"
 [[capabilities]]
 id = "release.parity_closure"
 status = "done"
-notes = "Shipped pinned baseline/pinned baseline rows are done; remaining DESIGN chapters are pending + TODO.md (no waiver vocabulary)"
+notes = "Shipped pinned baseline rows are done across inventories; no waiver vocabulary; required 1.0 chapters closed"
 
 [[capabilities]]
 id = "release.graph_dot_json"
@@ -40,4 +40,4 @@ notes = "unsafe/license/dependency review + cargo-deny"
 [[capabilities]]
 id = "release.artifact_mmap_stream_skip"
 status = "done"
-notes = "ArtifactReader/MappedArtifactReader skip+mmap; SectionBytes Arc; Arrow Never-compress; posterior meta-only — TODO.md item 9"
+notes = "ArtifactReader/MappedArtifactReader skip+mmap; SectionBytes Arc; Arrow Never-compress; posterior meta-only"

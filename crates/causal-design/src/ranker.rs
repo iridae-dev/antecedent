@@ -1,4 +1,4 @@
-//! Batched Monte Carlo design ranking (DESIGN.md §19.4).
+//! Batched Monte Carlo design ranking.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use causal_core::{AverageEffectQuery, TargetPopulation, VariableId};
-use causal_data::TabularData;
+use causal_core::{AverageEffectQuery, PopulationRegistry, PredicateExpr, TargetPopulation, VariableId};
+use causal_data::{TabularData, TableView};
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
     FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityFit, PropensityWorkspace,
@@ -110,7 +110,7 @@ impl Default for MatchingIndexKey {
 
 /// Reusable scratch for propensity estimators.
 ///
-/// Point estimates retain a [`MatchingIndex`] across compatible donor geometries (DESIGN §14.6).
+/// Point estimates retain a [`MatchingIndex`] across compatible donor geometries .
 /// Bootstrap replicates rebuild the index whenever resampled donors change the geometry key.
 #[derive(Clone, Debug, Default)]
 pub struct PropensityEstimationWorkspace {
@@ -151,7 +151,7 @@ impl PropensityEstimationWorkspace {
         Ok(())
     }
 
-    /// Estimated retained bytes for propensity + matching scratch (DESIGN §14.6).
+    /// Estimated retained bytes for propensity + matching scratch .
     #[must_use]
     pub fn retained_memory_bytes(&self) -> u64 {
         let mut bytes = 0u64;
@@ -198,6 +198,17 @@ pub(crate) fn prepare_propensity_problem(
     query: &AverageEffectQuery,
     overlap: OverlapPolicy,
 ) -> Result<PreparedPropensityProblem, EstimationError> {
+    prepare_propensity_problem_with_registry(data, estimand, query, overlap, None)
+}
+
+/// Like [`prepare_propensity_problem`], with optional named-predicate / distribution bindings.
+pub(crate) fn prepare_propensity_problem_with_registry(
+    data: &TabularData,
+    estimand: &IdentifiedEstimand,
+    query: &AverageEffectQuery,
+    overlap: OverlapPolicy,
+    registry: Option<&PopulationRegistry>,
+) -> Result<PreparedPropensityProblem, EstimationError> {
     crate::util::refuse_explicit_override(
         overlap,
         "propensity estimators require RequireDiagnostics overlap policy; positivity is mandatory",
@@ -223,8 +234,29 @@ pub(crate) fn prepare_propensity_problem(
     ids.push(treatment);
     ids.push(outcome);
     ids.extend_from_slice(&estimand.adjustment_set);
-    let row_mask =
+    let mut row_mask =
         data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+    let n_full = data.row_count();
+    match &query.target_population {
+        TargetPopulation::Predicate(PredicateExpr::Rows(_))
+        | TargetPopulation::Predicate(PredicateExpr::Named(_)) => {
+            let sel = query
+                .target_population
+                .resolve(n_full, None, registry)
+                .map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+            for (i, slot) in row_mask.iter_mut().enumerate() {
+                *slot = *slot && sel.keep.get(i).copied().unwrap_or(false);
+            }
+        }
+        TargetPopulation::CustomDistribution(_) => {
+            let _sel = query
+                .target_population
+                .resolve(n_full, None, registry)
+                .map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+            // Weights apply at IPW time; keep complete-case rows.
+        }
+        _ => {}
+    }
     let t = data
         .float64_masked(treatment, &row_mask)
         .map_err(EstimationError::from)?;

@@ -1,4 +1,4 @@
-//! Temporal linear adjustment estimator (DESIGN.md).
+//! Temporal linear adjustment estimator.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -83,9 +83,13 @@ impl TemporalLinearAdjustment {
         }
         query.validate()?;
 
-        if matches!(query.policy, causal_core::TemporalPolicy::Dynamic { .. }) {
+        if matches!(
+            &query.policy,
+            causal_core::TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1
+        ) {
             return Err(EstimationError::unsupported(
-                "TemporalPolicy::Dynamic is not supported by temporal linear adjustment",
+                "TemporalPolicy::Dynamic with multiple active steps is not supported by \
+                 temporal linear adjustment (use a single-step schedule or sustained policy)",
             ));
         }
         if query.target_population != TargetPopulation::AllObserved {

@@ -89,7 +89,7 @@ pub(crate) fn finalize_bootstrap_se(ates: &[f64], replicates: u32) -> BootstrapS
 /// IID bootstrap standard error with failure accounting.
 ///
 /// Index plans are produced in one batch under `ctx` via
-/// [`fill_resample_index_batch`] (DESIGN.md §11.4).
+/// [`fill_resample_index_batch`].
 ///
 /// `estimate` should return `Ok(Some(ate))` on success, `Ok(None)` for a soft-failed replicate
 /// (counted as failed, bootstrap continues), or `Err` to abort the whole bootstrap.

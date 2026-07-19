@@ -10,7 +10,7 @@ use crate::intervention::Intervention;
 use super::error::QueryError;
 
 #[derive(Clone, Debug, PartialEq)]
-/// Counterfactual query over factual observations and interventions (DESIGN.md §16).
+/// Counterfactual query over factual observations and interventions.
 pub struct CounterfactualQuery {
     /// Outcome variable(s) to predict under the counterfactual world.
     pub outcomes: Arc<[VariableId]>,

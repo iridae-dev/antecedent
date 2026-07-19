@@ -1,4 +1,4 @@
-//! Facade errors (DESIGN.md §22 `CausalError` shape).
+//! Facade errors.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -91,5 +91,5 @@ pub enum AnalysisError {
     },
 }
 
-/// Alias matching DESIGN.md §22 naming.
+/// Public alias for [`AnalysisError`].
 pub type CausalError = AnalysisError;

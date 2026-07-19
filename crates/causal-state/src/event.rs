@@ -1,4 +1,4 @@
-//! State events (DESIGN.md §20).
+//! State events.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

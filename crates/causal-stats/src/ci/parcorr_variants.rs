@@ -303,7 +303,7 @@ fn weighted_block_shuffle_pvalue(
 }
 
 /// Multivariate partial correlation via block residualization and first canonical
-/// correlation (DESIGN.md §12).
+/// correlation.
 ///
 /// Each column of X and Y is residualized against Z by OLS; the leading canonical
 /// correlation between residual blocks is the dependence statistic. When both blocks

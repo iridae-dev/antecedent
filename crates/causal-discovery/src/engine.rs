@@ -1,4 +1,4 @@
-//! Shared PCMCI engine: PC-style parents + MCI (DESIGN.md §13.4 / §13.8).
+//! Shared PCMCI engine: PC-style parents + MCI.
 //!
 //! Hot path: one [`LaggedFrame`] per run; CI tests index columns and reuse
 //! workspace scratch (no per-test sample-plan rebuild).
@@ -53,7 +53,7 @@ struct MciChunkOut {
 /// Reusable target-local discovery workspace.
 #[derive(Clone, Debug, Default)]
 pub struct DiscoveryWorkspace {
-    /// Prepare-once CI session for the active lagged frame (DESIGN.md §12).
+    /// Prepare-once CI session for the active lagged frame.
     pub prepared_ci: Option<PreparedCiTest>,
     /// CI workspace (parcorr residuals / shuffle scratch).
     pub ci: CiWorkspace,
@@ -78,7 +78,7 @@ pub struct DiscoveryWorkspace {
     pub compact_values: Vec<f64>,
     /// Involved-column scratch for keep-mask construction.
     pub involved_cols: Vec<usize>,
-    /// Cache: sorted involved column indexes → keep mask (DESIGN.md §5.7).
+    /// Cache: sorted involved column indexes → keep mask.
     pub keep_cache: HashMap<Vec<usize>, Arc<[bool]>>,
 }
 
@@ -361,7 +361,7 @@ impl PcmciEngine {
         let threads = ctx.parallelism.max_threads.get().max(1);
         let compiled = engine.constraints.compile(&search_vars)?;
 
-        // DESIGN.md §12: prepare CI once for the lagged frame (unmasked fast path).
+        // : prepare CI once for the lagged frame (unmasked fast path).
         if frame.is_fully_valid() {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             let plan = causal_stats::CiPreparationPlan {
@@ -610,7 +610,7 @@ impl PcmciEngine {
         Ok((tests, truncated))
     }
 
-    /// MCI-test the full constrained candidate family for one target (DESIGN.md §12.1).
+    /// MCI-test the full constrained candidate family for one target.
     ///
     /// `parents` are the PC-estimated parents of `target` and are used only for
     /// conditioning, together with PC parents of each candidate source. Candidates are
@@ -712,7 +712,7 @@ impl PcmciEngine {
         Ok((scored, truncated))
     }
 
-    /// Ensure [`DiscoveryWorkspace::prepared_ci`] matches `frame` (DESIGN.md §12).
+    /// Ensure [`DiscoveryWorkspace::prepared_ci`] matches `frame`.
     fn ensure_prepared_ci(
         &self,
         frame: &LaggedFrame,
@@ -802,19 +802,33 @@ impl PcmciEngine {
             return Ok((result.statistic, result.p_value));
         }
 
-        // Masked / incomplete series: complete-case over involved columns (xyz),
+        // Masked / incomplete series: complete-case over selected (y,x,z) roles per mask_type,
         // expanding through pairwise-MV blocks when configured.
         workspace.involved_cols.clear();
-        expand_into(&mut workspace.involved_cols, xi, &self.column_blocks);
-        expand_into(&mut workspace.involved_cols, yi, &self.column_blocks);
-        let z_copy: Vec<usize> = workspace.z_flat.clone();
-        for &zi in &z_copy {
-            expand_into(&mut workspace.involved_cols, zi, &self.column_blocks);
+        let mask_type = self.constraints.mask_type;
+        if mask_type.includes_x() {
+            expand_into(&mut workspace.involved_cols, xi, &self.column_blocks);
+        }
+        if mask_type.includes_y() {
+            expand_into(&mut workspace.involved_cols, yi, &self.column_blocks);
+        }
+        if mask_type.includes_z() {
+            let z_copy: Vec<usize> = workspace.z_flat.clone();
+            for &zi in &z_copy {
+                expand_into(&mut workspace.involved_cols, zi, &self.column_blocks);
+            }
+        }
+        if workspace.involved_cols.is_empty() {
+            // Degenerate mask_type with no participants: keep all rows.
+            workspace.involved_cols.clear();
         }
         workspace.involved_cols.sort_unstable();
         workspace.involved_cols.dedup();
 
-        let keep = {
+        let keep = if workspace.involved_cols.is_empty() {
+            let n = if frame.ncols() == 0 { 0 } else { frame.column(0).len() };
+            Arc::from(vec![true; n])
+        } else {
             let key = workspace.involved_cols.clone();
             if let Some(cached) = workspace.keep_cache.get(&key) {
                 Arc::clone(cached)

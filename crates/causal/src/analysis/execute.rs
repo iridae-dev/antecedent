@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade (DESIGN.md §21).
+//! Unified `CausalAnalysis` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -64,7 +64,7 @@ use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic,
     provenance_pair, resolve_analysis_ci, run_jpcmci_plus_review, run_lpcmci_review,
     run_pcmci_plus_review, run_pcmci_review, run_fci_review, run_rfci_review, run_ges_review,
-    run_lingam_review, run_pc_review, run_refuters,
+    run_lingam_review, run_notears_review, run_pc_review, run_refuters,
     run_rpcmci_discovery,
 };
 
@@ -282,6 +282,26 @@ impl CausalAnalysis {
                     estimator,
                 })?;
                 plan.record.discovery_algorithm = Some(Arc::from("direct_lingam"));
+                plan.record.graph_review_required = true;
+                Ok(plan)
+            }
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(q),
+                GraphInput::DiscoverNotears { .. },
+            ) => {
+                let (identifier, estimator) = self.resolve_static_pair();
+                let n_vars = u32::try_from(data.schema().len()).unwrap_or(0);
+                let empty = Dag::with_variables(n_vars);
+                let mut plan = compile_logical_static_ate(StaticAteCompileInput {
+                    data,
+                    graph: &empty,
+                    query: q,
+                    validation_suite: self.validation_suite_id(),
+                    identifier,
+                    estimator,
+                })?;
+                plan.record.discovery_algorithm = Some(Arc::from("notears"));
                 plan.record.graph_review_required = true;
                 Ok(plan)
             }
@@ -632,6 +652,49 @@ impl CausalAnalysis {
             }
             (
                 DataInput::Tabular(data),
+                CausalQuery::AverageEffect(q),
+                GraphInput::DiscoverNotears {
+                    max_cond_size,
+                    lambda,
+                    threshold,
+                    standardize,
+                    accept_discovered,
+                },
+            ) => {
+                let review = run_notears_review(
+                    data,
+                    *max_cond_size,
+                    *lambda,
+                    *threshold,
+                    *standardize,
+                    ctx,
+                )?;
+                if *accept_discovered {
+                    let dag = review.accept_all().try_into_dag().map_err(|e| {
+                        AnalysisError::ReviewRequired {
+                            message: e.to_string(),
+                        }
+                    })?;
+                    let (identifier, estimator) = self.resolve_static_pair();
+                    self.ensure_rd_config_present(&estimator)?;
+                    let mut logical = compile_logical_static_ate(StaticAteCompileInput {
+                        data,
+                        graph: &dag,
+                        query: q,
+                        validation_suite: self.validation_suite_id(),
+                        identifier,
+                        estimator,
+                    })?;
+                    logical.record.discovery_algorithm = Some(Arc::from("notears"));
+                    let physical =
+                        logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
+                    Ok(CompiledAnalysis::Ready(physical))
+                } else {
+                    Ok(compile_review_required_static_dag(review))
+                }
+            }
+            (
+                DataInput::Tabular(data),
                 CausalQuery::AverageEffect(_q),
                 graph @ GraphInput::DiscoverFci {
                     alpha,
@@ -740,12 +803,14 @@ impl CausalAnalysis {
             | (DataInput::MultiEnv(_), _, GraphInput::DiscoverGes { .. })
             | (DataInput::Temporal(_), _, GraphInput::DiscoverLingam { .. })
             | (DataInput::MultiEnv(_), _, GraphInput::DiscoverLingam { .. })
+            | (DataInput::Temporal(_), _, GraphInput::DiscoverNotears { .. })
+            | (DataInput::MultiEnv(_), _, GraphInput::DiscoverNotears { .. })
             | (DataInput::Temporal(_), _, GraphInput::DiscoverFci { .. })
             | (DataInput::MultiEnv(_), _, GraphInput::DiscoverFci { .. })
             | (DataInput::Temporal(_), _, GraphInput::DiscoverRfci { .. })
             | (DataInput::MultiEnv(_), _, GraphInput::DiscoverRfci { .. }) => {
                 return Err(AnalysisError::Compile {
-                    message: "static PC/GES/LiNGAM/FCI/RFCI discovery requires tabular data and AverageEffect"
+                    message: "static PC/GES/LiNGAM/NOTEARS/FCI/RFCI discovery requires tabular data and AverageEffect"
                         .into(),
                 });
             }
@@ -854,17 +919,18 @@ impl CausalAnalysis {
                     GraphInput::Static(graph) => graph,
                     GraphInput::DiscoverPc { .. }
                     | GraphInput::DiscoverGes { .. }
-                    | GraphInput::DiscoverLingam { .. } => physical.static_graph().ok_or(
+                    | GraphInput::DiscoverLingam { .. }
+                    | GraphInput::DiscoverNotears { .. } => physical.static_graph().ok_or(
                         AnalysisError::Compile {
                             message:
-                                "Ready PC/GES/LiNGAM plan missing resolved static DAG (complete review first)"
+                                "Ready PC/GES/LiNGAM/NOTEARS plan missing resolved static DAG (complete review first)"
                                     .into(),
                         },
                     )?,
                     _ => {
                         return Err(AnalysisError::Unsupported {
                             message:
-                                "static ATE execute requires a supplied static DAG or DiscoverPc/Ges/Lingam",
+                                "static ATE execute requires a supplied static DAG or DiscoverPc/Ges/Lingam/Notears",
                         });
                     }
                 };
@@ -976,7 +1042,7 @@ impl CausalAnalysis {
         let estimator = physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
         let estimator_id = EstimatorId::parse(estimator);
 
-        // rd.sharp has no graph-based identification step (DESIGN.md §21.2); dispatch to its
+        // rd.sharp has no graph-based identification step; dispatch to its
         // own path before touching `graph`.
         if matches!(estimator_id, EstimatorId::RdSharp) {
             return self.execute_rd(data, query, physical, ctx);

@@ -10,7 +10,7 @@ use crate::value::Value;
 use super::TargetPopulation;
 use super::error::QueryError;
 
-/// Temporal effect query over a discrete horizon (DESIGN.md §8).
+/// Temporal effect query over a discrete horizon.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TemporalEffectQuery {
     /// Treatment variable.
@@ -83,7 +83,7 @@ impl TemporalEffectQuery {
 
     /// Replace the temporal policy.
     #[must_use]
-    pub const fn with_policy(mut self, policy: TemporalPolicy) -> Self {
+    pub fn with_policy(mut self, policy: TemporalPolicy) -> Self {
         self.policy = policy;
         self
     }
@@ -133,10 +133,7 @@ impl TemporalEffectQuery {
         Ok(())
     }
 
-    /// Treatment time offset for Pulse `at` / Sustained `from`.
-    ///
-    /// [`TemporalPolicy::Dynamic`] has no single origin; prefer
-    /// [`Self::try_treatment_offset`].
+    /// Treatment time offset for Pulse `at` / Sustained `from` / Dynamic first active step.
     #[must_use]
     pub fn treatment_offset(&self) -> i32 {
         match self.try_treatment_offset() {
@@ -145,17 +142,19 @@ impl TemporalEffectQuery {
         }
     }
 
-    /// Treatment time offset when the policy has a single origin.
+    /// Treatment time offset when the policy has a defined origin.
     ///
     /// # Errors
     ///
-    /// [`QueryError::DynamicPolicyHasNoTreatmentOffset`] for
-    /// [`TemporalPolicy::Dynamic`].
+    /// [`QueryError::DynamicPolicyHasNoTreatmentOffset`] for an empty dynamic schedule.
     pub fn try_treatment_offset(&self) -> Result<i32, QueryError> {
-        match self.policy {
-            TemporalPolicy::Pulse { at } => Ok(at),
-            TemporalPolicy::Sustained { from, .. } => Ok(from),
-            TemporalPolicy::Dynamic { .. } => Err(QueryError::DynamicPolicyHasNoTreatmentOffset),
+        match &self.policy {
+            TemporalPolicy::Pulse { at } => Ok(*at),
+            TemporalPolicy::Sustained { from, .. } => Ok(*from),
+            TemporalPolicy::Dynamic { active_at, .. } => active_at
+                .first()
+                .copied()
+                .ok_or(QueryError::DynamicPolicyHasNoTreatmentOffset),
         }
     }
 

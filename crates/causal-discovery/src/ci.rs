@@ -1,4 +1,4 @@
-//! Conditional-independence surface owned by discovery (DESIGN.md §3.1 / §12).
+//! Conditional-independence surface owned by discovery.
 //!
 //! Numeric kernels remain in `causal-stats`; this module re-exports the DESIGN
 //! trait contract so discovery algorithms depend on a discovery-owned CI API.

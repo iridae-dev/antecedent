@@ -1,4 +1,4 @@
-//! `faer` dense backend — column-pivoted QR least squares (DESIGN.md §11.6).
+//! `faer` dense backend — column-pivoted QR least squares.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -34,7 +34,7 @@ impl DenseLinearAlgebra for FaerBackend {
         }
         workspace.prepare(nrows, ncols);
 
-        // Column-pivoted QR on X (not normal equations — DESIGN.md §11.6).
+        // Column-pivoted QR on X (not normal equations — ).
         let a = Mat::<f64>::from_fn(nrows, ncols, |r, c| x_colmajor[c * nrows + r]);
         let qr = ColPivQr::new(a.as_ref());
 

@@ -1,4 +1,4 @@
-//! Identification result types (DESIGN.md §10.1).
+//! Identification result types.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

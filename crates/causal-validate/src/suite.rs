@@ -1,4 +1,4 @@
-//! Validation suite orchestration (DESIGN.md §18.5).
+//! Validation suite orchestration.
 //!
 //! Runs requested validators, returning explicit [`ValidationOutcome::NotApplicable`] when a
 //! check is incompatible with the estimator/estimand (rather than failing the whole suite).
@@ -138,7 +138,7 @@ pub enum ValidationOutcome {
     },
 }
 
-/// Ordered suite of validators (DESIGN §18.5).
+/// Ordered suite of validators .
 #[derive(Clone, Default)]
 pub struct ValidationSuite {
     validators: Vec<ValidatorId>,

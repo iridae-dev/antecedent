@@ -1,4 +1,4 @@
-//! Analytic conjugate Gaussian linear regression (DESIGN.md §14.4).
+//! Analytic conjugate Gaussian linear regression.
 //!
 //! Normal–Inv-Gamma (or known-σ² Normal) posterior with diagonal Gaussian
 //! coefficient prior. Draws are columnar; no object-per-draw storage.

@@ -1,4 +1,4 @@
-//! Split-R-hat and bulk ESS for multi-chain MCMC (DESIGN.md §18.4).
+//! Split-R-hat and bulk ESS for multi-chain MCMC.
 //!
 //! Chain layout: `samples[(chain * n_draws + draw) * n_params + param]`.
 //!

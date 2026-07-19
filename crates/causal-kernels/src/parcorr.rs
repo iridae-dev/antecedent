@@ -1,4 +1,4 @@
-//! Partial-correlation kernels (DESIGN.md §12).
+//! Partial-correlation kernels.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

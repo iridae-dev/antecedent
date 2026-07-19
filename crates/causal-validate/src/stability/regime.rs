@@ -1,4 +1,4 @@
-//! Regime stability via RPCMCI block bootstrap (DESIGN.md §18.3).
+//! Regime stability via RPCMCI block bootstrap.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

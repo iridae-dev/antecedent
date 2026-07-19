@@ -2,7 +2,7 @@
 //!
 //! Identify first; estimate second. Primary entry points include
 //! [`BackdoorIdentifier`], [`FrontDoorIdentifier`], [`IdIdentifier`],
-//! [`IdcIdentifier`], and [`AutoIdentifier`] (DESIGN.md §10).
+//! [`IdcIdentifier`], and [`AutoIdentifier`].
 //!
 //! ```
 //! use causal_identify::BackdoorIdentifier;

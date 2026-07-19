@@ -18,7 +18,7 @@ Criterion sample size: 10
 
 Regressions exceeding **20%** wall-time vs the last accepted Criterion run on
 the same machine class require an approved explanation and replacement baseline
-(DESIGN.md §28.9). Gate: mean ≤ **1.91 ms** (20% over 1.59 ms).
+. Gate: mean ≤ **1.91 ms** (20% over 1.59 ms).
 
 ## Declared allocation budget
 

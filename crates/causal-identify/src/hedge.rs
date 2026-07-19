@@ -1,4 +1,4 @@
-//! Hedge certificates for non-identifiability (DESIGN.md §10.2).
+//! Hedge certificates for non-identifiability.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

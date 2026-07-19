@@ -19,9 +19,9 @@ thiserror = { workspace = true }
 
 [features]
 default = ["hmc"]
-# Native HMC sampling backend (DESIGN.md §30). Empty feature flag; always compiled when enabled.
+# Native HMC sampling backend. Empty feature flag; always compiled when enabled.
 hmc = []
-# Reserved for SMC (DESIGN.md §30); not yet implemented as a separate backend.
+# Reserved for SMC; not yet implemented as a separate backend.
 smc = []
 
 [dev-dependencies]

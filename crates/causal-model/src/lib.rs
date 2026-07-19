@@ -1,4 +1,4 @@
-//! Probabilistic and structural causal models (DESIGN.md §15).
+//! Probabilistic and structural causal models.
 //!
 //! Compiles DAGs to topological execution plans; sampling uses intervention
 //! overlays rather than cloning models.

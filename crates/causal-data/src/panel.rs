@@ -1,4 +1,4 @@
-//! Panel data: unit partitions with per-unit time indexes (DESIGN.md §5.1).
+//! Panel data: unit partitions with per-unit time indexes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

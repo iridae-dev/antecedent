@@ -1,4 +1,4 @@
-//! Partial ancestral graphs (PAGs) with circle marks (DESIGN.md §6.2 / §6.5).
+//! Partial ancestral graphs (PAGs) with circle marks.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -13,7 +13,7 @@ use crate::marked_storage::{self, AdjEntry};
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
 use crate::workspace::GraphWorkspace;
 
-/// Static PAG over variables (DESIGN §6.2).
+/// Static PAG over variables .
 #[derive(Clone, Debug)]
 pub struct Pag {
     nodes: Vec<NodeRef>,

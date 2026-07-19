@@ -1,4 +1,4 @@
-//! Shared analytic SE policy for ATE estimators (DESIGN.md §11.3 wiring).
+//! Shared analytic SE policy for ATE estimators.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade (DESIGN.md §21).
+//! Unified `CausalAnalysis` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -350,6 +350,26 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Discover with NOTEARS (tabular continuous SEM → DAG).
+    #[must_use]
+    pub fn discover_notears(
+        mut self,
+        max_cond_size: usize,
+        lambda: f64,
+        threshold: f64,
+        standardize: bool,
+        accept: crate::options::DiscoveryAccept,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverNotears {
+            max_cond_size,
+            lambda,
+            threshold,
+            standardize,
+            accept_discovered: accept.auto(),
+        });
+        self
+    }
+
     /// Override the CI test used by discovery paths (defaults to partial correlation).
     #[must_use]
     pub fn discovery_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
@@ -357,7 +377,7 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Append custom effect validators (DESIGN §25.4 slow path).
+    /// Append custom effect validators ( slow path).
     #[must_use]
     pub fn custom_validators(mut self, validators: Vec<Arc<dyn CustomEffectValidator>>) -> Self {
         self.custom_validators = validators;
@@ -444,7 +464,7 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Configure frequentist vs Bayesian inference (DESIGN.md §34.1).
+    /// Configure frequentist vs Bayesian inference.
     ///
     /// [`InferenceMode::Bayesian`] selects estimator [`EstimatorId::BayesianGcomp`].
     #[must_use]
@@ -456,7 +476,7 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Overlap / positivity policy for propensity and AIPW estimators (DESIGN.md §14.3).
+    /// Overlap / positivity policy for propensity and AIPW estimators.
     ///
     /// When unset, those estimators keep their built-in defaults (clip = 0.01, no trim).
     /// Ignored by estimators that require [`OverlapPolicy::ExplicitOverride`] (linear, GLM, IV,

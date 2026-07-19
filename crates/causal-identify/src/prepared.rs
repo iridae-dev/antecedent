@@ -10,7 +10,7 @@ use causal_graph::{Admg, BitSet, Dag, DenseNodeId, GraphWorkspace, NodeRef};
 
 use crate::error::IdentificationError;
 
-/// Prepared semi-Markovian graph for ID/IDC (DESIGN.md §10.5).
+/// Prepared semi-Markovian graph for ID/IDC.
 ///
 /// Owns one [`Admg`] and caches district labels, topological order, and
 /// ancestral closures so recursive ID does not clone the graph per step.

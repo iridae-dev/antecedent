@@ -1,4 +1,4 @@
-//! Static PC discovery over [`TabularData`] (DESIGN.md §13.3).
+//! Static PC discovery over [`TabularData`].
 //!
 //! Classic undirected skeleton search + collider / Meek orientation → [`Cpdag`].
 //! Distinct from PCMCI PC1 parent selection.
@@ -708,7 +708,7 @@ mod tests {
 
     /// Under independent Gaussian noise, PC skeleton edge retention should track α.
     ///
-    /// Scheduled via `scripts/gate_calibration.sh` (DESIGN.md §28.3). Loose band:
+    /// Scheduled via `scripts/gate_calibration.sh`. Loose band:
     /// with `N_SIM · C(p,2)` pair-trials the Monte Carlo SE near α=0.05 is small;
     /// we accept roughly ±4 SE plus a hard floor/ceiling for small budgets.
     /// Raised `N_SIM` (80) so total pair-trials ≈ 800 and MC SE(α) ≈ 0.0077.

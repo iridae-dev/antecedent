@@ -1,4 +1,4 @@
-//! Isolated Arrow C Data Interface FFI (DESIGN.md §29).
+//! Isolated Arrow C Data Interface FFI.
 //!
 //! All `unsafe` for Arrow CDI lives in this module. Safe wrappers validate
 //! types and lengths before exposing library-owned views.

@@ -1,4 +1,4 @@
-//! Sample construction policies (DESIGN.md §5.5).
+//! Sample construction policies.
 //!
 //! Distinct from `causal_counterfactual::AbductionMissingPolicy` (abduction).
 //!

@@ -1,4 +1,4 @@
-//! Temporal bootstrap / resampling index plans (DESIGN.md §11.4).
+//! Temporal bootstrap / resampling index plans.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -355,7 +355,7 @@ pub fn fill_resample_weights(
 }
 
 /// Fill `out` (`len = n * n_replicates`, replicate-major) with index plans under one
-/// [`ExecutionContext`] (DESIGN.md §11.4 batch production).
+/// [`ExecutionContext`].
 ///
 /// Each replicate uses `ctx.rng.stream(stream_base ^ replicate_id)` so results are
 /// independent of scheduling order under [`causal_core::Determinism::Strict`].

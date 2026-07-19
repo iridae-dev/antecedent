@@ -1,4 +1,4 @@
-//! Identification envelopes over graph classes (DESIGN.md §10.1).
+//! Identification envelopes over graph classes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -38,7 +38,7 @@ pub struct GraphIdentificationCase<G> {
     pub weight: ProbabilityMass,
 }
 
-/// Ensemble / equivalence-class identification result (DESIGN §10.1).
+/// Ensemble / equivalence-class identification result .
 ///
 /// Unidentified mass is preserved explicitly .
 #[derive(Clone, Debug)]

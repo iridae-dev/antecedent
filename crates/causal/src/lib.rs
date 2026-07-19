@@ -45,9 +45,11 @@ pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RdConfig, RefuteSuite}
 pub use callback_plan::mark_python_callback_plan;
 pub use design::rank_designs;
 pub use discovery::{
-    DiscoverParams, StaticDiscoverParams, discover_fci, discover_ges, discover_jpcmci_plus,
-    discover_lingam, discover_lpcmci, discover_pc, discover_pcmci, discover_pcmci_plus,
-    discover_rfci, discover_rpcmci, pag_definite_directed_edge_count,
+    BayesianDiscoverParams, DiscoverParams, GraphMcmcSchedule, StaticDiscoverParams,
+    discover_ci_screened_posterior, discover_dbn_posterior, discover_exact_dag_posterior,
+    discover_fci, discover_ges, discover_jpcmci_plus, discover_lingam, discover_lpcmci,
+    discover_notears, discover_order_mcmc, discover_pc, discover_pcmci, discover_pcmci_plus,
+    discover_rfci, discover_rpcmci, discover_structure_mcmc, pag_definite_directed_edge_count,
 };
 pub use discovery_defaults::{
     DEFAULT_ALPHA, DEFAULT_MAX_COND_SIZE, DEFAULT_RPCMCI_MIN_REGIME_LEN,
@@ -81,13 +83,16 @@ pub use strategy_table::{
     validate_static_pair,
 };
 
-// PAG / LPCMCI surfaces.
+// PAG / LPCMCI / Bayesian graph-posterior surfaces.
 pub use causal_discovery::{
-    ContextKind, CpdagDiscoveryResult, DagDiscoveryResult, DirectLingam,
-    DiscoveryPerformanceRecord, Fci, Ges, JpcmciPlus, JpcmciNodeRole, Lpcmci,
-    MultiDatasetConstraints, PagDiscoveryResult, Pc, RegimeAssignment, RegimeGraphCollection,
-    Rfci, Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
-    StaticDagDiscoveryResult, StaticPagDiscoveryResult, TimeDummyCiMode, two_regime_half_split,
+    CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult, DagDiscoveryResult,
+    DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, ExactDagPosterior, Fci, Ges,
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, JpcmciPlus, JpcmciNodeRole, Lpcmci,
+    MultiDatasetConstraints, Notears, NotearsDiscoveryResult, OrderMcmc, PagDiscoveryResult, Pc,
+    RegimeAssignment, RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, ScoredLink,
+    SpaceDummyCiMode, StaticCpdagDiscoveryResult, StaticDagDiscoveryResult,
+    StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode, EXACT_ENUM_MAX_NODES,
+    two_regime_half_split,
 };
 pub use causal_estimate::{
     ConditionalLinearAdjustment, OverlapPolicy, TemporalEffectSurface, TemporalLinearPredictor,

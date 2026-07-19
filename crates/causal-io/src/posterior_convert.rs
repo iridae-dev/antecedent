@@ -1,4 +1,4 @@
-//! Convert [`CausalPosterior`] (internal) ↔ versioned wire artifacts (DESIGN.md §24.2).
+//! Convert [`CausalPosterior`] (internal) ↔ versioned wire artifacts.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

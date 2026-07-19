@@ -373,7 +373,9 @@ pub(crate) fn matching_contrast(
             let rows: Vec<usize> = q_local.iter().map(|&q| control_idx[q]).collect();
             (flipped, donors, treated_y.len(), rows)
         }
-        TargetPopulation::AllObserved => {
+        TargetPopulation::AllObserved
+        | TargetPopulation::Predicate(_)
+        | TargetPopulation::CustomDistribution(_) => {
             let (att_diffs, att_donors, att_q) = match_diffs(
                 &control_feat,
                 &control_y,
@@ -405,7 +407,9 @@ pub(crate) fn matching_contrast(
             (effects, donors, n_control + treated_y.len(), rows)
         }
         _ => {
-            return Err(EstimationError::unsupported("matching estimators support AllObserved, Treated, or Untreated target populations"));
+            return Err(EstimationError::unsupported(
+                "matching estimators support AllObserved, Treated, Untreated, or Predicate target populations",
+            ));
         }
     };
     if per_unit_effects.is_empty() {

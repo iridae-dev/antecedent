@@ -1,4 +1,4 @@
-//! Numeric tolerance classes (ADR 0010 / DESIGN.md §28.5).
+//! Numeric tolerance classes (ADR 0010 / ).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

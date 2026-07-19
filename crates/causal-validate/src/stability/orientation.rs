@@ -1,4 +1,4 @@
-//! Orientation stability via PCMCI+ block bootstrap (DESIGN.md §18.3).
+//! Orientation stability via PCMCI+ block bootstrap.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

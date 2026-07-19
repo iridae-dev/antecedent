@@ -25,7 +25,7 @@ cargo +1.85 bench -p causal-stats --bench ci_phase5
 ```
 
 Acceptance: no unexplained >20% regression vs last accepted Criterion mean on
-the same machine class (DESIGN.md §28.9).
+the same machine class.
 
 ## kNN index reuse
 

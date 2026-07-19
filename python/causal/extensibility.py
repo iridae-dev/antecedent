@@ -1,4 +1,4 @@
-"""Typing Protocols for DESIGN §25.4 slow-path Python callbacks.
+"""Typing Protocols for slow-path Python callbacks.
 
 These are documentation / type-checking aids. Native bridges accept any
 callable matching the shapes below; they reacquire the GIL and force serial

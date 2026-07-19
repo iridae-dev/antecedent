@@ -1,10 +1,17 @@
 from ._native import (
+    AnomalyScores as AnomalyScores,
+    ChangeAttributionResult as ChangeAttributionResult,
+    Contribution as Contribution,
+    FeatureRelevance as FeatureRelevance,
+    MechanismChangeDetection as MechanismChangeDetection,
     anomaly_attribution as anomaly_attribution,
     attribute_distribution_change as attribute_distribution_change,
     attribute_distribution_change_robust as attribute_distribution_change_robust,
     attribute_feature_relevance as attribute_feature_relevance,
     attribute_path_specific as attribute_path_specific,
+    attribute_paths as attribute_paths,
     attribute_structure_change as attribute_structure_change,
     attribute_unit_change as attribute_unit_change,
     mechanism_change_detection as mechanism_change_detection,
+    rank_root_causes as rank_root_causes,
 )

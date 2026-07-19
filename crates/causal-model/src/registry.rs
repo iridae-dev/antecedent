@@ -1,4 +1,4 @@
-//! Mechanism registry and auto-assignment (DESIGN.md §15.3).
+//! Mechanism registry and auto-assignment.
 //!
 //! Assignment returns candidates and scores; there is no silent default family.
 //!

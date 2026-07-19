@@ -1,4 +1,4 @@
-//! Anomaly attribution via ancestor-noise Shapley (Janzing et al. 2020; DESIGN.md §17).
+//! Anomaly attribution via ancestor-noise Shapley (Janzing et al. 2020; ).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

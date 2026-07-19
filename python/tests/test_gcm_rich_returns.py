@@ -63,10 +63,11 @@ def test_attribute_path_specific():
     names = ["t", "m", "y"]
     cols = [t, m, y]
     edges = [("t", "m"), ("m", "y"), ("t", "y")]
-    total, paths = causal.attribute_path_specific(
+    result = causal.attribute_path_specific(
         names, cols, edges, "t", "y", path_nodes=["m"], seed=1
     )
-    assert isinstance(total, float)
+    assert isinstance(result.total_change, float)
+    paths = result.path_breakdown
     assert paths
     assert all(isinstance(p, list) and isinstance(c, float) for p, c in paths)
     mediated = next(
@@ -76,3 +77,14 @@ def test_attribute_path_specific():
     assert mediated is not None, f"expected t→m→y path contribution, got {paths}"
     # Linear SEM path product 0.8×0.6 = 0.48 (MonteCarlo tolerance).
     assert abs(mediated - 0.48) < 0.25
+
+
+def test_fit_gcm_oo_sample_do():
+    names, cols, edges = _gcm_linear(n=80)
+    gcm = causal.fit_gcm(names, cols, edges)
+    result = gcm.sample_do({"t": 1.0}, 40, seed=2)
+    assert result.n_draws == 40
+    assert result.draws.shape == (result.n_nodes, 40)
+    ite = gcm.counterfactual_ite("t", "y", 1.0, 0.0, seed=1)
+    assert ite.n_units == len(cols[0])
+    assert np.isclose(ite.mean_ite, 1.5, rtol=0.15)

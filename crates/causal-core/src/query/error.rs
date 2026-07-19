@@ -79,6 +79,40 @@ pub enum QueryError {
     PathNodeOverlapsTreatmentOrOutcome,
     /// Distribution conditioning overlaps an outcome or intervention target.
     ConditioningOverlapsOutcomeOrIntervention,
+    /// Named / custom population requires a [`super::PopulationRegistry`].
+    PopulationRegistryRequired,
+    /// Named predicate is not bound in the registry.
+    UnknownPredicateName {
+        /// Predicate key.
+        name: std::sync::Arc<str>,
+    },
+    /// Custom distribution handle is not bound in the registry.
+    UnknownDistributionRef {
+        /// Raw distribution id.
+        id: u32,
+    },
+    /// Treated / untreated population requires a treatment column.
+    PopulationNeedsTreatment,
+    /// Treatment column is not binary 0/1.
+    PopulationNonBinaryTreatment,
+    /// Keep-mask / weight length mismatch.
+    PopulationLengthMismatch {
+        /// Expected length.
+        expected: usize,
+        /// Actual length.
+        actual: usize,
+    },
+    /// Predicate row index ≥ `n`.
+    PopulationRowOutOfRange {
+        /// Offending row.
+        row: usize,
+        /// Population size.
+        n: usize,
+    },
+    /// Environment-restricted populations need multi-env data (not resolved here).
+    PopulationEnvironmentUnsupported,
+    /// Distribution weights contain negatives or non-finite values.
+    InvalidPopulationWeights,
 }
 
 impl core::fmt::Display for QueryError {
@@ -148,6 +182,33 @@ impl core::fmt::Display for QueryError {
             }
             Self::ConditioningOverlapsOutcomeOrIntervention => {
                 write!(f, "distribution conditioning overlaps outcome or intervention")
+            }
+            Self::PopulationRegistryRequired => {
+                write!(f, "named predicate / custom distribution requires a PopulationRegistry")
+            }
+            Self::UnknownPredicateName { name } => {
+                write!(f, "unknown predicate name `{name}`")
+            }
+            Self::UnknownDistributionRef { id } => {
+                write!(f, "unknown DistributionRef({id})")
+            }
+            Self::PopulationNeedsTreatment => {
+                write!(f, "Treated/Untreated population requires a treatment column")
+            }
+            Self::PopulationNonBinaryTreatment => {
+                write!(f, "Treated/Untreated population requires binary 0/1 treatment")
+            }
+            Self::PopulationLengthMismatch { expected, actual } => {
+                write!(f, "population length mismatch: expected {expected}, got {actual}")
+            }
+            Self::PopulationRowOutOfRange { row, n } => {
+                write!(f, "population row {row} out of range for n={n}")
+            }
+            Self::PopulationEnvironmentUnsupported => {
+                write!(f, "Environment target population is not resolved by PopulationRegistry")
+            }
+            Self::InvalidPopulationWeights => {
+                write!(f, "custom distribution weights must be finite and non-negative")
             }
         }
     }

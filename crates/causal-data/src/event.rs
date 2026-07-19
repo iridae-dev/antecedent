@@ -1,4 +1,4 @@
-//! Irregular event-indexed datasets (DESIGN.md §5.1).
+//! Irregular event-indexed datasets.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

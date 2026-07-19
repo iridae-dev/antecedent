@@ -1,4 +1,4 @@
-//! Graph-weighted effect envelopes (DESIGN.md).
+//! Graph-weighted effect envelopes.
 //!
 //! Aggregates per-graph effect posteriors using [`WeightedGraphSamples`].
 //! Unidentified mass is preserved by default and is never silently renormalized.

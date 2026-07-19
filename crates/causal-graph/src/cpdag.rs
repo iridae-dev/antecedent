@@ -19,7 +19,7 @@ use crate::temporal::TemporalDag;
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
-/// Static CPDAG over variables (DESIGN §6.2 / §13.3).
+/// Static CPDAG over variables .
 ///
 /// Distinct from [`TemporalCpdag`]: accepts only [`NodeRef::Static`].
 #[derive(Clone, Debug)]
@@ -493,7 +493,7 @@ impl CpdagReview {
     }
 }
 
-/// Temporal CPDAG over lagged variable nodes (DESIGN §6.2).
+/// Temporal CPDAG over lagged variable nodes .
 #[derive(Clone, Debug)]
 pub struct TemporalCpdag {
     nodes: Vec<NodeRef>,

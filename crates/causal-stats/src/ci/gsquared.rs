@@ -280,7 +280,7 @@ fn chi2_sf(x: f64, df: f64) -> f64 {
 /// Residualize-then-correlate CI — an explicit alias of [`PartialCorrelation`].
 ///
 /// Kept as a named entry point for callers who think in regression terms; the
-/// statistic is identical to ParCorr (DESIGN.md §12).
+/// statistic is identical to ParCorr.
 #[derive(Clone, Debug, Default)]
 pub struct RegressionCi {
     inner: PartialCorrelation,

@@ -2,7 +2,7 @@
 //!
 //! All estimators here require propensity-based positivity diagnostics
 //! ([`OverlapPolicy::RequireDiagnostics`]) — [`OverlapPolicy::ExplicitOverride`] is refused
-//! because positivity is mandatory for propensity/matching methods (DESIGN.md §14.3).
+//! because positivity is mandatory for propensity/matching methods.
 //!
 //! Bootstrap standard errors **refit the propensity model on every resample** rather than
 //! reusing the point-estimate propensity scores. This is more expensive than score-reuse,

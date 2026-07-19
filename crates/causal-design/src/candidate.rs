@@ -1,4 +1,4 @@
-//! Candidate experiment / measurement plans (DESIGN.md §19.2).
+//! Candidate experiment / measurement plans.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

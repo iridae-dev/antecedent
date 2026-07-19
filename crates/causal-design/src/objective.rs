@@ -1,4 +1,4 @@
-//! Design objectives (DESIGN.md §19.1).
+//! Design objectives.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

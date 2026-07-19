@@ -23,7 +23,7 @@ thiserror = { workspace = true }
 
 [features]
 default = []
-# Gaussian-process mechanism family (DESIGN.md §14.4 / §30).
+# Gaussian-process mechanism family.
 gaussian-process = []
 
 [dev-dependencies]

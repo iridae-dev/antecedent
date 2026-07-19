@@ -1,4 +1,4 @@
-//! Inference backend interface and reusable workspaces (DESIGN.md §14.5).
+//! Inference backend interface and reusable workspaces.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

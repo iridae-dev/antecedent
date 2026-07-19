@@ -1,4 +1,4 @@
-//! Orientation rules and local delta queues (DESIGN.md §13.6).
+//! Orientation rules and local delta queues.
 //!
 //! Rules enqueue only neighbors of changed edges — never a full-graph edge scan.
 //!

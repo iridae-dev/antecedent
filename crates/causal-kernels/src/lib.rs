@@ -2,7 +2,6 @@
 //!
 //! Scalar kernels are the correctness reference. Portable-optimized and
 //! architecture-specific paths must pass the same differential tests
-//! (DESIGN.md §23.2, ADR 0011).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -207,7 +206,7 @@ mod tests {
         assert!(ToleranceClass::StableFloat.close(cov, cov_s));
     }
 
-    /// DESIGN §28.2: scalar ≡ portable under random lengths, strides/tails, masks, NaNs.
+    /// : scalar ≡ portable under random lengths, strides/tails, masks, NaNs.
     #[test]
     fn property_scalar_portable_random_strides_masks_nans() {
         let mut rng = causal_core::CausalRng::from_seed(28_02);

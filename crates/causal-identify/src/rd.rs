@@ -1,4 +1,4 @@
-//! Sharp regression-discontinuity identification (DESIGN.md §2.1).
+//! Sharp regression-discontinuity identification.
 //!
 //! Records design assumptions explicitly; does not search a causal graph.
 //!

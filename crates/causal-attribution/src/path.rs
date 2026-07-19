@@ -1,4 +1,4 @@
-//! Path-specific contribution decomposition (DESIGN.md §17.2 `PathBased`).
+//! Path-specific contribution decomposition.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

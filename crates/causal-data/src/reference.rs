@@ -1,4 +1,4 @@
-//! Reference-point policies for temporal sample alignment (DESIGN.md §5.5).
+//! Reference-point policies for temporal sample alignment.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

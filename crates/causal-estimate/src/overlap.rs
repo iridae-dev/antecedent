@@ -1,4 +1,4 @@
-//! Overlap / positivity policy and reports (DESIGN.md §14.3).
+//! Overlap / positivity policy and reports.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-/// Overlap / positivity handling (DESIGN §14.3).
+/// Overlap / positivity handling .
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OverlapPolicy {
     /// Explicitly skip propensity-based overlap (linear adjustment path).
@@ -28,7 +28,7 @@ impl OverlapPolicy {
     }
 }
 
-/// Closed propensity interval excluded from the target population (DESIGN §14.3).
+/// Closed propensity interval excluded from the target population .
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PropensityInterval {
     /// Inclusive lower bound in `[0, 1]`.
@@ -37,7 +37,7 @@ pub struct PropensityInterval {
     pub high: f64,
 }
 
-/// Sensitivity of ESS / extreme weights to neighboring clip thresholds (DESIGN §14.3).
+/// Sensitivity of ESS / extreme weights to neighboring clip thresholds .
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClipSensitivity {
     /// Neighboring clip thresholds evaluated (typically `{clip/2, clip, 2·clip}` capped).

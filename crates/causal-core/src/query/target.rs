@@ -8,10 +8,10 @@ use crate::ids::{DistributionRef, EnvironmentId};
 
 use super::error::QueryError;
 
-/// Portable predicate over units/rows (DESIGN.md §8.2).
+/// Portable predicate over units/rows.
 ///
-/// Evaluation against tabular data is deferred; this type is query identity and
-/// wire surface only. No Python callables.
+/// [`Self::Rows`] is evaluated directly; [`Self::Named`] resolves through
+/// [`super::PopulationRegistry`].
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum PredicateExpr {
@@ -59,7 +59,7 @@ impl PredicateExpr {
     }
 }
 
-/// Target population for an effect query (DESIGN.md §8.2).
+/// Target population for an effect query.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum TargetPopulation {
@@ -71,9 +71,9 @@ pub enum TargetPopulation {
     Untreated,
     /// Environment-restricted population.
     Environment(EnvironmentId),
-    /// Predicate-selected units (identity + wire; evaluation deferred).
+    /// Predicate-selected units ([`PredicateExpr`]).
     Predicate(PredicateExpr),
-    /// Custom target distribution handle (sampling deferred).
+    /// Custom target distribution handle (weights via [`super::PopulationRegistry`]).
     CustomDistribution(DistributionRef),
 }
 

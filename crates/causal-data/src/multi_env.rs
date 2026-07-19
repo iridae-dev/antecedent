@@ -1,4 +1,4 @@
-//! Multi-environment / multi-dataset container (DESIGN.md §5.1).
+//! Multi-environment / multi-dataset container.
 //!
 //! Typed list of series sharing one schema. Sample planning without per-env
 //! full copies lives in [`crate::multi_env_plan`]. J-PCMCI+ discovery

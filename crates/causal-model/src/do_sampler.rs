@@ -1,4 +1,4 @@
-//! Do-samplers: weighting, KDE, and MCMC (DESIGN.md §26.1).
+//! Do-samplers: weighting, KDE, and MCMC.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

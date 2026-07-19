@@ -10,7 +10,7 @@ Owner: `causal-stats` / `MatchingIndex::exact` and
 - Point-estimate fits retain `MatchingIndex` across compatible donor geometries
  (`matching_index_builds` stays flat on a second identical fit).
 - Bootstrap replicates rebuild the index whenever resampled donors change the
- geometry key (DESIGN §14.6).
+ geometry key .
 
 ## Notes
 

@@ -1,4 +1,4 @@
-//! Shared marked-adjacency helpers for CPDAG / PAG storage (DESIGN §6.3).
+//! Shared marked-adjacency helpers for CPDAG / PAG storage .
 //!
 //! Graph types remain distinct; only adjacency entry layout and directed
 //! reachability scratch reuse are shared.

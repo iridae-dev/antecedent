@@ -1,4 +1,4 @@
-//! Counterfactual trajectories with shared-noise batching (DESIGN.md §16.1).
+//! Counterfactual trajectories with shared-noise batching.
 //!
 //! Layout is flat columnar — never `Vec<Vec<Vec<_>>>`.
 //! `values[time * n_worlds * n_units + world * n_units + unit]`.

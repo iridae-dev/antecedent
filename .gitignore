@@ -41,3 +41,11 @@ fuzz/target/
 # CodeQL local databases / SARIF
 .codeql-db/
 .codeql-results/
+
+# CodeQL local databases / SARIF
+.codeql-db/
+.codeql-results/
+
+# CodeQL local databases / SARIF
+.codeql-db/
+.codeql-results/

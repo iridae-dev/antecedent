@@ -35,7 +35,7 @@ use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
 
-/// Causal posterior over an identified functional (DESIGN.md §14.4).
+/// Causal posterior over an identified functional.
 #[derive(Clone, Debug)]
 pub struct CausalPosterior {
     /// Columnar effect (and optional coefficient) draws.
@@ -411,7 +411,7 @@ pub struct BayesianGCompWorkspace {
     pub eval: PosteriorEvalWorkspace,
 }
 
-/// Trait for batched posterior functional evaluation (DESIGN.md §14.4).
+/// Trait for batched posterior functional evaluation.
 pub trait PosteriorFunctionalEvaluator {
     /// Compiled plan type.
     type Compiled;

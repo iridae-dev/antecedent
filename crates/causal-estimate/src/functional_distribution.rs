@@ -1,5 +1,5 @@
 //! Nonparametric estimation of identified interventional distributions via
-//! discrete empirical CPT plug-in into compiled ID/IDC functionals (DESIGN.md §8 / §9).
+//! discrete empirical CPT plug-in into compiled ID/IDC functionals.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

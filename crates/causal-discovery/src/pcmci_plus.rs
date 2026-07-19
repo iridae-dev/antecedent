@@ -1,4 +1,4 @@
-//! PCMCI+ returning a temporal CPDAG (DESIGN.md §13.4–13.5).
+//! PCMCI+ returning a temporal CPDAG.
 //!
 //! Implements Runge (2020) / pinned baseline `run_pcmciplus`:
 //! 1. Lagged-only PC1 skeleton \(\widehat{\mathcal{B}}^-\).
@@ -80,7 +80,7 @@ impl PcmciPlus {
     /// Run PCMCI+ and return a CPDAG-backed discovery result.
     ///
     /// Evidence and review both carry the oriented [`causal_graph::TemporalCpdag`]
-    /// (DESIGN.md §13.5); undirected contemporaneous marks are preserved.
+    ///; undirected contemporaneous marks are preserved.
     ///
     /// # Errors
     ///

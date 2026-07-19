@@ -1,4 +1,4 @@
-# DESIGN.md §28.3 statistical calibration (scheduled; not every-PR unit CI).
+# statistical calibration (scheduled; not every-PR unit CI).
 name: calibration
 
 on:

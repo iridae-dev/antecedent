@@ -1,4 +1,4 @@
-//! Property tests: identification on tiny generated SCMs (DESIGN.md §28.2).
+//! Property tests: identification on tiny generated SCMs.
 //!
 //! Prefer graph-structure asserts (expected adjustment / mediator sets). Where a
 //! discrete table is cheap, also evaluate the returned functional against a

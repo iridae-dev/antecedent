@@ -1,4 +1,4 @@
-//! LPCMCI discovery returning a temporal PAG (DESIGN.md §13.4–13.5).
+//! LPCMCI discovery returning a temporal PAG.
 //!
 //! Implements Gerhardus & Runge (2020): middle marks, weakly-minimal sepsets,
 //! interleaved ancestral / non-ancestral removal with orientation (Alg. 1).

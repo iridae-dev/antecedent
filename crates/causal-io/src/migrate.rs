@@ -1,4 +1,4 @@
-//! Artifact format migration registry (DESIGN.md §24.3).
+//! Artifact format migration registry.
 //!
 //! Supported durable formats: `0.1` (migrate-from) and `0.2` (stable).
 //! Unknown versions fail explicitly.

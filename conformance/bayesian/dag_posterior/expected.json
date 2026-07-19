@@ -1,0 +1,33 @@
+{
+  "engines": [
+    "ExactDagPosterior",
+    "StructureMcmc",
+    "OrderMcmc",
+    "CiScreenedPosterior",
+    "DbnPosterior"
+  ],
+  "score_family": "GaussianBic",
+  "exact_max_nodes": 6,
+  "tolerance_class": "SkeletonMass",
+  "chain_fixture": {
+    "n_vars": 3,
+    "expect_skeleton": [["a", "b"], ["b", "c"]],
+    "min_undirected_mass": 0.7
+  },
+  "collider_fixture": {
+    "n_vars": 3,
+    "expect_oriented": [["a", "c"], ["b", "c"]],
+    "min_directed_mass": 0.5
+  },
+  "dbn_lag1_fixture": {
+    "n_vars": 2,
+    "max_lag": 1,
+    "expect_lag_edge": ["x", "y"],
+    "min_lag_mass": 0.4
+  },
+  "reference": {
+    "project": "causal-library",
+    "command": "cargo test -p causal-discovery --lib exact_enumeration:: structure_mcmc:: order_mcmc:: ci_screened_posterior:: dbn_posterior::",
+    "notes": "Native Gaussian-BIC graph posterior; no external oracle package"
+  }
+}

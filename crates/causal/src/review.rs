@@ -1,4 +1,4 @@
-//! Graph review gate for discovery outputs (DESIGN.md §21.3).
+//! Graph review gate for discovery outputs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -120,7 +120,7 @@ impl PendingGraphReview {
     }
 }
 
-/// Pending review for a PCMCI+ temporal CPDAG (DESIGN.md §21.3 / §13.5).
+/// Pending review for a PCMCI+ temporal CPDAG.
 ///
 /// Directed edges must be accepted; undirected marks must be explicitly oriented
 /// before completion to a [`TemporalDag`]. Auto-accept never drops undirected edges.

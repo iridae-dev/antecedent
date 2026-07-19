@@ -13,7 +13,7 @@ pub fn form_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64])
 
 /// Accumulate `XᵀX` into an existing symmetric Gram (row-major) from column-major `X`.
 ///
-/// Used by incremental OLS sufficient statistics (DESIGN.md §20).
+/// Used by incremental OLS sufficient statistics.
 pub fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
     for c1 in 0..ncols {

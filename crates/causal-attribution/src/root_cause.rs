@@ -1,4 +1,4 @@
-//! Graph-sensitive root-cause ranking (DESIGN.md §17.1 / §36).
+//! Graph-sensitive root-cause ranking.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

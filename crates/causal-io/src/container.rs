@@ -1,4 +1,4 @@
-//! Versioned sectioned artifact container (DESIGN.md §24, ADR 0002).
+//! Versioned sectioned artifact container.
 //!
 //! Layout:
 //! ```text
@@ -66,7 +66,7 @@ pub struct ArtifactManifest {
 /// One section's payload bytes with checksum verification on read.
 ///
 /// Logical bytes are reference-counted so writers can share Arrow / draw buffers
-/// without cloning (DESIGN.md §24.5).
+/// without cloning.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SectionBytes {
     /// Section id matching the manifest.

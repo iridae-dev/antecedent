@@ -1,4 +1,4 @@
-//! Per-unit change attribution via shared exogenous noise (DESIGN.md §17.1).
+//! Per-unit change attribution via shared exogenous noise.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

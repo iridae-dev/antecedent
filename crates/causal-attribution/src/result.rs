@@ -1,4 +1,4 @@
-//! Attribution result types (DESIGN.md §17.2).
+//! Attribution result types.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -65,7 +65,7 @@ pub struct CacheStats {
     pub bytes: u64,
 }
 
-/// Full change-attribution output (DESIGN.md §17.2).
+/// Full change-attribution output.
 #[derive(Clone, Debug)]
 pub struct ChangeAttributionResult {
     /// Outcome variable.
@@ -100,7 +100,7 @@ impl ChangeAttributionResult {
     }
 }
 
-/// Mechanism-change detection result for one node (DESIGN.md §17.3).
+/// Mechanism-change detection result for one node.
 #[derive(Clone, Debug)]
 pub struct MechanismChangeDetection {
     /// Tested node.

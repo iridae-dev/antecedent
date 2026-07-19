@@ -197,10 +197,14 @@ enum IpwTarget {
 impl IpwTarget {
     fn from_population(pop: &TargetPopulation) -> Result<Self, EstimationError> {
         match pop {
-            TargetPopulation::AllObserved => Ok(Self::Ate),
+            TargetPopulation::AllObserved
+            | TargetPopulation::Predicate(_)
+            | TargetPopulation::CustomDistribution(_) => Ok(Self::Ate),
             TargetPopulation::Treated => Ok(Self::Att),
             TargetPopulation::Untreated => Ok(Self::Atc),
-            _ => Err(EstimationError::unsupported("propensity weighting supports AllObserved, Treated, or Untreated target populations")),
+            _ => Err(EstimationError::unsupported(
+                "propensity weighting supports AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
+            )),
         }
     }
 

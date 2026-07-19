@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Literal, Sequence
 
 
 @dataclass(frozen=True)
@@ -41,4 +41,34 @@ class SustainedEffect:
     kind: Literal["sustained"] = "sustained"
 
 
-__all__ = ["AverageEffect", "PulseEffect", "SustainedEffect"]
+@dataclass(frozen=True)
+class InterventionalDistribution:
+    """Interventional distribution query (static)."""
+
+    outcome: str
+    interventions: dict[str, float] = field(default_factory=dict)
+    conditioning: Sequence[str] = ()
+    kind: Literal["distribution"] = "distribution"
+
+
+@dataclass(frozen=True)
+class PathSpecificEffect:
+    """Path-specific effect query (static)."""
+
+    treatment: str
+    outcome: str
+    path_nodes: Sequence[str] | None = None
+    control_level: float = 0.0
+    active_level: float = 1.0
+    max_paths: int = 64
+    max_len: int = 16
+    kind: Literal["path_specific"] = "path_specific"
+
+
+__all__ = [
+    "AverageEffect",
+    "InterventionalDistribution",
+    "PathSpecificEffect",
+    "PulseEffect",
+    "SustainedEffect",
+]

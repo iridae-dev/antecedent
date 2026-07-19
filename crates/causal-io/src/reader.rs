@@ -1,4 +1,4 @@
-//! Selective artifact reader with skip / mmap (DESIGN.md §24.5).
+//! Selective artifact reader with skip / mmap.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

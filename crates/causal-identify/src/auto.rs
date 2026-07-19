@@ -1,4 +1,4 @@
-//! AutoIdentifier: return all valid estimands with selection rationale (DESIGN.md §10.3).
+//! AutoIdentifier: return all valid estimands with selection rationale.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

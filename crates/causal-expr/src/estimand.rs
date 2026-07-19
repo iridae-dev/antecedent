@@ -1,4 +1,4 @@
-//! Identified estimand types shared by identify and estimate (DESIGN.md §3.2 / §10.1).
+//! Identified estimand types shared by identify and estimate.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

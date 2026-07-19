@@ -1,4 +1,4 @@
-//! Pre-materialized lagged columns for temporal discovery (DESIGN.md §5.5 / §12.1).
+//! Pre-materialized lagged columns for temporal discovery.
 //!
 //! Built once per discovery run so candidate CI tests index columns without
 //! rebuilding lag alignment or re-gathering series. Optional analysis masks and

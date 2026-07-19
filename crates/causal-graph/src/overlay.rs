@@ -1,4 +1,4 @@
-//! Intervention / mutilation overlays on an immutable [`Dag`] (DESIGN.md §6.7).
+//! Intervention / mutilation overlays on an immutable [`Dag`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

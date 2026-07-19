@@ -9,7 +9,7 @@ use crate::ids::VariableId;
 use super::error::QueryError;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-/// Anomaly attribution query for observed units (DESIGN.md §17 basic).
+/// Anomaly attribution query for observed units.
 pub struct AnomalyAttributionQuery {
     /// Variables whose anomaly scores are requested.
     pub targets: Arc<[VariableId]>,
@@ -49,7 +49,7 @@ impl AnomalyAttributionQuery {
     }
 }
 
-/// Population / period selector for change attribution (DESIGN.md §17.2).
+/// Population / period selector for change attribution.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum PopulationSelector {
@@ -98,7 +98,7 @@ impl PopulationSelector {
     }
 }
 
-/// Which structural pieces participate in change decomposition (DESIGN.md §17.2).
+/// Which structural pieces participate in change decomposition.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum AttributionComponents {
@@ -114,7 +114,7 @@ pub enum AttributionComponents {
     All,
 }
 
-/// Shapley estimation mode (DESIGN.md §17.2 / §17.4).
+/// Shapley estimation mode.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ShapleyMode {
@@ -132,7 +132,7 @@ pub enum ShapleyMode {
     },
 }
 
-/// Configuration for Shapley allocation (DESIGN.md §17.2 / §34.3).
+/// Configuration for Shapley allocation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct ShapleyConfig {
     /// Estimation mode.
@@ -229,7 +229,7 @@ impl ShapleyConfig {
     }
 }
 
-/// How to allocate total change across components (DESIGN.md §17.2).
+/// How to allocate total change across components.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum AllocationMethod {
@@ -262,7 +262,7 @@ impl AllocationMethod {
     }
 }
 
-/// Distribution / population change attribution query (DESIGN.md §17.2).
+/// Distribution / population change attribution query.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ChangeAttributionQuery {
     /// Outcome whose marginal (or summary) change is attributed.
@@ -336,7 +336,7 @@ impl ChangeAttributionQuery {
     }
 }
 
-/// Mechanism-change *detection* query (DESIGN.md §17.3) — not attribution.
+/// Mechanism-change *detection* query — not attribution.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MechanismChangeQuery {
     /// Nodes whose mechanisms are tested for change.
@@ -410,7 +410,7 @@ impl MechanismChangeQuery {
     }
 }
 
-/// Per-unit change attribution query (DESIGN.md §17.1).
+/// Per-unit change attribution query.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UnitChangeQuery {
     /// Outcome variable.

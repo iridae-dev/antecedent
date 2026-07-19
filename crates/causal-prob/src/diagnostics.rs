@@ -1,5 +1,4 @@
 //! Inference diagnostics for Laplace / conjugate / MCMC backends
-//! (DESIGN.md §14.5, §18.4).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

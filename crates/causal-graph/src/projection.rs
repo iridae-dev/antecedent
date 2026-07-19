@@ -1,4 +1,4 @@
-//! Latent projection from DAGs onto ADMGs (DESIGN.md §6.5 / §28.1).
+//! Latent projection from DAGs onto ADMGs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -180,7 +180,7 @@ fn reaches_observed_via_latents(
 }
 
 /// Check that m-separation on the projected ADMG agrees with d-separation on the
-/// original DAG for queries restricted to observed nodes (DESIGN §28.1).
+/// original DAG for queries restricted to observed nodes .
 ///
 /// # Errors
 ///

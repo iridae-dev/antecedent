@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Experiment/measurement design, EIG ranking, and decision utilities (DESIGN.md §19)"
+description = "Experiment/measurement design, EIG ranking, and decision utilities"
 readme = "README.md"
 
 [lints]

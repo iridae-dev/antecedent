@@ -1,4 +1,4 @@
-//! Scheduled SE coverage calibration (DESIGN.md §28.3).
+//! Scheduled SE coverage calibration.
 //!
 //! These tests are `#[ignore]` so every-PR `cargo test` stays fast. Run via
 //! `scripts/gate_calibration.sh`.
@@ -203,7 +203,7 @@ fn linear_adjustment_hc1_ci_coverage() {
     assert_coverage(covered, N_SIM, "linear_adjustment_hc1");
 }
 
-/// Primary IPW coverage gate: bootstrap SE (DESIGN.md §28.3).
+/// Primary IPW coverage gate: bootstrap SE.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn ipw_hajek_bootstrap_ci_coverage() {

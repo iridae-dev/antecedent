@@ -1,4 +1,4 @@
-//! Discovery stability and validation (DESIGN.md §18.3).
+//! Discovery stability and validation.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,4 +1,4 @@
-//! Identifier contract (DESIGN.md §10.3).
+//! Identifier contract.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -14,7 +14,7 @@ use crate::iv::InstrumentalVariableIdentifier;
 use crate::prepared::PreparedAdmg;
 use crate::result::IdentificationResult;
 
-/// Scratch buffers for identification algorithms (DESIGN §10.3).
+/// Scratch buffers for identification algorithms .
 ///
 /// Shared across `identify` calls so ancestry / d-separation workspaces are not
 /// reallocated per query.
@@ -26,7 +26,7 @@ pub struct IdentificationWorkspace {
     pub dsep: DSeparationWorkspace,
 }
 
-/// Identification algorithm over graph type `G` (DESIGN §10.3).
+/// Identification algorithm over graph type `G` .
 ///
 /// Concrete identifiers keep inherent `prepare` / `identify` methods as the
 /// primary API. This trait is the extension / dispatch surface. Declared

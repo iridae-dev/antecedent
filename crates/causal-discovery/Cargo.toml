@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Causal discovery algorithms (PCMCI family)"
+description = "Causal discovery algorithms (PCMCI family, static PC/GES/LiNGAM/NOTEARS, Bayesian graph posterior)"
 readme = "README.md"
 
 [lints]
@@ -16,6 +16,7 @@ workspace = true
 causal-core = { path = "../causal-core" }
 causal-data = { path = "../causal-data" }
 causal-graph = { path = "../causal-graph" }
+causal-prob = { path = "../causal-prob" }
 causal-state = { path = "../causal-state" }
 causal-stats = { path = "../causal-stats" }
 thiserror = { workspace = true }

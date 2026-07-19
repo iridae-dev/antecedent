@@ -1,4 +1,4 @@
-//! Lag-aligned sample planning for temporal discovery (DESIGN.md §5.5).
+//! Lag-aligned sample planning for temporal discovery.
 //!
 //! General x/y/z [`SampleRequest`](crate::SampleRequest) planning lives in
 //! [`sample_request`](crate::sample_request). This module owns the lag-gather

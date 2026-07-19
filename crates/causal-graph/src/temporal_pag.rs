@@ -1,4 +1,4 @@
-//! Temporal PAG over lagged nodes (DESIGN.md §6.2).
+//! Temporal PAG over lagged nodes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

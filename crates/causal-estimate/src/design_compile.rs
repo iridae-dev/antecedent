@@ -1,7 +1,7 @@
 //! Design compilation helpers that expand categoricals into float columns.
 //!
 //! Contrast generation lives in `causal-data`; provenance records live on
-//! [`causal_stats::CompiledDesign`] (DESIGN.md §11.2).
+//! [`causal_stats::CompiledDesign`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,4 +1,4 @@
-//! Feature relevance under interventions (DESIGN.md §17.1).
+//! Feature relevance under interventions.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

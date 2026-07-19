@@ -1,4 +1,4 @@
-//! Generalized additive models — cubic B-splines + backfitting (DESIGN.md §11.2).
+//! Generalized additive models — cubic B-splines + backfitting.
 //!
 //! Gaussian identity additive model `Y = β₀ + Σ fⱼ(Xⱼ) + ε`. Analytic standard
 //! errors are not returned; use resampling / bootstrap for uncertainty.
@@ -81,7 +81,7 @@ impl Default for GamOptions {
     }
 }
 
-/// Reusable buffers for GAM backfitting (DESIGN.md §11.6).
+/// Reusable buffers for GAM backfitting.
 #[derive(Clone, Debug, Default)]
 pub struct GamWorkspace {
     /// Partial residual vector (`nrows`).

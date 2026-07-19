@@ -1,4 +1,4 @@
-//! Mechanism-change *detection* (DESIGN.md §17.3) — separate from attribution.
+//! Mechanism-change *detection* — separate from attribution.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -37,7 +37,7 @@ pub enum MechanismChangeMethod {
 /// Detect which mechanisms differ between baseline and comparison populations.
 ///
 /// This does **not** attribute outcome change — a changed mechanism need not
-/// drive the target (DESIGN.md §17.3).
+/// drive the target.
 ///
 /// # Errors
 ///

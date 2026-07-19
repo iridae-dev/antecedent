@@ -1,4 +1,4 @@
-//! Anomaly attribution, change explanation, and root-cause ranking (DESIGN.md §17).
+//! Anomaly attribution, change explanation, and root-cause ranking.
 //!
 //! # Modules
 //!

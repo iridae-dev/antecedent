@@ -1,4 +1,4 @@
-//! Conditional independence tests (DESIGN.md §12).
+//! Conditional independence tests.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -138,7 +138,7 @@ mod tests {
     }
 
     /// `ExecutionContext::for_tests` uses `scalar_only`; CI / standardize must honor it
-    /// (DESIGN.md §23.2 escape hatch), matching an explicit scalar policy bit-for-bit.
+    ///, matching an explicit scalar policy bit-for-bit.
     #[test]
     fn kernel_policy_from_context_matches_explicit_scalar() {
         use causal_core::KernelPolicy;

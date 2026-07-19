@@ -1,4 +1,4 @@
-//! Multiple-testing / false-discovery-rate helpers (DESIGN.md §11.5).
+//! Multiple-testing / false-discovery-rate helpers.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

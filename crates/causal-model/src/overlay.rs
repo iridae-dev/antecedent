@@ -1,4 +1,4 @@
-//! Intervention overlays on an immutable compiled plan (DESIGN.md §15.4).
+//! Intervention overlays on an immutable compiled plan.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -82,7 +82,7 @@ impl InterventionOverlay {
     ) -> Result<Self, ModelError> {
         let mut overlay = Self::observational(model.n_nodes());
         for step in seq.steps.iter() {
-            if temporal_active(step.temporal, t)? {
+            if temporal_active(&step.temporal, t)? {
                 apply_intervention(model, &mut overlay, &step.intervention, true)?;
             }
         }
@@ -90,17 +90,9 @@ impl InterventionOverlay {
     }
 }
 
-fn temporal_active(policy: TemporalPolicy, t: i32) -> Result<bool, ModelError> {
-    match policy {
-        TemporalPolicy::Pulse { at } => Ok(t == at),
-        TemporalPolicy::Sustained { from, until } => Ok(t >= from && t <= until),
-        TemporalPolicy::Dynamic { .. } => Err(ModelError::Unsupported {
-            message: "TemporalPolicy::Dynamic requires a schedule interpreter".into(),
-        }),
-        _ => Err(ModelError::Unsupported {
-            message: "unsupported TemporalPolicy variant".into(),
-        }),
-    }
+fn temporal_active(policy: &TemporalPolicy, t: i32) -> Result<bool, ModelError> {
+    policy.validate().map_err(|e| ModelError::Unsupported { message: e.to_string() })?;
+    Ok(policy.is_active_at(t))
 }
 
 fn apply_intervention(
@@ -152,7 +144,7 @@ fn apply_intervention(
             }
             // Simultaneous interpretation at t=0 for static models.
             for step in seq.steps.iter() {
-                if temporal_active(step.temporal, 0)? {
+                if temporal_active(&step.temporal, 0)? {
                     apply_intervention(model, overlay, &step.intervention, false)?;
                 }
             }
@@ -215,15 +207,19 @@ mod tests {
     }
 
     #[test]
-    fn dynamic_policy_sequence_is_unsupported() {
+    fn dynamic_policy_sequence_activates_on_schedule() {
         let g = Dag::with_variables(1);
         let model = CompiledCausalModel::compile(g).unwrap();
         let t = VariableId::from_raw(0);
         let seq = InterventionSequence::new(vec![SequencedIntervention::new(
             Intervention::set(t, Value::f64(1.0)),
-            TemporalPolicy::dynamic(DynamicRuleId::from_raw(0)),
+            TemporalPolicy::dynamic(DynamicRuleId::from_raw(0), [0, 2]),
         )]);
-        let err = InterventionOverlay::from_sequence_at(&model, &seq, 0).unwrap_err();
-        assert!(matches!(err, ModelError::Unsupported { .. }));
+        let overlay = InterventionOverlay::from_sequence_at(&model, &seq, 0).unwrap();
+        assert_eq!(overlay.hard_set[0], Some(1.0));
+        let idle = InterventionOverlay::from_sequence_at(&model, &seq, 1).unwrap();
+        assert!(idle.hard_set[0].is_none());
+        let again = InterventionOverlay::from_sequence_at(&model, &seq, 2).unwrap();
+        assert_eq!(again.hard_set[0], Some(1.0));
     }
 }

@@ -5,7 +5,7 @@
 
 ## Context
 
-DESIGN.md requires J-PCMCI+, RPCMCI, pinned baseline effects parity, linear
+ requires J-PCMCI+, RPCMCI, pinned baseline effects parity, linear
 temporal mediation, and panel/multi-env refinements without stubs.
 
 ## Decision

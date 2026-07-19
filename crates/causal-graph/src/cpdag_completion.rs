@@ -1,4 +1,4 @@
-//! Streamed / bounded CPDAG MEC completion sampling (DESIGN.md §6.5 item 15).
+//! Streamed / bounded CPDAG MEC completion sampling.
 //!
 //! Yields DAG members of the Markov equivalence class of a static [`Cpdag`]:
 //! orientations of undirected (Tail–Tail) edges that remain acyclic and do not

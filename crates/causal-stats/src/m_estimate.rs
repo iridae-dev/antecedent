@@ -1,4 +1,4 @@
-//! Huber M-estimation for linear regression (DESIGN.md §11.2).
+//! Huber M-estimation for linear regression.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

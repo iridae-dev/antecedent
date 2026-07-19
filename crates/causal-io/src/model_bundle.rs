@@ -1,4 +1,4 @@
-//! Model bundle artifact encode/decode (DESIGN.md §24).
+//! Model bundle artifact encode/decode.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

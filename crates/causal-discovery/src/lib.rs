@@ -3,9 +3,10 @@
 //! Shipped surface: PCMCI family ([`Pcmci`], [`PcmciPlus`], [`Lpcmci`],
 //! [`JpcmciPlus`], [`Rpcmci`]), static [`Pc`], classic static [`Fci`] / [`Rfci`] →
 //! [`causal_graph::Pag`], score-based [`Ges`] → [`causal_graph::Cpdag`],
-//! [`DirectLingam`] → [`causal_graph::Dag`], and Zhang FCI orientation plumbing
-//! via [`PagOps`] / [`FciOrientationRule`] (DESIGN.md §13.3 / §13.6).
-//! NOTEARS is tracked under TODO item 3.5 (not yet shipped).
+//! [`DirectLingam`] / [`Notears`] → [`causal_graph::Dag`], Bayesian graph discovery
+//! ([`ExactDagPosterior`], [`StructureMcmc`], [`OrderMcmc`], [`CiScreenedPosterior`],
+//! [`DbnPosterior`]; ), and Zhang FCI orientation plumbing via
+//! [`PagOps`] / [`FciOrientationRule`].
 //!
 //! ```
 //! use causal_discovery::Pcmci;
@@ -21,18 +22,24 @@
 
 pub mod algorithm;
 pub mod ci;
+pub mod ci_screened_posterior;
 pub mod combinations;
 pub mod constraints;
+pub mod dbn_posterior;
 pub mod discriminating_paths;
 pub mod engine;
 pub mod error;
 pub mod evidence;
+pub mod exact_enumeration;
 pub mod fci;
 pub mod ges;
+pub mod graph_posterior;
 pub mod jpcmci_plus;
 pub mod lpcmci;
 pub mod lpcmci_phases;
 pub mod lingam;
+pub mod notears;
+pub mod order_mcmc;
 pub mod orientation;
 pub mod pc;
 pub mod pcmci;
@@ -44,6 +51,7 @@ pub mod result;
 pub mod rfci;
 pub mod rpcmci;
 pub mod rule_scheduling;
+pub mod structure_mcmc;
 pub mod uncovered_paths;
 pub mod weakly_minimal;
 
@@ -55,10 +63,12 @@ pub use ci::{
 };
 
 pub use constraints::{
-    CandidateCatalog, CompiledConstraints, ContextKind, CrossEnvLinkAssumption,
+    CandidateCatalog, CiMaskType, CompiledConstraints, ContextKind, CrossEnvLinkAssumption,
     DiscoveryConstraints, JpcmciNodeRole, MultiDatasetConstraints, SpaceDummyCiMode,
     TemporalConstraints, TimeDummyCiMode,
 };
+pub use ci_screened_posterior::{CiScreenedPosterior, CiSoftWeight};
+pub use dbn_posterior::{DbnPosterior, DBN_EXACT_MAX_LAG, DBN_EXACT_MAX_VARS};
 pub use discriminating_paths::{DiscriminatingPath, find_discriminating_paths};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
@@ -67,12 +77,19 @@ pub use evidence::{
     graph_evidence_from_scored_with_sepsets, pag_evidence_from_oriented, pag_from_scored_links,
     symmetrize_contemporaneous_links, threshold_scored_links, threshold_scored_links_bh,
 };
+pub use exact_enumeration::ExactDagPosterior;
 pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
+pub use graph_posterior::{
+    allows_graph_posterior, edge_bit, has_edge, mask_is_dag, n_directed_edges, parents_of, set_edge,
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, EXACT_ENUM_MAX_NODES,
+};
 pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lingam::{DirectLingam, StaticDagDiscoveryResult};
 pub use lpcmci::Lpcmci;
+pub use notears::{Notears, NotearsDiscoveryResult};
+pub use order_mcmc::OrderMcmc;
 pub use orientation::{
     OrientCollider, OrientationError, OrientationRule, OrientationState, PagOps,
     StaticOrientationRule, run_static_orientation_to_fixed_point,
@@ -98,6 +115,7 @@ pub use rule_scheduling::{
     default_fci_rules, default_lpcmci_rules, run_fci_orientation_to_fixed_point,
     run_lpcmci_orientation,
 };
+pub use structure_mcmc::StructureMcmc;
 
 // Additional orientation helpers stay under their modules for advanced callers:
 // `causal_discovery::orientation::*` and `causal_discovery::rule_scheduling::*`.

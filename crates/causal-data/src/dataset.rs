@@ -1,4 +1,4 @@
-//! Concrete tabular and time-series dataset types (DESIGN.md §5.1).
+//! Concrete tabular and time-series dataset types.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

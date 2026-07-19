@@ -1,4 +1,4 @@
-//! Distribution-change attribution (pinned baseline-GCM parity; DESIGN.md §17.2).
+//! Distribution-change attribution (pinned baseline-GCM parity; ).
 //!
 //! Fits mechanisms on baseline and comparison populations, then attributes the
 //! change in the outcome marginal to mechanism replacements via Shapley values

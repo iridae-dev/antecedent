@@ -1,4 +1,4 @@
-//! Abduction–action–prediction engine (DESIGN.md §16).
+//! Abduction–action–prediction engine.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

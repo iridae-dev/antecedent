@@ -369,7 +369,7 @@ fn discriminating_r4_orients_noncollider_when_c_in_sep_ab() {
     assert!(matches!(at_b, Endpoint::Arrow));
 }
 
-// --- Static Pag surface (TODO.md 3a) ---
+// --- Static Pag surface ---
 
 #[test]
 fn static_r1_orients_from_circle_arrow_premise() {

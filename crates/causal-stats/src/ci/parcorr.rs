@@ -28,7 +28,7 @@ pub(crate) fn parcorr_mode(policy: &KernelPolicy) -> ParCorrMode {
 /// Partial-correlation CI test.
 ///
 /// Kernel path selection comes from [`ExecutionContext::kernel_policy`] at call time
-/// (DESIGN.md §23.2), not from state on this type.
+///, not from state on this type.
 #[derive(Clone, Debug, Default)]
 pub struct PartialCorrelation;
 

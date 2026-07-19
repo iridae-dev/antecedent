@@ -1,4 +1,4 @@
-//! Temporal node identity and dense unfolding indexes (ADR 0005 / DESIGN.md §5).
+//! Temporal node identity and dense unfolding indexes (ADR 0005 / ).
 //!
 //! Dense indexes are process-local and **must not** be serialized.
 //!

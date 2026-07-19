@@ -7,7 +7,7 @@ Accepted.
 ## Context
 
 Latent confounding requires ADMGs and PAGs. Silent coercion of PAGs into DAGs
-breaks identification soundness (DESIGN.md §2 / §21.2).
+breaks identification soundness.
 
 ## Decision
 

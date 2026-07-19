@@ -2,7 +2,6 @@
 //!
 //! No core algorithm creates a global thread pool, uses an implicit global RNG,
 //! or selects architecture-specific behavior outside [`KernelPolicy`]
-//! (DESIGN.md §23.1).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -128,7 +127,7 @@ impl CachePolicy {
     }
 }
 
-/// Bounded cache budget for incremental causal state (DESIGN.md §20).
+/// Bounded cache budget for incremental causal state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct CacheBudget {
     /// Maximum retained cache bytes.
@@ -163,7 +162,7 @@ impl CacheBudget {
     }
 }
 
-/// Shared Monte Carlo / approximate-compute budget report (DESIGN.md §§17, 19).
+/// Shared Monte Carlo / approximate-compute budget report.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MonteCarloBudget {
     /// Scalar / batch evaluations performed.

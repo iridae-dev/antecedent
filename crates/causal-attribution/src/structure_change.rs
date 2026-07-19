@@ -1,4 +1,4 @@
-//! Structure-change attribution via dual-graph parent-set Shapley (DESIGN.md §17.2).
+//! Structure-change attribution via dual-graph parent-set Shapley.
 //!
 //! Given baseline and comparison DAGs over the same variables, attributes the
 //! change in the outcome marginal to nodes whose parent sets differ. Hybrid

@@ -3,7 +3,7 @@
 //! Schema construction assigns dense [`VariableId`](crate::ids::VariableId)s and
 //! validates uniqueness once. Algorithmic code receives compact IDs and
 //! immutable schema references. Name lookup is allowed at API boundaries and
-//! diagnostics, not inside traversal or numerical loops (DESIGN.md §4).
+//! diagnostics, not inside traversal or numerical loops.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -57,7 +57,7 @@ impl ValueType {
     }
 }
 
-/// Role hints and constraints; not graph truth (DESIGN.md §4).
+/// Role hints and constraints; not graph truth.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[repr(u16)]
 pub enum RoleHint {

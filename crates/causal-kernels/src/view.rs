@@ -1,4 +1,4 @@
-//! Library-owned borrowed vector and matrix views (DESIGN.md §11, §23.2).
+//! Library-owned borrowed vector and matrix views.
 //!
 //! Public APIs expose these views; SIMD types are never part of the public API.
 //!

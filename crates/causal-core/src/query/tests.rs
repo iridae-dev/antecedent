@@ -166,10 +166,13 @@ fn dynamic_policy_and_planned_populations() {
     let t = VariableId::from_raw(0);
     let y = VariableId::from_raw(1);
     let rule = DynamicRuleId::from_raw(7);
-    let q = TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::dynamic(rule));
+    let q = TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::dynamic(rule, [0, 3]));
     q.validate().unwrap();
-    assert_eq!(q.try_treatment_offset(), Err(QueryError::DynamicPolicyHasNoTreatmentOffset));
+    assert_eq!(q.try_treatment_offset(), Ok(0));
     assert_eq!(q.treatment_offset(), 0);
+    let empty = TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::dynamic(rule, []));
+    assert_eq!(empty.try_treatment_offset(), Err(QueryError::DynamicPolicyHasNoTreatmentOffset));
+    assert!(matches!(empty.validate(), Err(_)));
 
     let named = AverageEffectQuery::binary_ate(t, y)
         .with_target_population(TargetPopulation::Predicate(PredicateExpr::named("cohort_a")));

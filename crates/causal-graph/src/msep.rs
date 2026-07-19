@@ -1,4 +1,4 @@
-//! m-separation for ADMGs and definite-status m-separation for PAGs (DESIGN.md §6.5).
+//! m-separation for ADMGs and definite-status m-separation for PAGs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

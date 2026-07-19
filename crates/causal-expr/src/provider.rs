@@ -1,4 +1,4 @@
-//! Distribution providers for compiled expression evaluation (DESIGN.md §9).
+//! Distribution providers for compiled expression evaluation.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

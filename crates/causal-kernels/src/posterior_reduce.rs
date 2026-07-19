@@ -1,4 +1,4 @@
-//! Posterior draw reductions (DESIGN.md §23.2).
+//! Posterior draw reductions.
 //!
 //! One semantic entry point for scalar/portable mean / variance / quantile over
 //! a contiguous draw column. Dispatch once per batch via [`KernelPolicy`].

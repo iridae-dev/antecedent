@@ -1,7 +1,7 @@
 # Algorithm provenance
 
 Every substantive algorithm must have a machine-readable provenance record in
-this directory. See DESIGN.md §27 and ADR 0008.
+this directory.
 
 Copy [`_template.toml`](_template.toml) to a descriptive name
 (e.g. `discovery.pcmci.toml`) and fill all fields truthfully.

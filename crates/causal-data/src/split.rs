@@ -1,4 +1,4 @@
-//! Split strategies for discovery / estimation (DESIGN.md §5.6).
+//! Split strategies for discovery / estimation.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -95,7 +95,7 @@ pub fn ensure_random_allowed_on_temporal(policy: TemporalRandomPolicy) -> Result
     }
 }
 
-/// Discovery / estimation split with a temporal gap (DESIGN.md §5.6).
+/// Discovery / estimation split with a temporal gap.
 ///
 /// Layout over `0..series_len`:
 /// `[discovery) | gap | [estimation)`.

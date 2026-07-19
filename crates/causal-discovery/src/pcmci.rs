@@ -1,4 +1,4 @@
-//! Public lagged PCMCI algorithm (DESIGN.md §13.4–13.5).
+//! Public lagged PCMCI algorithm.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,4 +1,4 @@
-//! Abduction-action-prediction counterfactual evaluation (DESIGN.md §16).
+//! Abduction-action-prediction counterfactual evaluation.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,4 +1,4 @@
-//! Discovery result types (DESIGN.md §13.1).
+//! Discovery result types.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -32,7 +32,7 @@ pub struct LaggedLink {
     pub target_lag: Lag,
 }
 
-/// Graph evidence for a discovered graph of class `G` (DESIGN.md §6.4 / §13.1).
+/// Graph evidence for a discovered graph of class `G`.
 #[derive(Clone, Debug)]
 pub struct GraphEvidence<G> {
     /// Graph summary (DAG, CPDAG, …).
@@ -45,7 +45,7 @@ pub struct GraphEvidence<G> {
     pub source: EvidenceSource,
 }
 
-/// How graph evidence was obtained (DESIGN.md §6.4).
+/// How graph evidence was obtained.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EvidenceSource {
     /// Temporal discovery (PCMCI / PCMCI+).
@@ -57,7 +57,7 @@ pub enum EvidenceSource {
     Expert,
 }
 
-/// Per-edge statistical / orientation evidence (DESIGN.md §6.4).
+/// Per-edge statistical / orientation evidence.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EdgeEvidence {
     /// Compact lagged edge key.
@@ -153,7 +153,7 @@ pub struct DiscoveryPerformanceRecord {
     pub worker_threads: u32,
 }
 
-/// Full discovery result parameterized by graph class and review artifact (DESIGN.md §13.1).
+/// Full discovery result parameterized by graph class and review artifact.
 #[derive(Clone, Debug)]
 pub struct DiscoveryResult<G, R> {
     /// Evidence.

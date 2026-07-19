@@ -1,4 +1,4 @@
-//! Typed causal assumptions with source and scope (DESIGN.md §7).
+//! Typed causal assumptions with source and scope.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

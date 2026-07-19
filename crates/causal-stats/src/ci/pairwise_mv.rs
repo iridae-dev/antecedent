@@ -1,4 +1,4 @@
-//! Pairwise multivariate CI wrapper (DESIGN.md §12).
+//! Pairwise multivariate CI wrapper.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

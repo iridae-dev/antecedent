@@ -1,4 +1,4 @@
-//! Observational and interventional batch sampling (DESIGN.md §15.4).
+//! Observational and interventional batch sampling.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

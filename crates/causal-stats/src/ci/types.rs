@@ -1,4 +1,4 @@
-//! CI request / result types and workspace (DESIGN.md §12).
+//! CI request / result types and workspace.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -45,7 +45,7 @@ pub enum SignificanceMethod {
     },
 }
 
-/// Confidence interval method for a CI statistic (DESIGN.md §12).
+/// Confidence interval method for a CI statistic.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ConfidenceMethod {
     /// No interval.
@@ -85,7 +85,7 @@ pub fn analytic_confidence_level(confidence: ConfidenceMethod) -> Option<f64> {
     }
 }
 
-/// Preparation plan for a CI session (DESIGN.md §12 `prepare`).
+/// Preparation plan for a CI session.
 #[derive(Clone, Debug)]
 pub struct CiPreparationPlan {
     /// Significance method applied to subsequent queries.
@@ -193,7 +193,7 @@ pub struct CiBatchResult {
     pub results: Vec<CiResult>,
 }
 
-/// Conditional independence test (DESIGN.md §12 `ConditionalIndependenceTest`).
+/// Conditional independence test.
 ///
 /// Numeric kernels live in `causal-stats`; discovery owns the algorithm surface and
 /// re-exports this trait.
@@ -249,7 +249,7 @@ pub trait ConditionalIndependenceTest {
             .ok_or(StatsError::Shape { message: "CI test returned no results" })
     }
 
-    /// Evaluate a batch against a prior [`Self::prepare`] (DESIGN.md §12).
+    /// Evaluate a batch against a prior [`Self::prepare`].
     ///
     /// Implementations must call [`PreparedCiTest::ensure_compatible`] and should
     /// honor `prepared.plan` for significance / confidence.
@@ -287,7 +287,7 @@ pub trait ConditionalIndependenceTest {
     }
 }
 
-/// Conditional independence test (DESIGN.md §12).
+/// Conditional independence test.
 ///
 /// Prefer this name; [`ConditionalIndependenceTest`] is the same trait.
 pub use ConditionalIndependenceTest as ConditionalIndependence;

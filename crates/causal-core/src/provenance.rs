@@ -1,4 +1,4 @@
-//! Analysis provenance graph (DESIGN.md §7, §21.4).
+//! Analysis provenance graph.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

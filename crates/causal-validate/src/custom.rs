@@ -1,4 +1,4 @@
-//! Object-safe custom effect validators (DESIGN.md §25.4).
+//! Object-safe custom effect validators.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

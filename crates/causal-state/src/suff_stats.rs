@@ -1,4 +1,4 @@
-//! Incremental sufficient statistics (DESIGN.md §20).
+//! Incremental sufficient statistics.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

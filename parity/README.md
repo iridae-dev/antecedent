@@ -1,7 +1,7 @@
 # Parity manifests
 
-Domain capability inventories and pinned external baseline oracles. See DESIGN.md
-§26 and ADR 0009.
+Domain capability inventories and pinned external baseline oracles. See ADR 0009
+and [docs/development.md](../docs/development.md).
 
 **Inventories** (status: `pending` | `in_progress` | `done`):
 
@@ -25,9 +25,9 @@ Recorded black-box outputs live under `conformance/**/expected.json` in a
 install upstream packages. Regeneration is out-of-repo; keep the frozen
 `reference.command` as the audit trail.
 
-Unfinished DESIGN chapters stay `pending` and must appear on `TODO.md`. Permanent
-product contracts are documented in DESIGN.md and marked `done`. There is no
-waiver / deviation status.
+Permanent product contracts are marked `done` with an inline note. There is no
+waiver / deviation status. Required 1.0 chapters are closed in the inventories
+below.
 
 Do not mark a capability `done` without conformance fixtures under
 `conformance/` **or** a named calibration/unit harness recorded in the
@@ -49,19 +49,19 @@ bash scripts/gate_calibration.sh
 bash scripts/gate_release.sh
 ```
 
-`gate_calibration.sh` is the DESIGN.md §28.3 statistical calibration suite
-(SE coverage, CI Type I / permutation uniformity, discovery null FPR). It is
-not part of every-PR unit CI; run locally before release, or via the weekly
-GitHub Actions workflow [`.github/workflows/calibration.yml`](../.github/workflows/calibration.yml)
+`gate_calibration.sh` is the statistical calibration suite (SE coverage, CI
+Type I / permutation uniformity, discovery null FPR). It is not part of
+every-PR unit CI; run locally before release, or via the weekly GitHub Actions
+workflow [`.github/workflows/calibration.yml`](../.github/workflows/calibration.yml)
 (`schedule` + `workflow_dispatch`).
 
 PAG: inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
 DAG-only-reject conformance; static FCI/RFCI `done`; class-aware PAG ID
-beyond generalized adjustment remains as noted in `pag.toml` / `TODO.md`.
+beyond generalized adjustment remains as noted in `pag.toml`.
 
 Context: J/RPCMCI, effects, conditional ATE gated by `gate_context.sh`.
 RPCMCI uses caller-supplied regime labels.
 
-Release: artifact format 0.1 freeze, wheel matrix, conformance docs, hot-path
+Release: artifact format freeze, wheel matrix, conformance docs, hot-path
 baselines, security review (`release.toml`, ADR 0017). Package version remains
-0.1.0. Remaining DESIGN chapters are `pending` + `TODO.md`.
+0.1.0.

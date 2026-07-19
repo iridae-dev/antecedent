@@ -12,7 +12,7 @@ use causal_stats::GlmOptions;
 use crate::common::{RefutationProblem, RefutationReport, diagnostic_overlap_report};
 use crate::error::ValidationError;
 
-/// Overlap / positivity assessment (DESIGN.md §18.2).
+/// Overlap / positivity assessment.
 ///
 /// **No silent propensity rebuild:** when `problem.original.overlap_report` is `Some` (the
 /// original estimate came from a propensity-based estimator), that report is reused verbatim.

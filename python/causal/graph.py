@@ -1,8 +1,13 @@
-"""Graph interchange helpers (DOT / JSON / GML / NetworkX)."""
+"""Graph interchange helpers and typed graph objects."""
 
 from __future__ import annotations
 
 from ._native import (
+    Admg,
+    Cpdag,
+    Dag,
+    Pag,
+    TemporalDag,
     dag_from_dot,
     dag_from_gml,
     dag_from_json,
@@ -16,6 +21,11 @@ from ._native import (
 )
 
 __all__ = [
+    "Admg",
+    "Cpdag",
+    "Dag",
+    "Pag",
+    "TemporalDag",
     "dag_from_dot",
     "dag_from_gml",
     "dag_from_json",

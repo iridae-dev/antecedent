@@ -1,4 +1,4 @@
-//! Stable node identity before dense graph indexing (DESIGN.md §6.1).
+//! Stable node identity before dense graph indexing.
 //!
 //! Shared by sample planning (`causal-data`) and graph types (`causal-graph`).
 //!

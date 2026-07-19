@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade (DESIGN.md §21).
+//! Unified `CausalAnalysis` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

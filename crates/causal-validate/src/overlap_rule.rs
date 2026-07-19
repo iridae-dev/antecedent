@@ -1,4 +1,4 @@
-//! Overlap-rule diagnostics (DESIGN.md §18.2).
+//! Overlap-rule diagnostics.
 //!
 //! Distinct from [`crate::OverlapRefuter`]: that check reports propensity range / ESS.
 //! This module evaluates a **trimming / common-support rule** — whether enough mass remains

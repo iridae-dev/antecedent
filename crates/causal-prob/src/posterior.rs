@@ -1,4 +1,4 @@
-//! Columnar posterior storage (DESIGN.md §3 causal-prob, §14.4).
+//! Columnar posterior storage.
 //!
 //! One heap object per draw is prohibited; draws are stored as structure-of-arrays.
 //!

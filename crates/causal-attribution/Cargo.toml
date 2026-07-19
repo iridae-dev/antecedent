@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Anomaly, distribution-change, and Shapley attribution (DESIGN.md §17)"
+description = "Anomaly, distribution-change, and Shapley attribution"
 readme = "README.md"
 
 [lints]

@@ -23,7 +23,7 @@ pub enum DesignColumnRole {
     Covariate(VariableId),
 }
 
-/// One design-matrix column with role and provenance links (DESIGN.md §11.2).
+/// One design-matrix column with role and provenance links.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct DesignColumn {
     /// Role of this column.
@@ -49,7 +49,7 @@ impl DesignColumn {
     }
 }
 
-/// Richer column-metadata map for [`CompiledDesign`] (DESIGN.md §11.2).
+/// Richer column-metadata map for [`CompiledDesign`].
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DesignColumnMap {
     columns: Arc<[DesignColumn]>,
@@ -176,7 +176,7 @@ impl From<Arc<[DesignColumn]>> for DesignColumnMap {
     }
 }
 
-/// Contrast coding kind recorded on a compiled design (DESIGN.md §11.2 provenance).
+/// Contrast coding kind recorded on a compiled design.
 ///
 /// Mirrors `causal_data::Contrast` without depending on that crate.
 #[derive(Clone, Debug, PartialEq)]
@@ -220,7 +220,7 @@ pub enum BasisKind {
     CubicBSpline,
 }
 
-/// Provenance for one smooth term expanded into design columns (DESIGN.md §11.2).
+/// Provenance for one smooth term expanded into design columns.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecordedSmooth {
     /// Source covariate variable (when known).
@@ -248,7 +248,7 @@ pub struct StandardizedColumn {
     pub scale: f64,
 }
 
-/// Record of column standardization applied at design compilation (DESIGN.md §11.2).
+/// Record of column standardization applied at design compilation.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct StandardizationRecord {
     /// Per-column mean/scale entries (empty = no standardization).

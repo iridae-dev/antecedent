@@ -1,4 +1,4 @@
-//! Algebraic simplification via worklist + memoization (DESIGN.md §9).
+//! Algebraic simplification via worklist + memoization.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

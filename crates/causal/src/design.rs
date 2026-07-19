@@ -9,7 +9,7 @@ use causal_design::{
 
 use crate::error::AnalysisError;
 
-/// Rank candidate designs under an objective (DESIGN.md §19).
+/// Rank candidate designs under an objective.
 ///
 /// # Errors
 ///

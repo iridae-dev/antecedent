@@ -1,7 +1,7 @@
-//! Prior specifications (DESIGN.md §14.4).
+//! Prior specifications.
 //!
 //! Priors are recorded as assumptions; they do not create nonparametric
-//! identification (DESIGN.md rule 4 / ADR 0006).
+//! identification.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

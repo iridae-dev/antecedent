@@ -1,4 +1,4 @@
-//! Decision analysis primitives (DESIGN.md §19.3).
+//! Decision analysis primitives.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -26,7 +26,7 @@ use crate::error::DiscoveryError;
 use crate::pcmci_plus::PcmciPlus;
 use crate::result::{AlgorithmRecord, CpdagDiscoveryResult, DiscoveryDiagnostic};
 
-/// Columnar regime label per time index (DESIGN.md §13.5).
+/// Columnar regime label per time index.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegimeAssignment {
     /// `regimes[t]` is the regime id at time `t`.

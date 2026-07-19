@@ -1,4 +1,4 @@
-//! Incremental graph-score caches (DESIGN.md §20 / §13.8).
+//! Incremental graph-score caches.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

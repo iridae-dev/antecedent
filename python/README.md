@@ -19,21 +19,28 @@ Primary entry point is the OO facade:
 ```python
 import causal
 
+g = causal.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
 result = causal.analyze(
     data,  # dict[str, array] or pandas DataFrame
-    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    graph=g,  # or an edge list
     query=causal.AverageEffect(treatment="t", outcome="y"),
     inference=causal.Frequentist(),  # or causal.Bayesian(...)
 )
 print(result.identification, result.estimate, result.validation)
+
+gcm = causal.fit_gcm(["z", "t", "y"], columns, list(g.edges()))
+draws = gcm.sample_do({"t": 1.0}, n=200)
 ```
 
 Also exposed:
 
-- `discover_pcmci*` / `discover_lpcmci` / … — temporal discovery
-- `counterfactual_ite` / `sample_do` — GCM counterfactuals and interventional draws
+- Typed graphs: `Dag` / `Cpdag` / `Pag` / `Admg` / `TemporalDag`
+- `discover_*` (PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors)
+- `FittedGcm` / `counterfactual_ite` / `sample_do` — GCM counterfactuals
+- `CausalState` — incremental state with `append_data`
+- Queries: `AverageEffect`, `PulseEffect`, `SustainedEffect`,
+  `InterventionalDistribution`, `PathSpecificEffect`
 - `dag_from_*` / `dag_to_*` — graph interchange
-- `load_float64_columns` — DESIGN §25.6 conversion probe
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.
 

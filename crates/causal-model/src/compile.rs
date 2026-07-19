@@ -1,4 +1,4 @@
-//! Compiled topological execution plans (DESIGN.md §15.1).
+//! Compiled topological execution plans.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -48,7 +48,7 @@ pub struct ModelOutputLayout {
     pub variables: Arc<[VariableId]>,
 }
 
-/// Slow-path dynamic mechanism (DESIGN.md §15.2 / §25.4).
+/// Slow-path dynamic mechanism.
 ///
 /// Built-ins stay on concrete [`MechanismSlot`] variants; user/Python wrappers
 /// implement this trait and live in [`MechanismSlot::Dynamic`].
@@ -316,7 +316,7 @@ impl CompiledMechanismStore {
     }
 }
 
-/// Immutable compiled causal model plan (DESIGN.md §15.1).
+/// Immutable compiled causal model plan.
 #[derive(Clone, Debug)]
 pub struct CompiledCausalModel {
     /// Topological dense node order.

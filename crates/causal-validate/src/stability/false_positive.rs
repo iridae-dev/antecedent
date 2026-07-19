@@ -1,4 +1,4 @@
-//! False-positive checks via permute / phase-randomize surrogates (DESIGN.md §18.3).
+//! False-positive checks via permute / phase-randomize surrogates.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

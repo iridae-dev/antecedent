@@ -1,4 +1,4 @@
-//! Discovery constraints (DESIGN.md §13.2) with compiled masks (§13.4 / §13.8).
+//! Discovery constraints with compiled masks (§13.4 / §13.8).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -26,6 +26,70 @@ pub struct TemporalConstraints {
 impl Default for TemporalConstraints {
     fn default() -> Self {
         Self { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) }
+    }
+}
+
+/// Which of `(y, x, z)` participate when building masked CI complete-case keep masks.
+///
+/// Matches the pinned baseline `mask_type` taxonomy (`"y"`, `"x"`, `"z"`, combinations).
+/// Default [`Self::Yxz`] intersects masks on the outcome, cause, and conditioning set.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
+#[non_exhaustive]
+pub enum CiMaskType {
+    /// Outcome (`y`) only.
+    Y,
+    /// Cause (`x`) only.
+    X,
+    /// Conditioning set (`z`) only.
+    Z,
+    /// `y` and `x`.
+    Yx,
+    /// `y` and `z`.
+    Yz,
+    /// `x` and `z`.
+    Xz,
+    /// `y`, `x`, and `z` (default; full complete-case).
+    #[default]
+    Yxz,
+}
+
+impl CiMaskType {
+    /// Parse a baseline-style tag (`"y"`, `"yx"`, `"yxz"`, …). Case-insensitive.
+    ///
+    /// # Errors
+    ///
+    /// Unrecognized tag.
+    pub fn parse(tag: &str) -> Result<Self, DiscoveryError> {
+        match tag.trim().to_ascii_lowercase().as_str() {
+            "y" => Ok(Self::Y),
+            "x" => Ok(Self::X),
+            "z" => Ok(Self::Z),
+            "yx" | "xy" => Ok(Self::Yx),
+            "yz" | "zy" => Ok(Self::Yz),
+            "xz" | "zx" => Ok(Self::Xz),
+            "yxz" | "xyz" | "xzy" | "yzx" | "zxy" | "zyx" => Ok(Self::Yxz),
+            other => Err(DiscoveryError::data_msg(format!(
+                "unknown CiMaskType tag `{other}` (expected y/x/z combinations)"
+            ))),
+        }
+    }
+
+    /// Whether the outcome column participates in the keep-mask.
+    #[must_use]
+    pub const fn includes_y(self) -> bool {
+        matches!(self, Self::Y | Self::Yx | Self::Yz | Self::Yxz)
+    }
+
+    /// Whether the cause column participates in the keep-mask.
+    #[must_use]
+    pub const fn includes_x(self) -> bool {
+        matches!(self, Self::X | Self::Yx | Self::Xz | Self::Yxz)
+    }
+
+    /// Whether conditioning columns participate in the keep-mask.
+    #[must_use]
+    pub const fn includes_z(self) -> bool {
+        matches!(self, Self::Z | Self::Yz | Self::Xz | Self::Yxz)
     }
 }
 
@@ -259,6 +323,8 @@ pub struct DiscoveryConstraints {
     pub multi_dataset: MultiDatasetConstraints,
     /// pinned baseline-style vector-variable groups (logical node = first component).
     pub vector_groups: VectorVariableGroups,
+    /// Which of `(y, x, z)` drive masked CI keep-masks (baseline `mask_type`).
+    pub mask_type: CiMaskType,
 }
 
 impl Default for DiscoveryConstraints {
@@ -274,6 +340,7 @@ impl Default for DiscoveryConstraints {
             significance: SignificanceMethod::Analytic,
             multi_dataset: MultiDatasetConstraints::default(),
             vector_groups: VectorVariableGroups::empty(),
+            mask_type: CiMaskType::Yxz,
         }
     }
 }
@@ -612,5 +679,16 @@ mod tests {
             target_lag: Lag::CONTEMPORANEOUS,
         };
         assert!(!md.gunther_forbids(ok));
+    }
+
+    #[test]
+    fn ci_mask_type_parses_baseline_tags() {
+        assert_eq!(CiMaskType::parse("yxz").unwrap(), CiMaskType::Yxz);
+        assert_eq!(CiMaskType::parse("YX").unwrap(), CiMaskType::Yx);
+        assert_eq!(CiMaskType::parse("z").unwrap(), CiMaskType::Z);
+        assert!(CiMaskType::parse("nope").is_err());
+        assert!(CiMaskType::Yxz.includes_x());
+        assert!(CiMaskType::Y.includes_y());
+        assert!(!CiMaskType::Y.includes_x());
     }
 }

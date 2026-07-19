@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from ._native import GcmIteResult, counterfactual_ite
+from ._native import FittedGcm, GcmIteResult, counterfactual_ite, fit_gcm
 
-__all__ = ["GcmIteResult", "counterfactual_ite"]
+__all__ = ["FittedGcm", "GcmIteResult", "counterfactual_ite", "fit_gcm"]

@@ -1,4 +1,4 @@
-//! Arena-backed causal-functional IR (DESIGN.md §9).
+//! Arena-backed causal-functional IR.
 //!
 //! # Modules
 //!

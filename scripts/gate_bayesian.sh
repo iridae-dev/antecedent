@@ -41,6 +41,10 @@ EVIDENCE = {
     "bayes.io.posterior_artifact": "crates/causal-io/src/posterior.rs",
     "bayes.facade.inference_mode": "crates/causal/src/inference.rs",
     "bayes.model.pcm_scm_registry": "crates/causal-model/src/lib.rs",
+    "bayes.discovery.dag_posterior": "crates/causal-discovery/src/exact_enumeration.rs",
+    "bayes.backend.hierarchical_bvar_gp": "crates/causal-model/src/registry.rs",
+    "bayes.validate.mcmc_diagnostics": "crates/causal-validate/src/bayesian_checks.rs",
+    "bayes.ci.tests": "crates/causal-stats/src/ci/bayes.rs",
 }
 
 missing = []
@@ -63,6 +67,7 @@ for path in [
     "conformance/bayesian/shared_functional_ate/expected.json",
     "conformance/bayesian/nonidentified_prior/expected.json",
     "conformance/bayesian/laplace_glm/expected.json",
+    "conformance/bayesian/dag_posterior/expected.json",
     "crates/causal-prob/benches/laplace_glm.rs",
     "crates/causal-estimate/benches/posterior_functional.rs",
     "TODO.md",
@@ -81,6 +86,12 @@ PY
 
 echo "== cargo test causal-prob / estimate bayesian / io posterior / bayesian conformance =="
 cargo test -p causal-prob --lib
+cargo test -p causal-discovery --lib graph_posterior::
+cargo test -p causal-discovery --lib exact_enumeration::
+cargo test -p causal-discovery --lib structure_mcmc::
+cargo test -p causal-discovery --lib order_mcmc::
+cargo test -p causal-discovery --lib ci_screened_posterior::
+cargo test -p causal-discovery --lib dbn_posterior::
 cargo test -p causal-estimate --lib bayesian
 cargo test -p causal-estimate --lib envelope
 cargo test -p causal-validate --lib bayesian_checks

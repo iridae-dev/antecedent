@@ -1,4 +1,4 @@
-//! Interventions on causal variables (DESIGN.md §8.1).
+//! Interventions on causal variables.
 //!
 //! enables hard, shift, stochastic, soft, and sequenced interventions.
 //! Estimators that only support hard `Set` continue to reject other variants.
@@ -10,11 +10,11 @@ use std::sync::Arc;
 use crate::ids::{DynamicRuleId, VariableId};
 use crate::value::Value;
 
-/// Temporal intervention policy over discrete time steps (DESIGN.md §8.1).
+/// Temporal intervention policy over discrete time steps.
 ///
 /// Horizons and offsets are **time steps** relative to the series indexer, not
 /// wall-clock durations.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum TemporalPolicy {
     /// Instantaneous intervention at a single offset.
@@ -29,13 +29,15 @@ pub enum TemporalPolicy {
         /// Last intervened step (inclusive).
         until: i32,
     },
-    /// Rule-driven schedule resolved by callers (DESIGN.md §8.1).
+    /// Rule-tagged schedule with explicit active time steps.
     ///
-    /// Schedule interpretation is deferred; identification/estimation reject
-    /// this variant until a rule interpreter ships.
+    /// `active_at` is the evaluated schedule (sorted unique offsets). `rule` is
+    /// an opaque provenance handle for wire / caller registries.
     Dynamic {
         /// Opaque rule handle.
         rule: DynamicRuleId,
+        /// Non-empty sorted unique step offsets where the intervention is active.
+        active_at: Arc<[i32]>,
     },
 }
 
@@ -52,23 +54,76 @@ impl TemporalPolicy {
         Self::Sustained { from, until }
     }
 
-    /// Dynamic rule-driven schedule.
+    /// Dynamic schedule with explicit active offsets (deduped + sorted).
+    ///
+    /// # Panics
+    ///
+    /// Never panics; empty `active_at` fails [`Self::validate`].
     #[must_use]
-    pub const fn dynamic(rule: DynamicRuleId) -> Self {
-        Self::Dynamic { rule }
+    pub fn dynamic(rule: DynamicRuleId, active_at: impl Into<Arc<[i32]>>) -> Self {
+        let mut steps: Vec<i32> = active_at.into().as_ref().to_vec();
+        steps.sort_unstable();
+        steps.dedup();
+        Self::Dynamic { rule, active_at: Arc::from(steps) }
+    }
+
+    /// Whether step `t` is an active intervention time under this policy.
+    #[must_use]
+    pub fn is_active_at(&self, t: i32) -> bool {
+        match self {
+            Self::Pulse { at } => t == *at,
+            Self::Sustained { from, until } => t >= *from && t <= *until,
+            Self::Dynamic { active_at, .. } => active_at.binary_search(&t).is_ok(),
+        }
+    }
+
+    /// Active treatment offsets (Pulse: `[at]`; Sustained: `from..=until`; Dynamic: schedule).
+    ///
+    /// # Errors
+    ///
+    /// Empty dynamic schedule or inverted sustained window.
+    pub fn active_offsets(&self) -> Result<Arc<[i32]>, InterventionError> {
+        match self {
+            Self::Pulse { at } => Ok(Arc::from([*at])),
+            Self::Sustained { from, until } => {
+                if *until < *from {
+                    return Err(InterventionError::InvalidTemporalWindow {
+                        from: *from,
+                        until: *until,
+                    });
+                }
+                let steps: Vec<i32> = (*from..=*until).collect();
+                Ok(Arc::from(steps))
+            }
+            Self::Dynamic { active_at, .. } => {
+                if active_at.is_empty() {
+                    return Err(InterventionError::EmptyDynamicSchedule);
+                }
+                Ok(Arc::clone(active_at))
+            }
+        }
     }
 
     /// Validate policy bounds.
     ///
     /// # Errors
     ///
-    /// Returns [`InterventionError`] when the sustained window is empty or inverted.
-    pub const fn validate(self) -> Result<(), InterventionError> {
+    /// Empty/inverted sustained window or empty dynamic schedule.
+    pub fn validate(&self) -> Result<(), InterventionError> {
         match self {
-            Self::Pulse { .. } | Self::Dynamic { .. } => Ok(()),
+            Self::Pulse { .. } => Ok(()),
             Self::Sustained { from, until } => {
-                if until < from {
-                    return Err(InterventionError::InvalidTemporalWindow { from, until });
+                if *until < *from {
+                    return Err(InterventionError::InvalidTemporalWindow {
+                        from: *from,
+                        until: *until,
+                    });
+                }
+                Ok(())
+            }
+            Self::Dynamic { active_at, .. } => {
+                if active_at.is_empty() {
+                    return Err(InterventionError::EmptyDynamicSchedule);
                 }
                 Ok(())
             }
@@ -76,7 +131,7 @@ impl TemporalPolicy {
     }
 }
 
-/// Opaque mechanism replacement used by soft interventions (DESIGN.md §8.1).
+/// Opaque mechanism replacement used by soft interventions.
 ///
 /// The model layer resolves `family_id` against its registry; `parameters` are a
 /// packed coefficient / noise vector interpreted by that family.
@@ -119,7 +174,7 @@ impl core::hash::Hash for MechanismOverride {
     }
 }
 
-/// Stochastic assignment policy for an intervened variable (DESIGN.md §8.1).
+/// Stochastic assignment policy for an intervened variable.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum StochasticPolicy {
@@ -269,7 +324,7 @@ impl InterventionSequence {
     }
 }
 
-/// An intervention applied to one or more variables (DESIGN.md §8.1).
+/// An intervention applied to one or more variables.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Intervention {
@@ -404,6 +459,8 @@ pub enum InterventionError {
         /// Window end.
         until: i32,
     },
+    /// Dynamic schedule has no active offsets.
+    EmptyDynamicSchedule,
 }
 
 impl core::fmt::Display for InterventionError {
@@ -415,6 +472,9 @@ impl core::fmt::Display for InterventionError {
             Self::EmptySequence => write!(f, "intervention sequence is empty"),
             Self::InvalidTemporalWindow { from, until } => {
                 write!(f, "invalid temporal window [{from}, {until}]")
+            }
+            Self::EmptyDynamicSchedule => {
+                write!(f, "TemporalPolicy::Dynamic requires a non-empty active_at schedule")
             }
         }
     }
@@ -477,7 +537,12 @@ mod tests {
     #[test]
     fn dynamic_policy_validates() {
         use crate::ids::DynamicRuleId;
-        let p = TemporalPolicy::dynamic(DynamicRuleId::from_raw(1));
+        let p = TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), [0, 2, 5]);
         p.validate().unwrap();
+        assert!(p.is_active_at(2));
+        assert!(!p.is_active_at(1));
+        assert_eq!(p.active_offsets().unwrap().as_ref(), &[0, 2, 5]);
+        let empty = TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), []);
+        assert!(matches!(empty.validate(), Err(InterventionError::EmptyDynamicSchedule)));
     }
 }

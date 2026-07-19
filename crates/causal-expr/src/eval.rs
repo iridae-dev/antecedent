@@ -1,4 +1,4 @@
-//! Compiled topological evaluators for causal expressions (DESIGN.md §9).
+//! Compiled topological evaluators for causal expressions.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

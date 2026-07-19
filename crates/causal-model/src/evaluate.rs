@@ -1,4 +1,4 @@
-//! Model evaluation and falsification (DESIGN.md §15.5).
+//! Model evaluation and falsification.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

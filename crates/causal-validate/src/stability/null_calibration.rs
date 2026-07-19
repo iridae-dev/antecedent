@@ -1,4 +1,4 @@
-//! Synthetic-null discovery calibration (DESIGN.md §18.3).
+//! Synthetic-null discovery calibration.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,0 +1,10 @@
+# Pointer into conformance/ for the NOTEARS linear-SEM chain fixture.
+
+id = "notears.chain_linear_sem"
+capability_ids = [
+  "discovery.notears",
+]
+fixture_dir = "conformance/discovery/notears_chain"
+tolerance_class = "RequiredDirectedEdges"
+generator = "scripts/conformance/generate_notears_chain.py"
+baseline_pin = ""

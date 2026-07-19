@@ -1,7 +1,7 @@
 //! Logical and physical plan *records* (structs only; planner is).
 //!
 //! These types attach to diagnostics and results so execution choices remain
-//! inspectable (DESIGN.md §21.2).
+//! inspectable.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -71,7 +71,7 @@ pub enum KernelSelection {
     DenseBackend,
 }
 
-/// One parallel work dimension in a physical task schedule (DESIGN.md §23.4).
+/// One parallel work dimension in a physical task schedule.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParallelTaskSpec {
     /// Primary parallel dimension (e.g. `serial`, `bootstrap.replicate`).

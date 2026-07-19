@@ -2,7 +2,7 @@
 //!
 //! `causal-core` owns identifiers, schemas, assumptions, provenance,
 //! diagnostics, errors, and execution policy. It must not depend on numerical,
-//! graph-algorithm, Arrow, or Python crates (DESIGN.md §3.1).
+//! graph-algorithm, Arrow, or Python crates.
 //!
 //! # Names at the boundary, IDs on the hot path
 //!
@@ -95,8 +95,9 @@ pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AttributionComponents, AverageEffectQuery,
     CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery,
     InterventionalDistributionQuery, MechanismChangeQuery, MediationContrast, MediationQuery,
-    OrderedFloatBits, PathSpecificEffectQuery, PopulationSelector, PredicateExpr, QueryError,
-    ShapleyConfig, ShapleyMode, TargetPopulation, TemporalEffectQuery, UnitChangeQuery,
+    OrderedFloatBits, PathSpecificEffectQuery, PopulationRegistry, PopulationSelection,
+    PopulationSelector, PredicateExpr, QueryError, ShapleyConfig, ShapleyMode, TargetPopulation,
+    TemporalEffectQuery, UnitChangeQuery,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,

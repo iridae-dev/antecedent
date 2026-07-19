@@ -1,4 +1,4 @@
-//! Environment holdout validation via J-PCMCI+ (DESIGN.md §18.3).
+//! Environment holdout validation via J-PCMCI+.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

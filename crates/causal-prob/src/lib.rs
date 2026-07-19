@@ -31,7 +31,7 @@ pub mod graph_samples;
 pub mod hmc;
 pub mod laplace;
 pub(crate) mod linalg;
-pub(crate) mod mcmc_stats;
+pub mod mcmc_stats;
 pub mod posterior;
 pub mod prior;
 
@@ -45,6 +45,7 @@ pub use error::ProbError;
 pub use graph_samples::{GraphIdentFlag, WeightedGraphSamples};
 pub use hmc::{HmcGlmBackend, HmcOptions, fit_hmc_glm};
 pub use laplace::{LaplaceGlmBackend, fit_laplace_glm};
+pub use mcmc_stats::{max_split_rhat, min_bulk_ess};
 pub use posterior::{
     EffectBatch, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,
     PosteriorSchema, PosteriorSummary,

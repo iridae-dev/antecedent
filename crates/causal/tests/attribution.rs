@@ -1,4 +1,4 @@
-//! attribution conformance (DESIGN.md §17 / §32).
+//! attribution conformance.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

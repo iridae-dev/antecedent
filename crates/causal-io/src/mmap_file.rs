@@ -1,4 +1,4 @@
-//! Thin mmap wrapper — sole `unsafe` boundary in causal-io (DESIGN.md §24.5).
+//! Thin mmap wrapper — sole `unsafe` boundary in causal-io.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

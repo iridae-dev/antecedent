@@ -12,7 +12,7 @@ use super::TargetPopulation;
 use super::error::QueryError;
 
 #[derive(Clone, Debug, PartialEq)]
-/// Interventional distribution query P(Y | do(...), Z) (DESIGN.md §8).
+/// Interventional distribution query P(Y | do(...), Z).
 ///
 /// Distinct from [`ChangeAttributionQuery`] (population/period change attribution).
 /// Identify via ID (empty conditioning) or IDC (nonempty conditioning);
@@ -86,7 +86,7 @@ impl InterventionalDistributionQuery {
     }
 }
 
-/// Path-specific effect / contribution query (DESIGN.md §8).
+/// Path-specific effect / contribution query.
 ///
 /// Prefer this over overloading [`MediationQuery`]. Path *contribution*
 /// attribution is available via GCM `path_decompose`; path-restricted natural

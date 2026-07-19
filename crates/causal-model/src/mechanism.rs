@@ -1,4 +1,4 @@
-//! Built-in PCM/SCM/invertible mechanism kernels (DESIGN.md §15.2).
+//! Built-in PCM/SCM/invertible mechanism kernels.
 //!
 //! Hot paths dispatch on [`MechanismSlot`] (enum), not trait objects per scalar.
 //!

@@ -5,7 +5,7 @@
 
 ## Context
 
-DESIGN.md requires experiment/measurement candidate ranking (EIG,
+ requires experiment/measurement candidate ranking (EIG,
 identification probability, effect-width, decision utility) and an embeddable
 `CausalState` with event/invalidation and incremental sufficient statistics.
 

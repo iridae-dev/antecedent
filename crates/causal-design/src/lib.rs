@@ -1,4 +1,4 @@
-//! Experiment, measurement, and decision primitives (DESIGN.md §19).
+//! Experiment, measurement, and decision primitives.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

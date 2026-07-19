@@ -2,7 +2,6 @@
 
 - Status: Accepted
 - Date: 2026-07-21
-- Design: DESIGN.md §35.7, §25.5
 
 ## Decision
 

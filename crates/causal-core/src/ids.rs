@@ -1,7 +1,7 @@
 //! Compact, copyable identifiers used throughout causal-library.
 //!
 //! User-facing names live in schemas and dictionaries, not in hot graph or
-//! numerical structures (DESIGN.md §4).
+//! numerical structures.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -67,9 +67,9 @@ impl fmt::Display for EnvironmentId {
     }
 }
 
-/// Opaque handle for a rule-driven temporal intervention schedule (DESIGN.md §8.1).
+/// Opaque handle for a rule-driven temporal intervention schedule.
 ///
-/// Resolved by callers / future schedule interpreters; not evaluated in core.
+/// Paired with explicit `active_at` offsets on [`crate::intervention::TemporalPolicy::Dynamic`].
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct DynamicRuleId(u32);
@@ -94,7 +94,7 @@ impl fmt::Display for DynamicRuleId {
     }
 }
 
-/// Handle to a custom target distribution (DESIGN.md §8.2).
+/// Handle to a custom target distribution.
 ///
 /// Resolved against a caller-supplied registry; sampling is deferred.
 #[repr(transparent)]
@@ -150,7 +150,7 @@ impl fmt::Display for RegimeId {
 ///
 /// [`Lag::CONTEMPORANEOUS`] (`Lag(0)`) is contemporaneous. Historical nodes use
 /// positive lag values internally. Negative-lag conventions are confined to
-/// import/export adapters (DESIGN.md §4, ADR 0005).
+/// import/export adapters.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Lag(u32);
@@ -193,7 +193,7 @@ impl fmt::Display for Lag {
 /// Attribution component (typically a mechanism / node) in change decomposition.
 ///
 /// Distinct from [`VariableId`] at the type level so allocation orders cannot
-/// silently mix raw variables with coalition players (DESIGN.md §17.2).
+/// silently mix raw variables with coalition players.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ComponentId(VariableId);
@@ -329,7 +329,7 @@ impl fmt::Display for ModelId {
     }
 }
 
-/// Monotonic causal-state version (DESIGN.md §20).
+/// Monotonic causal-state version.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
 pub struct StateVersion(u64);

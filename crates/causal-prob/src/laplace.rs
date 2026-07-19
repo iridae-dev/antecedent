@@ -1,4 +1,4 @@
-//! Native Laplace approximation for Bayesian GLMs (ADR 0006 / DESIGN.md §14.5).
+//! Native Laplace approximation for Bayesian GLMs (ADR 0006 / ).
 //!
 //! MAP via damped Newton → Cholesky of −Hessian (LDLT fallback) → MVN draws.
 //! Refuses to publish a posterior without convergence and curvature diagnostics.

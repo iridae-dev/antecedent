@@ -1,4 +1,4 @@
-//! [`CausalState`] apply / invalidate / recompute (DESIGN.md §20).
+//! [`CausalState`] apply / invalidate / recompute.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

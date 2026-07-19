@@ -1,4 +1,4 @@
-//! Discriminating paths for FCI / LPCMCI PAG orientation (DESIGN.md §13.6).
+//! Discriminating paths for FCI / LPCMCI PAG orientation.
 //!
 //! Zhang (2008) FCI R4: a path ⟨a, d₁, …, dₖ, c, b⟩ (k ≥ 1) is discriminating for `c`
 //! between `a` and `b` when `a` and `b` are non-adjacent, every intermediate `dᵢ` is a

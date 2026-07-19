@@ -1,4 +1,4 @@
-//! Full CausalQuery and Intervention wire forms (DESIGN.md §24).
+//! Full CausalQuery and Intervention wire forms.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -167,10 +167,13 @@ pub enum TemporalPolicyWire {
         /// Until.
         until: i32,
     },
-    /// Dynamic rule handle.
+    /// Dynamic rule handle with explicit active offsets.
     Dynamic {
         /// Rule id.
         rule: u32,
+        /// Active step offsets (sorted unique).
+        #[serde(default)]
+        active_at: Vec<i32>,
     },
 }
 
@@ -181,7 +184,10 @@ impl TemporalPolicyWire {
             TemporalPolicy::Sustained { from, until } => {
                 Self::Sustained { from: *from, until: *until }
             }
-            TemporalPolicy::Dynamic { rule } => Self::Dynamic { rule: rule.raw() },
+            TemporalPolicy::Dynamic { rule, active_at } => Self::Dynamic {
+                rule: rule.raw(),
+                active_at: active_at.as_ref().to_vec(),
+            },
             other => {
                 return Err(IoError::Convert(format!("unsupported TemporalPolicy: {other:?}")));
             }
@@ -193,9 +199,9 @@ impl TemporalPolicyWire {
         match self {
             Self::Pulse { at } => TemporalPolicy::Pulse { at: *at },
             Self::Sustained { from, until } => TemporalPolicy::Sustained { from: *from, until: *until },
-            Self::Dynamic { rule } => TemporalPolicy::Dynamic {
-                rule: DynamicRuleId::from_raw(*rule),
-            },
+            Self::Dynamic { rule, active_at } => {
+                TemporalPolicy::dynamic(DynamicRuleId::from_raw(*rule), active_at.as_slice())
+            }
         }
     }
 }
@@ -1178,7 +1184,7 @@ mod tests {
 
         let temporal = CausalQuery::TemporalEffect(
             TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
-                .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(4)))
+                .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(4), [0, 2]))
                 .with_horizon_steps(2),
         );
         let back = causal_query_from_wire(&causal_query_to_wire(&temporal).unwrap()).unwrap();
@@ -1186,9 +1192,7 @@ mod tests {
             CausalQuery::TemporalEffect(q) => {
                 assert_eq!(
                     q.policy,
-                    TemporalPolicy::Dynamic {
-                        rule: DynamicRuleId::from_raw(4)
-                    }
+                    TemporalPolicy::dynamic(DynamicRuleId::from_raw(4), [0, 2])
                 );
             }
             other => panic!("expected TemporalEffect, got {other:?}"),

@@ -1,4 +1,4 @@
-//! Weighted graph samples for effect envelopes (DESIGN.md §3, §14.4).
+//! Weighted graph samples for effect envelopes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

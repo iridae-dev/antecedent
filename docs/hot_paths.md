@@ -1,7 +1,7 @@
 # Designated hot paths
 
 Index of designated hot paths with Criterion bench targets, baseline docs,
-allocation/memory contracts, and owning crates (DESIGN.md §28).
+allocation/memory contracts, and owning crates.
 
 | Hot path | Owner crate | Bench | Baseline | Allocation / memory contract |
 |----------|-------------|-------|----------|------------------------------|
@@ -38,4 +38,4 @@ cargo bench -p causal-state --bench state_append -- --test
 ```
 
 Absolute timings in baseline files are machine-class references (Apple M1).
-Unexplained regressions beyond documented budgets block merge (DESIGN §28.9).
+Unexplained regressions beyond documented budgets block merge.

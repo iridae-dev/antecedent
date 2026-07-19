@@ -1,6 +1,11 @@
-"""Graph interchange stubs."""
+"""Graph interchange and typed graph stubs."""
 
 from ._native import (
+    Admg as Admg,
+    Cpdag as Cpdag,
+    Dag as Dag,
+    Pag as Pag,
+    TemporalDag as TemporalDag,
     dag_from_dot as dag_from_dot,
     dag_from_gml as dag_from_gml,
     dag_from_json as dag_from_json,

@@ -27,7 +27,7 @@ pub enum MediationContrast {
     NaturalIndirect,
 }
 
-/// Mediation query: treatment → mediators → outcome (DESIGN.md §8).
+/// Mediation query: treatment → mediators → outcome.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct MediationQuery {
     /// Treatment variable.
@@ -102,7 +102,7 @@ impl MediationQuery {
     }
 }
 
-/// Conditional average effect given effect modifiers (DESIGN.md §8).
+/// Conditional average effect given effect modifiers.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ConditionalEffectQuery {
     /// Inner ATE-style query; `effect_modifiers` must be non-empty.

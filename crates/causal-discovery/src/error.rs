@@ -22,6 +22,9 @@ pub enum DiscoveryError {
     /// Score / state cache failure.
     #[error(transparent)]
     State(#[from] causal_state::StateError),
+    /// Probability / ensemble construction failure.
+    #[error(transparent)]
+    Prob(#[from] causal_prob::ProbError),
     /// Unsupported configuration.
     #[error("{message}")]
     Unsupported {
@@ -31,6 +34,9 @@ pub enum DiscoveryError {
     /// Orientation / rule-scheduling precondition or message.
     #[error("orientation: {0}")]
     Orientation(String),
+    /// Resource / memory budget exceeded.
+    #[error("resource: {0}")]
+    Resource(String),
 }
 
 impl DiscoveryError {

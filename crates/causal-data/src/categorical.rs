@@ -202,7 +202,7 @@ pub struct CategoricalView<'a> {
     pub domain: &'a CategoryDomain,
 }
 
-/// Explicit contrast coding (DESIGN.md §5.3).
+/// Explicit contrast coding.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Contrast {
     /// Treatment coding relative to a reference level.

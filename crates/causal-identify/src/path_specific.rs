@@ -21,7 +21,7 @@ use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
 };
 
-/// Path-restricted natural-effect identifier (DESIGN.md §8 / §10.2).
+/// Path-restricted natural-effect identifier.
 #[derive(Clone, Debug, Default)]
 pub struct PathSpecificIdentifier {
     /// Underlying general ID engine.

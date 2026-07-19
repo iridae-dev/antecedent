@@ -1,4 +1,4 @@
-//! d-separation for DAGs (DESIGN.md §6.5).
+//! d-separation for DAGs.
 //!
 //! Boolean batch path allocates no path objects. Witness mode returns an active
 //! path certificate when nodes are d-connected given the conditioning set.

@@ -27,14 +27,14 @@ Criterion sample size: 30
 Portable contiguous paths (covariance / standardize / weighted_sum / pairwise) rely on
 safe auto-vectorization. Contingency is scatter-add and shares the scalar body.
 No kernel cleared the ≥10% median win vs portable at `n ≥ 10_000` needed to justify
-`unsafe` arch SIMD + `simd-runtime` (DESIGN.md §23.2). `KernelPolicy::allow_arch_simd`
+`unsafe` arch SIMD + `simd-runtime`. `KernelPolicy::allow_arch_simd`
 is consulted by `select_impl`; `arch_simd_available()` remains false until justified.
 
 ## Acceptance
 
 Regressions exceeding **10%** wall-time vs the last accepted Criterion run on the
 same machine class require an approved explanation and replacement baseline
-(DESIGN.md §28.9 default merge budget). Gates (mean ≤ 1.10×):
+. Gates (mean ≤ 1.10×):
 
 | Workload | Gate |
 |----------|------|

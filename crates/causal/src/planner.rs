@@ -1,4 +1,4 @@
-//! Logical / physical analysis planning (DESIGN.md §21.2).
+//! Logical / physical analysis planning.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -147,6 +147,19 @@ pub enum GraphInput {
         max_cond_size: usize,
         /// Absolute OLS prune threshold.
         prune_threshold: f64,
+        /// Auto-accept all discovered edges (skip review).
+        accept_discovered: bool,
+    },
+    /// Discover with NOTEARS (tabular continuous SEM → DAG).
+    DiscoverNotears {
+        /// Max parent bound hint (via static constraints).
+        max_cond_size: usize,
+        /// L1 penalty \(\lambda\).
+        lambda: f64,
+        /// Absolute soft-weight threshold for the hard DAG.
+        threshold: f64,
+        /// Standardize columns before solving (varsortability policy).
+        standardize: bool,
         /// Auto-accept all discovered edges (skip review).
         accept_discovered: bool,
     },
@@ -366,7 +379,7 @@ pub fn is_dag_only_identifier(identifier: impl Into<IdentifierId>) -> bool {
     identifier.into().is_dag_only()
 }
 
-/// Refuse DAG-only identification on a PAG input (DESIGN.md §21.2).
+/// Refuse DAG-only identification on a PAG input.
 ///
 /// # Errors
 ///
@@ -433,7 +446,7 @@ pub fn compile_logical_static_ate(
         return Err(AnalysisError::Compile {
             message: format!(
                 "estimator \"linear.adjustment.ate\" only supports TargetPopulation::AllObserved \
-                 (got {:?}); use a propensity or AIPW estimator for ATT/ATC",
+                 (got {:?}); use a propensity or AIPW estimator for ATT/ATC/Predicate",
                 input.query.target_population
             ),
         });
@@ -636,7 +649,7 @@ pub fn compile_logical_temporal_effect(
         return Err(AnalysisError::Compile {
             message: format!(
                 "temporal linear adjustment only supports TargetPopulation::AllObserved \
-                 (got {:?}); Predicate/CustomDistribution evaluation is deferred",
+                 (got {:?})",
                 query.target_population
             ),
         });

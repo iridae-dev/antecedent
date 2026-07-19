@@ -1,4 +1,4 @@
-//! design + incremental state conformance (DESIGN.md §§19–20 / §32).
+//! design + incremental state conformance.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

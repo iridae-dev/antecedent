@@ -1,4 +1,4 @@
-//! Rolling linear-Gaussian mechanism diagnostics under CausalState (DESIGN.md §20).
+//! Rolling linear-Gaussian mechanism diagnostics under CausalState.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

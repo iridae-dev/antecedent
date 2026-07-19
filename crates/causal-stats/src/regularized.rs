@@ -1,4 +1,4 @@
-//! Ridge and lasso utilities (DESIGN.md §11.2).
+//! Ridge and lasso utilities.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

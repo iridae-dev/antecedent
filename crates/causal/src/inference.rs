@@ -1,4 +1,4 @@
-//! Bayesian inference configuration for the facade (DESIGN.md §34.1).
+//! Bayesian inference configuration for the facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

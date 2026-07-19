@@ -1,4 +1,4 @@
-//! Dense ids and edge endpoints (DESIGN.md §6).
+//! Dense ids and edge endpoints.
 //!
 //! [`NodeRef`] lives in `causal-core` so sample planning can use it without
 //! depending on this crate.

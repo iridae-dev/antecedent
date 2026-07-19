@@ -13,5 +13,5 @@ upstream_implementations_observed = []
 
 test_sources = [
  "independently generated synthetic graph posteriors",
- "DESIGN.md §19 ranking requirements",
+ " ranking requirements",
 ]

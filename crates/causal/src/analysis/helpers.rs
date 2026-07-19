@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade (DESIGN.md §21).
+//! Unified `CausalAnalysis` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -34,7 +34,8 @@ use causal_validate::{
 
 use crate::discovery::{
     DiscoverParams, StaticDiscoverParams, discover_fci, discover_ges, discover_jpcmci_plus,
-    discover_lingam, discover_lpcmci, discover_pc, discover_pcmci, discover_pcmci_plus,
+    discover_lingam, discover_lpcmci, discover_notears, discover_pc, discover_pcmci,
+    discover_pcmci_plus,
     discover_rfci, discover_rpcmci,
 };
 use crate::discovery_defaults::resolve_ci;
@@ -282,6 +283,25 @@ pub(crate) fn run_lingam_review(
     };
     let result = discover_lingam(data, &vars, &params, prune_threshold, ctx)?;
     Ok(result.review)
+}
+
+pub(crate) fn run_notears_review(
+    data: &TabularData,
+    max_cond_size: usize,
+    lambda: f64,
+    threshold: f64,
+    standardize: bool,
+    ctx: &ExecutionContext,
+) -> Result<causal_graph::DagReview, AnalysisError> {
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = StaticDiscoverParams {
+        alpha: 0.05,
+        max_cond_size,
+        fdr: None,
+        ci: resolve_ci("parcorr", None)?,
+    };
+    let result = discover_notears(data, &vars, &params, lambda, threshold, standardize, ctx)?;
+    Ok(result.discovery.review)
 }
 
 pub(crate) fn run_fci_review(

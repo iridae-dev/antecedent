@@ -14,7 +14,7 @@
 //! becomes the common-support population, matching the overlap report).
 //!
 //! Positivity is mandatory — [`OverlapPolicy::ExplicitOverride`] is refused, matching the other
-//! propensity-based estimators in [`crate::propensity`] (DESIGN.md §14.3).
+//! propensity-based estimators in [`crate::propensity`].
 //!
 //! Bootstrap standard errors **refit both the propensity model and the two outcome models on
 //! every resample**, propagating first-stage estimation uncertainty rather than reusing the

@@ -1,4 +1,4 @@
-//! Incremental causal state (DESIGN.md §20).
+//! Incremental causal state.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -13,7 +13,7 @@ Existing targets:
 - `dag_ops` — DAG insert / d-separation
 - `kernel_reductions` — masked reductions
 
-P3.5 additions (DESIGN.md §28.7):
+P3.5 additions:
 
 - `artifact_container` — `EncodedArtifact::read_from` (length-cap / checksum paths)
 - `expression_arena` — `CausalExprArena` intern + estimand method `FromStr`

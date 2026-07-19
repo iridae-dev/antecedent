@@ -1,7 +1,7 @@
 # causal-kernels
 
 Borrowed matrix/vector views and scalar, portable-optimized, and (optional)
-architecture-specific kernels. Contains no causal semantics. See DESIGN.md §3.1
+architecture-specific kernels. Contains no causal semantics. 1
 and §23.2.
 
 Public dispatch selects once per batch via `KernelPolicy` (`force_scalar`,

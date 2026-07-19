@@ -1,4 +1,4 @@
-//! Growable aligned f64 scratch buffers (DESIGN.md §5.5 / §5.7).
+//! Growable aligned f64 scratch buffers.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

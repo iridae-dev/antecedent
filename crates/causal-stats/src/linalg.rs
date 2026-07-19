@@ -4,7 +4,7 @@
 
 use crate::error::StatsError;
 
-/// Fit diagnostics required by DESIGN.md §11.2.
+/// Fit diagnostics required by.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FitDiagnostics {
     /// Numerical rank estimate.

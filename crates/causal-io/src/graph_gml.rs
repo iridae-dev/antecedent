@@ -1,4 +1,4 @@
-//! GML digraph subset import/export for causal DAGs (DESIGN.md §24).
+//! GML digraph subset import/export for causal DAGs.
 //!
 //! Supports pinned baseline-style:
 //! `graph [ directed 1 node [ id "Z" label "Z" ] edge [ source "Z" target "X" ] ]`

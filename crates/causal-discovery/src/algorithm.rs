@@ -1,4 +1,4 @@
-//! Discovery algorithm trait (DESIGN.md §5.1).
+//! Discovery algorithm trait.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -12,6 +12,7 @@ use crate::ges::Ges;
 use crate::jpcmci_plus::JpcmciPlus;
 use crate::lingam::{DirectLingam, StaticDagDiscoveryResult};
 use crate::lpcmci::Lpcmci;
+use crate::notears::{Notears, NotearsDiscoveryResult};
 use crate::pc::{Pc, StaticCpdagDiscoveryResult};
 use crate::pcmci::Pcmci;
 use crate::pcmci_plus::PcmciPlus;
@@ -19,7 +20,7 @@ use crate::result::{CpdagDiscoveryResult, DagDiscoveryResult, PagDiscoveryResult
 use crate::rfci::Rfci;
 use crate::rpcmci::{RegimeAssignment, Rpcmci, RpcmciDiscoveryResult};
 
-/// Algorithm that accepts a concrete dataset type `D` (DESIGN.md §5.1).
+/// Algorithm that accepts a concrete dataset type `D`.
 ///
 /// `variables` and `workspace` are part of the discovery contract in this crate:
 /// PCMCI-family engines need an explicit variable subset and reusable buffers.
@@ -157,6 +158,20 @@ impl DiscoveryAlgorithm<TabularData> for Ges {
 
 impl DiscoveryAlgorithm<TabularData> for DirectLingam {
     type Output = StaticDagDiscoveryResult;
+
+    fn discover(
+        &mut self,
+        data: &TabularData,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Self::Output, DiscoveryError> {
+        self.run(data, variables, workspace, ctx)
+    }
+}
+
+impl DiscoveryAlgorithm<TabularData> for Notears {
+    type Output = NotearsDiscoveryResult;
 
     fn discover(
         &mut self,

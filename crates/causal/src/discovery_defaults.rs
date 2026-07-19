@@ -1,4 +1,4 @@
-//! Shared discovery constraint defaults and CI resolution (DESIGN.md §21 / §25.2).
+//! Shared discovery constraint defaults and CI resolution.
 //!
 //! Single source for `TemporalConstraints` / `DiscoveryConstraints` used by
 //! [`crate::analysis`] and the Python bindings — do not duplicate these blocks.

@@ -1,4 +1,4 @@
-//! Native Hamiltonian Monte Carlo for Bayesian GLMs (DESIGN.md §14.5 / §30).
+//! Native Hamiltonian Monte Carlo for Bayesian GLMs.
 //!
 //! Leapfrog HMC with dual-averaging step-size adaptation during warmup.
 //! Multi-chain draws are columnar; ESS / R-hat / divergence counts gate publication.

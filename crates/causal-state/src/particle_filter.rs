@@ -1,4 +1,4 @@
-//! Particle-filter state cache (DESIGN.md §20) — bootstrap/SIR for 1-D LGSSM.
+//! Particle-filter state cache — bootstrap/SIR for 1-D LGSSM.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

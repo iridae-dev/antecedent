@@ -63,7 +63,7 @@ jobs:
             fi
           done < <(git rev-list "$RANGE")
 
-  # DESIGN.md §25.5: CPython 3.11–3.14; Linux x86_64/aarch64 manylinux;
+  # : CPython 3.11–3.14; Linux x86_64/aarch64 manylinux;
   # macOS x86_64/arm64; Windows x86_64. Default faer path (no system BLAS).
   python-wheels:
     name: Wheel ${{ matrix.os }} py${{ matrix.python }}

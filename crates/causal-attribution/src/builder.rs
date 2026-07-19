@@ -1,4 +1,4 @@
-//! Fluent builder for change attribution (DESIGN.md §34.3).
+//! Fluent builder for change attribution.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,7 +17,7 @@ use crate::result::ChangeAttributionResult;
 use crate::robust::{RobustChangeOptions, distribution_change_robust};
 use crate::structure_change::{StructureChangeOptions, structure_change};
 
-/// Builder matching DESIGN.md §34.3 `ChangeAttribution::new()...`.
+/// Builder for [`ChangeAttribution`].
 #[derive(Clone, Debug)]
 pub struct ChangeAttribution {
     outcome: Option<VariableId>,

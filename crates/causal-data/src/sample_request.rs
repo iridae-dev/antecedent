@@ -1,4 +1,4 @@
-//! General sample request → plan → prepare path (DESIGN.md §5.5).
+//! General sample request → plan → prepare path.
 //!
 //! Temporal lag-only gathers remain in [`crate::sample`] as
 //! [`LaggedSamplePlan`](crate::LaggedSamplePlan).
@@ -132,7 +132,7 @@ impl<'a> SampleRequest<'a> {
     }
 }
 
-/// Reusable compiled sample plan (DESIGN.md §5.5).
+/// Reusable compiled sample plan.
 #[derive(Clone, Debug)]
 pub struct SamplePlan {
     /// Prepared column descriptors in matrix order (X then Y then Z).

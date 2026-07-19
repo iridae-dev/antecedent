@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scheduled statistical calibration gate (DESIGN.md §28.3).
+# Scheduled statistical calibration gate.
 # Not part of every-PR unit CI — run locally / before release / weekly GHA.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

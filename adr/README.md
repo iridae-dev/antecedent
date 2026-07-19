@@ -1,7 +1,7 @@
 # Architecture Decision Records
 
-Accepted decisions from DESIGN.md §35. Changing one requires a superseding ADR
-and migration or compatibility analysis where applicable.
+Accepted decisions. Changing one requires a superseding ADR and migration or
+compatibility analysis where applicable. See [docs/architecture.md](../docs/architecture.md).
 
 | ID | Title |
 |----|-------|

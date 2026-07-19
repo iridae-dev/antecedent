@@ -1,11 +1,10 @@
 //! Arrow IPC section helpers for the artifact container .
 //!
 //! Large numerical payloads use Arrow IPC bytes rather than CBOR arrays
-//! (DESIGN.md §24). This module records the section content type and wraps
+//!. This module records the section content type and wraps
 //! opaque IPC payloads; decoding is performed by Arrow adapters at the boundary.
 //!
 //! Arrow IPC sections use [`CompressPolicy::Never`] so they remain mmap-eligible
-//! (DESIGN.md §24.5).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

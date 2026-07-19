@@ -1,4 +1,4 @@
-//! Sandwich / HAC coefficient covariance estimators (DESIGN.md §11.3).
+//! Sandwich / HAC coefficient covariance estimators.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -7,7 +7,7 @@
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};
 
-/// Sandwich / HAC covariance kind (DESIGN.md §11.3).
+/// Sandwich / HAC covariance kind.
 #[derive(Clone, Copy, Debug)]
 pub enum SandwichKind<'a> {
     /// Classical `σ² (XᵀX)⁻¹`.

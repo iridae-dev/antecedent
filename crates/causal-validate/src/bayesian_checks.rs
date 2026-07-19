@@ -1,4 +1,4 @@
-//! Prior/posterior predictive checks and prior sensitivity (DESIGN.md §18.4 subset).
+//! Prior/posterior predictive checks and prior sensitivity.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -565,7 +565,7 @@ impl McmcDiagnosticsCheck {
     }
 }
 
-/// Simulation-based calibration ranks for a scalar posterior functional (DESIGN.md §18.4).
+/// Simulation-based calibration ranks for a scalar posterior functional.
 ///
 /// For each replicate: draw θ* from the prior predictive, simulate data, refit, and
 /// record the rank of θ* among posterior draws of the primary effect.

@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Incremental causal state, invalidation, and sufficient statistics (DESIGN.md §20)"
+description = "Incremental causal state, invalidation, and sufficient statistics"
 readme = "README.md"
 
 [lints]

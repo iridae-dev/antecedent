@@ -1,4 +1,4 @@
-//! pinned baseline-style vector variable groups (DESIGN.md §5 / §12).
+//! pinned baseline-style vector variable groups.
 //!
 //! Components are separate Float64 columns. Logical discovery nodes are the
 //! first component of each group; [`column_blocks_for_frame`] builds per-lag

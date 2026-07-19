@@ -1,4 +1,4 @@
-//! Semantic coalition evaluation cache (DESIGN.md §17.4).
+//! Semantic coalition evaluation cache.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

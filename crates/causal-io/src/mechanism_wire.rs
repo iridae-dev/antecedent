@@ -116,7 +116,7 @@ pub struct MechanismStoreWire {
 ///
 /// # Errors
 ///
-/// [`MechanismSlot::Dynamic`] cannot be serialized (DESIGN §24.4 / §25.4).
+/// [`MechanismSlot::Dynamic`] cannot be serialized .
 pub fn mechanisms_to_wire(store: &CompiledMechanismStore) -> Result<MechanismStoreWire, IoError> {
     let mut slots = Vec::with_capacity(store.slots.len());
     for s in store.slots.iter() {

@@ -169,6 +169,14 @@ owner = "discovery"
 notes = "Residual–predictor dCor order search + OLS prune → Dag/DagReview; discover_lingam Rust/Python; no ICA"
 
 [[capabilities]]
+id = "discovery.notears"
+group = "discovery"
+description = "Static NOTEARS continuous SEM (DAG)"
+status = "done"
+owner = "discovery"
+notes = "Crate Notears + threshold Dag/DagReview + soft W; discover_notears Rust/Python + GraphInput::DiscoverNotears / analyze builder; conformance/discovery/notears_chain (RequiredDirectedEdges)"
+
+[[capabilities]]
 id = "discovery.pcmci_plus"
 group = "discovery"
 description = "PCMCI+"

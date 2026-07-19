@@ -1,6 +1,6 @@
 //! Temporal sampling metadata (series length / regularity).
 //!
-//! Node keys and dense unfolding indexes live in `causal-core` (DESIGN.md §3.2).
+//! Node keys and dense unfolding indexes live in `causal-core`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

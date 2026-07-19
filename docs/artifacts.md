@@ -5,7 +5,7 @@ Library package version remains **0.1.0**. Durable artifact format is frozen at
 
 ## Container
 
-See DESIGN.md §24 and ADR 0002 / 0017:
+See ADR 0002 / 0017:
 
 ```text
 magic (CAUSAL\0\0) | container_version (u32 LE = 1)
@@ -26,7 +26,7 @@ the logical size is ≥ 4 KiB and compression improves size (≈95% ratio).
 Arrow IPC sections (`application/vnd.apache.arrow.file`) use
 `CompressPolicy::Never` so they remain mmap-eligible.
 
-### Selective read / mmap / shared writes (§24.5)
+### Selective read / mmap / shared writes
 
 | API | Behavior |
 |-----|----------|
@@ -55,7 +55,7 @@ use `load_section` to decompress into owned bytes.
 source formats `0.1` and `0.2`. Format `0.1` skinny `SchemaWireV01 { variable_names }`
 is rewritten to full `SchemaWire` with Continuous defaults. Unknown format
 versions fail with `IoError::UnsupportedFormat`. Breaking changes require
-migration from at least the previous two stable versions (DESIGN §24.3).
+migration from at least the previous two stable versions.
 
 ## Graph interchange (non-artifact)
 

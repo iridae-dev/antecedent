@@ -1,4 +1,4 @@
-//! Columnar value / noise batches and mechanism workspaces (DESIGN.md §15).
+//! Columnar value / noise batches and mechanism workspaces.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -238,7 +238,7 @@ impl<'a> ParentBatch<'a> {
     }
 }
 
-/// Reusable scratch for mechanism evaluation (DESIGN.md §15.2).
+/// Reusable scratch for mechanism evaluation.
 #[derive(Clone, Debug, Default)]
 pub struct MechanismWorkspace {
     /// Gathered parent matrix (column-major over parents).

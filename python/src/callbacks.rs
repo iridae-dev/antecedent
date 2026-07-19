@@ -1,4 +1,4 @@
-//! Slow-path Python callback bridges (DESIGN.md §25.4).
+//! Slow-path Python callback bridges.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -320,20 +320,22 @@ pub fn resolve_ci_arg(
     weights: Option<Vec<f64>>,
 ) -> PyResult<(Arc<dyn ConditionalIndependence + Send + Sync>, String, bool)> {
     let Some(ci) = ci else {
-        let impl_ = causal::resolve_ci("parcorr", weights)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let impl_ = causal::resolve_ci("parcorr", weights).map_err(|e| {
+            crate::CausalCompileError::new_err(e.to_string())
+        })?;
         return Ok((impl_, "parcorr".into(), false));
     };
     if let Ok(name) = ci.extract::<&str>() {
-        let impl_ = causal::resolve_ci(name, weights)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let impl_ = causal::resolve_ci(name, weights).map_err(|e| {
+            crate::CausalCompileError::new_err(e.to_string())
+        })?;
         return Ok((impl_, name.to_string(), false));
     }
     if ci.is_callable() {
         let cb = PyConditionalIndependence::new(ci.clone().unbind());
         return Ok((Arc::new(cb), "python.callback".into(), true));
     }
-    Err(PyValueError::new_err(
+    Err(crate::CausalCompileError::new_err(
         "ci must be a str CI name (e.g. 'parcorr') or a callable batch test",
     ))
 }

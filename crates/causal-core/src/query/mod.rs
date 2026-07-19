@@ -1,4 +1,4 @@
-//! Typed causal queries (DESIGN.md §8).
+//! Typed causal queries.
 //!
 //! Hot paths bind [`VariableId`]s; names are resolved only at API boundaries.
 //!
@@ -10,6 +10,7 @@ mod counterfactual;
 mod distribution;
 mod error;
 mod mediation;
+mod population;
 mod target;
 mod temporal;
 
@@ -25,6 +26,7 @@ pub use counterfactual::CounterfactualQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
+pub use population::{PopulationRegistry, PopulationSelection};
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
 

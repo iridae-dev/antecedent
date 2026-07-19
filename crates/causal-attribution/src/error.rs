@@ -5,7 +5,7 @@
 use causal_core::VariableId;
 use thiserror::Error;
 
-/// Attribution errors (DESIGN.md §17).
+/// Attribution errors.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum AttributionError {
     /// Query / component / allocation combination not supported on this path.

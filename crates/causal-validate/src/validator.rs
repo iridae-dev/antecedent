@@ -1,4 +1,4 @@
-//! Validator contract (DESIGN.md §18.1).
+//! Validator contract.
 //!
 //! Effect refuters (§18.2) implement this trait. The trait is named `Validator`
 //! (not `Refuter`) per DESIGN.
@@ -23,7 +23,7 @@ use crate::reisz::ReiszSensitivity;
 use crate::sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 use crate::unobserved_common_cause::UnobservedCommonCause;
 
-/// Validation / refutation algorithm over artifact type `A` (DESIGN §18.1).
+/// Validation / refutation algorithm over artifact type `A` .
 ///
 /// `validate` also takes an [`EstimationWorkspace`] because effect refuters in
 /// this crate refit estimators; DESIGN's sketch omits it.

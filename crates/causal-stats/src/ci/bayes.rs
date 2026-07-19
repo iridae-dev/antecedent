@@ -1,5 +1,4 @@
 //! Bayesian conditional independence diagnostics for conjugate Gaussian models
-//! (DESIGN.md §12).
 //!
 //! - [`BayesFactorCi`]: log Bayes factor for dependence vs independence after
 //!   residualizing on Z under a Normal–Inv-Gamma conjugate model.

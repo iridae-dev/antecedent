@@ -65,23 +65,23 @@ notes = "causal-model MechanismRegistry + CompiledCausalModel"
 
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
-status = "pending"
-notes = "Bayesian DAG/DBN posterior search (§13.7) — TODO.md item 5; envelopes over supplied WeightedGraphSamples ship"
+status = "done"
+notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in causal-discovery (§13.7); GraphPosterior → WeightedGraphSamples; gate evidence: unit harness + conformance/bayesian/dag_posterior"
 
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"
 status = "done"
-notes = "EB hierarchical linear + HierarchicalGlm (Bernoulli logit); Minnesota BVAR; LGSSM Kalman EM; GP hyperparam grid (feature gaussian-process) — DESIGN §14.4"
+notes = "EB hierarchical linear + HierarchicalGlm (Bernoulli logit); Minnesota BVAR; LGSSM Kalman EM; GP hyperparam grid (feature gaussian-process) — "
 
 [[capabilities]]
 id = "bayes.validate.mcmc_diagnostics"
 status = "done"
-notes = "Chain ESS / R-hat / divergences via HMC + McmcDiagnosticsCheck — TODO.md item 4; SBC separate"
+notes = "Chain ESS / R-hat / divergences via HMC + McmcDiagnosticsCheck; SBC separate"
 
 [[capabilities]]
 id = "bayes.ci.tests"
 status = "done"
-notes = "Bayes-factor CI / posterior dependence / PPC-CI for conjugate Gaussian (§12) — TODO.md item 4"
+notes = "Bayes-factor CI / posterior dependence / PPC-CI for conjugate Gaussian (§12)"
 
 # External Stan/PyMC adapters are optional forever (native Laplace is canonical;
-# DESIGN §14.5). Not tracked as a required inventory row.
+# ). Not tracked as a required inventory row.

@@ -1,4 +1,4 @@
-//! Explicit materialization / copy diagnostics (DESIGN.md §5.2).
+//! Explicit materialization / copy diagnostics.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

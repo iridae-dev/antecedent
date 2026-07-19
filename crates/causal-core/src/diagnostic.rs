@@ -1,4 +1,4 @@
-//! Structured diagnostics (DESIGN.md §22).
+//! Structured diagnostics.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

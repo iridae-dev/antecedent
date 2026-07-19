@@ -1,5 +1,5 @@
 //! Identifier / estimator strategy tables for plan compilation and static execution
-//! (DESIGN.md §21.2). Incremental extraction from the analysis workflow — does not
+//!. Incremental extraction from the analysis workflow — does not
 //! replace [`crate::CausalAnalysis`] / plans / [`crate::CausalAnalysisResult`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

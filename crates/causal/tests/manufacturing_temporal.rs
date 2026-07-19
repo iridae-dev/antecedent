@@ -1,4 +1,4 @@
-//! Manufacturing-style temporal effect example (DESIGN.md §34.2).
+//! Manufacturing-style temporal effect example.
 //!
 //! Run: `cargo +1.85 test -p causal --test manufacturing_temporal -- --nocapture`
 //!

@@ -1,4 +1,4 @@
-//! Surrogate null transforms for discovery false-positive checks (DESIGN.md §18.3).
+//! Surrogate null transforms for discovery false-positive checks.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Matching/index + bootstrap workspace reuse gate (DESIGN §14.6).
+# Matching/index + bootstrap workspace reuse gate .
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

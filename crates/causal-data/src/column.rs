@@ -1,4 +1,4 @@
-//! Columnar storage and typed column views (DESIGN.md §5.2).
+//! Columnar storage and typed column views.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

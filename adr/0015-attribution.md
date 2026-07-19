@@ -5,7 +5,7 @@
 
 ## Context
 
-DESIGN.md requires distribution/unit/mechanism-change attribution,
+ requires distribution/unit/mechanism-change attribution,
 Shapley and path decompositions, robust variants, posterior contribution
 blocks, and graph-sensitive root-cause ranking with GCM parity.
 

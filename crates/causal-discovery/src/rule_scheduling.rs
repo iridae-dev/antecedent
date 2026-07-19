@@ -1,4 +1,4 @@
-//! FCI / LPCMCI orientation rule scheduling (DESIGN.md §13.6).
+//! FCI / LPCMCI orientation rule scheduling.
 //!
 //! Zhang FCI rules (collider, R1–R4, R8–R10) share [`PagOps`] bodies and run on
 //! static [`Pag`] via [`FciOrientationRule`] or temporal [`TemporalPag`] via
@@ -1129,7 +1129,7 @@ pub fn default_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 10] {
 /// Schedule Zhang FCI rules to a fixed point on a static [`Pag`].
 ///
 /// Seeds all nodes once. Subsequent rounds honor nodes enqueued by rules
-/// (DESIGN.md §13.6 / §13.8) — no full-graph re-seed after each round.
+/// — no full-graph re-seed after each round.
 ///
 /// # Errors
 ///
@@ -1174,7 +1174,7 @@ pub fn run_fci_orientation_to_fixed_point(
 /// Schedule LPCMCI rules to a fixed point using a local delta queue.
 ///
 /// Seeds all nodes once. Subsequent rounds honor nodes enqueued by rules
-/// (DESIGN.md §13.6 / §13.8) — no full-graph re-seed after each round.
+/// — no full-graph re-seed after each round.
 ///
 /// # Errors
 ///

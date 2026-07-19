@@ -1,4 +1,4 @@
-//! Reusable traversal workspace (DESIGN.md §6.3).
+//! Reusable traversal workspace.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
