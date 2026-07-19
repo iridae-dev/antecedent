@@ -40,8 +40,8 @@ pub use prepare::{
     default_propensity_overlap,
 };
 pub(crate) use prepare::{
-    clamp_scores, clip_of, gather, prepare_propensity_problem, split_by_treatment, trim_of,
-    trim_retained_rows,
+    clamp_scores, clip_of, gather, prepare_propensity_problem,
+    prepare_propensity_problem_with_registry, split_by_treatment, trim_of, trim_retained_rows,
 };
 pub use stratification::PropensityStratification;
 pub use weighting::PropensityWeighting;
@@ -52,11 +52,11 @@ mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
-        RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
+        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, DistributionRef, ExecutionContext,
+        MeasurementSpec, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
     };
     use causal_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
     };
     use causal_expr::ExprId;
     use causal_expr::IdentifiedEstimand;
@@ -425,5 +425,50 @@ mod tests {
         assert!((clean.ate - 2.0).abs() < 0.35, "trimmed att={}", clean.ate);
         let report = clean.overlap_report.as_ref().unwrap();
         assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
+    }
+
+    #[test]
+    fn custom_distribution_ipw_recovers_weighted_ate() {
+        use causal_core::PopulationRegistry;
+
+        // Uniform weights → same as ATE; half-weight on control → still recovers ~2.
+        let (data, estimand) = confounded_scm(1_200, 21);
+        let n = data.row_count();
+        let mut weights = vec![1.0; n];
+        for w in weights.iter_mut().take(n / 2) {
+            *w = 0.5;
+        }
+        let dist = DistributionRef::from_raw(7);
+        let mut registry = PopulationRegistry::new();
+        registry.insert_distribution(dist, weights);
+
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::CustomDistribution(dist));
+        let mut est = PropensityWeighting::new();
+        est.bootstrap_replicates = 0;
+        est.population_registry = Some(registry);
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        assert!(prep.target_weights.is_some());
+        let mut ws = PropensityEstimationWorkspace::default();
+        let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!((fit.ate - 2.0).abs() < 0.35, "weighted ate={}", fit.ate);
+    }
+
+    #[test]
+    fn custom_distribution_without_registry_is_unsupported() {
+        let (data, estimand) = confounded_scm(200, 22);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::CustomDistribution(
+                    DistributionRef::from_raw(1),
+                ));
+        let est = PropensityWeighting::new();
+        let err = est.prepare(&data, &estimand, &query).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("PopulationRegistry") || msg.contains("registry") || msg.contains("Unsupported"),
+            "err={msg}"
+        );
     }
 }

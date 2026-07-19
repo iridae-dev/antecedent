@@ -9,12 +9,14 @@ use causal_core::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, ScalarType, SmallRoleSet, ValueType,
     VariableId,
 };
-use causal_graph::{Dag, DenseNodeId};
+use causal_graph::{
+    Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag,
+};
 
 use crate::error::IoError;
 use crate::wire::{
-    DagWire, MeasurementSpecWire, ScalarTypeWire, SchemaWire, SchemaWireV01, ValueTypeWire,
-    VariableSchemaWire,
+    AdmgWire, CpdagWire, DagWire, EndpointWire, MarkedEdgeWire, MeasurementSpecWire, PagWire,
+    ScalarTypeWire, SchemaWire, SchemaWireV01, ValueTypeWire, VariableSchemaWire,
 };
 
 /// Encode a schema to full wire form (format ≥ 0.2).
@@ -176,6 +178,157 @@ pub fn dag_from_wire(wire: &DagWire) -> Result<Dag, IoError> {
     }
     dag.validate().map_err(|e| IoError::Convert(e.to_string()))?;
     Ok(dag)
+}
+
+fn endpoint_to_wire(e: Endpoint) -> EndpointWire {
+    match e {
+        Endpoint::Tail => EndpointWire::Tail,
+        Endpoint::Arrow => EndpointWire::Arrow,
+        Endpoint::Circle => EndpointWire::Circle,
+        Endpoint::Conflict => EndpointWire::Conflict,
+    }
+}
+
+fn endpoint_from_wire(e: EndpointWire) -> Endpoint {
+    match e {
+        EndpointWire::Tail => Endpoint::Tail,
+        EndpointWire::Arrow => Endpoint::Arrow,
+        EndpointWire::Circle => Endpoint::Circle,
+        EndpointWire::Conflict => Endpoint::Conflict,
+    }
+}
+
+/// Encode a PAG to wire form.
+///
+/// # Errors
+///
+/// Non-static nodes (should not occur for [`Pag::with_variables`]).
+pub fn pag_to_wire(pag: &Pag) -> Result<PagWire, IoError> {
+    let node_count = u32::try_from(pag.node_count()).map_err(|_| IoError::TooLarge)?;
+    let mut edges = Vec::new();
+    for i in 0..pag.node_count() {
+        let a = DenseNodeId::from_raw(u32::try_from(i).map_err(|_| IoError::TooLarge)?);
+        for (b, at_a, at_b) in pag.neighbors(a) {
+            if a.raw() < b.raw() {
+                edges.push(MarkedEdgeWire {
+                    a: a.raw(),
+                    b: b.raw(),
+                    at_a: endpoint_to_wire(at_a),
+                    at_b: endpoint_to_wire(at_b),
+                });
+            }
+        }
+    }
+    Ok(PagWire { node_count, edges })
+}
+
+/// Decode a PAG from wire form.
+///
+/// # Errors
+///
+/// Invalid marks / edges.
+pub fn pag_from_wire(wire: &PagWire) -> Result<Pag, IoError> {
+    let mut pag = Pag::with_variables(wire.node_count);
+    for e in &wire.edges {
+        let edge = MarkedEdge {
+            a: DenseNodeId::from_raw(e.a),
+            b: DenseNodeId::from_raw(e.b),
+            at_a: endpoint_from_wire(e.at_a),
+            at_b: endpoint_from_wire(e.at_b),
+            middle: MiddleMark::Empty,
+        };
+        pag.insert_marked(edge).map_err(|err| IoError::Convert(err.to_string()))?;
+    }
+    Ok(pag)
+}
+
+/// Encode a CPDAG to wire form.
+///
+/// # Errors
+///
+/// Unexpected edge marks.
+pub fn cpdag_to_wire(cpdag: &Cpdag) -> Result<CpdagWire, IoError> {
+    let node_count = u32::try_from(cpdag.node_count()).map_err(|_| IoError::TooLarge)?;
+    let mut directed = Vec::new();
+    let mut undirected = Vec::new();
+    for e in cpdag.edges() {
+        if let Some((from, to)) = e.parent_child() {
+            directed.push((from.raw(), to.raw()));
+        } else if e.is_undirected() {
+            let (a, b) = if e.a.raw() <= e.b.raw() {
+                (e.a.raw(), e.b.raw())
+            } else {
+                (e.b.raw(), e.a.raw())
+            };
+            undirected.push((a, b));
+        } else {
+            return Err(IoError::Convert(format!(
+                "CPDAG wire encoding rejects non-directed/undirected edge {:?}",
+                (e.at_a, e.at_b)
+            )));
+        }
+    }
+    Ok(CpdagWire { node_count, directed, undirected })
+}
+
+/// Decode a CPDAG from wire form.
+///
+/// # Errors
+///
+/// Invalid edges / cycles.
+pub fn cpdag_from_wire(wire: &CpdagWire) -> Result<Cpdag, IoError> {
+    let mut g = Cpdag::with_variables(wire.node_count);
+    for &(from, to) in &wire.directed {
+        g.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
+            .map_err(|e| IoError::Convert(e.to_string()))?;
+    }
+    for &(a, b) in &wire.undirected {
+        g.insert_undirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+            .map_err(|e| IoError::Convert(e.to_string()))?;
+    }
+    Ok(g)
+}
+
+/// Encode an ADMG to wire form.
+///
+/// # Errors
+///
+/// Capacity overflow.
+pub fn admg_to_wire(admg: &Admg) -> Result<AdmgWire, IoError> {
+    let node_count = u32::try_from(admg.node_count()).map_err(|_| IoError::TooLarge)?;
+    let mut directed = Vec::new();
+    let mut bidirected = Vec::new();
+    for i in 0..admg.node_count() {
+        let from = DenseNodeId::from_raw(u32::try_from(i).map_err(|_| IoError::TooLarge)?);
+        for &to in admg.children(from) {
+            directed.push((from.raw(), to.raw()));
+        }
+        for &nbr in admg.bidirected_neighbors(from) {
+            if from.raw() < nbr.raw() {
+                bidirected.push((from.raw(), nbr.raw()));
+            }
+        }
+    }
+    Ok(AdmgWire { node_count, directed, bidirected })
+}
+
+/// Decode an ADMG from wire form.
+///
+/// # Errors
+///
+/// Invalid edges / cycles.
+pub fn admg_from_wire(wire: &AdmgWire) -> Result<Admg, IoError> {
+    let mut g = Admg::with_variables(wire.node_count);
+    for &(from, to) in &wire.directed {
+        g.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
+            .map_err(|e| IoError::Convert(e.to_string()))?;
+    }
+    for &(a, b) in &wire.bidirected {
+        g.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+            .map_err(|e| IoError::Convert(e.to_string()))?;
+    }
+    g.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+    Ok(g)
 }
 
 /// CBOR-encode a value to bytes.

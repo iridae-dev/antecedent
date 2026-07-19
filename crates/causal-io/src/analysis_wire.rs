@@ -44,8 +44,19 @@ pub struct EffectEstimateWire {
     pub retained_memory_bytes: Option<u64>,
 }
 
+/// Sharp RD design on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct RdDesignWire {
+    /// Running variable raw id.
+    pub running_variable: u32,
+    /// Cutoff.
+    pub cutoff: f64,
+    /// Bandwidth.
+    pub bandwidth: f64,
+}
+
 /// Identified estimand wire.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct IdentifiedEstimandWire {
     /// Method.
     pub method: String,
@@ -57,6 +68,9 @@ pub struct IdentifiedEstimandWire {
     pub mediators: Vec<u32>,
     /// Functional expr id.
     pub functional: u32,
+    /// Optional sharp RD design.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rd_design: Option<RdDesignWire>,
 }
 
 /// Identification result wire.
@@ -194,6 +208,11 @@ pub fn identification_to_wire(r: &IdentificationResult) -> Result<Identification
                 instruments: vars_to_raw(&e.instruments),
                 mediators: vars_to_raw(&e.mediators),
                 functional: e.functional.raw(),
+                rd_design: e.rd_design.map(|d| RdDesignWire {
+                    running_variable: d.running_variable.raw(),
+                    cutoff: d.cutoff,
+                    bandwidth: d.bandwidth,
+                }),
             })
             .collect(),
         arena: expr_arena_to_wire(&r.arena)?,
@@ -243,6 +262,11 @@ pub fn identification_from_wire(w: &IdentificationResultWire) -> Result<Identifi
                 instruments: vars_from_raw(&e.instruments),
                 mediators: vars_from_raw(&e.mediators),
                 functional: ExprId::from_raw(e.functional),
+                rd_design: e.rd_design.as_ref().map(|d| causal_expr::RdDesignParams {
+                    running_variable: causal_core::VariableId::from_raw(d.running_variable),
+                    cutoff: d.cutoff,
+                    bandwidth: d.bandwidth,
+                }),
             })
             .collect(),
         arena: expr_arena_from_wire(&w.arena)?,
@@ -417,6 +441,7 @@ mod tests {
             instruments: Arc::from([]),
             mediators: Arc::from([]),
             functional: ExprId::from_raw(0),
+            rd_design: None,
         });
         let wire = identification_to_wire(&path).unwrap();
         assert_eq!(wire.estimands[0].method, "path_specific.natural");

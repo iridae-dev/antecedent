@@ -177,6 +177,8 @@ pub struct WaldIv {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids for [`AnalyticSeKind::Cluster`] (length = prepared `nrows`).
     pub cluster_ids: Option<Vec<u32>>,
+    /// Multiway cluster ids.
+    pub multiway_ids: Option<Vec<Vec<u32>>>,
 }
 
 impl Default for WaldIv {
@@ -194,6 +196,7 @@ impl WaldIv {
             overlap: OverlapPolicy::ExplicitOverride,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            multiway_ids: None,
         }
     }
 
@@ -233,44 +236,15 @@ impl WaldIv {
 
         let wald = wald_ratio(&z, &problem.treatment, &problem.outcome)?;
         let ate = wald.ratio * problem.treatment_delta;
-        // Homoskedastic path uses the same first-stage-aware IF as HC (not the
-        // delta-method SE that ignores denominator sampling variability).
-        let se_unit = match self.se_kind {
-            AnalyticSeKind::Homoskedastic
-            | AnalyticSeKind::Hc0
-            | AnalyticSeKind::Hc1
-            | AnalyticSeKind::Hc2
-            | AnalyticSeKind::Hc3 => wald_influence_se(
-                &z,
-                &problem.treatment,
-                &problem.outcome,
-                wald.ratio,
-                None,
-            )?,
-            AnalyticSeKind::Cluster => {
-                let groups = require_clusters(&self.cluster_ids, problem.nrows)?;
-                wald_influence_se(
-                    &z,
-                    &problem.treatment,
-                    &problem.outcome,
-                    wald.ratio,
-                    Some(groups),
-                )?
-            }
-            AnalyticSeKind::NeweyWest { .. } => {
-                return Err(EstimationError::unsupported(
-                    "WaldIv AnalyticSeKind::NeweyWest is not supported; use Hc1, Cluster, or bootstrap",
-                ));
-            }
-            AnalyticSeKind::PanelClusterHac { .. } => {
-                return Err(EstimationError::unsupported(
-                    "WaldIv AnalyticSeKind::PanelClusterHac is not supported; use Cluster or bootstrap",
-                ));
-            }
-            AnalyticSeKind::Multiway => {
-                return Err(EstimationError::unsupported("WaldIv AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"));
-            }
-        };
+        let psi = wald_influence_scores(&z, &problem.treatment, &problem.outcome, wald.ratio)?;
+        let se_unit = crate::se::influence_se_kind(
+            self.se_kind,
+            &psi,
+            problem.nrows,
+            &self.cluster_ids,
+            &self.multiway_ids,
+            None,
+        )?;
         let se_analytic = se_unit * problem.treatment_delta.abs();
 
         let boot = if self.bootstrap_replicates == 0 {
@@ -380,13 +354,12 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
 ///
 /// Per-row score for the ratio uses the IF of a ratio of mean contrasts. With optional
 /// clustering, scores are fed to [`cluster_influence_se`].
-fn wald_influence_se(
+fn wald_influence_scores(
     z: &[f64],
     t: &[f64],
     y: &[f64],
     ratio: f64,
-    groups: Option<&[u32]>,
-) -> Result<f64, EstimationError> {
+) -> Result<Vec<f64>, EstimationError> {
     let n = z.len();
     let (mut n1, mut n0) = (0.0, 0.0);
     let (mut sy1, mut sy0, mut st1, mut st0) = (0.0, 0.0, 0.0, 0.0);
@@ -408,16 +381,10 @@ fn wald_influence_se(
     let mean_y0 = sy0 / n0;
     let mean_t1 = st1 / n1;
     let mean_t0 = st0 / n0;
-    let dy = mean_y1 - mean_y0;
     let dt = mean_t1 - mean_t0;
     if dt.abs() < 1e-10 {
         return Err(EstimationError::stats_msg("degenerate first stage"));
     }
-    // ψ_i for ratio r = dy/dt. Linearize: (ψ_dy − r ψ_dt) / dt.
-    // For Z=1: contrib to dy is (y−ȳ₁)·(n/n1) style → use indicator-scaled IF:
-    // ψ_dy,i = 1{Z=1}(y−ȳ₁)/(n1/n) − 1{Z=0}(y−ȳ₀)/(n0/n) = n(…)
-    // Simpler: ψ_dy,i = n · (1{Z=1}/n1 · (y−ȳ₁) − 1{Z=0}/n0 · (y−ȳ₀)) but mean of that is 0.
-    // Equivalent unit-level scores with E[ψ]=0:
     let mut psi = vec![0.0; n];
     for i in 0..n {
         let (psi_dy, psi_dt) = if z[i] > 0.5 {
@@ -427,12 +394,19 @@ fn wald_influence_se(
         };
         psi[i] = (psi_dy - ratio * psi_dt) / dt;
     }
-    let _ = dy;
+    Ok(psi)
+}
+
+fn wald_influence_se(
+    z: &[f64],
+    t: &[f64],
+    y: &[f64],
+    ratio: f64,
+    groups: Option<&[u32]>,
+) -> Result<f64, EstimationError> {
+    let psi = wald_influence_scores(z, t, y, ratio)?;
     Ok(match groups {
-        None => {
-            // HC1-ish: sample SD of ψ / √n (Bessel).
-            sample_std_psi(&psi) / (n as f64).sqrt()
-        }
+        None => sample_std_psi(&psi) / (psi.len() as f64).sqrt(),
         Some(g) => cluster_influence_se(&psi, g),
     })
 }

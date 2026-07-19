@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
+};
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
@@ -14,8 +16,8 @@ use causal_stats::{
 use super::matching::matching_contrast;
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
-    default_propensity_overlap, prepare_propensity_problem, restrict_to_rows, to_row_major, trim_of,
-    trim_retained_rows,
+    default_propensity_overlap, prepare_propensity_problem_with_registry, restrict_to_rows,
+    to_row_major, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -46,6 +48,10 @@ pub struct DistanceMatching {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids aligned to prepared complete-case rows.
     pub cluster_ids: Option<Vec<u32>>,
+    /// Optional bindings for named predicates / custom target distributions.
+    pub population_registry: Option<PopulationRegistry>,
+    /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
+    pub multiway_ids: Option<Vec<Vec<u32>>>,
 }
 
 impl Default for DistanceMatching {
@@ -66,6 +72,8 @@ impl DistanceMatching {
             caliper: None,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            population_registry: None,
+            multiway_ids: None,
         }
     }
 
@@ -80,7 +88,13 @@ impl DistanceMatching {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        prepare_propensity_problem(data, estimand, query, self.overlap)
+        prepare_propensity_problem_with_registry(
+            data,
+            estimand,
+            query,
+            self.overlap,
+            self.population_registry.as_ref(),
+        )
     }
 
     /// Match on raw covariates (Euclidean) and compute the matched effect; fits a diagnostic
@@ -121,6 +135,10 @@ impl DistanceMatching {
             dim,
             retained.as_deref(),
         );
+        let tw_used: Option<Vec<f64>> = problem.target_weights.as_ref().map(|w| match &retained {
+            Some(idx) => idx.iter().map(|&i| w[i]).collect(),
+            None => w.to_vec(),
+        });
         let clusters_used = match (&self.cluster_ids, &retained) {
             (Some(ids), Some(idx)) => {
                 if ids.len() != problem.nrows {
@@ -155,6 +173,8 @@ impl DistanceMatching {
             workspace,
             self.se_kind,
             clusters_used.as_deref(),
+            tw_used.as_deref(),
+            self.multiway_ids.as_ref(),
         )?;
 
         let boot = if self.bootstrap_replicates == 0 {
@@ -240,6 +260,8 @@ impl DistanceMatching {
                 self.caliper,
                 workspace,
                 AnalyticSeKind::Homoskedastic,
+                None,
+                None,
                 None,
             ) {
                 Ok(m) => Ok(Some(m.ate)),

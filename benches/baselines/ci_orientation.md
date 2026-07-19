@@ -29,17 +29,17 @@ the same machine class.
 
 ## kNN index reuse
 
-Workload: `knn_cmi_reuse_batch8` — eight identical kNN CMI queries; after warmup,
+Workload: `knn_dependence_reuse_batch8` — eight identical kNN dependence queries; after warmup,
 `CiWorkspace.knn.index_generation` must stay constant (asserted inside the
 bench). Gate also covered by unit test
 `knn_reuses_permutation_plan_across_queries`.
 
 | Workload | mean wall time |
 |----------|----------------|
-| knn_cmi_reuse_batch8 | **2.18 ms** |
+| knn_dependence_reuse_batch8 | **2.18 ms** |
 
 ```bash
-cargo +1.85 bench -p causal-stats --bench ci_phase5 -- knn_cmi_reuse
+cargo +1.85 bench -p causal-stats --bench ci_phase5 -- knn_dependence_reuse
 ```
 
 ## Orientation local-delta vs global rescan (`causal-discovery` bench `orientation`)

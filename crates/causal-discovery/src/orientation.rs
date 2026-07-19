@@ -923,6 +923,77 @@ impl OrientationRule for ContempMeekR3 {
     }
 }
 
+/// Meek R4 restricted to contemporaneous undirected edges (PCMCI+).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ContempMeekR4;
+
+impl OrientationRule for ContempMeekR4 {
+    fn name(&self) -> &'static str {
+        "meek.r4.contemp"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut TemporalCpdag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+        let focus = focus_nodes(graph, queue);
+        let mut changed = Vec::new();
+        for a in &focus {
+            if !is_contemporaneous_node(graph, *a) {
+                continue;
+            }
+            for b in graph.undirected_neighbors(*a) {
+                if !is_contemporaneous_node(graph, b) {
+                    continue;
+                }
+                let mut orient = false;
+                for c in graph.undirected_neighbors(*a) {
+                    if c == b || !is_contemporaneous_node(graph, c) {
+                        continue;
+                    }
+                    for d in graph.children(c) {
+                        if !is_contemporaneous_node(graph, d) {
+                            continue;
+                        }
+                        if !graph.children(d).contains(&b) {
+                            continue;
+                        }
+                        if !graph.has_edge(*a, d) {
+                            continue;
+                        }
+                        if graph.has_edge(c, b) {
+                            continue;
+                        }
+                        orient = true;
+                        break;
+                    }
+                    if orient {
+                        break;
+                    }
+                }
+                if orient {
+                    let premise = format!(
+                        "meek.r4.contemp: {}—{} via discriminating path",
+                        a.raw(),
+                        b.raw()
+                    );
+                    if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
+                        changed.push(*a);
+                        changed.push(b);
+                    }
+                }
+            }
+        }
+        for n in changed {
+            delta.enqueued += enqueue_neighbors(graph, n, queue);
+        }
+        Ok(delta)
+    }
+}
+
 /// Collider orientation when sepset is known: for an unshielded triple `a * c * b` with both
 /// legs *into or undirected at* `c` (undirected legs, or legs already directed into `c`, e.g.
 /// lagged edges auto-oriented by time), `a` not adj `b`, `c ∉ Sep(a,b)` → orient the

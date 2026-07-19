@@ -159,7 +159,7 @@ pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> String {
     out
 }
 
-fn push_quoted(out: &mut String, s: &str) {
+pub(crate) fn push_quoted(out: &mut String, s: &str) {
     out.push('"');
     for ch in s.chars() {
         match ch {
@@ -173,7 +173,7 @@ fn push_quoted(out: &mut String, s: &str) {
     out.push('"');
 }
 
-fn intern(
+pub(crate) fn intern(
     label: &str,
     order: &mut Vec<String>,
     index: &mut HashMap<String, u32>,
@@ -187,7 +187,10 @@ fn intern(
     Ok(i)
 }
 
-fn remap_numeric_dense(order: &[String], edges: &[(u32, u32)]) -> Result<Option<DagWire>, IoError> {
+pub(crate) fn remap_numeric_dense(
+    order: &[String],
+    edges: &[(u32, u32)],
+) -> Result<Option<DagWire>, IoError> {
     let mut nums = Vec::with_capacity(order.len());
     for label in order {
         let Ok(n) = label.parse::<u32>() else {
@@ -217,31 +220,31 @@ fn remap_numeric_dense(order: &[String], edges: &[(u32, u32)]) -> Result<Option<
     Ok(Some(DagWire { node_count: n, edges: mapped_edges }))
 }
 
-struct Lexer<'a> {
-    src: &'a str,
-    pos: usize,
+pub(crate) struct Lexer<'a> {
+    pub(crate) src: &'a str,
+    pub(crate) pos: usize,
 }
 
 impl<'a> Lexer<'a> {
-    fn new(src: &'a str) -> Self {
+    pub(crate) fn new(src: &'a str) -> Self {
         Self { src, pos: 0 }
     }
 
-    fn eof(&self) -> bool {
+    pub(crate) fn eof(&self) -> bool {
         self.pos >= self.src.len()
     }
 
-    fn peek_char(&self) -> Option<char> {
+    pub(crate) fn peek_char(&self) -> Option<char> {
         self.src[self.pos..].chars().next()
     }
 
-    fn bump(&mut self) -> Option<char> {
+    pub(crate) fn bump(&mut self) -> Option<char> {
         let ch = self.peek_char()?;
         self.pos += ch.len_utf8();
         Some(ch)
     }
 
-    fn eat_char(&mut self, expected: char) -> bool {
+    pub(crate) fn eat_char(&mut self, expected: char) -> bool {
         if self.peek_char() == Some(expected) {
             self.bump();
             true
@@ -250,7 +253,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn eat_str(&mut self, s: &str) -> bool {
+    pub(crate) fn eat_str(&mut self, s: &str) -> bool {
         if self.src[self.pos..].starts_with(s) {
             self.pos += s.len();
             true
@@ -259,7 +262,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn skip_ws_and_comments(&mut self) {
+    pub(crate) fn skip_ws_and_comments(&mut self) {
         loop {
             while matches!(self.peek_char(), Some(c) if c.is_whitespace()) {
                 self.bump();
@@ -286,7 +289,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn expect_char(&mut self, expected: char) -> Result<(), IoError> {
+    pub(crate) fn expect_char(&mut self, expected: char) -> Result<(), IoError> {
         self.skip_ws_and_comments();
         if self.eat_char(expected) {
             Ok(())
@@ -295,7 +298,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn peek_ident(&self) -> Option<&str> {
+    pub(crate) fn peek_ident(&self) -> Option<&str> {
         let rest = &self.src[self.pos..];
         let mut chars = rest.chars();
         let first = chars.next()?;
@@ -313,7 +316,7 @@ impl<'a> Lexer<'a> {
         Some(&rest[..len])
     }
 
-    fn expect_ident(&mut self) -> Result<&'a str, IoError> {
+    pub(crate) fn expect_ident(&mut self) -> Result<&'a str, IoError> {
         self.skip_ws_and_comments();
         let Some(id) = self.peek_ident() else {
             return Err(IoError::Convert(format!("expected identifier near `{}`", self.snippet())));
@@ -324,7 +327,7 @@ impl<'a> Lexer<'a> {
         Ok(&self.src[start..start + len])
     }
 
-    fn expect_node_id(&mut self) -> Result<String, IoError> {
+    pub(crate) fn expect_node_id(&mut self) -> Result<String, IoError> {
         self.skip_ws_and_comments();
         if self.eat_char('"') {
             let mut s = String::new();
@@ -358,34 +361,46 @@ impl<'a> Lexer<'a> {
         Ok(self.expect_ident()?.to_string())
     }
 
-    fn skip_attr_list(&mut self) -> Result<(), IoError> {
-        self.expect_char('[')?;
-        let mut depth = 1;
-        while let Some(c) = self.bump() {
-            match c {
-                '[' => depth += 1,
-                ']' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Ok(());
-                    }
-                }
-                '"' => {
-                    while let Some(q) = self.bump() {
-                        if q == '\\' {
-                            self.bump();
-                        } else if q == '"' {
-                            break;
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        Err(IoError::Convert("unterminated attribute list".into()))
+    pub(crate) fn skip_attr_list(&mut self) -> Result<(), IoError> {
+        let _ = self.parse_attr_list()?;
+        Ok(())
     }
 
-    fn snippet(&self) -> String {
+    /// Parse `[key=value, ...]` into a map (values unquoted where possible).
+    pub(crate) fn parse_attr_list(&mut self) -> Result<HashMap<String, String>, IoError> {
+        self.expect_char('[')?;
+        let mut attrs = HashMap::new();
+        loop {
+            self.skip_ws_and_comments();
+            if self.eat_char(']') {
+                break;
+            }
+            let key = self.expect_ident()?.to_ascii_lowercase();
+            self.skip_ws_and_comments();
+            self.expect_char('=')?;
+            self.skip_ws_and_comments();
+            let val = if self.peek_char() == Some('"') {
+                self.expect_node_id()?
+            } else if let Some(id) = self.peek_ident() {
+                let s = id.to_string();
+                self.pos += id.len();
+                s
+            } else if matches!(self.peek_char(), Some(c) if c.is_ascii_digit() || c == '-') {
+                self.expect_node_id()?
+            } else {
+                return Err(IoError::Convert(format!(
+                    "expected attribute value near `{}`",
+                    self.snippet()
+                )));
+            };
+            attrs.insert(key, val);
+            self.skip_ws_and_comments();
+            let _ = self.eat_char(',');
+        }
+        Ok(attrs)
+    }
+
+    pub(crate) fn snippet(&self) -> String {
         let end = (self.pos + 24).min(self.src.len());
         self.src[self.pos..end].replace('\n', "\\n")
     }

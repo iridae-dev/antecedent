@@ -134,7 +134,10 @@ fn parse_soft_weight(name: &str) -> PyResult<CiSoftWeight> {
     }
 }
 
-/// Exact DAG posterior enumeration (`n ≤ 6`, Gaussian BIC).
+/// Exact DAG posterior enumeration (`n ≤ 6` hard limit, Gaussian BIC).
+///
+/// Larger graphs: use `discover_order_mcmc`, `discover_structure_mcmc`, or
+/// `discover_ci_screened_posterior`.
 #[pyfunction]
 #[pyo3(signature = (names, columns, *, seed=1, threads=1))]
 fn discover_exact_dag_posterior(
@@ -293,6 +296,8 @@ fn discover_ci_screened_posterior(
             max_cond_size,
             fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
             ci: ci_impl,
+            screen_pc: false,
+            max_subset: None,
         };
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
         let post = facade_discover_ci_screened(

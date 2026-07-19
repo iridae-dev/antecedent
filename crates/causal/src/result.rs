@@ -2,16 +2,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use causal_attribution::{
+    AnomalyScores, ChangeAttributionResult, MechanismChangeDetection, UnitChangeResult,
+};
 use causal_core::{
     Diagnostic, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
     ProvenanceGraph, VariableId,
 };
-use causal_estimate::CausalPosterior;
-use causal_estimate::EffectEstimate;
-use causal_estimate::InterventionalDistributionEstimate;
+use causal_estimate::{CausalPosterior, EffectEstimate, InterventionalDistributionEstimate, TemporalMediationEstimate};
 use causal_identify::{IdentificationResult, IdentifiedEstimand};
 use causal_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
 use causal_validate::RefutationReport;
+
+use crate::gcm::IteResult;
 
 /// End-to-end analysis result.
 #[derive(Clone, Debug)]
@@ -33,6 +36,18 @@ pub struct CausalAnalysisResult {
     pub distribution: Option<InterventionalDistributionEstimate>,
     /// Bayesian posterior when `InferenceMode::Bayesian` was used.
     pub posterior: Option<CausalPosterior>,
+    /// Temporal / static mediation decomposition when the query was mediation.
+    pub mediation: Option<TemporalMediationEstimate>,
+    /// Unit-level ITE when the query was counterfactual.
+    pub counterfactual: Option<IteResult>,
+    /// Anomaly scores when the query was anomaly attribution.
+    pub anomaly: Option<Vec<AnomalyScores>>,
+    /// Change-attribution result.
+    pub change_attribution: Option<ChangeAttributionResult>,
+    /// Mechanism-change detections.
+    pub mechanism_change: Option<Vec<MechanismChangeDetection>>,
+    /// Unit-change attribution.
+    pub unit_change: Option<UnitChangeResult>,
     /// Refutation reports (may be empty).
     pub refutations: Vec<RefutationReport>,
     /// Diagnostics.

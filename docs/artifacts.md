@@ -60,4 +60,11 @@ migration from at least the previous two stable versions.
 ## Graph interchange (non-artifact)
 
 DOT, JSON, GML, and NetworkX-compatible (`node_link_data` / `adjacency_data`)
-DAG codecs live alongside wire types for string-graph import/export.
+codecs live alongside wire types for string-graph import/export.
+
+Supported graph classes: **DAG**, **CPDAG**, **PAG**, and **ADMG**
+(`DagWire` / `CpdagWire` / `PagWire` / `AdmgWire`, plus matching `*_from_*` /
+`*_to_*` APIs). CPDAG undirected edges use DOT `--` / GML `undirected 1` /
+NetworkX `undirected=true`. ADMG bidirected edges use DOT `dir=both` / GML
+`bidirected 1` / NetworkX `bidirected=true`. PAG circle/conflict marks use
+`mark_a` / `mark_b` attributes.

@@ -162,7 +162,91 @@ impl TemporalLinearAdjustment {
             adjustment_set: Arc::from(adj_keys),
             overlap: self.inner.overlap,
             treatment_delta,
+            target_population: TargetPopulation::AllObserved,
+            treatment: Arc::from(t),
+            active,
+            control,
         })
+    }
+
+    /// Prepare a stacked panel design (no cross-unit lag windows) with unit cluster ids.
+    ///
+    /// Returns `(problem, cluster_ids)` where `cluster_ids[row] = unit_id`.
+    ///
+    /// # Errors
+    ///
+    /// Empty panel, incompatible estimand, or per-unit preparation failures.
+    pub fn prepare_panel(
+        &self,
+        panel: &causal_data::PanelData,
+        estimand: &IdentifiedEstimand,
+        query: &TemporalEffectQuery,
+        indexer: &TemporalIndexer,
+        split: Option<&DiscoveryEstimationSplit>,
+        policy: &causal_core::KernelPolicy,
+    ) -> Result<(PreparedEstimationProblem, Vec<u32>), EstimationError> {
+        if panel.unit_count() == 0 {
+            return Err(EstimationError::data_msg("panel needs ≥1 unit"));
+        }
+        let mut all_t = Vec::new();
+        let mut all_y = Vec::new();
+        let mut all_covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
+        let mut cluster_ids = Vec::new();
+        let mut adj_keys: Vec<VariableId> = Vec::new();
+        let mut active = 0.0;
+        let mut control = 0.0;
+        let mut treatment_delta = 0.0;
+        let mut first = true;
+
+        for unit in panel.units() {
+            let prep = self.prepare(
+                &unit.series,
+                estimand,
+                query,
+                indexer,
+                split,
+                policy,
+            )?;
+            if first {
+                active = prep.active;
+                control = prep.control;
+                treatment_delta = prep.treatment_delta;
+                adj_keys = prep.adjustment_set.to_vec();
+                all_covs = adj_keys.iter().map(|&id| (id, Vec::new())).collect();
+                first = false;
+            }
+            let n = prep.treatment.len();
+            all_t.extend_from_slice(&prep.treatment);
+            all_y.extend_from_slice(&prep.design.outcome);
+            // Covariates are columns 2.. of the column-major design matrix.
+            let nrows = prep.design.nrows;
+            for (i, (_id, dest)) in all_covs.iter_mut().enumerate() {
+                let base = (2 + i) * nrows;
+                dest.extend_from_slice(&prep.design.matrix[base..base + nrows]);
+            }
+            cluster_ids.extend(std::iter::repeat_n(unit.unit_id, n));
+        }
+
+        let cov_refs: Vec<(VariableId, &[f64])> =
+            all_covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
+        let selected: Vec<usize> = (0..all_t.len()).collect();
+        let design = CompiledDesign::linear_adjustment(&all_t, &cov_refs, &all_y, &selected)
+            .map_err(EstimationError::from)?;
+
+        Ok((
+            PreparedEstimationProblem {
+                design,
+                method: Arc::from("temporal.linear.adjustment.panel"),
+                adjustment_set: Arc::from(adj_keys),
+                overlap: self.inner.overlap,
+                treatment_delta,
+                target_population: TargetPopulation::AllObserved,
+                treatment: Arc::from(all_t),
+                active,
+                control,
+            },
+            cluster_ids,
+        ))
     }
 
     /// Fit using the shared linear-adjustment path.

@@ -1081,6 +1081,7 @@ pub fn path_specific_from_wire(
 mod tests {
     use super::*;
     use crate::convert::{from_cbor, to_cbor};
+    use causal_core::ComponentId;
 
     #[test]
     fn average_effect_and_distribution_round_trip() {
@@ -1197,5 +1198,185 @@ mod tests {
             }
             other => panic!("expected TemporalEffect, got {other:?}"),
         }
+    }
+
+    fn assert_rt(q: CausalQuery) {
+        let back = causal_query_from_wire(&causal_query_to_wire(&q).unwrap()).unwrap();
+        let again = causal_query_from_wire(&causal_query_to_wire(&back).unwrap()).unwrap();
+        // CBOR + domain round-trip is stable under a second encode.
+        let w1 = to_cbor(&causal_query_to_wire(&q).unwrap()).unwrap();
+        let w2 = to_cbor(&causal_query_to_wire(&again).unwrap()).unwrap();
+        assert_eq!(w1, w2, "wire bytes drifted for {q:?}");
+    }
+
+    #[test]
+    fn all_intervention_variants_round_trip() {
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let interventions = [
+            Intervention::set(t, Value::f64(1.0)),
+            Intervention::shift(t, Value::f64(0.5)),
+            Intervention::stochastic(t, StochasticPolicy::bernoulli(0.4)),
+            Intervention::stochastic(t, StochasticPolicy::gaussian(0.0, 1.0)),
+            Intervention::stochastic(
+                t,
+                StochasticPolicy::Categorical { probs: Arc::from([0.2, 0.3, 0.5]) },
+            ),
+            Intervention::soft(t, MechanismOverride::constant(2.0)),
+            Intervention::soft(t, MechanismOverride::named("linear_gaussian", [0.1, 0.2, 1.0])),
+            Intervention::sequence(InterventionSequence::new(vec![
+                SequencedIntervention::new(
+                    Intervention::set(t, Value::f64(0.0)),
+                    TemporalPolicy::pulse(0),
+                ),
+                SequencedIntervention::new(
+                    Intervention::shift(t, Value::f64(1.0)),
+                    TemporalPolicy::sustained(1, 3),
+                ),
+                SequencedIntervention::new(
+                    Intervention::stochastic(t, StochasticPolicy::bernoulli(0.5)),
+                    TemporalPolicy::dynamic(DynamicRuleId::from_raw(9), [0, 4, 8]),
+                ),
+            ])),
+        ];
+        for iv in interventions {
+            let q = CausalQuery::Counterfactual(
+                CounterfactualQuery::new(y, [iv.clone()]).with_nested(true),
+            );
+            assert_rt(q);
+            let q = CausalQuery::Distribution(InterventionalDistributionQuery::new(y, [iv]));
+            assert_rt(q);
+        }
+    }
+
+    #[test]
+    fn all_target_populations_round_trip() {
+        let ate = |pop| {
+            CausalQuery::AverageEffect(
+                AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                    .with_target_population(pop),
+            )
+        };
+        for pop in [
+            TargetPopulation::AllObserved,
+            TargetPopulation::Treated,
+            TargetPopulation::Untreated,
+            TargetPopulation::Environment(EnvironmentId::from_raw(3)),
+            TargetPopulation::Predicate(PredicateExpr::named("cohort")),
+            TargetPopulation::Predicate(PredicateExpr::rows([0usize, 2, 5])),
+            TargetPopulation::CustomDistribution(DistributionRef::from_raw(11)),
+        ] {
+            assert_rt(ate(pop));
+        }
+    }
+
+    #[test]
+    fn all_population_selectors_and_attribution_components_round_trip() {
+        let selectors = [
+            PopulationSelector::All,
+            PopulationSelector::Rows(Arc::from([0usize, 1, 4])),
+            PopulationSelector::Environment { env_index: 2 },
+            PopulationSelector::TimeRange { start: 10, end: 20 },
+        ];
+        let components = [
+            AttributionComponents::Inputs,
+            AttributionComponents::Mechanisms,
+            AttributionComponents::Structure,
+            AttributionComponents::InputsAndMechanisms,
+            AttributionComponents::All,
+        ];
+        let allocations = [
+            AllocationMethod::PathBased,
+            AllocationMethod::Sequential {
+                order: Arc::from([
+                    ComponentId::from(VariableId::from_raw(0)),
+                    ComponentId::from(VariableId::from_raw(1)),
+                ]),
+            },
+            AllocationMethod::Shapley { approximation: ShapleyConfig::exact() },
+            AllocationMethod::Shapley { approximation: ShapleyConfig::monte_carlo(500) },
+            AllocationMethod::Shapley { approximation: ShapleyConfig::permutation(100) },
+        ];
+        for base in &selectors {
+            for comp in &selectors {
+                for components in &components {
+                    for allocation in &allocations {
+                        let q = CausalQuery::ChangeAttribution(
+                            ChangeAttributionQuery::new(
+                                VariableId::from_raw(2),
+                                base.clone(),
+                                comp.clone(),
+                            )
+                            .with_components(*components)
+                            .with_allocation(allocation.clone())
+                            .with_max_components(16),
+                        );
+                        assert_rt(q);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn remaining_causal_query_variants_round_trip() {
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let m = VariableId::from_raw(2);
+        let z = VariableId::from_raw(3);
+
+        assert_rt(CausalQuery::AnomalyAttribution(
+            AnomalyAttributionQuery::new([y, m], 64).with_unit_rows([0usize, 1, 2]),
+        ));
+        assert_rt(CausalQuery::MechanismChange(MechanismChangeQuery::new(
+            [t, y],
+            PopulationSelector::All,
+            PopulationSelector::Environment { env_index: 1 },
+            0.05,
+            16,
+        )));
+        assert_rt(CausalQuery::UnitChange(
+            UnitChangeQuery::new(y, 32).with_unit_rows([3usize, 4]),
+        ));
+        assert_rt(CausalQuery::Mediation(MediationQuery::binary(t, y, [m], MediationContrast::Direct)));
+        assert_rt(CausalQuery::Mediation(MediationQuery::binary(
+            t,
+            y,
+            [m],
+            MediationContrast::NaturalIndirect,
+        )));
+        let conditional = ConditionalEffectQuery::try_new(
+            AverageEffectQuery::binary_ate(t, y).with_effect_modifiers([z]),
+        )
+        .unwrap();
+        assert_rt(CausalQuery::ConditionalEffect(conditional));
+        assert_rt(CausalQuery::PathSpecific(
+            PathSpecificEffectQuery::binary(t, y)
+                .with_path_nodes([m])
+                .with_max_paths(8)
+                .with_max_len(4),
+        ));
+        assert_rt(CausalQuery::TemporalEffect(
+            TemporalEffectQuery::pulse(t, y, 1.0)
+                .with_policy(TemporalPolicy::sustained(0, 5))
+                .with_horizon_steps(6),
+        ));
+        assert_rt(CausalQuery::Counterfactual(
+            CounterfactualQuery::new(
+                y,
+                [
+                    Intervention::set(t, Value::f64(1.0)),
+                    Intervention::soft(m, MechanismOverride::additive_shift(0.25)),
+                ],
+            )
+            .with_nested(false),
+        ));
+        assert_rt(CausalQuery::Distribution(
+            InterventionalDistributionQuery::new(
+                y,
+                [Intervention::stochastic(t, StochasticPolicy::gaussian(0.0, 2.0))],
+            )
+            .with_conditioning([z]),
+        ));
     }
 }

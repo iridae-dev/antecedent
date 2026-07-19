@@ -12,7 +12,8 @@
 use std::sync::Arc;
 
 use causal_core::{
-    CausalRng, ExecutionContext, ModelId, MonteCarloBudget, MonteCarloError, QueryId, VariableId,
+    CausalRng, EnvironmentId, ExecutionContext, ModelId, MonteCarloBudget, MonteCarloError, QueryId,
+    VariableId,
 };
 use causal_kernels::sample_categorical;
 use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
@@ -67,6 +68,21 @@ pub struct EffectWidthContext {
     pub measure_columns: Option<Arc<[MeasureColumnSpec]>>,
     /// Optional post-intervention Gram / σ² / n from a simulated experiment design.
     pub intervention_design: Option<InterventionDesignEffect>,
+    /// Optional per-environment Grams for [`CandidateDesign::ObserveEnvironment`] pooling.
+    pub environment_grams: Option<Arc<[EnvironmentGramSpec]>>,
+}
+
+/// Gram contribution from observing an additional environment partition.
+#[derive(Clone, Debug)]
+pub struct EnvironmentGramSpec {
+    /// Environment this Gram belongs to.
+    pub environment: EnvironmentId,
+    /// Environment-local Gram `XᵀX` (row-major, same `p` as baseline).
+    pub xtx: Arc<[f64]>,
+    /// Environment-local sample size.
+    pub n: u64,
+    /// Optional residual variance under this environment (`None` = keep baseline σ²).
+    pub sigma2: Option<f64>,
 }
 
 /// Column that would be added to the OLS design matrix if a variable is measured.
@@ -126,6 +142,8 @@ pub struct DesignEvaluationContext<'a, A = (), O = ()> {
     pub decisions: Option<&'a DecisionRegistry<A, O>>,
     /// Query → variables that unlock identification when measured / intervened on.
     pub query_id_unlock: Option<&'a [(QueryId, Arc<[VariableId]>)]>,
+    /// Query → environments that unlock identification when observed (multi-env ID).
+    pub env_id_unlock: Option<&'a [(QueryId, Arc<[EnvironmentId]>)]>,
     /// Per-graph identification after intervention (length `graphs.n_samples`), from running an
     /// identifier on the mutilated / experimental graph. Required for Intervene candidates to
     /// gain identification mass beyond unlock-variable matches.
@@ -516,6 +534,10 @@ fn id_prob_gain<A, O>(
         .query_id_unlock
         .and_then(|m| m.iter().find(|(q, _)| *q == query).map(|(_, v)| v.as_ref()))
         .unwrap_or(&[]);
+    let env_unlock = ctx
+        .env_id_unlock
+        .and_then(|m| m.iter().find(|(q, _)| *q == query).map(|(_, v)| v.as_ref()))
+        .unwrap_or(&[]);
 
     let intervene_flags = ctx.identified_under_intervention.filter(|f| f.len() == ctx.graphs.n_samples);
 
@@ -526,7 +548,7 @@ fn id_prob_gain<A, O>(
         total += w;
         let mut is_id = ctx.graphs.identified[i] == GraphIdentFlag::Identified;
         if !is_id {
-            is_id = candidate_unlocks(candidate, unlock);
+            is_id = candidate_unlocks(candidate, unlock, env_unlock);
         }
         if !is_id {
             if let CandidateDesign::Intervene(_) = candidate {
@@ -543,14 +565,22 @@ fn id_prob_gain<A, O>(
     post - baseline
 }
 
-fn candidate_unlocks(candidate: &CandidateDesign, unlock: &[VariableId]) -> bool {
-    if unlock.is_empty() {
-        return false;
-    }
+fn candidate_unlocks(
+    candidate: &CandidateDesign,
+    unlock: &[VariableId],
+    env_unlock: &[EnvironmentId],
+) -> bool {
     match candidate {
-        CandidateDesign::Measure(p) => p.variables.iter().any(|v| unlock.contains(v)),
-        CandidateDesign::ObserveEnvironment(_) | CandidateDesign::IncreaseSamplingRate(_) => false,
-        CandidateDesign::Intervene(p) => p.targets.iter().any(|v| unlock.contains(v)),
+        CandidateDesign::Measure(p) => {
+            !unlock.is_empty() && p.variables.iter().any(|v| unlock.contains(v))
+        }
+        CandidateDesign::Intervene(p) => {
+            !unlock.is_empty() && p.targets.iter().any(|v| unlock.contains(v))
+        }
+        CandidateDesign::ObserveEnvironment(p) => {
+            !env_unlock.is_empty() && env_unlock.contains(&p.environment)
+        }
+        CandidateDesign::IncreaseSamplingRate(_) => false,
     }
 }
 
@@ -607,6 +637,24 @@ fn effect_width_reduction(candidate: &CandidateDesign, ew: &EffectWidthContext) 
             (se0 - se1).max(0.0)
         }
         CandidateDesign::ObserveEnvironment(e) => {
+            if let Some(grams) = ew.environment_grams.as_ref() {
+                if let Some(spec) = grams.iter().find(|s| s.environment == e.environment) {
+                    let p_env = gram_side_len(&spec.xtx);
+                    if p_env != p || spec.xtx.len() != ew.xtx.len() {
+                        return 0.0;
+                    }
+                    let mut pooled = ew.xtx.to_vec();
+                    for (a, b) in pooled.iter_mut().zip(spec.xtx.iter()) {
+                        *a += *b;
+                    }
+                    let sigma2 = spec.sigma2.unwrap_or(ew.sigma2);
+                    let Some(se1) = treatment_se(&pooled, p, ew.treatment_col, sigma2) else {
+                        return 0.0;
+                    };
+                    return (se0 - se1).max(0.0);
+                }
+            }
+            // No env Gram: fall back to additional-row isotropic scaling for SE only.
             if e.additional_rows == 0 {
                 return 0.0;
             }
@@ -783,6 +831,7 @@ mod tests {
             model_loglik: None,
             decisions: None,
             query_id_unlock: None,
+            env_id_unlock: None,
             identified_under_intervention: None,
             graph_features: None,
         };
@@ -812,6 +861,7 @@ mod tests {
             model_loglik: None,
             decisions: None,
             query_id_unlock: None,
+            env_id_unlock: None,
             identified_under_intervention: None,
             graph_features: None,
         };
@@ -846,6 +896,7 @@ mod tests {
             model_loglik: None,
             decisions: None,
             query_id_unlock: Some(&unlock),
+            env_id_unlock: None,
             identified_under_intervention: None,
             graph_features: None,
         };
@@ -883,6 +934,7 @@ mod tests {
             model_loglik: None,
             decisions: None,
             query_id_unlock: None,
+            env_id_unlock: None,
             identified_under_intervention: None,
             graph_features: None,
         };
@@ -925,6 +977,7 @@ mod tests {
             model_loglik: None,
             decisions: None,
             query_id_unlock: None,
+            env_id_unlock: None,
             identified_under_intervention: Some(&flags),
             graph_features: None,
         };
@@ -951,6 +1004,7 @@ mod tests {
             n: 10,
             measure_columns: None,
             intervention_design: None,
+            environment_grams: None,
         };
         let measure = CandidateDesign::Measure(MeasurementPlan {
             variables: Arc::from([VariableId::from_raw(2)]),
@@ -972,6 +1026,7 @@ mod tests {
             n: 10,
             measure_columns: Some(Arc::from([spec])),
             intervention_design: None,
+            environment_grams: None,
         };
         let red = effect_width_reduction(&measure, &ew);
         assert!(red > 0.0, "expected positive SE reduction, got {red}");
@@ -1001,5 +1056,89 @@ mod tests {
             eig_s += es;
         }
         assert!(eig_m > eig_s);
+    }
+
+    #[test]
+    fn observe_environment_unlocks_identification() {
+        use crate::candidate::EnvironmentPlan;
+        let graphs = toy_graphs();
+        let q = QueryId::from_raw(0);
+        let env = EnvironmentId::from_raw(7);
+        let unlock = [(q, Arc::from([env]))];
+        let candidates = vec![CandidateDesign::ObserveEnvironment(EnvironmentPlan {
+            environment: env,
+            additional_rows: 50,
+            cost: DesignCost::zero(),
+            tag: 1,
+        })];
+        let ranker = DesignRanker::new().with_config(DesignRankConfig {
+            min_batches: 2,
+            max_batches: 4,
+            batch_size: 4,
+            rank_uncertainty_threshold: 1.0,
+        });
+        let ctx = ExecutionContext::for_tests(3);
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: Some(&unlock),
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let ranking = ranker
+            .rank(
+                &DesignObjective::IncreaseIdentificationProbability { query: q },
+                &candidates,
+                &eval,
+                &ctx,
+            )
+            .expect("rank");
+        // Baseline ID mass 0.5 → post 1.0 → gain 0.5
+        assert!((ranking.ranked[0].score - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn observe_environment_gram_pooling_differs_from_sampling_rate() {
+        use crate::candidate::EnvironmentPlan;
+        let env = EnvironmentId::from_raw(1);
+        // Baseline orthogonal design; env gram doubles treatment information.
+        let xtx = Arc::from([10.0_f64, 0.0, 0.0, 10.0]);
+        let env_xtx = Arc::from([10.0_f64, 0.0, 0.0, 40.0]);
+        let ew = EffectWidthContext {
+            xtx: Arc::clone(&xtx),
+            sigma2: 1.0,
+            treatment_col: 1,
+            n: 10,
+            measure_columns: None,
+            intervention_design: None,
+            environment_grams: Some(Arc::from([EnvironmentGramSpec {
+                environment: env,
+                xtx: env_xtx,
+                n: 10,
+                sigma2: None,
+            }])),
+        };
+        let observe = CandidateDesign::ObserveEnvironment(EnvironmentPlan {
+            environment: env,
+            additional_rows: 10, // same n increment as sampling below
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        let sampling = CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+            additional_samples: 10,
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        let red_obs = effect_width_reduction(&observe, &ew);
+        let red_samp = effect_width_reduction(&sampling, &ew);
+        assert!(red_obs > 0.0);
+        assert!(red_samp > 0.0);
+        assert!(
+            (red_obs - red_samp).abs() > 1e-6,
+            "env Gram pooling should differ from isotropic n-scaling: obs={red_obs} samp={red_samp}"
+        );
     }
 }

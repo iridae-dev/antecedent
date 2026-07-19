@@ -36,10 +36,12 @@ Also exposed:
 
 - Typed graphs: `Dag` / `Cpdag` / `Pag` / `Admg` / `TemporalDag`
 - `discover_*` (PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors)
+- `validate_pcmci_*` / discovery stability validators (block bootstrap, FPR, grids, …)
 - `FittedGcm` / `counterfactual_ite` / `sample_do` — GCM counterfactuals
-- `CausalState` — incremental state with `append_data`
+- `CausalState` — incremental state with retained batches, events, suff-stats, and particle filter
 - Queries: `AverageEffect`, `PulseEffect`, `SustainedEffect`,
   `InterventionalDistribution`, `PathSpecificEffect`
+- `refute=True|"full"|"placebo"|False` on static `analyze`
 - `dag_from_*` / `dag_to_*` — graph interchange
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.

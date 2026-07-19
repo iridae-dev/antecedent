@@ -2,7 +2,7 @@
 
 **Fast, explicit causal inference for Python and Rust.**
 
-Discovery, identification, estimation, counterfactuals, attribution, and validation in one API—across tabular, temporal, panel, and multi-environment data.
+Discovery, identification, estimation, counterfactuals, attribution, and validation in one API—across tabular, temporal, panel, multi-environment, and event data.
 
 ```python
 result = causal.analyze(
@@ -41,7 +41,7 @@ cargo add causal
 import causal
 
 result = causal.analyze(
-    data,  # dict[str, ndarray] or pandas DataFrame
+    data,  # mapping, pandas DataFrame, or Arrow CDI columns
     graph=[("z", "campaign"), ("z", "revenue"), ("campaign", "revenue")],
     query=causal.AverageEffect(
         treatment="campaign",
@@ -106,7 +106,7 @@ fn main() -> Result<(), CausalError> {
 
 | Area | Includes |
 | --- | --- |
-| Data | Tabular, time series, panel, multi-environment, events; NumPy/pandas/Arrow/Polars |
+| Data | Tabular, time series, panel (multi-unit; J-PCMCI+ / clustered SE), multi-environment (J-PCMCI+ discover), events (duration-bin align → temporal); NumPy/pandas/Arrow CDI |
 | Graphs | DAG, ADMG, CPDAG, PAG, temporal; d/m-separation, projection, interventions |
 | Discovery | Constraint- and score-based, NOTEARS, PCMCI family, Bayesian search; evidence retained |
 | Identification | Backdoor, front-door, IV, ID/IDC, mediation, partial ID, temporal |

@@ -177,14 +177,14 @@ fn intern(name: &str, order: &mut Vec<String>, index: &mut HashMap<String, u32>)
 }
 
 #[derive(Debug)]
-enum Tok {
+pub(crate) enum Tok {
     Ident(String),
     String(String),
     Number(f64),
     Char(char),
 }
 
-fn tokenize(input: &str) -> Result<Vec<Tok>, IoError> {
+pub(crate) fn tokenize(input: &str) -> Result<Vec<Tok>, IoError> {
     let mut out = Vec::new();
     let bytes = input.as_bytes();
     let mut i = 0;
@@ -258,7 +258,7 @@ fn tokenize(input: &str) -> Result<Vec<Tok>, IoError> {
     Ok(out)
 }
 
-fn expect_ident(tokens: &[Tok], i: &mut usize, want: &str) -> Result<(), IoError> {
+pub(crate) fn expect_ident(tokens: &[Tok], i: &mut usize, want: &str) -> Result<(), IoError> {
     let got = expect_any_ident(tokens, i)?;
     if !got.eq_ignore_ascii_case(want) {
         return Err(IoError::Convert(format!("expected `{want}`, got `{got}`")));
@@ -266,7 +266,7 @@ fn expect_ident(tokens: &[Tok], i: &mut usize, want: &str) -> Result<(), IoError
     Ok(())
 }
 
-fn expect_any_ident(tokens: &[Tok], i: &mut usize) -> Result<String, IoError> {
+pub(crate) fn expect_any_ident(tokens: &[Tok], i: &mut usize) -> Result<String, IoError> {
     match tokens.get(*i) {
         Some(Tok::Ident(s)) => {
             *i += 1;
@@ -276,7 +276,7 @@ fn expect_any_ident(tokens: &[Tok], i: &mut usize) -> Result<String, IoError> {
     }
 }
 
-fn expect_char(tokens: &[Tok], i: &mut usize, c: char) -> Result<(), IoError> {
+pub(crate) fn expect_char(tokens: &[Tok], i: &mut usize, c: char) -> Result<(), IoError> {
     match tokens.get(*i) {
         Some(Tok::Char(x)) if *x == c => {
             *i += 1;
@@ -286,7 +286,7 @@ fn expect_char(tokens: &[Tok], i: &mut usize, c: char) -> Result<(), IoError> {
     }
 }
 
-fn expect_number(tokens: &[Tok], i: &mut usize) -> Result<f64, IoError> {
+pub(crate) fn expect_number(tokens: &[Tok], i: &mut usize) -> Result<f64, IoError> {
     match tokens.get(*i) {
         Some(Tok::Number(n)) => {
             *i += 1;
@@ -296,7 +296,7 @@ fn expect_number(tokens: &[Tok], i: &mut usize) -> Result<f64, IoError> {
     }
 }
 
-fn expect_value(tokens: &[Tok], i: &mut usize) -> Result<String, IoError> {
+pub(crate) fn expect_value(tokens: &[Tok], i: &mut usize) -> Result<String, IoError> {
     match tokens.get(*i) {
         Some(Tok::String(s)) => {
             *i += 1;

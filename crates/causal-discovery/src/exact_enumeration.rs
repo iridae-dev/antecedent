@@ -1,5 +1,9 @@
 //! Exact DAG posterior enumeration for very small graphs.
 //!
+//! Hard product limit: labeled DAGs on **`n ≤ `[`EXACT_ENUM_MAX_NODES`]** nodes
+//! (Gaussian BIC). Larger graphs must use order / structure / CI-screened MCMC
+//! (`OrderMcmc`, `StructureMcmc`, `CiScreenedPosterior`).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
@@ -24,6 +28,9 @@ use crate::graph_posterior::{
 use crate::graph_score::{score_dag_mask, tabular_score_data};
 
 /// Exact enumeration engine for labeled DAGs on `n ≤ `[`EXACT_ENUM_MAX_NODES`] nodes.
+///
+/// This is a hard combinatorial cap (not a soft heuristic). Prefer MCMC engines
+/// when `variables.len() > EXACT_ENUM_MAX_NODES`.
 #[derive(Clone, Debug, Default)]
 pub struct ExactDagPosterior {
     /// Optional hard node cap (defaults to [`EXACT_ENUM_MAX_NODES`]).
@@ -70,7 +77,8 @@ impl ExactDagPosterior {
         }
         if n > self.max_nodes {
             return Err(DiscoveryError::unsupported(
-                "exact DAG posterior exceeds max_nodes (use MCMC)",
+                "exact DAG posterior requires n ≤ 6 variables (EXACT_ENUM_MAX_NODES); \
+                 use order_mcmc, structure_mcmc, or ci_screened_posterior",
             ));
         }
         if n_directed_edges(n) > 63 {

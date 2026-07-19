@@ -16,8 +16,10 @@
 
 mod bayesian;
 mod callbacks;
+mod design_api;
 mod gcm_api;
 mod graphs;
+mod stability;
 mod state_api;
 
 use std::any::Any;
@@ -28,14 +30,13 @@ use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal_data::TimeDummyEncoding;
 use causal::{
-    AnalysisError, BayesianConfig, CandidateDesign, CausalAnalysis, CompiledCausalModel,
-    DecisionProblem, DesignCost, DesignEvaluationContext, DesignObjective,
-    DesignRankConfig, DesignRanker, DifferenceMeasure, DiscoverParams, DiscoveryAccept,
-    DiscoveryPerformanceRecord, DistributionChangeOptions, EstimatorId, FdrAdjustment, FdrControl,
-    GraphIdentFlag, IdentifierId, InferenceMode, MeasurementPlan, MultiDatasetConstraints, RefuteSuite,
-    SamplingPlan, ScoredLink, SpaceDummyCiMode, StaticDiscoverParams,
-    StructureChangeOptions, RegimeAssignment, TemporalLinearPredictor, TemporalMediationEstimator,
-    TimeDummyCiMode, WeightedGraphSamples, anomaly_attribution as facade_anomaly_attribution,
+    AnalysisError, BayesianConfig, CausalAnalysis, CompiledCausalModel, DecisionProblem,
+    DifferenceMeasure, DiscoverParams, DiscoveryAccept, DiscoveryPerformanceRecord,
+    DistributionChangeOptions, EstimatorId, FdrAdjustment, FdrControl, GraphInput, IdentifierId,
+    InferenceMode, MultiDatasetConstraints, RefuteSuite, ScoredLink, SpaceDummyCiMode,
+    StaticDiscoverParams, StructureChangeOptions, RegimeAssignment, TemporalLinearPredictor,
+    TemporalMediationEstimator, TimeDummyCiMode,
+    anomaly_attribution as facade_anomaly_attribution,
     attribute_distribution_change as facade_attribute_distribution_change,
     attribute_distribution_change_robust as facade_attribute_distribution_change_robust,
     attribute_feature_relevance as facade_attribute_feature_relevance,
@@ -57,7 +58,7 @@ use causal::{
     discover_rpcmci as facade_discover_rpcmci, encode_causal_posterior_bytes,
     evaluate_decision as facade_evaluate_decision, fit_gcm,
     mechanism_change_detection as facade_mechanism_change_detection,
-    pag_definite_directed_edge_count, rank_designs as facade_rank_designs,
+    pag_definite_directed_edge_count,
     sample_do as facade_sample_do,
     sample_interventional_distribution as facade_sample_interventional_distribution,
     two_regime_half_split,
@@ -72,8 +73,9 @@ use causal_core::{
     VariableId,
 };
 use causal_data::{
-    ArrowCColumn, DataError, MultiEnvironmentData, SamplingRegularity, TableView, TimeIndex,
-    TimeSeriesData, tabular_from_arrow_c_columns, tabular_from_record_batch,
+    ArrowCColumn, DataError, EventData, MultiEnvironmentData, PanelData, PanelUnit,
+    SamplingRegularity, TableView, TimeIndex, TimeSeriesData,
+    tabular_from_arrow_c_columns, tabular_from_record_batch,
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{
@@ -107,6 +109,32 @@ create_exception!(causal._native, CausalCompileError, CausalError);
 create_exception!(causal._native, CausalResourceError, CausalError);
 create_exception!(causal._native, CausalReviewError, CausalError);
 create_exception!(causal._native, CausalUnsupportedError, CausalError);
+
+/// Parse Python `refute=` — bool or suite name (`"full"` / `"placebo"` / `"none"`).
+/// `None` (omitted kwarg) defaults to PlaceboAndRcc.
+fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<RefuteSuite> {
+    let Some(obj) = obj else {
+        return Ok(RefuteSuite::PlaceboAndRcc);
+    };
+    if let Ok(b) = obj.extract::<bool>() {
+        return Ok(if b { RefuteSuite::PlaceboAndRcc } else { RefuteSuite::None });
+    }
+    if let Ok(s) = obj.extract::<String>() {
+        return match s.trim().to_ascii_lowercase().as_str() {
+            "full" | "validation.full" => Ok(RefuteSuite::Full),
+            "placebo" | "placebo_and_rcc" | "placebo+rcc" | "true" | "1" => {
+                Ok(RefuteSuite::PlaceboAndRcc)
+            }
+            "none" | "off" | "false" | "0" => Ok(RefuteSuite::None),
+            other => Err(PyValueError::new_err(format!(
+                "unknown refute={other:?}; use True|False|\"full\"|\"placebo\"|\"none\""
+            ))),
+        };
+    }
+    Err(PyValueError::new_err(
+        "refute= must be bool or str (True|False|\"full\"|\"placebo\"|\"none\")",
+    ))
+}
 
 trait IntoCausalPyErr {
     fn into_causal_py_err(self) -> PyErr;
@@ -479,6 +507,22 @@ fn take_arrow_c_array(
     Ok((array, schema))
 }
 
+fn tabular_from_arrow_c_objs(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+) -> PyResult<causal_data::TabularData> {
+    if names.len() != columns.len() {
+        return Err(CausalDataError::new_err("names and columns length mismatch"));
+    }
+    let mut cdi_cols = Vec::with_capacity(columns.len());
+    for (name, obj) in names.into_iter().zip(columns) {
+        let (array, schema) = take_arrow_c_array(py, &obj)?;
+        cdi_cols.push(ArrowCColumn { name, array, schema });
+    }
+    let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
+    Ok(loaded.data)
+}
 
 pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
     ExecutionContext::production(seed, threads)
@@ -508,7 +552,7 @@ pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext 
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
-    refute=true,
+    refute=None,
     validators=None,
     seed=1,
     bootstrap=50,
@@ -528,7 +572,7 @@ fn analyze_ate(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
-    refute: bool,
+    refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
@@ -536,6 +580,7 @@ fn analyze_ate(
 ) -> PyResult<AteAnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
     let threads = if custom_validators.is_empty() { threads } else { 1 };
     // Drop NumPy borrows before releasing the GIL.
     drop(columns);
@@ -566,7 +611,6 @@ fn analyze_ate(
         }
 
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-        let suite = if refute { RefuteSuite::PlaceboAndRcc } else { RefuteSuite::None };
         let mut builder = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
@@ -612,6 +656,364 @@ fn analyze_ate(
     })
 }
 
+/// Static ATE from Arrow C Data Interface column exporters (zero-copy when possible).
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    edges,
+    treatment,
+    outcome,
+    *,
+    control_level=0.0,
+    active_level=1.0,
+    identifier=None,
+    estimator=None,
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
+    refute=None,
+    validators=None,
+    seed=1,
+    bootstrap=50,
+    threads=1
+))]
+fn analyze_ate_arrow_c(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    control_level: f64,
+    active_level: f64,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let data = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
+
+    detach_catch(py, move || {
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut dag = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data
+                .schema()
+                .id_of(from)
+                .map_err(|e| CausalDataError::new_err(format!("edge from: {e}")))?;
+            let to_id = data
+                .schema()
+                .id_of(to)
+                .map_err(|e| CausalDataError::new_err(format!("edge to: {e}")))?;
+            dag.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+
+        let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+        let mut builder = CausalAnalysis::builder()
+            .data(data)
+            .graph(dag)
+            .query(query)
+            .refute(suite)
+            .custom_validators(custom_validators)
+            .bootstrap_replicates(bootstrap);
+        if let Some(id) = identifier {
+            builder = builder.identifier(id);
+        }
+        if let Some(est) = estimator {
+            builder = builder.estimator(est);
+        }
+        if let Some(mode) = inference {
+            let cfg = match mode.to_ascii_lowercase().as_str() {
+                "bayesian" | "bayesian.laplace" | "laplace" => {
+                    BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
+                }
+                "bayesian.conjugate" | "conjugate" => {
+                    BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+                }
+                "frequentist" => {
+                    builder = builder.inference(InferenceMode::Frequentist);
+                    let analysis = builder.build().map_err(py_err)?;
+                    let ctx = py_execution_context(seed, threads);
+                    let result = analysis.run(&ctx).map_err(py_err)?;
+                    return ate_result_from_analysis(&names, result);
+                }
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown inference mode {other:?}; use frequentist|bayesian|conjugate"
+                    )));
+                }
+            };
+            builder = builder.inference(InferenceMode::Bayesian(cfg));
+        }
+        let analysis = builder.build().map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        ate_result_from_analysis(&names, result)
+    })
+}
+
+fn run_ate_with_graph_input(
+    names: &[String],
+    batch: RecordBatch,
+    graph: GraphInput,
+    treatment: String,
+    outcome: String,
+    control_level: f64,
+    active_level: f64,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    suite: RefuteSuite,
+    custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+    let data = loaded.data;
+    let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+    let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+    let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+    let mut builder = CausalAnalysis::builder()
+        .data(data)
+        .query(query)
+        .refute(suite)
+        .custom_validators(custom_validators)
+        .bootstrap_replicates(bootstrap);
+    builder = match graph {
+        GraphInput::Static(dag) => builder.graph(dag),
+        GraphInput::Pag(pag) => builder.pag(pag),
+        GraphInput::Cpdag(cpdag) => builder.cpdag(cpdag),
+        GraphInput::Admg(admg) => builder.admg(admg),
+        _other => {
+            return Err(PyValueError::new_err(
+                "unsupported static graph input for analyze_ate_*",
+            ));
+        }
+    };
+    if let Some(id) = identifier {
+        builder = builder.identifier(id);
+    }
+    if let Some(est) = estimator {
+        builder = builder.estimator(est);
+    }
+    if let Some(mode) = inference {
+        let cfg = match mode.to_ascii_lowercase().as_str() {
+            "bayesian" | "bayesian.laplace" | "laplace" => {
+                BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
+            }
+            "bayesian.conjugate" | "conjugate" => {
+                BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+            }
+            "frequentist" => {
+                builder = builder.inference(InferenceMode::Frequentist);
+                let analysis = builder.build().map_err(py_err)?;
+                let ctx = py_execution_context(seed, threads);
+                let result = analysis.run(&ctx).map_err(py_err)?;
+                return ate_result_from_analysis(names, result);
+            }
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown inference mode {other:?}; use frequentist|bayesian|conjugate"
+                )));
+            }
+        };
+        builder = builder.inference(InferenceMode::Bayesian(cfg));
+    }
+    let analysis = builder.build().map_err(py_err)?;
+    let ctx = py_execution_context(seed, threads);
+    let result = analysis.run(&ctx).map_err(py_err)?;
+    ate_result_from_analysis(names, result)
+}
+
+/// Static ATE with a typed PAG.
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, graph, treatment, outcome, *,
+    control_level=0.0, active_level=1.0, identifier=None, estimator=None,
+    inference=None, n_draws=1000, prior_scale=10.0, refute=None, validators=None,
+    seed=1, bootstrap=50, threads=1
+))]
+fn analyze_ate_pag(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    graph: graphs::Pag,
+    treatment: String,
+    outcome: String,
+    control_level: f64,
+    active_level: f64,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    drop(columns);
+    detach_catch(py, move || {
+        run_ate_with_graph_input(
+            &names,
+            batch,
+            GraphInput::Pag(graph.pag),
+            treatment,
+            outcome,
+            control_level,
+            active_level,
+            identifier,
+            estimator,
+            inference,
+            n_draws,
+            prior_scale,
+            suite,
+            custom_validators,
+            seed,
+            bootstrap,
+            threads,
+        )
+    })
+}
+
+/// Static ATE with a typed CPDAG.
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, graph, treatment, outcome, *,
+    control_level=0.0, active_level=1.0, identifier=None, estimator=None,
+    inference=None, n_draws=1000, prior_scale=10.0, refute=None, validators=None,
+    seed=1, bootstrap=50, threads=1
+))]
+fn analyze_ate_cpdag(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    graph: graphs::Cpdag,
+    treatment: String,
+    outcome: String,
+    control_level: f64,
+    active_level: f64,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    drop(columns);
+    detach_catch(py, move || {
+        run_ate_with_graph_input(
+            &names,
+            batch,
+            GraphInput::Cpdag(graph.cpdag),
+            treatment,
+            outcome,
+            control_level,
+            active_level,
+            identifier,
+            estimator,
+            inference,
+            n_draws,
+            prior_scale,
+            suite,
+            custom_validators,
+            seed,
+            bootstrap,
+            threads,
+        )
+    })
+}
+
+/// Static ATE with a typed ADMG.
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, graph, treatment, outcome, *,
+    control_level=0.0, active_level=1.0, identifier=None, estimator=None,
+    inference=None, n_draws=1000, prior_scale=10.0, refute=None, validators=None,
+    seed=1, bootstrap=50, threads=1
+))]
+fn analyze_ate_admg(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    graph: graphs::Admg,
+    treatment: String,
+    outcome: String,
+    control_level: f64,
+    active_level: f64,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    drop(columns);
+    detach_catch(py, move || {
+        run_ate_with_graph_input(
+            &names,
+            batch,
+            GraphInput::Admg(graph.admg),
+            treatment,
+            outcome,
+            control_level,
+            active_level,
+            identifier,
+            estimator,
+            inference,
+            n_draws,
+            prior_scale,
+            suite,
+            custom_validators,
+            seed,
+            bootstrap,
+            threads,
+        )
+    })
+}
+
 /// Static ATE via static discovery → DAG (when fully oriented).
 #[pyfunction]
 #[pyo3(signature = (
@@ -636,7 +1038,7 @@ fn analyze_ate(
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
-    refute=true,
+    refute=None,
     validators=None,
     ci=None,
     seed=1,
@@ -665,7 +1067,7 @@ fn analyze_ate_discover(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
-    refute: bool,
+    refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     ci: Option<Bound<'_, PyAny>>,
     seed: u64,
@@ -675,6 +1077,7 @@ fn analyze_ate_discover(
     let algo = algorithm.to_ascii_lowercase();
     let batch = columns_to_batch(&names, &columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
     let threads = if is_ci_callback || !custom_validators.is_empty() {
@@ -688,7 +1091,6 @@ fn analyze_ate_discover(
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-        let suite = if refute { RefuteSuite::PlaceboAndRcc } else { RefuteSuite::None };
         let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
         let accept = if accept_discovered {
             DiscoveryAccept::AutoAccept
@@ -1329,6 +1731,8 @@ fn discover_pc(
             max_cond_size,
             fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
             ci: ci_impl,
+            screen_pc: false,
+            max_subset: None,
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_pc(&data, &variables, &params, &ctx).map_err(py_err)?;
@@ -1358,7 +1762,7 @@ fn discover_pc(
 
 /// Run GES discovery over tabular columns → CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=1))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=1, screen_pc=false, max_subset=None))]
 fn discover_ges(
     py: Python<'_>,
     names: Vec<String>,
@@ -1369,6 +1773,8 @@ fn discover_ges(
     ci: Option<Bound<'_, PyAny>>,
     max_cond_size: usize,
     threads: u32,
+    screen_pc: bool,
+    max_subset: Option<usize>,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
@@ -1382,6 +1788,8 @@ fn discover_ges(
             max_cond_size,
             fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
             ci: ci_impl,
+            screen_pc,
+            max_subset,
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_ges(&data, &variables, &params, &ctx).map_err(py_err)?;
@@ -1431,6 +1839,8 @@ fn discover_lingam(
             max_cond_size,
             fdr: None,
             ci: Arc::new(PartialCorrelation::default()),
+            screen_pc: false,
+            max_subset: None,
         };
         let ctx = py_execution_context(seed, threads);
         let result =
@@ -1481,6 +1891,8 @@ fn discover_notears(
             max_cond_size,
             fdr: None,
             ci: Arc::new(PartialCorrelation::default()),
+            screen_pc: false,
+            max_subset: None,
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_notears(
@@ -1541,6 +1953,8 @@ fn discover_fci(
             max_cond_size,
             fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
             ci: ci_impl,
+            screen_pc: false,
+            max_subset: None,
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_fci(&data, &variables, &params, &ctx).map_err(py_err)?;
@@ -1592,6 +2006,8 @@ fn discover_rfci(
             max_cond_size,
             fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
             ci: ci_impl,
+            screen_pc: false,
+            max_subset: None,
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_rfci(&data, &variables, &params, &ctx).map_err(py_err)?;
@@ -1875,13 +2291,24 @@ fn discover_jpcmci_plus(
     })
 }
 
-/// RPCMCI with caller-supplied regimes (or half-split when `regimes` is omitted).
+/// Two-regime half-split assignment (opt-in helper for RPCMCI; not applied by default).
+#[pyfunction(name = "two_regime_half_split")]
+fn two_regime_half_split_py(series_len: usize) -> Vec<u32> {
+    two_regime_half_split(series_len)
+        .regimes
+        .iter()
+        .map(|r| r.raw())
+        .collect()
+}
+
+/// RPCMCI with caller-supplied regimes (required; no silent half-split).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1, regimes=None))]
+#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1))]
 fn discover_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
+    regimes: Vec<u32>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -1889,7 +2316,6 @@ fn discover_rpcmci(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: u32,
-    regimes: Option<Vec<u32>>,
 ) -> PyResult<RpcmciDiscoverySummary> {
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, _ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
@@ -1897,21 +2323,17 @@ fn discover_rpcmci(
     let threads = if is_callback { 1 } else { threads };
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let assign = if let Some(labels) = regimes {
-            if labels.len() != series.row_count() {
-                return Err(PyValueError::new_err(format!(
-                    "regimes length {} != series length {}",
-                    labels.len(),
-                    series.row_count()
-                )));
-            }
-            RegimeAssignment::try_new(
-                labels.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
-            )
-            .map_err(|e| PyValueError::new_err(e.to_string()))?
-        } else {
-            two_regime_half_split(series.row_count())
-        };
+        if regimes.len() != series.row_count() {
+            return Err(PyValueError::new_err(format!(
+                "regimes length {} != series length {}",
+                regimes.len(),
+                series.row_count()
+            )));
+        }
+        let assign = RegimeAssignment::try_new(
+            regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let params = DiscoverParams {
             max_lag,
             alpha,
@@ -2168,6 +2590,462 @@ fn analyze(
         let analysis = CausalAnalysis::builder()
             .series(series)
             .temporal_graph(g)
+            .temporal_query(q)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        Ok(AnalysisResult {
+            ate: result.estimate.ate,
+            se_analytic: result.estimate.se_analytic,
+            se_bootstrap: result.estimate.se_bootstrap,
+            plan_id: result.logical_plan.plan_id.to_string(),
+            modality: format!("{:?}", result.logical_plan.data_classification),
+            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+            identification_status: format!("{:?}", result.identification.status),
+            method: result.estimand.method.to_string(),
+            diagnostics: result
+                .diagnostics
+                .iter()
+                .map(|d| format!("{}: {}", d.code, d.message))
+                .collect(),
+            provenance_node_count: result.provenance.len(),
+            refutation_count: result.refutations.len(),
+            worker_threads: result.physical_plan.worker_threads,
+            expected_python_crossings: result.physical_plan.expected_python_crossings,
+        })
+    })
+}
+
+/// Temporal effect with a typed [`TemporalPag`] (review-required; same as LPCMCI without auto-accept).
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    graph,
+    treatment,
+    outcome,
+    *,
+    treatment_lag=1,
+    horizon_steps=1,
+    active_level=1.0,
+    policy="pulse",
+    seed=1,
+    bootstrap=0,
+    threads=1
+))]
+fn analyze_temporal_pag(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    graph: graphs::TemporalPag,
+    treatment: String,
+    outcome: String,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    policy: &str,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let policy = policy.to_ascii_lowercase();
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let tabular = loaded.data;
+        let n = tabular.row_count();
+        let series = TimeSeriesData::try_new(
+            tabular.storage().clone(),
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .map_err(py_err)?;
+
+        let name_to_id = |nm: &str| -> PyResult<VariableId> {
+            series
+                .schema()
+                .id_of(nm)
+                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
+        };
+        let t_id = name_to_id(&treatment)?;
+        let y_id = name_to_id(&outcome)?;
+        let q = temporal_query_from_policy(
+            &policy,
+            t_id,
+            y_id,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+        )?;
+
+        let analysis = CausalAnalysis::builder()
+            .series(series)
+            .temporal_pag(graph.pag)
+            .temporal_query(q)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        Ok(AnalysisResult {
+            ate: result.estimate.ate,
+            se_analytic: result.estimate.se_analytic,
+            se_bootstrap: result.estimate.se_bootstrap,
+            plan_id: result.logical_plan.plan_id.to_string(),
+            modality: format!("{:?}", result.logical_plan.data_classification),
+            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+            identification_status: format!("{:?}", result.identification.status),
+            method: result.estimand.method.to_string(),
+            diagnostics: result
+                .diagnostics
+                .iter()
+                .map(|d| format!("{}: {}", d.code, d.message))
+                .collect(),
+            provenance_node_count: result.provenance.len(),
+            refutation_count: result.refutations.len(),
+            worker_threads: result.physical_plan.worker_threads,
+            expected_python_crossings: result.physical_plan.expected_python_crossings,
+        })
+    })
+}
+
+/// Temporal effect on irregular event data (aligned via duration bins before estimation).
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    event_times_ns,
+    align_interval_ns,
+    edges,
+    treatment,
+    outcome,
+    *,
+    treatment_lag=1,
+    horizon_steps=1,
+    active_level=1.0,
+    policy="pulse",
+    seed=1,
+    bootstrap=0,
+    threads=1
+))]
+fn analyze_events(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    event_times_ns: Vec<i64>,
+    align_interval_ns: u64,
+    edges: Vec<(String, u32, String, u32)>,
+    treatment: String,
+    outcome: String,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    policy: &str,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    let policy = policy.to_string();
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let event = EventData::try_new(loaded.data.storage().clone(), Arc::from(event_times_ns))
+            .map_err(py_err)?;
+        let name_to_id = |nm: &str| {
+            event
+                .schema()
+                .id_of(nm)
+                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
+        };
+        let t_id = name_to_id(&treatment)?;
+        let y_id = name_to_id(&outcome)?;
+        let mut g = TemporalDag::empty();
+        for (src, slag, tgt, tlag) in &edges {
+            let s =
+                ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
+            let t =
+                ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
+            g.insert_directed(s, t).map_err(py_err)?;
+        }
+        let q = temporal_query_from_policy(
+            &policy,
+            t_id,
+            y_id,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+        )?;
+        let analysis = CausalAnalysis::builder()
+            .events(event, align_interval_ns)
+            .temporal_graph(g)
+            .temporal_query(q)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        Ok(AnalysisResult {
+            ate: result.estimate.ate,
+            se_analytic: result.estimate.se_analytic,
+            se_bootstrap: result.estimate.se_bootstrap,
+            plan_id: result.logical_plan.plan_id.to_string(),
+            modality: format!("{:?}", result.logical_plan.data_classification),
+            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+            identification_status: format!("{:?}", result.identification.status),
+            method: result.estimand.method.to_string(),
+            diagnostics: result
+                .diagnostics
+                .iter()
+                .map(|d| format!("{}: {}", d.code, d.message))
+                .collect(),
+            provenance_node_count: result.provenance.len(),
+            refutation_count: result.refutations.len(),
+            worker_threads: result.physical_plan.worker_threads,
+            expected_python_crossings: result.physical_plan.expected_python_crossings,
+        })
+    })
+}
+
+/// Temporal effect on multi-unit panel data (stacked estimate + PanelClusterHac SE).
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    unit_columns,
+    unit_ids,
+    edges,
+    treatment,
+    outcome,
+    *,
+    treatment_lag=1,
+    horizon_steps=1,
+    active_level=1.0,
+    policy="pulse",
+    seed=1,
+    bootstrap=0,
+    threads=1
+))]
+fn analyze_panel(
+    py: Python<'_>,
+    names: Vec<String>,
+    unit_columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+    unit_ids: Vec<u32>,
+    edges: Vec<(String, u32, String, u32)>,
+    treatment: String,
+    outcome: String,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    policy: &str,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AnalysisResult> {
+    if unit_columns.is_empty() {
+        return Err(PyValueError::new_err("panel needs ≥1 unit"));
+    }
+    if unit_columns.len() != unit_ids.len() {
+        return Err(PyValueError::new_err("unit_columns and unit_ids length mismatch"));
+    }
+    let mut batches = Vec::with_capacity(unit_columns.len());
+    for cols in &unit_columns {
+        batches.push(columns_to_batch(&names, cols)?);
+    }
+    drop(unit_columns);
+    let policy = policy.to_string();
+    detach_catch(py, move || {
+        let mut units = Vec::with_capacity(batches.len());
+        for (batch, unit_id) in batches.iter().zip(unit_ids.into_iter()) {
+            let (series, _) = series_from_batch(batch)?;
+            units.push(PanelUnit { unit_id, series });
+        }
+        let panel = PanelData::try_new(Arc::from(units)).map_err(py_err)?;
+        let name_to_id = |nm: &str| {
+            panel
+                .schema()
+                .id_of(nm)
+                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
+        };
+        let t_id = name_to_id(&treatment)?;
+        let y_id = name_to_id(&outcome)?;
+        let mut g = TemporalDag::empty();
+        for (src, slag, tgt, tlag) in &edges {
+            let s =
+                ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
+            let t =
+                ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
+            g.insert_directed(s, t).map_err(py_err)?;
+        }
+        let q = temporal_query_from_policy(
+            &policy,
+            t_id,
+            y_id,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+        )?;
+        let analysis = CausalAnalysis::builder()
+            .panel(panel)
+            .temporal_graph(g)
+            .temporal_query(q)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        Ok(AnalysisResult {
+            ate: result.estimate.ate,
+            se_analytic: result.estimate.se_analytic,
+            se_bootstrap: result.estimate.se_bootstrap,
+            plan_id: result.logical_plan.plan_id.to_string(),
+            modality: format!("{:?}", result.logical_plan.data_classification),
+            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+            identification_status: format!("{:?}", result.identification.status),
+            method: result.estimand.method.to_string(),
+            diagnostics: result
+                .diagnostics
+                .iter()
+                .map(|d| format!("{}: {}", d.code, d.message))
+                .collect(),
+            provenance_node_count: result.provenance.len(),
+            refutation_count: result.refutations.len(),
+            worker_threads: result.physical_plan.worker_threads,
+            expected_python_crossings: result.physical_plan.expected_python_crossings,
+        })
+    })
+}
+
+/// Panel + J-PCMCI+ discover → stacked PanelClusterHac estimate.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    unit_columns,
+    unit_ids,
+    treatment,
+    outcome,
+    *,
+    max_lag=3,
+    alpha=0.05,
+    fdr=true,
+    accept_discovered=true,
+    treatment_lag=1,
+    horizon_steps=1,
+    active_level=1.0,
+    policy="pulse",
+    seed=1,
+    bootstrap=0,
+    threads=1,
+    context_names=None,
+    include_space_dummy=true,
+    include_time_dummy=false,
+    space_dummy_ci=false,
+    time_dummy_encoding="integer",
+    time_dummy_ci=false
+))]
+fn analyze_panel_discover(
+    py: Python<'_>,
+    names: Vec<String>,
+    unit_columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+    unit_ids: Vec<u32>,
+    treatment: String,
+    outcome: String,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    accept_discovered: bool,
+    treatment_lag: u32,
+    horizon_steps: u32,
+    active_level: f64,
+    policy: &str,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    context_names: Option<Vec<String>>,
+    include_space_dummy: bool,
+    include_time_dummy: bool,
+    space_dummy_ci: bool,
+    time_dummy_encoding: &str,
+    time_dummy_ci: bool,
+) -> PyResult<AnalysisResult> {
+    if unit_columns.is_empty() {
+        return Err(PyValueError::new_err("panel needs ≥1 unit"));
+    }
+    if unit_columns.len() != unit_ids.len() {
+        return Err(PyValueError::new_err("unit_columns and unit_ids length mismatch"));
+    }
+    let mut batches = Vec::with_capacity(unit_columns.len());
+    for cols in &unit_columns {
+        batches.push(columns_to_batch(&names, cols)?);
+    }
+    drop(unit_columns);
+    let policy = policy.to_string();
+    let time_dummy_encoding = time_dummy_encoding.to_string();
+    detach_catch(py, move || {
+        let mut units = Vec::with_capacity(batches.len());
+        for (batch, unit_id) in batches.iter().zip(unit_ids.into_iter()) {
+            let (series, _) = series_from_batch(batch)?;
+            units.push(PanelUnit { unit_id, series });
+        }
+        let panel = PanelData::try_new(Arc::from(units)).map_err(py_err)?;
+        let name_to_id = |nm: &str| {
+            panel
+                .schema()
+                .id_of(nm)
+                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
+        };
+        let t_id = name_to_id(&treatment)?;
+        let y_id = name_to_id(&outcome)?;
+        let q = temporal_query_from_policy(
+            &policy,
+            t_id,
+            y_id,
+            treatment_lag,
+            horizon_steps,
+            active_level,
+        )?;
+        let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
+        let accept = if accept_discovered {
+            DiscoveryAccept::AutoAccept
+        } else {
+            DiscoveryAccept::Review
+        };
+        let encoding = match time_dummy_encoding.as_str() {
+            "integer" | "integer_index" | "index" => TimeDummyEncoding::IntegerIndex,
+            "one_hot" | "onehot" | "oh" => TimeDummyEncoding::OneHot,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown time_dummy_encoding {other:?}"
+                )));
+            }
+        };
+        let space_mode = if space_dummy_ci {
+            SpaceDummyCiMode::MultivariateBlock
+        } else {
+            SpaceDummyCiMode::ScalarOneHot
+        };
+        let time_mode = if time_dummy_ci {
+            TimeDummyCiMode::MultivariateBlock
+        } else {
+            TimeDummyCiMode::ScalarOneHot
+        };
+        let mut context_ids = Vec::new();
+        for cname in context_names.unwrap_or_default() {
+            context_ids.push(panel.schema().id_of(&cname).map_err(py_err)?);
+        }
+        let multi_dataset = MultiDatasetConstraints {
+            context_variables: Arc::from(context_ids),
+            include_space_dummy,
+            include_time_dummy,
+            space_dummy_ci: space_mode,
+            time_dummy_encoding: encoding,
+            time_dummy_ci: time_mode,
+            ..MultiDatasetConstraints::default()
+        };
+        let analysis = CausalAnalysis::builder()
+            .panel(panel)
+            .discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset)
             .temporal_query(q)
             .bootstrap_replicates(bootstrap)
             .build()
@@ -2677,71 +3555,6 @@ fn evaluate_decision_py(
         expected_utility: eval.expected_utility,
         posterior_regret: eval.posterior_regret,
         chosen_action: eval.chosen_action,
-    })
-}
-
-/// Rank measurement vs sampling candidates under graph-entropy EIG.
-#[pyfunction]
-#[pyo3(signature = (graph_weights, identified, graph_keys, measure_var_ids, sampling_increments, *, seed=0, threads=1))]
-fn rank_designs(
-    graph_weights: Vec<f64>,
-    identified: Vec<u8>,
-    graph_keys: Vec<u64>,
-    measure_var_ids: Vec<u32>,
-    sampling_increments: Vec<u64>,
-    seed: u64,
-    threads: u32,
-) -> PyResult<gcm_api::DesignRanking> {
-    catch_ffi(|| {
-        let flags: Vec<GraphIdentFlag> = identified
-            .into_iter()
-            .map(|v| if v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified })
-            .collect();
-        let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_msg)?;
-        let mut candidates = Vec::new();
-        for (i, vid) in measure_var_ids.into_iter().enumerate() {
-            candidates.push(CandidateDesign::Measure(MeasurementPlan {
-                variables: Arc::from([VariableId::from_raw(vid)]),
-                cost: DesignCost::zero(),
-                tag: u64::try_from(i).unwrap_or(0),
-            }));
-        }
-        for (i, n) in sampling_increments.into_iter().enumerate() {
-            candidates.push(CandidateDesign::IncreaseSamplingRate(SamplingPlan {
-                additional_samples: n,
-                cost: DesignCost::zero(),
-                tag: 1000 + u64::try_from(i).unwrap_or(0),
-            }));
-        }
-        if candidates.is_empty() {
-            return Err(PyValueError::new_err("no candidates"));
-        }
-        let ranker = DesignRanker::new().with_config(DesignRankConfig {
-            min_batches: 2,
-            max_batches: 8,
-            batch_size: 4,
-            rank_uncertainty_threshold: 0.5,
-        });
-        let ctx = py_execution_context(seed, threads);
-        let eval = DesignEvaluationContext::<(), ()> {
-            graphs: &graphs,
-            effect_width: None,
-            model_loglik: None,
-            decisions: None,
-            query_id_unlock: None,
-            identified_under_intervention: None,
-            graph_features: None,
-        };
-        let ranking =
-            facade_rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
-                .map_err(py_err)?;
-        let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
-        let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
-        Ok(gcm_api::DesignRanking {
-            best_index: best,
-            scores,
-            mc_samples: ranking.budget.samples,
-        })
     })
 }
 
@@ -3638,10 +4451,18 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_pag, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_cpdag, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_admg, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_arrow_c, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_path_specific, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_temporal_pag, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_events, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_panel, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_panel_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_discover, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci_plus, m)?)?;
@@ -3654,6 +4475,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(discover_lpcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_jpcmci_plus, m)?)?;
     m.add_function(wrap_pyfunction!(discover_rpcmci, m)?)?;
+    m.add_function(wrap_pyfunction!(two_regime_half_split_py, m)?)?;
     m.add_function(wrap_pyfunction!(mediation_effects_summary, m)?)?;
     m.add_function(wrap_pyfunction!(predict_intervened_summary, m)?)?;
     m.add_function(wrap_pyfunction!(counterfactual_ite, m)?)?;
@@ -3667,7 +4489,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(attribute_unit_change, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_feature_relevance, m)?)?;
     m.add_function(wrap_pyfunction!(mechanism_change_detection, m)?)?;
-    m.add_function(wrap_pyfunction!(rank_designs, m)?)?;
+    design_api::register(m)?;
     m.add_function(wrap_pyfunction!(evaluate_decision_py, m)?)?;
     m.add_function(wrap_pyfunction!(decode_posterior_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(encode_posterior_artifact, m)?)?;
@@ -3700,9 +4522,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<graphs::Pag>()?;
     m.add_class::<graphs::Admg>()?;
     m.add_class::<graphs::TemporalDag>()?;
+    m.add_class::<graphs::TemporalCpdag>()?;
+    m.add_class::<graphs::TemporalPag>()?;
     gcm_api::register(m)?;
     state_api::register(m)?;
     bayesian::register(m)?;
+    stability::register(m)?;
     m.add("__version__", causal_core::VERSION)?;
     Ok(())
 }

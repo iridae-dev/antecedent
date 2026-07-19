@@ -107,13 +107,18 @@ impl IdIdentifier {
                         "conditional Distribution requires IdcIdentifier (or AutoIdentifier)",
                     ));
                 }
-                if !q.interventions.iter().all(|iv| matches!(iv, Intervention::Set { .. })) {
-                    return Err(IdentificationError::unsupported(
-                        "general ID supports hard Set interventions only",
-                    ));
+                if let Err(e) = crate::intervention_support::require_hard_set_interventions(
+                    q.interventions.iter(),
+                    "general ID",
+                ) {
+                    return Err(e);
                 }
+                // Flatten Sequence-of-Sets / Soft(constant) reductions for multi-do.
+                let normalized = crate::intervention_support::normalize_intervention_list(
+                    q.interventions.iter().cloned(),
+                )?;
                 let mut x = BitSet::with_len(prepared.admg().node_count());
-                for iv in q.interventions.iter() {
+                for iv in &normalized {
                     let v = iv.primary_variable().ok_or(IdentificationError::unsupported(
                         "intervention missing primary variable",
                     ))?;
@@ -228,6 +233,7 @@ impl IdIdentifier {
             instruments: Arc::from([]),
             mediators: Arc::from([]),
             functional,
+            rd_design: None,
         };
         Ok(IdentificationResult::identified(
             CausalQuery::AverageEffect(query.clone()),
@@ -273,6 +279,7 @@ impl IdIdentifier {
                     instruments: Arc::from([]),
                     mediators: Arc::from([]),
                     functional,
+                    rd_design: None,
                 };
                 Ok(IdentificationResult::identified(
                     query,
@@ -303,12 +310,7 @@ fn full_nodes(n: usize) -> BitSet {
 }
 
 fn intervention_value(iv: &Intervention) -> Result<Value, IdentificationError> {
-    match iv {
-        Intervention::Set { value, .. } => Ok(value.clone()),
-        _ => Err(IdentificationError::unsupported(
-            "general ID ATE requires hard Set interventions",
-        )),
-    }
+    crate::intervention_support::require_set_value(iv, "general ID ATE")
 }
 
 fn not_identified_with_hedge(
@@ -693,10 +695,15 @@ fn intervention_for_factor(
 
 #[cfg(test)]
 mod tests {
-    use causal_core::{AverageEffectQuery, VariableId};
+    use causal_core::{
+        AverageEffectQuery, CausalQuery, Intervention, MechanismOverride, TargetPopulation, Value,
+        VariableId,
+    };
     use causal_graph::{Admg, Dag, DenseNodeId};
+    use std::sync::Arc;
 
     use super::*;
+    use crate::error::IdentificationError;
     use crate::identifier::IdentificationWorkspace;
     use crate::result::IdentificationStatus;
 
@@ -752,5 +759,57 @@ mod tests {
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+    }
+
+    #[test]
+    fn soft_constant_and_shift_ate_reduce_to_set() {
+        let id = IdIdentifier::new();
+        let prep = id.prepare_dag(&chain_dag()).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+
+        let soft = CausalQuery::AverageEffect(AverageEffectQuery {
+            treatment: VariableId::from_raw(1),
+            outcome: VariableId::from_raw(2),
+            effect_modifiers: Arc::from([]),
+            control: Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
+            active: Intervention::soft(VariableId::from_raw(1), MechanismOverride::constant(1.0)),
+            target_population: TargetPopulation::AllObserved,
+        });
+        let res = id.identify(&prep, &soft, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+
+        let shift = CausalQuery::AverageEffect(AverageEffectQuery {
+            treatment: VariableId::from_raw(1),
+            outcome: VariableId::from_raw(2),
+            effect_modifiers: Arc::from([]),
+            control: Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
+            active: Intervention::shift(VariableId::from_raw(1), Value::f64(1.0)),
+            target_population: TargetPopulation::AllObserved,
+        });
+        let res = id.identify(&prep, &shift, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+    }
+
+    #[test]
+    fn soft_linear_gaussian_still_unsupported() {
+        let id = IdIdentifier::new();
+        let prep = id.prepare_dag(&chain_dag()).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let soft = CausalQuery::AverageEffect(AverageEffectQuery {
+            treatment: VariableId::from_raw(1),
+            outcome: VariableId::from_raw(2),
+            effect_modifiers: Arc::from([]),
+            control: Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
+            active: Intervention::soft(
+                VariableId::from_raw(1),
+                MechanismOverride::named("linear_gaussian", vec![1.0, 0.0]),
+            ),
+            target_population: TargetPopulation::AllObserved,
+        });
+        let err = id.identify(&prep, &soft, &mut ws).unwrap_err();
+        assert!(
+            matches!(err, IdentificationError::UnsupportedQuery { message } if message.contains("Soft")),
+            "{err}"
+        );
     }
 }

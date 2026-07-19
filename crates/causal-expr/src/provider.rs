@@ -99,7 +99,7 @@ pub struct FactorSpec<'a> {
 /// Errors from compiling or evaluating causal expressions.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EvalError {
-    /// Continuous `IntegralOut` is not supported by the discrete evaluator.
+    /// Continuous `IntegralOut` without quadrature nodes and without discrete support.
     UnsupportedIntegralOut,
     /// Provider has no entry for the requested factor / assignment.
     MissingTableEntry,
@@ -131,7 +131,10 @@ impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnsupportedIntegralOut => {
-                write!(f, "IntegralOut is unsupported by the discrete compiled evaluator")
+                write!(
+                    f,
+                    "IntegralOut requires provider quadrature nodes or discrete support"
+                )
             }
             Self::MissingTableEntry => write!(f, "missing probability table entry"),
             Self::MissingBinding(v) => write!(f, "missing binding for V{}", v.raw()),
@@ -174,6 +177,22 @@ pub trait DistributionProvider {
         vars: &[VariableId],
         ctx: &EvalContext,
     ) -> Result<Arc<[Arc<[Value]>]>, EvalError>;
+
+    /// Optional continuous quadrature nodes `(assignment_row, Lebesgue weight)` for
+    /// [`crate::ExprNode::IntegralOut`].
+    ///
+    /// Returning `Ok(None)` asks the evaluator to fall back to discrete [`Self::support`].
+    ///
+    /// # Errors
+    ///
+    /// Provider-specific continuous-integration failures.
+    fn quadrature(
+        &self,
+        _vars: &[VariableId],
+        _ctx: &EvalContext,
+    ) -> Result<Option<Arc<[(Arc<[Value]>, f64)]>>, EvalError> {
+        Ok(None)
+    }
 
     /// Outcome function value (identity: the bound value of `var`).
     ///
@@ -376,5 +395,134 @@ impl DistributionProvider for PosteriorDrawProvider {
 
     fn n_draws(&self) -> Option<usize> {
         Some(self.draws.len())
+    }
+}
+
+/// Independent Gaussian density provider with Gauss–Hermite quadrature.
+///
+/// `probability` returns the product of univariate N(μ, σ²) densities for factor
+/// variables. [`Self::quadrature`] returns product Gauss–Hermite nodes in
+/// Lebesgue measure (suitable for ∫ body(x) dx near each Gaussian mode).
+#[derive(Clone, Debug, Default)]
+pub struct GaussianDensityProvider {
+    /// Per-variable (mean, variance).
+    params: HashMap<VariableId, (f64, f64)>,
+}
+
+impl GaussianDensityProvider {
+    /// Empty provider.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Declare an independent Gaussian for `var` with mean `mean` and variance `variance`.
+    ///
+    /// # Panics
+    ///
+    /// Never panics; non-positive variance is rejected by returning early no-op... actually
+    /// we clamp: variance must be > 0 or the insert is skipped. Prefer validating at call sites.
+    pub fn set_gaussian(&mut self, var: VariableId, mean: f64, variance: f64) {
+        if variance > 0.0 && variance.is_finite() && mean.is_finite() {
+            self.params.insert(var, (mean, variance));
+        }
+    }
+}
+
+/// Physicists' Gauss–Hermite nodes/weights for ∫ e^{-t²} g(t) dt (n = 5).
+const GH5_NODES: [f64; 5] = [
+    -2.020_182_870_456_085_6,
+    -0.958_572_464_613_818_5,
+    0.0,
+    0.958_572_464_613_818_5,
+    2.020_182_870_456_085_6,
+];
+const GH5_WEIGHTS: [f64; 5] = [
+    0.019_953_242_059_045_913,
+    0.393_619_323_152_241_35,
+    0.945_308_720_482_941_9,
+    0.393_619_323_152_241_35,
+    0.019_953_242_059_045_913,
+];
+
+impl DistributionProvider for GaussianDensityProvider {
+    fn probability(
+        &self,
+        spec: &FactorSpec<'_>,
+        assignment: &Assignment,
+        _ctx: &EvalContext,
+    ) -> Result<f64, EvalError> {
+        let mut dens = 1.0;
+        for &v in spec.variables {
+            let (mean, var) = self.params.get(&v).copied().ok_or(EvalError::EmptySupport(v))?;
+            let x = assignment
+                .get(v)
+                .and_then(Value::as_f64)
+                .ok_or(EvalError::MissingBinding(v))?;
+            let inv_sqrt = (2.0 * std::f64::consts::PI * var).sqrt().recip();
+            let z = (x - mean) / var.sqrt();
+            dens *= inv_sqrt * (-0.5 * z * z).exp();
+        }
+        Ok(dens)
+    }
+
+    fn support(
+        &self,
+        vars: &[VariableId],
+        _ctx: &EvalContext,
+    ) -> Result<Arc<[Arc<[Value]>]>, EvalError> {
+        if vars.is_empty() {
+            return Ok(Arc::from(vec![Arc::from(Vec::<Value>::new())]));
+        }
+        Err(EvalError::EmptySupport(vars[0]))
+    }
+
+    fn quadrature(
+        &self,
+        vars: &[VariableId],
+        _ctx: &EvalContext,
+    ) -> Result<Option<Arc<[(Arc<[Value]>, f64)]>>, EvalError> {
+        if vars.is_empty() {
+            return Ok(Some(Arc::from([(Arc::from(Vec::<Value>::new()), 1.0)])));
+        }
+        // Product GH: start with empty prefix.
+        let mut nodes: Vec<(Vec<Value>, f64)> = vec![(Vec::new(), 1.0)];
+        for &v in vars {
+            let (mean, variance) =
+                self.params.get(&v).copied().ok_or(EvalError::EmptySupport(v))?;
+            let sigma = variance.sqrt();
+            let scale = sigma * std::f64::consts::SQRT_2;
+            let mut next = Vec::with_capacity(nodes.len() * GH5_NODES.len());
+            for (prefix, w0) in &nodes {
+                for (i, &t) in GH5_NODES.iter().enumerate() {
+                    let x = mean + scale * t;
+                    // GH computes ∫ e^{-t²} g(t) dt. For Lebesgue ∫ h(x) dx with
+                    // x = μ + σ√2 t we need g(t) = h(x) σ√2 e^{t²}, so the node
+                    // weight applied to h(x) is w_i · σ√2 · e^{t²}.
+                    let w = w0 * GH5_WEIGHTS[i] * scale * (t * t).exp();
+                    let mut row = prefix.clone();
+                    row.push(Value::f64(x));
+                    next.push((row, w));
+                }
+            }
+            nodes = next;
+        }
+        let out: Vec<(Arc<[Value]>, f64)> =
+            nodes.into_iter().map(|(row, w)| (Arc::from(row), w)).collect();
+        Ok(Some(Arc::from(out)))
+    }
+
+    fn outcome(
+        &self,
+        var: VariableId,
+        assignment: &Assignment,
+        _ctx: &EvalContext,
+    ) -> Result<f64, EvalError> {
+        let value = assignment.get(var).ok_or(EvalError::MissingBinding(var))?;
+        value.as_f64().ok_or(EvalError::MissingBinding(var))
+    }
+
+    fn n_draws(&self) -> Option<usize> {
+        None
     }
 }

@@ -129,7 +129,13 @@ impl SharpRegressionDiscontinuity {
                 message: "SharpRegressionDiscontinuity expects an \"rd.sharp\" estimand",
             });
         }
-        if self.bandwidth <= 0.0 {
+        // Prefer design params packaged on the estimand when present.
+        let (running_variable, cutoff, bandwidth) = if let Some(d) = estimand.rd_design {
+            (d.running_variable, d.cutoff, d.bandwidth)
+        } else {
+            (self.running_variable, self.cutoff, self.bandwidth)
+        };
+        if bandwidth <= 0.0 {
             return Err(EstimationError::unsupported("bandwidth must be positive"));
         }
         query.validate()?;
@@ -152,19 +158,19 @@ impl SharpRegressionDiscontinuity {
             ));
         }
 
-        let ids = [query.outcome, self.running_variable];
+        let ids = [query.outcome, running_variable];
         let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         let outcome_full =
             data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
         let running_full =
-            data.float64_masked(self.running_variable, &row_mask).map_err(EstimationError::from)?;
+            data.float64_masked(running_variable, &row_mask).map_err(EstimationError::from)?;
 
         let mut y_sel = Vec::new();
         let mut centered_sel = Vec::new();
         let mut treated_sel = Vec::new();
         for i in 0..running_full.len() {
-            let centered = running_full[i] - self.cutoff;
-            if centered.abs() <= self.bandwidth {
+            let centered = running_full[i] - cutoff;
+            if centered.abs() <= bandwidth {
                 y_sel.push(outcome_full[i]);
                 centered_sel.push(centered);
                 treated_sel.push(if centered >= 0.0 { 1.0 } else { 0.0 });
@@ -191,8 +197,8 @@ impl SharpRegressionDiscontinuity {
             nrows,
             outcome: Arc::from(y_sel),
             method: Arc::clone(&estimand.method),
-            cutoff: self.cutoff,
-            bandwidth: self.bandwidth,
+            cutoff,
+            bandwidth,
             overlap: self.overlap,
         })
     }

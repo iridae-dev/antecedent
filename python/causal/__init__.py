@@ -27,7 +27,9 @@ from . import (
     model,
     query,
     state,
+    validation,
 )
+from .data import EventFrame, MultiEnvFrame, PanelFrame, event, multi_env, panel
 from ._native import (
     Admg,
     AnomalyScores,
@@ -71,7 +73,9 @@ from ._native import (
     PosteriorArtifact,
     PredictSummary,
     RpcmciDiscoverySummary,
+    TemporalCpdag,
     TemporalDag,
+    TemporalPag,
     anomaly_attribution,
     attribute_distribution_change,
     attribute_distribution_change_robust,
@@ -140,6 +144,7 @@ from .discovery import (
     discover_pcmci_plus,
     discover_rpcmci,
     discover_structure_mcmc,
+    two_regime_half_split,
 )
 from .estimation import AnalysisResult, analyze
 from .inference import Bayesian, Frequentist
@@ -149,6 +154,17 @@ from .query import (
     PathSpecificEffect,
     PulseEffect,
     SustainedEffect,
+)
+from .validation import (
+    validate_environment_holdout,
+    validate_pcmci_alpha_sensitivity,
+    validate_pcmci_block_bootstrap,
+    validate_pcmci_ci_sensitivity,
+    validate_pcmci_false_positive,
+    validate_pcmci_lag_sensitivity,
+    validate_pcmci_plus_orientation,
+    validate_regime_stability,
+    validate_synthetic_null_calibration,
 )
 
 __all__ = [
@@ -218,7 +234,9 @@ __all__ = [
     "RpcmciDiscoverySummary",
     "StructureMcmc",
     "SustainedEffect",
+    "TemporalCpdag",
     "TemporalDag",
+    "TemporalPag",
     "analyze",
     "anomaly_attribution",
     "attribute_distribution_change",
@@ -262,10 +280,13 @@ __all__ = [
     "discover_rpcmci",
     "discover_structure_mcmc",
     "discovery",
+    "two_regime_half_split",
     "encode_model_bundle",
     "encode_posterior_artifact",
     "estimation",
     "evaluate_decision",
+    "event",
+    "EventFrame",
     "extensibility",
     "fit_gcm",
     "graph",
@@ -275,6 +296,10 @@ __all__ = [
     "mechanism_change_detection",
     "mediation_effects_summary",
     "model",
+    "multi_env",
+    "MultiEnvFrame",
+    "panel",
+    "PanelFrame",
     "predict_intervened_summary",
     "query",
     "rank_designs",
@@ -282,6 +307,16 @@ __all__ = [
     "sample_do",
     "sample_interventional_distribution",
     "state",
+    "validate_environment_holdout",
+    "validate_pcmci_alpha_sensitivity",
+    "validate_pcmci_block_bootstrap",
+    "validate_pcmci_ci_sensitivity",
+    "validate_pcmci_false_positive",
+    "validate_pcmci_lag_sensitivity",
+    "validate_pcmci_plus_orientation",
+    "validate_regime_stability",
+    "validate_synthetic_null_calibration",
+    "validation",
     "__version__",
 ]
 

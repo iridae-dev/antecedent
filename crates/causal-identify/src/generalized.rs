@@ -29,7 +29,7 @@ use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, Value, Variabl
 use causal_expr::CausalExprArena;
 use causal_graph::{Admg, BitSet, CompletionSampler, DSeparationWorkspace, DenseNodeId, Endpoint, Pag};
 
-use crate::envelope::{GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
+use crate::envelope::{GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
 use crate::error::IdentificationError;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
@@ -109,8 +109,24 @@ impl GeneralizedAdjustmentIdentifier {
             )?;
             cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
         }
-        Ok(IdentificationEnvelope::from_cases(cases))
+        let mut envelope = IdentificationEnvelope::from_cases(cases);
+        envelope.push_features(pag_circle_features(pag));
+        Ok(envelope)
     }
+}
+
+fn pag_circle_features(pag: &Pag) -> Vec<GraphFeature> {
+    let review = causal_graph::PagReview::from_pag(pag.clone(), "generalized.adjustment");
+    if review.pending_circles.is_empty() {
+        return Vec::new();
+    }
+    vec![GraphFeature {
+        kind: Arc::from("pag_circle_marks"),
+        detail: Arc::from(format!(
+            "{} edge(s) with circle endpoints in source PAG",
+            review.pending_circles.len()
+        )),
+    }]
 }
 
 fn pag_var_to_dense(pag: &Pag, id: VariableId) -> Result<DenseNodeId, IdentificationError> {

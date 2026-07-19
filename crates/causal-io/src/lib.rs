@@ -16,6 +16,7 @@ pub mod expr_wire;
 pub mod graph_dot;
 pub mod graph_gml;
 pub mod graph_json;
+pub mod graph_mixed;
 pub mod graph_networkx;
 pub mod mechanism_wire;
 pub mod migrate;
@@ -36,6 +37,7 @@ pub mod wire;
 
 pub use analysis_wire::{
     DiagnosticWire, EffectEstimateWire, IdentifiedEstimandWire, IdentificationResultWire,
+    RdDesignWire,
     RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire, effect_estimate_from_wire,
     effect_estimate_to_wire, identification_from_wire, identification_to_wire,
     refutation_from_wire, refutation_to_wire,
@@ -48,7 +50,8 @@ pub use container::{
 };
 pub use contrast_wire::{ContrastBundleWire, RecordedContrastWire};
 pub use convert::{
-    dag_from_wire, dag_to_wire, from_cbor, schema_from_wire, schema_to_wire, schema_wire_from_v01,
+    admg_from_wire, admg_to_wire, cpdag_from_wire, cpdag_to_wire, dag_from_wire, dag_to_wire,
+    from_cbor, pag_from_wire, pag_to_wire, schema_from_wire, schema_to_wire, schema_wire_from_v01,
     to_cbor,
 };
 pub use discovery_wire::{
@@ -61,6 +64,14 @@ pub use expr_wire::{ExprArenaWire, ExprNodeWire, expr_arena_from_wire, expr_aren
 pub use graph_dot::{dag_from_dot, dag_to_dot, dag_wire_from_dot, dag_wire_to_dot};
 pub use graph_gml::{dag_from_gml, dag_to_gml, dag_wire_from_gml, dag_wire_to_gml};
 pub use graph_json::{DagJson, dag_from_json, dag_json_from_str, dag_to_json};
+pub use graph_mixed::{
+    AdmgJson, CpdagJson, PagJson, admg_from_dot, admg_from_gml, admg_from_json,
+    admg_from_networkx_node_link, admg_to_dot, admg_to_gml, admg_to_json, admg_to_networkx_node_link,
+    cpdag_from_dot, cpdag_from_gml, cpdag_from_json, cpdag_from_networkx_node_link, cpdag_to_dot,
+    cpdag_to_gml, cpdag_to_json, cpdag_to_networkx_node_link, pag_from_dot, pag_from_gml,
+    pag_from_json, pag_from_networkx_node_link, pag_to_dot, pag_to_gml, pag_to_json,
+    pag_to_networkx_node_link,
+};
 pub use graph_networkx::{
     NetworkXAdjacency, NetworkXNodeLink, dag_from_networkx_adjacency, dag_from_networkx_node_link,
     dag_to_networkx_adjacency, dag_to_networkx_node_link,
@@ -106,8 +117,9 @@ pub use trace::{
     assumptions_to_wire,
 };
 pub use wire::{
-    ArtifactKind, DagWire, FormatVersion, MeasurementSpecWire, ProvenanceWire, SchemaWire,
-    SchemaWireV01, SectionDescriptor, SemanticVersion, ValueTypeWire, VariableSchemaWire,
+    AdmgWire, ArtifactKind, CpdagWire, DagWire, EndpointWire, FormatVersion, MarkedEdgeWire,
+    MeasurementSpecWire, PagWire, ProvenanceWire, SchemaWire, SchemaWireV01, SectionDescriptor,
+    SemanticVersion, ValueTypeWire, VariableSchemaWire,
 };
 
 #[cfg(test)]

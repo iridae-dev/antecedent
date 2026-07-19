@@ -52,6 +52,13 @@ impl EfficientBackdoorIdentifier {
         Self::default()
     }
 
+    /// Cap exact candidate-subset enumeration on the min-cardinality fallback (default 40).
+    #[must_use]
+    pub fn with_max_candidates(mut self, max_candidates: usize) -> Self {
+        self.config.max_candidates = max_candidates;
+        self
+    }
+
     /// Prepare a graph (same wrap as [`BackdoorIdentifier`]).
     ///
     /// # Errors
@@ -149,11 +156,24 @@ impl EfficientBackdoorIdentifier {
         // Fallback: minimum-cardinality search, sizes ascending, stopping at
         // the first size class that yields a valid set. Collection is capped
         // at `max_results`; hitting the cap truncates rather than errors.
-        let m = candidates.len();
-        if m > 20 {
-            return Err(IdentificationError::NotIdentified {
-                message: "candidate set too large for exact efficient enumeration (>20)",
-            });
+        let mut candidates: Vec<DenseNodeId> = candidates;
+        let mut m = candidates.len();
+        let cap = self.config.max_candidates;
+        if m > cap {
+            candidates = {
+                let mut an = BitSet::with_len(dag.node_count());
+                dag.ancestors_of(&[t, y], &mut an, &mut workspace.graph);
+                (0..dag.node_count())
+                    .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+                    .filter(|id| an.contains(*id) && !forbidden.contains(*id))
+                    .collect()
+            };
+            m = candidates.len();
+        }
+        if m > cap {
+            return Err(IdentificationError::msg(format!(
+                "candidate set too large for exact efficient enumeration: {m} candidates > max_candidates={cap}"
+            )));
         }
 
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
@@ -271,6 +291,16 @@ impl EfficientBackdoorIdentifier {
             IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 1 },
         ))
     }
+}
+
+/// The O-set of Henckel, Perković & Maathuis (public for backdoor over-cap fallback).
+pub(crate) fn optimal_adjustment_set_pub(
+    dag: &Dag,
+    t: DenseNodeId,
+    y: DenseNodeId,
+    gws: &mut GraphWorkspace,
+) -> Vec<DenseNodeId> {
+    optimal_adjustment_set(dag, t, y, gws)
 }
 
 /// The O-set of Henckel, Perković & Maathuis: `pa(cn) \ (de(cn) ∪ {T})`,

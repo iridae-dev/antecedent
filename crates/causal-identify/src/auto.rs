@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, Intervention, Value};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, Intervention, Value,
+};
 use causal_expr::{CausalExprArena, EstimandMethod, IdentifiedEstimand};
 use causal_graph::Dag;
 
@@ -18,6 +21,7 @@ use crate::identifier::{IdentificationWorkspace, Identifier};
 use crate::iv::InstrumentalVariableIdentifier;
 use crate::path_specific::PathSpecificIdentifier;
 use crate::prepared::PreparedAdmg;
+use crate::rd::{SharpRdConfig, SharpRdIdentifier};
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
 };
@@ -51,6 +55,8 @@ pub struct AutoIdentifier {
     pub idc: IdcIdentifier,
     /// Path-restricted natural effects.
     pub path_specific: PathSpecificIdentifier,
+    /// Optional sharp RD design config. When set, Auto attempts [`SharpRdIdentifier`].
+    pub rd: Option<SharpRdConfig>,
 }
 
 impl AutoIdentifier {
@@ -58,6 +64,13 @@ impl AutoIdentifier {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Attach sharp RD design parameters for Auto identification.
+    #[must_use]
+    pub fn with_rd(mut self, config: SharpRdConfig) -> Self {
+        self.rd = Some(config);
+        self
     }
 
     /// Prepare a DAG for all methods.
@@ -99,21 +112,50 @@ impl AutoIdentifier {
         let mut derivation = DerivationTrace::default();
         derivation.push(
             "auto",
-            "trying backdoor, efficient backdoor, frontdoor, IV, and general ID",
+            "trying backdoor, efficient backdoor, frontdoor, IV, RD, and general ID",
         );
         let mut perf = IdentificationPerformanceRecord::default();
         let mut hedge = None;
         let mut assumptions = prepared.dag.declared_assumptions().clone();
         let mut arena = CausalExprArena::new();
         let mut estimands = Vec::new();
+        let mut diagnostics = Vec::new();
 
         match query {
             CausalQuery::AverageEffect(q) => {
-                let active = set_value(&q.active)?;
-                let control = set_value(&q.control)?;
+                let (active_iv, control_iv, bernoulli_scale) =
+                    crate::intervention_support::normalize_ate_pair(&q.active, &q.control)?;
+                let active = set_value(&active_iv)?;
+                let control = set_value(&control_iv)?;
+                if let Some(scale) = bernoulli_scale {
+                    diagnostics.push(Diagnostic::new(
+                        "auto.stochastic.bernoulli_scale",
+                        DiagnosticKind::Execution,
+                        DiagnosticSeverity::Info,
+                        format!(
+                            "Bernoulli / binary mixture ATE: identified hard do(1)−do(0); \
+                             stochastic effect scale = {scale} (multiply hard ATE by scale)"
+                        ),
+                    ));
+                    derivation.push(
+                        "auto.stochastic",
+                        format!("bernoulli mixture scale={scale} on hard unit contrast"),
+                    );
+                }
+                // Rebuild query with normalized Sets so sub-identifiers see hard interventions.
+                let q_norm = AverageEffectQuery {
+                    treatment: q.treatment,
+                    outcome: q.outcome,
+                    active: active_iv,
+                    control: control_iv,
+                    effect_modifiers: Arc::clone(&q.effect_modifiers),
+                    target_population: q.target_population.clone(),
+                };
+                let query_norm = CausalQuery::AverageEffect(q_norm.clone());
+                let q = &q_norm;
                 self.try_method(
                     "backdoor.adjustment",
-                    || self.backdoor.identify(&prepared.dag, query, workspace),
+                    || self.backdoor.identify(&prepared.dag, &query_norm, workspace),
                     q,
                     active.clone(),
                     control.clone(),
@@ -123,10 +165,11 @@ impl AutoIdentifier {
                     &mut perf,
                     &mut assumptions,
                     &mut hedge,
+                    &mut diagnostics,
                 );
                 self.try_method(
                     "backdoor.efficient",
-                    || self.efficient.identify(&prepared.dag, query, workspace),
+                    || self.efficient.identify(&prepared.dag, &query_norm, workspace),
                     q,
                     active.clone(),
                     control.clone(),
@@ -136,10 +179,11 @@ impl AutoIdentifier {
                     &mut perf,
                     &mut assumptions,
                     &mut hedge,
+                    &mut diagnostics,
                 );
                 self.try_method(
                     "frontdoor",
-                    || self.frontdoor.identify(&prepared.dag, query, workspace),
+                    || self.frontdoor.identify(&prepared.dag, &query_norm, workspace),
                     q,
                     active.clone(),
                     control.clone(),
@@ -149,10 +193,11 @@ impl AutoIdentifier {
                     &mut perf,
                     &mut assumptions,
                     &mut hedge,
+                    &mut diagnostics,
                 );
                 self.try_method(
                     "iv",
-                    || self.iv.identify(&prepared.dag, query, workspace),
+                    || self.iv.identify(&prepared.dag, &query_norm, workspace),
                     q,
                     active.clone(),
                     control.clone(),
@@ -162,10 +207,41 @@ impl AutoIdentifier {
                     &mut perf,
                     &mut assumptions,
                     &mut hedge,
+                    &mut diagnostics,
                 );
+                match &self.rd {
+                    Some(cfg) => {
+                        self.try_method(
+                            "rd.sharp",
+                            || SharpRdIdentifier::new(*cfg).identify(query_norm.clone()),
+                            q,
+                            active.clone(),
+                            control.clone(),
+                            &mut arena,
+                            &mut estimands,
+                            &mut derivation,
+                            &mut perf,
+                            &mut assumptions,
+                            &mut hedge,
+                            &mut diagnostics,
+                        );
+                    }
+                    None => {
+                        diagnostics.push(Diagnostic::new(
+                            "auto.rd.missing_config",
+                            DiagnosticKind::Execution,
+                            DiagnosticSeverity::Info,
+                            "sharp RD skipped: no running-variable / cutoff / bandwidth config on AutoIdentifier",
+                        ));
+                        derivation.push(
+                            "auto.method",
+                            "rd.sharp: not applicable (missing RD config)",
+                        );
+                    }
+                }
                 self.try_method(
                     "general.id",
-                    || self.general_id.identify(&prepared.admg, query, workspace),
+                    || self.general_id.identify(&prepared.admg, &query_norm, workspace),
                     q,
                     active,
                     control,
@@ -175,6 +251,7 @@ impl AutoIdentifier {
                     &mut perf,
                     &mut assumptions,
                     &mut hedge,
+                    &mut diagnostics,
                 );
             }
             CausalQuery::Distribution(q) => {
@@ -198,16 +275,42 @@ impl AutoIdentifier {
                         estimands = res.estimands;
                         assumptions = res.required_assumptions;
                         perf = res.performance;
+                        diagnostics.extend(res.diagnostics);
                     }
                     Ok(res) => {
                         derivation.push(
                             "auto.method",
                             format!("{method}: not identified ({:?})", res.status),
                         );
+                        diagnostics.push(Diagnostic::new(
+                            format!("auto.{method}.not_identified"),
+                            DiagnosticKind::Scientific,
+                            DiagnosticSeverity::Info,
+                            format!("{method} did not identify the query ({:?})", res.status),
+                        ));
                         hedge = res.hedge;
                         perf = res.performance;
+                        diagnostics.extend(res.diagnostics);
                     }
-                    Err(e) => derivation.push("auto.method", format!("{method}: error ({e})")),
+                    Err(IdentificationError::UnsupportedQuery { message }) => {
+                        diagnostics.push(Diagnostic::new(
+                            format!("auto.{method}.unsupported"),
+                            DiagnosticKind::Execution,
+                            DiagnosticSeverity::Warning,
+                            format!("{method}: unsupported ({message})"),
+                        ));
+                        derivation
+                            .push("auto.method", format!("{method}: unsupported ({message})"));
+                    }
+                    Err(e) => {
+                        diagnostics.push(Diagnostic::new(
+                            format!("auto.{method}.error"),
+                            DiagnosticKind::Execution,
+                            DiagnosticSeverity::Warning,
+                            format!("{method}: error ({e})"),
+                        ));
+                        derivation.push("auto.method", format!("{method}: error ({e})"));
+                    }
                 }
             }
             CausalQuery::PathSpecific(_) => {
@@ -224,17 +327,49 @@ impl AutoIdentifier {
                         estimands = res.estimands;
                         assumptions = res.required_assumptions;
                         perf = res.performance;
+                        diagnostics.extend(res.diagnostics);
                     }
                     Ok(res) => {
                         derivation.push(
                             "auto.method",
                             format!("path_specific.natural: not identified ({:?})", res.status),
                         );
+                        diagnostics.push(Diagnostic::new(
+                            "auto.path_specific.not_identified",
+                            DiagnosticKind::Scientific,
+                            DiagnosticSeverity::Info,
+                            format!(
+                                "path_specific.natural did not identify the query ({:?})",
+                                res.status
+                            ),
+                        ));
                         hedge = res.hedge;
                         perf = res.performance;
+                        diagnostics.extend(res.diagnostics);
+                    }
+                    Err(IdentificationError::UnsupportedQuery { message }) => {
+                        diagnostics.push(Diagnostic::new(
+                            "auto.path_specific.unsupported",
+                            DiagnosticKind::Execution,
+                            DiagnosticSeverity::Warning,
+                            format!("path_specific.natural: unsupported ({message})"),
+                        ));
+                        derivation.push(
+                            "auto.method",
+                            format!("path_specific.natural: unsupported ({message})"),
+                        );
                     }
                     Err(e) => {
-                        derivation.push("auto.method", format!("path_specific.natural: error ({e})"))
+                        diagnostics.push(Diagnostic::new(
+                            "auto.path_specific.error",
+                            DiagnosticKind::Execution,
+                            DiagnosticSeverity::Warning,
+                            format!("path_specific.natural: error ({e})"),
+                        ));
+                        derivation.push(
+                            "auto.method",
+                            format!("path_specific.natural: error ({e})"),
+                        );
                     }
                 }
             }
@@ -249,17 +384,20 @@ impl AutoIdentifier {
             let mut out =
                 IdentificationResult::not_identified(query.clone(), derivation, assumptions, perf);
             out.hedge = hedge;
+            out.diagnostics = diagnostics;
             return Ok(out);
         }
 
-        Ok(IdentificationResult::identified(
+        let mut out = IdentificationResult::identified(
             query.clone(),
             estimands,
             arena,
             derivation,
             assumptions,
             perf,
-        ))
+        );
+        out.diagnostics = diagnostics;
+        Ok(out)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -276,6 +414,7 @@ impl AutoIdentifier {
         perf: &mut IdentificationPerformanceRecord,
         assumptions: &mut AssumptionSet,
         hedge: &mut Option<crate::hedge::HedgeCertificate>,
+        diagnostics: &mut Vec<Diagnostic>,
     ) {
         match run() {
             Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
@@ -287,8 +426,6 @@ impl AutoIdentifier {
                     if let Some(rebuilt) = rebuild_estimand(arena, e, q, &active, &control) {
                         estimands.push(rebuilt);
                     } else if name == "general.id" && arena.is_empty() {
-                        // Adopt general-ID arena wholesale when it is the first success
-                        // or when criterion rebuild is unavailable.
                         *arena = res.arena.clone();
                         estimands.extend(res.estimands.clone());
                         break;
@@ -305,19 +442,39 @@ impl AutoIdentifier {
                 perf.sets_returned =
                     perf.sets_returned.saturating_add(res.performance.sets_returned);
                 *assumptions = res.required_assumptions;
+                diagnostics.extend(res.diagnostics);
             }
             Ok(res) => {
                 derivation.push("auto.method", format!("{name}: not identified ({:?})", res.status));
+                diagnostics.push(Diagnostic::new(
+                    format!("auto.{name}.not_identified"),
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    format!("{name} did not identify the query ({:?})", res.status),
+                ));
                 if res.hedge.is_some() && hedge.is_none() {
                     *hedge = res.hedge;
                 }
                 perf.candidates_examined =
                     perf.candidates_examined.saturating_add(res.performance.candidates_examined);
+                diagnostics.extend(res.diagnostics);
             }
             Err(IdentificationError::UnsupportedQuery { message }) => {
-                derivation.push("auto.method", format!("{name}: skipped ({message})"));
+                diagnostics.push(Diagnostic::new(
+                    format!("auto.{name}.unsupported"),
+                    DiagnosticKind::Execution,
+                    DiagnosticSeverity::Warning,
+                    format!("{name}: unsupported ({message})"),
+                ));
+                derivation.push("auto.method", format!("{name}: unsupported ({message})"));
             }
             Err(e) => {
+                diagnostics.push(Diagnostic::new(
+                    format!("auto.{name}.error"),
+                    DiagnosticKind::Execution,
+                    DiagnosticSeverity::Warning,
+                    format!("{name}: error ({e})"),
+                ));
                 derivation.push("auto.method", format!("{name}: error ({e})"));
             }
         }
@@ -325,10 +482,7 @@ impl AutoIdentifier {
 }
 
 fn set_value(iv: &Intervention) -> Result<Value, IdentificationError> {
-    match iv {
-        Intervention::Set { value, .. } => Ok(value.clone()),
-        _ => Err(IdentificationError::unsupported("auto ATE requires Set interventions")),
-    }
+    crate::intervention_support::require_set_value(iv, "auto ATE")
 }
 
 fn rebuild_estimand(
@@ -348,7 +502,11 @@ fn rebuild_estimand(
                 active.clone(),
                 control.clone(),
             );
-            Some(IdentifiedEstimand::backdoor(e.method.clone(), Arc::clone(&e.adjustment_set), functional))
+            Some(IdentifiedEstimand::backdoor(
+                e.method.clone(),
+                Arc::clone(&e.adjustment_set),
+                functional,
+            ))
         }
         EstimandMethod::FrontDoor => {
             let functional = arena.frontdoor_ate(
@@ -358,12 +516,27 @@ fn rebuild_estimand(
                 active.clone(),
                 control.clone(),
             );
-            Some(IdentifiedEstimand::frontdoor(e.method.clone(), Arc::clone(&e.mediators), functional))
+            Some(IdentifiedEstimand::frontdoor(
+                e.method.clone(),
+                Arc::clone(&e.mediators),
+                functional,
+            ))
         }
         EstimandMethod::Iv => {
-            // IV functionals are estimator-side; keep role metadata with a backdoor-style
-            // placeholder contrast only when instruments are present — prefer tagging via
-            // IdentifiedEstimand::instrumental with a zero contrast for selection rationale.
+            let functional = arena.iv_wald(
+                q.treatment,
+                q.outcome,
+                e.instruments.as_ref(),
+                active.clone(),
+                control.clone(),
+            );
+            Some(IdentifiedEstimand::instrumental(
+                e.method.clone(),
+                Arc::clone(&e.instruments),
+                functional,
+            ))
+        }
+        EstimandMethod::RdSharp => {
             let functional = arena.backdoor_ate(
                 q.treatment,
                 q.outcome,
@@ -371,7 +544,14 @@ fn rebuild_estimand(
                 active.clone(),
                 control.clone(),
             );
-            Some(IdentifiedEstimand::instrumental(e.method.clone(), Arc::clone(&e.instruments), functional))
+            Some(IdentifiedEstimand::rd_sharp(
+                functional,
+                e.rd_design.clone().unwrap_or(causal_expr::RdDesignParams {
+                    running_variable: q.treatment,
+                    cutoff: 0.0,
+                    bandwidth: 1.0,
+                }),
+            ))
         }
         EstimandMethod::GeneralId => None,
         _ => None,
@@ -401,7 +581,8 @@ impl Identifier<Dag> for AutoIdentifier {
 
 #[cfg(test)]
 mod tests {
-    use causal_core::VariableId;
+    use causal_core::{Intervention, MechanismOverride, VariableId};
+    use causal_expr::EstimandMethod;
     use causal_graph::DenseNodeId;
 
     use super::*;
@@ -423,6 +604,7 @@ mod tests {
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(!res.estimands.is_empty());
         assert!(res.derivation.steps.iter().any(|s| s.rule.as_ref() == "auto.method"));
+        assert!(res.diagnostics.iter().any(|d| d.code.as_ref() == "auto.rd.missing_config"));
     }
 
     #[test]
@@ -449,5 +631,103 @@ mod tests {
         assert!(res.derivation.steps.iter().any(|s| {
             s.detail.as_ref().contains("general.idc") || s.rule.as_ref().contains("idc")
         }));
+    }
+
+    #[test]
+    fn auto_accepts_soft_constant_as_set() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery {
+            treatment: VariableId::from_raw(0),
+            outcome: VariableId::from_raw(1),
+            active: Intervention::soft(
+                VariableId::from_raw(0),
+                MechanismOverride::constant(1.0),
+            ),
+            control: Intervention::set(VariableId::from_raw(0), Value::f64(0.0)),
+            effect_modifiers: Arc::from([]),
+            target_population: causal_core::TargetPopulation::AllObserved,
+        });
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(!res.estimands.is_empty());
+    }
+
+    #[test]
+    fn auto_rejects_soft_linear_gaussian() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery {
+            treatment: VariableId::from_raw(0),
+            outcome: VariableId::from_raw(1),
+            active: Intervention::soft(
+                VariableId::from_raw(0),
+                MechanismOverride::named("linear_gaussian", vec![1.0, 0.5]),
+            ),
+            control: Intervention::set(VariableId::from_raw(0), Value::f64(0.0)),
+            effect_modifiers: Arc::from([]),
+            target_population: causal_core::TargetPopulation::AllObserved,
+        });
+        let mut ws = IdentificationWorkspace::default();
+        let err = auto.identify(&prep, &q, &mut ws).unwrap_err();
+        match err {
+            IdentificationError::UnsupportedQuery { message } => {
+                assert!(message.contains("Soft"), "{message}");
+            }
+            other => panic!("expected UnsupportedQuery, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn auto_iv_uses_wald_functional_with_instruments() {
+        // Z -> T -> Y, U -> T, U -> Y
+        let mut dag = Dag::with_variables(4);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap(); // Z->T
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap(); // T->Y
+        dag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(1)).unwrap(); // U->T
+        dag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(2)).unwrap(); // U->Y
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        let iv = res
+            .estimands
+            .iter()
+            .find(|e| e.method_kind().ok() == Some(EstimandMethod::Iv))
+            .expect("IV estimand");
+        assert!(!iv.instruments.is_empty());
+        assert_eq!(iv.instruments[0], VariableId::from_raw(0));
+        let _ = res.arena.node(iv.functional);
+    }
+
+    #[test]
+    fn auto_with_rd_config_identifies_sharp_rd() {
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let auto = AutoIdentifier::new().with_rd(SharpRdConfig {
+            running_variable: VariableId::from_raw(2),
+            cutoff: 0.0,
+            bandwidth: 1.0,
+        });
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(res.derivation.steps.iter().any(|s| s.detail.as_ref().contains("rd.sharp")));
+        assert!(!res.diagnostics.iter().any(|d| d.code.as_ref() == "auto.rd.missing_config"));
     }
 }

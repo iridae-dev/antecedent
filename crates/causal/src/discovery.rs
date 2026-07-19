@@ -108,6 +108,10 @@ pub struct StaticDiscoverParams {
     pub fdr: Option<FdrAdjustment>,
     /// Conditional-independence test.
     pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
+    /// GES only: soft PC-skeleton screening for Insert candidates.
+    pub screen_pc: bool,
+    /// GES only: T/H subset enumeration cap (`None` → default 12).
+    pub max_subset: Option<usize>,
 }
 
 impl std::fmt::Debug for StaticDiscoverParams {
@@ -117,6 +121,8 @@ impl std::fmt::Debug for StaticDiscoverParams {
             .field("max_cond_size", &self.max_cond_size)
             .field("fdr", &self.fdr)
             .field("ci", &"<dyn ConditionalIndependence>")
+            .field("screen_pc", &self.screen_pc)
+            .field("max_subset", &self.max_subset)
             .finish()
     }
 }
@@ -300,7 +306,9 @@ pub fn discover_ges(
     let alg = Ges::new()
         .with_fdr_adjustment(fdr)
         .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
-        .with_ci(Arc::clone(&params.ci));
+        .with_ci(Arc::clone(&params.ci))
+        .with_pc_screening(params.screen_pc)
+        .with_max_subset(params.max_subset);
     let mut ws = DiscoveryWorkspace::default();
     alg.run(data, variables, &mut ws, ctx).map_err(AnalysisError::from)
 }

@@ -6,7 +6,9 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, VariableId};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
+};
 use causal_data::TabularData;
 use causal_expr::{EstimandMethod, IdentifiedEstimand};
 use causal_stats::{
@@ -16,7 +18,7 @@ use causal_stats::{
 
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
-use crate::prepare::{require_method, treatment_contrast, validate_simple_ate_query};
+use crate::prepare::{require_method, treatment_contrast, validate_ate_query_with_targets};
 use crate::se::{AnalyticSeKind, residual_sandwich_coef_se};
 
 /// Prepared estimation problem (compiled design retained).
@@ -32,6 +34,14 @@ pub struct PreparedEstimationProblem {
     pub overlap: OverlapPolicy,
     /// Active − control treatment contrast used for the ATE scaling.
     pub treatment_delta: f64,
+    /// Target population (ATT/ATC use g-computation over the arm’s covariate law).
+    pub target_population: TargetPopulation,
+    /// Complete-case treatment values (aligned with design rows).
+    pub treatment: Arc<[f64]>,
+    /// Active treatment level.
+    pub active: f64,
+    /// Control treatment level.
+    pub control: f64,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -176,10 +186,10 @@ impl LinearAdjustmentAte {
             &[EstimandMethod::BackdoorAdjustment],
             "LinearAdjustmentAte expects backdoor.adjustment",
         )?;
-        validate_simple_ate_query(query)?;
+        validate_ate_query_with_targets(query)?;
         let treatment = query.treatment;
         let outcome = query.outcome;
-        let (_, _, treatment_delta) = treatment_contrast(&query.active, &query.control)?;
+        let (active, control, treatment_delta) = treatment_contrast(&query.active, &query.control)?;
 
         let mut ids = Vec::with_capacity(2 + estimand.adjustment_set.len());
         ids.push(treatment);
@@ -204,6 +214,10 @@ impl LinearAdjustmentAte {
             adjustment_set: Arc::clone(&estimand.adjustment_set),
             overlap: self.overlap,
             treatment_delta,
+            target_population: query.target_population.clone(),
+            treatment: Arc::from(t),
+            active,
+            control,
         })
     }
 
@@ -225,7 +239,7 @@ impl LinearAdjustmentAte {
             .design
             .treatment_column()
             .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
-        let ate = coefficients[t_col] * problem.treatment_delta;
+        let ate = gcomp_or_coef_ate(problem, &coefficients, t_col)?;
         let n = problem.design.nrows as f64;
         let p = problem.design.ncols as f64;
         let se_coef = if !analytic_se_ok {
@@ -386,8 +400,57 @@ impl LinearAdjustmentAte {
                     }
                 }
             };
-            Ok(Some(coefs[t_col] * problem.treatment_delta))
+            Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?))
         })
+    }
+}
+
+/// G-computation of μ(active,Z)−μ(control,Z) averaged under the target arm’s covariate law.
+///
+/// Under a linear main-effects model this equals `β_T · Δ` for every target, including ATT/ATC.
+fn gcomp_or_coef_ate(
+    problem: &PreparedEstimationProblem,
+    coefficients: &[f64],
+    t_col: usize,
+) -> Result<f64, EstimationError> {
+    match problem.target_population {
+        TargetPopulation::AllObserved | TargetPopulation::Predicate(_) => {
+            Ok(coefficients[t_col] * problem.treatment_delta)
+        }
+        TargetPopulation::Treated | TargetPopulation::Untreated => {
+            let n = problem.design.nrows;
+            let ncols = problem.design.ncols;
+            let want_treated = matches!(problem.target_population, TargetPopulation::Treated);
+            let mut sum = 0.0;
+            let mut count = 0usize;
+            for r in 0..n {
+                let treated = problem.treatment[r] > 0.5;
+                if treated != want_treated {
+                    continue;
+                }
+                let mut pred_a = 0.0;
+                let mut pred_c = 0.0;
+                for c in 0..ncols {
+                    let x = if c == t_col {
+                        (problem.active, problem.control)
+                    } else {
+                        let v = problem.design.matrix[c * n + r];
+                        (v, v)
+                    };
+                    pred_a += coefficients[c] * x.0;
+                    pred_c += coefficients[c] * x.1;
+                }
+                sum += pred_a - pred_c;
+                count += 1;
+            }
+            if count == 0 {
+                return Err(EstimationError::data_msg(
+                    "target population left no rows for g-computation",
+                ));
+            }
+            Ok(sum / count as f64)
+        }
+        _ => Err(EstimationError::TargetPopulation),
     }
 }
 
@@ -596,14 +659,17 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unsupported_target_population() {
+    fn recovers_att_via_gcomp() {
         let (data, estimand) = toy();
-        let est = LinearAdjustmentAte::new();
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::TargetPopulation));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        assert!((effect.ate - 2.0).abs() < 1e-8, "att={}", effect.ate);
     }
 
     #[test]

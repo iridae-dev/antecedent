@@ -266,7 +266,59 @@ impl FeatureRelevance {
     }
 }
 
-/// Design ranking summary.
+/// One ranked design candidate.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone, Debug)]
+pub struct RankedDesign {
+    #[pyo3(get)]
+    pub candidate_index: usize,
+    #[pyo3(get)]
+    pub kind: String,
+    #[pyo3(get)]
+    pub tag: u64,
+    #[pyo3(get)]
+    pub score: f64,
+    #[pyo3(get)]
+    pub stderr: f64,
+    #[pyo3(get)]
+    pub rank: usize,
+    #[pyo3(get)]
+    pub rank_uncertain: bool,
+}
+
+#[pymethods]
+impl RankedDesign {
+    fn __repr__(&self) -> String {
+        format!(
+            "RankedDesign(index={}, kind={}, score={:.6}, rank={})",
+            self.candidate_index, self.kind, self.score, self.rank
+        )
+    }
+}
+
+/// Constraint violation recorded during design ranking.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone, Debug)]
+pub struct DesignConstraintViolation {
+    #[pyo3(get)]
+    pub candidate_index: usize,
+    #[pyo3(get)]
+    pub constraint: String,
+    #[pyo3(get)]
+    pub detail: String,
+}
+
+#[pymethods]
+impl DesignConstraintViolation {
+    fn __repr__(&self) -> String {
+        format!(
+            "DesignConstraintViolation(index={}, constraint={})",
+            self.candidate_index, self.constraint
+        )
+    }
+}
+
+/// Full design ranking result.
 #[pyclass(skip_from_py_object)]
 #[derive(Clone, Debug)]
 pub struct DesignRanking {
@@ -276,15 +328,22 @@ pub struct DesignRanking {
     pub scores: Vec<f64>,
     #[pyo3(get)]
     pub mc_samples: u64,
+    #[pyo3(get)]
+    pub early_stopped: bool,
+    #[pyo3(get)]
+    pub ranked: Vec<RankedDesign>,
+    #[pyo3(get)]
+    pub violations: Vec<DesignConstraintViolation>,
 }
 
 #[pymethods]
 impl DesignRanking {
     fn __repr__(&self) -> String {
         format!(
-            "DesignRanking(best_index={}, n_scores={}, mc_samples={})",
+            "DesignRanking(best_index={}, n_ranked={}, n_violations={}, mc_samples={})",
             self.best_index,
-            self.scores.len(),
+            self.ranked.len(),
+            self.violations.len(),
             self.mc_samples
         )
     }
@@ -884,6 +943,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AnomalyScores>()?;
     m.add_class::<MechanismChangeDetection>()?;
     m.add_class::<FeatureRelevance>()?;
+    m.add_class::<RankedDesign>()?;
+    m.add_class::<DesignConstraintViolation>()?;
     m.add_class::<DesignRanking>()?;
     m.add_class::<DecisionEvaluation>()?;
     m.add_class::<PyFittedGcm>()?;

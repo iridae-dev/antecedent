@@ -8,7 +8,10 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext, IdentificationStatus,
+    PopulationRegistry,
+};
 use causal_data::TabularData;
 use causal_estimate::{
     AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace,
@@ -17,12 +20,12 @@ use causal_estimate::{
     PropensityStratification, PropensityWeighting, TwoStageLeastSquares,
     TwoStageLeastSquaresWorkspace, WaldIv,
 };
-use causal_expr::IdentifiedEstimand;
-use causal_graph::Dag;
+use causal_expr::{EstimandMethod, IdentifiedEstimand};
+use causal_graph::{Dag, Pag};
 use causal_identify::{
     AutoIdentifier, BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier,
-    IdIdentifier, IdentificationError, IdentificationResult, IdentificationStatus,
-    IdentificationWorkspace, InstrumentalVariableIdentifier,
+    GeneralizedAdjustmentIdentifier, IdIdentifier, IdentificationEnvelope, IdentificationError,
+    IdentificationResult, IdentificationWorkspace, InstrumentalVariableIdentifier,
 };
 
 use crate::error::AnalysisError;
@@ -166,6 +169,10 @@ pub enum EstimatorId {
     FunctionalDistribution,
     /// Discrete plug-in evaluation of an identified scalar functional (ATE / path NE).
     FunctionalEffect,
+    /// Conditional linear adjustment (effect modifiers).
+    ConditionalLinearAdjustment,
+    /// Temporal linear mediation (path-product).
+    TemporalMediation,
     /// Unknown / extension id.
     Other(Arc<str>),
 }
@@ -190,6 +197,8 @@ impl EstimatorId {
             "temporal.linear.adjustment" => Self::TemporalLinearAdjustment,
             "functional.distribution" => Self::FunctionalDistribution,
             "functional.effect" => Self::FunctionalEffect,
+            "conditional.linear.adjustment" => Self::ConditionalLinearAdjustment,
+            "temporal.mediation" => Self::TemporalMediation,
             other => Self::Other(Arc::from(other)),
         }
     }
@@ -213,6 +222,8 @@ impl EstimatorId {
             Self::TemporalLinearAdjustment => "temporal.linear.adjustment",
             Self::FunctionalDistribution => "functional.distribution",
             Self::FunctionalEffect => "functional.effect",
+            Self::ConditionalLinearAdjustment => "conditional.linear.adjustment",
+            Self::TemporalMediation => "temporal.mediation",
             Self::Other(s) => s.as_ref(),
         }
     }
@@ -222,7 +233,9 @@ impl EstimatorId {
     pub const fn parallel_task_dimension(&self) -> &'static str {
         match self {
             Self::TemporalLinearAdjustment
+            | Self::TemporalMediation
             | Self::LinearAdjustmentAte
+            | Self::ConditionalLinearAdjustment
             | Self::PropensityWeighting
             | Self::PropensityMatching
             | Self::PropensityStratification
@@ -243,7 +256,8 @@ impl EstimatorId {
     #[must_use]
     pub const fn kernel_label(&self) -> &'static str {
         match self {
-            Self::TemporalLinearAdjustment => "ols.faer.temporal",
+            Self::TemporalLinearAdjustment | Self::TemporalMediation => "ols.faer.temporal",
+            Self::ConditionalLinearAdjustment => "ols.faer.conditional",
             Self::PropensityWeighting => "ipw",
             Self::PropensityMatching | Self::DistanceMatching => "matching",
             Self::PropensityStratification => "propensity.stratification",
@@ -316,10 +330,28 @@ pub fn validate_static_pair(
 ) -> Result<(), AnalysisError> {
     let identifier = identifier.into();
     let estimator = estimator.into();
-    let supported = matches!(
-        (&identifier, &estimator),
+    let backdoor_estimators = matches!(
+        estimator,
+        EstimatorId::LinearAdjustmentAte
+            | EstimatorId::PropensityWeighting
+            | EstimatorId::PropensityMatching
+            | EstimatorId::PropensityStratification
+            | EstimatorId::DistanceMatching
+            | EstimatorId::Aipw
+            | EstimatorId::GlmAdjustment
+            | EstimatorId::BayesianGcomp
+            | EstimatorId::ConditionalLinearAdjustment
+    );
+    let supported = match (&identifier, &estimator) {
         (
             IdentifierId::BackdoorAdjustment | IdentifierId::BackdoorEfficient,
+            _,
+        ) if backdoor_estimators => true,
+        (IdentifierId::Frontdoor, EstimatorId::FrontDoorTwoStage) => true,
+        (IdentifierId::Iv, EstimatorId::IvWald | EstimatorId::Iv2Sls) => true,
+        (IdentifierId::RdSharp, EstimatorId::RdSharp) => true,
+        (
+            IdentifierId::GeneralizedAdjustment,
             EstimatorId::LinearAdjustmentAte
                 | EstimatorId::PropensityWeighting
                 | EstimatorId::PropensityMatching
@@ -327,11 +359,20 @@ pub fn validate_static_pair(
                 | EstimatorId::DistanceMatching
                 | EstimatorId::Aipw
                 | EstimatorId::GlmAdjustment
-                | EstimatorId::BayesianGcomp
-        ) | (IdentifierId::Frontdoor, EstimatorId::FrontDoorTwoStage)
-            | (IdentifierId::Iv, EstimatorId::IvWald | EstimatorId::Iv2Sls)
-            | (IdentifierId::RdSharp, EstimatorId::RdSharp)
-    );
+                | EstimatorId::BayesianGcomp,
+        ) => true,
+        (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
+        (IdentifierId::Auto, _)
+            if backdoor_estimators
+                || matches!(
+                    estimator,
+                    EstimatorId::FrontDoorTwoStage | EstimatorId::IvWald | EstimatorId::Iv2Sls
+                ) =>
+        {
+            true
+        }
+        _ => false,
+    };
     if !supported {
         return Err(AnalysisError::Compile {
             message: format!(
@@ -352,6 +393,147 @@ pub const DEFAULT_PATH_ESTIMATOR: &str = "functional.effect";
 pub const DEFAULT_PATH_IDENTIFIER_ID: IdentifierId = IdentifierId::PathSpecificNatural;
 /// Default path-specific estimator enum.
 pub const DEFAULT_PATH_ESTIMATOR_ID: EstimatorId = EstimatorId::FunctionalEffect;
+
+/// Default PAG / generalized-adjustment identifier.
+pub const DEFAULT_PAG_IDENTIFIER: &str = "generalized.adjustment";
+/// Default PAG estimator.
+pub const DEFAULT_PAG_ESTIMATOR: &str = "linear.adjustment.ate";
+/// Default PAG identifier enum.
+pub const DEFAULT_PAG_IDENTIFIER_ID: IdentifierId = IdentifierId::GeneralizedAdjustment;
+/// Default PAG estimator enum.
+pub const DEFAULT_PAG_ESTIMATOR_ID: EstimatorId = EstimatorId::LinearAdjustmentAte;
+
+/// Default ADMG identifier (general ID).
+pub const DEFAULT_ADMG_IDENTIFIER: &str = "general.id";
+/// Default ADMG estimator (functional plug-in).
+pub const DEFAULT_ADMG_ESTIMATOR: &str = "functional.effect";
+/// Default ADMG identifier enum.
+pub const DEFAULT_ADMG_IDENTIFIER_ID: IdentifierId = IdentifierId::GeneralId;
+/// Default ADMG estimator enum.
+pub const DEFAULT_ADMG_ESTIMATOR_ID: EstimatorId = EstimatorId::FunctionalEffect;
+
+/// Default conditional-effect identifier.
+pub const DEFAULT_CONDITIONAL_IDENTIFIER: &str = "backdoor.adjustment";
+/// Default conditional-effect estimator.
+pub const DEFAULT_CONDITIONAL_ESTIMATOR: &str = "conditional.linear.adjustment";
+/// Default conditional identifier enum.
+pub const DEFAULT_CONDITIONAL_IDENTIFIER_ID: IdentifierId = IdentifierId::BackdoorAdjustment;
+/// Default conditional estimator enum.
+pub const DEFAULT_CONDITIONAL_ESTIMATOR_ID: EstimatorId = EstimatorId::ConditionalLinearAdjustment;
+
+/// Default mediation identifier (static Total uses front-door).
+pub const DEFAULT_MEDIATION_IDENTIFIER: &str = "frontdoor";
+/// Default mediation estimator (temporal path).
+pub const DEFAULT_MEDIATION_ESTIMATOR: &str = "temporal.mediation";
+/// Default mediation identifier enum.
+pub const DEFAULT_MEDIATION_IDENTIFIER_ID: IdentifierId = IdentifierId::Frontdoor;
+/// Default mediation estimator enum.
+pub const DEFAULT_MEDIATION_ESTIMATOR_ID: EstimatorId = EstimatorId::TemporalMediation;
+
+/// Whether an identification status is acceptable when estimands are present.
+#[must_use]
+pub fn identification_status_acceptable(status: IdentificationStatus) -> bool {
+    matches!(
+        status,
+        IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::PartiallyIdentified
+            | IdentificationStatus::GraphDependent
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
+            | IdentificationStatus::IdentifiedUnderPriorRestrictions
+    )
+}
+
+/// Gate identification: reject `NotIdentified` and empty estimands.
+///
+/// # Errors
+///
+/// Effect not identified or no estimand returned.
+pub fn require_identified(result: &IdentificationResult) -> Result<(), AnalysisError> {
+    if result.status == IdentificationStatus::NotIdentified || result.estimands.is_empty() {
+        return Err(AnalysisError::Compile {
+            message: "effect not identified".into(),
+        });
+    }
+    if !identification_status_acceptable(result.status) {
+        return Err(AnalysisError::Compile {
+            message: format!("effect not identified (status {:?})", result.status),
+        });
+    }
+    Ok(())
+}
+
+/// Whether an estimand method is compatible with an estimator.
+#[must_use]
+pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &EstimatorId) -> bool {
+    match estimator {
+        EstimatorId::LinearAdjustmentAte
+        | EstimatorId::PropensityWeighting
+        | EstimatorId::PropensityMatching
+        | EstimatorId::PropensityStratification
+        | EstimatorId::DistanceMatching
+        | EstimatorId::Aipw
+        | EstimatorId::GlmAdjustment
+        | EstimatorId::BayesianGcomp
+        | EstimatorId::ConditionalLinearAdjustment => method.is_backdoor_family(),
+        EstimatorId::FrontDoorTwoStage => matches!(method, EstimandMethod::FrontDoor),
+        EstimatorId::IvWald | EstimatorId::Iv2Sls => matches!(method, EstimandMethod::Iv),
+        EstimatorId::RdSharp => matches!(method, EstimandMethod::RdSharp),
+        EstimatorId::TemporalLinearAdjustment => {
+            matches!(method, EstimandMethod::TemporalBackdoorUnfolded)
+        }
+        EstimatorId::TemporalMediation => {
+            method.is_temporal_mediation() || matches!(method, EstimandMethod::FrontDoor)
+        }
+        EstimatorId::FunctionalDistribution => matches!(method, EstimandMethod::GeneralId),
+        EstimatorId::FunctionalEffect => {
+            matches!(
+                method,
+                EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId
+            )
+        }
+        EstimatorId::Other(_) => true,
+    }
+}
+
+/// Select a single estimand matching the estimator (no silent Auto `.first()`).
+///
+/// # Errors
+///
+/// No estimand, or multiple estimands without a unique estimator-compatible match.
+pub fn select_estimand(
+    identification: &IdentificationResult,
+    estimator: impl Into<EstimatorId>,
+) -> Result<IdentifiedEstimand, AnalysisError> {
+    let estimator = estimator.into();
+    let estimands = &identification.estimands;
+    if estimands.is_empty() {
+        return Err(AnalysisError::Compile {
+            message: "no estimand returned".into(),
+        });
+    }
+    if estimands.len() == 1 {
+        return Ok(estimands[0].clone());
+    }
+    let matches: Vec<&IdentifiedEstimand> = estimands
+        .iter()
+        .filter(|e| {
+            e.method_kind()
+                .map(|m| estimand_compatible_with_estimator(m, &estimator))
+                .unwrap_or(false)
+        })
+        .collect();
+    if matches.len() == 1 {
+        return Ok(matches[0].clone());
+    }
+    Err(AnalysisError::Compile {
+        message: format!(
+            "identifier returned {} estimands; select an explicit identifier or an estimator \
+             that uniquely matches one method (got estimator {:?})",
+            estimands.len(),
+            estimator.as_str()
+        ),
+    })
+}
 
 /// Allowlist for interventional-distribution identify+estimate.
 ///
@@ -438,6 +620,20 @@ pub fn identify_static_query(
     graph: &Dag,
     query: &CausalQuery,
 ) -> Result<IdentificationResult, AnalysisError> {
+    identify_static_query_with_rd(identifier, graph, query, None)
+}
+
+/// Like [`identify_static_query`], optionally attaching sharp-RD design config for Auto.
+///
+/// # Errors
+///
+/// Unknown identifier, identification failure, or non-identified status.
+pub fn identify_static_query_with_rd(
+    identifier: impl Into<IdentifierId>,
+    graph: &Dag,
+    query: &CausalQuery,
+    rd: Option<causal_identify::SharpRdConfig>,
+) -> Result<IdentificationResult, AnalysisError> {
     let identifier = identifier.into();
     let mut id_ws = IdentificationWorkspace::default();
     let result = match identifier {
@@ -464,7 +660,6 @@ pub fn identify_static_query(
         IdentifierId::GeneralId => {
             let id = IdIdentifier::new();
             let prepared = id.prepare_dag(graph).map_err(identify_err)?;
-            // Conditional Distribution → IDC.
             if matches!(query, CausalQuery::Distribution(q) if !q.conditioning.is_empty()) {
                 let idc = causal_identify::IdcIdentifier::new();
                 idc.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
@@ -478,18 +673,98 @@ pub fn identify_static_query(
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::Auto => {
-            let id = AutoIdentifier::new();
+            let mut id = AutoIdentifier::new();
+            if let Some(cfg) = rd {
+                id = id.with_rd(cfg);
+            }
             let prepared = id.prepare(graph).map_err(identify_err)?;
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
-        _ => {
-            return Err(AnalysisError::Unsupported { message: "unknown static identifier" });
+        IdentifierId::GeneralizedAdjustment => {
+            return Err(AnalysisError::Unsupported {
+                message: "identifier \"generalized.adjustment\" requires a PAG \
+                     (use GraphInput::Pag / FCI / RFCI, not a static DAG)",
+            });
+        }
+        IdentifierId::RdSharp => {
+            return Err(AnalysisError::Unsupported {
+                message: "identifier \"rd.sharp\" is not a graph-based static identifier; \
+                     select estimator \"rd.sharp\" with builder.rd_config(...)",
+            });
+        }
+        IdentifierId::TemporalBackdoorUnfolded => {
+            return Err(AnalysisError::Unsupported {
+                message: "identifier \"temporal.backdoor.unfolded\" requires a temporal graph \
+                     and TemporalEffect query",
+            });
+        }
+        IdentifierId::Other(_) => {
+            return Err(AnalysisError::Unsupported {
+                message: "unknown static identifier",
+            });
         }
     };
-    if result.status != IdentificationStatus::NonparametricallyIdentified {
-        return Err(AnalysisError::Compile { message: "effect not identified".into() });
-    }
+    require_identified(&result)?;
     Ok(result)
+}
+
+/// Class-aware identification over a PAG (generalized adjustment envelope).
+///
+/// # Errors
+///
+/// Unsupported identifier or identification failure.
+pub fn identify_pag(
+    identifier: impl Into<IdentifierId>,
+    pag: &Pag,
+    query: &AverageEffectQuery,
+) -> Result<IdentificationEnvelope<Pag>, AnalysisError> {
+    let identifier = identifier.into();
+    match identifier {
+        IdentifierId::GeneralizedAdjustment => {
+            let id = GeneralizedAdjustmentIdentifier::new();
+            id.identify_pag_envelope(pag, query).map_err(identify_err)
+        }
+        other if other.is_dag_only() => Err(AnalysisError::Compile {
+            message: format!(
+                "DAG-only identification {:?} cannot accept a PAG; use generalized.adjustment",
+                other.as_str()
+            ),
+        }),
+        _ => Err(AnalysisError::Unsupported {
+            message: "unsupported PAG identifier",
+        }),
+    }
+}
+
+/// General ID over an ADMG for an average-effect query.
+///
+/// # Errors
+///
+/// Unsupported identifier or identification failure.
+pub fn identify_admg(
+    identifier: impl Into<IdentifierId>,
+    admg: &causal_graph::Admg,
+    query: &AverageEffectQuery,
+) -> Result<IdentificationResult, AnalysisError> {
+    let identifier = identifier.into();
+    match identifier {
+        IdentifierId::GeneralId => {
+            let id = IdIdentifier::new();
+            let prepared = id.prepare(admg).map_err(identify_err)?;
+            let mut id_ws = IdentificationWorkspace::default();
+            let result = id
+                .identify(&prepared, &CausalQuery::AverageEffect(query.clone()), &mut id_ws)
+                .map_err(identify_err)?;
+            require_identified(&result)?;
+            Ok(result)
+        }
+        other => Err(AnalysisError::Compile {
+            message: format!(
+                "ADMG ATE requires identifier \"general.id\"; got {:?}",
+                other.as_str()
+            ),
+        }),
+    }
 }
 
 /// Provenance `(artifact_id, operation)` for an identifier id.
@@ -502,10 +777,17 @@ pub fn identify_provenance_step(identifier: impl Into<IdentifierId>) -> (&'stati
         }
         IdentifierId::Frontdoor => ("identify.frontdoor", "identify.frontdoor"),
         IdentifierId::Iv => ("identify.iv", "identify.iv"),
+        IdentifierId::RdSharp => ("identify.rd_design", "identify.rd_sharp"),
+        IdentifierId::TemporalBackdoorUnfolded => {
+            ("identify.temporal_backdoor", "identify.temporal_backdoor_unfolded")
+        }
+        IdentifierId::GeneralizedAdjustment => {
+            ("identify.generalized_adjustment", "identify.generalized_adjustment")
+        }
         IdentifierId::GeneralId => ("identify.general_id", "identify.general_id"),
         IdentifierId::PathSpecificNatural => ("identify.path_specific", "identify.path_specific"),
         IdentifierId::Auto => ("identify.auto", "identify.auto"),
-        _ => ("identify.unknown", "identify.unknown"),
+        IdentifierId::Other(_) => ("identify.unknown", "identify.unknown"),
     }
 }
 
@@ -527,12 +809,22 @@ pub fn estimate_provenance_step(estimator: impl Into<EstimatorId>) -> (&'static 
         EstimatorId::FrontDoorTwoStage => ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
         EstimatorId::IvWald => ("estimate.iv", "estimate.wald_iv"),
         EstimatorId::Iv2Sls => ("estimate.iv", "estimate.two_stage_least_squares"),
+        EstimatorId::RdSharp => ("estimate.rd", "estimate.rd_sharp"),
         EstimatorId::BayesianGcomp => ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
+        EstimatorId::TemporalLinearAdjustment => {
+            ("estimate.temporal_linear", "estimate.temporal_linear_adjustment")
+        }
         EstimatorId::FunctionalDistribution => {
             ("estimate.functional_distribution", "estimate.functional_distribution")
         }
         EstimatorId::FunctionalEffect => ("estimate.functional_effect", "estimate.functional_effect"),
-        _ => ("estimate.unknown", "estimate.unknown"),
+        EstimatorId::ConditionalLinearAdjustment => {
+            ("estimate.conditional_linear", "estimate.conditional_linear_adjustment")
+        }
+        EstimatorId::TemporalMediation => {
+            ("estimate.temporal_mediation", "estimate.temporal_mediation")
+        }
+        EstimatorId::Other(_) => ("estimate.unknown", "estimate.unknown"),
     }
 }
 
@@ -549,6 +841,7 @@ pub fn estimate_static_effect(
     assumptions: AssumptionSet,
     bootstrap_replicates: u32,
     overlap_policy: Option<OverlapPolicy>,
+    population_registry: Option<&PopulationRegistry>,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, AnalysisError> {
     match estimator.into() {
@@ -566,6 +859,7 @@ pub fn estimate_static_effect(
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
+            est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
@@ -576,6 +870,7 @@ pub fn estimate_static_effect(
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
+            est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
@@ -586,6 +881,7 @@ pub fn estimate_static_effect(
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
+            est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
@@ -596,6 +892,7 @@ pub fn estimate_static_effect(
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
+            est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = PropensityEstimationWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
@@ -606,6 +903,7 @@ pub fn estimate_static_effect(
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
+            est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = AipwWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)

@@ -566,6 +566,7 @@ pub(crate) fn collect_float_columns(
     data: &TabularData,
     variables: &[VariableId],
 ) -> Result<Vec<Arc<[f64]>>, DiscoveryError> {
+    // Uses `TableView::float64_values`, which coerces Int64/Boolean to f64.
     let mut out = Vec::with_capacity(variables.len());
     for &v in variables {
         let vals = data.float64_values(v).map_err(DiscoveryError::from)?;
@@ -636,6 +637,49 @@ mod tests {
         assert!(g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
         assert!(g.has_edge(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
         assert!(!g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));
+    }
+
+    #[test]
+    fn pc_accepts_int64_columns_via_float_coerce() {
+        let mut b = CausalSchemaBuilder::new();
+        for i in 0..3 {
+            b.add_variable(
+                format!("v{i}"),
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let nrows = 40;
+        let owned: Vec<OwnedColumn> = (0..3)
+            .map(|i| {
+                OwnedColumn::Int64(
+                    causal_data::Int64Column::new(
+                        VariableId::from_raw(i as u32),
+                        Arc::from(vec![i64::from(i); nrows]),
+                        ValidityBitmap::all_valid(nrows),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let vars = [
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        ];
+        let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
+        let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle));
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(3);
+        let result = pc.run(&data, &vars, &mut ws, &ctx).unwrap();
+        assert!(result.evidence.graph.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
     }
 
     #[test]

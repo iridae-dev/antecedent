@@ -1,4 +1,4 @@
-//! Oracle, kNN/symbolic CMI, and GPDC CI tests .
+//! Oracle, kNN distance-dependence, symbolic CMI, and GPDC CI tests.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -21,7 +21,7 @@ use causal_core::{ExecutionContext, KernelPolicy};
 
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    KnnCmiWorkspace, nonparametric_permutation_count, PreparedCiTest};
+    KnnDependenceWorkspace, nonparametric_permutation_count, PreparedCiTest};
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
 
@@ -72,21 +72,21 @@ impl ConditionalIndependenceTest for OracleCi {
 /// kNN distance dependence CI (permutation null).
 ///
 /// **Not** KSG/CMIknn: the statistic is −(mean k-th NN distance) in the joint
-/// `(X,Y,Z)` space — a generic dependence proxy for permutation testing. Factory
-/// ids `cmi_knn` / `knn_cmi` are retained for pinned baseline parity naming.
+/// `(X,Y,Z)` space — a generic dependence proxy for permutation testing.
+/// Factory id: `knn_dependence`.
 #[derive(Clone, Debug)]
-pub struct KnnCmi {
+pub struct KnnDependence {
     /// Neighbors.
     pub k: usize,
 }
 
-impl Default for KnnCmi {
+impl Default for KnnDependence {
     fn default() -> Self {
         Self::new(5)
     }
 }
 
-impl KnnCmi {
+impl KnnDependence {
     /// Construct with neighbor count `k`.
     #[must_use]
     pub fn new(k: usize) -> Self {
@@ -94,7 +94,7 @@ impl KnnCmi {
     }
 }
 
-impl ConditionalIndependenceTest for KnnCmi {
+impl ConditionalIndependenceTest for KnnDependence {
     fn test_batch(
         &self,
         prepared: &PreparedCiTest,
@@ -106,7 +106,7 @@ impl ConditionalIndependenceTest for KnnCmi {
         let request = &prepared.bind_request(request);
         let n = request.columns.first().map_or(0, |c| c.len());
         if n < self.k + 2 {
-            return Err(StatsError::Shape { message: "n too small for kNN CMI" });
+            return Err(StatsError::Shape { message: "n too small for kNN dependence" });
         }
         if workspace.knn.perm.len() != n {
             workspace.knn.perm = (0..n).collect();
@@ -191,7 +191,7 @@ fn ensure_knn_index(
     z: &[usize],
     n: usize,
     dim: usize,
-    knn: &mut KnnCmiWorkspace,
+    knn: &mut KnnDependenceWorkspace,
 ) -> Result<(), StatsError> {
     let fingerprint = knn_input_fingerprint(columns, x, y, z, n);
     let need_rebuild = knn.index.is_none()
@@ -222,7 +222,7 @@ fn ensure_knn_index(
     Ok(())
 }
 
-fn knn_stat_from_index(knn: &mut KnnCmiWorkspace, k: usize) -> Result<f64, StatsError> {
+fn knn_stat_from_index(knn: &mut KnnDependenceWorkspace, k: usize) -> Result<f64, StatsError> {
     let n = knn.last_n;
     if knn.distances.len() < n {
         knn.distances.resize(n, 0.0);
@@ -289,21 +289,21 @@ fn coarse_z_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>>
     sorted_keys.into_iter().filter_map(|k| map.remove(&k)).collect()
 }
 
-/// Mixed-data kNN distance dependence: ranks discrete-looking columns then runs [`KnnCmi`].
+/// Mixed-data kNN distance dependence: ranks discrete-looking columns then runs [`KnnDependence`].
 #[derive(Clone, Debug, Default)]
-pub struct MixedKnnCmi {
-    inner: KnnCmi,
+pub struct MixedKnnDependence {
+    inner: KnnDependence,
 }
 
-impl MixedKnnCmi {
+impl MixedKnnDependence {
     /// Construct.
     #[must_use]
     pub fn new(k: usize) -> Self {
-        Self { inner: KnnCmi::new(k) }
+        Self { inner: KnnDependence::new(k) }
     }
 }
 
-impl ConditionalIndependenceTest for MixedKnnCmi {
+impl ConditionalIndependenceTest for MixedKnnDependence {
     fn test_batch(
         &self,
         prepared: &PreparedCiTest,
@@ -777,7 +777,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(12);
-        let out = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        let out = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         let s1 = out.results[0].statistic;
         let s2 = out.results[1].statistic;
         assert!(
@@ -832,7 +832,7 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(14);
-        let out = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        let out = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value > 0.05, "p={}", out.results[0].p_value);
     }
 }

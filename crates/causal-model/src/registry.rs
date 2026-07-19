@@ -682,36 +682,8 @@ fn lgssm_em(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
     let mut x0 = y[0];
     let p0 = 1.0;
     for _ in 0..max_iters {
-        // Kalman filter
-        let mut x_f = vec![0.0; n];
-        let mut p_f = vec![0.0; n];
-        let mut x_pred = vec![0.0; n];
-        let mut p_pred = vec![0.0; n];
-        let mut x = x0;
-        let mut p = p0;
-        for t in 0..n {
-            let xp = if t == 0 { x } else { a * x };
-            let pp = if t == 0 { p } else { a * a * p + q };
-            x_pred[t] = xp;
-            p_pred[t] = pp;
-            let s = pp + r;
-            let k = if s > 1e-18 { pp / s } else { 0.0 };
-            x = xp + k * (y[t] - xp);
-            p = (1.0 - k) * pp;
-            x_f[t] = x;
-            p_f[t] = p.max(0.0);
-        }
-        // Rauch–Tung–Striebel smoother
-        let mut x_s = x_f.clone();
-        let mut p_s = p_f.clone();
-        let mut p_lag = vec![0.0; n]; // Cov(x_t, x_{t-1})
-        for t in (0..n - 1).rev() {
-            let pp = p_pred[t + 1].max(1e-18);
-            let j = p_f[t] * a / pp;
-            x_s[t] = x_f[t] + j * (x_s[t + 1] - x_pred[t + 1]);
-            p_s[t] = p_f[t] + j * j * (p_s[t + 1] - p_pred[t + 1]);
-            p_lag[t + 1] = j * p_s[t + 1];
-        }
+        let (x_f, p_f, x_pred, p_pred) = crate::lgssm::kalman_filter(y, a, q, r, x0, p0);
+        let (x_s, p_s, p_lag) = crate::lgssm::rts_smooth(a, &x_f, &p_f, &x_pred, &p_pred);
         // M-step
         let mut num = 0.0;
         let mut den = 0.0;

@@ -120,6 +120,7 @@ pub fn structure_change(
         total,
         Arc::from(unidentified),
         ctx,
+        Some(baseline_model),
     )
 }
 
@@ -321,9 +322,15 @@ impl StructureSwapPayoff<'_> {
             SelectionPolicy::BestScore,
         )?;
 
-        // Comparison-fitted slots for players in the coalition; baseline otherwise.
-        let mixed: CompiledMechanismStore =
-            hybrid_mechanisms(&base_store, &cmp_store, &compiled, &self.players, mask);
+        let kinds = vec![crate::distribution_change::PlayerKind::Mechanism; self.players.len()];
+        let mixed: CompiledMechanismStore = hybrid_mechanisms(
+            &base_store,
+            &cmp_store,
+            &compiled,
+            &self.players,
+            &kinds,
+            mask,
+        );
         let model = compiled.with_mechanisms(mixed);
 
         let mut rng = self.ctx.rng.stream(0x5C01_u64.wrapping_add(self.seed));

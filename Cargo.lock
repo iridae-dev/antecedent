@@ -388,6 +388,7 @@ dependencies = [
  "causal-attribution",
  "causal-core",
  "causal-data",
+ "causal-discovery",
  "causal-expr",
  "causal-graph",
  "causal-io",

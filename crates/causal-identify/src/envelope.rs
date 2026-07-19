@@ -105,15 +105,87 @@ impl<G> IdentificationEnvelope<G> {
         if invariant_conflict {
             invariant = None;
         }
+        let critical_graph_features = collect_critical_features(&cases, status, unidentified);
         Self {
             invariant,
             cases,
             identified_weight: ProbabilityMass(identified),
             unidentified_weight: ProbabilityMass(unidentified),
-            critical_graph_features: Vec::new(),
+            critical_graph_features,
             status,
         }
     }
+
+    /// Merge additional critical features (e.g. source-PAG circle marks) without duplicates.
+    pub fn push_features(&mut self, extra: impl IntoIterator<Item = GraphFeature>) {
+        for f in extra {
+            if !self
+                .critical_graph_features
+                .iter()
+                .any(|e| e.kind == f.kind && e.detail == f.detail)
+            {
+                self.critical_graph_features.push(f);
+            }
+        }
+    }
+}
+
+fn collect_critical_features<G>(
+    cases: &[GraphIdentificationCase<G>],
+    status: IdentificationStatus,
+    unidentified: f64,
+) -> Vec<GraphFeature> {
+    let mut features = Vec::new();
+    let mut seen = std::collections::BTreeSet::<(Arc<str>, Arc<str>)>::new();
+    let mut push = |kind: &str, detail: String| {
+        let kind: Arc<str> = Arc::from(kind);
+        let detail: Arc<str> = Arc::from(detail);
+        if seen.insert((Arc::clone(&kind), Arc::clone(&detail))) {
+            features.push(GraphFeature { kind, detail });
+        }
+    };
+
+    if unidentified > 0.0 {
+        push(
+            "unidentified_mass",
+            format!("unidentified_weight={unidentified}"),
+        );
+    }
+    if matches!(status, IdentificationStatus::GraphDependent) {
+        push(
+            "graph_dependent",
+            "identified and unidentified completions both have positive mass".into(),
+        );
+    }
+
+    let mut unidentified_cases = 0u64;
+    for c in cases {
+        match c.result.status {
+            IdentificationStatus::NotIdentified | IdentificationStatus::GraphDependent => {
+                unidentified_cases += 1;
+                for step in &c.result.derivation.steps {
+                    if step.rule.as_ref().contains("not")
+                        || step.detail.as_ref().contains("not a MAG")
+                        || step.detail.as_ref().contains("no qualifying")
+                        || step.detail.as_ref().contains("exceeds")
+                    {
+                        push("completion_block", step.detail.as_ref().to_string());
+                    }
+                }
+                for d in &c.result.diagnostics {
+                    push("diagnostic", format!("{}: {}", d.code, d.message));
+                }
+            }
+            _ => {}
+        }
+    }
+    if unidentified_cases > 0 {
+        push(
+            "unidentified_completions",
+            format!("{unidentified_cases} completion(s) not identified"),
+        );
+    }
+    features
 }
 
 #[cfg(test)]
@@ -158,5 +230,12 @@ mod tests {
         assert!((env.identified_weight.0 - 0.4).abs() < 1e-12);
         assert!((env.unidentified_weight.0 - 0.6).abs() < 1e-12);
         assert_eq!(env.status, IdentificationStatus::GraphDependent);
+        assert!(
+            env.critical_graph_features
+                .iter()
+                .any(|f| f.kind.as_ref() == "unidentified_mass"),
+            "features={:?}",
+            env.critical_graph_features
+        );
     }
 }

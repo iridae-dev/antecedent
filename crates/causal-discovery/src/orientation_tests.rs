@@ -173,6 +173,27 @@ fn contemp_meek_r1_orients_contemporaneous_chain() {
 }
 
 #[test]
+fn contemp_meek_r4_orients_discriminating_path() {
+    // a — b, a — c → d → b, adj(a,d), not adj(c,b) → a → b (all contemporaneous).
+    let mut g = TemporalCpdag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let d = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_undirected(a, b).unwrap();
+    g.insert_undirected(a, c).unwrap();
+    g.insert_directed(c, d).unwrap();
+    g.insert_directed(d, b).unwrap();
+    g.insert_undirected(a, d).unwrap(); // adj(a,d); Meek R4 only requires adjacency
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    queue.push(a);
+    let delta = ContempMeekR4.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert!(delta.edges_changed >= 1);
+    assert_eq!(g.edge_between(a, b).unwrap().parent_child(), Some((a, b)));
+}
+
+#[test]
 fn fixed_point_runner() {
     let mut g = TemporalCpdag::empty();
     let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();

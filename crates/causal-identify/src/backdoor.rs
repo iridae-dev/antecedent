@@ -21,6 +21,11 @@ use crate::result::{
 pub struct AdjustmentSearchConfig {
     /// Maximum number of adjustment sets to return.
     pub max_results: usize,
+    /// Maximum candidate variables for exact subset enumeration (fail closed above).
+    ///
+    /// Default is 40. Beyond this, search restricts to ancestors of `{T,Y}` first;
+    /// if still over the cap, tries the Henckel O-set before failing closed.
+    pub max_candidates: usize,
     /// Variables forbidden from appearing in Z.
     pub forbidden: Arc<[VariableId]>,
     /// If true, only return inclusion-minimal sets.
@@ -46,6 +51,7 @@ impl Default for AdjustmentSearchConfig {
     fn default() -> Self {
         Self {
             max_results: 64,
+            max_candidates: 40,
             forbidden: Arc::from([]),
             minimal_only: true,
             maximal_only: false,
@@ -127,6 +133,13 @@ impl BackdoorIdentifier {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Cap exact candidate-subset enumeration (default 40).
+    #[must_use]
+    pub fn with_max_candidates(mut self, max_candidates: usize) -> Self {
+        self.config.max_candidates = max_candidates;
+        self
     }
 
     /// Prepare a graph with no extra declared assumptions.
@@ -217,7 +230,7 @@ impl BackdoorIdentifier {
         // G underbar T: remove outgoing edges from T.
         let mutilated = remove_outgoing(dag, t)?;
 
-        let candidates: Vec<DenseNodeId> = (0..dag.node_count())
+        let mut candidates: Vec<DenseNodeId> = (0..dag.node_count())
             .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
             .filter(|id| !forbidden.contains(*id))
             .filter(|id| {
@@ -227,19 +240,55 @@ impl BackdoorIdentifier {
             })
             .collect();
 
-        let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
+        let mut derivation_notes: Vec<String> = Vec::new();
         let mut examined = 0u64;
         let mut truncated = false;
 
+        // Screen to An({T,Y}) \ forbidden when over the exact-enumeration cap.
+        let cap = self.config.max_candidates;
+        if candidates.len() > cap {
+            let screened = screen_ancestor_candidates(dag, t, y, &forbidden, &mut workspace.graph);
+            let screened: Vec<DenseNodeId> = screened
+                .into_iter()
+                .filter(|id| {
+                    dense_to_var(*id, dag)
+                        .map(|v| !self.config.exceeds_history_lag(v))
+                        .unwrap_or(true)
+                })
+                .collect();
+            derivation_notes.push(format!(
+                "backdoor.screen: restricted to An({{T,Y}}); {} → {} candidates",
+                candidates.len(),
+                screened.len()
+            ));
+            candidates = screened;
+        }
+
+        // Still over cap → try O-set (Henckel) before fail-closed.
+        let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
+        if candidates.len() > cap {
+            let o_set = crate::efficient::optimal_adjustment_set_pub(dag, t, y, &mut workspace.graph);
+            examined += 1;
+            if o_set.iter().all(|v| !forbidden.contains(*v))
+                && is_backdoor_adjustment(&mutilated, t, y, &o_set, &mut workspace.dsep)?
+            {
+                derivation_notes.push(format!(
+                    "exact enumeration skipped ({} candidates > max_candidates={cap}); returned O-set",
+                    candidates.len()
+                ));
+                valid.push(o_set);
+            } else {
+                return Err(IdentificationError::msg(format!(
+                    "candidate set too large for exact enumeration: {} candidates > max_candidates={cap} \
+                     (after An({{T,Y}}) screen; O-set not valid)",
+                    candidates.len()
+                )));
+            }
+        } else {
         // Enumerate subsets by increasing size for minimal-first (or all / maximal).
         // When more than `max_results` qualifying sets exist, the first `max_results`
         // (in size-then-mask order, optionally cost-sorted afterward) are returned.
         let m = candidates.len();
-        if m > 20 {
-            return Err(IdentificationError::NotIdentified {
-                message: "candidate set too large for exact enumeration (>20)",
-            });
-        }
         let size_iter: Vec<usize> = if self.config.maximal_only && !self.config.minimal_only {
             (0..=m).rev().collect()
         } else {
@@ -285,6 +334,7 @@ impl BackdoorIdentifier {
                 break 'sizes;
             }
         }
+        } // end else exact enumeration
 
         // Cost-weighted ordering (stable; lower total cost first).
         if !self.config.measurement_costs.is_empty() {
@@ -306,6 +356,9 @@ impl BackdoorIdentifier {
             "backdoor.criterion",
             "Z blocks all backdoor paths and contains no descendants of T",
         );
+        for note in &derivation_notes {
+            derivation.push("backdoor.screen", note.clone());
+        }
         if truncated {
             derivation.push(
                 "backdoor.enumeration",
@@ -330,17 +383,8 @@ impl BackdoorIdentifier {
         for z in &valid {
             let vars: Vec<VariableId> =
                 z.iter().map(|d| dense_to_var(*d, dag)).collect::<Result<_, _>>()?;
-            let (active, control) = match (&ate.active, &ate.control) {
-                (
-                    causal_core::Intervention::Set { value: active, .. },
-                    causal_core::Intervention::Set { value: control, .. },
-                ) => (active.clone(), control.clone()),
-                _ => {
-                    return Err(IdentificationError::UnsupportedQuery {
-                        message: " backdoor ATE requires Set interventions",
-                    });
-                }
-            };
+            let active = crate::intervention_support::require_set_value(&ate.active, "backdoor")?;
+            let control = crate::intervention_support::require_set_value(&ate.control, "backdoor")?;
             let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
             estimands.push(IdentifiedEstimand::backdoor(
                 "backdoor.adjustment",
@@ -366,6 +410,22 @@ impl BackdoorIdentifier {
 
 fn is_subset(small: &[DenseNodeId], big: &[DenseNodeId]) -> bool {
     small.iter().all(|s| big.contains(s))
+}
+
+/// Candidates = An({T,Y}) \ forbidden (sound screen for backdoor search).
+fn screen_ancestor_candidates(
+    dag: &Dag,
+    t: DenseNodeId,
+    y: DenseNodeId,
+    forbidden: &BitSet,
+    gws: &mut causal_graph::GraphWorkspace,
+) -> Vec<DenseNodeId> {
+    let mut an = BitSet::with_len(dag.node_count());
+    dag.ancestors_of(&[t, y], &mut an, gws);
+    (0..dag.node_count())
+        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+        .filter(|id| an.contains(*id) && !forbidden.contains(*id))
+        .collect()
 }
 
 fn total_cost(
@@ -417,7 +477,7 @@ impl BackdoorIdentifier {
             }
         }
         let mutilated = remove_outgoing(dag, t)?;
-        let candidates: Vec<DenseNodeId> = (0..dag.node_count())
+        let mut candidates: Vec<DenseNodeId> = (0..dag.node_count())
             .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
             .filter(|id| !forbidden.contains(*id))
             .filter(|id| {
@@ -426,10 +486,32 @@ impl BackdoorIdentifier {
                     .unwrap_or(true)
             })
             .collect();
-        if candidates.len() > 20 {
-            return Err(IdentificationError::NotIdentified {
-                message: "candidate set too large for exact enumeration (>20)",
-            });
+        let cap = self.config.max_candidates;
+        if candidates.len() > cap {
+            candidates = screen_ancestor_candidates(dag, t, y, &forbidden, &mut workspace.graph)
+                .into_iter()
+                .filter(|id| {
+                    dense_to_var(*id, dag)
+                        .map(|v| !self.config.exceeds_history_lag(v))
+                        .unwrap_or(true)
+                })
+                .collect();
+        }
+        if candidates.len() > cap {
+            // Prefer a single valid O-set over failing the stream.
+            let o_set = crate::efficient::optimal_adjustment_set_pub(dag, t, y, &mut workspace.graph);
+            if o_set.iter().all(|v| !forbidden.contains(*v))
+                && is_backdoor_adjustment(&mutilated, t, y, &o_set, &mut workspace.dsep)?
+            {
+                let vars: Vec<VariableId> =
+                    o_set.iter().map(|d| dense_to_var(*d, dag)).collect::<Result<_, _>>()?;
+                let _ = visit(&vars);
+                return Ok(1);
+            }
+            return Err(IdentificationError::msg(format!(
+                "candidate set too large for exact enumeration: {} candidates > max_candidates={cap}",
+                candidates.len()
+            )));
         }
         let mut examined = 0u64;
         let mut accepted: Vec<Vec<DenseNodeId>> = Vec::new();
@@ -937,5 +1019,69 @@ mod tests {
         let z = res.estimands[0].adjustment_set.as_ref();
         assert!(z.contains(&VariableId::from_raw(2)));
         assert!(!z.contains(&VariableId::from_raw(3)));
+    }
+
+    /// One confounder Z plus `extra` isolated candidates (total candidates = 1+extra).
+    /// Minimal valid Z is `{confounder}` at size 1 — safe with large candidate pools.
+    fn one_confounder_many_candidates(extra: u32) -> Dag {
+        let mut g = Dag::with_variables(3 + extra);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let z = DenseNodeId::from_raw(2);
+        g.insert_directed(z, t).unwrap();
+        g.insert_directed(z, y).unwrap();
+        g.insert_directed(t, y).unwrap();
+        g
+    }
+
+    #[test]
+    fn default_cap_allows_twenty_five_candidates() {
+        // 1 confounder + 24 isolates → 25 candidates; default cap is 40.
+        let g = one_confounder_many_candidates(24);
+        let mut id = BackdoorIdentifier::new();
+        assert_eq!(id.config.max_candidates, 40);
+        id.config.max_results = 1;
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.estimands.len(), 1);
+        assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+    }
+
+    #[test]
+    fn above_default_cap_screens_isolates_and_identifies() {
+        // 1 confounder + 40 isolates → 41 raw candidates; An({T,Y}) screen → {Z}.
+        let g = one_confounder_many_candidates(40);
+        let id = BackdoorIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+        assert!(res.derivation.steps.iter().any(|s| s.detail.contains("An({T,Y})")));
+    }
+
+    #[test]
+    fn lower_custom_cap_screens_then_identifies() {
+        let g = one_confounder_many_candidates(24);
+        let id = BackdoorIdentifier::new().with_max_candidates(20);
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
     }
 }

@@ -66,6 +66,7 @@ fn rank_candidates_eig_conformance() {
         model_loglik: None,
         decisions: None,
         query_id_unlock: None,
+        env_id_unlock: None,
         identified_under_intervention: None,
         graph_features: None,
     };

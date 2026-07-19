@@ -26,6 +26,55 @@ def as_columns(
     )
 
 
+def try_as_arrow_c_columns(
+    data: Any,
+) -> tuple[list[str], list[Any]] | None:
+    """If ``data`` exports Arrow C Data Interface columns, return ``(names, cols)``.
+
+    Accepts:
+    - a mapping of name → object with ``__arrow_c_array__``
+    - a table-like with ``column_names`` / ``column(i)`` (PyArrow Table)
+    - a table-like with ``schema.names`` and ``column(i)``
+
+    Returns ``None`` when the object is not an Arrow CDI exporter (caller should
+    fall back to [`as_columns`]).
+    """
+    if isinstance(data, Mapping):
+        names = list(data.keys())
+        cols = [data[n] for n in names]
+        if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
+            return names, cols
+        return None
+
+    # PyArrow Table / RecordBatch style
+    names_attr = getattr(data, "column_names", None)
+    if names_attr is None:
+        schema = getattr(data, "schema", None)
+        names_attr = getattr(schema, "names", None) if schema is not None else None
+    if names_attr is not None and hasattr(data, "column"):
+        names = [str(n) for n in list(names_attr)]
+        cols = [data.column(i) for i in range(len(names))]
+        flat: list[Any] = []
+        for c in cols:
+            if hasattr(c, "combine_chunks"):
+                c = c.combine_chunks()
+            flat.append(c)
+        if flat and all(hasattr(c, "__arrow_c_array__") for c in flat):
+            return names, flat
+        return None
+
+    # Frame with columns that each export CDI (e.g. Polars column export)
+    if hasattr(data, "columns") and not hasattr(data, "to_numpy"):
+        try:
+            names = [str(c) for c in data.columns]
+            cols = [data[c] for c in data.columns]
+            if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
+                return names, cols
+        except Exception:  # noqa: BLE001 — fall through to None
+            return None
+    return None
+
+
 def to_f64(arr: Any) -> NDArray[np.float64]:
     a = np.asarray(arr, dtype=np.float64)
     if a.ndim != 1:

@@ -289,7 +289,7 @@ pub fn collect_null_pvalues_parcorr_like(
 mod tests {
     use super::*;
     use crate::ci::{
-        GSquared, Gpdc, KnnCmi, MixedKnnCmi, MultivariatePartialCorrelation, PartialCorrelation,
+        GSquared, Gpdc, KnnDependence, MixedKnnDependence, MultivariatePartialCorrelation, PartialCorrelation,
         RegressionCi, RobustPartialCorrelation, SymbolicCmi, WeightedPartialCorrelation,
     };
 
@@ -392,7 +392,7 @@ mod tests {
     /// kNN-CMI actual Type I rate under independent noise (not just alt≺null ordering).
     #[test]
     #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-    fn knn_cmi_calibration_gate() {
+    fn knn_dependence_calibration_gate() {
         let trials = 200u32;
         let alpha = 0.05;
         let n = 120usize;
@@ -401,7 +401,7 @@ mod tests {
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
         let mut null_rej = 0u32;
         let mut alt_rej = 0u32;
-        let ci = KnnCmi::new(3);
+        let ci = KnnDependence::new(3);
         for t in 0..trials {
             let mut rng = ctx.rng.stream(0x4e4e_u64.wrapping_add(u64::from(t)));
             let x: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
@@ -490,7 +490,7 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(53);
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
-        let ci = KnnCmi::new(3);
+        let ci = KnnDependence::new(3);
         let mut pvals = Vec::with_capacity(trials as usize);
         for t in 0..trials {
             let mut rng = ctx.rng.stream(0x6e4e_u64.wrapping_add(u64::from(t)));
@@ -521,7 +521,7 @@ mod tests {
     }
 
     #[test]
-    fn knn_cmi_calibration_smoke() {
+    fn knn_dependence_calibration_smoke() {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(19);
         let n = 80usize;
@@ -538,7 +538,7 @@ mod tests {
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let out = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        let out = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out.results[0].p_value));
         let cols_alt: [&[f64]; 2] = [&x, &x];
         let req_alt = CiBatchRequest {
@@ -548,7 +548,7 @@ mod tests {
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let out_alt = KnnCmi::new(3).test_batch_adhoc(&req_alt, &mut ws, &ctx).unwrap();
+        let out_alt = KnnDependence::new(3).test_batch_adhoc(&req_alt, &mut ws, &ctx).unwrap();
         assert!((0.0..=1.0).contains(&out_alt.results[0].p_value));
         assert!(
             out_alt.results[0].p_value <= out.results[0].p_value + 1e-12,
@@ -599,7 +599,7 @@ mod tests {
         };
 
         for (name, ci) in [
-            ("mixed", &MixedKnnCmi::new(3) as &dyn ConditionalIndependence),
+            ("mixed", &MixedKnnDependence::new(3) as &dyn ConditionalIndependence),
             ("symbolic", &SymbolicCmi::new() as &dyn ConditionalIndependence),
             ("gpdc", &Gpdc::new() as &dyn ConditionalIndependence),
         ] {

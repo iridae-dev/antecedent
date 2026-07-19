@@ -169,6 +169,126 @@ impl DynamicMechanism for PyDynamicMechanism {
             Ok(())
         })
     }
+
+    fn infer_noise_column(
+        &self,
+        value: &[f64],
+        parents: ParentBatch<'_>,
+        output: &mut [f64],
+    ) -> Result<(), ModelError> {
+        let n = parents.n_rows;
+        let py_result = Python::attach(|py| -> Option<Result<(), ModelError>> {
+            let bound = self.obj.bind(py);
+            if !bound.hasattr("infer_noise").unwrap_or(false) {
+                return None;
+            }
+            Some((|| {
+                let parent_cols = PyList::empty(py);
+                for p in 0..parents.n_parents {
+                    let col = parents.column(p).map_err(|e| ModelError::Shape {
+                        message: e.to_string(),
+                    })?;
+                    parent_cols
+                        .append(PyArray1::from_slice(py, col))
+                        .map_err(|e| ModelError::Unsupported {
+                            message: format!("failed to build parent columns: {e}"),
+                        })?;
+                }
+                let value_arr = PyArray1::from_slice(py, &value[..n]);
+                let out = bound
+                    .call_method1("infer_noise", (value_arr, parent_cols))
+                    .map_err(|e| ModelError::Unsupported {
+                        message: format!("Python infer_noise failed: {e}"),
+                    })?;
+                let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
+                    message: format!("infer_noise must return float64 ndarray: {e}"),
+                })?;
+                let slice = arr.as_slice().map_err(|_| ModelError::Shape {
+                    message: "infer_noise ndarray must be contiguous".into(),
+                })?;
+                if slice.len() < n {
+                    return Err(ModelError::Shape {
+                        message: "infer_noise returned too few values".into(),
+                    });
+                }
+                output[..n].copy_from_slice(&slice[..n]);
+                Ok(())
+            })())
+        });
+        match py_result {
+            Some(r) => r,
+            None => {
+                // Additive default: noise = y − f(pa, 0).
+                let zeros = vec![0.0; n];
+                let mut mean = vec![0.0; n];
+                let mut ws = MechanismWorkspace::default();
+                self.evaluate_column(parents, &zeros, &mut mean, &mut ws)?;
+                for i in 0..n {
+                    output[i] = value[i] - mean[i];
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn log_prob_column(
+        &self,
+        values: &[f64],
+        parents: ParentBatch<'_>,
+        output: &mut [f64],
+    ) -> Result<(), ModelError> {
+        let n = parents.n_rows;
+        let py_result = Python::attach(|py| -> Option<Result<(), ModelError>> {
+            let bound = self.obj.bind(py);
+            if !bound.hasattr("log_prob").unwrap_or(false) {
+                return None;
+            }
+            Some((|| {
+                let parent_cols = PyList::empty(py);
+                for p in 0..parents.n_parents {
+                    let col = parents.column(p).map_err(|e| ModelError::Shape {
+                        message: e.to_string(),
+                    })?;
+                    parent_cols
+                        .append(PyArray1::from_slice(py, col))
+                        .map_err(|e| ModelError::Unsupported {
+                            message: format!("failed to build parent columns: {e}"),
+                        })?;
+                }
+                let value_arr = PyArray1::from_slice(py, &values[..n]);
+                let out = bound
+                    .call_method1("log_prob", (value_arr, parent_cols))
+                    .map_err(|e| ModelError::Unsupported {
+                        message: format!("Python log_prob failed: {e}"),
+                    })?;
+                let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
+                    message: format!("log_prob must return float64 ndarray: {e}"),
+                })?;
+                let slice = arr.as_slice().map_err(|_| ModelError::Shape {
+                    message: "log_prob ndarray must be contiguous".into(),
+                })?;
+                if slice.len() < n {
+                    return Err(ModelError::Shape {
+                        message: "log_prob returned too few values".into(),
+                    });
+                }
+                output[..n].copy_from_slice(&slice[..n]);
+                Ok(())
+            })())
+        });
+        match py_result {
+            Some(r) => r,
+            None => {
+                let mut resid = vec![0.0; n];
+                self.infer_noise_column(values, parents, &mut resid)?;
+                let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln();
+                for i in 0..n {
+                    output[i] = log_norm - 0.5 * resid[i] * resid[i];
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Python utility: `utility(actions, outcomes) -> flat ndarray` length `n_a * n_o`.

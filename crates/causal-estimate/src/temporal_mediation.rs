@@ -355,14 +355,14 @@ mod tests {
             MediationContrast::Mediated,
         );
         let mut arena = CausalExprArena::new();
-        let functional = arena.frontdoor_ate(
+        let functional = arena.temporal_mediation_ate(
             q.treatment,
             q.outcome,
             &q.mediators,
             causal_core::Value::f64(1.0),
             causal_core::Value::f64(0.0),
         );
-        let estimand = IdentifiedEstimand::frontdoor(
+        let estimand = IdentifiedEstimand::temporal_mediation(
             "temporal_mediation.mediated",
             Arc::clone(&q.mediators),
             functional,

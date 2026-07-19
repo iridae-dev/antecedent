@@ -107,14 +107,18 @@ pub fn sample_with_overlay(
     Ok(values.into_batch())
 }
 
-/// Sample under interventions conditioned on observed node values (rejection sampling).
+/// Sample under interventions conditioned on observed node values.
 ///
-/// Draws from `P(V | do(interventions), condition_nodes = condition_values)`.
-/// Conditioning nodes must not be hard-intervened. Absolute tolerance `1e-9` for matches.
+/// Strategy:
+/// 1. **Rejection sampling** when conditions match within `1e-9` (exact / discrete).
+/// 2. **Likelihood-weighting SIR** when rejection under-accepts: propose from `do(·)`,
+///    weight by `∏_c p(condition_c | parents_c)` via [`log_prob_column`], resample.
+///
+/// Conditioning nodes must not be hard-intervened.
 ///
 /// # Errors
 ///
-/// Empty condition, intervened condition nodes, or insufficient accepts within budget.
+/// Empty condition, intervened condition nodes, density failures, or empty weights.
 pub fn sample_conditional_interventional(
     model: &CompiledCausalModel,
     interventions: &[Intervention],
@@ -172,12 +176,110 @@ pub fn sample_conditional_interventional(
         }
         got += 1;
     }
-    if got < n_rows {
+    if got >= n_rows {
+        let _ = ctx;
+        return Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() });
+    }
+
+    // Likelihood-weighting / SIR for continuous conditions.
+    sample_conditional_interventional_lw(
+        model,
+        interventions,
+        condition_nodes,
+        condition_values,
+        n_rows,
+        rng,
+        ws,
+        ctx,
+    )
+}
+
+fn sample_conditional_interventional_lw(
+    model: &CompiledCausalModel,
+    interventions: &[Intervention],
+    condition_nodes: &[causal_graph::DenseNodeId],
+    condition_values: &[f64],
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<ValueBatch, ModelError> {
+    use crate::mechanism::log_prob_column;
+
+    let n_nodes = model.n_nodes();
+    let n_particles = n_rows.saturating_mul(20).max(64);
+    let proposal = sample_interventional(model, interventions, n_particles, rng, ws, ctx)?;
+    let mut log_w = vec![0.0; n_particles];
+    let mut lp_buf = vec![0.0; n_particles];
+
+    for (ci, &node) in condition_nodes.iter().enumerate() {
+        let gather = model.gather_for(node).ok_or_else(|| ModelError::Unsupported {
+            message: format!("missing gather for condition node {node:?}"),
+        })?;
+        ws.prepare(n_particles, gather.n_parents().max(1));
+        gather.gather(&proposal.values, n_particles, &mut ws.parents);
+        let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n_particles)].to_vec();
+        let parents = ParentBatch {
+            n_rows: n_particles,
+            n_parents: gather.n_parents(),
+            values: &parent_owned,
+        };
+        // Score the *conditioned* value under each particle's parents.
+        let conditioned = vec![condition_values[ci]; n_particles];
+        log_prob_column(model.mechanisms.get(node), &conditioned, parents, &mut lp_buf)?;
+        for p in 0..n_particles {
+            if !lp_buf[p].is_finite() {
+                return Err(ModelError::Unsupported {
+                    message: format!(
+                        "conditional do: mechanism for node {node:?} cannot provide a finite density \
+                         for likelihood weighting"
+                    ),
+                });
+            }
+            log_w[p] += lp_buf[p];
+        }
+    }
+
+    let max_lw = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if !max_lw.is_finite() {
         return Err(ModelError::Unsupported {
-            message: format!(
-                "conditional interventional sampling accepted {got}/{n_rows} within budget"
-            ),
+            message: "conditional do: all likelihood weights are non-finite".into(),
         });
+    }
+    let mut weights = vec![0.0; n_particles];
+    let mut sum_w = 0.0;
+    for p in 0..n_particles {
+        let w = (log_w[p] - max_lw).exp();
+        weights[p] = w;
+        sum_w += w;
+    }
+    if sum_w <= 0.0 {
+        return Err(ModelError::Unsupported {
+            message: "conditional do: likelihood weights sum to zero".into(),
+        });
+    }
+    for w in &mut weights {
+        *w /= sum_w;
+    }
+
+    // Systematic resampling.
+    let mut accepted = vec![0.0; n_rows * n_nodes];
+    let u0 = rng.next_f64() / n_rows as f64;
+    let mut cdf = 0.0;
+    let mut idx = 0usize;
+    for i in 0..n_rows {
+        let target = u0 + i as f64 / n_rows as f64;
+        while idx + 1 < n_particles && cdf + weights[idx] < target {
+            cdf += weights[idx];
+            idx += 1;
+        }
+        for node in 0..n_nodes {
+            accepted[node * n_rows + i] = proposal.column(node)?[idx];
+            // Overwrite conditioned nodes with exact condition values.
+        }
+        for (ci, &node) in condition_nodes.iter().enumerate() {
+            accepted[node.as_usize() * n_rows + i] = condition_values[ci];
+        }
     }
     let _ = ctx;
     Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() })
@@ -255,10 +357,131 @@ pub fn soft_to_slot(soft: &MechanismOverride, n_parents: usize) -> Result<Mechan
             let sigma = soft.parameters[1 + n_parents].max(1e-12);
             Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma })
         }
+        "hierarchical_linear" => {
+            if soft.parameters.len() < 3 + n_parents {
+                return Err(ModelError::Shape {
+                    message: "hierarchical_linear override needs intercept, coeffs..., sigma, shrinkage"
+                        .into(),
+                });
+            }
+            let intercept = soft.parameters[0];
+            let coeffs = std::sync::Arc::from(soft.parameters[1..=n_parents].to_vec());
+            let sigma = soft.parameters[1 + n_parents].max(1e-12);
+            let shrinkage = soft.parameters[2 + n_parents].max(0.0);
+            Ok(MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, shrinkage })
+        }
+        "bvar" => {
+            if soft.parameters.len() < 2 + n_parents {
+                return Err(ModelError::Shape {
+                    message: "bvar override needs intercept, coeffs..., sigma".into(),
+                });
+            }
+            let intercept = soft.parameters[0];
+            let coeffs = std::sync::Arc::from(soft.parameters[1..=n_parents].to_vec());
+            let sigma = soft.parameters[1 + n_parents].max(1e-12);
+            Ok(MechanismSlot::Bvar { intercept, coeffs, sigma })
+        }
+        "discrete" => soft_discrete_slot(soft, n_parents),
+        "lgssm" => {
+            if soft.parameters.len() < 4 {
+                return Err(ModelError::Shape {
+                    message: "lgssm override needs a, process_std, obs_std, initial_mean".into(),
+                });
+            }
+            Ok(MechanismSlot::LinearGaussianStateSpace {
+                a: soft.parameters[0],
+                process_std: soft.parameters[1].max(1e-12),
+                obs_std: soft.parameters[2].max(1e-12),
+                initial_mean: soft.parameters[3],
+            })
+        }
+        "gaussian_process" => soft_gp_slot(soft, n_parents),
         other => Err(ModelError::Unsupported {
             message: format!("unknown soft override family {other}"),
         }),
     }
+}
+
+fn soft_discrete_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismSlot, ModelError> {
+    if soft.parameters.is_empty() {
+        return Err(ModelError::Shape {
+            message: "discrete override needs k, support..., probs/logits...".into(),
+        });
+    }
+    let k = soft.parameters[0] as usize;
+    if k == 0 {
+        return Err(ModelError::Shape {
+            message: "discrete override k must be > 0".into(),
+        });
+    }
+    if soft.parameters.len() < 1 + k {
+        return Err(ModelError::Shape {
+            message: "discrete override truncated support".into(),
+        });
+    }
+    let support: std::sync::Arc<[f64]> = std::sync::Arc::from(soft.parameters[1..1 + k].to_vec());
+    let rest = &soft.parameters[1 + k..];
+    if rest.len() == k {
+        Ok(MechanismSlot::Discrete {
+            support,
+            probs: std::sync::Arc::from(rest.to_vec()),
+            logit_coeffs: None,
+        })
+    } else if rest.len() == k * (1 + n_parents) {
+        Ok(MechanismSlot::Discrete {
+            support,
+            probs: std::sync::Arc::from(vec![1.0 / k as f64; k]),
+            logit_coeffs: Some(std::sync::Arc::from(rest.to_vec())),
+        })
+    } else {
+        Err(ModelError::Shape {
+            message: format!(
+                "discrete override expects {k} probs or {} logits after support, got {}",
+                k * (1 + n_parents),
+                rest.len()
+            ),
+        })
+    }
+}
+
+fn soft_gp_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismSlot, ModelError> {
+    if soft.parameters.len() < 5 {
+        return Err(ModelError::Shape {
+            message: "gaussian_process override truncated header".into(),
+        });
+    }
+    let length_scale = soft.parameters[0].max(1e-12);
+    let variance = soft.parameters[1].max(0.0);
+    let noise_std = soft.parameters[2].max(1e-12);
+    let n_train = soft.parameters[3] as usize;
+    let n_par = soft.parameters[4] as usize;
+    if n_par != n_parents {
+        return Err(ModelError::Shape {
+            message: format!("gaussian_process override n_parents {n_par} != gather {n_parents}"),
+        });
+    }
+    let need = 5 + n_train * n_par + n_train;
+    if soft.parameters.len() < need {
+        return Err(ModelError::Shape {
+            message: format!(
+                "gaussian_process override needs {need} params, got {}",
+                soft.parameters.len()
+            ),
+        });
+    }
+    let x_train = std::sync::Arc::from(soft.parameters[5..5 + n_train * n_par].to_vec());
+    let alpha = std::sync::Arc::from(
+        soft.parameters[5 + n_train * n_par..5 + n_train * n_par + n_train].to_vec(),
+    );
+    Ok(MechanismSlot::GaussianProcess {
+        length_scale,
+        variance,
+        noise_std,
+        x_train,
+        n_train,
+        n_parents: n_par,
+        alpha,
+    })
 }
 
 /// Draw values from a stochastic intervention policy into `out`.

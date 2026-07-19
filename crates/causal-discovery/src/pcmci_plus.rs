@@ -34,7 +34,7 @@ use crate::evidence::{
     threshold_scored_links,
 };
 use crate::orientation::{
-    ContempMeekR1, ContempMeekR2, ContempMeekR3, OrientationRule, OrientationState, RuleDelta,
+    ContempMeekR1, ContempMeekR2, ContempMeekR3, ContempMeekR4, OrientationRule, OrientationState, RuleDelta,
     run_orientation_to_fixed_point, try_orient_undirected,
 };
 use crate::pcmci_family::pcmci_family_builders;
@@ -177,15 +177,15 @@ impl PcmciPlus {
             ctx,
         )?;
 
-        // --- Step 4: Meek R1–R3 contemporaneous only ---
-        let rules: [&dyn OrientationRule; 3] =
-            [&ContempMeekR1, &ContempMeekR2, &ContempMeekR3];
+        // --- Step 4: Meek R1–R4 contemporaneous only ---
+        let rules: [&dyn OrientationRule; 4] =
+            [&ContempMeekR1, &ContempMeekR2, &ContempMeekR3, &ContempMeekR4];
         let meek_delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 
         let algorithm = algorithm_record(
             "pcmci_plus",
             format!(
-                "alpha={},max_lag={},fdr={:?},min_lag={},collider=majority,meek=r1-r3-contemp",
+                "alpha={},max_lag={},fdr={:?},min_lag={},collider=majority,meek=r1-r4-contemp",
                 alpha,
                 max_lag,
                 self.fdr,

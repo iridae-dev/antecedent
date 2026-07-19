@@ -69,24 +69,30 @@ impl SharpRdIdentifier {
             });
         }
 
-        // Build the functional in a real arena (same convention as the
-        // backdoor/frontdoor/IV identifiers): the sharp-RD estimand is the
-        // do-contrast at the cutoff, expressed as a backdoor ATE with an
-        // empty adjustment set.
-        let (active, control) = match (&ate.active, &ate.control) {
-            (
-                causal_core::Intervention::Set { value: active, .. },
-                causal_core::Intervention::Set { value: control, .. },
-            ) => (active.clone(), control.clone()),
+        // Local do-contrast functional; packaged as an RD estimand (not empty-Z backdoor).
+        let (active, control) = match (
+            crate::intervention_support::normalize_to_set(&ate.active),
+            crate::intervention_support::normalize_to_set(&ate.control),
+        ) {
+            (Ok(causal_core::Intervention::Set { value: active, .. }), Ok(causal_core::Intervention::Set { value: control, .. })) => {
+                (active, control)
+            }
             _ => {
                 return Err(IdentificationError::UnsupportedQuery {
-                    message: "sharp RD ATE requires Set interventions",
+                    message: "sharp RD ATE requires Set (or Soft(constant)/Shift) interventions",
                 });
             }
         };
         let mut arena = CausalExprArena::new();
         let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &[], active, control);
-        let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), functional);
+        let estimand = IdentifiedEstimand::rd_sharp(
+            functional,
+            causal_expr::RdDesignParams {
+                running_variable: self.config.running_variable,
+                cutoff: self.config.cutoff,
+                bandwidth: self.config.bandwidth,
+            },
+        );
 
         let mut assumptions = AssumptionSet::new();
         assumptions.push(AssumptionRecord {

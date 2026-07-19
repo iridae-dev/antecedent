@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use causal_core::ExecutionContext;
 use causal_stats::{
     CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, ConditionalIndependenceTest, GSquared,
-    Gpdc, KnnCmi, SignificanceMethod,
+    Gpdc, KnnDependence, SignificanceMethod,
 };
 use serde_json::Value as JsonValue;
 
@@ -111,7 +111,7 @@ fn discovery_ci_stats_gpdc_cmiknn_gsquared() {
     assert!(p_dep < p_ind, "G²: dep p should be smaller than ind p ({p_dep} vs {p_ind})");
 
     // CMIknn — native kNN MI proxy differs in sign/scale from discovery; check ordering.
-    let cmi = KnnCmi::new(5);
+    let cmi = KnnDependence::new(5);
     let z_flat = [2usize];
     let (s_dep, p_dep) = run_ci(&cmi, &[&x, &y_dep, &z], &z_flat, 1, 3);
     let (s_ind, p_ind) = run_ci(&cmi, &[&x, &y_ind, &z], &z_flat, 1, 4);

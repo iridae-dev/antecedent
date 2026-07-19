@@ -29,6 +29,10 @@ enum EvalOp {
         variables: VarSetId,
         body: usize,
     },
+    IntegralOut {
+        variables: VarSetId,
+        body: usize,
+    },
     Ratio {
         numerator: usize,
         denominator: usize,
@@ -54,10 +58,8 @@ pub struct CompiledEvaluator {
 impl CausalExprArena {
     /// Compile `root` into a topological evaluation plan.
     ///
-    /// # Errors
-    ///
-    /// Returns [`EvalError::UnsupportedIntegralOut`] if the DAG contains
-    /// continuous marginalization.
+    /// Continuous [`ExprNode::IntegralOut`] compiles successfully; evaluation uses
+    /// [`DistributionProvider::quadrature`] or discrete [`DistributionProvider::support`].
     pub fn compile(&self, root: ExprId) -> Result<CompiledEvaluator, EvalError> {
         CompiledEvaluator::compile(self, root)
     }
@@ -66,9 +68,7 @@ impl CausalExprArena {
 impl CompiledEvaluator {
     /// Compile an expression DAG into slot-addressed ops (post-order).
     ///
-    /// # Errors
-    ///
-    /// Unsupported constructs (e.g. `IntegralOut`).
+    /// Continuous [`ExprNode::IntegralOut`] is supported (see [`CausalExprArena::compile`]).
     pub fn compile(arena: &CausalExprArena, root: ExprId) -> Result<Self, EvalError> {
         let mut ops = Vec::new();
         let mut expr_to_slot = HashMap::new();
@@ -180,6 +180,47 @@ impl CompiledEvaluator {
                 }
                 Ok(sum)
             }
+            EvalOp::IntegralOut { variables, body } => {
+                let vars = arena.var_set(*variables);
+                if let Some(nodes) = provider.quadrature(vars, ctx)? {
+                    let mut acc = 0.0;
+                    for (row, weight) in nodes.iter() {
+                        if row.len() != vars.len() {
+                            return Err(EvalError::SupportShape {
+                                expected: vars.len(),
+                                actual: row.len(),
+                            });
+                        }
+                        let mut extended = env.clone();
+                        for (i, &v) in vars.iter().enumerate() {
+                            extended.set(v, row[i].clone());
+                        }
+                        acc += *weight * self.eval_slot(arena, provider, ctx, &extended, *body)?;
+                    }
+                    Ok(acc)
+                } else {
+                    // Discrete / counting-measure fallback (IntegralOut ≡ SumOut).
+                    let rows = provider.support(vars, ctx).map_err(|e| match e {
+                        EvalError::EmptySupport(_) => EvalError::UnsupportedIntegralOut,
+                        other => other,
+                    })?;
+                    let mut sum = 0.0;
+                    for row in rows.iter() {
+                        if row.len() != vars.len() {
+                            return Err(EvalError::SupportShape {
+                                expected: vars.len(),
+                                actual: row.len(),
+                            });
+                        }
+                        let mut extended = env.clone();
+                        for (i, &v) in vars.iter().enumerate() {
+                            extended.set(v, row[i].clone());
+                        }
+                        sum += self.eval_slot(arena, provider, ctx, &extended, *body)?;
+                    }
+                    Ok(sum)
+                }
+            }
             EvalOp::Ratio { numerator, denominator } => {
                 let num = self.eval_slot(arena, provider, ctx, env, *numerator)?;
                 let den = self.eval_slot(arena, provider, ctx, env, *denominator)?;
@@ -261,7 +302,10 @@ fn compile_rec(
             let body = compile_rec(arena, expr, ops, expr_to_slot)?;
             EvalOp::SumOut { variables, body }
         }
-        ExprNode::IntegralOut { .. } => return Err(EvalError::UnsupportedIntegralOut),
+        ExprNode::IntegralOut { variables, expr } => {
+            let body = compile_rec(arena, expr, ops, expr_to_slot)?;
+            EvalOp::IntegralOut { variables, body }
+        }
         ExprNode::Ratio { numerator, denominator } => {
             let n = compile_rec(arena, numerator, ops, expr_to_slot)?;
             let d = compile_rec(arena, denominator, ops, expr_to_slot)?;
@@ -320,7 +364,7 @@ fn free_vars_rec(
                 free_vars_rec(compiled, arena, c, out);
             }
         }
-        EvalOp::SumOut { variables, body } => {
+        EvalOp::SumOut { variables, body } | EvalOp::IntegralOut { variables, body } => {
             let mut inner = Vec::new();
             free_vars_rec(compiled, arena, *body, &mut inner);
             let bound = arena.var_set(*variables);
@@ -640,20 +684,85 @@ mod tests {
     }
 
     #[test]
-    fn integral_out_rejected_at_compile() {
+    fn discrete_integral_out_matches_sum_out() {
         let mut arena = CausalExprArena::new();
         let empty = arena.empty_var_set();
         let empty_i = arena.empty_intervention_set();
+        let z = v(0);
+        let zset = arena.intern_var_set([z]);
         let dist = arena.intern(ExprNode::Distribution {
-            variables: empty,
+            variables: zset,
             conditioned_on: empty,
             intervention: empty_i,
             domain: DomainRef::Observational,
         });
-        let z = arena.intern_var_set([v(0)]);
-        let integ = arena.intern(ExprNode::IntegralOut { variables: z, expr: dist });
-        let err = arena.compile(integ).unwrap_err();
-        assert_eq!(err, EvalError::UnsupportedIntegralOut);
+        let sum = arena.intern(ExprNode::SumOut { variables: zset, expr: dist });
+        let integ = arena.intern(ExprNode::IntegralOut { variables: zset, expr: dist });
+
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(z, [f(0.0), f(1.0)]);
+        for (zval, prob) in [(0.0, 0.3), (1.0, 0.7)] {
+            let spec = FactorSpec {
+                variables: &[z],
+                conditioned_on: &[],
+                intervention: &[],
+                domain: DomainRef::Observational,
+            };
+            p.insert_probability(&spec, &Assignment::from_pairs([(z, f(zval))]), prob).unwrap();
+        }
+        let s = arena.compile(sum).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        let i = arena.compile(integ).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        assert!((s - 1.0).abs() < 1e-12);
+        assert!((i - s).abs() < 1e-12);
+    }
+
+    #[test]
+    fn continuous_gaussian_integral_out_normalizes() {
+        use crate::provider::GaussianDensityProvider;
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let x = v(0);
+        let xset = arena.intern_var_set([x]);
+        let dist = arena.intern(ExprNode::Distribution {
+            variables: xset,
+            conditioned_on: empty,
+            intervention: empty_i,
+            domain: DomainRef::Observational,
+        });
+        let integ = arena.intern(ExprNode::IntegralOut { variables: xset, expr: dist });
+        let mut p = GaussianDensityProvider::new();
+        p.set_gaussian(x, 0.0, 1.0);
+        let mass =
+            arena.compile(integ).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        assert!((mass - 1.0).abs() < 1e-6, "∫ φ = {mass}");
+    }
+
+    #[test]
+    fn nested_integral_out_product_gaussian() {
+        use crate::provider::GaussianDensityProvider;
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let x = v(0);
+        let y = v(1);
+        let xset = arena.intern_var_set([x]);
+        let yset = arena.intern_var_set([y]);
+        let both = arena.intern_var_set([x, y]);
+        let dist = arena.intern(ExprNode::Distribution {
+            variables: both,
+            conditioned_on: empty,
+            intervention: empty_i,
+            domain: DomainRef::Observational,
+        });
+        let inner = arena.intern(ExprNode::IntegralOut { variables: yset, expr: dist });
+        let outer = arena.intern(ExprNode::IntegralOut { variables: xset, expr: inner });
+        let mut p = GaussianDensityProvider::new();
+        p.set_gaussian(x, 1.0, 0.25);
+        p.set_gaussian(y, -0.5, 4.0);
+        let mass =
+            arena.compile(outer).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        assert!((mass - 1.0).abs() < 1e-5, "∬ φ = {mass}");
     }
 
     #[test]

@@ -28,6 +28,7 @@ causal-model = { path = "../crates/causal-model" }
 causal-attribution = { path = "../crates/causal-attribution" }
 causal-stats = { path = "../crates/causal-stats" }
 causal-validate = { path = "../crates/causal-validate" }
+causal-discovery = { path = "../crates/causal-discovery" }
 pyo3 = { workspace = true }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }

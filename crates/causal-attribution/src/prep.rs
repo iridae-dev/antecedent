@@ -14,8 +14,6 @@ use crate::error::AttributionError;
 use crate::population::{resolve_rows, subset_table};
 
 /// Require `got == allowed` for a singleton component mode.
-///
-/// Joint `InputsAndMechanisms` / `All` are refused until implemented.
 pub(crate) fn require_components(
     allowed: AttributionComponents,
     got: AttributionComponents,
@@ -24,13 +22,21 @@ pub(crate) fn require_components(
     if got == allowed {
         return Ok(());
     }
-    match got {
-        AttributionComponents::InputsAndMechanisms | AttributionComponents::All => {
-            Err(AttributionError::unsupported(
-                "InputsAndMechanisms/All not implemented for this path; use the singleton component mode",
-            ))
-        }
-        _ => Err(AttributionError::unsupported(wrong_msg)),
+    Err(AttributionError::unsupported(wrong_msg))
+}
+
+/// Accept Mechanisms or joint InputsAndMechanisms / All for change paths that
+/// implement joint payoffs.
+pub(crate) fn require_mechanism_or_joint(
+    components: AttributionComponents,
+) -> Result<(), AttributionError> {
+    match components {
+        AttributionComponents::Mechanisms
+        | AttributionComponents::InputsAndMechanisms
+        | AttributionComponents::All => Ok(()),
+        _ => Err(AttributionError::unsupported(
+            "this path requires Mechanisms, InputsAndMechanisms, or All",
+        )),
     }
 }
 

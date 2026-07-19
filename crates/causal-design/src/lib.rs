@@ -34,6 +34,7 @@ pub use error::DesignError;
 pub use objective::DesignObjective;
 pub use ranker::{
     DecisionRegistry, DesignConstraints, DesignEvaluationContext, DesignRankConfig, DesignRanker,
-    EffectWidthContext, InterventionDesignEffect, MeasureColumnSpec, ModelLoglikDraws,
+    EffectWidthContext, EnvironmentGramSpec, InterventionDesignEffect, MeasureColumnSpec,
+    ModelLoglikDraws,
 };
 pub use result::{ConstraintViolation, DesignRanking, RankedCandidate};

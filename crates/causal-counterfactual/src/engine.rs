@@ -15,8 +15,9 @@ use causal_core::{ExecutionContext, Intervention, VariableId};
 use causal_data::{TableView, TabularData};
 use causal_graph::DenseNodeId;
 use causal_model::{
-    CompiledCausalModel, InterventionOverlay, MechanismSlot, MechanismWorkspace, ParentBatch,
-    ValueBatchMut, evaluate_column, infer_noise_column, sample_stochastic, soft_to_slot,
+    CompiledCausalModel, InterventionOverlay, MechanismWorkspace, NoiseInferenceMode,
+    ParentBatch, ValueBatchMut, evaluate_column, infer_noise_column_rng, sample_noise_column,
+    sample_stochastic, soft_to_slot,
 };
 
 use crate::error::CounterfactualError;
@@ -28,12 +29,15 @@ use crate::error::CounterfactualError;
 pub enum AbductionMissingPolicy {
     /// Fail if a required factual column is absent.
     Error,
-    /// Zero-fill absent columns and mark them as assumed noise.
+    /// Fill absent columns with prior mechanism noise ([`NoiseInferenceKind::AssumedNoise`]).
+    ///
+    /// Missing factual values are not inverted as if `y=0`; the corresponding
+    /// exogenous noise is drawn from the mechanism prior via [`sample_noise_column`].
     ZeroFill,
 }
 
 impl AbductionMissingPolicy {
-    /// Whether absent columns are zero-filled.
+    /// Whether absent columns may be filled with prior noise.
     #[must_use]
     pub const fn allows_missing(self) -> bool {
         matches!(self, Self::ZeroFill)
@@ -51,9 +55,9 @@ impl From<bool> for AbductionMissingPolicy {
 pub enum NoiseInferenceKind {
     /// Exact inversion of invertible structural assignments.
     Invertible,
-    /// Posterior / sampled noise (not used in base path).
+    /// Posterior / sampled noise (Discrete CDF bin, LGSSM innovations, …).
     PosteriorNoise,
-    /// Assumed independent noise draws (no abduction).
+    /// Assumed independent noise draws (no abduction of factual values).
     AssumedNoise,
 }
 
@@ -68,8 +72,8 @@ pub struct ExogenousPosterior {
     pub n_nodes: usize,
     /// Inference kind.
     pub kind: NoiseInferenceKind,
-    /// Per-node flag: factual column was absent and zero-filled under [`AbductionMissingPolicy::ZeroFill`]
-    /// (`true` ⇒ that node's factual values must not be treated as observed).
+    /// Per-node flag: factual column was absent under [`AbductionMissingPolicy::ZeroFill`]
+    /// (`true` ⇒ that node's noise was prior-sampled, not abduced).
     pub assumed_columns: Arc<[bool]>,
 }
 
@@ -120,18 +124,36 @@ impl CounterfactualEngine {
 
     /// Abduce exogenous noise once from factual data (shared across worlds).
     ///
-    /// When `allow_missing` is true and a **whole variable column** is absent from
-    /// `data`, that node's factual values are filled with zeros and
-    /// [`NoiseInferenceKind::AssumedNoise`] is set for the posterior (column-level,
-    /// not per-cell — tabular float columns are all-or-nothing here).
+    /// When [`AbductionMissingPolicy::ZeroFill`] is set and a **whole variable column**
+    /// is absent from `data`, that node's exogenous noise is drawn from the mechanism
+    /// prior ([`NoiseInferenceKind::AssumedNoise`]) — factual values are not inverted
+    /// as if they were zero.
+    ///
+    /// Prefer [`Self::abduct_with_rng`] when posterior families (Discrete / LGSSM) need
+    /// reproducible draws; this method uses a fixed internal seed stream.
     ///
     /// # Errors
     ///
-    /// Missing data (when not allowed) or non-invertible mechanisms.
+    /// Missing data (when not allowed) or unsupported mechanisms.
     pub fn abduct(
         &self,
         data: &TabularData,
         missing: AbductionMissingPolicy,
+    ) -> Result<ExogenousPosterior, CounterfactualError> {
+        let mut rng = causal_core::CausalRng::from_seed(0xCFAB_D071);
+        self.abduct_with_rng(data, missing, &mut rng)
+    }
+
+    /// Abduce exogenous noise with an explicit RNG (Discrete / LGSSM posterior draws).
+    ///
+    /// # Errors
+    ///
+    /// Missing data (when not allowed) or unsupported mechanisms.
+    pub fn abduct_with_rng(
+        &self,
+        data: &TabularData,
+        missing: AbductionMissingPolicy,
+        rng: &mut causal_core::CausalRng,
     ) -> Result<ExogenousPosterior, CounterfactualError> {
         let n = data.row_count();
         let n_nodes = self.model.n_nodes();
@@ -163,25 +185,26 @@ impl CounterfactualEngine {
         for gather in self.model.parent_gathers.iter() {
             let node = gather.child;
             let idx = node.as_usize();
+            let out = &mut noise[idx * n..(idx + 1) * n];
+            if assumed_columns[idx] {
+                sample_noise_column(self.model.mechanisms.get(node), n, rng, out)?;
+                continue;
+            }
             ws.prepare(n, gather.n_parents().max(1));
             gather.gather(&values, n, &mut ws.parents);
             let parent_owned = ws.parents[..gather.n_parents().saturating_mul(n)].to_vec();
             let parents =
                 ParentBatch { n_rows: n, n_parents: gather.n_parents(), values: &parent_owned };
             let y = &values[idx * n..(idx + 1) * n];
-            let out = &mut noise[idx * n..(idx + 1) * n];
-            match self.model.mechanisms.get(node) {
-                MechanismSlot::LinearGaussian { .. }
-                | MechanismSlot::HierarchicalLinear { .. }
-                | MechanismSlot::Bvar { .. }
-                | MechanismSlot::Constant { .. } => {
-                    infer_noise_column(self.model.mechanisms.get(node), y, parents, out)?;
-                }
-                other => {
-                    return Err(CounterfactualError::model_msg(format!(
-                        "abduction requires invertible mechanism, got {other:?}"
-                    )));
-                }
+            let mode = infer_noise_column_rng(
+                self.model.mechanisms.get(node),
+                y,
+                parents,
+                out,
+                rng,
+            )?;
+            if mode == NoiseInferenceMode::Posterior && kind == NoiseInferenceKind::Invertible {
+                kind = NoiseInferenceKind::PosteriorNoise;
             }
         }
 
@@ -424,16 +447,14 @@ pub fn streaming_matches_retained(
     (stream - retained).abs() < 1e-12
 }
 
-/// Simultaneous / nested hard interventions under invertible additive-noise SCMs.
+/// Simultaneous hard interventions under shared abduced noise.
 ///
-/// When `outer` and `inner` target **disjoint** variables, they are composed into one
-/// counterfactual world (later hard sets override earlier ones). Overlapping targets
-/// are rejected (fail-closed): true re-abduction under conflicting nested assignments
-/// is not identifiable from invertible additive noise alone without additional structure.
+/// Disjoint targets are concatenated into one world. Overlapping targets route to
+/// [`nested_counterfactual`] (twin-network freeze semantics).
 ///
 /// # Errors
 ///
-/// Engine failures, unknown outcome, or overlapping intervention targets.
+/// Engine failures or unknown outcome.
 pub fn simultaneous_hard_counterfactual(
     engine: &CounterfactualEngine,
     data: &TabularData,
@@ -443,18 +464,23 @@ pub fn simultaneous_hard_counterfactual(
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<f64, CounterfactualError> {
+    let mut overlap = false;
     for o in outer {
         let Some(ov) = o.primary_variable() else {
             continue;
         };
         for i in inner {
             if i.primary_variable() == Some(ov) {
-                return Err(CounterfactualError::model_msg(format!(
-                    "overlapping hard intervention on {ov}: nested composition requires \
-                     disjoint targets under invertible additive-noise assumptions"
-                )));
+                overlap = true;
+                break;
             }
         }
+        if overlap {
+            break;
+        }
+    }
+    if overlap {
+        return nested_counterfactual(engine, data, outer, inner, outcome, ws, ctx);
     }
     let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
     let mut combined = outer.to_vec();
@@ -467,25 +493,22 @@ pub fn simultaneous_hard_counterfactual(
     Ok(res.streaming_outcome_mean(0, o))
 }
 
-/// Nested counterfactual under invertible additive-noise assumptions.
+/// Nested counterfactual (twin-network) under shared abduced noise.
 ///
 /// Twin-network composition for forms like `Y_{x, M_{x'}}`:
 /// 1. Abduct exogenous noise once from factual data.
-/// 2. Evaluate the **outer** world (`outer` interventions, typically `do(X=x')`).
+/// 2. Evaluate the **outer** world.
 /// 3. Freeze every node that is **not** a primary target of `inner` at its outer
-///    counterfactual value (this captures mediators `M_{x'}`).
-/// 4. Evaluate the **inner** world with those freezes plus `inner` interventions
-///    (typically `do(X=x)`), sharing the same abduced noise.
+///    counterfactual value. Soft/stochastic outer interventions are realized first;
+///    freezes store those realized values as hard sets.
+/// 4. Evaluate the **inner** world with those freezes plus `inner` interventions.
 ///
-/// Overlapping primary targets are allowed: inner overrides outer on shared
-/// targets (e.g. treatment), while non-targeted nodes stay at outer values.
-/// Fail-closed when `outer`/`inner` contain non-hard interventions other than
-/// `Set` / `Shift` (soft/stochastic nested forms need extra structure).
+/// Supports Set, Shift, Soft, and Stochastic interventions.
 ///
 /// # Errors
 ///
 /// Unsupported intervention kinds, abduction/predict failures.
-pub fn nested_hard_counterfactual(
+pub fn nested_counterfactual(
     engine: &CounterfactualEngine,
     data: &TabularData,
     outer: &[Intervention],
@@ -496,17 +519,20 @@ pub fn nested_hard_counterfactual(
 ) -> Result<f64, CounterfactualError> {
     for iv in outer.iter().chain(inner.iter()) {
         match iv {
-            Intervention::Set { .. } | Intervention::Shift { .. } => {}
+            Intervention::Set { .. }
+            | Intervention::Shift { .. }
+            | Intervention::Soft { .. }
+            | Intervention::Stochastic { .. } => {}
             Intervention::Sequence(_) => {
                 return Err(CounterfactualError::model_msg(
-                    "nested_hard_counterfactual does not accept Sequence inside outer/inner; \
-                     pass flat Set/Shift slices",
+                    "nested_counterfactual does not accept Sequence inside outer/inner; \
+                     pass flat intervention slices",
                 ));
             }
             _ => {
-                return Err(CounterfactualError::model_msg(
-                    "nested counterfactuals currently support Set and Shift only",
-                ));
+                return Err(CounterfactualError::model_msg(format!(
+                    "nested_counterfactual unsupported intervention kind: {iv:?}"
+                )));
             }
         }
     }
@@ -522,7 +548,6 @@ pub fn nested_hard_counterfactual(
         CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
     })?;
 
-    // Primary variables targeted by inner interventions (not frozen).
     let mut inner_targets = vec![false; n_nodes];
     for iv in inner {
         if let Some(v) = iv.primary_variable() {
@@ -532,8 +557,6 @@ pub fn nested_hard_counterfactual(
         }
     }
 
-    // Freeze non-inner-target nodes at outer counterfactual values.
-    // Intervention::Set is scalar, so when unit values differ we evaluate unit-wise.
     let mut freeze_ivs: Vec<Intervention> = Vec::new();
     let mut need_unitwise = false;
     for node in 0..n_nodes {
@@ -589,6 +612,19 @@ pub fn nested_hard_counterfactual(
     let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
     let res = engine.predict(&exo, &[world], &[outcome], true, ws, ctx)?;
     Ok(res.streaming_outcome_mean(0, outcome_dense))
+}
+
+/// Alias for [`nested_counterfactual`] (historical name).
+pub fn nested_hard_counterfactual(
+    engine: &CounterfactualEngine,
+    data: &TabularData,
+    outer: &[Intervention],
+    inner: &[Intervention],
+    outcome: VariableId,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, CounterfactualError> {
+    nested_counterfactual(engine, data, outer, inner, outcome, ws, ctx)
 }
 
 #[cfg(test)]
@@ -896,13 +932,13 @@ mod tests {
     }
 
     #[test]
-    fn overlapping_simultaneous_interventions_fail_closed() {
+    fn overlapping_simultaneous_routes_to_nested() {
         let (engine, data) = toy();
         let mut ws = MechanismWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let t = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
-        let err = simultaneous_hard_counterfactual(
+        let mean = simultaneous_hard_counterfactual(
             &engine,
             &data,
             &[Intervention::set(t, Value::f64(1.0))],
@@ -911,13 +947,8 @@ mod tests {
             &mut ws,
             &ctx,
         )
-        .unwrap_err();
-        assert!(
-            matches!(err, CounterfactualError::Model(_)),
-            "overlapping targets must fail closed, got {err:?}"
-        );
-        let msg = err.to_string();
-        assert!(msg.contains("overlapping"), "message={msg}");
+        .unwrap();
+        assert!(mean.is_finite(), "overlapping simultaneous should nest, got {mean}");
     }
 
     #[test]

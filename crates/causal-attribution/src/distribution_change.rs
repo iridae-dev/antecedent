@@ -12,7 +12,7 @@ use causal_core::{
     AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
     ShapleyConfig, VariableId,
 };
-use causal_data::TabularData;
+use causal_data::{TableView, TabularData};
 use causal_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use causal_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
@@ -23,7 +23,7 @@ use causal_stats::mean_var;
 use crate::change_common::{measure_value, run_change_allocation, total_change, ChangeOptions};
 use crate::error::AttributionError;
 use crate::prep::{
-    require_mechanism_components, resolve_change_populations, resolve_outcome_dense,
+    require_mechanism_or_joint, resolve_change_populations, resolve_outcome_dense,
 };
 use crate::result::ChangeAttributionResult;
 use crate::shapley::CoalitionPayoff;
@@ -65,10 +65,13 @@ pub fn distribution_change(
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
     query.validate()?;
-    require_mechanism_components(
-        query.components,
-        "distribution_change requires AttributionComponents::Mechanisms",
-    )?;
+    require_mechanism_or_joint(query.components)?;
+    if matches!(query.components, AttributionComponents::All) {
+        return Err(AttributionError::unsupported(
+            "AttributionComponents::All requires dual graphs; use ChangeAttribution::run_structure \
+             for Structure, or InputsAndMechanisms for joint input+mechanism change",
+        ));
+    }
 
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
 
@@ -85,16 +88,24 @@ pub fn distribution_change(
 
     let outcome_dense = resolve_outcome_dense(graph_model, query.outcome)?;
 
-    let players = mechanism_players(graph_model, outcome_dense, query.max_components)?;
+    let (players, player_kinds) = joint_players(
+        graph_model,
+        outcome_dense,
+        query.max_components,
+        query.components,
+    )?;
     if players.is_empty() {
-        return Err(AttributionError::invalid_input("no mechanism components to attribute"));
+        return Err(AttributionError::invalid_input("no components to attribute"));
     }
 
     let mut payoff = MechanismSwapPayoff {
         template: graph_model.clone(),
         baseline: baseline_mechs,
         comparison: comparison_mechs,
+        baseline_data,
+        comparison_data,
         players: players.clone(),
+        player_kinds,
         outcome: outcome_dense,
         measure: options.measure,
         n_samples: options.n_samples,
@@ -117,6 +128,7 @@ pub fn distribution_change(
         total,
         Arc::from([]),
         ctx,
+        Some(graph_model),
     )
 }
 
@@ -145,19 +157,72 @@ pub(crate) fn mechanism_players(
     outcome: DenseNodeId,
     max_components: usize,
 ) -> Result<Vec<ComponentId>, AttributionError> {
+    let (players, _) =
+        joint_players(model, outcome, max_components, AttributionComponents::Mechanisms)?;
+    Ok(players)
+}
+
+/// Kind of Shapley player in joint change attribution.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PlayerKind {
+    /// Swap fitted mechanism for this node.
+    Mechanism,
+    /// Replace observational draws with comparison/baseline empirical values.
+    Input,
+    /// Both mechanism swap and empirical input mix.
+    Both,
+}
+
+pub(crate) fn joint_players(
+    model: &CompiledCausalModel,
+    outcome: DenseNodeId,
+    max_components: usize,
+    components: AttributionComponents,
+) -> Result<(Vec<ComponentId>, Vec<PlayerKind>), AttributionError> {
     let mut ws = GraphWorkspace::default();
     let mut anc = BitSet::default();
     model.graph.ancestors_of(&[outcome], &mut anc, &mut ws);
+
     let mut players = Vec::new();
-    for gather in model.parent_gathers.iter() {
-        let node = gather.child;
-        if !anc.contains(node) {
-            continue;
+    let mut kinds = Vec::new();
+
+    if matches!(
+        components,
+        AttributionComponents::Mechanisms
+            | AttributionComponents::InputsAndMechanisms
+            | AttributionComponents::All
+    ) {
+        for gather in model.parent_gathers.iter() {
+            let node = gather.child;
+            if !anc.contains(node) {
+                continue;
+            }
+            let var = model.output_layout.variables[node.as_usize()];
+            players.push(ComponentId::from_variable(var));
+            kinds.push(PlayerKind::Mechanism);
         }
-        let var = model.output_layout.variables[node.as_usize()];
-        players.push(ComponentId::from_variable(var));
     }
-    // Stable topo order already from parent_gathers / node_order.
+
+    if matches!(
+        components,
+        AttributionComponents::Inputs
+            | AttributionComponents::InputsAndMechanisms
+            | AttributionComponents::All
+    ) {
+        if let Some(gather) = model.gather_for(outcome) {
+            for &p in gather.parents.iter() {
+                let var = model.output_layout.variables[p.as_usize()];
+                let comp = ComponentId::from_variable(var);
+                if let Some(idx) = players.iter().position(|&c| c == comp) {
+                    kinds[idx] = PlayerKind::Both;
+                } else {
+                    players.push(comp);
+                    kinds.push(PlayerKind::Input);
+                }
+            }
+        }
+    }
+
     if players.len() > max_components {
         return Err(AttributionError::SizeLimit {
             kind: "components",
@@ -165,21 +230,25 @@ pub(crate) fn mechanism_players(
             max: max_components,
         });
     }
-    Ok(players)
+    Ok((players, kinds))
 }
 
-/// Build a mechanism store that uses comparison slots for bits set in `mask`.
+/// Build a mechanism store that uses comparison slots for mechanism bits set in `mask`.
 pub(crate) fn hybrid_mechanisms(
     baseline: &CompiledMechanismStore,
     comparison: &CompiledMechanismStore,
     model: &CompiledCausalModel,
     players: &[ComponentId],
+    kinds: &[PlayerKind],
     mask: u64,
 ) -> CompiledMechanismStore {
     let n = model.n_nodes();
     let mut slots: Vec<MechanismSlot> = (0..n).map(|i| baseline.slots[i].clone()).collect();
     for (i, comp) in players.iter().enumerate() {
         if mask & (1u64 << i) == 0 {
+            continue;
+        }
+        if matches!(kinds[i], PlayerKind::Input) {
             continue;
         }
         if let Some(dense) = model.dense_of(comp.variable()) {
@@ -193,7 +262,10 @@ struct MechanismSwapPayoff<'a> {
     template: CompiledCausalModel,
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
+    baseline_data: TabularData,
+    comparison_data: TabularData,
     players: Vec<ComponentId>,
+    player_kinds: Vec<PlayerKind>,
     outcome: DenseNodeId,
     measure: DifferenceMeasure,
     n_samples: usize,
@@ -220,23 +292,53 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
 
 impl MechanismSwapPayoff<'_> {
     fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
+        use causal_core::{Intervention, Value};
+
         let store = hybrid_mechanisms(
             &self.baseline,
             &self.comparison,
             &self.template,
             &self.players,
+            &self.player_kinds,
             mask,
         );
         let model = self.template.clone().with_mechanisms(store);
-        // Common random numbers across coalitions (seed independent of mask).
         let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(self.seed));
-        let batch = sample_observational(
-            &model,
-            self.n_samples.max(1),
-            &mut rng,
-            &mut self.ws,
-            self.ctx,
-        )?;
+
+        // Hard-set input/both players to the mean of the selected population.
+        let mut interventions = Vec::new();
+        for (i, &comp) in self.players.iter().enumerate() {
+            if !matches!(self.player_kinds[i], PlayerKind::Input | PlayerKind::Both) {
+                continue;
+            }
+            let data = if mask & (1u64 << i) != 0 {
+                &self.comparison_data
+            } else {
+                &self.baseline_data
+            };
+            let col = data.float64_values(comp.variable())?;
+            let mean = col.iter().sum::<f64>() / col.len().max(1) as f64;
+            interventions.push(Intervention::set(comp.variable(), Value::f64(mean)));
+        }
+
+        let batch = if interventions.is_empty() {
+            sample_observational(
+                &model,
+                self.n_samples.max(1),
+                &mut rng,
+                &mut self.ws,
+                self.ctx,
+            )?
+        } else {
+            causal_model::sample_interventional(
+                &model,
+                &interventions,
+                self.n_samples.max(1),
+                &mut rng,
+                &mut self.ws,
+                self.ctx,
+            )?
+        };
         let col = batch.column(self.outcome.as_usize())?;
         let (mu, var) = mean_var(col);
         Ok((mu, var.max(1e-12)))
@@ -247,12 +349,13 @@ impl MechanismSwapPayoff<'_> {
 mod tests {
     use super::*;
     use causal_core::{
-        CachePolicy, CausalSchemaBuilder, MeasurementSpec, PopulationSelector, RoleHint,
-        SmallRoleSet, ToleranceClass, ValueType,
+        AllocationMethod, AttributionComponents, CachePolicy, CausalSchemaBuilder, MeasurementSpec,
+        PopulationSelector, RoleHint, ShapleyConfig, SmallRoleSet, ToleranceClass, ValueType,
     };
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};
     use causal_graph::{Dag, DenseNodeId};
+    use causal_model::{MechanismRegistry, SelectionPolicy};
 
     fn two_period_chain() -> (CompiledCausalModel, TabularData) {
         // X → Y; baseline Y = X; comparison Y = X + 5 (mechanism change on Y only).
@@ -376,5 +479,50 @@ mod tests {
             result.total_change
         );
         assert!(result.total_change.is_finite() && result.total_change.abs() > 1.0);
+    }
+
+    #[test]
+    fn inputs_and_mechanisms_runs() {
+        let (model, data) = two_period_chain();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_components(AttributionComponents::InputsAndMechanisms)
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let ctx = ExecutionContext::for_tests(1);
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: 200,
+            seed: 5,
+        };
+        let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
+        assert!(result.total_change.is_finite());
+        assert!(!result.contributions.is_empty());
+    }
+
+    #[test]
+    fn path_based_allocation_fills_breakdown() {
+        let (model, data) = two_period_chain();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&model, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let model = model.with_mechanisms(store);
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::PathBased);
+        let ctx = ExecutionContext::for_tests(1);
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: 200,
+            seed: 7,
+        };
+        let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
+        assert!(!result.path_breakdown.is_empty(), "path_breakdown should be populated");
+        assert!(result.total_change.is_finite());
     }
 }

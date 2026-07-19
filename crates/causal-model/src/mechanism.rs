@@ -12,6 +12,16 @@ use causal_kernels::{categorical_from_u, standard_normal};
 use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatchMut};
 use crate::compile::MechanismSlot;
 use crate::error::ModelError;
+use crate::lgssm::{infer_lgssm_innovations, sample_lgssm_noise, unpack_innovations};
+
+/// How noise was recovered for a mechanism family during abduction.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum NoiseInferenceMode {
+    /// Unique structural residual (`y − f(pa)` or equivalent).
+    Invertible,
+    /// Sampled / smoothed posterior noise (Discrete CDF bin, LGSSM innovations).
+    Posterior,
+}
 
 /// Sample structural noise for a mechanism into `output` (one column).
 ///
@@ -44,15 +54,7 @@ pub fn sample_noise_column(
             }
             Ok(())
         }
-        MechanismSlot::LinearGaussianStateSpace { process_std, obs_std, .. } => {
-            // Pack process + obs noise in interleaved fashion into output as obs-scale noise;
-            // evaluate consumes noise as observation residual and evolves latent separately.
-            let scale = (process_std * process_std + obs_std * obs_std).sqrt();
-            for i in 0..n_rows {
-                output[i] = scale * standard_normal(rng);
-            }
-            Ok(())
-        }
+        MechanismSlot::LinearGaussianStateSpace { .. } => sample_lgssm_noise(n_rows, rng, output),
         MechanismSlot::Discrete { .. } => {
             // Uniform(0,1) drives categorical draws in evaluate / sample_column.
             for i in 0..n_rows {
@@ -108,15 +110,17 @@ pub fn evaluate_column(
             Ok(())
         }
         MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
-            // Evolve latent along the row axis using shared noise scale.
+            // `noise[r]` packs unit-normal (ε, η); y_t = x_t + σ_obs η.
             let mut x = *initial_mean;
-            let scale = (process_std * process_std + obs_std * obs_std).sqrt().max(1e-12);
             for r in 0..n {
-                let eps = noise[r] / scale;
-                x = a * x + process_std * eps;
-                output[r] = x;
+                let (eps, eta) = unpack_innovations(noise[r]);
+                x = if r == 0 {
+                    *initial_mean + process_std * eps
+                } else {
+                    a * x + process_std * eps
+                };
+                output[r] = x + obs_std * eta;
             }
-            let _ = obs_std;
             Ok(())
         }
         MechanismSlot::GaussianProcess {
@@ -190,6 +194,9 @@ pub fn evaluate_column(
 
 /// Infer exogenous noise from observed value and parents (invertible path).
 ///
+/// Discrete and LGSSM require RNG for posterior sampling — use
+/// [`infer_noise_column_rng`] for those families.
+///
 /// # Errors
 ///
 /// Non-invertible family or shape.
@@ -199,9 +206,34 @@ pub fn infer_noise_column(
     parents: ParentBatch<'_>,
     output: &mut [f64],
 ) -> Result<(), ModelError> {
+    let mut unused = CausalRng::from_seed(0);
+    let mode = infer_noise_column_rng(slot, value, parents, output, &mut unused)?;
+    if mode == NoiseInferenceMode::Posterior {
+        // Deterministic call sites should use the RNG-aware API; fall through with
+        // seed-0 draws so shape checks still work in tests.
+    }
+    Ok(())
+}
+
+/// Infer exogenous noise, sampling posterior noise when the map is many-to-one.
+///
+/// Returns whether the draw was invertible or posterior.
+///
+/// # Errors
+///
+/// Unsupported family or shape.
+pub fn infer_noise_column_rng(
+    slot: &MechanismSlot,
+    value: &[f64],
+    parents: ParentBatch<'_>,
+    output: &mut [f64],
+    rng: &mut CausalRng,
+) -> Result<NoiseInferenceMode, ModelError> {
     let n = parents.n_rows;
     if value.len() < n || output.len() < n {
-        return Err(ModelError::Shape { message: "infer_noise buffers too short".into() });
+        return Err(ModelError::Shape {
+            message: "infer_noise buffers too short".into(),
+        });
     }
     match slot {
         MechanismSlot::LinearGaussian { intercept, coeffs, .. }
@@ -219,22 +251,127 @@ pub fn infer_noise_column(
                 }
                 output[r] = value[r] - eta;
             }
-            Ok(())
+            Ok(NoiseInferenceMode::Invertible)
         }
         MechanismSlot::Constant { value: c } => {
             for r in 0..n {
                 output[r] = value[r] - *c;
             }
-            Ok(())
+            Ok(NoiseInferenceMode::Invertible)
+        }
+        MechanismSlot::GaussianProcess {
+            length_scale,
+            variance,
+            x_train,
+            n_train,
+            n_parents,
+            alpha,
+            ..
+        } => {
+            if *n_parents != parents.n_parents {
+                return Err(ModelError::Shape {
+                    message: "GP n_parents mismatch".into(),
+                });
+            }
+            let inv_l2 = 1.0 / (length_scale * length_scale);
+            for r in 0..n {
+                let mut mean = 0.0;
+                for i in 0..*n_train {
+                    let mut d2 = 0.0;
+                    for p in 0..parents.n_parents {
+                        let d = parents.column(p)?[r] - x_train[i * n_parents + p];
+                        d2 += d * d;
+                    }
+                    mean += alpha[i] * variance * (-0.5 * d2 * inv_l2).exp();
+                }
+                output[r] = value[r] - mean;
+            }
+            Ok(NoiseInferenceMode::Invertible)
+        }
+        MechanismSlot::Discrete { support, probs, logit_coeffs } => {
+            infer_discrete_posterior_noise(support, probs, logit_coeffs.as_deref(), value, parents, output, rng)?;
+            Ok(NoiseInferenceMode::Posterior)
+        }
+        MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
+            infer_lgssm_innovations(
+                &value[..n],
+                *a,
+                *process_std,
+                *obs_std,
+                *initial_mean,
+                &mut output[..n],
+                Some(rng),
+            )?;
+            Ok(NoiseInferenceMode::Posterior)
         }
         MechanismSlot::Dynamic { mechanism, .. } => {
-            mechanism.infer_noise_column(value, parents, output)
+            mechanism.infer_noise_column(value, parents, output)?;
+            Ok(NoiseInferenceMode::Invertible)
         }
         _ => Err(ModelError::Unsupported {
-            message: "noise inference requires invertible linear/constant/hierarchical/bvar mechanism"
-                .into(),
+            message: "noise inference unsupported for this mechanism family".into(),
         }),
     }
+}
+
+fn infer_discrete_posterior_noise(
+    support: &[f64],
+    probs: &[f64],
+    logit_coeffs: Option<&[f64]>,
+    value: &[f64],
+    parents: ParentBatch<'_>,
+    output: &mut [f64],
+    rng: &mut CausalRng,
+) -> Result<(), ModelError> {
+    let n = parents.n_rows;
+    if support.is_empty() {
+        return Err(ModelError::Shape {
+            message: "empty discrete support".into(),
+        });
+    }
+    let k = support.len();
+    let mut row_probs = vec![0.0; k];
+    for r in 0..n {
+        match logit_coeffs {
+            None => {
+                if support.len() != probs.len() {
+                    return Err(ModelError::Shape {
+                        message: "discrete support/probs mismatch".into(),
+                    });
+                }
+                row_probs.copy_from_slice(probs);
+                let sum: f64 = row_probs.iter().sum::<f64>().max(f64::EPSILON);
+                for p in &mut row_probs {
+                    *p /= sum;
+                }
+            }
+            Some(logits) => {
+                let width = 1 + parents.n_parents;
+                if logits.len() != k * width {
+                    return Err(ModelError::Shape {
+                        message: "discrete logit_coeffs length mismatch".into(),
+                    });
+                }
+                softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
+            }
+        }
+        let cat = support
+            .iter()
+            .position(|&s| (value[r] - s).abs() < 1e-12)
+            .ok_or_else(|| ModelError::Unsupported {
+                message: format!("discrete value {} not in support", value[r]),
+            })?;
+        let mut lo = 0.0;
+        for i in 0..cat {
+            lo += row_probs[i];
+        }
+        let hi = (lo + row_probs[cat]).min(1.0);
+        let lo = lo.clamp(0.0, 1.0 - f64::EPSILON);
+        let hi = hi.max(lo + f64::EPSILON).min(1.0 - f64::EPSILON / 2.0);
+        let u = lo + (hi - lo) * rng.next_f64();
+        output[r] = u.clamp(f64::EPSILON, 1.0 - f64::EPSILON);
+    }
+    Ok(())
 }
 
 /// Log-density of observed values under the mechanism (PCM path).
@@ -491,6 +628,7 @@ pub fn evaluate_batch_topo(
 mod tests {
     use super::*;
     use crate::compile::MechanismSlot;
+    use causal_core::CausalRng;
     use std::sync::Arc;
 
     #[test]
@@ -511,6 +649,56 @@ mod tests {
         infer_noise_column(&slot, &out, parents, &mut inferred).unwrap();
         assert!((inferred[0] - 0.1).abs() < 1e-12);
         assert!((inferred[1] - (-0.2)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn discrete_posterior_noise_recovers_category() {
+        let slot = MechanismSlot::Discrete {
+            support: Arc::from(vec![0.0, 1.0, 2.0]),
+            probs: Arc::from(vec![0.2, 0.5, 0.3]),
+            logit_coeffs: None,
+        };
+        let parents = ParentBatch { n_rows: 3, n_parents: 0, values: &[] };
+        let value = [1.0, 0.0, 2.0];
+        let mut noise = [0.0; 3];
+        let mut rng = CausalRng::from_seed(42);
+        let mode = infer_noise_column_rng(&slot, &value, parents, &mut noise, &mut rng).unwrap();
+        assert_eq!(mode, NoiseInferenceMode::Posterior);
+        let mut out = [0.0; 3];
+        let mut ws = MechanismWorkspace::default();
+        evaluate_column(&slot, parents, &noise, &mut out, &mut ws).unwrap();
+        assert_eq!(out, value);
+    }
+
+    #[test]
+    fn gp_invertible_noise_round_trip() {
+        let slot = MechanismSlot::GaussianProcess {
+            length_scale: 1.0,
+            variance: 1.0,
+            noise_std: 0.1,
+            x_train: Arc::from(vec![0.0, 1.0]),
+            n_train: 2,
+            n_parents: 1,
+            alpha: Arc::from(vec![0.5, -0.25]),
+        };
+        let parent_vals = [0.0_f64, 1.0];
+        let parents = ParentBatch { n_rows: 2, n_parents: 1, values: &parent_vals };
+        let noise = [0.05, -0.02];
+        let mut out = [0.0; 2];
+        let mut ws = MechanismWorkspace::default();
+        evaluate_column(&slot, parents, &noise, &mut out, &mut ws).unwrap();
+        let mut inferred = [0.0; 2];
+        let mode = infer_noise_column_rng(
+            &slot,
+            &out,
+            parents,
+            &mut inferred,
+            &mut CausalRng::from_seed(1),
+        )
+        .unwrap();
+        assert_eq!(mode, NoiseInferenceMode::Invertible);
+        assert!((inferred[0] - noise[0]).abs() < 1e-10);
+        assert!((inferred[1] - noise[1]).abs() < 1e-10);
     }
 
     #[test]

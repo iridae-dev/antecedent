@@ -18,6 +18,8 @@ pub use causal_core::{
     AverageEffectQuery, CausalQuery, CausalSchemaBuilder, ExecutionContext, TemporalEffectQuery,
     VariableId,
 };
-pub use causal_data::{TabularData, TimeSeriesData};
+pub use causal_data::{
+    EventData, MultiEnvironmentData, PanelData, PanelUnit, TabularData, TimeSeriesData,
+};
 pub use causal_graph::{Dag, TemporalDag};
 pub use causal_estimate::CausalPosterior;

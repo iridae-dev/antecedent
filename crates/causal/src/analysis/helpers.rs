@@ -54,6 +54,12 @@ pub(crate) struct AssembleArgs<'a> {
     pub(crate) estimate: EffectEstimate,
     pub(crate) distribution: Option<causal_estimate::InterventionalDistributionEstimate>,
     pub(crate) posterior: Option<causal_estimate::CausalPosterior>,
+    pub(crate) mediation: Option<causal_estimate::TemporalMediationEstimate>,
+    pub(crate) counterfactual: Option<crate::gcm::IteResult>,
+    pub(crate) anomaly: Option<Vec<causal_attribution::AnomalyScores>>,
+    pub(crate) change_attribution: Option<causal_attribution::ChangeAttributionResult>,
+    pub(crate) mechanism_change: Option<Vec<causal_attribution::MechanismChangeDetection>>,
+    pub(crate) unit_change: Option<causal_attribution::UnitChangeResult>,
     pub(crate) refutations: Vec<RefutationReport>,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) provenance: ProvenanceGraph,
@@ -78,6 +84,12 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
         estimate: args.estimate,
         distribution: args.distribution,
         posterior: args.posterior,
+        mediation: args.mediation,
+        counterfactual: args.counterfactual,
+        anomaly: args.anomaly,
+        change_attribution: args.change_attribution,
+        mechanism_change: args.mechanism_change,
+        unit_change: args.unit_change,
         refutations: args.refutations,
         diagnostics: args.diagnostics,
         provenance: args.provenance,
@@ -244,6 +256,8 @@ pub(crate) fn run_pc_review(
         max_cond_size,
         fdr,
         ci,
+        screen_pc: false,
+        max_subset: None,
     };
     let result = discover_pc(data, &vars, &params, ctx)?;
     Ok(result.review)
@@ -263,6 +277,8 @@ pub(crate) fn run_ges_review(
         max_cond_size,
         fdr,
         ci,
+        screen_pc: false,
+        max_subset: None,
     };
     let result = discover_ges(data, &vars, &params, ctx)?;
     Ok(result.review)
@@ -280,6 +296,8 @@ pub(crate) fn run_lingam_review(
         max_cond_size,
         fdr: None,
         ci: resolve_ci("parcorr", None)?,
+        screen_pc: false,
+        max_subset: None,
     };
     let result = discover_lingam(data, &vars, &params, prune_threshold, ctx)?;
     Ok(result.review)
@@ -299,6 +317,8 @@ pub(crate) fn run_notears_review(
         max_cond_size,
         fdr: None,
         ci: resolve_ci("parcorr", None)?,
+        screen_pc: false,
+        max_subset: None,
     };
     let result = discover_notears(data, &vars, &params, lambda, threshold, standardize, ctx)?;
     Ok(result.discovery.review)
@@ -318,6 +338,8 @@ pub(crate) fn run_fci_review(
         max_cond_size,
         fdr,
         ci,
+        screen_pc: false,
+        max_subset: None,
     };
     let result = discover_fci(data, &vars, &params, ctx)?;
     Ok(result.review)
@@ -337,6 +359,8 @@ pub(crate) fn run_rfci_review(
         max_cond_size,
         fdr,
         ci,
+        screen_pc: false,
+        max_subset: None,
     };
     let result = discover_rfci(data, &vars, &params, ctx)?;
     Ok(result.review)

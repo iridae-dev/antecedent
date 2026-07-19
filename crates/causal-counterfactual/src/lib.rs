@@ -11,8 +11,8 @@ pub mod trajectory;
 
 pub use engine::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualResult,
-    CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind, nested_hard_counterfactual,
-    simultaneous_hard_counterfactual, streaming_matches_retained,
+    CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind, nested_counterfactual,
+    nested_hard_counterfactual, simultaneous_hard_counterfactual, streaming_matches_retained,
 };
 pub use error::CounterfactualError;
 pub use trajectory::{

@@ -4,15 +4,17 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
+};
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, prepare_propensity_problem, restrict_to_rows, trim_of,
-    trim_retained_rows,
+    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, restrict_to_rows,
+    trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -33,6 +35,8 @@ pub struct PropensityWeighting {
     pub overlap: OverlapPolicy,
     /// GLM fitting options for the propensity model.
     pub glm_options: GlmOptions,
+    /// Optional bindings for named predicates / custom target distributions.
+    pub population_registry: Option<PopulationRegistry>,
 }
 
 impl Default for PropensityWeighting {
@@ -50,6 +54,7 @@ impl PropensityWeighting {
             bootstrap_replicates: 200,
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
+            population_registry: None,
         }
     }
 
@@ -65,7 +70,13 @@ impl PropensityWeighting {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        prepare_propensity_problem(data, estimand, query, self.overlap)
+        prepare_propensity_problem_with_registry(
+            data,
+            estimand,
+            query,
+            self.overlap,
+            self.population_registry.as_ref(),
+        )
     }
 
     /// Fit the propensity model and compute the Hajek-weighted effect, with optional bootstrap.
@@ -81,6 +92,11 @@ impl PropensityWeighting {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let target = IpwTarget::from_population(&problem.target_population)?;
+        if matches!(target, IpwTarget::Custom) && problem.target_weights.is_none() {
+            return Err(EstimationError::unsupported(
+                "CustomDistribution requires PopulationRegistry weights on the prepared problem",
+            ));
+        }
         let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
             problem,
@@ -89,13 +105,14 @@ impl PropensityWeighting {
             &self.glm_options,
         )?;
 
-        let weights = compute_ipw_weights(
+        let mut weights = compute_ipw_weights(
             &problem.treatment,
             &model.clipped_scores,
             &model.fit.scores,
             target,
             trim,
         );
+        apply_target_weights(&mut weights, problem.target_weights.as_deref());
         let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
         let se_analytic = hajek_influence_se(
             &problem.treatment,
@@ -141,11 +158,12 @@ impl PropensityWeighting {
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
-                let n = problem.nrows;
+        let n = problem.nrows;
         let ncols = problem.design_ncols;
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
+        let tw = problem.target_weights.as_deref();
         bootstrap_se(self.bootstrap_replicates, ctx, 0x9A17_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 t_boot[r] = problem.treatment[src];
@@ -170,7 +188,12 @@ impl PropensityWeighting {
             if let Some(c) = clip {
                 clamp_scores(&mut clipped, c);
             }
-            let w = compute_ipw_weights(&t_boot, &clipped, &raw, target, trim);
+            let mut w = compute_ipw_weights(&t_boot, &clipped, &raw, target, trim);
+            if let Some(full_tw) = tw {
+                for (r, &src) in idx.iter().enumerate() {
+                    w[r] *= full_tw[src];
+                }
+            }
             match hajek_difference(&t_boot, &y_boot, &w) {
                 Ok(a) => Ok(Some(a)),
                 Err(_) => Ok(None),
@@ -192,14 +215,15 @@ enum IpwTarget {
     Ate,
     Att,
     Atc,
+    /// ATE-style IPW reweighted by CustomDistribution observation weights.
+    Custom,
 }
 
 impl IpwTarget {
     fn from_population(pop: &TargetPopulation) -> Result<Self, EstimationError> {
         match pop {
-            TargetPopulation::AllObserved
-            | TargetPopulation::Predicate(_)
-            | TargetPopulation::CustomDistribution(_) => Ok(Self::Ate),
+            TargetPopulation::AllObserved | TargetPopulation::Predicate(_) => Ok(Self::Ate),
+            TargetPopulation::CustomDistribution(_) => Ok(Self::Custom),
             TargetPopulation::Treated => Ok(Self::Att),
             TargetPopulation::Untreated => Ok(Self::Atc),
             _ => Err(EstimationError::unsupported(
@@ -210,7 +234,7 @@ impl IpwTarget {
 
     fn weight(self, t: f64, e: f64) -> f64 {
         match self {
-            Self::Ate => {
+            Self::Ate | Self::Custom => {
                 if t > 0.5 {
                     1.0 / e
                 } else {
@@ -232,6 +256,15 @@ impl IpwTarget {
                 }
             }
         }
+    }
+}
+
+fn apply_target_weights(weights: &mut [f64], target_weights: Option<&[f64]>) {
+    let Some(tw) = target_weights else {
+        return;
+    };
+    for (w, &t) in weights.iter_mut().zip(tw) {
+        *w *= t;
     }
 }
 

@@ -30,6 +30,7 @@ from ._native import (
     discover_rfci as _discover_rfci,
     discover_rpcmci as _discover_rpcmci,
     discover_structure_mcmc as _discover_structure_mcmc,
+    two_regime_half_split,
 )
 
 CiSpec = Union[str, Callable[..., Sequence[tuple[float, float]]]]
@@ -88,6 +89,11 @@ class JPCMCIPlus:
 
 @dataclass(frozen=True)
 class RPCMCI:
+    """Regime-PCMCI. Pass ``regimes=`` to ``analyze`` / ``discover_rpcmci`` (required).
+
+    Use ``two_regime_half_split(n)`` when a simple half-split label vector is enough.
+    """
+
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = True
@@ -101,6 +107,8 @@ class GES:
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    screen_pc: bool = False
+    max_subset: int | None = None
     kind: Literal["ges"] = "ges"
 
 
@@ -140,7 +148,10 @@ class RFCI:
 
 @dataclass(frozen=True)
 class ExactDagPosterior:
-    """Exact DAG posterior enumeration (n ≤ 6, Gaussian BIC)."""
+    """Exact DAG posterior enumeration (hard limit: n ≤ 6, Gaussian BIC).
+
+    For more variables use ``OrderMcmc``, ``StructureMcmc``, or ``CiScreenedPosterior``.
+    """
 
     kind: Literal["exact_dag_posterior"] = "exact_dag_posterior"
 
@@ -180,6 +191,12 @@ class CiScreenedPosterior:
 
 @dataclass(frozen=True)
 class DbnPosterior:
+    """Bounded-lag DBN posterior (Gaussian BIC).
+
+    Exact enumeration only when ``p ≤ 4`` and ``max_lag ≤ 2``; larger templates
+    automatically use MCMC (or set ``force_mcmc=True``).
+    """
+
     max_lag: int = 1
     force_mcmc: bool = False
     n_chains: int = 2
@@ -280,6 +297,8 @@ def discover_ges(
     ci: str = "parcorr",
     max_cond_size: int = 2,
     threads: int = 1,
+    screen_pc: bool = False,
+    max_subset: int | None = None,
 ) -> DiscoveryResult:
     n, cols = _coerce_tabular(names, columns, data=data)
     return _discover_ges(
@@ -291,6 +310,8 @@ def discover_ges(
         ci=ci,
         max_cond_size=max_cond_size,
         threads=threads,
+        screen_pc=screen_pc,
+        max_subset=max_subset,
     )
 
 
@@ -513,6 +534,7 @@ def discover_rpcmci(
     columns: Sequence[NDArray[np.float64]] | None = None,
     *,
     data: Any | None = None,
+    regimes: Sequence[int],
     max_lag: int = 1,
     alpha: float = 0.05,
     fdr: bool = True,
@@ -520,12 +542,16 @@ def discover_rpcmci(
     ci: str = "parcorr",
     weights: list[float] | None = None,
     threads: int = 1,
-    regimes: Sequence[int] | None = None,
 ) -> RpcmciDiscoverySummary:
+    """Run RPCMCI. ``regimes`` is required (length = series length); no silent half-split.
+
+    Call ``two_regime_half_split(len(series))`` for an explicit two-regime mid-point split.
+    """
     n, cols = _coerce_tabular(names, columns, data=data)
     return _discover_rpcmci(
         n,
         cols,
+        regimes=list(regimes),
         max_lag=max_lag,
         alpha=alpha,
         fdr=fdr,
@@ -533,7 +559,6 @@ def discover_rpcmci(
         ci=ci,
         weights=weights,
         threads=threads,
-        regimes=list(regimes) if regimes is not None else None,
     )
 
 
@@ -545,6 +570,7 @@ def discover_exact_dag_posterior(
     seed: int = 1,
     threads: int = 1,
 ) -> GraphPosterior:
+    """Exact DAG posterior (hard limit n ≤ 6). Prefer MCMC helpers for larger graphs."""
     n, cols = _coerce_tabular(names, columns, data=data)
     return _discover_exact_dag_posterior(n, cols, seed=seed, threads=threads)
 
@@ -649,6 +675,7 @@ def discover_dbn_posterior(
     seed: int = 1,
     threads: int = 1,
 ) -> GraphPosterior:
+    """DBN template posterior; exact only for p ≤ 4 and max_lag ≤ 2, else MCMC."""
     n, cols = _coerce_tabular(names, columns, data=data)
     return _discover_dbn_posterior(
         n,
@@ -703,4 +730,5 @@ __all__ = [
     "discover_rpcmci",
     "discover_structure_mcmc",
     "discovery_to_dag",
+    "two_regime_half_split",
 ]

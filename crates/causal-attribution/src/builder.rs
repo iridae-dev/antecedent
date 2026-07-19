@@ -126,9 +126,11 @@ impl ChangeAttribution {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<ChangeAttributionResult, AttributionError> {
-        if matches!(self.components, AttributionComponents::Structure) {
+        if matches!(self.components, AttributionComponents::Structure | AttributionComponents::All)
+        {
             return Err(AttributionError::unsupported(
-                "ChangeAttribution::run does not support Structure; use run_structure with dual graphs",
+                "ChangeAttribution::run does not support Structure/All; use run_structure for \
+                 Structure, or InputsAndMechanisms for joint input+mechanism change",
             ));
         }
         let robust = self.robust;

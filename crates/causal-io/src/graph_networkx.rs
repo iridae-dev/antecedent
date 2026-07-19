@@ -240,7 +240,7 @@ pub fn dag_to_networkx_adjacency(dag: &Dag, names: Option<&[String]>) -> Result<
     serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
 }
 
-fn json_id_to_string(v: &JsonValue) -> Result<String, IoError> {
+pub(crate) fn json_id_to_string(v: &JsonValue) -> Result<String, IoError> {
     match v {
         JsonValue::String(s) => Ok(s.clone()),
         JsonValue::Number(n) => Ok(n.to_string()),

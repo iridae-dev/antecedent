@@ -9,7 +9,7 @@ use crate::error::StatsError;
 
 /// Reusable kNN index + permutation plan for CMI.
 #[derive(Clone, Debug, Default)]
-pub struct KnnCmiWorkspace {
+pub struct KnnDependenceWorkspace {
     /// Built neighbor index generation (bumps only on rebuild).
     pub index_generation: u64,
     /// Number of times a new [`MatchingIndex`] was constructed.
@@ -328,7 +328,7 @@ pub struct CiWorkspace {
     /// Contingency Y level-code scratch (G² / discrete CI).
     pub contingency_y_codes: Vec<u32>,
     /// kNN CMI index / permutation reuse state.
-    pub knn: KnnCmiWorkspace,
+    pub knn: KnnDependenceWorkspace,
 }
 
 impl CiWorkspace {

@@ -20,11 +20,11 @@ pub mod pretty;
 pub mod provider;
 pub mod simplify;
 
-pub use estimand::{EstimandMethod, IdentifiedEstimand};
+pub use estimand::{EstimandMethod, IdentifiedEstimand, RdDesignParams};
 pub use eval::CompiledEvaluator;
 pub use provider::{
     Assignment, DistributionProvider, EmpiricalTableProvider, EvalContext, EvalError, FactorSpec,
-    PosteriorDrawProvider,
+    GaussianDensityProvider, PosteriorDrawProvider,
 };
 
 use latex::latex_expr;
@@ -482,6 +482,32 @@ impl CausalExprArena {
             DerivationMeta {
                 rule: Arc::from("frontdoor"),
                 note: Some(Arc::from(format!("front-door mediator set size {}", mediators.len()))),
+            },
+        );
+        contrast
+    }
+
+    /// Linear temporal-mediation path-product ATE contrast (same product-of-coefficients
+    /// geometry as front-door under a linear SEM, tagged `temporal_mediation` — not front-door).
+    pub fn temporal_mediation_ate(
+        &mut self,
+        treatment: VariableId,
+        outcome: VariableId,
+        mediators: &[VariableId],
+        active: Value,
+        control: Value,
+    ) -> ExprId {
+        let left = self.frontdoor_potential_outcome(treatment, outcome, mediators, active);
+        let right = self.frontdoor_potential_outcome(treatment, outcome, mediators, control);
+        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
+        self.set_derivation(
+            contrast,
+            DerivationMeta {
+                rule: Arc::from("temporal_mediation"),
+                note: Some(Arc::from(format!(
+                    "linear temporal mediation path-product; mediator set size {}",
+                    mediators.len()
+                ))),
             },
         );
         contrast

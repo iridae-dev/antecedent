@@ -4,15 +4,17 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
+};
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, prepare_propensity_problem, restrict_to_rows, trim_of,
-    trim_retained_rows,
+    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, restrict_to_rows,
+    trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -35,6 +37,8 @@ pub struct PropensityStratification {
     pub glm_options: GlmOptions,
     /// Number of quantile strata (default 5).
     pub n_strata: u32,
+    /// Optional bindings for named predicates / custom target distributions.
+    pub population_registry: Option<PopulationRegistry>,
 }
 
 impl Default for PropensityStratification {
@@ -53,6 +57,7 @@ impl PropensityStratification {
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             n_strata: 5,
+            population_registry: None,
         }
     }
 
@@ -67,7 +72,13 @@ impl PropensityStratification {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        prepare_propensity_problem(data, estimand, query, self.overlap)
+        prepare_propensity_problem_with_registry(
+            data,
+            estimand,
+            query,
+            self.overlap,
+            self.population_registry.as_ref(),
+        )
     }
 
     /// Fit the propensity model, assign quantile strata, and compute the pooled stratified ATE.
@@ -82,8 +93,16 @@ impl PropensityStratification {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        if !matches!(problem.target_population, TargetPopulation::AllObserved) {
-            return Err(EstimationError::unsupported("propensity stratification only supports TargetPopulation::AllObserved"));
+        if !matches!(
+            problem.target_population,
+            TargetPopulation::AllObserved
+                | TargetPopulation::Treated
+                | TargetPopulation::Untreated
+                | TargetPopulation::Predicate(_)
+        ) {
+            return Err(EstimationError::unsupported(
+                "propensity stratification supports AllObserved, Treated, Untreated, or Predicate",
+            ));
         }
         let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
@@ -103,7 +122,13 @@ impl PropensityStratification {
             retained.as_deref(),
         );
         let stratum = assign_strata(&s_used, n_strata);
-        let result = stratified_ate(&t_used, &y_used, &stratum, n_strata)?;
+        let result = stratified_ate(
+            &t_used,
+            &y_used,
+            &stratum,
+            n_strata,
+            &problem.target_population,
+        )?;
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -176,7 +201,7 @@ impl PropensityStratification {
             let (t_used, y_used, s_used) =
                 restrict_to_rows(&t_boot, &y_boot, &scores, 1, retained.as_deref());
             let stratum = assign_strata(&s_used, n_strata);
-            match stratified_ate(&t_used, &y_used, &stratum, n_strata) {
+            match stratified_ate(&t_used, &y_used, &stratum, n_strata, &problem.target_population) {
                 Ok(r) => Ok(Some(r.ate)),
                 Err(_) => Ok(None),
             }
@@ -216,6 +241,7 @@ pub(crate) fn stratified_ate(
     outcome: &[f64],
     stratum: &[usize],
     n_strata: usize,
+    target: &TargetPopulation,
 ) -> Result<StratifiedResult, EstimationError> {
     let mut sum1 = vec![0.0; n_strata];
     let mut sq1 = vec![0.0; n_strata];
@@ -236,7 +262,7 @@ pub(crate) fn stratified_ate(
         }
     }
     let mut diffs = Vec::new();
-    let mut ns = Vec::new();
+    let mut weights = Vec::new();
     let mut vars = Vec::new();
     for s in 0..n_strata {
         if cnt1[s] == 0 || cnt0[s] == 0 {
@@ -246,21 +272,32 @@ pub(crate) fn stratified_ate(
         let n0 = cnt0[s] as f64;
         let mean1 = sum1[s] / n1;
         let mean0 = sum0[s] / n0;
-        // Unbiased sample variances (÷(n−1)); undefined (NaN) for a single-unit arm, which
-        // honestly propagates into `se_analytic` rather than understating it.
         let var1 = sample_variance_from_moments(sq1[s], mean1, cnt1[s]);
         let var0 = sample_variance_from_moments(sq0[s], mean0, cnt0[s]);
+        let w = match target {
+            TargetPopulation::Treated => n1,
+            TargetPopulation::Untreated => n0,
+            _ => n1 + n0,
+        };
         diffs.push(mean1 - mean0);
-        ns.push(n1 + n0);
+        weights.push(w);
         vars.push(var1 / n1 + var0 / n0);
     }
-    let total_n: f64 = ns.iter().sum();
-    if total_n <= 0.0 {
+    let total_w: f64 = weights.iter().sum();
+    if total_w <= 0.0 {
         return Err(EstimationError::data_msg("no strata contain both treated and control units"));
     }
-    let ate = diffs.iter().zip(&ns).map(|(d, n)| d * n).sum::<f64>() / total_n;
-    let se_var = vars.iter().zip(&ns).map(|(v, n)| v * (n / total_n).powi(2)).sum::<f64>();
-    let retained_fraction = total_n / (treatment.len().max(1) as f64);
+    let ate = diffs.iter().zip(&weights).map(|(d, w)| d * w).sum::<f64>() / total_w;
+    let se_var = vars
+        .iter()
+        .zip(&weights)
+        .map(|(v, w)| v * (w / total_w).powi(2))
+        .sum::<f64>();
+    let retained_n: f64 = (0..n_strata)
+        .filter(|&s| cnt1[s] > 0 && cnt0[s] > 0)
+        .map(|s| (cnt1[s] + cnt0[s]) as f64)
+        .sum();
+    let retained_fraction = retained_n / (treatment.len().max(1) as f64);
     Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction })
 }
 

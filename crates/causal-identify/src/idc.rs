@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use causal_core::{
-    AssumptionSet, CausalQuery, InterventionalDistributionQuery, Intervention, VariableId,
+    AssumptionSet, CausalQuery, InterventionalDistributionQuery, Intervention, Value, VariableId,
 };
 use causal_expr::{CausalExprArena, EstimandMethod, ExprNode, IdentifiedEstimand};
 use causal_graph::{Admg, BitSet, DSeparationWorkspace, Dag, DenseNodeId};
@@ -80,24 +80,16 @@ impl IdcIdentifier {
                 if q.conditioning.is_empty() {
                     return self.inner.identify(prepared, query, workspace);
                 }
-                if !q.interventions.iter().all(|iv| matches!(iv, Intervention::Set { .. })) {
-                    return Err(IdentificationError::unsupported(
-                        "IDC supports hard Set interventions only",
-                    ));
+                if let Err(e) = crate::intervention_support::require_hard_set_interventions(
+                    q.interventions.iter(),
+                    "IDC",
+                ) {
+                    return Err(e);
                 }
-                let intervention_vars: Result<Vec<_>, _> = q
-                    .interventions
-                    .iter()
-                    .map(|iv| {
-                        iv.primary_variable().ok_or(IdentificationError::unsupported(
-                            "intervention missing primary variable",
-                        ))
-                    })
-                    .collect();
                 let mut result = self.identify_conditional(
                     prepared,
                     q.outcomes.as_ref(),
-                    &intervention_vars?,
+                    q.interventions.as_ref(),
                     q.conditioning.as_ref(),
                     workspace,
                 )?;
@@ -121,18 +113,26 @@ impl IdcIdentifier {
         &self,
         prepared: &PreparedAdmg,
         outcomes: &[VariableId],
-        interventions: &[VariableId],
+        interventions: &[Intervention],
         conditioning: &[VariableId],
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
+        crate::intervention_support::require_hard_set_interventions(interventions, "IDC")?;
         let n = prepared.admg().node_count();
         let mut y = BitSet::with_len(n);
         for &v in outcomes {
             y.insert(prepared.var_to_dense(v)?);
         }
         let mut x = BitSet::with_len(n);
-        for &v in interventions {
+        let mut known_values = std::collections::BTreeMap::<VariableId, Value>::new();
+        for iv in interventions {
+            let v = iv.primary_variable().ok_or(IdentificationError::unsupported(
+                "intervention missing primary variable",
+            ))?;
             x.insert(prepared.var_to_dense(v)?);
+            if let Intervention::Set { value, .. } = iv {
+                known_values.insert(v, value.clone());
+            }
         }
         let mut z = BitSet::with_len(n);
         for &v in conditioning {
@@ -149,6 +149,7 @@ impl IdcIdentifier {
             &y,
             &x,
             &z,
+            &known_values,
             workspace,
             &mut derivation,
             &mut perf,
@@ -162,16 +163,12 @@ impl IdcIdentifier {
                     instruments: Arc::from([]),
                     mediators: Arc::from([]),
                     functional,
+                    rd_design: None,
                 };
                 Ok(IdentificationResult::identified(
                     CausalQuery::Distribution(InterventionalDistributionQuery {
                         outcomes: Arc::from(outcomes.to_vec()),
-                        interventions: Arc::from(
-                            interventions
-                                .iter()
-                                .map(|&variable| Intervention::set(variable, causal_core::Value::f64(f64::NAN)))
-                                .collect::<Vec<_>>(),
-                        ),
+                        interventions: Arc::from(interventions.to_vec()),
                         conditioning: Arc::from(conditioning.to_vec()),
                         target_population: causal_core::TargetPopulation::AllObserved,
                     }),
@@ -204,6 +201,7 @@ fn idc_recurse(
     y: &BitSet,
     x: &BitSet,
     z: &BitSet,
+    known_values: &std::collections::BTreeMap<VariableId, Value>,
     workspace: &mut IdentificationWorkspace,
     derivation: &mut DerivationTrace,
     perf: &mut IdentificationPerformanceRecord,
@@ -223,7 +221,17 @@ fn idc_recurse(
             );
             let mut x2 = x.clone();
             x2.insert(z_node);
-            return idc_recurse(id, prepared, y, &x2, &z_rest, workspace, derivation, perf);
+            return idc_recurse(
+                id,
+                prepared,
+                y,
+                &x2,
+                &z_rest,
+                known_values,
+                workspace,
+                derivation,
+                perf,
+            );
         }
     }
 
@@ -231,7 +239,7 @@ fn idc_recurse(
     derivation.push("general.idc.line2", "reduce to ID on Y∪Z");
     let mut yz = y.clone();
     yz.union_with(z);
-    let q = distribution_query_from_sets(prepared, &yz, x)?;
+    let q = distribution_query_from_sets(prepared, &yz, x, known_values)?;
     let id_res = id.identify(prepared, &q, workspace)?;
     if id_res.status != IdentificationStatus::NonparametricallyIdentified {
         return Ok(IdcOk::NotIdentified(id_res));
@@ -249,14 +257,22 @@ fn distribution_query_from_sets(
     prepared: &PreparedAdmg,
     y: &BitSet,
     x: &BitSet,
+    known_values: &std::collections::BTreeMap<VariableId, Value>,
 ) -> Result<CausalQuery, IdentificationError> {
-    let outcomes: Result<Vec<_>, _> = y.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
+    let outcomes: Result<Vec<_>, _> =
+        y.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
     let interventions: Result<Vec<_>, _> = x
         .to_dense_ids()
         .into_iter()
         .map(|d| {
             prepared.dense_to_var(d).map(|variable| {
-                Intervention::set(variable, causal_core::Value::f64(f64::NAN))
+                // Prefer caller Set values; for IDC-moved conditioning vars use a finite
+                // structure-only placeholder (ID cares about variable sets, not levels).
+                let value = known_values
+                    .get(&variable)
+                    .cloned()
+                    .unwrap_or_else(|| Value::Int64(0));
+                Intervention::set(variable, value)
             })
         })
         .collect();
@@ -363,11 +379,21 @@ mod tests {
             .identify_conditional(
                 &prep,
                 &[VariableId::from_raw(2)],
-                &[VariableId::from_raw(1)],
+                &[Intervention::set(VariableId::from_raw(1), Value::f64(1.0))],
                 &[],
                 &mut ws,
             )
             .unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        if let CausalQuery::Distribution(q) = &res.query {
+            for iv in q.interventions.iter() {
+                if let Intervention::Set { value, .. } = iv {
+                    assert!(
+                        value.as_f64().is_none_or(|x| !x.is_nan()),
+                        "IDC must not invent NaN Set values"
+                    );
+                }
+            }
+        }
     }
 }

@@ -1,5 +1,5 @@
 id = "discovery.ci_stats"
-capability_ids = ["discovery.ci.gpdc", "discovery.ci.cmi_knn", "discovery.ci.gsquared"]
+capability_ids = ["discovery.ci.gpdc", "discovery.ci.knn_dependence", "discovery.ci.gsquared"]
 fixture_dir = "conformance/discovery/ci_stats"
 tolerance_class = "StableFloat"
 baseline_pin = "parity/baselines/tigramite.toml"

@@ -26,7 +26,7 @@ echo "== CI Type I / permutation uniformity (causal-stats) =="
 run_ignored causal-stats robust_parcorr_calibration_gate
 run_ignored causal-stats weighted_parcorr_calibration_gate
 run_ignored causal-stats gsquared_calibration_gate
-run_ignored causal-stats knn_cmi_calibration_gate
+run_ignored causal-stats knn_dependence_calibration_gate
 run_ignored causal-stats parcorr_perm_pvalue_uniformity_gate
 run_ignored causal-stats knn_perm_pvalue_uniformity_gate
 

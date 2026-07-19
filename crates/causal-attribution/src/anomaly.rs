@@ -219,7 +219,9 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
     }
 }
 
-/// Direct arrow strength: |β| for linear Gaussian edge parent→child, else 0.
+/// Direct arrow strength: `|β|` for linear-family edges (LinearGaussian /
+/// HierarchicalLinear / Bvar). Non-linear mechanisms error — use
+/// [`population_do_contrast`] for interventional influence.
 #[derive(Clone, Debug)]
 pub struct ArrowStrength {
     /// Parent variable.
@@ -234,27 +236,29 @@ pub struct ArrowStrength {
 ///
 /// # Errors
 ///
-/// Model issues.
+/// [`AttributionError::NonLinearGaussianMechanism`] when a child with parents is
+/// not a linear-family mechanism.
 pub fn arrow_strengths(
     model: &CompiledCausalModel,
 ) -> Result<Vec<ArrowStrength>, AttributionError> {
     let mut out = Vec::new();
     for gather in model.parent_gathers.iter() {
         let child_var = model.output_layout.variables[gather.child.as_usize()];
-        match model.mechanisms.get(gather.child) {
-            causal_model::MechanismSlot::LinearGaussian { coeffs, .. } => {
-                for (i, &p) in gather.parents.iter().enumerate() {
-                    let parent = model.output_layout.variables[p.as_usize()];
-                    let s = coeffs.get(i).copied().unwrap_or(0.0).abs();
-                    out.push(ArrowStrength { parent, child: child_var, strength: s });
-                }
-            }
+        if gather.parents.is_empty() {
+            continue;
+        }
+        let coeffs = match model.mechanisms.get(gather.child) {
+            causal_model::MechanismSlot::LinearGaussian { coeffs, .. }
+            | causal_model::MechanismSlot::HierarchicalLinear { coeffs, .. }
+            | causal_model::MechanismSlot::Bvar { coeffs, .. } => coeffs,
             _ => {
-                for &p in gather.parents.iter() {
-                    let parent = model.output_layout.variables[p.as_usize()];
-                    out.push(ArrowStrength { parent, child: child_var, strength: 0.0 });
-                }
+                return Err(AttributionError::NonLinearGaussianMechanism);
             }
+        };
+        for (i, &p) in gather.parents.iter().enumerate() {
+            let parent = model.output_layout.variables[p.as_usize()];
+            let s = coeffs.get(i).copied().unwrap_or(0.0).abs();
+            out.push(ArrowStrength { parent, child: child_var, strength: s });
         }
     }
     Ok(out)

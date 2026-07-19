@@ -26,7 +26,7 @@ pub mod twosls;
 pub use ci::{
     BayesFactorCi, CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery,
     CiResult, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod,
-    GSquared, Gpdc, KnnCmi, KnnCmiWorkspace, MixedKnnCmi, MultivariatePartialCorrelation, OracleCi,
+    GSquared, Gpdc, KnnDependence, KnnDependenceWorkspace, MixedKnnDependence, MultivariatePartialCorrelation, OracleCi,
     PairwiseMultivariateCi, PartialCorrelation, PosteriorDependenceCi, PosteriorPredictiveCi,
     PreparedCiTest, RegressionCi, RobustPartialCorrelation, SignificanceMethod, SymbolicCmi,
     WeightedPartialCorrelation, analytic_confidence_level, analytic_parcorr_ci,

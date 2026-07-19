@@ -2,7 +2,24 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal::{dag_from_dot as facade_dag_from_dot, dag_to_dot as facade_dag_to_dot};
+use causal::{
+    dag_from_dot as facade_dag_from_dot, dag_to_dot as facade_dag_to_dot,
+    pag_from_dot as facade_pag_from_dot, pag_to_dot as facade_pag_to_dot,
+    pag_from_json as facade_pag_from_json, pag_to_json as facade_pag_to_json,
+    pag_from_gml as facade_pag_from_gml, pag_to_gml as facade_pag_to_gml,
+    pag_from_networkx_node_link as facade_pag_from_networkx_node_link,
+    pag_to_networkx_node_link as facade_pag_to_networkx_node_link,
+    cpdag_from_dot as facade_cpdag_from_dot, cpdag_to_dot as facade_cpdag_to_dot,
+    cpdag_from_json as facade_cpdag_from_json, cpdag_to_json as facade_cpdag_to_json,
+    cpdag_from_gml as facade_cpdag_from_gml, cpdag_to_gml as facade_cpdag_to_gml,
+    cpdag_from_networkx_node_link as facade_cpdag_from_networkx_node_link,
+    cpdag_to_networkx_node_link as facade_cpdag_to_networkx_node_link,
+    admg_from_dot as facade_admg_from_dot, admg_to_dot as facade_admg_to_dot,
+    admg_from_json as facade_admg_from_json, admg_to_json as facade_admg_to_json,
+    admg_from_gml as facade_admg_from_gml, admg_to_gml as facade_admg_to_gml,
+    admg_from_networkx_node_link as facade_admg_from_networkx_node_link,
+    admg_to_networkx_node_link as facade_admg_to_networkx_node_link,
+};
 use causal_core::{Lag, VariableId};
 use causal_graph::{
     DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef, TemporalDag as RustTemporalDag,
@@ -285,6 +302,50 @@ impl Cpdag {
         self.cpdag.node_count()
     }
 
+    #[classmethod]
+    fn from_dot(_cls: &Bound<'_, PyType>, dot: &str) -> PyResult<Self> {
+        let g = facade_cpdag_from_dot(dot).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { cpdag: g, names })
+    }
+
+    fn to_dot(&self) -> PyResult<String> {
+        facade_cpdag_to_dot(&self.cpdag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        let g = facade_cpdag_from_json(json).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { cpdag: g, names })
+    }
+
+    fn to_json(&self) -> PyResult<String> {
+        facade_cpdag_to_json(&self.cpdag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_gml(_cls: &Bound<'_, PyType>, gml: &str) -> PyResult<Self> {
+        let g = facade_cpdag_from_gml(gml).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { cpdag: g, names })
+    }
+
+    fn to_gml(&self) -> PyResult<String> {
+        facade_cpdag_to_gml(&self.cpdag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_networkx_node_link(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        let g = facade_cpdag_from_networkx_node_link(json).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { cpdag: g, names })
+    }
+
+    fn to_networkx_node_link(&self) -> PyResult<String> {
+        facade_cpdag_to_networkx_node_link(&self.cpdag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Cpdag(nodes={}, edges={})",
@@ -361,6 +422,50 @@ impl Pag {
 
     fn node_count(&self) -> usize {
         self.pag.node_count()
+    }
+
+    #[classmethod]
+    fn from_dot(_cls: &Bound<'_, PyType>, dot: &str) -> PyResult<Self> {
+        let g = facade_pag_from_dot(dot).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { pag: g, names })
+    }
+
+    fn to_dot(&self) -> PyResult<String> {
+        facade_pag_to_dot(&self.pag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        let g = facade_pag_from_json(json).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { pag: g, names })
+    }
+
+    fn to_json(&self) -> PyResult<String> {
+        facade_pag_to_json(&self.pag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_gml(_cls: &Bound<'_, PyType>, gml: &str) -> PyResult<Self> {
+        let g = facade_pag_from_gml(gml).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { pag: g, names })
+    }
+
+    fn to_gml(&self) -> PyResult<String> {
+        facade_pag_to_gml(&self.pag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_networkx_node_link(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        let g = facade_pag_from_networkx_node_link(json).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { pag: g, names })
+    }
+
+    fn to_networkx_node_link(&self) -> PyResult<String> {
+        facade_pag_to_networkx_node_link(&self.pag, Some(self.names.as_slice())).map_err(py_err)
     }
 
     fn __repr__(&self) -> String {
@@ -442,6 +547,50 @@ impl Admg {
 
     fn node_count(&self) -> usize {
         self.admg.node_count()
+    }
+
+    #[classmethod]
+    fn from_dot(_cls: &Bound<'_, PyType>, dot: &str) -> PyResult<Self> {
+        let g = facade_admg_from_dot(dot).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { admg: g, names })
+    }
+
+    fn to_dot(&self) -> PyResult<String> {
+        facade_admg_to_dot(&self.admg, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        let g = facade_admg_from_json(json).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { admg: g, names })
+    }
+
+    fn to_json(&self) -> PyResult<String> {
+        facade_admg_to_json(&self.admg, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_gml(_cls: &Bound<'_, PyType>, gml: &str) -> PyResult<Self> {
+        let g = facade_admg_from_gml(gml).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { admg: g, names })
+    }
+
+    fn to_gml(&self) -> PyResult<String> {
+        facade_admg_to_gml(&self.admg, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_networkx_node_link(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        let g = facade_admg_from_networkx_node_link(json).map_err(py_err)?;
+        let names = default_names(g.node_count());
+        Ok(Self { admg: g, names })
+    }
+
+    fn to_networkx_node_link(&self) -> PyResult<String> {
+        facade_admg_to_networkx_node_link(&self.admg, Some(self.names.as_slice())).map_err(py_err)
     }
 
     fn __repr__(&self) -> String {
@@ -549,4 +698,145 @@ impl TemporalDag {
             self.dag.node_count()
         )
     }
+}
+
+/// Named temporal CPDAG over lagged variables.
+#[pyclass(name = "TemporalCpdag", from_py_object)]
+#[derive(Clone)]
+pub struct TemporalCpdag {
+    pub(crate) cpdag: causal_graph::TemporalCpdag,
+    pub(crate) names: Vec<String>,
+}
+
+#[pymethods]
+impl TemporalCpdag {
+    #[classmethod]
+    fn from_lagged_edges(
+        _cls: &Bound<'_, PyType>,
+        names: Vec<String>,
+        directed: Vec<(String, u32, String, u32)>,
+        undirected: Option<Vec<(String, u32, String, u32)>>,
+    ) -> PyResult<Self> {
+        let mut g = causal_graph::TemporalCpdag::empty();
+        let var_of = |nm: &str| -> PyResult<VariableId> {
+            names
+                .iter()
+                .position(|n| n == nm)
+                .map(|i| VariableId::from_raw(u32::try_from(i).expect("var index fits u32")))
+                .ok_or_else(|| unknown_node(nm))
+        };
+        for (src, slag, tgt, tlag) in &directed {
+            let s = ensure_lagged_cpdag(&mut g, var_of(src)?, Lag::from_raw(*slag))?;
+            let t = ensure_lagged_cpdag(&mut g, var_of(tgt)?, Lag::from_raw(*tlag))?;
+            g.insert_directed(s, t).map_err(py_err)?;
+        }
+        if let Some(undirected) = undirected {
+            for (a, al, b, bl) in &undirected {
+                let ia = ensure_lagged_cpdag(&mut g, var_of(a)?, Lag::from_raw(*al))?;
+                let ib = ensure_lagged_cpdag(&mut g, var_of(b)?, Lag::from_raw(*bl))?;
+                g.insert_undirected(ia, ib).map_err(py_err)?;
+            }
+        }
+        Ok(Self { cpdag: g, names })
+    }
+
+    fn try_into_temporal_dag(&self) -> PyResult<TemporalDag> {
+        let dag = self.cpdag.try_into_temporal_dag().map_err(py_err)?;
+        Ok(TemporalDag { dag, names: self.names.clone() })
+    }
+
+    fn node_count(&self) -> usize {
+        self.cpdag.node_count()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "TemporalCpdag(variables={}, nodes={})",
+            self.names.len(),
+            self.cpdag.node_count()
+        )
+    }
+}
+
+/// Named temporal PAG over lagged variables.
+#[pyclass(name = "TemporalPag", from_py_object)]
+#[derive(Clone)]
+pub struct TemporalPag {
+    pub(crate) pag: causal_graph::TemporalPag,
+    pub(crate) names: Vec<String>,
+}
+
+#[pymethods]
+impl TemporalPag {
+    #[classmethod]
+    fn from_marked_lagged_edges(
+        _cls: &Bound<'_, PyType>,
+        names: Vec<String>,
+        edges: Vec<(String, u32, String, u32, String, String)>,
+    ) -> PyResult<Self> {
+        let mut g = causal_graph::TemporalPag::empty();
+        let var_of = |nm: &str| -> PyResult<VariableId> {
+            names
+                .iter()
+                .position(|n| n == nm)
+                .map(|i| VariableId::from_raw(u32::try_from(i).expect("var index fits u32")))
+                .ok_or_else(|| unknown_node(nm))
+        };
+        for (a, al, b, bl, at_a, at_b) in &edges {
+            let ia = ensure_lagged_pag(&mut g, var_of(a)?, Lag::from_raw(*al))?;
+            let ib = ensure_lagged_pag(&mut g, var_of(b)?, Lag::from_raw(*bl))?;
+            let edge = MarkedEdge {
+                a: ia,
+                b: ib,
+                at_a: parse_endpoint(at_a)?,
+                at_b: parse_endpoint(at_b)?,
+                middle: MiddleMark::Empty,
+            };
+            g.insert_marked(edge).map_err(py_err)?;
+        }
+        Ok(Self { pag: g, names })
+    }
+
+    fn node_count(&self) -> usize {
+        self.pag.node_count()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "TemporalPag(variables={}, nodes={})",
+            self.names.len(),
+            self.pag.node_count()
+        )
+    }
+}
+
+fn ensure_lagged_cpdag(
+    g: &mut causal_graph::TemporalCpdag,
+    variable: VariableId,
+    lag: Lag,
+) -> PyResult<DenseNodeId> {
+    // Reuse existing node if present.
+    for (i, node) in g.nodes().iter().enumerate() {
+        if let NodeRef::Lagged { variable: v, lag: l } = node {
+            if *v == variable && *l == lag {
+                return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+            }
+        }
+    }
+    g.add_lagged(variable, lag).map_err(py_err)
+}
+
+fn ensure_lagged_pag(
+    g: &mut causal_graph::TemporalPag,
+    variable: VariableId,
+    lag: Lag,
+) -> PyResult<DenseNodeId> {
+    for (i, node) in g.nodes().iter().enumerate() {
+        if let NodeRef::Lagged { variable: v, lag: l } = node {
+            if *v == variable && *l == lag {
+                return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+            }
+        }
+    }
+    g.add_lagged(variable, lag).map_err(py_err)
 }

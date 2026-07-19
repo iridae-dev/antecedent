@@ -48,6 +48,8 @@ pub struct Ges {
     pub fdr: Option<FdrAdjustment>,
     /// Soft PC-skeleton screening for Insert candidates.
     pub screen_pc: bool,
+    /// Cap on T/H subset enumeration during Insert/Delete/Reverse (`None` → 12).
+    pub max_subset: Option<usize>,
 }
 
 impl std::fmt::Debug for Ges {
@@ -57,6 +59,7 @@ impl std::fmt::Debug for Ges {
             .field("ci", &"<dyn ConditionalIndependence>")
             .field("fdr", &self.fdr)
             .field("screen_pc", &self.screen_pc)
+            .field("max_subset", &self.max_subset)
             .finish()
     }
 }
@@ -82,6 +85,7 @@ impl Ges {
             ci: Arc::new(PartialCorrelation::default()),
             fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
             screen_pc: false,
+            max_subset: None,
         }
     }
 
@@ -117,6 +121,13 @@ impl Ges {
     #[must_use]
     pub fn with_pc_screening(mut self, screen: bool) -> Self {
         self.screen_pc = screen;
+        self
+    }
+
+    /// Cap T/H subset enumeration (`None` uses default 12).
+    #[must_use]
+    pub fn with_max_subset(mut self, max_subset: Option<usize>) -> Self {
+        self.max_subset = max_subset;
         self
     }
 
@@ -173,7 +184,7 @@ impl Ges {
         seed_required_edges(&mut cpdag, variables, &self.constraints)?;
 
         let max_parents = self.constraints.max_parents.unwrap_or(n_vars.saturating_sub(1));
-        let max_subset = max_parents.min(8); // bound T/H enumeration
+        let max_subset = max_parents.min(self.max_subset.unwrap_or(12));
 
         // Forward equivalence search (Insert).
         loop {

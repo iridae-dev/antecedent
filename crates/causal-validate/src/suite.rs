@@ -90,7 +90,7 @@ pub enum ValidatorId {
     Placebo,
     /// Random common cause.
     RandomCommonCause,
-    /// Bootstrap refutation.
+    /// Bootstrap CI coverage of the point estimate (not placebo falsification).
     Bootstrap,
     /// Unobserved common cause.
     UnobservedCommonCause,
@@ -104,7 +104,7 @@ pub enum ValidatorId {
     DummyOutcome,
     /// E-value.
     EValue,
-    /// Graph refutation (drop adjustment members).
+    /// Leave-one-out adjustment-set sensitivity (drop covariates; not DAG edits).
     Graph,
     /// Linear sensitivity.
     LinearSensitivity,
@@ -299,7 +299,7 @@ impl ValidationSuite {
                 if !linear_ok {
                     return Ok(na(
                         id,
-                        "BootstrapRefute requires backdoor.adjustment + linear path",
+                        "BootstrapCiCoverage requires backdoor.adjustment + linear path",
                     ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
@@ -365,7 +365,10 @@ impl ValidationSuite {
             )?)),
             ValidatorId::Graph => {
                 if !linear_ok {
-                    return Ok(na(id, "GraphRefuter requires backdoor.adjustment + linear path"));
+                    return Ok(na(
+                        id,
+                        "DropAdjustmentCovariate requires backdoor.adjustment + linear path",
+                    ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
                     &GraphRefuter::new(),

@@ -58,15 +58,33 @@ def test_sustained_vs_pulse_policy_accepted():
         graph=edges,
         query=causal.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
         bootstrap=0,
+        refute=False,
     )
     sustained = causal.analyze(
         data,
         graph=edges,
         query=causal.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
         bootstrap=0,
+        refute=False,
     )
     assert np.isfinite(pulse.ate)
     assert np.isfinite(sustained.ate)
+    assert pulse.validation.passed is False
+    assert pulse.validation.ran is False
+    assert pulse.validation.count == 0
+
+
+def test_temporal_rejects_refute_loudly():
+    rng = np.random.default_rng(3)
+    n = 80
+    data = {"a": rng.normal(size=n), "b": rng.normal(size=n)}
+    with pytest.raises(TypeError, match="refute"):
+        causal.analyze(
+            data,
+            graph=[("a", 1, "b", 0)],
+            query=causal.PulseEffect("a", "b"),
+            bootstrap=0,
+        )
 
 
 def test_temporal_rejects_bayesian_loudly():
@@ -103,6 +121,67 @@ def test_causal_state_append_data():
     v1 = state.append_data(names, cols)
     assert v1 > v0
     assert state.version == v1
+    ids = state.batch_ids()
+    assert len(ids) == 1
+    got_names, got_cols = state.get_batch(ids[0])
+    assert got_names == names
+    assert len(got_cols) == len(cols)
+    assert state.batch_nrows(ids[0]) == 20
+
+    state.ols_ensure("m1", 2)
+    state.ols_append_row("m1", [1.0, 0.5], 1.2)
+    ols = state.ols_get("m1")
+    assert ols["n"] == 1
+    assert ols["ncols"] == 2
+
+    state.cov_ensure("c1", 2)
+    state.cov_update("c1", [0.1, 0.2])
+    cov = state.cov_get("c1")
+    assert cov["n"] == 1
+
+    state.particle_filter_init("pf", 32, seed=2)
+    state.particle_filter_step("pf", 0.0)
+    pf = state.particle_filter_get("pf")
+    assert pf["n_obs"] == 1
+    assert pf["n_particles"] == 32
+
+    ver, qid = state.register_average_effect(0, 1)
+    assert ver >= state.version - 1
+    state.refresh_results([(qid, 1, 8)])
+    assert state.stale_query_count() == 0
+
+    v_rep = state.replace_data(names, cols)
+    assert v_rep > v1
+    assert len(state.batch_ids()) == 1
+
+
+def test_rank_designs_full_surface():
+    ranking = causal.rank_designs(
+        [0.5, 0.3, 0.2],
+        [1, 0, 0],
+        [10, 20, 30],
+        [
+            {"kind": "measure", "variables": [3], "tag": 1},
+            {"kind": "observe_environment", "environment": 7, "additional_rows": 50},
+            {"kind": "increase_sampling_rate", "additional_samples": 10},
+            {"kind": "intervene", "targets": [0]},
+        ],
+        objective="increase_identification_probability",
+        query_id=0,
+        query_id_unlock=[(0, [3])],
+        env_id_unlock=[(0, [7])],
+        min_batches=2,
+        max_batches=4,
+        batch_size=4,
+        rank_uncertainty_threshold=1.0,
+        seed=3,
+    )
+    assert ranking.mc_samples > 0
+    assert len(ranking.ranked) == 4
+    assert ranking.best_index in {r.candidate_index for r in ranking.ranked}
+    kinds = {r.kind for r in ranking.ranked}
+    assert "measure" in kinds
+    assert "observe_environment" in kinds
 
 
 def test_exact_dag_posterior_tiny():

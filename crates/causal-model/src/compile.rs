@@ -78,36 +78,62 @@ pub trait DynamicMechanism: Send + Sync {
         workspace: &mut crate::batch::MechanismWorkspace,
     ) -> Result<(), ModelError>;
 
-    /// Infer exogenous noise (optional; default unsupported).
+    /// Infer exogenous noise under an additive-noise assumption:
+    /// `noise = y − f(parents, 0)`.
+    ///
+    /// Override for non-additive mechanisms.
     ///
     /// # Errors
     ///
-    /// Shape / unsupported.
+    /// Shape / evaluation failures.
     fn infer_noise_column(
         &self,
-        _value: &[f64],
-        _parents: crate::batch::ParentBatch<'_>,
-        _output: &mut [f64],
+        value: &[f64],
+        parents: crate::batch::ParentBatch<'_>,
+        output: &mut [f64],
     ) -> Result<(), ModelError> {
-        Err(ModelError::Unsupported {
-            message: "dynamic mechanism does not support noise inference".into(),
-        })
+        let n = parents.n_rows;
+        if value.len() < n || output.len() < n {
+            return Err(ModelError::Shape {
+                message: "dynamic infer_noise buffers too short".into(),
+            });
+        }
+        let zeros = vec![0.0; n];
+        let mut mean = vec![0.0; n];
+        let mut ws = crate::batch::MechanismWorkspace::default();
+        self.evaluate_column(parents, &zeros, &mut mean, &mut ws)?;
+        for i in 0..n {
+            output[i] = value[i] - mean[i];
+        }
+        Ok(())
     }
 
-    /// Log-density of observed values (optional; default unsupported).
+    /// Log-density of observed values under additive `N(0,1)` residual noise.
+    ///
+    /// Override for non-Gaussian / non-additive mechanisms.
     ///
     /// # Errors
     ///
-    /// Shape / unsupported.
+    /// Shape / evaluation failures.
     fn log_prob_column(
         &self,
-        _values: &[f64],
-        _parents: crate::batch::ParentBatch<'_>,
-        _output: &mut [f64],
+        values: &[f64],
+        parents: crate::batch::ParentBatch<'_>,
+        output: &mut [f64],
     ) -> Result<(), ModelError> {
-        Err(ModelError::Unsupported {
-            message: "dynamic mechanism does not support log_prob".into(),
-        })
+        let n = parents.n_rows;
+        if values.len() < n || output.len() < n {
+            return Err(ModelError::Shape {
+                message: "dynamic log_prob buffers too short".into(),
+            });
+        }
+        let mut resid = vec![0.0; n];
+        self.infer_noise_column(values, parents, &mut resid)?;
+        let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln();
+        for i in 0..n {
+            output[i] = log_norm - 0.5 * resid[i] * resid[i];
+        }
+        Ok(())
     }
 }
 

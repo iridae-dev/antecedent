@@ -29,7 +29,9 @@
     clippy::needless_range_loop
 )]
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
+};
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
@@ -42,10 +44,11 @@ use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
-    gather, prepare_propensity_problem, split_by_treatment, trim_of, trim_retained_rows,
+    gather, prepare_propensity_problem_with_registry, split_by_treatment, trim_of,
+    trim_retained_rows,
 };
-use crate::se::{AnalyticSeKind, cluster_influence_se, hetero_influence_se, require_clusters};
-use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
+use crate::se::AnalyticSeKind;
+use crate::util::{bootstrap_se, stats_err, BootstrapSeResult};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -85,6 +88,10 @@ pub struct AipwAte {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids for [`AnalyticSeKind::Cluster`] (aligned to prepared rows).
     pub cluster_ids: Option<Vec<u32>>,
+    /// Optional bindings for named predicates / custom target distributions.
+    pub population_registry: Option<PopulationRegistry>,
+    /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
+    pub multiway_ids: Option<Vec<Vec<u32>>>,
 }
 
 impl Default for AipwAte {
@@ -104,6 +111,8 @@ impl AipwAte {
             glm_options: GlmOptions::default(),
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            population_registry: None,
+            multiway_ids: None,
         }
     }
 
@@ -121,7 +130,13 @@ impl AipwAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        prepare_propensity_problem(data, estimand, query, self.overlap)
+        prepare_propensity_problem_with_registry(
+            data,
+            estimand,
+            query,
+            self.overlap,
+            self.population_registry.as_ref(),
+        )
     }
 
     /// Fit propensity + outcome nuisance models and compute the AIPW effect, with optional
@@ -138,9 +153,15 @@ impl AipwAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        if !matches!(problem.target_population, TargetPopulation::AllObserved) {
+        if !matches!(
+            problem.target_population,
+            TargetPopulation::AllObserved
+                | TargetPopulation::Treated
+                | TargetPopulation::Untreated
+                | TargetPopulation::Predicate(_)
+        ) {
             return Err(EstimationError::unsupported(
-                "AIPW only supports TargetPopulation::AllObserved; ATT/ATC doubly                  robust estimation is unsupported",
+                "AIPW supports AllObserved, Treated, Untreated, or Predicate target populations",
             ));
         }
 
@@ -192,41 +213,25 @@ impl AipwAte {
         )?;
         predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
         predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
-        aipw_psi(&t_used, &y_used, &e_used, &workspace.mu0, &workspace.mu1, &mut workspace.psi);
+        aipw_psi(
+            &t_used,
+            &y_used,
+            &e_used,
+            &workspace.mu0,
+            &workspace.mu1,
+            &problem.target_population,
+            &mut workspace.psi,
+        )?;
         let n = workspace.psi.len() as f64;
         let ate = workspace.psi.iter().sum::<f64>() / n;
-        let se_analytic = match self.se_kind {
-            AnalyticSeKind::Homoskedastic => sample_std(&workspace.psi) / n.sqrt(),
-            AnalyticSeKind::Hc0
-            | AnalyticSeKind::Hc1
-            | AnalyticSeKind::Hc2
-            | AnalyticSeKind::Hc3 => hetero_influence_se(&workspace.psi),
-            AnalyticSeKind::Cluster => {
-                let groups_full = require_clusters(&self.cluster_ids, problem.nrows)?;
-                match &retained {
-                    Some(idx) => {
-                        let g: Vec<u32> = idx.iter().map(|&i| groups_full[i]).collect();
-                        cluster_influence_se(&workspace.psi, &g)
-                    }
-                    None => cluster_influence_se(&workspace.psi, groups_full),
-                }
-            }
-            AnalyticSeKind::NeweyWest { .. } => {
-                return Err(EstimationError::unsupported(
-                    "AIPW AnalyticSeKind::NeweyWest is not supported; use Hc1, Cluster, or bootstrap",
-                ));
-            }
-            AnalyticSeKind::PanelClusterHac { .. } => {
-                return Err(EstimationError::unsupported(
-                    "AIPW AnalyticSeKind::PanelClusterHac is not supported; use Cluster or bootstrap",
-                ));
-            }
-            AnalyticSeKind::Multiway => {
-                return Err(EstimationError::unsupported(
-                    "AIPW AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap",
-                ));
-            }
-        };
+        let se_analytic = crate::se::influence_se_kind(
+            self.se_kind,
+            &workspace.psi,
+            problem.nrows,
+            &self.cluster_ids,
+            &self.multiway_ids,
+            retained.as_deref(),
+        )?;
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -313,7 +318,19 @@ impl AipwAte {
             };
             predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
             predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
-            aipw_psi(&t_used, &y_used, &e_used, &workspace.mu0, &workspace.mu1, &mut workspace.psi);
+            if aipw_psi(
+                &t_used,
+                &y_used,
+                &e_used,
+                &workspace.mu0,
+                &workspace.mu1,
+                &problem.target_population,
+                &mut workspace.psi,
+            )
+            .is_err()
+            {
+                return Ok(None);
+            }
             let m = workspace.psi.len() as f64;
             Ok(Some(workspace.psi.iter().sum::<f64>() / m))
         })
@@ -416,23 +433,64 @@ fn predict_colmajor(
     }
 }
 
-/// Compute the AIPW per-unit influence-function values `ψ_i`.
+/// Compute AIPW per-unit IF values for ATE / ATT / ATC.
 fn aipw_psi(
     treatment: &[f64],
     outcome: &[f64],
     propensity: &[f64],
     mu0: &[f64],
     mu1: &[f64],
+    target: &TargetPopulation,
     out: &mut Vec<f64>,
-) {
+) -> Result<(), EstimationError> {
     out.clear();
     out.reserve(treatment.len());
-    for (((&t, &y), &e), (&m0, &m1)) in
-        treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
-    {
-        let augmented = (m1 - m0) + (t / e) * (y - m1) - ((1.0 - t) / (1.0 - e)) * (y - m0);
-        out.push(augmented);
+    match target {
+        TargetPopulation::AllObserved | TargetPopulation::Predicate(_) => {
+            for (((&t, &y), &e), (&m0, &m1)) in
+                treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
+            {
+                let augmented =
+                    (m1 - m0) + (t / e) * (y - m1) - ((1.0 - t) / (1.0 - e)) * (y - m0);
+                out.push(augmented);
+            }
+        }
+        TargetPopulation::Treated => {
+            let pi = treatment.iter().filter(|&&t| t > 0.5).count() as f64 / treatment.len() as f64;
+            if pi <= 0.0 {
+                return Err(EstimationError::data_msg("ATT requires treated units"));
+            }
+            for (((&t, &y), &e), (&m0, &m1)) in
+                treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
+            {
+                let aug = (t / pi) * (m1 - m0)
+                    + (t / pi) * (y - m1) / e
+                    - ((1.0 - t) / pi) * (e / (1.0 - e)) * (y - m0);
+                out.push(aug);
+            }
+        }
+        TargetPopulation::Untreated => {
+            let pi0 =
+                treatment.iter().filter(|&&t| t <= 0.5).count() as f64 / treatment.len() as f64;
+            if pi0 <= 0.0 {
+                return Err(EstimationError::data_msg("ATC requires control units"));
+            }
+            for (((&t, &y), &e), (&m0, &m1)) in
+                treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
+            {
+                let aug = ((1.0 - t) / pi0) * (m1 - m0)
+                    + (t / pi0) * ((1.0 - e) / e) * (y - m1)
+                    - ((1.0 - t) / pi0) * (y - m0) / (1.0 - e);
+                out.push(aug);
+            }
+        }
+        _ => {
+            return Err(EstimationError::unsupported(
+                "AIPW unsupported target population for IF construction",
+            ));
+        }
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -575,16 +633,42 @@ mod tests {
     }
 
     #[test]
-    fn aipw_rejects_att_target_population() {
-        let (data, estimand) = confounded_scm(200, 3);
+    fn aipw_recovers_att_two() {
+        let (data, estimand) = confounded_scm(1_200, 3);
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
         let est = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = AipwWorkspace::default();
-        let err = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap_err();
-        assert!(matches!(err, EstimationError::Unsupported { .. } | EstimationError::TargetPopulation));
+        let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!((fit.ate - 2.0).abs() < 0.35, "att={}", fit.ate);
+    }
+
+    #[test]
+    fn aipw_hc1_multiway_newey_west_finite_se() {
+        let (data, estimand) = confounded_scm(400, 8);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let n = 400;
+        let dim_a: Vec<u32> = (0..n).map(|i| (i % 20) as u32).collect();
+        let dim_b: Vec<u32> = (0..n).map(|i| (i % 15) as u32).collect();
+        for kind in [
+            AnalyticSeKind::Hc1,
+            AnalyticSeKind::Multiway,
+            AnalyticSeKind::NeweyWest { lag: 2 },
+        ] {
+            let mut est = AipwAte {
+                bootstrap_replicates: 0,
+                se_kind: kind,
+                multiway_ids: Some(vec![dim_a.clone(), dim_b.clone()]),
+                ..AipwAte::new()
+            };
+            let prep = est.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = AipwWorkspace::default();
+            let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+            assert!(fit.se_analytic.is_finite() && fit.se_analytic > 0.0, "kind={kind:?}");
+        }
     }
 
     #[test]

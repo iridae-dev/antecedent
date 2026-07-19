@@ -14,7 +14,7 @@ mod parcorr;
 mod parcorr_variants;
 mod types;
 
-pub use advanced::{Gpdc, KnnCmi, MixedKnnCmi, OracleCi, SymbolicCmi};
+pub use advanced::{Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi};
 pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 pub use analytic::analytic_parcorr_ci;
 pub use calibration::{
@@ -31,7 +31,7 @@ pub use parcorr_variants::{
 };
 pub use types::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
-    ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, KnnCmiWorkspace,
+    ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, KnnDependenceWorkspace,
     PreparedCiTest, SignificanceMethod, analytic_confidence_level, nonparametric_permutation_count,
 };
 
@@ -126,11 +126,11 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(9);
-        let _ = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        let _ = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         let gen_after_first = ws.knn.index_generation;
         let builds_after_first = ws.knn.index_builds;
         let perm_ptr = ws.knn.perm.as_ptr();
-        let _ = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        let _ = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert_eq!(ws.knn.index_generation, gen_after_first, "index must not rebuild per batch");
         assert_eq!(ws.knn.index_builds, builds_after_first, "MatchingIndex builds must stay flat");
         assert_eq!(ws.knn.perm.as_ptr(), perm_ptr, "permutation plan buffer must be reused");

@@ -192,3 +192,61 @@ pub struct DagWire {
     /// Directed edges `(from, to)`.
     pub edges: Vec<(u32, u32)>,
 }
+
+/// Endpoint mark on the wire (`tail` / `arrow` / `circle` / `conflict`).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EndpointWire {
+    /// Tail.
+    Tail,
+    /// Arrow head.
+    Arrow,
+    /// Circle (PAG).
+    Circle,
+    /// Conflict.
+    Conflict,
+}
+
+/// Marked edge on the wire (PAG / shared marked interchange).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MarkedEdgeWire {
+    /// Endpoint A dense index.
+    pub a: u32,
+    /// Endpoint B dense index.
+    pub b: u32,
+    /// Mark at A.
+    pub at_a: EndpointWire,
+    /// Mark at B.
+    pub at_b: EndpointWire,
+}
+
+/// Wire PAG: marked edges by dense variable index.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PagWire {
+    /// Node count (static variables).
+    pub node_count: u32,
+    /// Marked edges (each undirected pair once).
+    pub edges: Vec<MarkedEdgeWire>,
+}
+
+/// Wire CPDAG: directed + undirected edges.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CpdagWire {
+    /// Node count (static variables).
+    pub node_count: u32,
+    /// Directed edges `(from, to)`.
+    pub directed: Vec<(u32, u32)>,
+    /// Undirected edges `(a, b)` with `a < b` preferred.
+    pub undirected: Vec<(u32, u32)>,
+}
+
+/// Wire ADMG: directed + bidirected edges.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AdmgWire {
+    /// Node count (static variables).
+    pub node_count: u32,
+    /// Directed edges `(from, to)`.
+    pub directed: Vec<(u32, u32)>,
+    /// Bidirected edges `(a, b)` with `a < b` preferred.
+    pub bidirected: Vec<(u32, u32)>,
+}

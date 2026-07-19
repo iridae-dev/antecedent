@@ -42,6 +42,10 @@ pub struct PreparedPropensityProblem {
     pub overlap: OverlapPolicy,
     /// Target population requested by the query.
     pub target_population: TargetPopulation,
+    /// Complete-case–aligned observation weights from [`TargetPopulation::CustomDistribution`].
+    ///
+    /// `None` for all other target populations. Length equals [`Self::nrows`] when present.
+    pub target_weights: Option<Arc<[f64]>>,
 }
 
 /// Fitted propensity model shared by weighting, stratification, and matching estimators.
@@ -237,6 +241,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
     let mut row_mask =
         data.complete_case_mask(&ids).map_err(EstimationError::from)?;
     let n_full = data.row_count();
+    let mut full_weights: Option<Arc<[f64]>> = None;
     match &query.target_population {
         TargetPopulation::Predicate(PredicateExpr::Rows(_))
         | TargetPopulation::Predicate(PredicateExpr::Named(_)) => {
@@ -249,11 +254,12 @@ pub(crate) fn prepare_propensity_problem_with_registry(
             }
         }
         TargetPopulation::CustomDistribution(_) => {
-            let _sel = query
+            let sel = query
                 .target_population
                 .resolve(n_full, None, registry)
                 .map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
-            // Weights apply at IPW time; keep complete-case rows.
+            // Keep complete-case rows; weights apply at estimation time (aligned below).
+            full_weights = sel.weights;
         }
         _ => {}
     }
@@ -267,6 +273,27 @@ pub(crate) fn prepare_propensity_problem_with_registry(
     if nrows == 0 {
         return Err(EstimationError::data_msg("no complete-case rows for propensity design"));
     }
+    let target_weights = if let Some(w) = full_weights {
+        let mut aligned = Vec::with_capacity(nrows);
+        for (i, &keep) in row_mask.iter().enumerate() {
+            if keep {
+                aligned.push(w.get(i).copied().unwrap_or(0.0));
+            }
+        }
+        if aligned.len() != nrows {
+            return Err(EstimationError::data_msg(
+                "CustomDistribution weights failed to align with complete-case rows",
+            ));
+        }
+        if aligned.iter().all(|&x| x <= 0.0) {
+            return Err(EstimationError::data_msg(
+                "CustomDistribution weights are all zero on complete-case rows",
+            ));
+        }
+        Some(Arc::from(aligned))
+    } else {
+        None
+    };
     // The query levels are already validated to be exactly 0.0/1.0 above; the treatment
     // column must match them, otherwise a {1,2}-coded or continuous treatment would be
     // silently dichotomized at t > 0.5 and fed to the logistic fit as-is.
@@ -306,6 +333,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         adjustment_set: Arc::clone(&estimand.adjustment_set),
         overlap,
         target_population: query.target_population.clone(),
+        target_weights,
     })
 }
 

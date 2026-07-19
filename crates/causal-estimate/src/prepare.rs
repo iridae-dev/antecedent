@@ -25,6 +25,24 @@ pub fn require_method(
     Ok(kind)
 }
 
+/// Validate an ATE query allowing AllObserved / Treated / Untreated targets.
+pub fn validate_ate_query_with_targets(query: &AverageEffectQuery) -> Result<(), EstimationError> {
+    query.validate()?;
+    if !query.effect_modifiers.is_empty() {
+        return Err(EstimationError::EffectModifiers);
+    }
+    if !matches!(
+        query.target_population,
+        TargetPopulation::AllObserved
+            | TargetPopulation::Treated
+            | TargetPopulation::Untreated
+            | TargetPopulation::Predicate(_)
+    ) {
+        return Err(EstimationError::TargetPopulation);
+    }
+    Ok(())
+}
+
 /// Validate a Phase-1 ATE query (no effect modifiers, all-observed population).
 ///
 /// # Errors

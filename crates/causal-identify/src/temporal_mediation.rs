@@ -93,9 +93,14 @@ impl TemporalMediationIdentifier {
         };
 
         let mut arena = CausalExprArena::new();
-        let functional =
-            arena.frontdoor_ate(query.treatment, query.outcome, &query.mediators, active, control);
-        let estimand = IdentifiedEstimand::frontdoor(
+        let functional = arena.temporal_mediation_ate(
+            query.treatment,
+            query.outcome,
+            &query.mediators,
+            active,
+            control,
+        );
+        let estimand = IdentifiedEstimand::temporal_mediation(
             Arc::clone(&method),
             Arc::clone(&query.mediators),
             functional,
@@ -152,7 +157,7 @@ impl TemporalMediationIdentifier {
         );
 
         Ok(IdentificationResult {
-            status: IdentificationStatus::PartiallyIdentified,
+            status: IdentificationStatus::IdentifiedUnderParametricRestrictions,
             query: CausalQuery::mediation(query.clone()),
             estimands: vec![estimand],
             arena,
@@ -267,8 +272,16 @@ mod tests {
             MediationContrast::Mediated,
         );
         let id = TemporalMediationIdentifier::new().identify(&g, &q).unwrap();
-        assert!(matches!(id.status, IdentificationStatus::PartiallyIdentified));
+        assert!(matches!(
+            id.status,
+            IdentificationStatus::IdentifiedUnderParametricRestrictions
+        ));
         assert_eq!(id.estimands[0].mediators.len(), 1);
+        assert!(id.estimands[0].method.as_ref().starts_with("temporal_mediation."));
+        assert_eq!(
+            id.arena.derivation(id.estimands[0].functional).map(|d| d.rule.as_ref()),
+            Some("temporal_mediation")
+        );
     }
 
     #[test]

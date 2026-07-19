@@ -4,6 +4,11 @@
 //! `i → j` for `ℓ ∈ 1..=max_lag`. Scoring uses Gaussian BIC on the aligned
 //! lagged design (`t = max_lag .. T-1`).
 //!
+//! Exact enumeration is used only when `p ≤ `[`DBN_EXACT_MAX_VARS`],
+//! `max_lag ≤ `[`DBN_EXACT_MAX_LAG`], and the lag-bit space is small; otherwise
+//! the engine falls back to template MCMC automatically (or when
+//! `force_mcmc` is set).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
@@ -28,12 +33,15 @@ use crate::graph_posterior::{
     GraphPrior, EXACT_ENUM_MAX_NODES,
 };
 
-/// Max variables for exact DBN template enumeration.
+/// Max variables for exact DBN template enumeration (`p ≤ 4`).
 pub const DBN_EXACT_MAX_VARS: usize = 4;
-/// Max lag for exact DBN enumeration.
+/// Max lag for exact DBN enumeration (`max_lag ≤ 2`).
 pub const DBN_EXACT_MAX_LAG: u32 = 2;
 
 /// Bounded-lag DBN posterior over a stationary template.
+///
+/// Exact path: `p ≤ DBN_EXACT_MAX_VARS` and `max_lag ≤ DBN_EXACT_MAX_LAG`
+/// (plus a small lag-bit budget). Larger templates use MCMC.
 #[derive(Clone, Debug)]
 pub struct DbnPosterior {
     /// Maximum lag (`≥ 1`).

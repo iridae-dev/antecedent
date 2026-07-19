@@ -15,12 +15,15 @@
 use std::sync::Arc;
 
 use causal_core::{
-    AverageEffectQuery, CausalQuery, TemporalEffectQuery, VariableId,
+    AverageEffectQuery, CausalQuery, PopulationRegistry, TemporalEffectQuery, VariableId,
 };
-use causal_data::{DiscoveryEstimationSplit, MultiEnvironmentData, TabularData, TimeSeriesData};
+use causal_data::{
+    DiscoveryEstimationSplit, EventData, MultiEnvironmentData, PanelData, TabularData,
+    TimeSeriesData,
+};
 use causal_discovery::{MultiDatasetConstraints, RegimeAssignment};
 use causal_estimate::OverlapPolicy;
-use causal_graph::{Dag, Pag, TemporalDag, TemporalPag};
+use causal_graph::{Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag};
 use causal_stats::ConditionalIndependence;
 use causal_validate::CustomEffectValidator;
 
@@ -46,8 +49,12 @@ pub enum RefuteSuite {
 pub(crate) enum DataInput {
     Tabular(TabularData),
     Temporal(TimeSeriesData),
+    /// Event data aligned onto a regular duration grid (stored as series).
+    Event(TimeSeriesData),
     /// Multi-environment series (J-PCMCI+ discover path).
     MultiEnv(MultiEnvironmentData),
+    /// Multi-unit panel (pooled discover + stacked cluster-HAC estimate).
+    Panel(PanelData),
 }
 
 /// Running-variable configuration for the `rd.sharp` estimator; required when `rd.sharp` is
@@ -66,6 +73,8 @@ pub struct RdConfig {
 #[derive(Clone)]
 pub struct CausalAnalysisBuilder {
     data: Option<DataInput>,
+    /// Pending event alignment applied in [`Self::build`].
+    event_pending: Option<(EventData, u64)>,
     graph: Option<GraphInput>,
     query: Option<CausalQuery>,
     refute: RefuteSuite,
@@ -77,6 +86,8 @@ pub struct CausalAnalysisBuilder {
     inference: InferenceMode,
     /// Optional override for propensity / AIPW overlap (clip/trim). `None` keeps estimator defaults.
     overlap_policy: Option<OverlapPolicy>,
+    /// Optional bindings for named predicates / custom target distributions.
+    population_registry: Option<PopulationRegistry>,
     /// Optional CI test for discovery paths (defaults to partial correlation).
     discovery_ci: Option<Arc<dyn ConditionalIndependence + Send + Sync>>,
     /// Custom slow-path validators appended after the built-in refute suite.
@@ -97,6 +108,10 @@ impl std::fmt::Debug for CausalAnalysisBuilder {
             .field("rd", &self.rd)
             .field("inference", &self.inference)
             .field("overlap_policy", &self.overlap_policy)
+            .field(
+                "population_registry",
+                &self.population_registry.as_ref().map(|_| "<registry>"),
+            )
             .field("discovery_ci", &self.discovery_ci.as_ref().map(|_| "<dyn CI>"))
             .field("custom_validators", &self.custom_validators.len())
             .finish()
@@ -115,6 +130,7 @@ impl CausalAnalysisBuilder {
     pub fn new() -> Self {
         Self {
             data: None,
+            event_pending: None,
             graph: None,
             query: None,
             refute: RefuteSuite::PlaceboAndRcc,
@@ -125,6 +141,7 @@ impl CausalAnalysisBuilder {
             rd: None,
             inference: InferenceMode::Frequentist,
             overlap_policy: None,
+            population_registry: None,
             discovery_ci: None,
             custom_validators: Vec::new(),
         }
@@ -133,6 +150,7 @@ impl CausalAnalysisBuilder {
     /// Supply tabular data.
     #[must_use]
     pub fn data(mut self, data: TabularData) -> Self {
+        self.event_pending = None;
         self.data = Some(DataInput::Tabular(data));
         self
     }
@@ -140,6 +158,7 @@ impl CausalAnalysisBuilder {
     /// Supply temporal series data.
     #[must_use]
     pub fn series(mut self, data: TimeSeriesData) -> Self {
+        self.event_pending = None;
         self.data = Some(DataInput::Temporal(data));
         self
     }
@@ -147,7 +166,27 @@ impl CausalAnalysisBuilder {
     /// Supply multi-environment series (required for J-PCMCI+ discovery).
     #[must_use]
     pub fn series_multi(mut self, data: MultiEnvironmentData) -> Self {
+        self.event_pending = None;
         self.data = Some(DataInput::MultiEnv(data));
+        self
+    }
+
+    /// Supply irregular event data; aligned onto a regular duration grid at [`Self::build`].
+    ///
+    /// `align_interval_ns` is the bin width (§5.4). Integer-lag algorithms then run on
+    /// the aligned series; raw event indices are never treated as lags.
+    #[must_use]
+    pub fn events(mut self, data: EventData, align_interval_ns: u64) -> Self {
+        self.data = None;
+        self.event_pending = Some((data, align_interval_ns));
+        self
+    }
+
+    /// Supply multi-unit panel data (J-PCMCI+ discover; stacked PanelClusterHac estimate).
+    #[must_use]
+    pub fn panel(mut self, data: PanelData) -> Self {
+        self.event_pending = None;
+        self.data = Some(DataInput::Panel(data));
         self
     }
 
@@ -280,7 +319,11 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Discover with classic static FCI (tabular PAG; review-required for ATE).
+    /// Discover with classic static FCI (tabular PAG).
+    ///
+    /// With [`crate::options::DiscoveryAccept::AutoAccept`], the PAG is accepted
+    /// as-is (circle marks go through generalized adjustment). With
+    /// [`crate::options::DiscoveryAccept::Review`], compile yields a review-required plan.
     #[must_use]
     pub fn discover_fci(
         mut self,
@@ -298,7 +341,9 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Discover with classic static RFCI (tabular PAG; review-required for ATE).
+    /// Discover with classic static RFCI (tabular PAG).
+    ///
+    /// Same accept/review semantics as [`Self::discover_fci`].
     #[must_use]
     pub fn discover_rfci(
         mut self,
@@ -391,10 +436,31 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Supply a static CPDAG (auto-completes to a DAG when fully oriented).
+    #[must_use]
+    pub fn cpdag(mut self, graph: Cpdag) -> Self {
+        self.graph = Some(GraphInput::Cpdag(graph));
+        self
+    }
+
+    /// Supply a static ADMG (general ID when bidirected edges are present).
+    #[must_use]
+    pub fn admg(mut self, graph: Admg) -> Self {
+        self.graph = Some(GraphInput::Admg(graph));
+        self
+    }
+
     /// Supply a temporal PAG (review / class-aware identification required).
     #[must_use]
     pub fn temporal_pag(mut self, graph: TemporalPag) -> Self {
         self.graph = Some(GraphInput::TemporalPag(graph));
+        self
+    }
+
+    /// Supply a temporal CPDAG (auto-completes when fully oriented).
+    #[must_use]
+    pub fn temporal_cpdag(mut self, graph: TemporalCpdag) -> Self {
+        self.graph = Some(GraphInput::TemporalCpdag(graph));
         self
     }
 
@@ -487,6 +553,13 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Bindings for named predicates and custom target-distribution weights.
+    #[must_use]
+    pub fn population_registry(mut self, registry: PopulationRegistry) -> Self {
+        self.population_registry = Some(registry);
+        self
+    }
+
     /// Configure the running variable / cutoff / bandwidth required by the `rd.sharp`
     /// estimator. `compile` refuses `rd.sharp` without this.
     #[must_use]
@@ -499,10 +572,18 @@ impl CausalAnalysisBuilder {
     ///
     /// # Errors
     ///
-    /// Missing required fields.
+    /// Missing required fields, or event alignment failure.
     pub fn build(self) -> Result<CausalAnalysis, AnalysisError> {
+        let data = if let Some((event, interval_ns)) = self.event_pending {
+            let aligned = event.align_to_grid(interval_ns).map_err(|e| AnalysisError::Compile {
+                message: format!("event align_to_grid: {e}"),
+            })?;
+            DataInput::Event(aligned)
+        } else {
+            self.data.ok_or(AnalysisError::Missing { field: "data" })?
+        };
         Ok(CausalAnalysis {
-            data: self.data.ok_or(AnalysisError::Missing { field: "data" })?,
+            data,
             graph: self.graph.ok_or(AnalysisError::Missing { field: "graph" })?,
             query: self.query.ok_or(AnalysisError::Missing { field: "query" })?,
             refute: self.refute,
@@ -513,6 +594,7 @@ impl CausalAnalysisBuilder {
             rd: self.rd,
             inference: self.inference,
             overlap_policy: self.overlap_policy,
+            population_registry: self.population_registry,
             discovery_ci: self.discovery_ci,
             custom_validators: self.custom_validators,
         })

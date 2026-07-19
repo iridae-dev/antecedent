@@ -558,11 +558,15 @@ fn prob_err(e: causal_prob::ProbError) -> EstimationError {
 
 /// Build a non-identified posterior artifact that still records priors (exit criterion #2).
 ///
-/// Does not invent identification: status remains [`IdentificationStatus::NotIdentified`].
+/// Samples prior-predictive draws for a scalar effect mean (isotropic Gaussian / weakly
+/// informative scale from `prior`) so Bayesian envelopes can surface uncertainty without
+/// inventing identification. Status remains [`IdentificationStatus::NotIdentified`].
 #[must_use]
 pub fn nonidentified_with_prior(
     prior: &PriorSet,
     diagnostics: InferenceDiagnostics,
+    n_draws: usize,
+    seed: u64,
 ) -> CausalPosterior {
     let mut assumptions = AssumptionSet::new();
     for spec in &prior.specs {
@@ -576,18 +580,22 @@ pub fn nonidentified_with_prior(
     let schema = PosteriorSchema {
         quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("ate") }]),
     };
-    let draws = PosteriorDraws::from_column_major(schema, 0, Arc::<[f64]>::from(Vec::<f64>::new()))
-        .unwrap_or_else(|_| {
-            // n_draws=0 with empty values is always shape-valid; fall back to empty schema draws.
-            PosteriorDraws {
-                schema: PosteriorSchema {
-                    quantities: Arc::from([PosteriorQuantityKind::Effect {
-                        name: Arc::from("ate"),
-                    }]),
-                },
-                n_draws: 0,
-                values: Arc::from([]),
-            }
+    let (mean, scale) = prior_predictive_effect_params(prior);
+    let n = n_draws.max(1);
+    let mut values = vec![0.0; n];
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xBA7E_u64);
+    for v in &mut values {
+        *v = mean + scale * causal_kernels::standard_normal(&mut rng);
+    }
+    let draws = PosteriorDraws::from_column_major(schema, n, Arc::<[f64]>::from(values))
+        .unwrap_or_else(|_| PosteriorDraws {
+            schema: PosteriorSchema {
+                quantities: Arc::from([PosteriorQuantityKind::Effect {
+                    name: Arc::from("ate"),
+                }]),
+            },
+            n_draws: 0,
+            values: Arc::from([]),
         });
     let summaries = draws.summarize();
     CausalPosterior {
@@ -599,6 +607,15 @@ pub fn nonidentified_with_prior(
         assumptions,
         unidentified_mass: 1.0,
     }
+}
+
+fn prior_predictive_effect_params(prior: &PriorSet) -> (f64, f64) {
+    if let Some(g) = prior.gaussian_coefficients() {
+        let mean = g.mean.first().copied().unwrap_or(0.0);
+        let var = g.variance.first().copied().unwrap_or(100.0).max(1e-12);
+        return (mean, var.sqrt());
+    }
+    (0.0, 10.0)
 }
 
 #[cfg(test)]
@@ -711,9 +728,15 @@ mod tests {
     #[test]
     fn prior_does_not_create_identification() {
         let prior = PriorSet::weakly_informative(3);
-        let post = nonidentified_with_prior(&prior, InferenceDiagnostics::analytic("none"));
+        let post = nonidentified_with_prior(
+            &prior,
+            InferenceDiagnostics::analytic("none"),
+            64,
+            1,
+        );
         assert_eq!(post.identification, IdentificationStatus::NotIdentified);
         assert!(!post.assumptions.is_empty());
         assert!((post.unidentified_mass - 1.0).abs() < 1e-12);
+        assert!(post.draws.n_draws > 0, "prior-predictive draws required");
     }
 }

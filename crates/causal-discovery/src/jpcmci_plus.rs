@@ -35,7 +35,7 @@ use crate::evidence::{
     cpdag_evidence_from_oriented, symmetrize_contemporaneous_links, threshold_scored_links,
 };
 use crate::orientation::{
-    ContempMeekR1, ContempMeekR2, ContempMeekR3, OrientationRule, run_orientation_to_fixed_point,
+    ContempMeekR1, ContempMeekR2, ContempMeekR3, ContempMeekR4, OrientationRule, run_orientation_to_fixed_point,
     try_orient_undirected,
 };
 use crate::pcmci_family::pcmci_family_builders;
@@ -437,7 +437,8 @@ impl JpcmciPlus {
             workspace,
             ctx,
         )?;
-        let rules: [&dyn OrientationRule; 3] = [&ContempMeekR1, &ContempMeekR2, &ContempMeekR3];
+        let rules: [&dyn OrientationRule; 4] =
+            [&ContempMeekR1, &ContempMeekR2, &ContempMeekR3, &ContempMeekR4];
         let meek_delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 
         let algorithm = algorithm_record(

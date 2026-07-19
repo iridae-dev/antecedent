@@ -36,7 +36,12 @@ class CiBatchTest(Protocol):
 
 @runtime_checkable
 class MechanismWrapper(Protocol):
-    """Per-node mechanism override for GCM sampling."""
+    """Per-node mechanism override for GCM sampling / abduction.
+
+    Required: ``sample_noise``, ``evaluate``.
+    Optional: ``infer_noise``, ``log_prob`` — when omitted, Rust uses an
+    additive-noise default (``noise = y - f(pa, 0)``, Gaussian ``N(0,1)`` log-prob).
+    """
 
     def sample_noise(self, n: int) -> NDArray[np.float64]:
         """Draw structural noise of length ``n``."""
@@ -47,6 +52,20 @@ class MechanismWrapper(Protocol):
         noise: NDArray[np.float64],
     ) -> NDArray[np.float64]:
         """Map parents + noise → child values (length ``noise``)."""
+
+    def infer_noise(
+        self,
+        value: NDArray[np.float64],
+        parents: Sequence[NDArray[np.float64]],
+    ) -> NDArray[np.float64]:
+        """Optional: abduce noise from factual ``value`` and parents."""
+
+    def log_prob(
+        self,
+        values: NDArray[np.float64],
+        parents: Sequence[NDArray[np.float64]],
+    ) -> NDArray[np.float64]:
+        """Optional: log-density of ``values`` given parents."""
 
 
 @runtime_checkable

@@ -95,16 +95,16 @@ status = "done"
 owner = "ci"
 
 [[capabilities]]
-id = "discovery.ci.cmi_knn"
+id = "discovery.ci.knn_dependence"
 group = "conditional_independence"
-description = "CMI kNN"
+description = "kNN distance-dependence CI (not KSG CMI)"
 status = "done"
 owner = "ci"
 
 [[capabilities]]
-id = "discovery.ci.mixed_cmi_knn"
+id = "discovery.ci.mixed_knn_dependence"
 group = "conditional_independence"
-description = "Mixed CMI kNN"
+description = "Mixed-data kNN distance-dependence CI"
 status = "done"
 owner = "ci"
 
@@ -158,7 +158,7 @@ group = "discovery"
 description = "Static GES (Gaussian BIC CPDAG)"
 status = "done"
 owner = "discovery"
-notes = "Chickering Insert/Delete/Reverse on Cpdag; LocalScoreCache Gaussian BIC; discover_ges Rust/Python; soft PC screening via with_pc_screening"
+notes = "Chickering Insert/Delete/Reverse on Cpdag; LocalScoreCache Gaussian BIC; discover_ges Rust/Python with screen_pc + max_subset (default 12); soft PC screening via with_pc_screening"
 
 [[capabilities]]
 id = "discovery.lingam"
@@ -182,7 +182,7 @@ group = "discovery"
 description = "PCMCI+"
 status = "done"
 owner = "ci"
-notes = "Black-box PCMCI+ edge-set equality pinned; ContempMeek R1–R3 only (matches baseline; no R4)."
+notes = "Black-box PCMCI+ edge-set equality pinned; ContempMeek R1–R4."
 
 [[capabilities]]
 id = "discovery.lpcmci"

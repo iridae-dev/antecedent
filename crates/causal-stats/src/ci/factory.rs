@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use super::advanced::{Gpdc, KnnCmi, MixedKnnCmi, OracleCi, SymbolicCmi};
+use super::advanced::{Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi};
 use super::bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 use super::gsquared::{GSquared, RegressionCi};
 use super::pairwise_mv::PairwiseMultivariateCi;
@@ -27,8 +27,8 @@ use crate::error::StatsError;
 /// - `pairwise_multivariate` / `pairwise_mv`
 /// - `gsquared` / `g_squared`
 /// - `regression` (ParCorr alias)
-/// - `cmi_knn` / `knn_cmi` / `knn_dependence` (kNN distance dependence; not KSG CMI)
-/// - `mixed_cmi_knn` / `mixed_knn_cmi` / `mixed_knn_dependence`
+/// - `knn_dependence` (kNN distance dependence proxy; **not** KSG CMI)
+/// - `mixed_knn_dependence` (rank discrete-looking columns, then `knn_dependence`)
 /// - `symbolic_cmi`
 /// - `gpdc`
 /// - `oracle` (empty dependent set ⇒ all independent)
@@ -59,8 +59,8 @@ pub fn ci_from_name(
         "pairwise_multivariate" | "pairwise_mv" => Arc::new(PairwiseMultivariateCi::new()),
         "gsquared" | "g_squared" => Arc::new(GSquared::new()),
         "regression" => Arc::new(RegressionCi::new()),
-        "cmi_knn" | "knn_cmi" | "knn_dependence" => Arc::new(KnnCmi::new(5)),
-        "mixed_cmi_knn" | "mixed_knn_cmi" | "mixed_knn_dependence" => Arc::new(MixedKnnCmi::new(5)),
+        "knn_dependence" => Arc::new(KnnDependence::new(5)),
+        "mixed_knn_dependence" => Arc::new(MixedKnnDependence::new(5)),
         "symbolic_cmi" => Arc::new(SymbolicCmi::new()),
         "gpdc" => Arc::new(Gpdc::new()),
         "oracle" => Arc::new(OracleCi::new([])),
@@ -87,5 +87,9 @@ mod tests {
         assert!(ci_from_name("nope").is_err());
         assert!(ci_from_name("weighted_parcorr").is_err());
         assert!(ci_from_name("knn_dependence").is_ok());
+        assert!(ci_from_name("mixed_knn_dependence").is_ok());
+        // Legacy KSG-misleading names are not aliases.
+        assert!(ci_from_name("cmi_knn").is_err());
+        assert!(ci_from_name("knn_cmi").is_err());
     }
 }

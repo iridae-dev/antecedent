@@ -15,6 +15,7 @@ from . import (
     model,
     query,
     state,
+    validation,
 )
 from ._native import (
     Admg,
@@ -59,7 +60,9 @@ from ._native import (
     PosteriorArtifact,
     PredictSummary,
     RpcmciDiscoverySummary,
+    TemporalCpdag,
     TemporalDag,
+    TemporalPag,
     anomaly_attribution,
     attribute_distribution_change,
     attribute_distribution_change_robust,
@@ -128,6 +131,7 @@ from .discovery import (
     discover_pcmci_plus,
     discover_rpcmci,
     discover_structure_mcmc,
+    two_regime_half_split,
 )
 from .estimation import AnalysisResult, analyze
 from .inference import Bayesian, Frequentist
@@ -137,6 +141,17 @@ from .query import (
     PathSpecificEffect,
     PulseEffect,
     SustainedEffect,
+)
+from .validation import (
+    validate_environment_holdout,
+    validate_pcmci_alpha_sensitivity,
+    validate_pcmci_block_bootstrap,
+    validate_pcmci_ci_sensitivity,
+    validate_pcmci_false_positive,
+    validate_pcmci_lag_sensitivity,
+    validate_pcmci_plus_orientation,
+    validate_regime_stability,
+    validate_synthetic_null_calibration,
 )
 
 __version__: str

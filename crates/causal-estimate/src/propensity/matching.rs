@@ -13,7 +13,9 @@
 
 use std::sync::Arc;
 
-use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
+use causal_core::{
+    AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
+};
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
@@ -22,13 +24,14 @@ use causal_stats::{
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, gather, gather_rowmajor, prepare_propensity_problem,
-    restrict_to_rows, split_by_treatment, trim_of, trim_retained_rows,
+    clip_of, default_propensity_overlap, gather, gather_rowmajor,
+    prepare_propensity_problem_with_registry, restrict_to_rows, split_by_treatment, trim_of,
+    trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
-use crate::se::{AnalyticSeKind, cluster_influence_se};
+use crate::se::{AnalyticSeKind, cluster_influence_se, influence_se_kind};
 use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
 
 /// Propensity-score nearest-neighbor matching (Absolute distance, optional caliper).
@@ -54,6 +57,10 @@ pub struct PropensityMatching {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids aligned to prepared complete-case rows.
     pub cluster_ids: Option<Vec<u32>>,
+    /// Optional bindings for named predicates / custom target distributions.
+    pub population_registry: Option<PopulationRegistry>,
+    /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
+    pub multiway_ids: Option<Vec<Vec<u32>>>,
 }
 
 impl Default for PropensityMatching {
@@ -74,6 +81,8 @@ impl PropensityMatching {
             caliper: None,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            population_registry: None,
+            multiway_ids: None,
         }
     }
 
@@ -88,7 +97,13 @@ impl PropensityMatching {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        prepare_propensity_problem(data, estimand, query, self.overlap)
+        prepare_propensity_problem_with_registry(
+            data,
+            estimand,
+            query,
+            self.overlap,
+            self.population_registry.as_ref(),
+        )
     }
 
     /// Fit the propensity model and compute the matched effect.
@@ -121,6 +136,10 @@ impl PropensityMatching {
             1,
             retained.as_deref(),
         );
+        let tw_used: Option<Vec<f64>> = problem.target_weights.as_ref().map(|w| match &retained {
+            Some(idx) => idx.iter().map(|&i| w[i]).collect(),
+            None => w.to_vec(),
+        });
         let clusters_used = match (&self.cluster_ids, &retained) {
             (Some(ids), Some(idx)) => {
                 if ids.len() != problem.nrows {
@@ -155,6 +174,8 @@ impl PropensityMatching {
             workspace,
             self.se_kind,
             clusters_used.as_deref(),
+            tw_used.as_deref(),
+            self.multiway_ids.as_ref(),
         )?;
 
         let boot = if self.bootstrap_replicates == 0 {
@@ -232,6 +253,8 @@ impl PropensityMatching {
                 self.caliper,
                 workspace,
                 AnalyticSeKind::Homoskedastic,
+                None,
+                None,
                 None,
             ) {
                 Ok(m) => Ok(Some(m.ate)),
@@ -321,6 +344,8 @@ pub(crate) fn matching_contrast(
     workspace: &mut PropensityEstimationWorkspace,
     se_kind: AnalyticSeKind,
     cluster_ids: Option<&[u32]>,
+    target_weights: Option<&[f64]>,
+    multiway_ids: Option<&Vec<Vec<u32>>>,
 ) -> Result<MatchedEstimate, EstimationError> {
     if let Some(ids) = cluster_ids {
         if ids.len() != treatment.len() {
@@ -408,14 +433,35 @@ pub(crate) fn matching_contrast(
         }
         _ => {
             return Err(EstimationError::unsupported(
-                "matching estimators support AllObserved, Treated, Untreated, or Predicate target populations",
+                "matching estimators support AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
             ));
         }
     };
     if per_unit_effects.is_empty() {
         return Err(EstimationError::data_msg("no matched units within caliper"));
     }
-    let ate = per_unit_effects.iter().sum::<f64>() / per_unit_effects.len() as f64;
+    let ate = if matches!(target, TargetPopulation::CustomDistribution(_)) {
+        let Some(tw) = target_weights else {
+            return Err(EstimationError::unsupported(
+                "CustomDistribution requires PopulationRegistry weights on the prepared problem",
+            ));
+        };
+        let mut num = 0.0;
+        let mut den = 0.0;
+        for (i, &eff) in per_unit_effects.iter().enumerate() {
+            let w = tw.get(effect_rows[i]).copied().unwrap_or(0.0);
+            num += w * eff;
+            den += w;
+        }
+        if den <= 0.0 {
+            return Err(EstimationError::data_msg(
+                "CustomDistribution weights left no mass on matched units",
+            ));
+        }
+        num / den
+    } else {
+        per_unit_effects.iter().sum::<f64>() / per_unit_effects.len() as f64
+    };
     let se_analytic = match se_kind {
         AnalyticSeKind::Homoskedastic => {
             abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors)
@@ -426,12 +472,10 @@ pub(crate) fn matching_contrast(
         | AnalyticSeKind::Hc3 => {
             abadie_imbens_se_hetero(&per_unit_effects, &donor_usage, n_donors)
         }
-        AnalyticSeKind::Cluster => {
-            let Some(ids) = cluster_ids else {
-                return Err(EstimationError::unsupported("AnalyticSeKind::Cluster requires matching cluster_ids"));
-            };
-            let groups: Vec<u32> = effect_rows.iter().map(|&r| ids[r]).collect();
-            // Abadie–Imbens donor-reuse inflation on unit scores before clustering.
+        AnalyticSeKind::Cluster
+        | AnalyticSeKind::Multiway
+        | AnalyticSeKind::NeweyWest { .. }
+        | AnalyticSeKind::PanelClusterHac { .. } => {
             let mut k = vec![0usize; n_donors.max(1)];
             for &d in &donor_usage {
                 if d < k.len() {
@@ -443,20 +487,16 @@ pub(crate) fn matching_contrast(
                 let kd = k.get(d).copied().unwrap_or(0) as f64;
                 psi.push((per_unit_effects[i] - ate) * (1.0 + kd));
             }
-            cluster_influence_se(&psi, &groups)
-        }
-        AnalyticSeKind::NeweyWest { .. } => {
-            return Err(EstimationError::unsupported(
-                "matching AnalyticSeKind::NeweyWest is not supported; use Hc1, Cluster, or bootstrap",
-            ));
-        }
-        AnalyticSeKind::PanelClusterHac { .. } => {
-            return Err(EstimationError::unsupported(
-                "matching AnalyticSeKind::PanelClusterHac is not supported; use Cluster or bootstrap",
-            ));
-        }
-        AnalyticSeKind::Multiway => {
-            return Err(EstimationError::unsupported("matching AnalyticSeKind::Multiway is not supported; use Cluster or bootstrap"));
+            let cluster_owned = cluster_ids.map(|c| c.to_vec());
+            let multiway_owned = multiway_ids.cloned();
+            influence_se_kind(
+                se_kind,
+                &psi,
+                treatment.len(),
+                &cluster_owned,
+                &multiway_owned,
+                Some(&effect_rows),
+            )?
         }
     };
     Ok(MatchedEstimate { ate, se_analytic })

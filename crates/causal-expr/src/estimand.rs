@@ -111,7 +111,7 @@ impl From<EstimandMethod> for Arc<str> {
 ///
 /// Backdoor estimands use [`Self::adjustment_set`]; IV estimands populate
 /// [`Self::instruments`]; front-door estimands populate [`Self::mediators`].
-/// Unused role slices are empty.
+/// Sharp RD estimands populate [`Self::rd_design`]. Unused role slices are empty.
 #[derive(Clone, Debug)]
 pub struct IdentifiedEstimand {
     /// Method tag (wire string; parse with [`Self::method_kind`]).
@@ -124,6 +124,19 @@ pub struct IdentifiedEstimand {
     pub mediators: Arc<[VariableId]>,
     /// Functional expression id in `arena`.
     pub functional: ExprId,
+    /// Sharp RD design parameters (when method is `rd.sharp`).
+    pub rd_design: Option<RdDesignParams>,
+}
+
+/// Design parameters carried on a sharp-RD estimand.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RdDesignParams {
+    /// Running (assignment) variable.
+    pub running_variable: VariableId,
+    /// Discontinuity cutoff.
+    pub cutoff: f64,
+    /// Symmetric bandwidth around the cutoff.
+    pub bandwidth: f64,
 }
 
 impl IdentifiedEstimand {
@@ -149,6 +162,7 @@ impl IdentifiedEstimand {
             instruments: Arc::from([]),
             mediators: Arc::from([]),
             functional,
+            rd_design: None,
         }
     }
 
@@ -165,6 +179,7 @@ impl IdentifiedEstimand {
             instruments,
             mediators: Arc::from([]),
             functional,
+            rd_design: None,
         }
     }
 
@@ -181,6 +196,30 @@ impl IdentifiedEstimand {
             instruments: Arc::from([]),
             mediators,
             functional,
+            rd_design: None,
         }
+    }
+
+    /// Sharp regression-discontinuity estimand (not backdoor-shaped).
+    #[must_use]
+    pub fn rd_sharp(functional: ExprId, design: RdDesignParams) -> Self {
+        Self {
+            method: Arc::from(EstimandMethod::RdSharp.as_str()),
+            adjustment_set: Arc::from([]),
+            instruments: Arc::from([]),
+            mediators: Arc::from([]),
+            functional,
+            rd_design: Some(design),
+        }
+    }
+
+    /// Temporal mediation estimand (mediators + `temporal_mediation.*` method tag).
+    #[must_use]
+    pub fn temporal_mediation(
+        method: impl Into<Arc<str>>,
+        mediators: Arc<[VariableId]>,
+        functional: ExprId,
+    ) -> Self {
+        Self::frontdoor(method, mediators, functional)
     }
 }

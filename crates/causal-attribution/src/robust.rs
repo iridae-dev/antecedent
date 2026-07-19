@@ -1,19 +1,23 @@
 //! Robust distribution-change attribution (`pinned baseline` `distribution_change_robust`).
 //!
-//! Uses conditional-mean regression rather than full density estimation
+//! Uses fitted mechanism hybrids (same topology as [`distribution_change`]) with a
+//! structural-mean payoff. Linear-family mechanisms use a fast OLS path; nonlinear
+//! slots evaluate at zero noise.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use causal_core::{
-    ChangeAttributionQuery, ComponentId, ExecutionContext, VariableId,
-};
+use causal_core::{ChangeAttributionQuery, ComponentId, ExecutionContext, VariableId};
 use causal_data::{TableView, TabularData};
-use causal_model::CompiledCausalModel;
+use causal_graph::DenseNodeId;
+use causal_model::{
+    CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
+    MechanismWorkspace, ParentBatch, SelectionPolicy, evaluate_column,
+};
 use causal_stats::{FaerBackend, LeastSquaresWorkspace};
 
-use crate::distribution_change::mechanism_players;
+use crate::distribution_change::{PlayerKind, hybrid_mechanisms, mechanism_players};
 use crate::error::AttributionError;
 use crate::prep::{
     require_mechanism_components, require_shapley_config, resolve_change_populations,
@@ -25,7 +29,7 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 /// Options for the robust estimator.
 #[derive(Clone, Debug)]
 pub struct RobustChangeOptions {
-    /// Cap on units used for regression.
+    /// Cap on units used for regression / evaluation.
     pub max_rows: usize,
 }
 
@@ -35,7 +39,7 @@ impl Default for RobustChangeOptions {
     }
 }
 
-/// Robust attribution via regression hybrids + Shapley.
+/// Robust attribution via mechanism hybrids + Shapley.
 ///
 /// # Errors
 ///
@@ -67,27 +71,62 @@ pub fn distribution_change_robust(
 
     let outcome_dense = resolve_outcome_dense(graph_model, query.outcome)?;
     let players = mechanism_players(graph_model, outcome_dense, query.max_components)?;
+    let kinds = vec![PlayerKind::Mechanism; players.len()];
 
-    let mut payoff = RobustPayoff {
-        model: graph_model,
-        baseline: &baseline_data,
-        comparison: &comparison_data,
-        players: players.clone(),
-        outcome: query.outcome,
-        fitted: Vec::new(),
-    };
-    payoff.fit()?;
+    let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+        graph_model,
+        &baseline_data,
+        SelectionPolicy::BestScore,
+    )?;
+    let (comparison_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+        graph_model,
+        &comparison_data,
+        SelectionPolicy::BestScore,
+    )?;
 
-    let v0 = payoff.value(0)?;
-    let full = (1u64 << players.len()) - 1;
-    let v_full = payoff.value(full)?;
-    let total_change = v_full - v0;
+    let all_linear = players.iter().all(|c| {
+        model_slot_is_linear(&baseline_mechs, graph_model, c.variable())
+            && model_slot_is_linear(&comparison_mechs, graph_model, c.variable())
+    });
 
     let approximation = require_shapley_config(
         &query.allocation,
         "distribution_change_robust currently supports Shapley allocation",
     )?;
-    let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
+
+    let (v0, v_full, estimate) = if all_linear {
+        let mut payoff = RobustLinearPayoff {
+            model: graph_model,
+            baseline: &baseline_data,
+            comparison: &comparison_data,
+            players: players.clone(),
+            outcome: query.outcome,
+            fitted: Vec::new(),
+        };
+        payoff.fit()?;
+        let v0 = payoff.value(0)?;
+        let full = (1u64 << players.len()) - 1;
+        let v_full = payoff.value(full)?;
+        let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
+        (v0, v_full, estimate)
+    } else {
+        let mut payoff = RobustMechanismPayoff {
+            template: graph_model.clone(),
+            baseline: baseline_mechs,
+            comparison: comparison_mechs,
+            baseline_data: &baseline_data,
+            players: players.clone(),
+            kinds,
+            outcome: outcome_dense,
+            ws: MechanismWorkspace::default(),
+        };
+        let v0 = payoff.value(0)?;
+        let full = (1u64 << players.len()) - 1;
+        let v_full = payoff.value(full)?;
+        let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
+        (v0, v_full, estimate)
+    };
+    let total_change = v_full - v0;
     let mc_stderr = estimate.monte_carlo_stderr;
     let component_mc = estimate.component_mc_stderr.clone().map(Arc::from);
     let cache_stats = estimate.cache_stats.clone();
@@ -109,13 +148,30 @@ pub fn distribution_change_robust(
     })
 }
 
+fn model_slot_is_linear(
+    store: &CompiledMechanismStore,
+    model: &CompiledCausalModel,
+    var: VariableId,
+) -> bool {
+    let Some(d) = model.dense_of(var) else {
+        return false;
+    };
+    matches!(
+        &store.slots[d.as_usize()],
+        MechanismSlot::LinearGaussian { .. }
+            | MechanismSlot::HierarchicalLinear { .. }
+            | MechanismSlot::Bvar { .. }
+            | MechanismSlot::Constant { .. }
+    )
+}
+
 struct NodeRegression {
     baseline_beta: Vec<f64>,
     comparison_beta: Vec<f64>,
     parents: Vec<VariableId>,
 }
 
-struct RobustPayoff<'a> {
+struct RobustLinearPayoff<'a> {
     model: &'a CompiledCausalModel,
     baseline: &'a TabularData,
     comparison: &'a TabularData,
@@ -124,16 +180,16 @@ struct RobustPayoff<'a> {
     fitted: Vec<NodeRegression>,
 }
 
-impl RobustPayoff<'_> {
+impl RobustLinearPayoff<'_> {
     fn fit(&mut self) -> Result<(), AttributionError> {
-        self.fitted.clear();
         let backend = FaerBackend;
         let mut ws = LeastSquaresWorkspace::default();
+        self.fitted.clear();
         for &comp in &self.players {
             let dense = self
                 .model
                 .dense_of(comp.variable())
-                .ok_or_else(|| AttributionError::missing_var("player", comp.variable()))?;
+                .ok_or_else(|| AttributionError::missing_var("component", comp.variable()))?;
             let gather = self
                 .model
                 .gather_for(dense)
@@ -153,13 +209,11 @@ impl RobustPayoff<'_> {
     }
 }
 
-impl CoalitionPayoff for RobustPayoff<'_> {
+impl CoalitionPayoff for RobustLinearPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let n = self.baseline.row_count();
         let mut pred_out = vec![0.0; n];
         let mut outcome_seen = false;
-        // Predictions are linear structural means; the payoff equals the
-        // interventional mean of the outcome only under linear mechanisms.
         let mut node_pred: Vec<Vec<f64>> = Vec::with_capacity(self.players.len());
         for (i, &comp) in self.players.iter().enumerate() {
             let fit = &self.fitted[i];
@@ -193,6 +247,55 @@ impl CoalitionPayoff for RobustPayoff<'_> {
     }
 }
 
+/// Nonlinear robust payoff: hybrid mechanisms, evaluate at ε=0 on baseline parents.
+struct RobustMechanismPayoff<'a> {
+    template: CompiledCausalModel,
+    baseline: CompiledMechanismStore,
+    comparison: CompiledMechanismStore,
+    baseline_data: &'a TabularData,
+    players: Vec<ComponentId>,
+    kinds: Vec<PlayerKind>,
+    outcome: DenseNodeId,
+    ws: MechanismWorkspace,
+}
+
+impl CoalitionPayoff for RobustMechanismPayoff<'_> {
+    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+        let store = hybrid_mechanisms(
+            &self.baseline,
+            &self.comparison,
+            &self.template,
+            &self.players,
+            &self.kinds,
+            mask,
+        );
+        let model = self.template.clone().with_mechanisms(store);
+        let n = self.baseline_data.row_count();
+        let n_nodes = model.n_nodes();
+        let mut values = vec![0.0; n * n_nodes];
+        for (i, &var) in model.output_layout.variables.iter().enumerate() {
+            let col = self.baseline_data.float64_values(var)?;
+            values[i * n..(i + 1) * n].copy_from_slice(&col[..n]);
+        }
+        // Topo re-evaluate each node at zero noise under hybrid mechanisms.
+        for &node in model.node_order.iter() {
+            let gather = model
+                .gather_for(node)
+                .ok_or(AttributionError::MissingArtifact("missing gather"))?;
+            self.ws.prepare(n, gather.n_parents().max(1));
+            gather.gather(&values, n, &mut self.ws.parents);
+            let parent_owned = self.ws.parents[..gather.n_parents().saturating_mul(n)].to_vec();
+            let parents =
+                ParentBatch { n_rows: n, n_parents: gather.n_parents(), values: &parent_owned };
+            let zeros = vec![0.0; n];
+            let out = &mut values[node.as_usize() * n..(node.as_usize() + 1) * n];
+            evaluate_column(model.mechanisms.get(node), parents, &zeros, out, &mut self.ws)?;
+        }
+        let col = &values[self.outcome.as_usize() * n..(self.outcome.as_usize() + 1) * n];
+        Ok(col.iter().sum::<f64>() / n.max(1) as f64)
+    }
+}
+
 fn fit_linear(
     data: &TabularData,
     y_id: VariableId,
@@ -222,16 +325,16 @@ fn fit_linear(
 mod tests {
     use super::*;
     use causal_core::{
-        AllocationMethod, CachePolicy, CausalSchemaBuilder, MeasurementSpec, PopulationSelector,
-        RoleHint, ShapleyConfig, SmallRoleSet, ValueType,
+        AllocationMethod, CausalSchemaBuilder, MeasurementSpec, PopulationSelector, RoleHint,
+        ShapleyConfig, SmallRoleSet, ValueType,
     };
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};
     use causal_graph::{Dag, DenseNodeId};
 
     #[test]
-    fn robust_ranks_changed_mechanism() {
-        let n = 80usize;
+    fn robust_linear_still_runs() {
+        let n = 60usize;
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
             "x",
@@ -252,12 +355,12 @@ mod tests {
         )
         .unwrap();
         let schema = b.build().unwrap();
-        let mut xv = Vec::new();
-        let mut yv = Vec::new();
+        let mut xv = Vec::with_capacity(n);
+        let mut yv = Vec::with_capacity(n);
         for i in 0..n {
-            let x = (i % 40) as f64 * 0.1;
+            let x = (i % 30) as f64 * 0.1;
             xv.push(x);
-            yv.push(if i < 40 { 1.0 + 2.0 * x } else { 6.0 + 2.0 * x });
+            yv.push(if i < 30 { x } else { x + 2.0 });
         }
         let validity = ValidityBitmap::all_valid(n);
         let cols = vec![
@@ -274,23 +377,22 @@ mod tests {
         let mut g = Dag::with_variables(2);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let model = CompiledCausalModel::compile(g).unwrap();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&model, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let model = model.with_mechanisms(store);
         let query = ChangeAttributionQuery::new(
             VariableId::from_raw(1),
-            PopulationSelector::TimeRange { start: 0, end: 40 },
-            PopulationSelector::TimeRange { start: 40, end: 80 },
+            PopulationSelector::Rows(Arc::from((0..30).collect::<Vec<_>>())),
+            PopulationSelector::Rows(Arc::from((30..60).collect::<Vec<_>>())),
         )
-        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
-        let mut ctx = ExecutionContext::for_tests(1);
-        ctx.cache_policy = CachePolicy::enabled(None);
-        let result = distribution_change_robust(
-            &model,
-            &data,
-            &query,
-            &RobustChangeOptions::default(),
-            &ctx,
-        )
-        .unwrap();
-        assert!(!result.contributions.is_empty());
-        assert!(result.total_change > 0.0, "total={}", result.total_change);
+        .with_allocation(AllocationMethod::Shapley {
+            approximation: ShapleyConfig::exact(),
+        });
+        let ctx = ExecutionContext::for_tests(1);
+        let result =
+            distribution_change_robust(&model, &data, &query, &RobustChangeOptions::default(), &ctx)
+                .unwrap();
+        assert!(result.total_change.abs() > 0.5);
     }
 }

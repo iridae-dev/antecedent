@@ -201,10 +201,27 @@ class FeatureRelevance:
     feature: str
     score: float
 
+class RankedDesign:
+    candidate_index: int
+    kind: str
+    tag: int
+    score: float
+    stderr: float
+    rank: int
+    rank_uncertain: bool
+
+class DesignConstraintViolation:
+    candidate_index: int
+    constraint: str
+    detail: str
+
 class DesignRanking:
     best_index: int
     scores: list[float]
     mc_samples: int
+    early_stopped: bool
+    ranked: list[RankedDesign]
+    violations: list[DesignConstraintViolation]
 
 class DecisionEvaluation:
     expected_utility: float
@@ -363,7 +380,28 @@ def analyze_ate(
     inference: str | None = None,
     n_draws: int = 1000,
     prior_scale: float = 10.0,
-    refute: bool = True,
+    refute: bool | str = True,
+    validators: list[Callable[..., Any]] | None = None,
+    seed: int = 1,
+    bootstrap: int = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
+
+def analyze_ate_arrow_c(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int = 50,
@@ -384,6 +422,83 @@ def analyze(
     seed: int = 1,
     bootstrap: int = 0,
     threads: int = 1,
+) -> AnalysisResult: ...
+
+def analyze_temporal_pag(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    graph: TemporalPag,
+    treatment: str,
+    outcome: str,
+    *,
+    treatment_lag: int = 1,
+    horizon_steps: int = 1,
+    active_level: float = 1.0,
+    policy: str = "pulse",
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+) -> AnalysisResult: ...
+
+def analyze_events(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    event_times_ns: Sequence[int],
+    align_interval_ns: int,
+    edges: list[tuple[str, int, str, int]],
+    treatment: str,
+    outcome: str,
+    *,
+    treatment_lag: int = 1,
+    horizon_steps: int = 1,
+    active_level: float = 1.0,
+    policy: str = "pulse",
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+) -> AnalysisResult: ...
+
+def analyze_panel(
+    names: list[str],
+    unit_columns: Sequence[Sequence[NDArray[np.float64]]],
+    unit_ids: Sequence[int],
+    edges: list[tuple[str, int, str, int]],
+    treatment: str,
+    outcome: str,
+    *,
+    treatment_lag: int = 1,
+    horizon_steps: int = 1,
+    active_level: float = 1.0,
+    policy: str = "pulse",
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+) -> AnalysisResult: ...
+
+def analyze_panel_discover(
+    names: list[str],
+    unit_columns: Sequence[Sequence[NDArray[np.float64]]],
+    unit_ids: Sequence[int],
+    treatment: str,
+    outcome: str,
+    *,
+    max_lag: int = 3,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    accept_discovered: bool = True,
+    treatment_lag: int = 1,
+    horizon_steps: int = 1,
+    active_level: float = 1.0,
+    policy: str = "pulse",
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+    context_names: list[str] | None = None,
+    include_space_dummy: bool = True,
+    include_time_dummy: bool = False,
+    space_dummy_ci: bool = False,
+    time_dummy_encoding: str = "integer",
+    time_dummy_ci: bool = False,
 ) -> AnalysisResult: ...
 
 def analyze_distribution(
@@ -437,7 +552,7 @@ def analyze_ate_discover(
     inference: str | None = None,
     n_draws: int = 1000,
     prior_scale: float = 10.0,
-    refute: bool = True,
+    refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     ci: CiArg = None,
     seed: int = 1,
@@ -522,6 +637,8 @@ def discover_ges(
     ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int = 1,
+    screen_pc: bool = False,
+    max_subset: int | None = None,
 ) -> PcmciDiscoveryResult: ...
 
 def discover_lingam(
@@ -606,6 +723,7 @@ def discover_rpcmci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     *,
+    regimes: list[int],
     max_lag: int = 1,
     alpha: float = 0.05,
     fdr: bool = True,
@@ -613,8 +731,9 @@ def discover_rpcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
-    regimes: list[int] | None = None,
 ) -> RpcmciDiscoverySummary: ...
+
+def two_regime_half_split(series_len: int) -> list[int]: ...
 
 def discover_exact_dag_posterior(
     names: list[str],
@@ -869,13 +988,27 @@ def rank_designs(
     graph_weights: list[float],
     identified: list[int],
     graph_keys: list[int],
-    measure_var_ids: list[int],
-    sampling_increments: list[int],
+    candidates: list[dict[str, Any]],
+    objective: str | dict[str, Any] | None = None,
     *,
+    query_id: int | None = None,
+    model_ids: list[int] | None = None,
+    decision_id: int | None = None,
+    query_id_unlock: list[tuple[int, list[int]]] | None = None,
+    env_id_unlock: list[tuple[int, list[int]]] | None = None,
+    identified_under_intervention: list[int] | None = None,
+    graph_features: list[int] | None = None,
+    effect_width: dict[str, Any] | None = None,
+    model_loglik: dict[str, Any] | None = None,
+    max_cost: float | None = None,
+    max_sample_budget: int | None = None,
+    min_batches: int = 2,
+    max_batches: int = 64,
+    batch_size: int = 8,
+    rank_uncertainty_threshold: float = 0.05,
     seed: int = 0,
     threads: int = 1,
 ) -> DesignRanking: ...
-
 
 def evaluate_decision_py(
     actions: list[float],
@@ -918,6 +1051,18 @@ class Cpdag:
     def undirected_neighbors(self, name: str) -> list[str]: ...
     def try_into_dag(self) -> Dag: ...
     def node_count(self) -> int: ...
+    @classmethod
+    def from_dot(cls, dot: str) -> Cpdag: ...
+    def to_dot(self) -> str: ...
+    @classmethod
+    def from_json(cls, json: str) -> Cpdag: ...
+    def to_json(self) -> str: ...
+    @classmethod
+    def from_gml(cls, gml: str) -> Cpdag: ...
+    def to_gml(self) -> str: ...
+    @classmethod
+    def from_networkx_node_link(cls, json: str) -> Cpdag: ...
+    def to_networkx_node_link(self) -> str: ...
 
 class Pag:
     @classmethod
@@ -930,6 +1075,18 @@ class Pag:
     def neighbors(self, name: str) -> list[tuple[str, str, str]]: ...
     def directed_children(self, name: str) -> list[str]: ...
     def node_count(self) -> int: ...
+    @classmethod
+    def from_dot(cls, dot: str) -> Pag: ...
+    def to_dot(self) -> str: ...
+    @classmethod
+    def from_json(cls, json: str) -> Pag: ...
+    def to_json(self) -> str: ...
+    @classmethod
+    def from_gml(cls, gml: str) -> Pag: ...
+    def to_gml(self) -> str: ...
+    @classmethod
+    def from_networkx_node_link(cls, json: str) -> Pag: ...
+    def to_networkx_node_link(self) -> str: ...
 
 class Admg:
     @classmethod
@@ -944,6 +1101,18 @@ class Admg:
     def children(self, name: str) -> list[str]: ...
     def bidirected_neighbors(self, name: str) -> list[str]: ...
     def node_count(self) -> int: ...
+    @classmethod
+    def from_dot(cls, dot: str) -> Admg: ...
+    def to_dot(self) -> str: ...
+    @classmethod
+    def from_json(cls, json: str) -> Admg: ...
+    def to_json(self) -> str: ...
+    @classmethod
+    def from_gml(cls, gml: str) -> Admg: ...
+    def to_gml(self) -> str: ...
+    @classmethod
+    def from_networkx_node_link(cls, json: str) -> Admg: ...
+    def to_networkx_node_link(self) -> str: ...
 
 class TemporalDag:
     @classmethod
@@ -955,6 +1124,87 @@ class TemporalDag:
     def nodes(self) -> list[tuple[str, int]]: ...
     def edges(self) -> list[tuple[str, int, str, int]]: ...
     def node_count(self) -> int: ...
+
+class TemporalCpdag:
+    @classmethod
+    def from_lagged_edges(
+        cls,
+        names: list[str],
+        directed: list[tuple[str, int, str, int]],
+        undirected: list[tuple[str, int, str, int]] | None = None,
+    ) -> TemporalCpdag: ...
+    def try_into_temporal_dag(self) -> TemporalDag: ...
+    def node_count(self) -> int: ...
+
+class TemporalPag:
+    @classmethod
+    def from_marked_lagged_edges(
+        cls,
+        names: list[str],
+        edges: list[tuple[str, int, str, int, str, str]],
+    ) -> TemporalPag: ...
+    def node_count(self) -> int: ...
+
+def analyze_ate_pag(
+    names: list[str],
+    columns: list[object],
+    graph: Pag,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    refute: bool | str = True,
+    validators: list[object] | None = None,
+    seed: int = 1,
+    bootstrap: int = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
+def analyze_ate_cpdag(
+    names: list[str],
+    columns: list[object],
+    graph: Cpdag,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    refute: bool | str = True,
+    validators: list[object] | None = None,
+    seed: int = 1,
+    bootstrap: int = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
+def analyze_ate_admg(
+    names: list[str],
+    columns: list[object],
+    graph: Admg,
+    treatment: str,
+    outcome: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    refute: bool | str = True,
+    validators: list[object] | None = None,
+    seed: int = 1,
+    bootstrap: int = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
 
 def dag_from_dot(dot: str) -> tuple[int, list[tuple[int, int]]]: ...
 def dag_to_dot(node_count: int, edges: list[tuple[int, int]]) -> str: ...
@@ -978,13 +1228,56 @@ class CausalState:
     def __init__(self, cache_bytes: int = 1_048_576) -> None: ...
     @property
     def version(self) -> int: ...
+    @property
+    def data_version(self) -> int: ...
     def stale_query_count(self) -> int: ...
     def stale_queries(self) -> list[int]: ...
+    def batch_ids(self) -> list[str]: ...
     def append_data(
         self,
         names: list[str],
         columns: Sequence[NDArray[np.float64]],
     ) -> int: ...
+    def replace_data(
+        self,
+        names: list[str] | None = None,
+        columns: Sequence[NDArray[np.float64]] | None = None,
+    ) -> int: ...
+    def get_batch(
+        self, batch_id: str
+    ) -> tuple[list[str], list[NDArray[np.float64]]]: ...
+    def batch_nrows(self, batch_id: str) -> int: ...
+    def add_graph_evidence(
+        self, evidence_id: str, fingerprint: int, bytes: int
+    ) -> int: ...
+    def graph_evidence(self) -> list[tuple[str, int, int]]: ...
+    def add_constraint(self, constraint_id: str, fingerprint: int) -> int: ...
+    def remove_constraint(self, constraint_id: str) -> int: ...
+    def constraints(self) -> list[tuple[str, int]]: ...
+    def update_assumption(self, kind: str) -> int: ...
+    def register_average_effect(
+        self, treatment: int, outcome: int
+    ) -> tuple[int, int]: ...
+    def record_intervention(self, intervention_id: str, fingerprint: int) -> int: ...
+    def refresh_results(self, entries: list[tuple[int, int, int]]) -> None: ...
+    def ols_ensure(self, key: str, ncols: int) -> None: ...
+    def ols_append_row(self, key: str, row: list[float], y: float) -> None: ...
+    def ols_get(self, key: str) -> dict[str, Any]: ...
+    def cov_ensure(self, key: str, dim: int) -> None: ...
+    def cov_update(self, key: str, row: list[float]) -> None: ...
+    def cov_get(self, key: str) -> dict[str, Any]: ...
+    def particle_filter_init(
+        self,
+        key: str,
+        n_particles: int,
+        *,
+        a: float = 0.9,
+        process_std: float = 0.3,
+        obs_std: float = 0.5,
+        seed: int = 1,
+    ) -> None: ...
+    def particle_filter_step(self, key: str, y: float) -> None: ...
+    def particle_filter_get(self, key: str) -> dict[str, Any]: ...
 
 def causal_state_append(n_appends: int = 2, cache_bytes: int = 1_048_576) -> tuple[int, int]: ...
 def encode_model_bundle(
@@ -992,4 +1285,123 @@ def encode_model_bundle(
     edges: list[tuple[int, int]],
     mechanisms: list[tuple[str, float | None, list[float] | None, float | None]],
 ) -> bytes: ...
+
+def validate_pcmci_block_bootstrap(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    replicates: int = 20,
+    block_size: int = 20,
+    seed: int = 1,
+    threads: int = 1,
+) -> dict[str, Any]: ...
+
+def validate_pcmci_false_positive(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    transform: str = "permute",
+    replicates: int = 20,
+    seed: int = 1,
+    threads: int = 1,
+) -> dict[str, Any]: ...
+
+def validate_pcmci_alpha_sensitivity(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    alphas: list[float],
+    *,
+    max_lag: int = 1,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    seed: int = 1,
+    threads: int = 1,
+) -> dict[str, Any]: ...
+
+def validate_pcmci_lag_sensitivity(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    max_lags: list[int],
+    *,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    seed: int = 1,
+    threads: int = 1,
+) -> dict[str, Any]: ...
+
+def validate_pcmci_ci_sensitivity(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    ci_names: list[str],
+    *,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    seed: int = 1,
+    threads: int = 1,
+) -> dict[str, Any]: ...
+
+def validate_pcmci_plus_orientation(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    replicates: int = 20,
+    block_size: int = 20,
+    seed: int = 1,
+    threads: int = 1,
+) -> dict[str, Any]: ...
+
+def validate_synthetic_null_calibration(
+    *,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    n_sim: int = 20,
+    n_obs: int = 100,
+    n_vars: int = 3,
+    seed: int = 1,
+    threads: int = 1,
+) -> dict[str, Any]: ...
+
+def validate_environment_holdout(
+    names: list[str],
+    env_columns: list[list[NDArray[np.float64]]],
+    *,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    n_discovery: int = 1,
+    seed: int = 1,
+    threads: int = 1,
+) -> dict[str, Any]: ...
+
+def validate_regime_stability(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    regimes: list[int],
+    *,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    replicates: int = 10,
+    block_size: int = 20,
+    seed: int = 1,
+    threads: int = 1,
+) -> dict[str, Any]: ...
 def decode_model_bundle(bytes: list[int] | bytes) -> tuple[list[str], list[tuple[int, int]], int]: ...

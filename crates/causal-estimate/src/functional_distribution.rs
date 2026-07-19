@@ -22,6 +22,7 @@ use causal_expr::{
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::prepare::require_method;
+use crate::util::{bootstrap_se, BootstrapSeResult};
 
 /// Hard cap on discrete levels per variable (fail-closed beyond this).
 const MAX_DISCRETE_LEVELS: usize = 64;
@@ -45,8 +46,14 @@ pub struct InterventionalDistributionEstimate {
     pub atoms: Arc<[DistributionAtom]>,
     /// Interventional mean of the first numeric outcome when defined; otherwise NaN.
     pub mean: f64,
-    /// Analytic SE is not defined for the discrete plug-in (use bootstrap later).
+    /// Analytic SE is not defined for the discrete plug-in (multinomial delta-method out of scope).
     pub se_analytic: f64,
+    /// Bootstrap SE of the interventional mean when requested.
+    pub se_bootstrap: Option<f64>,
+    /// Successful bootstrap replicates contributing to [`Self::se_bootstrap`].
+    pub bootstrap_replicates_ok: Option<u32>,
+    /// Soft-failed bootstrap replicates.
+    pub bootstrap_replicates_failed: Option<u32>,
     /// Assumptions carried from identification.
     pub assumptions: AssumptionSet,
     /// Overlap policy recorded on the artifact.
@@ -88,6 +95,13 @@ pub struct PreparedFunctionalDistribution {
     pub conditioning: Arc<[InterventionAssignment]>,
     /// Assumptions from identification.
     pub assumptions: AssumptionSet,
+    /// Row-aligned discrete columns for bootstrap CPT refits.
+    bootstrap_columns: HashMap<VariableId, Vec<Option<Value>>>,
+    /// Factor specs used to rebuild the empirical provider.
+    bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
+    /// Interventional signatures used to rebuild the empirical provider.
+    bootstrap_signatures:
+        Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
 }
 
 /// Plug-in estimator for identified interventional distributions (discrete).
@@ -95,6 +109,8 @@ pub struct PreparedFunctionalDistribution {
 pub struct FunctionalDistribution {
     /// Overlap policy (positivity is implicit in CPT support; override allowed).
     pub overlap: OverlapPolicy,
+    /// Bootstrap replicates for the interventional mean SE (0 = skip).
+    pub bootstrap_replicates: u32,
 }
 
 impl Default for FunctionalDistribution {
@@ -107,7 +123,10 @@ impl FunctionalDistribution {
     /// Create with default overlap override (CPT positivity is data-driven).
     #[must_use]
     pub fn new() -> Self {
-        Self { overlap: OverlapPolicy::ExplicitOverride }
+        Self {
+            overlap: OverlapPolicy::ExplicitOverride,
+            bootstrap_replicates: 0,
+        }
     }
 
     /// Prepare from an identified GeneralId functional and tabular data.
@@ -166,7 +185,8 @@ impl FunctionalDistribution {
             vars_needed.insert(z);
         }
 
-        let provider = build_empirical_provider(data, &vars_needed, &factor_specs, &signatures)?;
+        let (provider, columns) =
+            build_empirical_provider(data, &vars_needed, &factor_specs, &signatures)?;
         let compiled = arena.compile(estimand.functional).map_err(eval_err)?;
 
         Ok(PreparedFunctionalDistribution {
@@ -178,6 +198,9 @@ impl FunctionalDistribution {
             interventions: Arc::from(interventions),
             conditioning: Arc::from(conditioning),
             assumptions,
+            bootstrap_columns: columns,
+            bootstrap_factors: factor_specs,
+            bootstrap_signatures: signatures,
         })
     }
 
@@ -196,7 +219,40 @@ impl FunctionalDistribution {
         prepared: &PreparedFunctionalDistribution,
         conditioning_values: &[(VariableId, Value)],
         workspace: &mut FunctionalDistributionWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
+    ) -> Result<InterventionalDistributionEstimate, EstimationError> {
+        let mut out = self.estimate_point(prepared, conditioning_values, workspace)?;
+        if self.bootstrap_replicates == 0 || !out.mean.is_finite() {
+            return Ok(out);
+        }
+        let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
+        let boot = bootstrap_se(self.bootstrap_replicates, ctx, 0xF01D_u64, n, |idx| {
+            let columns = gather_columns(&prepared.bootstrap_columns, idx);
+            let provider = provider_from_columns(
+                &columns,
+                idx.len(),
+                &prepared.bootstrap_factors,
+                &prepared.bootstrap_signatures,
+            )?;
+            let mut prep = prepared.clone();
+            prep.provider = provider;
+            let mut ws = FunctionalDistributionWorkspace::default();
+            match self.estimate_point(&prep, conditioning_values, &mut ws) {
+                Ok(est) if est.mean.is_finite() => Ok(Some(est.mean)),
+                Ok(_) | Err(_) => Ok(None),
+            }
+        })?;
+        out.se_bootstrap = boot.se;
+        out.bootstrap_replicates_ok = Some(boot.replicates_ok);
+        out.bootstrap_replicates_failed = Some(boot.replicates_failed);
+        Ok(out)
+    }
+
+    fn estimate_point(
+        &self,
+        prepared: &PreparedFunctionalDistribution,
+        conditioning_values: &[(VariableId, Value)],
+        workspace: &mut FunctionalDistributionWorkspace,
     ) -> Result<InterventionalDistributionEstimate, EstimationError> {
         workspace.clear();
 
@@ -298,6 +354,9 @@ impl FunctionalDistribution {
             atoms: Arc::from(atoms),
             mean: if mean_ok { mean_acc } else { f64::NAN },
             se_analytic: f64::NAN,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
             assumptions: prepared.assumptions.clone(),
             overlap: self.overlap,
             retained_memory_bytes: None,
@@ -318,6 +377,10 @@ pub struct PreparedFunctionalEffect {
     pub provider: EmpiricalTableProvider,
     /// Assumptions from identification.
     pub assumptions: AssumptionSet,
+    bootstrap_columns: HashMap<VariableId, Vec<Option<Value>>>,
+    bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
+    bootstrap_signatures:
+        Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
 }
 
 /// Discrete plug-in estimator for identified scalar functionals (contrasts).
@@ -325,6 +388,8 @@ pub struct PreparedFunctionalEffect {
 pub struct FunctionalEffect {
     /// Overlap policy.
     pub overlap: OverlapPolicy,
+    /// Bootstrap replicates for the scalar SE (0 = skip).
+    pub bootstrap_replicates: u32,
 }
 
 impl Default for FunctionalEffect {
@@ -337,7 +402,10 @@ impl FunctionalEffect {
     /// Create with explicit overlap override.
     #[must_use]
     pub fn new() -> Self {
-        Self { overlap: OverlapPolicy::ExplicitOverride }
+        Self {
+            overlap: OverlapPolicy::ExplicitOverride,
+            bootstrap_replicates: 0,
+        }
     }
 
     /// Prepare CPT plug-in for a path-specific / general-ID contrast functional.
@@ -366,7 +434,8 @@ impl FunctionalEffect {
             vars_needed.extend(cond.iter().copied());
         }
         vars_needed.extend(extra_vars.iter().copied());
-        let provider = build_empirical_provider(data, &vars_needed, &factor_specs, &signatures)?;
+        let (provider, columns) =
+            build_empirical_provider(data, &vars_needed, &factor_specs, &signatures)?;
         let compiled = arena.compile(estimand.functional).map_err(eval_err)?;
         Ok(PreparedFunctionalEffect {
             estimand: estimand.clone(),
@@ -374,6 +443,9 @@ impl FunctionalEffect {
             compiled,
             provider,
             assumptions,
+            bootstrap_columns: columns,
+            bootstrap_factors: factor_specs,
+            bootstrap_signatures: signatures,
         })
     }
 
@@ -386,18 +458,49 @@ impl FunctionalEffect {
         &self,
         prepared: &PreparedFunctionalEffect,
         _workspace: &mut FunctionalDistributionWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<crate::adjustment::EffectEstimate, EstimationError> {
         let ate = prepared
             .compiled
             .evaluate(&prepared.arena, &prepared.provider, &EvalContext::default())
             .map_err(eval_err)?;
+        let boot = if self.bootstrap_replicates == 0 {
+            BootstrapSeResult::skipped()
+        } else {
+            let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
+            bootstrap_se(self.bootstrap_replicates, ctx, 0xF02D_u64, n, |idx| {
+                let columns = gather_columns(&prepared.bootstrap_columns, idx);
+                let provider = provider_from_columns(
+                    &columns,
+                    idx.len(),
+                    &prepared.bootstrap_factors,
+                    &prepared.bootstrap_signatures,
+                )?;
+                match prepared.compiled.evaluate(
+                    &prepared.arena,
+                    &provider,
+                    &EvalContext::default(),
+                ) {
+                    Ok(v) if v.is_finite() => Ok(Some(v)),
+                    _ => Ok(None),
+                }
+            })?
+        };
         Ok(crate::adjustment::EffectEstimate {
             ate,
+            // Multinomial delta-method analytic SE is out of scope for the discrete plug-in.
             se_analytic: f64::NAN,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
+            se_bootstrap: boot.se,
+            bootstrap_replicates_ok: if self.bootstrap_replicates == 0 {
+                None
+            } else {
+                Some(boot.replicates_ok)
+            },
+            bootstrap_replicates_failed: if self.bootstrap_replicates == 0 {
+                None
+            } else {
+                Some(boot.replicates_failed)
+            },
             assumptions: prepared.assumptions.clone(),
             overlap: self.overlap,
             overlap_report: None,
@@ -524,17 +627,52 @@ fn build_empirical_provider(
     vars_needed: &HashSet<VariableId>,
     factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
     signatures: &[(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)],
-) -> Result<EmpiricalTableProvider, EstimationError> {
+) -> Result<(EmpiricalTableProvider, HashMap<VariableId, Vec<Option<Value>>>), EstimationError> {
     let mut columns: HashMap<VariableId, Vec<Option<Value>>> = HashMap::new();
-    let mut domains: HashMap<VariableId, Vec<Value>> = HashMap::new();
     let n = data.row_count();
 
     for &id in vars_needed {
-        let (col, domain) = discrete_column(data, id)?;
+        let (col, _domain) = discrete_column(data, id)?;
         if col.len() != n {
             return Err(EstimationError::data_msg("column length mismatch"));
         }
         columns.insert(id, col);
+    }
+
+    let provider = provider_from_columns(&columns, n, factors, signatures)?;
+    Ok((provider, columns))
+}
+
+fn gather_columns(
+    columns: &HashMap<VariableId, Vec<Option<Value>>>,
+    idx: &[usize],
+) -> HashMap<VariableId, Vec<Option<Value>>> {
+    columns
+        .iter()
+        .map(|(&id, col)| {
+            let gathered: Vec<Option<Value>> = idx.iter().map(|&i| col.get(i).cloned().flatten()).collect();
+            (id, gathered)
+        })
+        .collect()
+}
+
+fn provider_from_columns(
+    columns: &HashMap<VariableId, Vec<Option<Value>>>,
+    n: usize,
+    factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
+    signatures: &[(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)],
+) -> Result<EmpiricalTableProvider, EstimationError> {
+    let mut domains: HashMap<VariableId, Vec<Value>> = HashMap::new();
+    for (&id, col) in columns {
+        let mut seen = HashSet::new();
+        let mut domain = Vec::new();
+        for cell in col {
+            if let Some(val) = cell {
+                if seen.insert(val.clone()) {
+                    domain.push(val.clone());
+                }
+            }
+        }
         domains.insert(id, domain);
     }
 
@@ -561,7 +699,7 @@ fn build_empirical_provider(
         // Observational CPT.
         insert_cpt(
             &mut provider,
-            &columns,
+            columns,
             n,
             vars,
             cond,
@@ -586,7 +724,7 @@ fn build_empirical_provider(
             if intervened_in_vars.is_empty() {
                 insert_cpt(
                     &mut provider,
-                    &columns,
+                    columns,
                     n,
                     vars,
                     cond,
@@ -1026,5 +1164,47 @@ mod tests {
         );
         let mass: f64 = out.atoms.iter().map(|a| a.probability).sum();
         assert!((mass - 1.0).abs() < 1e-6, "mass={mass}");
+    }
+
+    #[test]
+    fn plug_in_bootstrap_se_is_finite() {
+        let mut dag = Dag::with_variables(3);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let z = DenseNodeId::from_raw(2);
+        dag.insert_directed(z, t).unwrap();
+        dag.insert_directed(z, y).unwrap();
+        dag.insert_directed(t, y).unwrap();
+
+        let id = IdIdentifier::new();
+        let prep = id.prepare_dag(&dag).unwrap();
+        let query = InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), f(1.0))],
+        );
+        let cq = causal_core::CausalQuery::Distribution(query.clone());
+        let mut ws = IdentificationWorkspace::default();
+        let id_res = id.identify(&prep, &cq, &mut ws).unwrap();
+
+        let data = binary_confounding_table();
+        let est = FunctionalDistribution {
+            bootstrap_replicates: 40,
+            ..FunctionalDistribution::new()
+        };
+        let prepared = est
+            .prepare(
+                &data,
+                &query,
+                &id_res.estimands[0],
+                &id_res.arena,
+                id_res.required_assumptions.clone(),
+            )
+            .unwrap();
+        let mut ews = FunctionalDistributionWorkspace::default();
+        let out = est
+            .estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(7))
+            .unwrap();
+        let se = out.se_bootstrap.expect("bootstrap SE");
+        assert!(se.is_finite() && se > 0.0, "se={se}");
     }
 }

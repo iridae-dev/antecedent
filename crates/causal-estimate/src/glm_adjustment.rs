@@ -55,6 +55,10 @@ pub struct PreparedGlmProblem {
     pub control: f64,
     /// GLM family used for this problem.
     pub family: GlmFamily,
+    /// Target population for g-computation averaging.
+    pub target_population: TargetPopulation,
+    /// Complete-case treatment values.
+    pub treatment: Arc<[f64]>,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -143,8 +147,16 @@ impl GlmAdjustmentAte {
         if !query.effect_modifiers.is_empty() {
             return Err(EstimationError::unsupported("GLM adjustment does not support effect modifiers"));
         }
-        if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported("GLM adjustment only supports TargetPopulation::AllObserved"));
+        if !matches!(
+            query.target_population,
+            TargetPopulation::AllObserved
+                | TargetPopulation::Treated
+                | TargetPopulation::Untreated
+                | TargetPopulation::Predicate(_)
+        ) {
+            return Err(EstimationError::unsupported(
+                "GLM adjustment supports AllObserved, Treated, Untreated, or Predicate",
+            ));
         }
         let treatment = query.treatment;
         let outcome = query.outcome;
@@ -196,6 +208,8 @@ impl GlmAdjustmentAte {
             active,
             control,
             family: self.family,
+            target_population: query.target_population.clone(),
+            treatment: Arc::from(t),
         })
     }
 
@@ -240,8 +254,7 @@ impl GlmAdjustmentAte {
             problem.active,
             problem.control,
         );
-        let n = diffs.len() as f64;
-        let ate = diffs.iter().sum::<f64>() / n;
+        let ate = average_gcomp_for_target(&diffs, &problem.treatment, &problem.target_population)?;
         let se_analytic = match self.se_kind {
             AnalyticSeKind::Homoskedastic => gcomp_delta_method_se(
                 problem.family,
@@ -331,10 +344,39 @@ impl GlmAdjustmentAte {
                 problem.active,
                 problem.control,
             );
-            let m = diffs.len() as f64;
-            Ok(Some(diffs.iter().sum::<f64>() / m))
+            let t_boot: Vec<f64> = idx.iter().map(|&src| problem.treatment[src]).collect();
+            match average_gcomp_for_target(&diffs, &t_boot, &problem.target_population) {
+                Ok(ate) => Ok(Some(ate)),
+                Err(_) => Ok(None),
+            }
         })
     }
+}
+
+fn average_gcomp_for_target(
+    diffs: &[f64],
+    treatment: &[f64],
+    target: &TargetPopulation,
+) -> Result<f64, EstimationError> {
+    let mut sum = 0.0;
+    let mut count = 0usize;
+    for (i, &d) in diffs.iter().enumerate() {
+        let include = match target {
+            TargetPopulation::Treated => treatment.get(i).copied().unwrap_or(0.0) > 0.5,
+            TargetPopulation::Untreated => treatment.get(i).copied().unwrap_or(1.0) <= 0.5,
+            _ => true,
+        };
+        if include {
+            sum += d;
+            count += 1;
+        }
+    }
+    if count == 0 {
+        return Err(EstimationError::data_msg(
+            "target population left no rows for GLM g-computation",
+        ));
+    }
+    Ok(sum / count as f64)
 }
 
 /// Response-scale derivative `dμ/dη` at `eta`.
@@ -986,14 +1028,19 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unsupported_target_population() {
-        let (data, estimand) = binary_scm(200, 5);
-        let est = GlmAdjustmentAte::new();
+    fn recovers_att_via_gcomp() {
+        let (data, estimand) = binary_scm(800, 5);
+        let est = GlmAdjustmentAte {
+            bootstrap_replicates: 0,
+            ..GlmAdjustmentAte::new()
+        };
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::Unsupported { .. }));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = GlmAdjustmentWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(effect.ate.is_finite());
     }
 
     #[test]

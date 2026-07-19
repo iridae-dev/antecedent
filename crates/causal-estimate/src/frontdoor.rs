@@ -1,40 +1,26 @@
 //! Front-door two-stage (product-of-coefficients) regression estimator .
 //!
 //! Requires a `"frontdoor"` estimand with a non-empty [`IdentifiedEstimand::mediators`] set
-//! (see `causal_identify::frontdoor`). Supports exactly one mediator `M`; the front-door
-//! criterion for a valid `M` guarantees:
+//! (see `causal_identify::frontdoor`). Supports one or more mediators `M₁…Mₖ`; the front-door
+//! criterion for a valid mediator set guarantees:
 //!
-//! 1. `M` intercepts every directed path from `T` to `Y`.
-//! 2. No unblocked backdoor path from `T` to `M`.
-//! 3. Every backdoor path from `M` to `Y` is blocked by conditioning on `T`.
+//! 1. The mediators intercept every directed path from `T` to `Y`.
+//! 2. No unblocked backdoor path from `T` to the mediators.
+//! 3. Every backdoor path from the mediators to `Y` is blocked by conditioning on `T`.
 //!
-//! Pearl's front-door adjustment formula is
+//! For a linear SEM the nonparametric front-door formula collapses to a **path-sum** of
+//! product-of-coefficients terms:
 //!
-//! ```text
-//! P(y | do(t)) = Σ_m P(m | t) Σ_t' P(y | m, t') P(t')
-//! ```
+//! - **Stage 1** (per mediator): OLS of `Mⱼ` on `[1, T]` → `β_{T→Mⱼ}`.
+//! - **Stage 2**: OLS of `Y` on `[1, T, M₁…Mₖ]` → `β_{Mⱼ→Y}` (holding `T` and other mediators).
 //!
-//! For a linear structural model this collapses to the classic **product-of-coefficients**
-//! (a.k.a. two-stage / indirect-effect) estimator used throughout the mediation-analysis
-//! literature:
+//! `ATE = (Σⱼ β_{T→Mⱼ} · β_{Mⱼ→Y}) · (active − control)`.
 //!
-//! - **Stage 1**: OLS of `M` on `[1, T]` → `β_{M←T}`, the effect of `T` on `M`.
-//! - **Stage 2**: OLS of `Y` on `[1, T, M]` → `β_{Y←M·T}`, the effect of `M` on `Y`
-//!   holding `T` fixed. Conditioning on `T` here is what blocks the `M-Y` backdoor path
-//!   guaranteed clear by front-door criterion (3) above (e.g. `T <- U -> Y` confounding
-//!   routed back through `M`); dropping `T` from stage 2 would reintroduce that confounding.
+//! This assumes no direct `T → Y` edge (all of the treatment effect flows through the mediators,
+//! as the front-door criterion requires) and linear structural equations.
 //!
-//! `ATE = β_{M←T} · β_{Y←M·T} · (active − control)`.
-//!
-//! This assumes no direct `T → Y` edge (all of the treatment effect flows through `M`, as the
-//! front-door criterion requires) and linear structural equations; it is a practical
-//! approximation rather than the fully nonparametric Pearl plug-in, matching the "practical
-//! continuous approximation" used by comparable libraries.
-//!
-//! The analytic standard error uses the Sobel delta-method approximation
-//! `SE(ab) ≈ sqrt(b² Var(a) + a² Var(b))`, treating the two stages as independent (the standard
-//! simplification in mediation analysis). The bootstrap SE below refits both stages on every
-//! resample and is the recommended uncertainty estimate.
+//! The analytic standard error uses a Sobel-style delta-method for a single mediator; for
+//! `|M| > 1` the analytic SE is left as NaN and bootstrap is recommended.
 //!
 //! Positivity is not meaningful here — it is not a propensity-based method — so
 //! [`OverlapPolicy::ExplicitOverride`] is the only supported policy, matching
@@ -62,29 +48,29 @@ use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
 
 /// Stage-1 design column count: `[1, T]`.
 const STAGE1_NCOLS: usize = 2;
-/// Stage-1 column index of the treatment coefficient (`β_{M←T}`).
+/// Stage-1 column index of the treatment coefficient (`β_{T→M}`).
 const STAGE1_TREATMENT_COL: usize = 1;
-/// Stage-2 design column count: `[1, T, M]`.
-const STAGE2_NCOLS: usize = 3;
-/// Stage-2 column index of the mediator coefficient (`β_{Y←M·T}`).
-const STAGE2_MEDIATOR_COL: usize = 2;
+/// Stage-2 column index of treatment (after intercept).
+const STAGE2_TREATMENT_COL: usize = 1;
+/// Stage-2 first mediator column index (`[1, T, M…]`).
+const STAGE2_FIRST_MEDIATOR_COL: usize = 2;
 
-/// Prepared front-door problem: treatment, single mediator, and outcome columns after
-/// complete-case filtering.
+/// Prepared front-door problem: treatment, mediator columns, and outcome after complete-case
+/// filtering.
 #[derive(Clone, Debug)]
 pub struct PreparedFrontDoorProblem {
     /// Treatment, length `nrows`.
     pub treatment: Arc<[f64]>,
-    /// Mediator, length `nrows`.
-    pub mediator: Arc<[f64]>,
+    /// Mediator columns (each length `nrows`), in estimand order.
+    pub mediators: Arc<[Arc<[f64]>]>,
     /// Outcome, length `nrows`.
     pub outcome: Arc<[f64]>,
     /// Complete-case row count.
     pub nrows: usize,
     /// Estimand method tag (always `"frontdoor"`).
     pub method: Arc<str>,
-    /// The single mediator variable .
-    pub mediator_id: VariableId,
+    /// Mediator variable ids (aligned with [`Self::mediators`]).
+    pub mediator_ids: Arc<[VariableId]>,
     /// Overlap policy applied.
     pub overlap: OverlapPolicy,
     /// Active − control treatment contrast used for the ATE scaling.
@@ -111,11 +97,6 @@ fn prepare_frontdoor_problem(
             message: "FrontDoorTwoStage requires a non-empty mediator set",
         });
     }
-    if estimand.mediators.len() != 1 {
-        return Err(EstimationError::unsupported(
-            "FrontDoorTwoStage supports exactly one mediator; multi-mediator front-door              sets are unsupported",
-        ));
-    }
     query.validate()?;
     if !query.effect_modifiers.is_empty() {
         return Err(EstimationError::unsupported("FrontDoorTwoStage does not support effect modifiers"));
@@ -131,22 +112,28 @@ fn prepare_frontdoor_problem(
     if treatment_delta == 0.0 {
         return Err(EstimationError::unsupported("active and control treatment levels must differ"));
     }
-    let mediator_id = estimand.mediators[0];
 
-    let ids = [treatment, outcome, mediator_id];
+    let mut ids = Vec::with_capacity(2 + estimand.mediators.len());
+    ids.push(treatment);
+    ids.push(outcome);
+    ids.extend_from_slice(&estimand.mediators);
     let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
     let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
-    let m = data.float64_masked(mediator_id, &row_mask).map_err(EstimationError::from)?;
     let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
+    let mut mediators = Vec::with_capacity(estimand.mediators.len());
+    for &mid in estimand.mediators.iter() {
+        let m = data.float64_masked(mid, &row_mask).map_err(EstimationError::from)?;
+        mediators.push(Arc::<[f64]>::from(m));
+    }
     let nrows = t.len();
 
     Ok(PreparedFrontDoorProblem {
         treatment: Arc::from(t),
-        mediator: Arc::from(m),
+        mediators: Arc::from(mediators),
         outcome: Arc::from(y),
         nrows,
         method: Arc::clone(&estimand.method),
-        mediator_id,
+        mediator_ids: Arc::clone(&estimand.mediators),
         overlap,
         treatment_delta,
     })
@@ -155,13 +142,13 @@ fn prepare_frontdoor_problem(
 /// Estimation workspace, reused for both regression stages and across bootstrap replicates.
 #[derive(Clone, Debug, Default)]
 pub struct FrontDoorWorkspace {
-    /// OLS scratch shared by the `M ~ T` and `Y ~ T, M` stages.
+    /// OLS scratch shared by the `M ~ T` and `Y ~ T, M…` stages.
     pub ols: LeastSquaresWorkspace,
 }
 
-/// Front-door two-stage (product-of-coefficients) regression estimator.
+/// Front-door two-stage (path-sum product-of-coefficients) regression estimator.
 ///
-/// See the module docs for the estimator definition. Supports exactly one mediator.
+/// See the module docs for the estimator definition. Supports one or more mediators.
 #[derive(Clone, Debug)]
 pub struct FrontDoorTwoStage {
     /// Dense linear-algebra backend used by both regression stages.
@@ -203,7 +190,7 @@ impl FrontDoorTwoStage {
         prepare_frontdoor_problem(data, estimand, query, self.overlap)
     }
 
-    /// Fit the two-stage product-of-coefficients estimator, with optional bootstrap.
+    /// Fit the path-sum product-of-coefficients estimator, with optional bootstrap.
     ///
     /// # Errors
     ///
@@ -215,35 +202,7 @@ impl FrontDoorTwoStage {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let stage1 = self.fit_stage1(&problem.treatment, &problem.mediator, workspace)?;
-        let stage2 =
-            self.fit_stage2(&problem.treatment, &problem.mediator, &problem.outcome, workspace)?;
-
-        let beta_m_t = stage1.coefficients[STAGE1_TREATMENT_COL];
-        let beta_y_m = stage2.coefficients[STAGE2_MEDIATOR_COL];
-        let ate = beta_m_t * beta_y_m * problem.treatment_delta;
-
-        let n = problem.nrows as f64;
-        let var1 = crate::util::coefficient_variance(
-            &stage1_matrix(&problem.treatment),
-            problem.nrows,
-            STAGE1_NCOLS,
-            STAGE1_TREATMENT_COL,
-            stage1.rss / (n - STAGE1_NCOLS as f64).max(1.0),
-        );
-        let var2 = crate::util::coefficient_variance(
-            &stage2_matrix(&problem.treatment, &problem.mediator),
-            problem.nrows,
-            STAGE2_NCOLS,
-            STAGE2_MEDIATOR_COL,
-            stage2.rss / (n - STAGE2_NCOLS as f64).max(1.0),
-        );
-        // Sobel delta-method SE for the product β_{M←T}·β_{Y←M·T}, treating the two stages as
-        // independent estimates (module docs).
-        let var_ate = (beta_y_m * beta_y_m * var1 + beta_m_t * beta_m_t * var2)
-            * problem.treatment_delta
-            * problem.treatment_delta;
-        let se_analytic = var_ate.max(0.0).sqrt();
+        let (ate, se_analytic) = self.point_estimate(problem, workspace)?;
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -265,6 +224,61 @@ impl FrontDoorTwoStage {
         .with_bootstrap(boot))
     }
 
+    fn point_estimate(
+        &self,
+        problem: &PreparedFrontDoorProblem,
+        workspace: &mut FrontDoorWorkspace,
+    ) -> Result<(f64, f64), EstimationError> {
+        let k = problem.mediators.len();
+        let mut path_sum = 0.0;
+        let mut beta_tm = Vec::with_capacity(k);
+        for m in problem.mediators.iter() {
+            let stage1 = self.fit_stage1(&problem.treatment, m, workspace)?;
+            let b = stage1.coefficients[STAGE1_TREATMENT_COL];
+            beta_tm.push((b, stage1.rss));
+        }
+        let stage2 = self.fit_stage2(
+            &problem.treatment,
+            &problem.mediators,
+            &problem.outcome,
+            workspace,
+        )?;
+        for (j, &(b_tm, _)) in beta_tm.iter().enumerate() {
+            let b_my = stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
+            path_sum += b_tm * b_my;
+        }
+        let ate = path_sum * problem.treatment_delta;
+
+        // Single-mediator Sobel SE; multi-mediator analytic SE left as NaN (use bootstrap).
+        let se_analytic = if k == 1 {
+            let n = problem.nrows as f64;
+            let (beta_m_t, rss1) = beta_tm[0];
+            let beta_y_m = stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL];
+            let var1 = crate::util::coefficient_variance(
+                &stage1_matrix(&problem.treatment),
+                problem.nrows,
+                STAGE1_NCOLS,
+                STAGE1_TREATMENT_COL,
+                rss1 / (n - STAGE1_NCOLS as f64).max(1.0),
+            );
+            let stage2_ncols = 2 + k;
+            let var2 = crate::util::coefficient_variance(
+                &stage2_matrix(&problem.treatment, &problem.mediators),
+                problem.nrows,
+                stage2_ncols,
+                STAGE2_FIRST_MEDIATOR_COL,
+                stage2.rss / (n - stage2_ncols as f64).max(1.0),
+            );
+            let var_ate = (beta_y_m * beta_y_m * var1 + beta_m_t * beta_m_t * var2)
+                * problem.treatment_delta
+                * problem.treatment_delta;
+            var_ate.max(0.0).sqrt()
+        } else {
+            f64::NAN
+        };
+        Ok((ate, se_analytic))
+    }
+
     fn fit_stage1(
         &self,
         treatment: &[f64],
@@ -281,14 +295,15 @@ impl FrontDoorTwoStage {
     fn fit_stage2(
         &self,
         treatment: &[f64],
-        mediator: &[f64],
+        mediators: &[Arc<[f64]>],
         outcome: &[f64],
         workspace: &mut FrontDoorWorkspace,
     ) -> Result<causal_stats::LeastSquaresFit, EstimationError> {
         let n = treatment.len();
-        let x = stage2_matrix(treatment, mediator);
+        let ncols = 2 + mediators.len();
+        let x = stage2_matrix(treatment, mediators);
         self.backend
-            .least_squares(&x, n, STAGE2_NCOLS, outcome, &mut workspace.ols)
+            .least_squares(&x, n, ncols, outcome, &mut workspace.ols)
             .map_err(stats_err)
     }
 
@@ -298,26 +313,33 @@ impl FrontDoorTwoStage {
         workspace: &mut FrontDoorWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
-                let n = problem.nrows;
+        let n = problem.nrows;
+        let k = problem.mediators.len();
         let mut t_boot = vec![0.0; n];
-        let mut m_boot = vec![0.0; n];
+        let mut m_boot: Vec<Vec<f64>> = (0..k).map(|_| vec![0.0; n]).collect();
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0xF80D_u64, n, |idx| {
             for (r, &src) in idx.iter().enumerate() {
                 t_boot[r] = problem.treatment[src];
-                m_boot[r] = problem.mediator[src];
                 y_boot[r] = problem.outcome[src];
+                for (j, mcol) in problem.mediators.iter().enumerate() {
+                    m_boot[j][r] = mcol[src];
+                }
             }
-            let Ok(stage1) = self.fit_stage1(&t_boot, &m_boot, workspace) else {
+            let mediators: Vec<Arc<[f64]>> =
+                m_boot.iter().map(|m| Arc::<[f64]>::from(m.as_slice())).collect();
+            let Ok(stage2) = self.fit_stage2(&t_boot, &mediators, &y_boot, workspace) else {
                 return Ok(None);
             };
-            let Ok(stage2) = self.fit_stage2(&t_boot, &m_boot, &y_boot, workspace) else {
-                return Ok(None);
-            };
-            let ate = stage1.coefficients[STAGE1_TREATMENT_COL]
-                * stage2.coefficients[STAGE2_MEDIATOR_COL]
-                * problem.treatment_delta;
-            Ok(Some(ate))
+            let mut path_sum = 0.0;
+            for (j, m_j) in mediators.iter().enumerate() {
+                let Ok(s1) = self.fit_stage1(&t_boot, m_j, workspace) else {
+                    return Ok(None);
+                };
+                path_sum += s1.coefficients[STAGE1_TREATMENT_COL]
+                    * stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
+            }
+            Ok(Some(path_sum * problem.treatment_delta))
         })
     }
 }
@@ -331,13 +353,18 @@ fn stage1_matrix(treatment: &[f64]) -> Vec<f64> {
     x
 }
 
-/// Build the column-major `[1, T, M]` stage-2 design.
-fn stage2_matrix(treatment: &[f64], mediator: &[f64]) -> Vec<f64> {
+/// Build the column-major `[1, T, M₁…Mₖ]` stage-2 design.
+fn stage2_matrix(treatment: &[f64], mediators: &[Arc<[f64]>]) -> Vec<f64> {
     let n = treatment.len();
-    let mut x = vec![0.0; n * STAGE2_NCOLS];
+    let ncols = 2 + mediators.len();
+    let mut x = vec![0.0; n * ncols];
     x[..n].fill(1.0);
     x[n..2 * n].copy_from_slice(treatment);
-    x[2 * n..3 * n].copy_from_slice(mediator);
+    for (j, m) in mediators.iter().enumerate() {
+        let base = (STAGE2_FIRST_MEDIATOR_COL + j) * n;
+        x[base..base + n].copy_from_slice(m);
+    }
+    let _ = STAGE2_TREATMENT_COL;
     x
 }
 
@@ -500,12 +527,90 @@ mod tests {
     }
 
     #[test]
-    fn frontdoor_two_stage_rejects_multiple_mediators() {
-        let (data, mut estimand) = frontdoor_scm(200, 5);
-        estimand.mediators = Arc::from([VariableId::from_raw(2), VariableId::from_raw(0)]);
-        let est = FrontDoorTwoStage::new();
-        let err = est.prepare(&data, &estimand, &query()).unwrap_err();
-        assert!(matches!(err, EstimationError::Unsupported { .. }));
+    fn frontdoor_two_stage_recovers_two_mediator_path_sum() {
+        // T → M1 → Y and T → M2 → Y: M1=1·T, M2=2·T, Y=3·M1+4·M2 (+ noise, no U).
+        // Path sum = 1·3 + 2·4 = 11.
+        let n = 3000usize;
+        let mut rng = ExecutionContext::for_tests(9).rng.stream(0xF401_u64);
+        let mut t = vec![0.0; n];
+        let mut m1 = vec![0.0; n];
+        let mut m2 = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let ti = standard_normal(&mut rng);
+            let a = ti + 0.05 * standard_normal(&mut rng);
+            let b = 2.0 * ti + 0.05 * standard_normal(&mut rng);
+            let yi = 3.0 * a + 4.0 * b + 0.05 * standard_normal(&mut rng);
+            t[i] = ti;
+            m1[i] = a;
+            m2[i] = b;
+            y[i] = yi;
+        }
+        let mut b = CausalSchemaBuilder::new();
+        for (name, role) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("m1", RoleHint::Context),
+            ("m2", RoleHint::Context),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(role),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(m1),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(3),
+                    Arc::from(m2),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let estimand = IdentifiedEstimand::frontdoor(
+            "frontdoor",
+            Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+            ExprId::from_raw(0),
+        );
+        let est = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let prep = est.prepare(&data, &estimand, &query()).unwrap();
+        assert_eq!(prep.mediators.len(), 2);
+        let mut ws = FrontDoorWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!((effect.ate - 11.0).abs() < 0.5, "ate={}", effect.ate);
     }
 
     #[test]

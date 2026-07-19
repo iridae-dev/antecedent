@@ -3,19 +3,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
-from ._data import as_columns, as_multi_env_columns
+from ._data import as_columns, as_multi_env_columns, try_as_arrow_c_columns
 from ._native import (
     AnalysisResult as TemporalAnalysisResult,
     AteAnalysisResult,
     analyze as _analyze_temporal,
     analyze_ate as _analyze_ate,
+    analyze_ate_admg as _analyze_ate_admg,
+    analyze_ate_arrow_c as _analyze_ate_arrow_c,
+    analyze_ate_cpdag as _analyze_ate_cpdag,
     analyze_ate_discover as _analyze_ate_discover,
+    analyze_ate_pag as _analyze_ate_pag,
     analyze_distribution as _analyze_distribution,
+    analyze_events as _analyze_events,
+    analyze_panel as _analyze_panel,
+    analyze_panel_discover as _analyze_panel_discover,
     analyze_path_specific as _analyze_path_specific,
     analyze_temporal_discover as _analyze_temporal_discover,
+    analyze_temporal_pag as _analyze_temporal_pag,
 )
+from .data import EventFrame, MultiEnvFrame, PanelFrame
 from .discovery import (
     FCI,
     GES,
@@ -29,7 +38,7 @@ from .discovery import (
     RFCI,
     RPCMCI,
 )
-from .graph import Dag, TemporalDag
+from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 from .inference import Bayesian, Frequentist
 from .query import (
     AverageEffect,
@@ -155,6 +164,8 @@ def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
 
 
 def _wrap_temporal(raw: TemporalAnalysisResult) -> AnalysisResult:
+    # Mirror static ate_result_from_analysis: never claim pass when nothing ran.
+    ran = raw.refutation_count > 0
     return AnalysisResult(
         identification=IdentificationView(
             status=raw.identification_status,
@@ -172,8 +183,8 @@ def _wrap_temporal(raw: TemporalAnalysisResult) -> AnalysisResult:
         ),
         posterior=None,
         validation=ValidationView(
-            passed=True,
-            ran=raw.refutation_count > 0,
+            passed=False if not ran else True,
+            ran=ran,
             count=raw.refutation_count,
         ),
         performance=PerformanceView(
@@ -319,10 +330,18 @@ def _lagged_edges(
     return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in graph]  # type: ignore[misc]
 
 
+def _refute_requested(refute: bool | str) -> bool:
+    """True when the caller asked for any non-empty refute suite."""
+    if isinstance(refute, bool):
+        return refute
+    key = str(refute).strip().lower()
+    return key not in ("", "none", "off", "false", "0")
+
+
 def _reject_unsupported_temporal(
     *,
     inference: Frequentist | Bayesian | None,
-    refute: bool,
+    refute: bool | str,
     validators: Sequence[Any] | None,
 ) -> None:
     if isinstance(inference, Bayesian):
@@ -330,10 +349,10 @@ def _reject_unsupported_temporal(
             "inference=Bayesian(...) is not supported for temporal queries; "
             "omit inference or use Frequentist()"
         )
-    if refute is not True:
-        # Default is True on analyze(); temporal native path ignores refute.
-        # Only complain when the caller explicitly set a non-default or validators.
-        pass
+    if _refute_requested(refute):
+        raise TypeError(
+            "refute= is not supported for temporal queries yet; pass refute=False"
+        )
     if validators is not None:
         raise TypeError(
             "validators= is not supported for temporal queries yet"
@@ -352,7 +371,12 @@ def analyze(
     ),
     graph: (
         Dag
+        | Cpdag
+        | Pag
+        | Admg
         | TemporalDag
+        | TemporalCpdag
+        | TemporalPag
         | Sequence[tuple[str, str]]
         | Sequence[tuple[str, int, str, int]]
         | None
@@ -361,7 +385,7 @@ def analyze(
     inference: Frequentist | Bayesian | None = None,
     identifier: str | None = None,
     estimator: str | None = None,
-    refute: bool = True,
+    refute: bool | Literal["full", "placebo", "none"] = True,
     validators: Sequence[Any] | None = None,
     accept_discovered: bool = True,
     seed: int = 1,
@@ -374,15 +398,21 @@ def analyze(
     Parameters
     ----------
     data:
-        Mapping of column name → 1-d float array, or a pandas ``DataFrame``.
-        For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames.
+        Mapping of column name → 1-d float array, a pandas ``DataFrame``,
+        Arrow CDI exporters (PyArrow columns / table), or a
+        ``causal.data`` frame (``EventFrame`` / ``PanelFrame`` / ``MultiEnvFrame``).
+        For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
+        or a ``MultiEnvFrame``.
     query:
         ``AverageEffect``, ``PulseEffect`` / ``SustainedEffect``,
         ``InterventionalDistribution``, or ``PathSpecificEffect``.
     graph:
-        ``Dag`` / ``TemporalDag`` or an edge list. Lagged edges
+        ``Dag`` / ``Cpdag`` / ``Pag`` / ``Admg`` / ``TemporalDag`` /
+        ``TemporalCpdag`` / ``TemporalPag``, or an edge list. Lagged edges
         ``(from, from_lag, to, to_lag)`` are required for temporal queries
-        without ``discovery``.
+        without ``discovery``. Fully oriented CPDAGs run as DAGs; incomplete
+        CPDAGs require review. ADMGs without bidirected edges coerce to DAGs;
+        ADMGs with latents use general ID + functional effect.
     discovery:
         Static: ``PC`` / ``GES`` / ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI``.
         Temporal: ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``.
@@ -480,8 +510,6 @@ def analyze(
         )
 
     if isinstance(query, AverageEffect):
-        names, columns = as_columns(data)  # type: ignore[arg-type]
-        edges = _static_edges(graph)  # type: ignore[arg-type]
         inference_s = None
         n_draws = 1000
         prior_scale = 10.0
@@ -489,12 +517,9 @@ def analyze(
             inference_s = "bayesian"
             n_draws = inference.n_draws
             prior_scale = inference.prior_scale
-        raw = _analyze_ate(
-            names,
-            columns,
-            edges,
-            query.treatment,
-            query.outcome,
+        common = dict(
+            treatment=query.treatment,
+            outcome=query.outcome,
             control_level=query.control_level,
             active_level=query.active_level,
             identifier=identifier,
@@ -508,14 +533,134 @@ def analyze(
             bootstrap=bootstrap,
             threads=threads,
         )
+        if isinstance(graph, Pag):
+            names, columns = as_columns(data)  # type: ignore[arg-type]
+            return _wrap_ate(_analyze_ate_pag(names, columns, graph, **common))
+        if isinstance(graph, Cpdag):
+            names, columns = as_columns(data)  # type: ignore[arg-type]
+            return _wrap_ate(_analyze_ate_cpdag(names, columns, graph, **common))
+        if isinstance(graph, Admg):
+            names, columns = as_columns(data)  # type: ignore[arg-type]
+            return _wrap_ate(_analyze_ate_admg(names, columns, graph, **common))
+        edges = _static_edges(graph)  # type: ignore[arg-type]
+        arrow = try_as_arrow_c_columns(data)
+        ate_kwargs = dict(edges=edges, **common)
+        if arrow is not None:
+            names, columns = arrow
+            raw = _analyze_ate_arrow_c(names, columns, **ate_kwargs)
+        else:
+            names, columns = as_columns(data)  # type: ignore[arg-type]
+            raw = _analyze_ate(names, columns, **ate_kwargs)
         return _wrap_ate(raw)
 
     if isinstance(query, (PulseEffect, SustainedEffect)):
         policy = "sustained" if isinstance(query, SustainedEffect) else "pulse"
-        if isinstance(inference, Bayesian) or validators is not None:
-            _reject_unsupported_temporal(
-                inference=inference, refute=refute, validators=validators
+        _reject_unsupported_temporal(
+            inference=inference, refute=refute, validators=validators
+        )
+        if isinstance(data, EventFrame):
+            if discovery is not None:
+                raise ValueError("EventFrame does not support discovery= yet; supply a TemporalDag")
+            lagged = _lagged_edges(graph)  # type: ignore[arg-type]
+            raw = _analyze_events(
+                data.names,
+                data.columns,
+                data.event_times_ns.tolist(),
+                data.align_interval_ns,
+                lagged,
+                query.treatment,
+                query.outcome,
+                treatment_lag=query.treatment_lag,
+                horizon_steps=query.horizon_steps,
+                active_level=query.active_level,
+                policy=policy,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
             )
+            return _wrap_temporal(raw)
+        if isinstance(data, PanelFrame):
+            if discovery is not None:
+                if not isinstance(discovery, JPCMCIPlus):
+                    raise TypeError(
+                        "PanelFrame discovery currently supports only JPCMCIPlus(...)"
+                    )
+                cfg = _discovery_algorithm(discovery)
+                raw = _analyze_panel_discover(
+                    data.names,
+                    data.unit_columns,
+                    data.unit_ids,
+                    query.treatment,
+                    query.outcome,
+                    max_lag=cfg["max_lag"],
+                    alpha=cfg["alpha"],
+                    fdr=cfg["fdr"],
+                    accept_discovered=accept_discovered,
+                    treatment_lag=query.treatment_lag,
+                    horizon_steps=query.horizon_steps,
+                    active_level=query.active_level,
+                    policy=policy,
+                    seed=seed,
+                    bootstrap=bootstrap,
+                    threads=threads,
+                    context_names=cfg["context_names"],
+                    include_space_dummy=cfg["include_space_dummy"],
+                    include_time_dummy=cfg["include_time_dummy"],
+                    space_dummy_ci=cfg["space_dummy_ci"] in ("multivariate", "multivariate_block", "block", True),
+                    time_dummy_encoding=cfg["time_dummy_encoding"],
+                    time_dummy_ci=cfg["time_dummy_ci"] in ("multivariate", "multivariate_block", "block", True),
+                )
+                return _wrap_temporal(raw)
+            lagged = _lagged_edges(graph)  # type: ignore[arg-type]
+            raw = _analyze_panel(
+                data.names,
+                data.unit_columns,
+                data.unit_ids,
+                lagged,
+                query.treatment,
+                query.outcome,
+                treatment_lag=query.treatment_lag,
+                horizon_steps=query.horizon_steps,
+                active_level=query.active_level,
+                policy=policy,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+            )
+            return _wrap_temporal(raw)
+        if isinstance(data, MultiEnvFrame):
+            if discovery is None or not isinstance(discovery, JPCMCIPlus):
+                raise TypeError(
+                    "MultiEnvFrame requires discovery=JPCMCIPlus(...)"
+                )
+            cfg = _discovery_algorithm(discovery)
+            raw = _analyze_temporal_discover(
+                data.names,
+                data.env_columns[0],
+                query.treatment,
+                query.outcome,
+                algorithm="jpcmci_plus",
+                max_lag=cfg["max_lag"],
+                alpha=cfg["alpha"],
+                fdr=cfg["fdr"],
+                accept_discovered=accept_discovered,
+                treatment_lag=query.treatment_lag,
+                horizon_steps=query.horizon_steps,
+                active_level=query.active_level,
+                policy=policy,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+                env_columns=data.env_columns,
+                context_names=cfg["context_names"],
+                include_space_dummy=cfg["include_space_dummy"],
+                include_time_dummy=cfg["include_time_dummy"],
+                space_dummy_ci=cfg["space_dummy_ci"],
+                time_dummy_encoding=cfg["time_dummy_encoding"],
+                time_dummy_ci=cfg["time_dummy_ci"],
+                ci=cfg.get("ci"),
+            )
+            return _wrap_temporal(raw)
         if discovery is not None:
             if not isinstance(discovery, _TEMPORAL_DISCOVERY):
                 raise TypeError(
@@ -604,6 +749,30 @@ def analyze(
             )
             return _wrap_temporal(raw)
         names, columns = as_columns(data)  # type: ignore[arg-type]
+        if isinstance(graph, TemporalPag):
+            raw = _analyze_temporal_pag(
+                names,
+                columns,
+                graph,
+                query.treatment,
+                query.outcome,
+                treatment_lag=query.treatment_lag,
+                horizon_steps=query.horizon_steps,
+                active_level=query.active_level,
+                policy=policy,
+                seed=seed,
+                bootstrap=bootstrap,
+                threads=threads,
+            )
+            return _wrap_temporal(raw)
+        if isinstance(graph, TemporalCpdag):
+            try:
+                graph = graph.try_into_temporal_dag()
+            except Exception as exc:  # noqa: BLE001 — surface orientation failures
+                raise ValueError(
+                    "TemporalCpdag has undirected/conflict marks; orient edges "
+                    "(try_into_temporal_dag) before analyze, or use discovery review"
+                ) from exc
         lagged = _lagged_edges(graph)  # type: ignore[arg-type]
         raw = _analyze_temporal(
             names,

@@ -1,4 +1,12 @@
-//! Bootstrap refuter: percentile CI around the original ATE.
+//! Bootstrap CI coverage of the original point estimate (not placebo falsification).
+//!
+//! This check resamples rows, refits the same linear adjustment ATE, and asks whether
+//! the *original* point estimate lies inside the percentile confidence interval of the
+//! bootstrap ATEs. It is a stability / sampling-variability diagnostic — it does **not**
+//! permute treatment, add noise outcomes, or otherwise falsify the causal claim the way
+//! placebo / dummy-outcome refuters do.
+//!
+//! Report id: `bootstrap.ci_coverage`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -45,7 +53,7 @@ impl BootstrapRefute {
         Self { replicates: 200, ci_level: 0.95, estimator: linear_estimator_no_bootstrap() }
     }
 
-    /// Run the bootstrap refuter.
+    /// Run the bootstrap CI-coverage check.
     ///
     /// # Errors
     ///
@@ -58,12 +66,12 @@ impl BootstrapRefute {
     ) -> Result<RefutationReport, ValidationError> {
         if self.replicates < 2 {
             return Err(ValidationError::NotApplicable {
-                message: "bootstrap refutation requires replicates >= 2",
+                message: "bootstrap CI coverage requires replicates >= 2",
             });
         }
         if !(self.ci_level > 0.0 && self.ci_level < 1.0) {
             return Err(ValidationError::NotApplicable {
-                message: "bootstrap refutation requires ci_level in (0, 1)",
+                message: "bootstrap CI coverage requires ci_level in (0, 1)",
             });
         }
         let n = problem.data.row_count();
@@ -74,7 +82,7 @@ impl BootstrapRefute {
         let (keep, valid) = complete_case_rows(problem.data, &resample_ids)?;
         if valid.len() < 2 {
             return Err(ValidationError::NotApplicable {
-                message: "bootstrap refutation requires at least 2 complete-case rows",
+                message: "bootstrap CI coverage requires at least 2 complete-case rows",
             });
         }
         let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
@@ -101,7 +109,7 @@ impl BootstrapRefute {
         let width = hi - lo;
         let passed = problem.original.ate >= lo && problem.original.ate <= hi;
         Ok(RefutationReport {
-            refuter: Arc::from("bootstrap.refute"),
+            refuter: Arc::from("bootstrap.ci_coverage"),
             original_ate: problem.original.ate,
             refuted_ate: mean_ate,
             comparison: width,
@@ -111,7 +119,8 @@ impl BootstrapRefute {
                 None
             } else {
                 Some(Arc::from(format!(
-                    "original ATE {} outside {}% bootstrap interval [{lo}, {hi}]",
+                    "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] \
+                     (coverage check of the point estimate, not a placebo falsification)",
                     problem.original.ate,
                     self.ci_level * 100.0
                 )))

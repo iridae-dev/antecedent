@@ -28,6 +28,9 @@ use crate::error::DiscoveryError;
 use crate::result::LaggedLink;
 
 /// Hard cap on labeled nodes for exact DAG enumeration (~3.8M DAGs at 6).
+///
+/// This is a product limit for [`crate::ExactDagPosterior`]. Larger `n` must use
+/// MCMC (`OrderMcmc` / `StructureMcmc` / `CiScreenedPosterior`).
 pub const EXACT_ENUM_MAX_NODES: usize = 6;
 
 /// Prior over DAG structures for Bayesian discovery.

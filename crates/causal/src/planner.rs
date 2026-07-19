@@ -13,8 +13,8 @@ use causal_core::{
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
 use causal_graph::{
-    CpdagReview, Dag, DagReview, Pag, PagReview, TemporalCpdagReview, TemporalDag,
-    TemporalGraphReview, TemporalPag, TemporalPagReview,
+    Admg, Cpdag, CpdagReview, Dag, DagReview, Pag, PagReview, TemporalCpdag, TemporalCpdagReview,
+    TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview,
 };
 use causal_stats::FdrAdjustment;
 
@@ -58,8 +58,14 @@ pub enum GraphInput {
     },
     /// Supplied static PAG (class-aware identification required).
     Pag(Pag),
+    /// Supplied static CPDAG (completes to DAG when fully oriented).
+    Cpdag(Cpdag),
+    /// Supplied static ADMG (general ID when bidirected edges exist; else DAG path).
+    Admg(Admg),
     /// Supplied temporal PAG.
     TemporalPag(TemporalPag),
+    /// Supplied temporal CPDAG (completes to temporal DAG when fully oriented).
+    TemporalCpdag(TemporalCpdag),
     /// Discover with LPCMCI (temporal PAG).
     DiscoverLpcmci {
         /// Max lag.
@@ -201,8 +207,13 @@ impl LogicalAnalysisPlan {
         if matches!(
             self.record.discovery_algorithm.as_deref(),
             Some("pcmci" | "pcmci_plus" | "jpcmci_plus" | "rpcmci" | "lpcmci")
-        ) && self.record.data_classification != DataClassification::Temporal
-        {
+        ) && !matches!(
+            self.record.data_classification,
+            DataClassification::Temporal
+                | DataClassification::Event
+                | DataClassification::Panel
+                | DataClassification::MultiEnvironment
+        ) {
             return Err(AnalysisError::Compile {
                 message: "PCMCI-family discovery requires temporal data metadata".into(),
             });
@@ -253,6 +264,21 @@ impl LogicalAnalysisPlan {
         ctx: &ExecutionContext,
         resolved_temporal_graph: Option<TemporalDag>,
         resolved_static_graph: Option<Dag>,
+    ) -> Result<PhysicalExecutionPlan, AnalysisError> {
+        self.compile_physical_with_all_graphs(ctx, resolved_temporal_graph, resolved_static_graph, None)
+    }
+
+    /// Compile a physical plan with optional resolved temporal DAG, static DAG, and/or static PAG.
+    ///
+    /// # Errors
+    ///
+    /// Resource refusals or unsupported backends.
+    pub fn compile_physical_with_all_graphs(
+        &self,
+        ctx: &ExecutionContext,
+        resolved_temporal_graph: Option<TemporalDag>,
+        resolved_static_graph: Option<Dag>,
+        resolved_static_pag: Option<Pag>,
     ) -> Result<PhysicalExecutionPlan, AnalysisError> {
         self.validate()?;
         let n_rows = self.row_count_hint.max(1);
@@ -323,6 +349,7 @@ impl LogicalAnalysisPlan {
             logical: self.clone(),
             resolved_temporal_graph,
             resolved_static_graph,
+            resolved_static_pag,
         })
     }
 }
@@ -338,6 +365,8 @@ pub struct PhysicalExecutionPlan {
     pub resolved_temporal_graph: Option<TemporalDag>,
     /// Static DAG from PC discovery auto-accept (avoids re-discovery at execute).
     pub resolved_static_graph: Option<Dag>,
+    /// Static PAG from FCI/RFCI / supplied Pag (class-aware identification).
+    pub resolved_static_pag: Option<Pag>,
 }
 
 impl PhysicalExecutionPlan {
@@ -351,6 +380,12 @@ impl PhysicalExecutionPlan {
     #[must_use]
     pub fn static_graph(&self) -> Option<&Dag> {
         self.resolved_static_graph.as_ref()
+    }
+
+    /// Borrow the resolved static PAG when present (FCI / RFCI / supplied Pag).
+    #[must_use]
+    pub fn static_pag(&self) -> Option<&Pag> {
+        self.resolved_static_pag.as_ref()
     }
 }
 
@@ -367,9 +402,9 @@ pub enum CompiledAnalysis {
     ReviewRequiredStaticCpdag(CpdagReview),
     /// DirectLiNGAM (or other full-DAG discovery) needs edge acceptance.
     ReviewRequiredStaticDag(DagReview),
-    /// Classic static FCI PAG needs circle resolution or class-aware identification.
+    /// Classic static FCI/RFCI PAG when `accept_discovered` is false (review UI).
     ReviewRequiredStaticPag(PagReview),
-    /// LPCMCI / PAG needs circle resolution or class-aware identification.
+    /// LPCMCI / temporal PAG needs review (temporal backdoor is DAG-only today).
     ReviewRequiredPag(TemporalPagReview),
 }
 
@@ -471,7 +506,65 @@ pub fn compile_logical_static_ate(
     Ok(plan)
 }
 
-/// Compile input for interventional-distribution queries.
+/// Inputs for PAG ATE compile (class-aware identification).
+#[derive(Clone, Debug)]
+pub struct StaticPagAteCompileInput<'a> {
+    /// Tabular data.
+    pub data: &'a TabularData,
+    /// PAG.
+    pub pag: &'a Pag,
+    /// Query.
+    pub query: &'a AverageEffectQuery,
+    /// Validation suite id.
+    pub validation_suite: Option<Arc<str>>,
+    /// Identifier (must be generalized.adjustment).
+    pub identifier: Arc<str>,
+    /// Estimator id.
+    pub estimator: Arc<str>,
+}
+
+/// Compile logical plan for static ATE on a PAG.
+///
+/// # Errors
+///
+/// Query validation or incompatible identifier/estimator.
+pub fn compile_logical_static_pag_ate(
+    input: StaticPagAteCompileInput<'_>,
+) -> Result<LogicalAnalysisPlan, AnalysisError> {
+    input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    validate_query_vars_in_pag(input.pag, input.query.treatment, input.query.outcome)?;
+    let identifier = IdentifierId::parse(&input.identifier);
+    let estimator = EstimatorId::parse(&input.estimator);
+    if !matches!(identifier, IdentifierId::GeneralizedAdjustment) {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "PAG ATE requires identifier \"generalized.adjustment\"; got {:?}",
+                identifier.as_str()
+            ),
+        });
+    }
+    validate_static_pair(identifier, estimator)?;
+    let record = LogicalAnalysisPlanRecord {
+        plan_id: Arc::from("static_pag_ate"),
+        data_classification: DataClassification::Tabular,
+        discovery_algorithm: None,
+        graph_review_required: false,
+        identifier: Some(Arc::clone(&input.identifier)),
+        estimator: Some(Arc::clone(&input.estimator)),
+        validation_suite: input.validation_suite,
+        query_variables: Arc::from([input.query.treatment, input.query.outcome]),
+    };
+    let plan = LogicalAnalysisPlan {
+        record,
+        query: CausalQuery::AverageEffect(input.query.clone()),
+        split: None,
+        row_count_hint: input.data.row_count() as u64,
+    };
+    plan.validate()?;
+    Ok(plan)
+}
+
+/// Compile logical plan for interventional-distribution queries.
 #[derive(Clone, Debug)]
 pub struct StaticDistributionCompileInput<'a> {
     /// Tabular data.
@@ -632,6 +725,33 @@ fn validate_query_vars_in_dag(
     Ok(())
 }
 
+fn validate_query_vars_in_pag(
+    pag: &Pag,
+    treatment: causal_core::VariableId,
+    outcome: causal_core::VariableId,
+) -> Result<(), AnalysisError> {
+    let mut has_t = false;
+    let mut has_y = false;
+    for node in pag.nodes() {
+        if let causal_graph::NodeRef::Static(v) = node {
+            if *v == treatment {
+                has_t = true;
+            }
+            if *v == outcome {
+                has_y = true;
+            }
+        }
+    }
+    if !has_t || !has_y {
+        return Err(AnalysisError::Compile {
+            message: format!(
+                "query variables not in PAG (treatment present={has_t}, outcome present={has_y})"
+            ),
+        });
+    }
+    Ok(())
+}
+
 /// Compile logical plan for a temporal effect with a supplied temporal graph.
 ///
 /// # Errors
@@ -643,6 +763,29 @@ pub fn compile_logical_temporal_effect(
     query: &TemporalEffectQuery,
     split: Option<DiscoveryEstimationSplit>,
     review_required: bool,
+) -> Result<LogicalAnalysisPlan, AnalysisError> {
+    compile_logical_temporal_effect_classified(
+        data,
+        _graph,
+        query,
+        split,
+        review_required,
+        DataClassification::Temporal,
+    )
+}
+
+/// Temporal effect plan with an explicit data classification (Event / Panel / Temporal).
+///
+/// # Errors
+///
+/// Query validation failures.
+pub fn compile_logical_temporal_effect_classified(
+    data: &TimeSeriesData,
+    _graph: &TemporalDag,
+    query: &TemporalEffectQuery,
+    split: Option<DiscoveryEstimationSplit>,
+    review_required: bool,
+    data_classification: DataClassification,
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {
     query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
     if query.target_population != TargetPopulation::AllObserved {
@@ -658,7 +801,7 @@ pub fn compile_logical_temporal_effect(
         split.map_or_else(|| data.row_count() as u64, |s| s.estimation.len() as u64);
     let record = LogicalAnalysisPlanRecord {
         plan_id: Arc::from("temporal_effect"),
-        data_classification: DataClassification::Temporal,
+        data_classification,
         discovery_algorithm: None,
         graph_review_required: review_required,
         identifier: Some(Arc::from("temporal.backdoor.unfolded")),

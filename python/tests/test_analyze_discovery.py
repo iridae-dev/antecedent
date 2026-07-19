@@ -33,6 +33,7 @@ def test_analyze_discovery_pcmci_smoke():
         ),
         bootstrap=0,
         seed=1,
+        refute=False,
     )
     assert isinstance(result.ate, float)
     assert result.performance.plan_id
@@ -65,6 +66,7 @@ def test_analyze_discovery_jpcmci_plus_two_env():
             ),
             bootstrap=0,
             seed=1,
+            refute=False,
         )
         assert isinstance(result.ate, float)
     except Exception as exc:  # noqa: BLE001 — native review/ID surfaces as Exception
@@ -89,6 +91,7 @@ def test_analyze_discovery_rpcmci_regimes():
             ),
             bootstrap=0,
             seed=1,
+            refute=False,
         )
         assert isinstance(result.ate, float)
     except Exception as exc:  # noqa: BLE001

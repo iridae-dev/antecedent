@@ -12,7 +12,7 @@
 use causal_core::ExecutionContext;
 use causal_stats::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod, GSquared,
-    KnnCmi, PartialCorrelation, RobustPartialCorrelation, SignificanceMethod,
+    KnnDependence, PartialCorrelation, RobustPartialCorrelation, SignificanceMethod,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
@@ -132,7 +132,7 @@ fn bench_ci_batches(c: &mut Criterion) {
     let mut group = c.benchmark_group("ci_batch_knn");
     let knn_raw = columns(120, 3);
     let knn_miss = keep_mask(120, 0.20, 7);
-    let knn = KnnCmi::new(3);
+    let knn = KnnDependence::new(3);
     bench_one_ci(&mut group, "z1_full", &knn, &knn_raw, 1, None);
     bench_one_ci(&mut group, "z1_missing20", &knn, &knn_raw, 1, Some(&knn_miss));
     group.finish();
@@ -149,7 +149,7 @@ fn bench_knn_reuse(c: &mut Criterion) {
     let z_flat = [2usize];
     let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }; 8];
     let ctx = ExecutionContext::for_tests(2);
-    c.bench_function("knn_cmi_reuse_batch8", |b| {
+    c.bench_function("knn_dependence_reuse_batch8", |b| {
         let mut ws = CiWorkspace::default();
         let req = CiBatchRequest {
             columns: &cols_refs,
@@ -158,7 +158,7 @@ fn bench_knn_reuse(c: &mut Criterion) {
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
-        let _ = KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx);
+        let _ = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx);
         let gen0 = ws.knn.index_generation;
         b.iter(|| {
             let req = CiBatchRequest {
@@ -168,7 +168,7 @@ fn bench_knn_reuse(c: &mut Criterion) {
                 significance: SignificanceMethod::Analytic,
                 confidence: ConfidenceMethod::default(),
             };
-            let _ = black_box(KnnCmi::new(3).test_batch_adhoc(&req, &mut ws, &ctx));
+            let _ = black_box(KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx));
             assert_eq!(ws.knn.index_generation, gen0, "kNN must not rebuild index per query batch");
         });
     });

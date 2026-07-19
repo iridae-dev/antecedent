@@ -111,5 +111,6 @@ fn extend_adjustment(base: &IdentifiedEstimand, extra: VariableId) -> Identified
         instruments: Arc::clone(&base.instruments),
         mediators: Arc::clone(&base.mediators),
         functional: base.functional,
+        rd_design: base.rd_design.clone(),
     }
 }
