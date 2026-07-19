@@ -34,14 +34,16 @@ EVIDENCE = {
     "context.jpcmci_plus": "crates/causal/tests/context_effects.rs",
     "context.rpcmci": "crates/causal/tests/context_effects.rs",
     "context.mediation": "crates/causal/tests/context_effects.rs",
+    "context.mediation.nonparametric": "crates/causal-identify/src/path_specific.rs",
     "context.conditional": "crates/causal/tests/context_effects.rs",
     "context.prediction": "crates/causal/tests/context_effects.rs",
+    "context.query_model_planned_variants": "crates/causal-io/src/query_wire.rs",
 }
 
 missing = []
 for c in caps(text):
     if c["status"] == "intentional_deviation":
-        missing.append(f"{c['id']}: intentional_deviation is retired; use pending (TODO.md) or done")
+        missing.append(f"{c['id']}: intentional_deviation is retired; use pending or done")
         continue
     if c["status"] != "done":
         continue
@@ -62,7 +64,6 @@ for path in [
     "crates/causal-estimate/benches/temporal_mediation.rs",
     "benches/baselines/regime_mediation.md",
     "parity/context.toml",
-    "TODO.md",
 ]:
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")

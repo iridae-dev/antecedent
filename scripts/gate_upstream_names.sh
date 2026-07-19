@@ -27,6 +27,9 @@ def allowed(path: Path) -> bool:
     # Fixture pointer TOMLs may cite baseline_pin path containing project name.
     if s.startswith("parity/fixtures/") and s.endswith(".toml"):
         return True
+    # Black-box oracle generators must name the upstream tool they invoke.
+    if s.startswith("scripts/conformance/"):
+        return True
     # The allowlist gate itself must mention the pattern.
     if s == "scripts/gate_upstream_names.sh":
         return True

@@ -27,7 +27,7 @@ pub enum TimeDummyEncoding {
     IntegerIndex,
     /// One-hot over distinct raw times in the pooled effective rows (`T−1` columns;
     /// last level is the reference category — same convention as space dummies).
-    /// Paper-faithful Günther/tigramite embedding (up to the dropped reference column).
+    /// Paper-faithful Günther embedding (up to the dropped reference column).
     OneHot,
 }
 

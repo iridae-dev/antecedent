@@ -50,7 +50,7 @@ EVIDENCE = {
 missing = []
 for c in caps(text):
     if c["status"] == "intentional_deviation":
-        missing.append(f"{c['id']}: intentional_deviation is retired; use pending (TODO.md) or done")
+        missing.append(f"{c['id']}: intentional_deviation is retired; use pending or done")
         continue
     if c["status"] != "done":
         continue
@@ -70,7 +70,6 @@ for path in [
     "conformance/bayesian/dag_posterior/expected.json",
     "crates/causal-prob/benches/laplace_glm.rs",
     "crates/causal-estimate/benches/posterior_functional.rs",
-    "TODO.md",
 ]:
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")

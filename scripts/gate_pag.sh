@@ -34,15 +34,18 @@ EVIDENCE = {
     "pag.graph.m_separation": "crates/causal-graph/src/msep.rs",
     "pag.graph.latent_projection": "crates/causal/tests/pag.rs",
     "pag.graph.completions_streamed": "crates/causal-graph/src/completion.rs",
+    "pag.graph.cpdag_mec_completions": "crates/causal-graph/src/cpdag_completion.rs",
     "pag.identify.generalized_adjustment": "crates/causal/tests/pag.rs",
+    "pag.identify.full_id_idc": "crates/causal-identify/src/id.rs",
     "pag.discovery.lpcmci": "crates/causal/tests/pag.rs",
+    "pag.discovery.fci_rfci": "crates/causal-discovery/src/fci.rs",
     "pag.facade.dag_only_reject": "crates/causal/tests/pag.rs",
 }
 
 missing = []
 for c in caps(text):
     if c["status"] == "intentional_deviation":
-        missing.append(f"{c['id']}: intentional_deviation is retired; use pending (TODO.md) or done")
+        missing.append(f"{c['id']}: intentional_deviation is retired; use pending or done")
         continue
     if c["status"] != "done":
         continue
@@ -62,7 +65,6 @@ for path in [
     "crates/causal-discovery/benches/pag_orientation.rs",
     "benches/baselines/pag.md",
     "parity/pag.toml",
-    "TODO.md",
 ]:
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")

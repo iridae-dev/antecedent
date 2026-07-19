@@ -2,11 +2,13 @@
 
 **Suite path:** `conformance/bayesian/dag_posterior`
 
-Bayesian DAG / DBN posterior search in `causal-discovery`.
-Exact enumeration, structure/order MCMC, CI-screened updates, and bounded-lag
-DBN search. Scoring via `GraphScoreFamily::GaussianBic`.
+Exact DAG posterior enumeration and structure/order MCMC on small Gaussian
+SEMs. Facade/Python wiring deferred.
+
+Exercised by `causal-discovery` unit tests:
+`exact_enumeration`, `structure_mcmc`, `order_mcmc`, `ci_screened_posterior`,
+`dbn_posterior`.
 
 ## Expected summary
 
-Top-level keys: engines, score_family, exact_max_nodes, tolerance_class,
-chain/collider/dbn fixtures, reference command.
+Top-level keys: `chain_fixture, collider_fixture, dbn_lag1_fixture, engines, exact_max_nodes, reference, score_family, tolerance_class` (8 fields).

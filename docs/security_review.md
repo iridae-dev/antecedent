@@ -8,11 +8,13 @@ ADR: [0017](../adr/0017-release-prep.md)
 
 | Crate | Policy | Notes |
 |-------|--------|-------|
-| All semantic crates (`causal-*` except kernels) | `#![forbid(unsafe_code)]` | Verified by `scripts/gate_release.sh` |
-| `causal-kernels` | `#![allow(unsafe_code)]` | Only reviewed SIMD / aliasing kernels  |
+| Most semantic crates (`causal-*` except below / kernels) | `#![forbid(unsafe_code)]` | Verified by `scripts/gate_release.sh` |
+| `causal-data` | `#![deny(unsafe_code)]` + scoped `allow` | Foreign buffers (`buffer.rs`) and Arrow CDI (`arrow_ffi.rs`) |
+| `causal-io` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`) only |
+| `causal-kernels` | `#![allow(unsafe_code)]` | Only reviewed SIMD / aliasing kernels |
 | `python` / `causal-py` | `#![allow(unsafe_code)]` | Required by PyO3 |
 
-Gate fails if a semantic crate loses `forbid(unsafe_code)`.
+Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `deny` / their scoped escape modules.
 
 ## Licensing
 

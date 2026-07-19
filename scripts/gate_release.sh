@@ -40,7 +40,7 @@ def caps(path: Path):
 
 missing = []
 
-# Inventories: allow pending/in_progress (TODO.md roadmap); forbid retired waiver status.
+# Inventories: allow pending/in_progress; forbid retired waiver status.
 for manifest in [
     "parity/estimate.toml",
     "parity/discovery.toml",
@@ -58,9 +58,10 @@ for manifest in [
             missing.append(f"{manifest}: {c['id']} still {c['status']}")
 
 EVIDENCE = {
-    "release.parity_closure": "TODO.md",
+    "release.parity_closure": "parity/README.md",
     "release.graph_dot_json": "crates/causal-io/src/graph_gml.rs",
     "release.artifact_schema": "crates/causal-io/src/migrate.rs",
+    "release.artifact_mmap_stream_skip": "crates/causal-io/src/reader.rs",
     "release.wheel_matrix": ".github/workflows/ci.yml",
     "release.conformance_docs": "docs/conformance/README.md",
     "release.hot_path_baselines": "docs/hot_paths.md",
@@ -81,7 +82,6 @@ for path in [
     "adr/0017-release-prep.md",
     "parity/release.toml",
     "parity/README.md",
-    "TODO.md",
     "docs/artifacts.md",
     "docs/hot_paths.md",
     "docs/security_review.md",
@@ -101,13 +101,12 @@ for path in [
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")
 
-# Semantic crates must forbid unsafe_code.
-semantic = [
+# Semantic crates: forbid unsafe by default. causal-data / causal-io keep
+# #![deny(unsafe_code)] with scoped allows (Arrow FFI / foreign buffers / mmap).
+forbid_crates = [
     "crates/causal-core",
-    "crates/causal-data",
     "crates/causal-graph",
     "crates/causal-expr",
-    "crates/causal-io",
     "crates/causal-identify",
     "crates/causal-stats",
     "crates/causal-prob",
@@ -121,11 +120,29 @@ semantic = [
     "crates/causal-discovery",
     "crates/causal",
 ]
-for crate in semantic:
+deny_escape_crates = {
+    "crates/causal-data": ("buffer.rs", "arrow_ffi.rs"),
+    "crates/causal-io": ("mmap_file.rs",),
+}
+for crate in forbid_crates:
     lib = root / crate / "src" / "lib.rs"
     text = lib.read_text()
     if "#![forbid(unsafe_code)]" not in text:
         missing.append(f"{crate} missing #![forbid(unsafe_code)]")
+for crate, allow_mods in deny_escape_crates.items():
+    lib = root / crate / "src" / "lib.rs"
+    text = lib.read_text()
+    if "#![deny(unsafe_code)]" not in text:
+        missing.append(f"{crate} missing #![deny(unsafe_code)] (scoped unsafe escape)")
+    if "allow(unsafe_code)" not in text and not any(
+        "allow(unsafe_code)" in (root / crate / "src" / m).read_text()
+        for m in allow_mods
+        if (root / crate / "src" / m).exists()
+    ):
+        missing.append(f"{crate} missing allow(unsafe_code) for scoped escape modules")
+    for mod_name in allow_mods:
+        if not (root / crate / "src" / mod_name).exists():
+            missing.append(f"{crate} expected unsafe escape module missing: {mod_name}")
 
 # Baseline files referenced by hot_paths index.
 hot = (root / "docs/hot_paths.md").read_text()
