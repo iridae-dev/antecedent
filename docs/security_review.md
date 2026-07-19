@@ -38,6 +38,12 @@ Unmaintained / yanked crates: cargo-deny advisories job in CI (`yanked = "warn"`
 Default maturin wheels use the `faer` path and must not link system BLAS.
 Optional `blas` features (if added later) are non-default.
 
+## CodeQL
+
+- CI: `.github/workflows/codeql.yml` (rust / python / actions, `build-mode: none`, `security-and-quality` suites via `.github/codeql/codeql-config.yml`).
+- Local gate (requires `codeql` on `PATH`): `bash scripts/gate_codeql.sh` — fails unless all three SARIF reports have **0** findings.
+- Third-party Actions in workflows are pinned to commit SHAs; workflows set explicit `permissions`.
+
 ## Evidence commands
 
 ```bash
@@ -46,4 +52,7 @@ bash scripts/gate_release.sh
 
 # License / advisory / source policy
 cargo deny check
+
+# CodeQL (0 findings)
+bash scripts/gate_codeql.sh
 ```

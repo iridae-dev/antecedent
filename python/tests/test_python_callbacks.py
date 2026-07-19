@@ -6,7 +6,11 @@ import numpy as np
 import pytest
 
 import causal
-from causal import _native
+from causal._native import (
+    analyze_ate,
+    discover_pcmci,
+    sample_do,
+)
 
 
 def _indep_ci(columns, queries):
@@ -21,7 +25,7 @@ def test_custom_ci_independence_sparse_discovery():
     columns = [rng.normal(size=n) for _ in names]
     # Strong dependence in data, but callback reports independence.
     columns[1] = columns[0] + 0.01 * rng.normal(size=n)
-    result = _native.discover_pcmci(
+    result = discover_pcmci(
         names,
         columns,
         max_lag=1,
@@ -52,7 +56,7 @@ def test_mechanism_wrapper_sample_do():
     names = ["z", "t", "y"]
     columns = [z, t, y]
     edges = [("z", "t"), ("t", "y")]
-    out = _native.sample_do(
+    out = sample_do(
         names,
         columns,
         edges,
@@ -98,7 +102,7 @@ def test_custom_validator_on_analyze_ate():
             "failure_condition": "custom fail",
         }
 
-    result = _native.analyze_ate(
+    result = analyze_ate(
         names,
         columns,
         edges,

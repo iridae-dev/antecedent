@@ -32,7 +32,6 @@ class CiBatchTest(Protocol):
         queries: Sequence[tuple[int, int, list[int]]],
     ) -> Sequence[tuple[float, float]]:
         """Return ``(statistic, p_value)`` per query."""
-        ...
 
 
 @runtime_checkable
@@ -41,7 +40,6 @@ class MechanismWrapper(Protocol):
 
     def sample_noise(self, n: int) -> NDArray[np.float64]:
         """Draw structural noise of length ``n``."""
-        ...
 
     def evaluate(
         self,
@@ -49,7 +47,6 @@ class MechanismWrapper(Protocol):
         noise: NDArray[np.float64],
     ) -> NDArray[np.float64]:
         """Map parents + noise → child values (length ``noise``)."""
-        ...
 
 
 @runtime_checkable
@@ -62,7 +59,6 @@ class UtilityFn(Protocol):
         outcomes: NDArray[np.float64],
     ) -> NDArray[np.float64]:
         """Return flat utilities of length ``len(actions) * len(outcomes)``."""
-        ...
 
 
 @runtime_checkable
@@ -78,7 +74,6 @@ class EffectValidator(Protocol):
         adjustment_set: list[str],
     ) -> dict:
         """Must include ``passed: bool``; optional ``refuted_ate``, ``comparison``."""
-        ...
 
 
 __all__ = [

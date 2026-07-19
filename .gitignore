@@ -31,8 +31,13 @@ fuzz/artifacts/
 fuzz/corpus/
 *.profraw
 *.profdata
+.codeql-db/
 
 # Secrets / local
 .env
 .env.*
 fuzz/target/
+
+# CodeQL local databases / SARIF
+.codeql-db/
+.codeql-results/

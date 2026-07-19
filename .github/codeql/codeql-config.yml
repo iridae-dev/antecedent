@@ -1,0 +1,15 @@
+# CodeQL advanced-setup config for causal-library.
+# Query suites are selected by the workflow / gate (security-and-quality).
+name: causal-library CodeQL
+
+paths-ignore:
+  - "**/target/**"
+  - "**/fuzz/target/**"
+  - "**/benches/reports/**"
+  - "**/.venv/**"
+  - "**/venv/**"
+  - "**/__pycache__/**"
+  - "**/.codeql-db/**"
+  - "**/.codeql-results/**"
+  - "**/conformance/**/data.csv"
+  - "**/parity/fixtures/**"
