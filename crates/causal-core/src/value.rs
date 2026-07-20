@@ -33,7 +33,7 @@ impl Value {
         match self {
             Self::Float64(v) => Some(*v),
             Self::Int64(v) => Some(*v as f64),
-            Self::Bool(v) => Some(if *v { 1.0 } else { 0.0 }),
+            Self::Bool(v) => Some(f64::from(u8::from(*v))),
             Self::Category(v) => Some(f64::from(*v)),
             Self::Label(_) => None,
         }

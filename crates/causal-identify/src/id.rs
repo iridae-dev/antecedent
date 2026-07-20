@@ -118,8 +118,8 @@ impl IdIdentifier {
                     q.interventions.iter().cloned(),
                 )?;
                 let mut x = BitSet::with_len(prepared.admg().node_count());
-                for iv in &normalized {
-                    let v = iv.primary_variable().ok_or(IdentificationError::unsupported(
+                for intervention in &normalized {
+                    let v = intervention.primary_variable().ok_or(IdentificationError::unsupported(
                         "intervention missing primary variable",
                     ))?;
                     x.insert(prepared.var_to_dense(v)?);
@@ -309,8 +309,8 @@ fn full_nodes(n: usize) -> BitSet {
     b
 }
 
-fn intervention_value(iv: &Intervention) -> Result<Value, IdentificationError> {
-    crate::intervention_support::require_set_value(iv, "general ID ATE")
+fn intervention_value(intervention: &Intervention) -> Result<Value, IdentificationError> {
+    crate::intervention_support::require_set_value(intervention, "general ID ATE")
 }
 
 fn not_identified_with_hedge(

@@ -12,8 +12,8 @@ use crate::error::IdentificationError;
 
 /// Human-readable name for an intervention variant.
 #[must_use]
-pub(crate) fn intervention_kind_name(iv: &Intervention) -> &'static str {
-    match iv {
+pub(crate) fn intervention_kind_name(intervention: &Intervention) -> &'static str {
+    match intervention {
         Intervention::Set { .. } => "Set",
         Intervention::Shift { .. } => "Shift",
         Intervention::Stochastic { .. } => "Stochastic",
@@ -60,9 +60,9 @@ pub(crate) fn non_set_unsupported_message(kind: &'static str) -> &'static str {
 /// # Errors
 ///
 /// Unsupported Soft family, continuous Stochastic, empty/mixed Sequence, etc.
-pub(crate) fn normalize_to_set(iv: &Intervention) -> Result<Intervention, IdentificationError> {
-    match iv {
-        Intervention::Set { .. } => Ok(iv.clone()),
+pub(crate) fn normalize_to_set(intervention: &Intervention) -> Result<Intervention, IdentificationError> {
+    match intervention {
+        Intervention::Set { .. } => Ok(intervention.clone()),
         Intervention::Soft { variable, mechanism } => {
             let family = mechanism.family_id.as_ref();
             let param = mechanism.parameters.first().copied().ok_or_else(|| {
@@ -189,8 +189,8 @@ pub(crate) fn normalize_intervention_list(
     interventions: impl IntoIterator<Item = Intervention>,
 ) -> Result<Vec<Intervention>, IdentificationError> {
     let mut out = Vec::new();
-    for iv in interventions {
-        match iv {
+    for intervention in interventions {
+        match intervention {
             Intervention::Sequence(seq) => {
                 for step in seq.steps.iter() {
                     out.push(normalize_to_set(&step.intervention)?);
@@ -211,18 +211,18 @@ pub(crate) fn require_hard_set_interventions<'a>(
     interventions: impl IntoIterator<Item = &'a Intervention>,
     _algorithm: &str,
 ) -> Result<(), IdentificationError> {
-    for iv in interventions {
-        normalize_to_set(iv)?;
+    for intervention in interventions {
+        normalize_to_set(intervention)?;
     }
     Ok(())
 }
 
 /// Extract the value from a hard Set, or after reducing Soft/Shift/Sequence/degenerate Stochastic.
 pub(crate) fn require_set_value(
-    iv: &Intervention,
+    intervention: &Intervention,
     _algorithm: &str,
 ) -> Result<Value, IdentificationError> {
-    match normalize_to_set(iv)? {
+    match normalize_to_set(intervention)? {
         Intervention::Set { value, .. } => Ok(value),
         other => Err(IdentificationError::unsupported(non_set_unsupported_message(
             intervention_kind_name(&other),
@@ -269,8 +269,8 @@ pub(crate) fn normalize_ate_pair(
     Ok((normalize_to_set(active)?, normalize_to_set(control)?, None))
 }
 
-fn bernoulli_weight(iv: &Intervention) -> Result<Option<f64>, IdentificationError> {
-    match iv {
+fn bernoulli_weight(intervention: &Intervention) -> Result<Option<f64>, IdentificationError> {
+    match intervention {
         Intervention::Stochastic {
             policy: StochasticPolicy::Bernoulli { p },
             ..
@@ -286,8 +286,8 @@ fn bernoulli_weight(iv: &Intervention) -> Result<Option<f64>, IdentificationErro
     }
 }
 
-fn set_binary_weight(iv: &Intervention) -> Result<f64, IdentificationError> {
-    let set = normalize_to_set(iv)?;
+fn set_binary_weight(intervention: &Intervention) -> Result<f64, IdentificationError> {
+    let set = normalize_to_set(intervention)?;
     let Intervention::Set { value, .. } = set else {
         return Err(IdentificationError::unsupported(
             "Bernoulli mixture ATE requires the other side to be Set(0), Set(1), or Bernoulli",

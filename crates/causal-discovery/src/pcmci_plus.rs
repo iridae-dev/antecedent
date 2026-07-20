@@ -771,6 +771,6 @@ mod tests {
         assert!(result.evidence.graph.node_count() >= 2);
         assert_eq!(result.review.graph.node_count(), result.evidence.graph.node_count());
         assert!(result.algorithm.config.as_ref().contains("collider=majority"));
-        assert!(result.algorithm.config.as_ref().contains("meek=r1-r3-contemp"));
+        assert!(result.algorithm.config.as_ref().contains("meek=r1-r4-contemp"));
     }
 }

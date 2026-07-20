@@ -123,10 +123,10 @@ impl AutoIdentifier {
 
         match query {
             CausalQuery::AverageEffect(q) => {
-                let (active_iv, control_iv, bernoulli_scale) =
+                let (active_do, control_do, bernoulli_scale) =
                     crate::intervention_support::normalize_ate_pair(&q.active, &q.control)?;
-                let active = set_value(&active_iv)?;
-                let control = set_value(&control_iv)?;
+                let active = set_value(&active_do)?;
+                let control = set_value(&control_do)?;
                 if let Some(scale) = bernoulli_scale {
                     diagnostics.push(Diagnostic::new(
                         "auto.stochastic.bernoulli_scale",
@@ -146,8 +146,8 @@ impl AutoIdentifier {
                 let q_norm = AverageEffectQuery {
                     treatment: q.treatment,
                     outcome: q.outcome,
-                    active: active_iv,
-                    control: control_iv,
+                    active: active_do,
+                    control: control_do,
                     effect_modifiers: Arc::clone(&q.effect_modifiers),
                     target_population: q.target_population.clone(),
                 };
@@ -481,8 +481,8 @@ impl AutoIdentifier {
     }
 }
 
-fn set_value(iv: &Intervention) -> Result<Value, IdentificationError> {
-    crate::intervention_support::require_set_value(iv, "auto ATE")
+fn set_value(intervention: &Intervention) -> Result<Value, IdentificationError> {
+    crate::intervention_support::require_set_value(intervention, "auto ATE")
 }
 
 fn rebuild_estimand(
