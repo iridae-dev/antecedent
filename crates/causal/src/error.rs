@@ -71,11 +71,19 @@ pub enum AnalysisError {
         /// Message.
         message: String,
     },
-    /// Graph review incomplete.
+    /// Graph review incomplete (structured for facade UX).
     #[error("{message}")]
     ReviewRequired {
-        /// Message.
+        /// Review kind: `temporal_pag`, `temporal_cpdag`, `static_pag`, `static_cpdag`, `temporal_dag`, `generic`.
+        kind: String,
+        /// Discovery / supply algorithm id when known.
+        algorithm: Option<String>,
+        /// Count of pending / ambiguous marks blocking estimation.
+        pending_edge_count: usize,
+        /// Human-readable message.
         message: String,
+        /// Next-step hint for callers.
+        hint: String,
     },
     /// Query / feature unsupported.
     #[error("{message}")]
@@ -89,6 +97,39 @@ pub enum AnalysisError {
         /// Field name.
         field: &'static str,
     },
+}
+
+impl AnalysisError {
+    /// Build a structured review-required error.
+    #[must_use]
+    pub fn review_required(
+        kind: impl Into<String>,
+        algorithm: Option<impl Into<String>>,
+        pending_edge_count: usize,
+        message: impl Into<String>,
+        hint: impl Into<String>,
+    ) -> Self {
+        Self::ReviewRequired {
+            kind: kind.into(),
+            algorithm: algorithm.map(Into::into),
+            pending_edge_count,
+            message: message.into(),
+            hint: hint.into(),
+        }
+    }
+
+    /// Convenience when only a message is available (generic review).
+    #[must_use]
+    pub fn review_required_msg(message: impl Into<String>) -> Self {
+        let message = message.into();
+        Self::review_required(
+            "generic",
+            None::<String>,
+            0,
+            message,
+            "complete graph review (finish_*_review) or supply a fully oriented graph",
+        )
+    }
 }
 
 /// Public alias for [`AnalysisError`].

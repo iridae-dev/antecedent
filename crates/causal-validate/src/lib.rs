@@ -32,7 +32,7 @@ pub use bayesian_checks::{
     SimulationBasedCalibration, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
-pub use common::{RefutationProblem, RefutationReport};
+pub use common::{RefutationProblem, RefutationReport, TemporalRefitContext, stack_panel_tabular};
 pub use custom::CustomEffectValidator;
 pub use data_subset::DataSubsetRefuter;
 pub use dummy_outcome::DummyOutcome;

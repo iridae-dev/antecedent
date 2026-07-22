@@ -415,6 +415,97 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Exact DAG posterior → Bayesian effect envelope (requires `inference=Bayesian`).
+    #[must_use]
+    pub fn discover_exact_dag_posterior(mut self) -> Self {
+        self.graph = Some(GraphInput::DiscoverExactDagPosterior);
+        self
+    }
+
+    /// Order MCMC DAG posterior → Bayesian effect envelope.
+    #[must_use]
+    pub fn discover_order_mcmc(
+        mut self,
+        n_chains: u32,
+        n_warmup: u32,
+        n_draws: u32,
+        thin: u32,
+        require_diagnostics_gate: bool,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverOrderMcmc {
+            n_chains,
+            n_warmup,
+            n_draws,
+            thin,
+            require_diagnostics_gate,
+        });
+        self
+    }
+
+    /// Structure MCMC DAG posterior → Bayesian effect envelope.
+    #[must_use]
+    pub fn discover_structure_mcmc(
+        mut self,
+        n_chains: u32,
+        n_warmup: u32,
+        n_draws: u32,
+        thin: u32,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverStructureMcmc {
+            n_chains,
+            n_warmup,
+            n_draws,
+            thin,
+        });
+        self
+    }
+
+    /// CI-screened structure MCMC posterior → Bayesian effect envelope.
+    #[must_use]
+    pub fn discover_ci_screened_posterior(
+        mut self,
+        alpha: f64,
+        max_cond_size: usize,
+        fdr: crate::options::FdrControl,
+        soft_weight: causal_discovery::CiSoftWeight,
+        n_chains: u32,
+        n_warmup: u32,
+        n_draws: u32,
+        thin: u32,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverCiScreenedPosterior {
+            alpha,
+            fdr: fdr.adjustment(),
+            max_cond_size,
+            soft_weight,
+            n_chains,
+            n_warmup,
+            n_draws,
+            thin,
+        });
+        self
+    }
+
+    /// DBN template posterior → temporal Bayesian effect envelope.
+    #[must_use]
+    pub fn discover_dbn_posterior(
+        mut self,
+        max_lag: u32,
+        force_mcmc: bool,
+        n_chains: u32,
+        n_warmup: u32,
+        n_draws: u32,
+    ) -> Self {
+        self.graph = Some(GraphInput::DiscoverDbnPosterior {
+            max_lag,
+            force_mcmc,
+            n_chains,
+            n_warmup,
+            n_draws,
+        });
+        self
+    }
+
     /// Override the CI test used by discovery paths (defaults to partial correlation).
     #[must_use]
     pub fn discovery_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
@@ -482,6 +573,10 @@ impl CausalAnalysisBuilder {
     #[must_use]
     pub fn temporal_query(mut self, query: TemporalEffectQuery) -> Self {
         self.query = Some(CausalQuery::TemporalEffect(query));
+        // Bayesian inference must not force the static BayesianGcomp estimator on temporal.
+        if matches!(self.estimator, Some(EstimatorId::BayesianGcomp)) {
+            self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
+        }
         self
     }
 
@@ -532,10 +627,14 @@ impl CausalAnalysisBuilder {
 
     /// Configure frequentist vs Bayesian inference.
     ///
-    /// [`InferenceMode::Bayesian`] selects estimator [`EstimatorId::BayesianGcomp`].
+    /// For static ATE, [`InferenceMode::Bayesian`] selects estimator [`EstimatorId::BayesianGcomp`].
+    /// Temporal queries keep [`EstimatorId::TemporalLinearAdjustment`]; Bayesian mode is applied
+    /// at execute time on the lag-aligned design.
     #[must_use]
     pub fn inference(mut self, mode: InferenceMode) -> Self {
-        if matches!(mode, InferenceMode::Bayesian(_)) {
+        if matches!(mode, InferenceMode::Bayesian(_))
+            && !matches!(self.query, Some(CausalQuery::TemporalEffect(_)))
+        {
             self.estimator = Some(EstimatorId::BayesianGcomp);
         }
         self.inference = mode;

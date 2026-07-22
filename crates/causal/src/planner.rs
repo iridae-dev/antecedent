@@ -169,6 +169,64 @@ pub enum GraphInput {
         /// Auto-accept all discovered edges (skip review).
         accept_discovered: bool,
     },
+    /// Exact DAG posterior enumeration (Bayesian graph×effect mixture; n ≤ 6).
+    DiscoverExactDagPosterior,
+    /// Order MCMC DAG posterior (Bayesian graph×effect mixture).
+    DiscoverOrderMcmc {
+        /// MCMC chains.
+        n_chains: u32,
+        /// Warmup draws per chain.
+        n_warmup: u32,
+        /// Retained draws per chain.
+        n_draws: u32,
+        /// Thinning.
+        thin: u32,
+        /// Refuse when chain diagnostics fail.
+        require_diagnostics_gate: bool,
+    },
+    /// Structure MCMC DAG posterior (Bayesian graph×effect mixture).
+    DiscoverStructureMcmc {
+        /// MCMC chains.
+        n_chains: u32,
+        /// Warmup draws per chain.
+        n_warmup: u32,
+        /// Retained draws per chain.
+        n_draws: u32,
+        /// Thinning.
+        thin: u32,
+    },
+    /// CI-screened structure MCMC posterior (Bayesian graph×effect mixture).
+    DiscoverCiScreenedPosterior {
+        /// PC screen significance.
+        alpha: f64,
+        /// FDR adjustment for screening (`None` = off).
+        fdr: Option<FdrAdjustment>,
+        /// Max conditioning-set size for PC screen.
+        max_cond_size: usize,
+        /// Soft CI weight mode name (`none` | `bayes_factor` | `posterior_dependence`).
+        soft_weight: causal_discovery::CiSoftWeight,
+        /// MCMC chains.
+        n_chains: u32,
+        /// Warmup draws per chain.
+        n_warmup: u32,
+        /// Retained draws per chain.
+        n_draws: u32,
+        /// Thinning.
+        thin: u32,
+    },
+    /// Bounded-lag DBN template posterior (temporal Bayesian graph×effect mixture).
+    DiscoverDbnPosterior {
+        /// Max lag.
+        max_lag: u32,
+        /// Force MCMC even when exact enumeration is feasible.
+        force_mcmc: bool,
+        /// MCMC chains.
+        n_chains: u32,
+        /// Warmup draws per chain.
+        n_warmup: u32,
+        /// Retained draws per chain.
+        n_draws: u32,
+    },
 }
 
 /// Logical plan after compile (semantics only).

@@ -91,6 +91,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
         mechanism_change: args.mechanism_change,
         unit_change: args.unit_change,
         refutations: args.refutations,
+        predictive_checks: Vec::new(),
         diagnostics: args.diagnostics,
         provenance: args.provenance,
         performance: ExecutionPerformanceRecord {
@@ -376,9 +377,16 @@ pub(crate) fn run_refuters(
     suite: RefuteSuite,
     estimator: &str,
     custom: &[Arc<dyn causal_validate::CustomEffectValidator>],
+    temporal: Option<causal_validate::TemporalRefitContext<'_>>,
 ) -> Result<Vec<RefutationReport>, AnalysisError> {
-    let problem =
-        RefutationProblem { data, estimand, query, original: estimate, estimator: Some(estimator) };
+    let problem = RefutationProblem {
+        data,
+        estimand,
+        query,
+        original: estimate,
+        estimator: Some(estimator),
+        temporal,
+    };
     let mut validation = match suite {
         RefuteSuite::None => {
             if custom.is_empty() {

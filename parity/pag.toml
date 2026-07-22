@@ -41,7 +41,7 @@ notes = "GeneralizedAdjustmentIdentifier + IdentificationEnvelope"
 [[capabilities]]
 id = "pag.discovery.lpcmci"
 status = "done"
-notes = "Lpcmci → TemporalPag; discriminating_paths + rule_scheduling"
+notes = "Lpcmci → TemporalPag; discriminating_paths + rule_scheduling; temporal estimate on PAG = completion→TemporalDag only (not class-aware temporal ID); accept_discovered auto-runs only when no circle/ambiguous marks"
 
 [[capabilities]]
 id = "pag.facade.dag_only_reject"
@@ -56,4 +56,4 @@ notes = "Static FCI (includes Possible-D-Sep) + RFCI (Lemma 3.1/3.2; no Possible
 [[capabilities]]
 id = "pag.identify.full_id_idc"
 status = "done"
-notes = "Recursive semi-Markovian ID/IDC on ADMGs (IdIdentifier/IdcIdentifier); PAG class-aware path remains generalized adjustment envelopes"
+notes = "Recursive semi-Markovian ID/IDC on ADMGs (IdIdentifier/IdcIdentifier). Permanent: PAG-native ID is generalized adjustment envelopes only — full ID/IDC requires MAG/ADMG completion; no class-aware PAG ID/IDC"

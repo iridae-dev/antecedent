@@ -11,8 +11,9 @@ use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use causal_kernels::shuffle;
 
 use crate::common::{
-    NoiseReplaceTarget, RefutationProblem, RefutationReport, fit_once, float64_full,
-    linear_estimator_no_bootstrap, noise_replace_refute, replicate_p_value, with_replaced_float,
+    NoiseReplaceTarget, RefutationProblem, RefutationReport, float64_full,
+    linear_estimator_no_bootstrap, noise_replace_refute, refit_effect, replicate_p_value,
+    with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -105,14 +106,7 @@ impl PlaceboTreatment {
             let mut rng = ctx.rng.stream(0xA7E0_0001_1000_u64.wrapping_add(u64::from(r)));
             shuffle(&mut rng, &mut perm);
             let data = with_replaced_float(problem.data, treatment, Arc::from(perm))?;
-            let est = fit_once(
-                &self.estimator,
-                &data,
-                problem.estimand,
-                problem.query,
-                workspace,
-                ctx,
-            )?;
+            let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
             ates.push(est.ate);
         }
         let mean_ate = ates.iter().sum::<f64>() / f64::from(self.replicates);

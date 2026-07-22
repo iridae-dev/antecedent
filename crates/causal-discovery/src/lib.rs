@@ -70,7 +70,7 @@ pub use constraints::{
     TemporalConstraints, TimeDummyCiMode,
 };
 pub use ci_screened_posterior::{CiScreenedPosterior, CiSoftWeight};
-pub use dbn_posterior::{DbnPosterior, DBN_EXACT_MAX_LAG, DBN_EXACT_MAX_VARS};
+pub use dbn_posterior::{DbnPosterior, DBN_EXACT_MAX_LAG, DBN_EXACT_MAX_VARS, temporal_dag_from_dbn_masks};
 pub use discriminating_paths::{DiscriminatingPath, find_discriminating_paths};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
@@ -84,9 +84,9 @@ pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
 pub use graph_posterior::{
-    allows_graph_posterior, edge_bit, has_edge, mask_is_dag, n_directed_edges, parents_of,
-    publish_graph_posterior, set_edge, GraphPosterior, GraphPosteriorEngine, GraphPrior,
-    EXACT_ENUM_MAX_NODES,
+    allows_graph_posterior, dag_from_adjacency_mask, edge_bit, has_edge, mask_is_dag,
+    n_directed_edges, parents_of, publish_graph_posterior, set_edge, GraphPosterior,
+    GraphPosteriorEngine, GraphPrior, EXACT_ENUM_MAX_NODES,
 };
 pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lingam::{DirectLingam, StaticDagDiscoveryResult};

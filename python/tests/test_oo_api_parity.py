@@ -74,31 +74,47 @@ def test_sustained_vs_pulse_policy_accepted():
     assert pulse.validation.count == 0
 
 
-def test_temporal_rejects_refute_loudly():
+def test_temporal_refute_runs_by_default():
     rng = np.random.default_rng(3)
-    n = 80
-    data = {"a": rng.normal(size=n), "b": rng.normal(size=n)}
-    with pytest.raises(TypeError, match="refute"):
-        causal.analyze(
-            data,
-            graph=[("a", 1, "b", 0)],
-            query=causal.PulseEffect("a", "b"),
-            bootstrap=0,
-        )
+    n = 120
+    x = rng.normal(size=n)
+    y = np.empty(n)
+    y[0] = 0.0
+    for t in range(1, n):
+        y[t] = 0.8 * x[t - 1]
+    result = causal.analyze(
+        {"a": x, "b": y},
+        graph=[("a", 1, "b", 0)],
+        query=causal.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+        refute=True,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.validation.ran
+    assert result.validation.count >= 1
 
 
-def test_temporal_rejects_bayesian_loudly():
+def test_temporal_accepts_bayesian_pulse():
     rng = np.random.default_rng(2)
-    n = 80
-    data = {"a": rng.normal(size=n), "b": rng.normal(size=n)}
-    with pytest.raises(TypeError, match="Bayesian"):
-        causal.analyze(
-            data,
-            graph=[("a", 1, "b", 0)],
-            query=causal.PulseEffect("a", "b"),
-            inference=causal.Bayesian(n_draws=10),
-            bootstrap=0,
-        )
+    n = 120
+    x = rng.normal(size=n)
+    y = np.empty(n)
+    y[0] = 0.0
+    for t in range(1, n):
+        y[t] = 0.8 * x[t - 1]
+    result = causal.analyze(
+        {"a": x, "b": y},
+        graph=[("a", 1, "b", 0)],
+        query=causal.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+        inference=causal.Bayesian(n_draws=64),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.posterior is not None
+    assert np.isfinite(result.posterior.p_below_zero)
+    assert abs(result.posterior.effect_mean - 0.8) < 0.15
+    assert result.estimate.estimator_id == "bayesian.temporal.gcomp"
 
 
 def test_fitted_gcm_sample_do():

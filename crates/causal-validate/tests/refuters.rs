@@ -108,7 +108,7 @@ fn refuters_and_sensitivity_smoke() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
 
     assert!(PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap().informative);

@@ -1,0 +1,15 @@
+{
+  "scm": "y_t = 0.9 * x_{t-1}",
+  "true_effect_per_unit": 0.9,
+  "expected_ate": 0.9,
+  "tolerance": 0.05,
+  "n": 400,
+  "treatment": "pressure",
+  "outcome": "defect",
+  "treatment_lag": 1,
+  "horizon_steps": 1,
+  "backend": "conjugate_gaussian",
+  "require_finite_p_below_zero": true,
+  "require_artifact_round_trip": true,
+  "n_draws": 256
+}

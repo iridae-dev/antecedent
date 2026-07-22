@@ -51,8 +51,9 @@ pub use util::BootstrapSeResult;
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
-    CausalPosterior, CompiledGCompAte, GCompAteEvaluator, PosteriorFunctionalEvaluator,
-    PreparedBayesianProblem, nonidentified_with_prior,
+    BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator,
+    PosteriorFunctionalEvaluator, PreparedBayesianProblem, hydrate_prior_from_posterior,
+    hydrate_prior_from_quantity_summaries, nonidentified_with_prior,
 };
 pub use causal_expr::EstimandMethod;
 pub use conditional::ConditionalLinearAdjustment;

@@ -23,12 +23,14 @@ use causal_core::{
 use causal_data::{
     DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData,
 };
+use causal_discovery::{dag_from_adjacency_mask, temporal_dag_from_dbn_masks};
 use causal_estimate::{
-    AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, ConditionalLinearAdjustment, EffectEstimate,
-    EnvelopeOptions, EstimationWorkspace, FunctionalDistribution, FunctionalDistributionWorkspace,
-    FunctionalEffect, GraphEffectDraws, OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity,
-    TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
-    aggregate_effect_envelope, nonidentified_with_prior,
+    AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
+    ConditionalLinearAdjustment, EffectEstimate, EnvelopeOptions, EstimationWorkspace,
+    FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect, GraphEffectDraws,
+    OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment,
+    TemporalMediationEstimate, TemporalMediationEstimator, aggregate_effect_envelope,
+    nonidentified_with_prior,
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{
@@ -41,10 +43,16 @@ use causal_identify::{
 };
 use causal_prob::{GraphIdentFlag, InferenceDiagnostics, PriorSet, WeightedGraphSamples};
 use causal_validate::{
-    BayesianSuiteContext, ValidationSuite,
+    BayesianSuiteContext, PosteriorPredictiveCheck, PriorPredictiveCheck, PriorSensitivity,
+    TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular, with_prior_sensitivity,
 };
 
 use crate::callback_plan::mark_python_callback_plan;
+use crate::discovery::{
+    BayesianDiscoverParams, GraphMcmcSchedule, StaticDiscoverParams, discover_ci_screened_posterior,
+    discover_dbn_posterior, discover_exact_dag_posterior, discover_order_mcmc,
+    discover_structure_mcmc,
+};
 use crate::error::AnalysisError;
 use crate::gcm::{
     anomaly_attribution, attribute_distribution_change, attribute_unit_change, counterfactual_ite,
@@ -257,12 +265,22 @@ impl CausalAnalysis {
             (
                 DataInput::Panel(panel),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverJpcmciPlus { .. } | GraphInput::Temporal(_),
+                GraphInput::DiscoverJpcmciPlus { .. }
+                    | GraphInput::DiscoverPcmci { .. }
+                    | GraphInput::DiscoverPcmciPlus { .. }
+                    | GraphInput::DiscoverLpcmci { .. }
+                    | GraphInput::Temporal(_),
             ) => {
                 let data = &panel.unit(0).map_err(|e| AnalysisError::Compile {
                     message: format!("panel: {e}"),
                 })?.series;
-                let review = matches!(self.graph, GraphInput::DiscoverJpcmciPlus { .. });
+                let review = matches!(
+                    self.graph,
+                    GraphInput::DiscoverJpcmciPlus { .. }
+                        | GraphInput::DiscoverPcmci { .. }
+                        | GraphInput::DiscoverPcmciPlus { .. }
+                        | GraphInput::DiscoverLpcmci { .. }
+                );
                 compile_logical_temporal_effect_classified(
                     data,
                     &TemporalDag::empty(),
@@ -713,6 +731,105 @@ impl CausalAnalysis {
                 }
             }
             (
+                DataInput::Panel(panel),
+                CausalQuery::TemporalEffect(q),
+                GraphInput::DiscoverPcmci {
+                    max_lag,
+                    alpha,
+                    fdr,
+                    accept_discovered,
+                },
+            ) => {
+                let pooled = stack_panel_tabular(panel).map_err(AnalysisError::from)?;
+                let n = pooled.row_count();
+                let series = TimeSeriesData::try_new(
+                    pooled.storage().clone(),
+                    causal_data::TimeIndex {
+                        regularity: causal_data::SamplingRegularity::Regular { interval_ns: 1 },
+                        length: n,
+                    },
+                )
+                .map_err(AnalysisError::from)?;
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let review = run_pcmci_review(&series, *max_lag, *alpha, *fdr, ci, ctx)?;
+                let data = &panel
+                    .unit(0)
+                    .map_err(|e| AnalysisError::Compile {
+                        message: format!("panel: {e}"),
+                    })?
+                    .series;
+                if *accept_discovered {
+                    let compiled =
+                        PendingGraphReview::new(review, data.row_count(), q.clone(), self.split)
+                            .accept_all()
+                            .finish(data, ctx)?;
+                    Ok(mark_panel_classification(compiled))
+                } else {
+                    Ok(compile_review_required(review))
+                }
+            }
+            (
+                DataInput::Panel(panel),
+                CausalQuery::TemporalEffect(q),
+                GraphInput::DiscoverPcmciPlus {
+                    max_lag,
+                    alpha,
+                    fdr,
+                    accept_discovered,
+                },
+            ) => {
+                let pooled = stack_panel_tabular(panel).map_err(AnalysisError::from)?;
+                let n = pooled.row_count();
+                let series = TimeSeriesData::try_new(
+                    pooled.storage().clone(),
+                    causal_data::TimeIndex {
+                        regularity: causal_data::SamplingRegularity::Regular { interval_ns: 1 },
+                        length: n,
+                    },
+                )
+                .map_err(AnalysisError::from)?;
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let review = run_pcmci_plus_review(&series, *max_lag, *alpha, *fdr, ci, ctx)?;
+                let data = &panel
+                    .unit(0)
+                    .map_err(|e| AnalysisError::Compile {
+                        message: format!("panel: {e}"),
+                    })?
+                    .series;
+                if *accept_discovered && review.pending_undirected.is_empty() {
+                    let compiled = PendingCpdagReview::new(
+                        review,
+                        data.row_count(),
+                        q.clone(),
+                        self.split,
+                    )
+                    .accept_all_directed()
+                    .finish(data, ctx)?;
+                    Ok(mark_panel_classification(compiled))
+                } else {
+                    Ok(compile_review_required_cpdag(review))
+                }
+            }
+            (
+                DataInput::Panel(panel),
+                CausalQuery::TemporalEffect(_q),
+                GraphInput::DiscoverLpcmci { max_lag, alpha, fdr, accept_discovered: _ },
+            ) => {
+                let pooled = stack_panel_tabular(panel).map_err(AnalysisError::from)?;
+                let n = pooled.row_count();
+                let series = TimeSeriesData::try_new(
+                    pooled.storage().clone(),
+                    causal_data::TimeIndex {
+                        regularity: causal_data::SamplingRegularity::Regular { interval_ns: 1 },
+                        length: n,
+                    },
+                )
+                .map_err(AnalysisError::from)?;
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let review = run_lpcmci_review(&series, *max_lag, *alpha, *fdr, ci, ctx)?;
+                Ok(compile_review_required_pag(review))
+            }
+            (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(_q),
                 GraphInput::DiscoverRpcmci {
@@ -751,25 +868,68 @@ impl CausalAnalysis {
             }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
-                CausalQuery::TemporalEffect(_),
+                CausalQuery::TemporalEffect(q),
+                GraphInput::DiscoverDbnPosterior { .. },
+            ) => self.compile_dbn_posterior_temporal(data, q, ctx),
+            (
+                DataInput::Temporal(data) | DataInput::Event(data),
+                CausalQuery::TemporalEffect(q),
                 GraphInput::DiscoverLpcmci { max_lag, alpha, fdr, accept_discovered },
             ) => {
                 let ci = resolve_analysis_ci(&self.discovery_ci)?;
                 let review = run_lpcmci_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
-                // Temporal backdoor is DAG-only; never auto-finish a PAG into Ready.
-                let _ = accept_discovered;
-                Ok(compile_review_required_pag(review))
+                // Temporal backdoor is DAG-only. Auto-accept only when the PAG is already
+                // fully definite-directed (no circle/ambiguous marks) — never invent orientations.
+                if *accept_discovered && review.is_complete() {
+                    match review.graph.try_into_temporal_dag() {
+                        Ok(dag) => {
+                            let mut logical = compile_logical_temporal_effect(
+                                data,
+                                &dag,
+                                q,
+                                self.split,
+                                false,
+                            )?;
+                            // Completion→DAG (not class-aware temporal PAG ID).
+                            logical.record.discovery_algorithm =
+                                Some(Arc::from("lpcmci.pag_completed_to_dag"));
+                            let physical =
+                                logical.compile_physical_with_graph(ctx, Some(dag))?;
+                            Ok(CompiledAnalysis::Ready(physical))
+                        }
+                        Err(_) => Ok(compile_review_required_pag(review)),
+                    }
+                } else {
+                    Ok(compile_review_required_pag(review))
+                }
             }
             (
-                DataInput::Temporal(_) | DataInput::Event(_),
-                CausalQuery::TemporalEffect(_),
+                DataInput::Temporal(data) | DataInput::Event(data),
+                CausalQuery::TemporalEffect(q),
                 GraphInput::TemporalPag(pag),
             ) => {
-                // Never silently estimate on a PAG with temporal.backdoor (DAG-only).
-                Ok(compile_review_required_pag(causal_graph::TemporalPagReview::from_pag(
-                    pag.clone(),
-                    "supplied.temporal_pag",
-                )))
+                let review =
+                    causal_graph::TemporalPagReview::from_pag(pag.clone(), "supplied.temporal_pag");
+                if review.is_complete() {
+                    match review.graph.try_into_temporal_dag() {
+                        Ok(dag) => {
+                            let mut logical = compile_logical_temporal_effect(
+                                data,
+                                &dag,
+                                q,
+                                self.split,
+                                false,
+                            )?;
+                            logical.record.discovery_algorithm =
+                                Some(Arc::from("supplied.temporal_pag.completed_to_dag"));
+                            let physical = logical.compile_physical_with_graph(ctx, Some(dag))?;
+                            Ok(CompiledAnalysis::Ready(physical))
+                        }
+                        Err(_) => Ok(compile_review_required_pag(review)),
+                    }
+                } else {
+                    Ok(compile_review_required_pag(review))
+                }
             }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
@@ -811,9 +971,7 @@ impl CausalAnalysis {
                 if *accept_discovered && review.pending_undirected.is_empty() {
                     let mut accepted = review;
                     accepted.pending_edges = Arc::from([]);
-                    let dag = accepted.try_into_dag().map_err(|e| AnalysisError::ReviewRequired {
-                        message: e.to_string(),
-                    })?;
+                    let dag = accepted.try_into_dag().map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
                     let mut logical = compile_logical_static_ate(StaticAteCompileInput {
@@ -847,9 +1005,7 @@ impl CausalAnalysis {
                 if *accept_discovered && review.pending_undirected.is_empty() {
                     let mut accepted = review;
                     accepted.pending_edges = Arc::from([]);
-                    let dag = accepted.try_into_dag().map_err(|e| AnalysisError::ReviewRequired {
-                        message: e.to_string(),
-                    })?;
+                    let dag = accepted.try_into_dag().map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
                     let mut logical = compile_logical_static_ate(StaticAteCompileInput {
@@ -880,9 +1036,7 @@ impl CausalAnalysis {
                 let review = run_lingam_review(data, *max_cond_size, *prune_threshold, ctx)?;
                 if *accept_discovered {
                     let dag = review.accept_all().try_into_dag().map_err(|e| {
-                        AnalysisError::ReviewRequired {
-                            message: e.to_string(),
-                        }
+                        AnalysisError::review_required_msg(e.to_string())
                     })?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
@@ -923,9 +1077,7 @@ impl CausalAnalysis {
                 )?;
                 if *accept_discovered {
                     let dag = review.accept_all().try_into_dag().map_err(|e| {
-                        AnalysisError::ReviewRequired {
-                            message: e.to_string(),
-                        }
+                        AnalysisError::review_required_msg(e.to_string())
                     })?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
@@ -945,6 +1097,14 @@ impl CausalAnalysis {
                     Ok(compile_review_required_static_dag(review))
                 }
             }
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(q),
+                GraphInput::DiscoverExactDagPosterior
+                | GraphInput::DiscoverOrderMcmc { .. }
+                | GraphInput::DiscoverStructureMcmc { .. }
+                | GraphInput::DiscoverCiScreenedPosterior { .. },
+            ) => self.compile_graph_posterior_static_ate(data, q, ctx),
             (
                 DataInput::Tabular(data),
                 CausalQuery::AverageEffect(q),
@@ -1280,11 +1440,16 @@ impl CausalAnalysis {
             (DataInput::Panel(_), _, graph)
                 if !matches!(
                     graph,
-                    GraphInput::DiscoverJpcmciPlus { .. } | GraphInput::Temporal(_)
+                    GraphInput::DiscoverJpcmciPlus { .. }
+                        | GraphInput::DiscoverPcmci { .. }
+                        | GraphInput::DiscoverPcmciPlus { .. }
+                        | GraphInput::DiscoverLpcmci { .. }
+                        | GraphInput::Temporal(_)
                 ) =>
             {
                 return Err(AnalysisError::Compile {
-                    message: "panel data supports DiscoverJpcmciPlus or a supplied TemporalDag"
+                    message: "panel data supports DiscoverJpcmciPlus, DiscoverPcmci/Plus/Lpcmci \
+                              (pooled units), or a supplied TemporalDag"
                         .into(),
                 });
             }
@@ -1306,6 +1471,13 @@ impl CausalAnalysis {
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_), GraphInput::Temporal(_)) => {}
             (DataInput::Panel(_), CausalQuery::TemporalEffect(_), GraphInput::Temporal(_)) => {}
             (DataInput::Panel(_), CausalQuery::TemporalEffect(_), GraphInput::DiscoverJpcmciPlus { .. }) => {}
+            (
+                DataInput::Panel(_),
+                CausalQuery::TemporalEffect(_),
+                GraphInput::DiscoverPcmci { .. }
+                    | GraphInput::DiscoverPcmciPlus { .. }
+                    | GraphInput::DiscoverLpcmci { .. },
+            ) => {}
             (DataInput::Tabular(_), CausalQuery::Mediation(_), GraphInput::Static(_)) => {}
             (
                 DataInput::Tabular(_),
@@ -1405,9 +1577,53 @@ impl CausalAnalysis {
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, AnalysisError> {
         let CompiledAnalysis::Ready(physical) = plan else {
-            return Err(AnalysisError::ReviewRequired {
-                message: "cannot execute while graph review is required".into(),
-            });
+            let (kind, algorithm, pending, hint) = match plan {
+                CompiledAnalysis::ReviewRequired(r) => (
+                    "temporal_dag",
+                    Some(r.algorithm.to_string()),
+                    r.pending_edges.len(),
+                    "call finish_review_and_run after accepting pending edges",
+                ),
+                CompiledAnalysis::ReviewRequiredCpdag(r) => (
+                    "temporal_cpdag",
+                    Some(r.algorithm.to_string()),
+                    r.pending_edges.len() + r.pending_undirected.len(),
+                    "orient undirected edges then finish_cpdag_review_and_run",
+                ),
+                CompiledAnalysis::ReviewRequiredStaticCpdag(r) => (
+                    "static_cpdag",
+                    Some(r.algorithm.to_string()),
+                    r.pending_edges.len() + r.pending_undirected.len(),
+                    "orient undirected CPDAG edges or supply a Dag",
+                ),
+                CompiledAnalysis::ReviewRequiredStaticDag(r) => (
+                    "static_dag",
+                    Some(r.algorithm.to_string()),
+                    r.pending_edges.len(),
+                    "accept pending directed edges or supply a fully oriented Dag",
+                ),
+                CompiledAnalysis::ReviewRequiredStaticPag(r) => (
+                    "static_pag",
+                    Some(r.algorithm.to_string()),
+                    r.pending_circles.len(),
+                    "finish_static_pag_review_and_run or supply a completed Pag/Dag",
+                ),
+                CompiledAnalysis::ReviewRequiredPag(r) => (
+                    "temporal_pag",
+                    Some(r.algorithm.to_string()),
+                    r.pending_circles.len(),
+                    "complete TemporalPag to a TemporalDag (no circle/ambiguous marks), \
+                     or finish PAG review; temporal backdoor does not run on PAG class ID",
+                ),
+                CompiledAnalysis::Ready(_) => unreachable!(),
+            };
+            return Err(AnalysisError::review_required(
+                kind,
+                algorithm,
+                pending,
+                "cannot execute while graph review is required",
+                hint,
+            ));
         };
         ensure_review_complete(&physical.logical)?;
         match (&self.data, &self.query) {
@@ -1449,9 +1665,15 @@ impl CausalAnalysis {
                         })?;
                         self.execute_pag(data, pag, q, physical, ctx)
                     }
+                    GraphInput::DiscoverExactDagPosterior
+                    | GraphInput::DiscoverOrderMcmc { .. }
+                    | GraphInput::DiscoverStructureMcmc { .. }
+                    | GraphInput::DiscoverCiScreenedPosterior { .. } => {
+                        self.execute_graph_posterior_bayesian(data, q, physical, ctx)
+                    }
                     _ => Err(AnalysisError::Unsupported {
                         message:
-                            "static ATE execute requires a supplied static DAG/PAG/CPDAG/ADMG or DiscoverPc/Ges/Lingam/Notears/Fci/Rfci",
+                            "static ATE execute requires a supplied static DAG/PAG/CPDAG/ADMG or DiscoverPc/Ges/Lingam/Notears/Fci/Rfci/graph-posterior",
                     }),
                 }
             }
@@ -1534,6 +1756,9 @@ impl CausalAnalysis {
                 self.execute_unit_change(data, graph, q, physical, ctx)
             }
             (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::TemporalEffect(q)) => {
+                if matches!(self.graph, GraphInput::DiscoverDbnPosterior { .. }) {
+                    return self.execute_dbn_posterior_bayesian(data, q, physical, ctx);
+                }
                 let graph = physical.temporal_graph().ok_or(AnalysisError::Compile {
                     message: "Ready temporal plan missing resolved graph (complete review first)"
                         .into(),
@@ -1681,6 +1906,7 @@ impl CausalAnalysis {
                 self.refute,
                 estimator,
                 &self.custom_validators,
+            None,
             )?
         };
 
@@ -1798,6 +2024,7 @@ impl CausalAnalysis {
                 self.refute,
                 estimator,
                 &self.custom_validators,
+            None,
             )?
         } else {
             diagnostics.push(Diagnostic::new(
@@ -1899,6 +2126,7 @@ impl CausalAnalysis {
             self.refute,
             estimator,
             &self.custom_validators,
+            None,
         )?;
 
         let (id_artifact, id_op) = identify_provenance_step(identifier);
@@ -1958,10 +2186,11 @@ impl CausalAnalysis {
             seed: ctx.rng.master_seed(),
             overlap: OverlapPolicy::ExplicitOverride,
             prior_scale: cfg.prior_scale,
+            prior: cfg.prior.clone(),
         };
         let prep = est.prepare(data, &estimand, query).map_err(AnalysisError::from)?;
         let mut ws = BayesianGCompWorkspace::default();
-        let posterior =
+        let mut posterior =
             est.fit(&prep, identification.status, &mut ws, ctx).map_err(AnalysisError::from)?;
         let estimate = effect_from_posterior(&posterior)?;
 
@@ -1981,10 +2210,39 @@ impl CausalAnalysis {
                 self.refute,
                 "bayesian.gcomp",
                 &self.custom_validators,
+            None,
             )?,
         };
+        // Prior + posterior PPC whenever refute is enabled (full PredictiveCheckReport retained).
+        let mut predictive_checks = Vec::new();
+        if !matches!(self.refute, RefuteSuite::None) {
+            const PPC_ALPHA: f64 = 0.05;
+            let prior_rep = PriorPredictiveCheck {
+                n_sims: 200,
+                seed: ctx.rng.master_seed(),
+                ..PriorPredictiveCheck::new()
+            }
+            .check(&prep, ctx)
+            .map_err(AnalysisError::from)?;
+            refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+            predictive_checks.push(prior_rep);
+
+            let post_rep = PosteriorPredictiveCheck::new()
+                .check(&prep, &posterior)
+                .map_err(AnalysisError::from)?;
+            refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+            predictive_checks.push(post_rep);
+        }
+        // Prior sensitivity / MCMC stay behind the full suite (Shared Bayesian UX).
         if matches!(self.refute, RefuteSuite::Full) {
-            let suite = ValidationSuite::bayesian_diagnostics();
+            let sens = PriorSensitivity::standard_grid();
+            let (summary, _) = sens
+                .evaluate(&est, &prep, identification.status, &mut ws, ctx)
+                .map_err(AnalysisError::from)?;
+            refutations.push(sens.to_report(&summary, estimate.ate));
+            posterior = with_prior_sensitivity(posterior, summary);
+
+            let suite = ValidationSuite::new().with(ValidatorId::McmcDiagnostics);
             let mut bayes_ctx = BayesianSuiteContext::new(
                 &est,
                 &prep,
@@ -2009,7 +2267,7 @@ impl CausalAnalysis {
         );
 
         let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
-        Ok(assemble_result(AssembleArgs {
+        let mut result = assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
             identification,
@@ -2029,7 +2287,9 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-        }))
+        });
+        result.predictive_checks = predictive_checks;
+        Ok(result)
     }
 
     /// `rd.sharp` execute path: identify via [`SharpRdIdentifier`], then estimate.
@@ -2075,6 +2335,7 @@ impl CausalAnalysis {
             self.refute,
             "rd.sharp",
             &self.custom_validators,
+            None,
         )?;
 
         let provenance = provenance_pair(
@@ -2098,6 +2359,267 @@ impl CausalAnalysis {
             mechanism_change: None,
             unit_change: None,
             refutations,
+            diagnostics,
+            provenance,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+        }))
+    }
+
+    fn compile_dbn_posterior_temporal(
+        &self,
+        data: &TimeSeriesData,
+        query: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<CompiledAnalysis, AnalysisError> {
+        if matches!(self.inference, InferenceMode::Frequentist) {
+            return Err(AnalysisError::Unsupported {
+                message:
+                    "DBN graph-posterior discovery requires inference=Bayesian for effect mixture"
+                        .into(),
+            });
+        }
+        let class = match &self.data {
+            DataInput::Event(_) => DataClassification::Event,
+            _ => DataClassification::Temporal,
+        };
+        let mut logical = compile_logical_temporal_effect_classified(
+            data,
+            &TemporalDag::empty(),
+            query,
+            self.split,
+            false,
+            class,
+        )?;
+        logical.record.discovery_algorithm = Some(Arc::from("dbn_posterior"));
+        let physical = logical.compile_physical_with_graphs(ctx, None, None)?;
+        Ok(CompiledAnalysis::Ready(physical))
+    }
+
+    fn execute_dbn_posterior_bayesian(
+        &self,
+        data: &TimeSeriesData,
+        query: &TemporalEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalAnalysisResult, AnalysisError> {
+        let started = Instant::now();
+        let cfg = match &self.inference {
+            InferenceMode::Bayesian(c) => c.clone(),
+            InferenceMode::Frequentist => {
+                return Err(AnalysisError::Unsupported {
+                    message:
+                        "DBN graph-posterior discovery requires inference=Bayesian for effect mixture"
+                            .into(),
+                });
+            }
+        };
+        let (max_lag, force_mcmc, n_chains, n_warmup, n_draws) = match &self.graph {
+            GraphInput::DiscoverDbnPosterior {
+                max_lag,
+                force_mcmc,
+                n_chains,
+                n_warmup,
+                n_draws,
+            } => (*max_lag, *force_mcmc, *n_chains, *n_warmup, *n_draws),
+            _ => {
+                return Err(AnalysisError::Compile {
+                    message: "execute_dbn_posterior_bayesian: unexpected GraphInput".into(),
+                });
+            }
+        };
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let params = BayesianDiscoverParams::default();
+        let schedule = GraphMcmcSchedule {
+            n_chains,
+            n_warmup,
+            n_draws,
+            thin: 1,
+        };
+        let gp = discover_dbn_posterior(
+            data,
+            &vars,
+            &params,
+            max_lag,
+            force_mcmc,
+            &schedule,
+            ctx,
+        )?;
+        let lag_masks = gp.lag_masks.as_ref().ok_or_else(|| AnalysisError::Compile {
+            message: "DBN posterior missing per-atom lag masks".into(),
+        })?;
+        let max_lag = gp.max_lag.unwrap_or(max_lag);
+
+        let est_inner = BayesianGComputationAte {
+            backend: cfg.backend,
+            likelihood: cfg.likelihood,
+            n_draws: cfg.n_draws,
+            seed: ctx.rng.master_seed(),
+            overlap: OverlapPolicy::ExplicitOverride,
+            prior_scale: cfg.prior_scale,
+            prior: cfg.prior.clone(),
+        };
+        let bayes = BayesianTemporalGcomp { inner: est_inner };
+
+        let mut weights = Vec::with_capacity(gp.n_graphs);
+        let mut flags = Vec::with_capacity(gp.n_graphs);
+        let mut keys = Vec::with_capacity(gp.n_graphs);
+        let mut per_graph = Vec::new();
+        let mut primary_estimand: Option<IdentifiedEstimand> = None;
+        let mut primary_identification: Option<IdentificationResult> = None;
+
+        for i in 0..gp.n_graphs {
+            let cmask = gp.adjacency[i];
+            let lmask = lag_masks[i];
+            let key = gp.graph_keys[i];
+            keys.push(key);
+            weights.push(gp.weights[i]);
+            let tdag = match temporal_dag_from_dbn_masks(cmask, lmask, gp.n_vars, max_lag, &vars) {
+                Ok(g) => g,
+                Err(_) => {
+                    flags.push(GraphIdentFlag::Unidentified);
+                    continue;
+                }
+            };
+            let id_res = match TemporalBackdoorIdentifier::new().identify_temporal(&tdag, query) {
+                Ok(r) => r,
+                Err(_) => {
+                    flags.push(GraphIdentFlag::Unidentified);
+                    continue;
+                }
+            };
+            let identification = id_res.result;
+            if !identification_status_ok_for_case(&identification.status)
+                || identification.estimands.is_empty()
+            {
+                flags.push(GraphIdentFlag::Unidentified);
+                continue;
+            }
+            let estimand =
+                match select_estimand(&identification, EstimatorId::TemporalLinearAdjustment) {
+                    Ok(e) => e,
+                    Err(_) => {
+                        flags.push(GraphIdentFlag::Unidentified);
+                        continue;
+                    }
+                };
+            flags.push(GraphIdentFlag::Identified);
+            if primary_estimand.is_none() {
+                primary_estimand = Some(estimand.clone());
+                primary_identification = Some(identification.clone());
+            }
+            let mut temporal_est = TemporalLinearAdjustment::new();
+            temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
+            let prep = match temporal_est.prepare(
+                data,
+                &estimand,
+                query,
+                &id_res.indexer,
+                self.split.as_ref(),
+                &ctx.kernel_policy,
+            ) {
+                Ok(p) => p,
+                Err(_) => {
+                    // Already pushed Identified — fix by continuing without draws.
+                    // Re-mark last flag as Unidentified.
+                    if let Some(f) = flags.last_mut() {
+                        *f = GraphIdentFlag::Unidentified;
+                    }
+                    continue;
+                }
+            };
+            let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+            let mut ws = BayesianGCompWorkspace::default();
+            let posterior = match bayes.fit(&bprep, identification.status, &mut ws, ctx) {
+                Ok(p) => p,
+                Err(_) => {
+                    if let Some(f) = flags.last_mut() {
+                        *f = GraphIdentFlag::Unidentified;
+                    }
+                    continue;
+                }
+            };
+            let col = match posterior.effect_column() {
+                Some(c) => c,
+                None => {
+                    if let Some(f) = flags.last_mut() {
+                        *f = GraphIdentFlag::Unidentified;
+                    }
+                    continue;
+                }
+            };
+            let draws = match posterior.draws.column(col) {
+                Ok(d) => d.to_vec(),
+                Err(_) => {
+                    if let Some(f) = flags.last_mut() {
+                        *f = GraphIdentFlag::Unidentified;
+                    }
+                    continue;
+                }
+            };
+            per_graph.push(GraphEffectDraws {
+                graph_key: key,
+                effect_draws: Arc::from(draws),
+            });
+        }
+
+        let graphs = WeightedGraphSamples::new(weights, flags, keys)
+            .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+        let posterior = aggregate_effect_envelope(
+            &graphs,
+            &per_graph,
+            InferenceDiagnostics::analytic("dbn_posterior_envelope"),
+            EnvelopeOptions::default(),
+        )
+        .map_err(AnalysisError::from)?;
+        let estimate = effect_from_posterior(&posterior)?;
+        let identification = primary_identification.ok_or_else(|| AnalysisError::Compile {
+            message: "DBN posterior envelope: no identified graph atoms".into(),
+        })?;
+        let estimand = primary_estimand.ok_or_else(|| AnalysisError::Compile {
+            message: "DBN posterior envelope: missing estimand".into(),
+        })?;
+
+        let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(Diagnostic::new(
+            "estimate.dbn_posterior.envelope",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!("unidentified_mass={}", posterior.unidentified_mass),
+        ));
+
+        let provenance = provenance_pair(
+            (
+                "discover.dbn_posterior",
+                "dbn_posterior",
+                &[],
+                &identification.required_assumptions,
+            ),
+            (
+                "estimate.aggregate_effect_envelope",
+                "estimate.bayesian.temporal.gcomp",
+                &["discover.dbn_posterior"],
+                &estimate.assumptions,
+            ),
+        );
+        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        Ok(assemble_result(AssembleArgs {
+            logical: &physical.logical.record,
+            physical: &physical_record,
+            identification,
+            estimand,
+            estimate,
+            distribution: None,
+            posterior: Some(posterior),
+            mediation: None,
+            counterfactual: None,
+            anomaly: None,
+            change_attribution: None,
+            mechanism_change: None,
+            unit_change: None,
+            refutations: Vec::new(),
             diagnostics,
             provenance,
             treatment: query.treatment,
@@ -2135,10 +2657,46 @@ impl CausalAnalysis {
                 &ctx.kernel_policy,
             )
             .map_err(AnalysisError::from)?;
-        let mut workspace = EstimationWorkspace::default();
-        let estimate = estimator
-            .fit(&prep, &mut workspace, ctx, identification.required_assumptions.clone())
-            .map_err(AnalysisError::from)?;
+
+        let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
+            InferenceMode::Bayesian(cfg) => {
+                let bayes = BayesianTemporalGcomp {
+                    inner: BayesianGComputationAte {
+                        backend: cfg.backend,
+                        likelihood: cfg.likelihood,
+                        n_draws: cfg.n_draws,
+                        seed: ctx.rng.master_seed(),
+                        overlap: OverlapPolicy::ExplicitOverride,
+                        prior_scale: cfg.prior_scale,
+                        prior: cfg.prior.clone(),
+                    },
+                };
+                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let mut ws = BayesianGCompWorkspace::default();
+                let posterior = bayes
+                    .fit(&bprep, identification.status, &mut ws, ctx)
+                    .map_err(AnalysisError::from)?;
+                let estimate = effect_from_posterior(&posterior)?;
+                (
+                    estimate,
+                    Some(posterior),
+                    "estimate.bayesian_temporal_gcomp",
+                    "estimate.bayesian.temporal.gcomp",
+                )
+            }
+            InferenceMode::Frequentist => {
+                let mut workspace = EstimationWorkspace::default();
+                let estimate = estimator
+                    .fit(&prep, &mut workspace, ctx, identification.required_assumptions.clone())
+                    .map_err(AnalysisError::from)?;
+                (
+                    estimate,
+                    None,
+                    "estimate.temporal_linear_adjustment",
+                    "estimate.temporal.linear.adjustment",
+                )
+            }
+        };
 
         let provenance = provenance_pair(
             (
@@ -2148,18 +2706,41 @@ impl CausalAnalysis {
                 &identification.required_assumptions,
             ),
             (
-                "estimate.temporal_linear_adjustment",
-                "estimate.temporal.linear.adjustment",
+                estimate_artifact,
+                estimate_op,
                 &["identify.temporal_backdoor"],
                 &estimate.assumptions,
             ),
         );
 
         let mut diagnostics = Vec::new();
+        if physical
+            .logical
+            .record
+            .discovery_algorithm
+            .as_deref()
+            .is_some_and(|a| a.contains("pag_completed_to_dag") || a.contains("completed_to_dag"))
+        {
+            diagnostics.push(Diagnostic::new(
+                "temporal.pag.completed_to_dag",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "TemporalPag completed to TemporalDag before temporal.backdoor \
+                 (completion path; not class-aware temporal PAG identification)",
+            ));
+        }
         let tabular = TabularData::new(data.storage().clone());
         let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
         let mut refute_ws = EstimationWorkspace::default();
-        let refutations = run_refuters(
+        let temporal_ctx = TemporalRefitContext {
+            indexer: &id_res.indexer,
+            temporal_query: query,
+            split: self.split.as_ref(),
+            kernel_policy: &ctx.kernel_policy,
+            time_index: Some(data.time_index()),
+            panel: None,
+        };
+        let mut refutations = run_refuters(
             &tabular,
             &estimand,
             &ate_q,
@@ -2167,9 +2748,63 @@ impl CausalAnalysis {
             &mut refute_ws,
             ctx,
             self.refute,
-            "temporal.linear.adjustment",
+            if posterior.is_some() {
+                "bayesian.temporal.gcomp"
+            } else {
+                "temporal.linear.adjustment"
+            },
             &self.custom_validators,
+            Some(temporal_ctx),
         )?;
+
+        // Bayesian temporal: prior/posterior PPC + prior sensitivity on Full (mirror static).
+        let mut posterior = posterior;
+        if matches!(&self.inference, InferenceMode::Bayesian(_))
+            && !matches!(self.refute, RefuteSuite::None)
+        {
+            if let Some(ref post) = posterior {
+                const PPC_ALPHA: f64 = 0.05;
+                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let prior_rep = PriorPredictiveCheck {
+                    n_sims: 200,
+                    seed: ctx.rng.master_seed(),
+                    ..PriorPredictiveCheck::new()
+                }
+                .check(&bprep, ctx)
+                .map_err(AnalysisError::from)?;
+                refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+
+                let post_rep = PosteriorPredictiveCheck::new()
+                    .check(&bprep, post)
+                    .map_err(AnalysisError::from)?;
+                refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
+
+                if matches!(self.refute, RefuteSuite::Full) {
+                    let cfg = match &self.inference {
+                        InferenceMode::Bayesian(c) => c.clone(),
+                        InferenceMode::Frequentist => unreachable!(),
+                    };
+                    let est = BayesianTemporalGcomp {
+                        inner: BayesianGComputationAte {
+                            backend: cfg.backend,
+                            likelihood: cfg.likelihood,
+                            n_draws: cfg.n_draws,
+                            seed: ctx.rng.master_seed(),
+                            overlap: OverlapPolicy::ExplicitOverride,
+                            prior_scale: cfg.prior_scale,
+                            prior: cfg.prior.clone(),
+                        },
+                    };
+                    let sens = PriorSensitivity::standard_grid();
+                    let mut ws = BayesianGCompWorkspace::default();
+                    let (summary, _) = sens
+                        .evaluate(&est.inner, &bprep, identification.status, &mut ws, ctx)
+                        .map_err(AnalysisError::from)?;
+                    refutations.push(sens.to_report(&summary, estimate.ate));
+                    posterior = Some(with_prior_sensitivity(post.clone(), summary));
+                }
+            }
+        }
 
         let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
@@ -2179,7 +2814,7 @@ impl CausalAnalysis {
             estimand,
             estimate,
             distribution: None,
-            posterior: None,
+            posterior,
             mediation: None,
             counterfactual: None,
             anomaly: None,
@@ -2197,6 +2832,9 @@ impl CausalAnalysis {
 
     /// Panel temporal effect: identify on the shared graph, estimate on stacked units
     /// with [`AnalyticSeKind::PanelClusterHac`] and per-unit `cluster_ids`.
+    ///
+    /// Bayesian mode fits [`BayesianTemporalGcomp`] on the stacked lag-aligned design
+    /// (no hierarchical unit random effects; cluster-HAC is frequentist-only).
     fn execute_panel(
         &self,
         panel: &PanelData,
@@ -2227,12 +2865,48 @@ impl CausalAnalysis {
             )
             .map_err(AnalysisError::from)?;
         let max_lag = query.max_history_lag.unwrap_or(1).max(1) as usize;
-        estimator.inner.cluster_ids = Some(cluster_ids);
-        estimator.inner.se_kind = AnalyticSeKind::PanelClusterHac { lag: max_lag };
-        let mut workspace = EstimationWorkspace::default();
-        let estimate = estimator
-            .fit(&prep, &mut workspace, ctx, identification.required_assumptions.clone())
-            .map_err(AnalysisError::from)?;
+
+        let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
+            InferenceMode::Bayesian(cfg) => {
+                let bayes = BayesianTemporalGcomp {
+                    inner: BayesianGComputationAte {
+                        backend: cfg.backend,
+                        likelihood: cfg.likelihood,
+                        n_draws: cfg.n_draws,
+                        seed: ctx.rng.master_seed(),
+                        overlap: OverlapPolicy::ExplicitOverride,
+                        prior_scale: cfg.prior_scale,
+                        prior: cfg.prior.clone(),
+                    },
+                };
+                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let mut ws = BayesianGCompWorkspace::default();
+                let posterior = bayes
+                    .fit(&bprep, identification.status, &mut ws, ctx)
+                    .map_err(AnalysisError::from)?;
+                let estimate = effect_from_posterior(&posterior)?;
+                (
+                    estimate,
+                    Some(posterior),
+                    "estimate.bayesian_temporal_gcomp.panel",
+                    "estimate.bayesian.temporal.gcomp.panel",
+                )
+            }
+            InferenceMode::Frequentist => {
+                estimator.inner.cluster_ids = Some(cluster_ids);
+                estimator.inner.se_kind = AnalyticSeKind::PanelClusterHac { lag: max_lag };
+                let mut workspace = EstimationWorkspace::default();
+                let estimate = estimator
+                    .fit(&prep, &mut workspace, ctx, identification.required_assumptions.clone())
+                    .map_err(AnalysisError::from)?;
+                (
+                    estimate,
+                    None,
+                    "estimate.temporal_linear_adjustment.panel",
+                    "estimate.temporal.linear.adjustment.panel",
+                )
+            }
+        };
 
         let provenance = provenance_pair(
             (
@@ -2242,14 +2916,42 @@ impl CausalAnalysis {
                 &identification.required_assumptions,
             ),
             (
-                "estimate.temporal_linear_adjustment.panel",
-                "estimate.temporal.linear.adjustment.panel",
+                estimate_artifact,
+                estimate_op,
                 &["identify.temporal_backdoor"],
                 &estimate.assumptions,
             ),
         );
 
         let mut diagnostics = Vec::new();
+        let stacked = stack_panel_tabular(panel).map_err(AnalysisError::from)?;
+        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let mut refute_ws = EstimationWorkspace::default();
+        let temporal_ctx = TemporalRefitContext {
+            indexer: &id_res.indexer,
+            temporal_query: query,
+            split: self.split.as_ref(),
+            kernel_policy: &ctx.kernel_policy,
+            time_index: None,
+            panel: Some(panel),
+        };
+        let refutations = run_refuters(
+            &stacked,
+            &estimand,
+            &ate_q,
+            &estimate,
+            &mut refute_ws,
+            ctx,
+            self.refute,
+            if posterior.is_some() {
+                "bayesian.temporal.gcomp"
+            } else {
+                "temporal.linear.adjustment"
+            },
+            &self.custom_validators,
+            Some(temporal_ctx),
+        )?;
+
         let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
@@ -2258,14 +2960,14 @@ impl CausalAnalysis {
             estimand,
             estimate,
             distribution: None,
-            posterior: None,
+            posterior,
             mediation: None,
             counterfactual: None,
             anomaly: None,
             change_attribution: None,
             mechanism_change: None,
             unit_change: None,
-            refutations: Vec::new(),
+            refutations,
             diagnostics,
             provenance,
             treatment: query.treatment,
@@ -2336,6 +3038,7 @@ impl CausalAnalysis {
             self.refute,
             estimator,
             &self.custom_validators,
+            None,
         )?;
 
         let (id_artifact, id_op) = identify_provenance_step(identifier);
@@ -2510,6 +3213,7 @@ impl CausalAnalysis {
             self.refute,
             estimator,
             &self.custom_validators,
+            None,
         )?;
 
         let (id_artifact, id_op) = identify_provenance_step(identifier);
@@ -2624,6 +3328,307 @@ impl CausalAnalysis {
         }))
     }
 
+    fn compile_graph_posterior_static_ate(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<CompiledAnalysis, AnalysisError> {
+        if matches!(self.inference, InferenceMode::Frequentist) {
+            return Err(AnalysisError::Unsupported {
+                message:
+                    "graph-posterior discovery requires inference=Bayesian for effect mixture"
+                        .into(),
+            });
+        }
+        let algo = match &self.graph {
+            GraphInput::DiscoverExactDagPosterior => "exact_dag_posterior",
+            GraphInput::DiscoverOrderMcmc { .. } => "order_mcmc",
+            GraphInput::DiscoverStructureMcmc { .. } => "structure_mcmc",
+            GraphInput::DiscoverCiScreenedPosterior { .. } => "ci_screened_posterior",
+            _ => "graph_posterior",
+        };
+        let n_vars = u32::try_from(data.schema().len()).map_err(|_| AnalysisError::Compile {
+            message: "too many variables for graph-posterior compile".into(),
+        })?;
+        let stub = Dag::with_variables(n_vars);
+        let identifier = Arc::from("backdoor.adjustment");
+        let estimator = Arc::from("bayesian.gcomp");
+        let mut logical = compile_logical_static_ate(StaticAteCompileInput {
+            data,
+            graph: &stub,
+            query,
+            validation_suite: self.validation_suite_id(),
+            identifier,
+            estimator,
+        })?;
+        logical.record.discovery_algorithm = Some(Arc::from(algo));
+        let physical = logical.compile_physical_with_graphs(ctx, None, None)?;
+        Ok(CompiledAnalysis::Ready(physical))
+    }
+
+    fn discover_graph_posterior_for_ate(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<causal_discovery::GraphPosterior, AnalysisError> {
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let params = BayesianDiscoverParams::default();
+        match &self.graph {
+            GraphInput::DiscoverExactDagPosterior => {
+                discover_exact_dag_posterior(data, &vars, &params, ctx)
+            }
+            GraphInput::DiscoverOrderMcmc {
+                n_chains,
+                n_warmup,
+                n_draws,
+                thin,
+                require_diagnostics_gate,
+            } => {
+                let schedule = GraphMcmcSchedule {
+                    n_chains: *n_chains,
+                    n_warmup: *n_warmup,
+                    n_draws: *n_draws,
+                    thin: *thin,
+                };
+                discover_order_mcmc(
+                    data,
+                    &vars,
+                    &params,
+                    &schedule,
+                    *require_diagnostics_gate,
+                    ctx,
+                )
+            }
+            GraphInput::DiscoverStructureMcmc {
+                n_chains,
+                n_warmup,
+                n_draws,
+                thin,
+            } => {
+                let schedule = GraphMcmcSchedule {
+                    n_chains: *n_chains,
+                    n_warmup: *n_warmup,
+                    n_draws: *n_draws,
+                    thin: *thin,
+                };
+                discover_structure_mcmc(data, &vars, &params, &schedule, ctx)
+            }
+            GraphInput::DiscoverCiScreenedPosterior {
+                alpha,
+                fdr,
+                max_cond_size,
+                soft_weight,
+                n_chains,
+                n_warmup,
+                n_draws,
+                thin,
+            } => {
+                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let screen = StaticDiscoverParams {
+                    alpha: *alpha,
+                    max_cond_size: *max_cond_size,
+                    fdr: *fdr,
+                    ci,
+                    screen_pc: false,
+                    max_subset: None,
+                };
+                let schedule = GraphMcmcSchedule {
+                    n_chains: *n_chains,
+                    n_warmup: *n_warmup,
+                    n_draws: *n_draws,
+                    thin: *thin,
+                };
+                discover_ci_screened_posterior(
+                    data,
+                    &vars,
+                    &params,
+                    &screen,
+                    &schedule,
+                    *soft_weight,
+                    ctx,
+                )
+            }
+            _ => Err(AnalysisError::Compile {
+                message: "discover_graph_posterior_for_ate: unexpected GraphInput".into(),
+            }),
+        }
+    }
+
+    fn execute_graph_posterior_bayesian(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalAnalysisResult, AnalysisError> {
+        let started = Instant::now();
+        let cfg = match &self.inference {
+            InferenceMode::Bayesian(c) => c.clone(),
+            InferenceMode::Frequentist => {
+                return Err(AnalysisError::Unsupported {
+                    message:
+                        "graph-posterior discovery requires inference=Bayesian for effect mixture"
+                            .into(),
+                });
+            }
+        };
+        let gp = self.discover_graph_posterior_for_ate(data, ctx)?;
+        let est = BayesianGComputationAte {
+            backend: cfg.backend,
+            likelihood: cfg.likelihood,
+            n_draws: cfg.n_draws,
+            seed: ctx.rng.master_seed(),
+            overlap: OverlapPolicy::ExplicitOverride,
+            prior_scale: cfg.prior_scale,
+            prior: cfg.prior.clone(),
+        };
+
+        let mut weights = Vec::with_capacity(gp.n_graphs);
+        let mut flags = Vec::with_capacity(gp.n_graphs);
+        let mut keys = Vec::with_capacity(gp.n_graphs);
+        let mut per_graph = Vec::new();
+        let mut primary_estimand: Option<IdentifiedEstimand> = None;
+        let mut primary_identification: Option<IdentificationResult> = None;
+
+        for i in 0..gp.n_graphs {
+            let mask = gp.adjacency[i];
+            let key = gp.graph_keys[i];
+            keys.push(key);
+            weights.push(gp.weights[i]);
+            let dag = match dag_from_adjacency_mask(mask, gp.n_vars) {
+                Ok(d) => d,
+                Err(_) => {
+                    flags.push(GraphIdentFlag::Unidentified);
+                    continue;
+                }
+            };
+            let identification = match identify_static(DEFAULT_IDENTIFIER, &dag, query) {
+                Ok(id) => id,
+                Err(_) => {
+                    flags.push(GraphIdentFlag::Unidentified);
+                    continue;
+                }
+            };
+            if identification_status_ok_for_case(&identification.status)
+                && !identification.estimands.is_empty()
+            {
+                flags.push(GraphIdentFlag::Identified);
+                let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
+                if primary_estimand.is_none() {
+                    primary_estimand = Some(estimand.clone());
+                    primary_identification = Some(identification.clone());
+                }
+                let prep = est.prepare(data, &estimand, query).map_err(AnalysisError::from)?;
+                let mut ws = BayesianGCompWorkspace::default();
+                let posterior = est
+                    .fit(&prep, identification.status, &mut ws, ctx)
+                    .map_err(AnalysisError::from)?;
+                let col = posterior.effect_column().ok_or_else(|| AnalysisError::Compile {
+                    message: "Bayesian posterior missing effect column".into(),
+                })?;
+                let draws = posterior
+                    .draws
+                    .column(col)
+                    .map_err(|e| AnalysisError::Compile { message: e.to_string() })?
+                    .to_vec();
+                per_graph.push(GraphEffectDraws {
+                    graph_key: key,
+                    effect_draws: Arc::from(draws),
+                });
+            } else {
+                flags.push(GraphIdentFlag::Unidentified);
+            }
+        }
+
+        let graphs = WeightedGraphSamples::new(weights, flags, keys)
+            .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+        let posterior = aggregate_effect_envelope(
+            &graphs,
+            &per_graph,
+            InferenceDiagnostics::analytic("graph_posterior_envelope"),
+            EnvelopeOptions::default(),
+        )
+        .map_err(AnalysisError::from)?;
+        let estimate = effect_from_posterior(&posterior)?;
+        let identification = primary_identification.ok_or_else(|| AnalysisError::Compile {
+            message: "graph-posterior envelope: no identified graph atoms".into(),
+        })?;
+        let estimand = primary_estimand.ok_or_else(|| AnalysisError::Compile {
+            message: "graph-posterior envelope: missing estimand".into(),
+        })?;
+
+        let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(Diagnostic::new(
+            "estimate.graph_posterior.envelope",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!("unidentified_mass={}", posterior.unidentified_mass),
+        ));
+
+        let mut refute_ws = EstimationWorkspace::default();
+        let refutations = match self.refute {
+            RefuteSuite::None => Vec::new(),
+            RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
+                data,
+                &estimand,
+                query,
+                &estimate,
+                &mut refute_ws,
+                ctx,
+                self.refute,
+                "bayesian.gcomp",
+                &self.custom_validators,
+            None,
+            )?,
+        };
+
+        let algo = physical
+            .logical
+            .record
+            .discovery_algorithm
+            .as_deref()
+            .unwrap_or("graph_posterior");
+        let provenance = provenance_pair(
+            (
+                "discover.graph_posterior",
+                algo,
+                &[],
+                &identification.required_assumptions,
+            ),
+            (
+                "estimate.aggregate_effect_envelope",
+                "estimate.bayesian_gcomp",
+                &["discover.graph_posterior"],
+                &estimate.assumptions,
+            ),
+        );
+
+        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        Ok(assemble_result(AssembleArgs {
+            logical: &physical.logical.record,
+            physical: &physical_record,
+            identification,
+            estimand,
+            estimate,
+            distribution: None,
+            posterior: Some(posterior),
+            mediation: None,
+            counterfactual: None,
+            anomaly: None,
+            change_attribution: None,
+            mechanism_change: None,
+            unit_change: None,
+            refutations,
+            diagnostics,
+            provenance,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+        }))
+    }
+
     fn execute_pag_bayesian(
         &self,
         data: &TabularData,
@@ -2645,6 +3650,7 @@ impl CausalAnalysis {
             seed: ctx.rng.master_seed(),
             overlap: OverlapPolicy::ExplicitOverride,
             prior_scale: cfg.prior_scale,
+            prior: cfg.prior.clone(),
         };
 
         let mut weights = Vec::new();
@@ -2724,6 +3730,7 @@ impl CausalAnalysis {
                 self.refute,
                 "bayesian.gcomp",
                 &self.custom_validators,
+            None,
             )?,
         };
         if matches!(self.refute, RefuteSuite::Full) {
@@ -2803,6 +3810,7 @@ impl CausalAnalysis {
             self.refute,
             "conditional.linear.adjustment",
             &self.custom_validators,
+            None,
         )?;
         let (id_artifact, id_op) = identify_provenance_step(identifier.as_ref());
         let provenance = provenance_pair(
@@ -2955,6 +3963,7 @@ impl CausalAnalysis {
             self.refute,
             "frontdoor.two_stage",
             &self.custom_validators,
+            None,
         )?;
         let provenance = provenance_pair(
             ("identify.frontdoor", "identify.frontdoor", &[], &identification.required_assumptions),

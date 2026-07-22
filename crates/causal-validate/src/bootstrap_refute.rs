@@ -20,8 +20,8 @@ use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use causal_kernels::unbiased_index;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, fit_once,
-    linear_estimator_no_bootstrap, with_resampled_rows,
+    RefutationProblem, RefutationReport, complete_case_rows, linear_estimator_no_bootstrap,
+    refit_effect, with_resampled_rows,
 };
 use crate::error::ValidationError;
 
@@ -76,7 +76,18 @@ impl BootstrapRefute {
         }
         let n = problem.data.row_count();
         let mut resample_ids = vec![problem.treatment(), problem.outcome()];
-        resample_ids.extend_from_slice(&problem.estimand.adjustment_set);
+        // Temporal unfolded adjustment ids are dense node ids, not schema columns.
+        if problem.temporal.is_none() {
+            resample_ids.extend_from_slice(&problem.estimand.adjustment_set);
+        } else {
+            // Contemporaneous schema covariates already present in the series/panel table.
+            for v in problem.data.schema().variables() {
+                let id = v.id;
+                if id != problem.treatment() && id != problem.outcome() {
+                    resample_ids.push(id);
+                }
+            }
+        }
         // Resample only complete-case rows so slots that are invalid in the source (whose
         // stored values are sentinels) never enter a replicate as real observations.
         let (keep, valid) = complete_case_rows(problem.data, &resample_ids)?;
@@ -93,8 +104,7 @@ impl BootstrapRefute {
                 *slot = valid[unbiased_index(&mut rng, valid.len())];
             }
             let data = with_resampled_rows(problem.data, &resample_ids, &row_idx, &keep)?;
-            let est =
-                fit_once(&self.estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
+            let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
             ates.push(est.ate);
         }
         ates.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));

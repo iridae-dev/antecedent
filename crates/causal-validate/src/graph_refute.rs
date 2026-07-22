@@ -14,8 +14,8 @@ use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use causal_identify::IdentifiedEstimand;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, fit_once,
-    linear_estimator_no_bootstrap, masked_sample_sd,
+    RefutationProblem, RefutationReport, complete_case_rows, linear_estimator_no_bootstrap,
+    masked_sample_sd, refit_effect,
 };
 use crate::error::ValidationError;
 
@@ -90,8 +90,7 @@ impl GraphRefuter {
         let mut worst_dropped = problem.estimand.adjustment_set[0];
         for drop_idx in 0..problem.estimand.adjustment_set.len() {
             let reduced = drop_adjustment_at(problem.estimand, drop_idx);
-            let est =
-                fit_once(&self.estimator, problem.data, &reduced, problem.query, workspace, ctx)?;
+            let est = refit_effect(problem, problem.data, &reduced, &[], workspace, ctx)?;
             // Relative change with an sd-based floor on the denominator: a near-zero original
             // estimate that moves materially when a covariate is dropped is set-sensitive.
             let delta =

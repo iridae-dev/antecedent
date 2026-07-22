@@ -11,8 +11,8 @@ use causal_data::TableView;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, fit_once, float64_full,
-    linear_estimator_no_bootstrap, masked_sample_sd, with_replaced_float,
+    RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, float64_full,
+    linear_estimator_no_bootstrap, masked_sample_sd, refit_effect, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -75,17 +75,24 @@ impl UnobservedCommonCause {
                 message: "unobserved common cause requires replicates > 0",
             });
         }
-        if problem.estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::BackdoorAdjustment)
-        {
+        if !matches!(
+            problem.estimand.method_kind().ok(),
+            Some(
+                causal_expr::EstimandMethod::BackdoorAdjustment
+                    | causal_expr::EstimandMethod::TemporalBackdoorUnfolded
+            )
+        ) {
             return Err(ValidationError::NotApplicable {
-                message: "unobserved common cause requires backdoor.adjustment estimand",
+                message: "unobserved common cause requires backdoor.adjustment or temporal.backdoor.unfolded",
             });
         }
         let n = problem.data.row_count();
         let t0 = float64_full(problem.data, problem.treatment())?;
         let y0 = float64_full(problem.data, problem.outcome())?;
         let mut ids = vec![problem.treatment(), problem.outcome()];
-        ids.extend_from_slice(&problem.estimand.adjustment_set);
+        if problem.temporal.is_none() {
+            ids.extend_from_slice(&problem.estimand.adjustment_set);
+        }
         let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
         let sd_t = masked_sample_sd(problem.data, problem.treatment(), &mask)?.max(1e-12);
         let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?.max(1e-12);
@@ -99,8 +106,7 @@ impl UnobservedCommonCause {
             let y: Vec<f64> = y0.iter().zip(&u).map(|(&y, &u)| y + ky * u).collect();
             let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t))?;
             let data = with_replaced_float(&data, problem.outcome(), Arc::from(y))?;
-            let est =
-                fit_once(&self.estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
+            let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
             sum_delta += (est.ate - problem.original.ate).abs();
             sum_ate += est.ate;
         }

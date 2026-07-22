@@ -195,7 +195,8 @@ impl DbnPosterior {
         let lagged = accumulate_lagged_marginals(p, max_lag, &weights, &kept_lag);
         let diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
         GraphPosterior::new(p, weights, kept_masks, edge, orient, ess, diagnostics, rejected)?
-            .with_lagged_marginals(max_lag, lagged)
+            .with_lagged_marginals(max_lag, lagged)?
+            .with_lag_masks(kept_lag)
     }
 
     fn run_mcmc(
@@ -318,7 +319,8 @@ impl DbnPosterior {
         let (edge, orient) = accumulate_marginals(p, &weights, &masks);
         let lagged = accumulate_lagged_marginals(p, max_lag, &weights, &lags);
         GraphPosterior::new(p, weights, masks, edge, orient, ess, diagnostics, rejected)?
-            .with_lagged_marginals(max_lag, lagged)
+            .with_lagged_marginals(max_lag, lagged)?
+            .with_lag_masks(lags)
     }
 }
 
@@ -363,6 +365,61 @@ fn lag_bit(p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> u32 {
 fn has_lag_edge(lmask: u64, p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> bool {
     let b = lag_bit(p, max_lag, lag, from, to);
     (lmask >> b) & 1 == 1
+}
+
+/// Build a [`TemporalDag`] from contemporaneous + lag masks (DBN template atom).
+///
+/// Contemporaneous edges use lag 0 → lag 0; lag-`ℓ` edges use source lag `ℓ`
+/// into contemporaneous targets.
+///
+/// # Errors
+///
+/// Invalid contemporaneous DAG or graph mutation failures.
+pub fn temporal_dag_from_dbn_masks(
+    cmask: u64,
+    lmask: u64,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+) -> Result<causal_graph::TemporalDag, DiscoveryError> {
+    use causal_core::Lag;
+    use causal_graph::unfold::ensure_lagged;
+    use causal_graph::TemporalDag;
+
+    if variables.len() != n_vars {
+        return Err(DiscoveryError::data_msg(
+            "temporal_dag_from_dbn_masks: variables length != n_vars",
+        ));
+    }
+    if !mask_is_dag(cmask, n_vars) {
+        return Err(DiscoveryError::data_msg(
+            "temporal_dag_from_dbn_masks: contemporaneous mask is not a DAG",
+        ));
+    }
+    let mut g = TemporalDag::empty();
+    // Contemporaneous edges.
+    for i in 0..n_vars {
+        for j in 0..n_vars {
+            if i != j && has_edge(cmask, n_vars, i, j) {
+                let from = ensure_lagged(&mut g, variables[i], Lag::CONTEMPORANEOUS)?;
+                let to = ensure_lagged(&mut g, variables[j], Lag::CONTEMPORANEOUS)?;
+                g.insert_directed(from, to)?;
+            }
+        }
+    }
+    // Lagged edges: X_{t-lag} → Y_t.
+    for lag in 1..=max_lag {
+        for i in 0..n_vars {
+            for j in 0..n_vars {
+                if has_lag_edge(lmask, n_vars, max_lag, lag, i, j) {
+                    let from = ensure_lagged(&mut g, variables[i], Lag::from_raw(lag))?;
+                    let to = ensure_lagged(&mut g, variables[j], Lag::CONTEMPORANEOUS)?;
+                    g.insert_directed(from, to)?;
+                }
+            }
+        }
+    }
+    Ok(g)
 }
 
 fn score_dbn_template(

@@ -1,0 +1,12 @@
+{
+  "algorithm_id": "jpcmci_plus",
+  "min_envs": 3,
+  "min_nodes": 2,
+  "min_links": 1,
+  "include_space_dummy": true,
+  "space_dummy_ci": "MultivariateBlock",
+  "require_multivariate_diagnostic": true,
+  "max_logical_space_dummy_ids": 1,
+  "tolerance_class": "Exact",
+  "notes": "Library-only pin: SpaceDummyCiMode::MultivariateBlock collapses one-hot space columns into a single logical SpaceDummy (see jpcmci_plus multivariate_space_dummy_uses_single_logical_node). Prefer Tigramite MV oracle when available; until then structure/diagnostic pin is authoritative."
+}

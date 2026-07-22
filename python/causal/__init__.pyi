@@ -133,14 +133,16 @@ from .discovery import (
     discover_structure_mcmc,
     two_regime_half_split,
 )
-from .estimation import AnalysisResult, analyze
+from .estimation import AnalysisResult, PredictiveCheckReport, analyze
 from .inference import Bayesian, Frequentist
 from .query import (
     AverageEffect,
+    ConditionalEffect,
     InterventionalDistribution,
     PathSpecificEffect,
     PulseEffect,
     SustainedEffect,
+    TemporalMediationEffect,
 )
 from .validation import (
     validate_environment_holdout,

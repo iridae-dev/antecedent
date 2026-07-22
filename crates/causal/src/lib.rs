@@ -117,6 +117,9 @@ pub use causal_identify::{
     IdentificationEnvelope, ProbabilityMass, TemporalMediationIdentifier,
 };
 pub use result::CausalAnalysisResult;
+pub use causal_validate::{
+    PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
+};
 pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
     compile_review_required_pag, compile_review_required_static_cpdag,
@@ -511,6 +514,47 @@ pub fn decode_causal_posterior_bytes(
     causal_io::decode_causal_posterior_bytes(bytes).map_err(AnalysisError::from)
 }
 
+/// Hydrate a coefficient [`causal_prob::PriorSet`] from posterior artifact bytes.
+///
+/// Uses per-coefficient posterior means/SDs (effect columns ignored). Fit-time
+/// validation still requires the prior dimension to match the design `ncols`.
+///
+/// # Errors
+///
+/// Decode failures or hydrate failures (no coefficients / non-finite summaries).
+pub fn prior_set_from_posterior_bytes(
+    bytes: &[u8],
+) -> Result<causal_prob::PriorSet, AnalysisError> {
+    use std::sync::Arc;
+
+    use causal_estimate::hydrate_prior_from_quantity_summaries;
+    use causal_io::PosteriorQuantityWire;
+    use causal_prob::PosteriorQuantityKind;
+
+    let (wire, _) = decode_causal_posterior_bytes(bytes)?;
+    let quantities: Vec<PosteriorQuantityKind> = wire
+        .quantities
+        .iter()
+        .map(|q| match q {
+            PosteriorQuantityWire::Coefficient { index, name } => {
+                PosteriorQuantityKind::Coefficient {
+                    index: *index as usize,
+                    name: name.as_ref().map(|s| Arc::<str>::from(s.as_str())),
+                }
+            }
+            PosteriorQuantityWire::ResidualVariance => PosteriorQuantityKind::ResidualVariance,
+            PosteriorQuantityWire::Effect { name } => {
+                PosteriorQuantityKind::Effect { name: Arc::from(name.as_str()) }
+            }
+            PosteriorQuantityWire::Scalar { name } => {
+                PosteriorQuantityKind::Scalar { name: Arc::from(name.as_str()) }
+            }
+        })
+        .collect();
+    hydrate_prior_from_quantity_summaries(&quantities, &wire.mean, &wire.sd, None)
+        .map_err(AnalysisError::from)
+}
+
 // GCM / counterfactual / attribution surfaces.
 pub use causal_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
@@ -672,6 +716,89 @@ mod tests {
         let bytes = causal_io::to_cbor(&trace).unwrap();
         let round: causal_io::AnalysisTraceWire = causal_io::from_cbor(&bytes).unwrap();
         assert_eq!(round.method, trace.method);
+    }
+
+    #[test]
+    fn bayesian_ate_attaches_prior_and_posterior_predictive() {
+        let (data, graph, query) = scm();
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(graph)
+            .query(query)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+            .refute(RefuteSuite::PlaceboAndRcc)
+            .build()
+            .unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = analysis.run(&ctx).unwrap();
+        assert!(result.posterior.is_some());
+        assert!(
+            result.predictive_checks.iter().any(|c| c.kind == PredictiveCheckKind::Prior),
+            "expected prior predictive check on Bayesian facade path"
+        );
+        assert!(
+            result.predictive_checks.iter().any(|c| c.kind == PredictiveCheckKind::Posterior),
+            "expected posterior predictive check on Bayesian facade path"
+        );
+        let prior = result
+            .predictive_checks
+            .iter()
+            .find(|c| c.kind == PredictiveCheckKind::Prior)
+            .unwrap();
+        assert!(prior.p_value.is_finite());
+        assert!(prior.predictive_sd.is_finite());
+        let post_ppc = result
+            .predictive_checks
+            .iter()
+            .find(|c| c.kind == PredictiveCheckKind::Posterior)
+            .unwrap();
+        assert!(post_ppc.p_value.is_finite());
+        assert!(post_ppc.predictive_sd.is_finite());
+        assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "prior_predictive"));
+        assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "posterior_predictive"));
+    }
+
+    #[test]
+    fn bayesian_exact_dag_posterior_effect_envelope() {
+        let (data, _graph, query) = scm();
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .discover_exact_dag_posterior()
+            .query(query)
+            .inference(InferenceMode::Bayesian(
+                BayesianConfig::conjugate().n_draws(80).prior_scale(100.0),
+            ))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = analysis.run(&ctx).unwrap();
+        let post = result.posterior.expect("mixture posterior");
+        assert!((0.0..=1.0).contains(&post.unidentified_mass));
+        let eq = post.effect_column().unwrap();
+        assert!(post.summaries.mean[eq].is_finite());
+        assert!(post.summaries.sd[eq].is_finite());
+        assert!(post.draws.n_draws > 0);
+    }
+
+    #[test]
+    fn graph_posterior_discovery_rejects_frequentist() {
+        let (data, _graph, query) = scm();
+        let err = CausalAnalysis::builder()
+            .data(data)
+            .discover_exact_dag_posterior()
+            .query(query)
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .compile(&ExecutionContext::for_tests(1))
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Bayesian") || msg.contains("graph-posterior"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[test]

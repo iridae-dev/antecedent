@@ -4,18 +4,50 @@
 
 use std::sync::Arc;
 
-use causal_core::{AverageEffectQuery, ExecutionContext, VariableId};
-use causal_data::{TableView, TabularData, ValidityBitmap};
+use causal_core::{
+    AverageEffectQuery, ExecutionContext, KernelPolicy, TemporalEffectQuery, VariableId,
+};
+use causal_data::{
+    DiscoveryEstimationSplit, PanelData, PanelUnit, TableView, TabularData, TimeIndex,
+    TimeSeriesData, ValidityBitmap,
+};
 use causal_estimate::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy, OverlapReport,
+    TemporalLinearAdjustment,
 };
 use causal_identify::IdentifiedEstimand;
 use causal_stats::{
     FaerBackend, GlmOptions, PropensityFit, PropensityWorkspace, fit_propensity_diagnostic,
 };
 use causal_kernels::erfc;
+use causal_data::TemporalIndexer;
 
 use crate::error::ValidationError;
+
+/// Context for lag-aware temporal refits (series or panel).
+#[derive(Clone, Copy, Debug)]
+pub struct TemporalRefitContext<'a> {
+    /// Unfolded temporal indexer from identification.
+    pub indexer: &'a TemporalIndexer,
+    /// Temporal effect query (pulse / sustained).
+    pub temporal_query: &'a TemporalEffectQuery,
+    /// Optional discovery/estimation split.
+    pub split: Option<&'a DiscoveryEstimationSplit>,
+    /// Kernel policy for lag sample preparation.
+    pub kernel_policy: &'a KernelPolicy,
+    /// Series time index, or `None` when refitting a panel.
+    pub time_index: Option<&'a TimeIndex>,
+    /// Panel units when refitting stacked panel designs.
+    pub panel: Option<&'a PanelData>,
+}
+
+impl TemporalRefitContext<'_> {
+    /// True when this context targets a panel (stacked cluster design).
+    #[must_use]
+    pub fn is_panel(&self) -> bool {
+        self.panel.is_some()
+    }
+}
 
 /// Comparison of original vs refuted estimates.
 #[derive(Clone, Debug)]
@@ -43,7 +75,7 @@ pub struct RefutationReport {
 /// Inputs shared by effect refuters.
 #[derive(Clone, Copy, Debug)]
 pub struct RefutationProblem<'a> {
-    /// Tabular data.
+    /// Tabular data (series storage wrap, or stacked panel rows for mutation).
     pub data: &'a TabularData,
     /// Identified estimand (backdoor adjustment).
     pub estimand: &'a IdentifiedEstimand,
@@ -53,6 +85,8 @@ pub struct RefutationProblem<'a> {
     pub original: &'a EffectEstimate,
     /// Estimator id used for the original fit (e.g. `linear.adjustment.ate`), when known.
     pub estimator: Option<&'a str>,
+    /// When set, refits use [`TemporalLinearAdjustment`] on the lag-aligned design.
+    pub temporal: Option<TemporalRefitContext<'a>>,
 }
 
 impl RefutationProblem<'_> {
@@ -100,6 +134,240 @@ pub(crate) fn fit_once(
     estimator
         .fit(&prep, workspace, ctx, causal_core::AssumptionSet::new())
         .map_err(ValidationError::from)
+}
+
+/// Whether this problem should use temporal lag-aware refits.
+#[must_use]
+pub(crate) fn is_temporal_refit(problem: &RefutationProblem<'_>) -> bool {
+    problem.temporal.is_some()
+        || matches!(
+            problem.estimator,
+            Some("temporal.linear.adjustment" | "bayesian.temporal.gcomp")
+        )
+}
+
+/// Static or temporal effect refit (bootstrap disabled).
+pub(crate) fn refit_effect(
+    problem: &RefutationProblem<'_>,
+    data: &TabularData,
+    estimand: &IdentifiedEstimand,
+    extra_contemporaneous: &[VariableId],
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<EffectEstimate, ValidationError> {
+    let Some(temporal) = problem.temporal else {
+        let est = linear_estimator_no_bootstrap();
+        return fit_once(&est, data, estimand, problem.query, workspace, ctx);
+    };
+    let mut estimator = TemporalLinearAdjustment::new();
+    estimator.inner.bootstrap_replicates = 0;
+    estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
+    if let Some(panel) = temporal.panel {
+        let rebuilt = panel_from_stacked(panel, data)?;
+        let prep = if extra_contemporaneous.is_empty() {
+            let (prep, _cluster_ids) = estimator
+                .prepare_panel(
+                    &rebuilt,
+                    estimand,
+                    temporal.temporal_query,
+                    temporal.indexer,
+                    temporal.split,
+                    temporal.kernel_policy,
+                )
+                .map_err(ValidationError::from)?;
+            prep
+        } else {
+            panel_prepare_with_extras(
+                &estimator,
+                &rebuilt,
+                estimand,
+                &temporal,
+                extra_contemporaneous,
+            )?
+        };
+        return estimator
+            .fit(&prep, workspace, ctx, causal_core::AssumptionSet::new())
+            .map_err(ValidationError::from);
+    }
+    let time_index = temporal.time_index.ok_or(ValidationError::NotApplicable {
+        message: "temporal series refit requires time_index",
+    })?;
+    let series =
+        TimeSeriesData::try_new(data.storage().clone(), time_index.clone()).map_err(ValidationError::from)?;
+    let prep = estimator
+        .prepare_with_extras(
+            &series,
+            estimand,
+            temporal.temporal_query,
+            temporal.indexer,
+            temporal.split,
+            temporal.kernel_policy,
+            extra_contemporaneous,
+        )
+        .map_err(ValidationError::from)?;
+    estimator
+        .fit(&prep, workspace, ctx, causal_core::AssumptionSet::new())
+        .map_err(ValidationError::from)
+}
+
+fn panel_prepare_with_extras(
+    estimator: &TemporalLinearAdjustment,
+    panel: &PanelData,
+    estimand: &IdentifiedEstimand,
+    temporal: &TemporalRefitContext<'_>,
+    extra: &[VariableId],
+) -> Result<causal_estimate::PreparedEstimationProblem, ValidationError> {
+    // Stack per-unit prepare_with_extras designs (mirrors prepare_panel).
+    let mut all_t = Vec::new();
+    let mut all_y = Vec::new();
+    let mut all_covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
+    let mut adj_keys: Vec<VariableId> = Vec::new();
+    let mut active = 0.0;
+    let mut control = 0.0;
+    let mut treatment_delta = 0.0;
+    let mut first = true;
+    for unit in panel.units() {
+        let prep = estimator
+            .prepare_with_extras(
+                &unit.series,
+                estimand,
+                temporal.temporal_query,
+                temporal.indexer,
+                temporal.split,
+                temporal.kernel_policy,
+                extra,
+            )
+            .map_err(ValidationError::from)?;
+        if first {
+            active = prep.active;
+            control = prep.control;
+            treatment_delta = prep.treatment_delta;
+            adj_keys = prep.adjustment_set.to_vec();
+            all_covs = adj_keys.iter().map(|&id| (id, Vec::new())).collect();
+            first = false;
+        }
+        all_t.extend_from_slice(&prep.treatment);
+        all_y.extend_from_slice(&prep.design.outcome);
+        let nrows = prep.design.nrows;
+        for (i, (_id, dest)) in all_covs.iter_mut().enumerate() {
+            let base = (2 + i) * nrows;
+            dest.extend_from_slice(&prep.design.matrix[base..base + nrows]);
+        }
+    }
+    let cov_refs: Vec<(VariableId, &[f64])> =
+        all_covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
+    let selected: Vec<usize> = (0..all_t.len()).collect();
+    let design = causal_stats::CompiledDesign::linear_adjustment(&all_t, &cov_refs, &all_y, &selected)
+        .map_err(ValidationError::from)?;
+    Ok(causal_estimate::PreparedEstimationProblem {
+        design,
+        method: Arc::from("temporal.linear.adjustment.panel"),
+        adjustment_set: Arc::from(adj_keys),
+        overlap: OverlapPolicy::ExplicitOverride,
+        treatment_delta,
+        target_population: causal_core::TargetPopulation::AllObserved,
+        treatment: Arc::from(all_t),
+        active,
+        control,
+    })
+}
+
+/// Rebuild a panel from stacked tabular mutations (same unit lengths as `original`).
+pub(crate) fn panel_from_stacked(
+    original: &PanelData,
+    stacked: &TabularData,
+) -> Result<PanelData, ValidationError> {
+    let expected = original.total_rows();
+    if stacked.row_count() != expected {
+        return Err(ValidationError::data_msg(format!(
+            "stacked panel refute rows {} != panel total_rows {expected}",
+            stacked.row_count()
+        )));
+    }
+    let mut offset = 0usize;
+    let mut units = Vec::with_capacity(original.unit_count());
+    for u in original.units() {
+        let n = u.series.row_count();
+        let slice = slice_tabular(stacked, offset, n)?;
+        let series = TimeSeriesData::try_new(slice.storage().clone(), u.series.time_index().clone())
+            .map_err(ValidationError::from)?;
+        units.push(PanelUnit { unit_id: u.unit_id, series });
+        offset += n;
+    }
+    PanelData::try_new(Arc::from(units)).map_err(ValidationError::from)
+}
+
+fn slice_tabular(data: &TabularData, start: usize, len: usize) -> Result<TabularData, ValidationError> {
+    use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
+    let storage = data.storage();
+    let end = start + len;
+    if end > data.row_count() {
+        return Err(ValidationError::NotApplicable {
+            message: "panel slice out of range",
+        });
+    }
+    let mut cols = Vec::with_capacity(storage.columns().len());
+    for col in storage.columns() {
+        match col {
+            OwnedColumn::Float64(c) => {
+                let values: Arc<[f64]> = Arc::from(c.values[start..end].to_vec());
+                let validity = ValidityBitmap::all_valid(len);
+                cols.push(OwnedColumn::Float64(
+                    Float64Column::new(c.id, values, validity).map_err(ValidationError::from)?,
+                ));
+            }
+            _ => {
+                return Err(ValidationError::NotApplicable {
+                    message: "panel refute slice requires float64 columns",
+                });
+            }
+        }
+    }
+    let mask = storage.analysis_mask().map(|m| {
+        let mut bytes = vec![0u8; len.div_ceil(8)];
+        for i in 0..len {
+            if m.is_valid(start + i) {
+                bytes[i / 8] |= 1 << (i % 8);
+            }
+        }
+        ValidityBitmap::from_bytes(bytes, len)
+    });
+    let mask = mask.transpose().map_err(ValidationError::from)?;
+    let weights = storage.weights().map(|w| Arc::<[f64]>::from(w[start..end].to_vec()));
+    let new_storage = OwnedColumnarStorage::try_new(
+        storage.schema().clone(),
+        cols,
+        mask,
+        weights,
+    )
+    .map_err(ValidationError::from)?;
+    Ok(TabularData::new(new_storage))
+}
+
+/// Stack panel units into one tabular table (row-major concat) for refute mutations.
+pub fn stack_panel_tabular(panel: &PanelData) -> Result<TabularData, ValidationError> {
+    use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
+    let total = panel.total_rows();
+    let schema = panel.schema().clone();
+    let n_cols = schema.len();
+    let mut col_vals: Vec<Vec<f64>> = (0..n_cols).map(|_| Vec::with_capacity(total)).collect();
+    for u in panel.units() {
+        for (j, dest) in col_vals.iter_mut().enumerate() {
+            let id = VariableId::from_raw(j as u32);
+            let vals = u.series.float64_values(id).map_err(ValidationError::from)?;
+            dest.extend_from_slice(&vals);
+        }
+    }
+    let mut cols = Vec::with_capacity(n_cols);
+    for (j, values) in col_vals.into_iter().enumerate() {
+        let id = VariableId::from_raw(j as u32);
+        cols.push(OwnedColumn::Float64(
+            Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(total))
+                .map_err(ValidationError::from)?,
+        ));
+    }
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).map_err(ValidationError::from)?;
+    Ok(TabularData::new(storage))
 }
 
 /// Scores / treatment / optional outcome from a diagnostic propensity fit.
@@ -206,7 +474,7 @@ pub(crate) fn noise_replace_refute(
     problem: &RefutationProblem<'_>,
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
-    estimator: &LinearAdjustmentAte,
+    _estimator: &LinearAdjustmentAte,
     replicates: u32,
     alpha: f64,
     target: NoiseReplaceTarget,
@@ -229,7 +497,7 @@ pub(crate) fn noise_replace_refute(
         let mut noise = vec![0.0; n];
         fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
         let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
-        let est = fit_once(estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
+        let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
         ates.push(est.ate);
     }
     let mean_ate = ates.iter().sum::<f64>() / f64::from(replicates);

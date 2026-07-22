@@ -24,7 +24,12 @@ class EventFrame:
 
 @dataclass(frozen=True)
 class PanelFrame:
-    """Multi-unit time series sharing one schema (discover via J-PCMCI+; stacked cluster-HAC SE)."""
+    """Multi-unit time series sharing one schema.
+
+    Discovery: ``JPCMCIPlus`` (multi-env context) or pooled-units ``PCMCI`` /
+    ``PCMCIPlus`` / ``LPCMCI``. Estimation uses stacked cluster-HAC SE
+    (frequentist) or ``BayesianTemporalGcomp`` when ``inference=Bayesian``.
+    """
 
     names: list[str]
     unit_columns: list[list[NDArray[np.float64]]]

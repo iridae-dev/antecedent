@@ -257,6 +257,7 @@ impl PriorSensitivity {
                 backend: estimator.backend,
                 likelihood: estimator.likelihood,
                 overlap: estimator.overlap,
+                prior: None,
             };
             let post = est.fit(problem, identification, workspace, ctx).map_err(|e| {
                 ValidationError::estimation_msg(format!("prior sensitivity fit failed: {e}"))

@@ -12,7 +12,7 @@ use causal_core::{
 use causal_estimate::{CausalPosterior, EffectEstimate, InterventionalDistributionEstimate, TemporalMediationEstimate};
 use causal_identify::{IdentificationResult, IdentifiedEstimand};
 use causal_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
-use causal_validate::RefutationReport;
+use causal_validate::{PredictiveCheckReport, RefutationReport};
 
 use crate::gcm::IteResult;
 
@@ -50,6 +50,8 @@ pub struct CausalAnalysisResult {
     pub unit_change: Option<UnitChangeResult>,
     /// Refutation reports (may be empty).
     pub refutations: Vec<RefutationReport>,
+    /// Prior/posterior predictive check reports (Bayesian path; may be empty).
+    pub predictive_checks: Vec<PredictiveCheckReport>,
     /// Diagnostics.
     pub diagnostics: Vec<Diagnostic>,
     /// Provenance.

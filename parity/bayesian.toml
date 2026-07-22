@@ -29,6 +29,11 @@ status = "done"
 notes = "BayesianGComputationAte shares backdoor IR with frequentist path"
 
 [[capabilities]]
+id = "bayes.estimate.temporal_gcomp"
+status = "done"
+notes = "BayesianTemporalGcomp on TemporalLinearAdjustment::prepare lag-aligned design; CausalAnalysis InferenceMode::Bayesian; panel stacked via analyze_panel (python_facade=full); conformance/bayesian/temporal_pulse"
+
+[[capabilities]]
 id = "bayes.estimate.graph_envelopes"
 status = "done"
 notes = "WeightedGraphSamples effect envelopes; unidentified mass preserved by default"
@@ -36,7 +41,7 @@ notes = "WeightedGraphSamples effect envelopes; unidentified mass preserved by d
 [[capabilities]]
 id = "bayes.validate.ppc"
 status = "done"
-notes = "Prior and posterior predictive checks"
+notes = "Prior and posterior predictive checks on CausalAnalysis (any refute≠none) + Python ValidationView.prior_predictive / posterior_predictive"
 
 [[capabilities]]
 id = "bayes.validate.prior_sensitivity"
@@ -66,7 +71,7 @@ notes = "causal-model MechanismRegistry + CompiledCausalModel"
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
 status = "done"
-notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in causal-discovery (§13.7); GraphPosterior → WeightedGraphSamples; gate evidence: unit harness + conformance/bayesian/dag_posterior"
+notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in causal-discovery (§13.7); GraphPosterior → WeightedGraphSamples; facade compose via analyze + Bayesian mixture (python_facade=full); gate evidence: unit harness + conformance/bayesian/dag_posterior"
 
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"

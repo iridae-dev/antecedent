@@ -25,7 +25,10 @@ use causal_data::{
     Float64Column, LaggedColumn, MultiEnvironmentData, OwnedColumn, OwnedColumnarStorage,
     SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData, ValidityBitmap,
 };
-use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, PcmciPlus, TemporalConstraints};
+use causal_discovery::{
+    DiscoveryConstraints, DiscoveryWorkspace, MultiDatasetConstraints, PcmciPlus,
+    SpaceDummyCiMode, TemporalConstraints,
+};
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use serde_json::Value as JsonValue;
 
@@ -170,6 +173,66 @@ fn jpcmci_plus_two_env_pin() {
             assert!(ok, "missing true link {forward:?} in {recovered:?}");
         }
     }
+}
+
+#[test]
+fn jpcmci_plus_space_dummy_mv_pin() {
+    let expected = load_expected("jpcmci_plus_two_env_space_dummy_mv");
+    let multi = MultiEnvironmentData::try_new(Arc::from([
+        toy_env(180, 0.0),
+        toy_env(180, 1.0),
+        toy_env(180, 2.0),
+    ]))
+    .unwrap();
+    assert!(multi.env_count() >= expected["min_envs"].as_u64().unwrap() as usize);
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+    let alg = JpcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::CONTEMPORANEOUS },
+        alpha: 0.1,
+        max_cond_size: 2,
+        multi_dataset: MultiDatasetConstraints {
+            include_space_dummy: expected["include_space_dummy"].as_bool().unwrap_or(true),
+            space_dummy_ci: SpaceDummyCiMode::MultivariateBlock,
+            ..MultiDatasetConstraints::default()
+        },
+        ..DiscoveryConstraints::default()
+    });
+    let mut ws = DiscoveryWorkspace::default();
+    let result = alg.run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(31)).unwrap();
+    assert_eq!(result.algorithm.id.as_ref(), expected["algorithm_id"].as_str().unwrap());
+    assert!(result.evidence.graph.node_count() >= expected["min_nodes"].as_u64().unwrap() as usize);
+    assert!(
+        result.evidence.links.len() >= expected["min_links"].as_u64().unwrap_or(1) as usize,
+        "expected at least one retained link, got {}",
+        result.evidence.links.len()
+    );
+    if expected["require_multivariate_diagnostic"].as_bool() == Some(true) {
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("multivariate(k=2)")),
+            "expected multivariate(k=2) diagnostic; got {:?}",
+            result.diagnostics
+        );
+    }
+    let max_space = expected["max_logical_space_dummy_ids"].as_u64().unwrap_or(1) as usize;
+    let space_ids: std::collections::BTreeSet<u32> = result
+        .evidence
+        .links
+        .iter()
+        .flat_map(|s| [s.link.source.raw(), s.link.target.raw()])
+        .filter(|&id| id >= 2)
+        .collect();
+    assert!(
+        space_ids.len() <= max_space,
+        "MV mode must collapse to ≤{max_space} logical space-dummy id(s); got {space_ids:?}"
+    );
+    assert!(
+        result.algorithm.config.as_ref().contains("space_dummy_ci=MultivariateBlock"),
+        "config={}",
+        result.algorithm.config
+    );
 }
 
 #[test]

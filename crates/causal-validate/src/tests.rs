@@ -87,7 +87,7 @@ fn placebo_near_zero_on_null() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let report = PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.passed, "{:?}", report.failure_condition);
     // comparison is the two-sided p-value of zero under the placebo distribution.
@@ -112,7 +112,7 @@ fn placebo_permute_near_zero_on_null() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let mut placebo = PlaceboTreatment::new();
     placebo.mode = PlaceboMode::Permute;
     placebo.replicates = 40;
@@ -138,7 +138,7 @@ fn rcc_preserves_ate() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let report = RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.passed, "{:?}", report.failure_condition);
     assert!((report.refuted_ate - original.ate).abs() < 0.15);
@@ -161,7 +161,7 @@ fn unobserved_common_cause_is_robust_to_mild_confounding() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let report = UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.comparison >= 0.0);
     assert!(report.passed, "{:?}", report.failure_condition);
@@ -185,7 +185,7 @@ fn overlap_flags_near_deterministic_treatment_assignment() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let report = OverlapRefuter::new().refute(&problem).unwrap();
     assert_eq!(report.replicates, 1);
     // T is a deterministic step function of Z (t = 1{z > 0.5}); the diagnostic propensity
@@ -210,7 +210,7 @@ fn data_subset_preserves_ate() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let report = DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.passed, "{:?}", report.failure_condition);
     assert!((report.refuted_ate - original.ate).abs() < 0.3);
@@ -233,7 +233,7 @@ fn dummy_outcome_near_zero() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let report = DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.passed, "{:?}", report.failure_condition);
     // comparison is the two-sided p-value of zero under the dummy-outcome distribution.
@@ -258,7 +258,7 @@ fn bootstrap_refute_contains_original_ate() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let mut refuter = BootstrapRefute::new();
     refuter.replicates = 100;
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
@@ -283,7 +283,7 @@ fn evalue_passes_moderate_threshold_for_nonnull_effect() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let report = EValue::new().refute(&problem).unwrap();
     assert!(report.comparison >= DEFAULT_EVALUE_THRESHOLD, "e_value={}", report.comparison);
     assert!(report.passed, "{:?}", report.failure_condition);
@@ -307,7 +307,7 @@ fn evalue_zero_effect_fails_default_threshold() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let report = EValue::new().refute(&problem).unwrap();
     // Null effect → RR = 1 → E = 1, below moderate-robustness default of 2.
     assert!((report.comparison - 1.0).abs() < 1e-12, "e_value={}", report.comparison);
@@ -331,7 +331,7 @@ fn graph_refute_flags_dropping_the_true_confounder() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let report = GraphRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
     // Z is the only, essential confounder; dropping it biases the estimate by 1.5 of
     // a true ATE of 2 — a 75% relative change.
@@ -356,7 +356,7 @@ fn linear_sensitivity_reports_a_bounded_robustness_value() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let refuter = LinearSensitivity::new();
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.comparison > 0.0);
@@ -381,7 +381,7 @@ fn partial_linear_sensitivity_reports_a_bounded_robustness_value() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let refuter = PartialLinearSensitivity::new();
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.comparison > 0.0);
@@ -406,7 +406,7 @@ fn nonparametric_sensitivity_reports_a_bounded_robustness_value() {
         query: &query,
         original: &original,
         estimator: Some("linear.adjustment.ate"),
-    };
+     temporal: None, };
     let refuter = NonparametricSensitivity::new();
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric");

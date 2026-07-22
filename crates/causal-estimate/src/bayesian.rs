@@ -24,13 +24,14 @@ use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, ConjugateGaussianBackend, EffectBatch,
-    HmcGlmBackend, HmcOptions, InferenceBackend, InferenceDiagnostics, LaplaceGlmBackend,
-    LaplaceWorkspace, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,
-    PosteriorSchema, PosteriorSummary, PriorSensitivitySummary, PriorSet, PriorSpec,
+    GaussianCoefficientPrior, HmcGlmBackend, HmcOptions, InferenceBackend, InferenceDiagnostics,
+    LaplaceGlmBackend, LaplaceWorkspace, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace,
+    PosteriorQuantityKind, PosteriorSchema, PosteriorSummary, PriorSensitivitySummary, PriorSet,
+    PriorSpec,
 };
 use causal_stats::{CompiledDesign, GlmFamily};
 
-use crate::adjustment::intervention_f64;
+use crate::adjustment::{intervention_f64, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
@@ -76,6 +77,101 @@ impl CausalPosterior {
             .ok_or_else(|| EstimationError::stats_msg("CausalPosterior has no effect column"))?;
         self.draws.probability_below(q, threshold).map_err(EstimationError::from)
     }
+}
+
+/// Minimum coefficient prior variance when hydrating from a posterior (numerical floor).
+const HYDRATE_VAR_FLOOR: f64 = 1e-12;
+
+/// Build a Gaussian coefficient [`PriorSet`] from posterior quantity summaries.
+///
+/// Uses coefficient-column posterior means and SDs (index-aligned). Effect /
+/// residual columns are ignored. When `expected_n_coef` is `Some`, it must match
+/// the number of coefficient columns.
+///
+/// # Errors
+///
+/// No coefficient columns, non-finite summaries, non-contiguous indices, or
+/// dimension mismatch vs `expected_n_coef`.
+pub fn hydrate_prior_from_quantity_summaries(
+    quantities: &[PosteriorQuantityKind],
+    mean: &[f64],
+    sd: &[f64],
+    expected_n_coef: Option<usize>,
+) -> Result<PriorSet, EstimationError> {
+    if mean.len() != quantities.len() || sd.len() != quantities.len() {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: mean/sd length must match quantities",
+        ));
+    }
+    let mut coef_cols: Vec<(usize, usize)> = quantities
+        .iter()
+        .enumerate()
+        .filter_map(|(col, q)| match q {
+            PosteriorQuantityKind::Coefficient { index, .. } => Some((*index, col)),
+            _ => None,
+        })
+        .collect();
+    coef_cols.sort_by_key(|(index, _)| *index);
+    let n_coef = coef_cols.len();
+    if n_coef == 0 {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior_from_posterior: no coefficient columns in posterior",
+        ));
+    }
+    if let Some(expected) = expected_n_coef {
+        if n_coef != expected {
+            return Err(EstimationError::stats_msg(format!(
+                "posterior coefficient dimension {n_coef} != expected n_coef {expected}"
+            )));
+        }
+    }
+    for (i, (index, _)) in coef_cols.iter().enumerate() {
+        if *index != i {
+            return Err(EstimationError::stats_msg(format!(
+                "posterior coefficient indices are not contiguous (expected {i}, got {index})"
+            )));
+        }
+    }
+    let mut means = Vec::with_capacity(n_coef);
+    let mut variance = Vec::with_capacity(n_coef);
+    for (_, col) in &coef_cols {
+        let m = mean[*col];
+        let s = sd[*col];
+        if !m.is_finite() || !s.is_finite() {
+            return Err(EstimationError::stats_msg(
+                "posterior coefficient summary is non-finite; cannot hydrate prior",
+            ));
+        }
+        means.push(m);
+        variance.push((s * s).max(HYDRATE_VAR_FLOOR));
+    }
+    let coef = GaussianCoefficientPrior {
+        mean: Arc::from(means),
+        variance: Arc::from(variance),
+    };
+    coef.validate().map_err(EstimationError::from)?;
+    Ok(PriorSet {
+        specs: vec![PriorSpec::GaussianCoefficients(coef)],
+        contrast: None,
+        categorical: Vec::new(),
+    })
+}
+
+/// Build a Gaussian coefficient [`PriorSet`] from a fitted posterior (sequential Bayes).
+///
+/// # Errors
+///
+/// See [`hydrate_prior_from_quantity_summaries`].
+pub fn hydrate_prior_from_posterior(
+    posterior: &CausalPosterior,
+    expected_n_coef: Option<usize>,
+) -> Result<PriorSet, EstimationError> {
+    hydrate_prior_from_quantity_summaries(
+        &posterior.draws.schema.quantities,
+        &posterior.summaries.mean,
+        &posterior.summaries.sd,
+        expected_n_coef,
+    )
 }
 
 /// Bayesian linear / GLM mechanism fit (coefficient posterior).
@@ -125,6 +221,9 @@ pub struct BayesianGComputationAte {
     pub overlap: OverlapPolicy,
     /// Prior scale for isotropic Gaussian coefficients (weakly informative default 10).
     pub prior_scale: f64,
+    /// Optional explicit coefficient prior (e.g. hydrated from a previous posterior).
+    /// When set, overrides isotropic [`Self::prior_scale`].
+    pub prior: Option<PriorSet>,
 }
 
 impl Default for BayesianGComputationAte {
@@ -144,6 +243,7 @@ impl BayesianGComputationAte {
             seed: 0,
             overlap: OverlapPolicy::ExplicitOverride,
             prior_scale: 10.0,
+            prior: None,
         }
     }
 
@@ -225,6 +325,22 @@ impl BayesianGComputationAte {
         })
     }
 
+    /// Adapt a frequentist prepared design (e.g. lag-aligned temporal) for Bayesian fit.
+    ///
+    /// Used by the temporal pulse/sustained path: prepare via
+    /// [`crate::TemporalLinearAdjustment`], then fit with this estimator.
+    #[must_use]
+    pub fn from_prepared_estimation(prep: &PreparedEstimationProblem) -> PreparedBayesianProblem {
+        PreparedBayesianProblem {
+            design: prep.design.clone(),
+            method: Arc::clone(&prep.method),
+            adjustment_set: Arc::clone(&prep.adjustment_set),
+            active: prep.active,
+            control: prep.control,
+            overlap: prep.overlap,
+        }
+    }
+
     /// Fit mechanism + evaluate ATE g-computation posterior.
     ///
     /// `identification` is recorded as-is; informative priors never change it.
@@ -239,23 +355,53 @@ impl BayesianGComputationAte {
         workspace: &mut BayesianGCompWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CausalPosterior, EstimationError> {
-        let prior = PriorSet {
-            specs: vec![PriorSpec::GaussianCoefficients(
-                causal_prob::GaussianCoefficientPrior::isotropic(
-                    problem.design.ncols,
-                    self.prior_scale,
-                ),
-            )],
-            contrast: None,
-            categorical: Vec::new(),
+        let sequential = self.prior.is_some();
+        let prior = if let Some(p) = &self.prior {
+            if let Some(coef) = p.gaussian_coefficients() {
+                if coef.len() != problem.design.ncols {
+                    return Err(EstimationError::stats_msg(format!(
+                        "sequential prior coefficient dimension {} != design ncols {}",
+                        coef.len(),
+                        problem.design.ncols
+                    )));
+                }
+            } else {
+                return Err(EstimationError::stats_msg(
+                    "sequential prior missing GaussianCoefficients entry",
+                ));
+            }
+            p.clone()
+        } else {
+            PriorSet {
+                specs: vec![PriorSpec::GaussianCoefficients(
+                    causal_prob::GaussianCoefficientPrior::isotropic(
+                        problem.design.ncols,
+                        self.prior_scale,
+                    ),
+                )],
+                contrast: None,
+                categorical: Vec::new(),
+            }
         };
         let mut assumptions = AssumptionSet::new();
+        let source = if sequential {
+            AssumptionSource::Artifact
+        } else {
+            AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("bayesian_gcomp"),
+            }
+        };
         for spec in &prior.specs {
+            let mut pa = spec.as_assumption();
+            if sequential {
+                pa.description = Arc::from(format!(
+                    "{} (sequential prior from posterior artifact)",
+                    pa.description
+                ));
+            }
             assumptions.push(AssumptionRecord {
-                assumption: Assumption::PriorRestriction(spec.as_assumption()),
-                source: AssumptionSource::AlgorithmDefault {
-                    algorithm: Arc::from("bayesian_gcomp"),
-                },
+                assumption: Assumption::PriorRestriction(pa),
+                source: source.clone(),
                 scope: AssumptionScope::Estimation,
                 status: AssumptionStatus::Untestable,
             });
@@ -382,6 +528,52 @@ impl BayesianGComputationAte {
             assumptions,
             unidentified_mass: 0.0,
         })
+    }
+}
+
+/// Bayesian g-computation on a lag-aligned temporal design.
+///
+/// Prepare with [`crate::TemporalLinearAdjustment::prepare`], convert via
+/// [`BayesianGComputationAte::from_prepared_estimation`], then [`BayesianGComputationAte::fit`].
+/// This type documents the temporal entry point; fitting delegates to [`BayesianGComputationAte`].
+#[derive(Clone, Debug, Default)]
+pub struct BayesianTemporalGcomp {
+    /// Shared Bayesian estimator configuration.
+    pub inner: BayesianGComputationAte,
+}
+
+impl BayesianTemporalGcomp {
+    /// Laplace Gaussian defaults.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { inner: BayesianGComputationAte::new() }
+    }
+
+    /// Conjugate Gaussian linear path.
+    #[must_use]
+    pub fn conjugate() -> Self {
+        Self { inner: BayesianGComputationAte::conjugate() }
+    }
+
+    /// Convert a temporal prepared design for Bayesian fit.
+    #[must_use]
+    pub fn from_prepared_estimation(prep: &PreparedEstimationProblem) -> PreparedBayesianProblem {
+        BayesianGComputationAte::from_prepared_estimation(prep)
+    }
+
+    /// Fit on a prepared Bayesian problem (typically from a temporal design).
+    ///
+    /// # Errors
+    ///
+    /// Backend / evaluation failures.
+    pub fn fit(
+        &self,
+        problem: &PreparedBayesianProblem,
+        identification: IdentificationStatus,
+        workspace: &mut BayesianGCompWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalPosterior, EstimationError> {
+        self.inner.fit(problem, identification, workspace, ctx)
     }
 }
 
@@ -738,5 +930,169 @@ mod tests {
         assert!(!post.assumptions.is_empty());
         assert!((post.unidentified_mass - 1.0).abs() < 1e-12);
         assert!(post.draws.n_draws > 0, "prior-predictive draws required");
+    }
+
+    #[test]
+    fn temporal_prepared_design_conjugate_recovers_pulse() {
+        use causal_core::{
+            CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet, TemporalEffectQuery,
+            TemporalPolicy, ValueType,
+        };
+        use causal_data::{
+            Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+            TimeSeriesData, ValidityBitmap,
+        };
+        use causal_graph::{TemporalDag, ensure_lagged};
+        use causal_identify::TemporalBackdoorIdentifier;
+
+        use crate::temporal_adjustment::TemporalLinearAdjustment;
+
+        let n = 300usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for t in 1..n {
+            x[t] = ((t as f64) * 0.07).sin();
+            y[t] = 0.8 * x[t - 1];
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap();
+        let mut g = TemporalDag::empty();
+        let x1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(x1, y0).unwrap();
+
+        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let temporal = TemporalLinearAdjustment::new();
+        let prep = temporal
+            .prepare(
+                &data,
+                estimand,
+                &q,
+                &id_res.indexer,
+                None,
+                &ExecutionContext::for_tests(1).kernel_policy,
+            )
+            .unwrap();
+        let bayes = BayesianTemporalGcomp {
+            inner: BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 200,
+                seed: 7,
+                prior_scale: 100.0,
+                ..BayesianGComputationAte::new()
+            },
+        };
+        let bprep = BayesianTemporalGcomp::from_prepared_estimation(&prep);
+        let mut ws = BayesianGCompWorkspace::default();
+        let post = bayes
+            .fit(
+                &bprep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        let eq = post.effect_column().unwrap();
+        let mean = post.summaries.mean[eq];
+        assert!((mean - 0.8).abs() < 0.05, "bayesian temporal pulse mean={mean}");
+        assert!(post.probability_below(0.0).unwrap().is_finite());
+    }
+
+    #[test]
+    fn hydrate_prior_from_posterior_and_refit() {
+        let n = 60;
+        let (data, t, y, z) = linear_scm_table(n);
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(vec![z]),
+            ExprId::from_raw(0),
+        );
+        let query = AverageEffectQuery::binary_ate(t, y);
+        let bayes = BayesianGComputationAte {
+            backend: BayesianBackendKind::ConjugateGaussian,
+            n_draws: 200,
+            seed: 3,
+            prior_scale: 10.0,
+            ..BayesianGComputationAte::new()
+        };
+        let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = BayesianGCompWorkspace::default();
+        let post = bayes
+            .fit(
+                &prep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        let prior = hydrate_prior_from_posterior(&post, Some(prep.design.ncols)).unwrap();
+        assert_eq!(prior.gaussian_coefficients().unwrap().len(), prep.design.ncols);
+        assert!(hydrate_prior_from_posterior(&post, Some(prep.design.ncols + 1)).is_err());
+
+        let sequential = BayesianGComputationAte {
+            prior: Some(prior),
+            ..bayes
+        };
+        let post2 = sequential
+            .fit(
+                &prep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert!(post2.assumptions.entries.iter().any(|a| {
+            matches!(a.source, AssumptionSource::Artifact)
+                && matches!(&a.assumption, Assumption::PriorRestriction(pa) if pa.description.contains("sequential"))
+        }));
+        let eq = post2.effect_column().unwrap();
+        assert!(post2.summaries.mean[eq].is_finite());
     }
 }

@@ -56,6 +56,7 @@ for c in caps(text):
 
 for path in [
     "conformance/discovery/jpcmci_plus_two_env/expected.json",
+    "conformance/discovery/jpcmci_plus_two_env_space_dummy_mv/expected.json",
     "conformance/discovery/rpcmci_two_regime/expected.json",
     "conformance/context/temporal_mediation/expected.json",
     "conformance/context/conditional_effect/expected.json",
@@ -110,5 +111,11 @@ cargo test -p causal --test context_effects
 echo "== criterion smoke (regime + mediation) =="
 cargo bench -p causal-discovery --bench rpcmci -- --test
 cargo bench -p causal-estimate --bench temporal_mediation -- --test
+
+echo "== Python EventFrame / panel pooled discovery facade smoke =="
+(
+  cd python
+  uv run pytest tests/test_eventframe_discovery.py tests/test_panel_pooled_discovery.py -q
+)
 
 echo "Context gate PASSED"

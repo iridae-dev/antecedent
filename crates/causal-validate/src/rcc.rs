@@ -12,8 +12,8 @@ use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use causal_identify::IdentifiedEstimand;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, fill_gaussian, fit_once, linear_estimator_no_bootstrap,
-    replicate_p_value, with_extra_float,
+    RefutationProblem, RefutationReport, fill_gaussian, linear_estimator_no_bootstrap,
+    refit_effect, replicate_p_value, with_extra_float,
 };
 use crate::error::ValidationError;
 
@@ -58,10 +58,13 @@ impl RandomCommonCause {
                 message: "random common cause requires replicates >= 2",
             });
         }
-        if problem.estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::BackdoorAdjustment)
-        {
+        let method = problem.estimand.method_kind().ok();
+        let static_ok = method == Some(causal_expr::EstimandMethod::BackdoorAdjustment);
+        let temporal_ok = method == Some(causal_expr::EstimandMethod::TemporalBackdoorUnfolded)
+            && problem.temporal.is_some();
+        if !static_ok && !temporal_ok {
             return Err(ValidationError::NotApplicable {
-                message: "random common cause requires backdoor.adjustment estimand",
+                message: "random common cause requires backdoor.adjustment or temporal.backdoor.unfolded",
             });
         }
         let n = problem.data.row_count();
@@ -74,8 +77,12 @@ impl RandomCommonCause {
                 &format!("__rcc_{r}"),
                 Arc::<[f64]>::from(noise.clone()),
             )?;
-            let estimand = extend_adjustment(problem.estimand, new_id);
-            let est = fit_once(&self.estimator, &data, &estimand, problem.query, workspace, ctx)?;
+            let est = if temporal_ok {
+                refit_effect(problem, &data, problem.estimand, &[new_id], workspace, ctx)?
+            } else {
+                let estimand = extend_adjustment(problem.estimand, new_id);
+                refit_effect(problem, &data, &estimand, &[], workspace, ctx)?
+            };
             ates.push(est.ate);
         }
         let mean_ate = ates.iter().sum::<f64>() / f64::from(self.replicates);

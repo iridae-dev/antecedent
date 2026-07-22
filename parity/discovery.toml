@@ -190,7 +190,7 @@ group = "discovery"
 description = "LPCMCI"
 status = "done"
 owner = "pag"
-notes = "causal-discovery Lpcmci → TemporalPag; conformance/pag/lpcmci_chain"
+notes = "causal-discovery Lpcmci → TemporalPag; conformance/pag/lpcmci_chain; facade temporal estimate via PAG completion→DAG when fully oriented"
 
 [[capabilities]]
 id = "discovery.jpcmci_plus"
@@ -198,7 +198,7 @@ group = "discovery"
 description = "J-PCMCI+"
 status = "done"
 owner = "context"
-notes = "JpcmciPlus; structure jpcmci_plus_two_env + edge-set jpcmci_plus_two_env_edges; SpaceDummyCiMode; TimeDummyEncoding OneHot + TimeDummyCiMode"
+notes = "JpcmciPlus; structure jpcmci_plus_two_env + edge-set jpcmci_plus_two_env_edges + MV space-dummy jpcmci_plus_two_env_space_dummy_mv; SpaceDummyCiMode; TimeDummyEncoding OneHot + TimeDummyCiMode; PanelFrame also supports pooled PCMCI/Plus/Lpcmci (not multi-env JPCMCI+ semantics); python_facade=full (EventFrame PCMCI-family + panel pooled)"
 
 [[capabilities]]
 id = "discovery.rpcmci"

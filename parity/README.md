@@ -56,11 +56,11 @@ workflow [`.github/workflows/calibration.yml`](../.github/workflows/calibration.
 (`schedule` + `workflow_dispatch`).
 
 PAG: inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
-DAG-only-reject conformance; static FCI/RFCI `done`; class-aware PAG ID
-beyond generalized adjustment remains as noted in `pag.toml`.
+DAG-only-reject conformance; static FCI/RFCI `done`. Permanent: PAG-native
+ID is generalized adjustment only; full ID/IDC needs MAG/ADMG completion.
 
 Context: J/RPCMCI, effects, conditional ATE gated by `gate_context.sh`.
-RPCMCI uses caller-supplied regime labels.
+RPCMCI uses caller-supplied regime labels; unsupervised regime search is OOS.
 
 Release: artifact format freeze, wheel matrix, conformance docs, hot-path
 baselines, security review (`release.toml`, ADR 0017). Package version remains

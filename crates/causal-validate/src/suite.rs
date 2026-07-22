@@ -263,15 +263,23 @@ impl ValidationSuite {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<ValidationOutcome, ValidationError> {
-        let linear_ok = problem.estimand.method_kind().ok()
-            == Some(causal_expr::EstimandMethod::BackdoorAdjustment)
+        let method = problem.estimand.method_kind().ok();
+        let static_linear = method == Some(causal_expr::EstimandMethod::BackdoorAdjustment)
             && problem.estimator.is_none_or(|e| e == "linear.adjustment.ate");
+        let temporal_linear = method
+            == Some(causal_expr::EstimandMethod::TemporalBackdoorUnfolded)
+            && problem.temporal.is_some()
+            && problem.estimator.is_none_or(|e| {
+                matches!(e, "temporal.linear.adjustment" | "bayesian.temporal.gcomp")
+            });
+        let linear_ok = static_linear || temporal_linear;
         match id {
             ValidatorId::Placebo => {
                 if !linear_ok {
                     return Ok(na(
                         id,
-                        "PlaceboTreatment requires backdoor.adjustment + linear path",
+                        "PlaceboTreatment requires backdoor.adjustment + linear path \
+                         (or temporal.backdoor.unfolded + temporal linear path)",
                     ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
@@ -285,7 +293,8 @@ impl ValidationSuite {
                 if !linear_ok {
                     return Ok(na(
                         id,
-                        "RandomCommonCause requires backdoor.adjustment + linear path",
+                        "RandomCommonCause requires backdoor.adjustment + linear path \
+                         (or temporal.backdoor.unfolded + temporal linear path)",
                     ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
@@ -299,7 +308,8 @@ impl ValidationSuite {
                 if !linear_ok {
                     return Ok(na(
                         id,
-                        "BootstrapCiCoverage requires backdoor.adjustment + linear path",
+                        "BootstrapCiCoverage requires backdoor.adjustment + linear path \
+                         (or temporal.backdoor.unfolded + temporal linear path)",
                     ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
@@ -311,7 +321,10 @@ impl ValidationSuite {
             }
             ValidatorId::UnobservedCommonCause => {
                 if !linear_ok {
-                    return Ok(na(id, "UnobservedCommonCause requires backdoor.adjustment"));
+                    return Ok(na(
+                        id,
+                        "UnobservedCommonCause requires backdoor.adjustment or temporal.backdoor.unfolded",
+                    ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
                     &UnobservedCommonCause::new(),
@@ -320,23 +333,41 @@ impl ValidationSuite {
                     ctx,
                 )?))
             }
-            ValidatorId::Overlap => Ok(ValidationOutcome::Report(run_validator(
-                &OverlapRefuter::new(),
-                problem,
-                workspace,
-                ctx,
-            )?)),
-            ValidatorId::OverlapRule => Ok(ValidationOutcome::Report(run_validator(
-                &OverlapRuleRefuter::new(),
-                problem,
-                workspace,
-                ctx,
-            )?)),
+            ValidatorId::Overlap => {
+                if problem.temporal.is_some() {
+                    return Ok(na(
+                        id,
+                        "OverlapRefuter not applicable to temporal unfolded designs \
+                         (propensity uses schema adjustment columns)",
+                    ));
+                }
+                Ok(ValidationOutcome::Report(run_validator(
+                    &OverlapRefuter::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
+            }
+            ValidatorId::OverlapRule => {
+                if problem.temporal.is_some() {
+                    return Ok(na(
+                        id,
+                        "OverlapRuleRefuter not applicable to temporal unfolded designs",
+                    ));
+                }
+                Ok(ValidationOutcome::Report(run_validator(
+                    &OverlapRuleRefuter::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
+            }
             ValidatorId::DataSubset => {
                 if !linear_ok {
                     return Ok(na(
                         id,
-                        "DataSubsetRefuter requires backdoor.adjustment + linear path",
+                        "DataSubsetRefuter requires backdoor.adjustment + linear path \
+                         (or temporal.backdoor.unfolded + temporal linear path)",
                     ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
@@ -348,7 +379,11 @@ impl ValidationSuite {
             }
             ValidatorId::DummyOutcome => {
                 if !linear_ok {
-                    return Ok(na(id, "DummyOutcome requires backdoor.adjustment + linear path"));
+                    return Ok(na(
+                        id,
+                        "DummyOutcome requires backdoor.adjustment + linear path \
+                         (or temporal.backdoor.unfolded + temporal linear path)",
+                    ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
                     &DummyOutcome::new(),
@@ -364,10 +399,12 @@ impl ValidationSuite {
                 ctx,
             )?)),
             ValidatorId::Graph => {
-                if !linear_ok {
+                // Temporal unfolded adjustment ids are not schema drop-covariate targets.
+                if !static_linear {
                     return Ok(na(
                         id,
-                        "DropAdjustmentCovariate requires backdoor.adjustment + linear path",
+                        "DropAdjustmentCovariate requires static backdoor.adjustment + linear path \
+                         (not applicable to temporal unfolded designs)",
                     ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
@@ -379,7 +416,10 @@ impl ValidationSuite {
             }
             ValidatorId::LinearSensitivity => {
                 if !linear_ok {
-                    return Ok(na(id, "LinearSensitivity requires backdoor.adjustment"));
+                    return Ok(na(
+                        id,
+                        "LinearSensitivity requires backdoor.adjustment or temporal.backdoor.unfolded",
+                    ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
                     &LinearSensitivity::new(),
@@ -390,7 +430,10 @@ impl ValidationSuite {
             }
             ValidatorId::PartialLinearSensitivity => {
                 if !linear_ok {
-                    return Ok(na(id, "PartialLinearSensitivity requires backdoor.adjustment"));
+                    return Ok(na(
+                        id,
+                        "PartialLinearSensitivity requires backdoor.adjustment or temporal.backdoor.unfolded",
+                    ));
                 }
                 Ok(ValidationOutcome::Report(run_validator(
                     &PartialLinearSensitivity::new(),
@@ -405,12 +448,20 @@ impl ValidationSuite {
                 workspace,
                 ctx,
             )?)),
-            ValidatorId::Reisz => Ok(ValidationOutcome::Report(run_validator(
-                &ReiszSensitivity::new(),
-                problem,
-                workspace,
-                ctx,
-            )?)),
+            ValidatorId::Reisz => {
+                if problem.temporal.is_some() {
+                    return Ok(na(
+                        id,
+                        "ReiszSensitivity not applicable to temporal unfolded designs",
+                    ));
+                }
+                Ok(ValidationOutcome::Report(run_validator(
+                    &ReiszSensitivity::new(),
+                    problem,
+                    workspace,
+                    ctx,
+                )?))
+            }
             ValidatorId::PriorPredictive
             | ValidatorId::PosteriorPredictive
             | ValidatorId::PriorSensitivity
@@ -481,6 +532,12 @@ impl ValidationSuite {
             .with(ValidatorId::PosteriorPredictive)
             .with(ValidatorId::PriorSensitivity)
             .with(ValidatorId::McmcDiagnostics)
+    }
+
+    /// Prior predictive check only (cheap; no fitted posterior required beyond prepare).
+    #[must_use]
+    pub fn prior_predictive() -> Self {
+        Self::new().with(ValidatorId::PriorPredictive)
     }
 }
 
@@ -589,7 +646,7 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-        };
+         temporal: None, };
         let outcomes = ValidationSuite::full_effect().run(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(outcomes.len(), 14);
         let reports = ValidationSuite::reports_only(&outcomes);

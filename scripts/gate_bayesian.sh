@@ -34,6 +34,7 @@ EVIDENCE = {
     "bayes.backend.conjugate_gaussian": "crates/causal/tests/bayesian.rs",
     "bayes.backend.laplace_glm": "crates/causal/tests/bayesian.rs",
     "bayes.estimate.gcomp": "crates/causal/tests/bayesian.rs",
+    "bayes.estimate.temporal_gcomp": "crates/causal/tests/bayesian.rs",
     "bayes.estimate.graph_envelopes": "crates/causal/tests/bayesian.rs",
     "bayes.validate.ppc": "crates/causal/tests/bayesian.rs",
     "bayes.validate.prior_sensitivity": "crates/causal/tests/bayesian.rs",
@@ -68,6 +69,7 @@ for path in [
     "conformance/bayesian/nonidentified_prior/expected.json",
     "conformance/bayesian/laplace_glm/expected.json",
     "conformance/bayesian/dag_posterior/expected.json",
+    "conformance/bayesian/temporal_pulse/expected.json",
     "crates/causal-prob/benches/laplace_glm.rs",
     "crates/causal-estimate/benches/posterior_functional.rs",
 ]:
@@ -97,9 +99,16 @@ cargo test -p causal-validate --lib bayesian_checks
 cargo test -p causal-io --lib posterior
 cargo test -p causal-data --lib resample
 cargo test -p causal --test bayesian
+cargo test -p causal --test manufacturing_temporal
 
 echo "== criterion smoke (reuse gates) =="
 cargo bench -p causal-prob --bench laplace_glm -- --test
 cargo bench -p causal-estimate --bench posterior_functional -- --test
+
+echo "== Python panel Bayesian facade smoke =="
+(
+  cd python
+  uv run pytest tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py -q
+)
 
 echo "Bayesian gate PASSED"

@@ -14,6 +14,7 @@ class AverageEffect:
     outcome: str
     control_level: float = 0.0
     active_level: float = 1.0
+    target_population: object | None = None
     kind: Literal["average"] = "average"
 
 
@@ -65,10 +66,37 @@ class PathSpecificEffect:
     kind: Literal["path_specific"] = "path_specific"
 
 
+@dataclass(frozen=True)
+class ConditionalEffect:
+    """Conditional / context average effect with a single effect modifier."""
+
+    treatment: str
+    outcome: str
+    modifier: str
+    control_level: float = 0.0
+    active_level: float = 1.0
+    kind: Literal["conditional"] = "conditional"
+
+
+@dataclass(frozen=True)
+class TemporalMediationEffect:
+    """Temporal linear mediation (treatment → mediator → outcome)."""
+
+    treatment: str
+    mediator: str
+    outcome: str
+    contrast: Literal["total", "direct", "mediated"] = "mediated"
+    control_level: float = 0.0
+    active_level: float = 1.0
+    kind: Literal["temporal_mediation"] = "temporal_mediation"
+
+
 __all__ = [
     "AverageEffect",
+    "ConditionalEffect",
     "InterventionalDistribution",
     "PathSpecificEffect",
     "PulseEffect",
     "SustainedEffect",
+    "TemporalMediationEffect",
 ]

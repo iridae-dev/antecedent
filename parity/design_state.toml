@@ -30,12 +30,12 @@ notes = "Batch Utility + DecisionConstraint; EU / regret / chance probs"
 [[capabilities]]
 id = "design_state.design_ranker"
 status = "done"
-notes = "Batched MC with CRN, adaptive stop, constraint violations recorded"
+notes = "Batched MC with CRN, adaptive stop, constraint violations recorded; python examples/rank_designs.py"
 
 [[capabilities]]
 id = "design_state.causal_state"
 status = "done"
-notes = "CausalState event/apply/invalidation without auto-rerun"
+notes = "CausalState event/apply/invalidation without auto-rerun (ADR 0016); python examples/causal_state_workflow.py"
 
 [[capabilities]]
 id = "design_state.incremental_ols"

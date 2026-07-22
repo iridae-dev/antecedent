@@ -26,7 +26,12 @@ class CausalStateError(CausalError): ...
 class CausalSerializationError(CausalError): ...
 class CausalCompileError(CausalError): ...
 class CausalResourceError(CausalError): ...
-class CausalReviewError(CausalError): ...
+class CausalReviewError(CausalError):
+    kind: str
+    algorithm: str | None
+    pending_edge_count: int
+    hint: str
+    message: str
 class CausalUnsupportedError(CausalError): ...
 
 class ArrowLoadInfo:
@@ -382,9 +387,15 @@ def analyze_ate(
     prior_scale: float = 10.0,
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,
+    target_population: dict[str, Any] | None = None,
+    population_predicates: dict[str, list[int]] | None = None,
+    population_distributions: dict[int, list[float]] | None = None,
 ) -> AteAnalysisResult: ...
 
 def analyze_ate_arrow_c(
@@ -403,6 +414,9 @@ def analyze_ate_arrow_c(
     prior_scale: float = 10.0,
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,
@@ -453,9 +467,26 @@ def analyze_events(
     horizon_steps: int = 1,
     active_level: float = 1.0,
     policy: str = "pulse",
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str = True,
+    validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int = 0,
     threads: int = 1,
+    algorithm: str | None = None,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    accept_discovered: bool = True,
+    regimes: list[int] | None = None,
+    n_chains: int = 1,
+    n_warmup: int = 500,
+    mcmc_draws: int = 1000,
+    force_mcmc: bool = False,
+    ci: CiArg = None,
 ) -> AnalysisResult: ...
 
 def analyze_panel(
@@ -470,6 +501,12 @@ def analyze_panel(
     horizon_steps: int = 1,
     active_level: float = 1.0,
     policy: str = "pulse",
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str = True,
+    validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int = 0,
     threads: int = 1,
@@ -482,6 +519,7 @@ def analyze_panel_discover(
     treatment: str,
     outcome: str,
     *,
+    algorithm: str = "jpcmci_plus",
     max_lag: int = 3,
     alpha: float = 0.05,
     fdr: bool = True,
@@ -490,6 +528,12 @@ def analyze_panel_discover(
     horizon_steps: int = 1,
     active_level: float = 1.0,
     policy: str = "pulse",
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    refute: bool | str = True,
+    validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int = 0,
     threads: int = 1,
@@ -530,6 +574,41 @@ def analyze_path_specific(
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 
+
+def analyze_conditional(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    modifier: str,
+    *,
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    refute: bool | str = True,
+    validators: list[Callable[..., Any]] | None = None,
+    seed: int = 1,
+    bootstrap: int = 50,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
+
+def analyze_temporal_mediation(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, int, str, int]],
+    treatment: str,
+    mediator: str,
+    outcome: str,
+    *,
+    contrast: str = "mediated",
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+) -> AnalysisResult: ...
+
+
 def analyze_ate_discover(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -555,6 +634,9 @@ def analyze_ate_discover(
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     ci: CiArg = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,
@@ -1161,6 +1243,9 @@ def analyze_ate_pag(
     prior_scale: float = 10.0,
     refute: bool | str = True,
     validators: list[object] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,
@@ -1181,6 +1266,9 @@ def analyze_ate_cpdag(
     prior_scale: float = 10.0,
     refute: bool | str = True,
     validators: list[object] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,
@@ -1201,6 +1289,9 @@ def analyze_ate_admg(
     prior_scale: float = 10.0,
     refute: bool | str = True,
     validators: list[object] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,

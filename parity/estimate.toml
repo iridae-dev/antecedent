@@ -76,7 +76,7 @@ group = "identification"
 description = "General ID"
 status = "done"
 owner = "identify"
-notes = "Shpitser ID/IDC + hedges + AutoIdentifier; Distribution via ID/IDC + functional.distribution; PathSpecific via path_specific.natural + functional.effect — "
+notes = "Shpitser ID/IDC + hedges + AutoIdentifier; Distribution via ID/IDC + functional.distribution; PathSpecific via path_specific.natural + functional.effect; python_facade=full for PathSpecific/Interventional with discovery= (MAP for graph posteriors; incomplete CPDAG/PAG fail closed)"
 
 [[capabilities]]
 id = "estimate.identify.estimand"
@@ -147,14 +147,12 @@ group = "estimation"
 description = "Conditional effects / effect modifiers"
 status = "done"
 owner = "context"
-notes = "ConditionalLinearAdjustment; conformance/context/conditional_effect"
+notes = "ConditionalLinearAdjustment; conformance/context/conditional_effect; python_facade=full via ConditionalEffect"
 
 [[capabilities]]
 id = "estimate.refute.placebo"
 group = "refutation_and_sensitivity"
-description = "Placebo treatment"
-status = "done"
-owner = "estimate"
+notes = "Placebo treatment; temporal-aware refit for unfolded backdoor (GraphRefuter N/A on temporal)"
 
 [[capabilities]]
 id = "estimate.refute.random_common_cause"

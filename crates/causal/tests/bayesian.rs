@@ -308,6 +308,31 @@ fn ppc() {
         .unwrap();
     assert_eq!(post_rep.kind, PredictiveCheckKind::Posterior);
     assert!(post_rep.p_value.is_finite());
+
+    // Facade attaches both prior and posterior PPC when refute ≠ none.
+    use causal::{BayesianConfig, CausalAnalysis, InferenceMode, PredictiveCheckKind as FacadeKind, RefuteSuite};
+    use causal_graph::{Dag, DenseNodeId};
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    let facade = CausalAnalysis::builder()
+        .data(data)
+        .graph(dag)
+        .query(query)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(80).prior_scale(10.0),
+        ))
+        .refute(RefuteSuite::PlaceboAndRcc)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    assert!(facade.predictive_checks.iter().any(|c| c.kind == FacadeKind::Prior));
+    assert!(facade.predictive_checks.iter().any(|c| c.kind == FacadeKind::Posterior));
+    if expected["require_finite_p_value"].as_bool().unwrap() {
+        assert!(facade.predictive_checks.iter().all(|c| c.p_value.is_finite()));
+    }
 }
 
 #[test]
@@ -342,5 +367,111 @@ fn prior_sensitivity() {
     assert_eq!(summary.prior_scales.len(), scales.len());
     if expected["require_finite_effect_means"].as_bool().unwrap() {
         assert!(summary.effect_means.iter().all(|m| m.is_finite()));
+    }
+}
+
+#[test]
+fn temporal_pulse() {
+    use causal::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
+    use causal_core::{
+        CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet, TemporalEffectQuery,
+        TemporalPolicy, ValueType,
+    };
+    use causal_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+        TimeSeriesData, ValidityBitmap,
+    };
+    use causal_graph::{TemporalDag, ensure_lagged};
+
+    let expected = load_expected("temporal_pulse");
+    let true_ate = expected["expected_ate"].as_f64().unwrap();
+    let tol = expected["tolerance"].as_f64().unwrap();
+    let n = expected["n"].as_u64().unwrap() as usize;
+    let n_draws = expected["n_draws"].as_u64().unwrap() as usize;
+
+    let mut b = CausalSchemaBuilder::new();
+    b.add_variable(
+        "pressure",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    b.add_variable(
+        "defect",
+        ValueType::Continuous,
+        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+        None,
+        None,
+        MeasurementSpec::default(),
+    )
+    .unwrap();
+    let schema = b.build().unwrap();
+    let mut pressure = vec![0.0; n];
+    let mut defect = vec![0.0; n];
+    for t in 1..n {
+        pressure[t] = ((t as f64) * 0.04).sin();
+        defect[t] = true_ate * pressure[t - 1];
+    }
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(0),
+                Arc::from(pressure),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(1),
+                Arc::from(defect),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let series = TimeSeriesData::try_new(
+        storage,
+        TimeIndex {
+            regularity: SamplingRegularity::Regular { interval_ns: 3_600_000_000_000 },
+            length: n,
+        },
+    )
+    .unwrap();
+    let mut g = TemporalDag::empty();
+    let p1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let d0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(p1, d0).unwrap();
+    let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+
+    let analysis = CausalAnalysis::builder()
+        .series(series)
+        .temporal_graph(g)
+        .temporal_query(q)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(n_draws).prior_scale(100.0),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let result = analysis.run(&ExecutionContext::for_tests(42)).unwrap();
+    let post = result.posterior.as_ref().expect("posterior");
+    let eq = post.effect_column().unwrap();
+    let mean = post.summaries.mean[eq];
+    assert!((mean - true_ate).abs() < tol, "mean={mean} expected={true_ate}");
+    if expected["require_finite_p_below_zero"].as_bool().unwrap() {
+        assert!(post.probability_below(0.0).unwrap().is_finite());
+    }
+    if expected["require_artifact_round_trip"].as_bool().unwrap() {
+        let bytes = encode_causal_posterior_bytes(post, "temporal-pulse").unwrap();
+        let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
+        assert_eq!(meta.n_draws as usize, post.draws.n_draws);
     }
 }

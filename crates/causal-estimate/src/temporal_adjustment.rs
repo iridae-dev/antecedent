@@ -53,6 +53,9 @@ impl TemporalLinearAdjustment {
     /// Adjustment `VariableId`s are interpreted as **dense unfolded node ids**
     /// (as returned by [`causal_identify::TemporalBackdoorIdentifier`]).
     ///
+    /// `extra_contemporaneous` are schema (lag-0) covariates appended to the design
+    /// after unfolded adjustment — used by temporal RCC refuters.
+    ///
     /// # Errors
     ///
     /// Incompatible estimand, missing columns, or sample preparation failures.
@@ -64,6 +67,24 @@ impl TemporalLinearAdjustment {
         indexer: &TemporalIndexer,
         split: Option<&DiscoveryEstimationSplit>,
         policy: &causal_core::KernelPolicy,
+    ) -> Result<PreparedEstimationProblem, EstimationError> {
+        self.prepare_with_extras(data, estimand, query, indexer, split, policy, &[])
+    }
+
+    /// Like [`Self::prepare`], with optional lag-0 schema covariates.
+    ///
+    /// # Errors
+    ///
+    /// Incompatible estimand, missing columns, or sample preparation failures.
+    pub fn prepare_with_extras(
+        &self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &TemporalEffectQuery,
+        indexer: &TemporalIndexer,
+        split: Option<&DiscoveryEstimationSplit>,
+        policy: &causal_core::KernelPolicy,
+        extra_contemporaneous: &[VariableId],
     ) -> Result<PreparedEstimationProblem, EstimationError> {
         if self.inner.overlap != OverlapPolicy::ExplicitOverride {
             return Err(EstimationError::Overlap {
@@ -98,7 +119,8 @@ impl TemporalLinearAdjustment {
         let t_lag = offset_to_lag(query.try_treatment_offset()?)?;
         let y_lag = offset_to_lag(query.outcome_offset())?;
 
-        let mut cols = Vec::with_capacity(2 + estimand.adjustment_set.len());
+        let mut cols =
+            Vec::with_capacity(2 + estimand.adjustment_set.len() + extra_contemporaneous.len());
         cols.push(LaggedColumn { variable: query.treatment, lag: t_lag });
         cols.push(LaggedColumn { variable: query.outcome, lag: y_lag });
 
@@ -110,6 +132,11 @@ impl TemporalLinearAdjustment {
             let lag = offset_to_lag(key.offset)?;
             cols.push(LaggedColumn { variable: key.variable, lag });
             adj_keys.push(key.variable);
+        }
+        let lag0 = Lag::from_raw(0);
+        for &vid in extra_contemporaneous {
+            cols.push(LaggedColumn { variable: vid, lag: lag0 });
+            adj_keys.push(vid);
         }
 
         let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);

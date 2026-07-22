@@ -63,9 +63,7 @@ impl PendingGraphReview {
         if edge_in_graph(&self.review.graph, from, to) {
             return Ok(self);
         }
-        Err(AnalysisError::ReviewRequired {
-            message: format!("required edge {from:?} -> {to:?} not in proposed graph"),
-        })
+        Err(AnalysisError::review_required_msg(format!("required edge {from:?} -> {to:?} not in proposed graph")))
     }
 
     /// Accept all remaining pending edges.
@@ -95,12 +93,10 @@ impl PendingGraphReview {
             });
         }
         if !self.review.is_complete() {
-            return Err(AnalysisError::ReviewRequired {
-                message: format!(
-                    "{} pending edges remain; accept or require them before estimation",
-                    self.review.pending_edges.len()
-                ),
-            });
+            return Err(AnalysisError::review_required_msg(format!(
+                "{} pending edges remain; accept or require them before estimation",
+                self.review.pending_edges.len()
+            )));
         }
         let logical = compile_logical_temporal_effect(
             data,
@@ -168,7 +164,7 @@ impl PendingCpdagReview {
         self.review = self
             .review
             .orient_edge(from, to)
-            .map_err(|e| AnalysisError::ReviewRequired { message: e.to_string() })?;
+            .map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
         Ok(self)
     }
 
@@ -201,25 +197,21 @@ impl PendingCpdagReview {
             });
         }
         if !self.review.pending_undirected.is_empty() {
-            return Err(AnalysisError::ReviewRequired {
-                message: format!(
-                    "{} undirected CPDAG edges remain; orient them explicitly before estimation (no silent coercion)",
-                    self.review.pending_undirected.len()
-                ),
-            });
+            return Err(AnalysisError::review_required_msg(format!(
+                "{} undirected CPDAG edges remain; orient them explicitly before estimation (no silent coercion)",
+                self.review.pending_undirected.len()
+            )));
         }
         if !self.review.is_complete() {
-            return Err(AnalysisError::ReviewRequired {
-                message: format!(
-                    "{} pending directed edges remain; accept them before estimation",
-                    self.review.pending_edges.len()
-                ),
-            });
+            return Err(AnalysisError::review_required_msg(format!(
+                "{} pending directed edges remain; accept them before estimation",
+                self.review.pending_edges.len()
+            )));
         }
         let dag = self
             .review
             .try_into_temporal_dag()
-            .map_err(|e| AnalysisError::ReviewRequired { message: e.to_string() })?;
+            .map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
         let logical = compile_logical_temporal_effect(data, &dag, &self.query, self.split, false)?;
         let physical = logical.compile_physical_with_graph(ctx, Some(dag))?;
         Ok(CompiledAnalysis::Ready(physical))
@@ -306,9 +298,9 @@ pub fn compile_review_required_pag(review: TemporalPagReview) -> CompiledAnalysi
 /// [`AnalysisError::ReviewRequired`] when the flag is set.
 pub fn ensure_review_complete(plan: &LogicalAnalysisPlan) -> Result<(), AnalysisError> {
     if plan.record.graph_review_required {
-        return Err(AnalysisError::ReviewRequired {
-            message: "graph review required before estimation".into(),
-        });
+        return Err(AnalysisError::review_required_msg(
+            "graph review required before estimation",
+        ));
     }
     Ok(())
 }

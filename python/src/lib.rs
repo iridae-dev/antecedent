@@ -66,10 +66,11 @@ use causal::{
 use causal_stats::PartialCorrelation;
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy,
-    CausalQuery, CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
-    InterventionalDistributionQuery, KernelPolicy, Lag, MechanismChangeQuery, MediationContrast,
-    MediationQuery, PathSpecificEffectQuery, PopulationSelector, RegimeId, SchemaError,
-    ShapleyConfig, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value,
+    CausalQuery, CausalRng, ChangeAttributionQuery, ConditionalEffectQuery, DistributionRef,
+    ExecutionContext, Intervention, InterventionalDistributionQuery, KernelPolicy, Lag,
+    MechanismChangeQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery,
+    PopulationRegistry, PopulationSelector, PredicateExpr, RegimeId, SchemaError, ShapleyConfig,
+    TargetPopulation, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value,
     VariableId,
 };
 use causal_data::{
@@ -209,7 +210,24 @@ impl IntoCausalPyErr for AnalysisError {
             Self::Schema(e) => CausalDataError::new_err(e.to_string()),
             Self::Compile { message } => CausalCompileError::new_err(message),
             Self::Resource { message } => CausalResourceError::new_err(message),
-            Self::ReviewRequired { message } => CausalReviewError::new_err(message),
+            Self::ReviewRequired {
+                kind,
+                algorithm,
+                pending_edge_count,
+                message,
+                hint,
+            } => {
+                let err = CausalReviewError::new_err(message.clone());
+                Python::attach(|py| {
+                    let inst = err.value(py);
+                    let _ = inst.setattr("kind", kind.as_str());
+                    let _ = inst.setattr("algorithm", algorithm.as_deref());
+                    let _ = inst.setattr("pending_edge_count", pending_edge_count);
+                    let _ = inst.setattr("hint", hint.as_str());
+                    let _ = inst.setattr("message", message.as_str());
+                });
+                err
+            }
             Self::Unsupported { message } => CausalUnsupportedError::new_err(message),
             Self::Missing { field } => {
                 CausalCompileError::new_err(format!("missing required field: {field}"))
@@ -344,9 +362,39 @@ struct AteAnalysisResult {
     #[pyo3(get)]
     worker_threads: u32,
     /// Expected Python boundary crossings recorded on the physical plan.
+    /// Expected Python boundary crossings recorded on the physical plan.
     #[pyo3(get)]
     expected_python_crossings: u32,
+    #[pyo3(get)]
+    prior_ppc_p_value: Option<f64>,
+    #[pyo3(get)]
+    prior_ppc_observed: Option<f64>,
+    #[pyo3(get)]
+    prior_ppc_predictive_mean: Option<f64>,
+    #[pyo3(get)]
+    prior_ppc_predictive_sd: Option<f64>,
+    #[pyo3(get)]
+    prior_ppc_n_sims: Option<u32>,
+    #[pyo3(get)]
+    posterior_ppc_p_value: Option<f64>,
+    #[pyo3(get)]
+    posterior_ppc_observed: Option<f64>,
+    #[pyo3(get)]
+    posterior_ppc_predictive_mean: Option<f64>,
+    #[pyo3(get)]
+    posterior_ppc_predictive_sd: Option<f64>,
+    #[pyo3(get)]
+    posterior_ppc_n_sims: Option<u32>,
+    #[pyo3(get)]
+    prior_sensitivity_scales: Option<Vec<f64>>,
+    #[pyo3(get)]
+    prior_sensitivity_means: Option<Vec<f64>>,
+    #[pyo3(get)]
+    prior_sensitivity_sds: Option<Vec<f64>>,
+    #[pyo3(get)]
+    posterior_unidentified_mass: Option<f64>,
 }
+
 
 /// Decoded posterior artifact for Python consumers .
 #[pyclass]
@@ -530,6 +578,79 @@ pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext 
 
 /// Run static ATE: identify → estimate → optional refute .
 ///
+/// Parse optional `target_population` dict from Python (`kind` + fields).
+fn parse_target_population(
+    spec: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<TargetPopulation>> {
+    let Some(d) = spec else {
+        return Ok(None);
+    };
+    let kind: String = d
+        .get_item("kind")?
+        .ok_or_else(|| PyValueError::new_err("target_population requires 'kind'"))?
+        .extract()?;
+    let kind = kind.to_ascii_lowercase();
+    Ok(Some(match kind.as_str() {
+        "all" | "all_observed" => TargetPopulation::AllObserved,
+        "treated" => TargetPopulation::Treated,
+        "untreated" => TargetPopulation::Untreated,
+        "named" => {
+            let name: String = d
+                .get_item("name")?
+                .ok_or_else(|| PyValueError::new_err("named target_population requires 'name'"))?
+                .extract()?;
+            TargetPopulation::Predicate(PredicateExpr::named(name))
+        }
+        "rows" => {
+            let rows: Vec<usize> = d
+                .get_item("rows")?
+                .ok_or_else(|| PyValueError::new_err("rows target_population requires 'rows'"))?
+                .extract()?;
+            TargetPopulation::Predicate(PredicateExpr::rows(rows))
+        }
+        "custom_distribution" | "custom" => {
+            let id: u32 = d
+                .get_item("id")?
+                .ok_or_else(|| {
+                    PyValueError::new_err("custom_distribution target_population requires 'id'")
+                })?
+                .extract()?;
+            TargetPopulation::CustomDistribution(DistributionRef::from_raw(id))
+        }
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unknown target_population kind {other:?}"
+            )));
+        }
+    }))
+}
+
+/// Build a [`PopulationRegistry`] from optional predicate/distribution dicts.
+fn parse_population_registry(
+    predicates: Option<&Bound<'_, PyDict>>,
+    distributions: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<PopulationRegistry>> {
+    if predicates.is_none() && distributions.is_none() {
+        return Ok(None);
+    }
+    let mut reg = PopulationRegistry::new();
+    if let Some(preds) = predicates {
+        for (k, v) in preds.iter() {
+            let name: String = k.extract()?;
+            let rows: Vec<usize> = v.extract()?;
+            reg.insert_predicate(name, rows);
+        }
+    }
+    if let Some(dists) = distributions {
+        for (k, v) in dists.iter() {
+            let id: u32 = k.extract()?;
+            let weights: Vec<f64> = v.extract()?;
+            reg.insert_distribution(DistributionRef::from_raw(id), weights);
+        }
+    }
+    Ok(Some(reg))
+}
+
 /// `identifier`/`estimator` select the identification strategy and estimator; leaving both
 /// `None` preserves the default (`backdoor.adjustment` + `linear.adjustment.ate`).
 /// See [`causal::CausalAnalysisBuilder::identifier`] and
@@ -552,11 +673,18 @@ pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext 
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
+    prior_artifact=None,
     refute=None,
     validators=None,
+    running_variable=None,
+    cutoff=None,
+    bandwidth=None,
     seed=1,
     bootstrap=50,
-    threads=1
+    threads=1,
+    target_population=None,
+    population_predicates=None,
+    population_distributions=None,
 ))]
 fn analyze_ate(
     py: Python<'_>,
@@ -572,12 +700,24 @@ fn analyze_ate(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
+    running_variable: Option<String>,
+    cutoff: Option<f64>,
+    bandwidth: Option<f64>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    target_population: Option<Bound<'_, PyDict>>,
+    population_predicates: Option<Bound<'_, PyDict>>,
+    population_distributions: Option<Bound<'_, PyDict>>,
 ) -> PyResult<AteAnalysisResult> {
+    let pop_spec = parse_target_population(target_population.as_ref())?;
+    let registry = parse_population_registry(
+        population_predicates.as_ref(),
+        population_distributions.as_ref(),
+    )?;
     let batch = columns_to_batch(&names, &columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
@@ -610,7 +750,31 @@ fn analyze_ate(
             .map_err(py_err)?;
         }
 
-        let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+        let mut query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+        if let Some(pop) = pop_spec {
+            query = query.with_target_population(pop);
+        }
+
+        let rd_ids = {
+            let wants_rd = estimator.as_deref().map(|e| e.eq_ignore_ascii_case("rd.sharp")).unwrap_or(false)
+                || running_variable.is_some()
+                || cutoff.is_some()
+                || bandwidth.is_some();
+            if wants_rd {
+                let (rv, cut, bw) = match (running_variable.as_deref(), cutoff, bandwidth) {
+                    (Some(rv), Some(cut), Some(bw)) => (rv, cut, bw),
+                    _ => {
+                        return Err(PyValueError::new_err(
+                            "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
+                        ));
+                    }
+                };
+                let rv_id = data.schema().id_of(rv).map_err(py_err)?;
+                Some((rv_id, cut, bw))
+            } else {
+                None
+            }
+        };
         let mut builder = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
@@ -618,19 +782,29 @@ fn analyze_ate(
             .refute(suite)
             .custom_validators(custom_validators)
             .bootstrap_replicates(bootstrap);
+        if let Some(reg) = registry {
+            builder = builder.population_registry(reg);
+        }
         if let Some(id) = identifier {
             builder = builder.identifier(id);
         }
         if let Some(est) = estimator {
             builder = builder.estimator(est);
         }
+        if let Some((rv_id, cut, bw)) = rd_ids {
+            builder = builder.rd_config(rv_id, cut, bw);
+        }
+
         if let Some(mode) = inference {
-            let cfg = match mode.to_ascii_lowercase().as_str() {
+            let mut cfg = match mode.to_ascii_lowercase().as_str() {
                 "bayesian" | "bayesian.laplace" | "laplace" => {
                     BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
                 }
                 "bayesian.conjugate" | "conjugate" => {
                     BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+                }
+                "bayesian.hmc" | "hmc" => {
+                    BayesianConfig::hmc().n_draws(n_draws).prior_scale(prior_scale)
                 }
                 "frequentist" => {
                     builder = builder.inference(InferenceMode::Frequentist);
@@ -641,10 +815,14 @@ fn analyze_ate(
                 }
                 other => {
                     return Err(PyValueError::new_err(format!(
-                        "unknown inference mode {other:?}; use frequentist|bayesian|conjugate"
+                        "unknown inference mode {other:?}; use frequentist|bayesian|conjugate|hmc"
                     )));
                 }
             };
+            if let Some(bytes) = prior_artifact.as_deref() {
+                let prior = causal::prior_set_from_posterior_bytes(bytes).map_err(py_err)?;
+                cfg = cfg.prior(prior);
+            }
             builder = builder.inference(InferenceMode::Bayesian(cfg));
             // Keep the caller's refute suite. Overwriting with None previously made
             // `refutation_passed=True` for checks that never ran.
@@ -672,8 +850,12 @@ fn analyze_ate(
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
+    prior_artifact=None,
     refute=None,
     validators=None,
+    running_variable=None,
+    cutoff=None,
+    bandwidth=None,
     seed=1,
     bootstrap=50,
     threads=1
@@ -692,8 +874,12 @@ fn analyze_ate_arrow_c(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
+    running_variable: Option<String>,
+    cutoff: Option<f64>,
+    bandwidth: Option<f64>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -727,6 +913,27 @@ fn analyze_ate_arrow_c(
         }
 
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+        
+        let rd_ids = {
+            let wants_rd = estimator.as_deref().map(|e| e.eq_ignore_ascii_case("rd.sharp")).unwrap_or(false)
+                || running_variable.is_some()
+                || cutoff.is_some()
+                || bandwidth.is_some();
+            if wants_rd {
+                let (rv, cut, bw) = match (running_variable.as_deref(), cutoff, bandwidth) {
+                    (Some(rv), Some(cut), Some(bw)) => (rv, cut, bw),
+                    _ => {
+                        return Err(PyValueError::new_err(
+                            "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
+                        ));
+                    }
+                };
+                let rv_id = data.schema().id_of(rv).map_err(py_err)?;
+                Some((rv_id, cut, bw))
+            } else {
+                None
+            }
+        };
         let mut builder = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
@@ -740,13 +947,20 @@ fn analyze_ate_arrow_c(
         if let Some(est) = estimator {
             builder = builder.estimator(est);
         }
+        if let Some((rv_id, cut, bw)) = rd_ids {
+            builder = builder.rd_config(rv_id, cut, bw);
+        }
+
         if let Some(mode) = inference {
-            let cfg = match mode.to_ascii_lowercase().as_str() {
+            let mut cfg = match mode.to_ascii_lowercase().as_str() {
                 "bayesian" | "bayesian.laplace" | "laplace" => {
                     BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
                 }
                 "bayesian.conjugate" | "conjugate" => {
                     BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+                }
+                "bayesian.hmc" | "hmc" => {
+                    BayesianConfig::hmc().n_draws(n_draws).prior_scale(prior_scale)
                 }
                 "frequentist" => {
                     builder = builder.inference(InferenceMode::Frequentist);
@@ -757,10 +971,14 @@ fn analyze_ate_arrow_c(
                 }
                 other => {
                     return Err(PyValueError::new_err(format!(
-                        "unknown inference mode {other:?}; use frequentist|bayesian|conjugate"
+                        "unknown inference mode {other:?}; use frequentist|bayesian|conjugate|hmc"
                     )));
                 }
             };
+            if let Some(bytes) = prior_artifact.as_deref() {
+                let prior = causal::prior_set_from_posterior_bytes(bytes).map_err(py_err)?;
+                cfg = cfg.prior(prior);
+            }
             builder = builder.inference(InferenceMode::Bayesian(cfg));
         }
         let analysis = builder.build().map_err(py_err)?;
@@ -783,8 +1001,12 @@ fn run_ate_with_graph_input(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
     suite: RefuteSuite,
     custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    running_variable: Option<String>,
+    cutoff: Option<f64>,
+    bandwidth: Option<f64>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -794,6 +1016,26 @@ fn run_ate_with_graph_input(
     let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
     let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
     let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+    let rd_ids = {
+        let wants_rd = estimator.as_deref().map(|e| e.eq_ignore_ascii_case("rd.sharp")).unwrap_or(false)
+            || running_variable.is_some()
+            || cutoff.is_some()
+            || bandwidth.is_some();
+        if wants_rd {
+            let (rv, cut, bw) = match (running_variable.as_deref(), cutoff, bandwidth) {
+                (Some(rv), Some(cut), Some(bw)) => (rv, cut, bw),
+                _ => {
+                    return Err(PyValueError::new_err(
+                        "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
+                    ));
+                }
+            };
+            let rv_id = data.schema().id_of(rv).map_err(py_err)?;
+            Some((rv_id, cut, bw))
+        } else {
+            None
+        }
+    };
     let mut builder = CausalAnalysis::builder()
         .data(data)
         .query(query)
@@ -817,13 +1059,19 @@ fn run_ate_with_graph_input(
     if let Some(est) = estimator {
         builder = builder.estimator(est);
     }
+    if let Some((rv_id, cut, bw)) = rd_ids {
+        builder = builder.rd_config(rv_id, cut, bw);
+    }
     if let Some(mode) = inference {
-        let cfg = match mode.to_ascii_lowercase().as_str() {
+        let mut cfg = match mode.to_ascii_lowercase().as_str() {
             "bayesian" | "bayesian.laplace" | "laplace" => {
                 BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
             }
             "bayesian.conjugate" | "conjugate" => {
                 BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+            }
+            "bayesian.hmc" | "hmc" => {
+                BayesianConfig::hmc().n_draws(n_draws).prior_scale(prior_scale)
             }
             "frequentist" => {
                 builder = builder.inference(InferenceMode::Frequentist);
@@ -834,10 +1082,14 @@ fn run_ate_with_graph_input(
             }
             other => {
                 return Err(PyValueError::new_err(format!(
-                    "unknown inference mode {other:?}; use frequentist|bayesian|conjugate"
+                    "unknown inference mode {other:?}; use frequentist|bayesian|conjugate|hmc"
                 )));
             }
         };
+        if let Some(bytes) = prior_artifact.as_deref() {
+            let prior = causal::prior_set_from_posterior_bytes(bytes).map_err(py_err)?;
+            cfg = cfg.prior(prior);
+        }
         builder = builder.inference(InferenceMode::Bayesian(cfg));
     }
     let analysis = builder.build().map_err(py_err)?;
@@ -851,7 +1103,11 @@ fn run_ate_with_graph_input(
 #[pyo3(signature = (
     names, columns, graph, treatment, outcome, *,
     control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-    inference=None, n_draws=1000, prior_scale=10.0, refute=None, validators=None,
+    inference=None, n_draws=1000, prior_scale=10.0,
+    prior_artifact=None, refute=None, validators=None,
+    running_variable=None,
+    cutoff=None,
+    bandwidth=None,
     seed=1, bootstrap=50, threads=1
 ))]
 fn analyze_ate_pag(
@@ -868,8 +1124,12 @@ fn analyze_ate_pag(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
+    running_variable: Option<String>,
+    cutoff: Option<f64>,
+    bandwidth: Option<f64>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -893,8 +1153,12 @@ fn analyze_ate_pag(
             inference,
             n_draws,
             prior_scale,
+            prior_artifact,
             suite,
             custom_validators,
+            running_variable,
+            cutoff,
+            bandwidth,
             seed,
             bootstrap,
             threads,
@@ -907,7 +1171,11 @@ fn analyze_ate_pag(
 #[pyo3(signature = (
     names, columns, graph, treatment, outcome, *,
     control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-    inference=None, n_draws=1000, prior_scale=10.0, refute=None, validators=None,
+    inference=None, n_draws=1000, prior_scale=10.0,
+    prior_artifact=None, refute=None, validators=None,
+    running_variable=None,
+    cutoff=None,
+    bandwidth=None,
     seed=1, bootstrap=50, threads=1
 ))]
 fn analyze_ate_cpdag(
@@ -924,8 +1192,12 @@ fn analyze_ate_cpdag(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
+    running_variable: Option<String>,
+    cutoff: Option<f64>,
+    bandwidth: Option<f64>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -949,8 +1221,12 @@ fn analyze_ate_cpdag(
             inference,
             n_draws,
             prior_scale,
+            prior_artifact,
             suite,
             custom_validators,
+            running_variable,
+            cutoff,
+            bandwidth,
             seed,
             bootstrap,
             threads,
@@ -963,7 +1239,11 @@ fn analyze_ate_cpdag(
 #[pyo3(signature = (
     names, columns, graph, treatment, outcome, *,
     control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-    inference=None, n_draws=1000, prior_scale=10.0, refute=None, validators=None,
+    inference=None, n_draws=1000, prior_scale=10.0,
+    prior_artifact=None, refute=None, validators=None,
+    running_variable=None,
+    cutoff=None,
+    bandwidth=None,
     seed=1, bootstrap=50, threads=1
 ))]
 fn analyze_ate_admg(
@@ -980,8 +1260,12 @@ fn analyze_ate_admg(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
+    running_variable: Option<String>,
+    cutoff: Option<f64>,
+    bandwidth: Option<f64>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -1005,8 +1289,12 @@ fn analyze_ate_admg(
             inference,
             n_draws,
             prior_scale,
+            prior_artifact,
             suite,
             custom_validators,
+            running_variable,
+            cutoff,
+            bandwidth,
             seed,
             bootstrap,
             threads,
@@ -1038,9 +1326,19 @@ fn analyze_ate_admg(
     inference=None,
     n_draws=1000,
     prior_scale=10.0,
+    prior_artifact=None,
     refute=None,
     validators=None,
     ci=None,
+    n_chains=2,
+    n_warmup=100,
+    mcmc_draws=200,
+    thin=1,
+    soft_weight="none",
+    require_diagnostics_gate=true,
+    running_variable=None,
+    cutoff=None,
+    bandwidth=None,
     seed=1,
     bootstrap=50,
     threads=1
@@ -1067,9 +1365,19 @@ fn analyze_ate_discover(
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     ci: Option<Bound<'_, PyAny>>,
+    n_chains: u32,
+    n_warmup: u32,
+    mcmc_draws: u32,
+    thin: u32,
+    soft_weight: &str,
+    require_diagnostics_gate: bool,
+    running_variable: Option<String>,
+    cutoff: Option<f64>,
+    bandwidth: Option<f64>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -1085,6 +1393,7 @@ fn analyze_ate_discover(
     } else {
         threads
     };
+        let soft_weight = soft_weight.to_string();
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
@@ -1097,7 +1406,38 @@ fn analyze_ate_discover(
         } else {
             DiscoveryAccept::Review
         };
+        
+        let rd_ids = {
+            let wants_rd = estimator.as_deref().map(|e| e.eq_ignore_ascii_case("rd.sharp")).unwrap_or(false)
+                || running_variable.is_some()
+                || cutoff.is_some()
+                || bandwidth.is_some();
+            if wants_rd {
+                let (rv, cut, bw) = match (running_variable.as_deref(), cutoff, bandwidth) {
+                    (Some(rv), Some(cut), Some(bw)) => (rv, cut, bw),
+                    _ => {
+                        return Err(PyValueError::new_err(
+                            "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
+                        ));
+                    }
+                };
+                let rv_id = data.schema().id_of(rv).map_err(py_err)?;
+                Some((rv_id, cut, bw))
+            } else {
+                None
+            }
+        };
         let mut builder = CausalAnalysis::builder().data(data);
+        let soft = match soft_weight.as_str() {
+            "none" | "" => causal::CiSoftWeight::None,
+            "bayes_factor" | "bf" => causal::CiSoftWeight::BayesFactor,
+            "posterior_dependence" | "pd" => causal::CiSoftWeight::PosteriorDependence,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown soft_weight {other:?}; use none|bayes_factor|posterior_dependence"
+                )));
+            }
+        };
         builder = match algo.as_str() {
             "pc" => builder.discover_pc(alpha, max_cond_size, fdr_ctrl, accept),
             "ges" => builder.discover_ges(alpha, max_cond_size, fdr_ctrl, accept),
@@ -1107,13 +1447,22 @@ fn analyze_ate_discover(
             }
             "fci" => builder.discover_fci(alpha, max_cond_size, fdr_ctrl, accept),
             "rfci" => builder.discover_rfci(alpha, max_cond_size, fdr_ctrl, accept),
+            "exact_dag_posterior" | "exact" => builder.discover_exact_dag_posterior(),
+            "order_mcmc" => builder.discover_order_mcmc(
+                n_chains, n_warmup, mcmc_draws, thin, require_diagnostics_gate,
+            ),
+            "structure_mcmc" => {
+                builder.discover_structure_mcmc(n_chains, n_warmup, mcmc_draws, thin)
+            }
+            "ci_screened_posterior" | "ci_screened" => builder.discover_ci_screened_posterior(
+                alpha, max_cond_size, fdr_ctrl, soft, n_chains, n_warmup, mcmc_draws, thin,
+            ),
             other => {
                 return Err(PyValueError::new_err(format!(
-                    "unknown static discovery algorithm {other:?}; \
-                     use pc|ges|lingam|notears|fci|rfci"
+                    "unknown static discovery algorithm {other:?};                      use pc|ges|lingam|notears|fci|rfci|exact_dag_posterior|order_mcmc|                     structure_mcmc|ci_screened_posterior"
                 )));
             }
-        };
+        };;
         let mut builder = builder
             .discovery_ci(ci_impl)
             .query(query)
@@ -1126,13 +1475,20 @@ fn analyze_ate_discover(
         if let Some(est) = estimator {
             builder = builder.estimator(est);
         }
+        if let Some((rv_id, cut, bw)) = rd_ids {
+            builder = builder.rd_config(rv_id, cut, bw);
+        }
+
         if let Some(mode) = inference {
-            let cfg = match mode.to_ascii_lowercase().as_str() {
+            let mut cfg = match mode.to_ascii_lowercase().as_str() {
                 "bayesian" | "bayesian.laplace" | "laplace" => {
                     BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
                 }
                 "bayesian.conjugate" | "conjugate" => {
                     BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+                }
+                "bayesian.hmc" | "hmc" => {
+                    BayesianConfig::hmc().n_draws(n_draws).prior_scale(prior_scale)
                 }
                 "frequentist" => {
                     builder = builder.inference(InferenceMode::Frequentist);
@@ -1143,10 +1499,14 @@ fn analyze_ate_discover(
                 }
                 other => {
                     return Err(PyValueError::new_err(format!(
-                        "unknown inference mode {other:?}; use frequentist|bayesian|conjugate"
+                        "unknown inference mode {other:?}; use frequentist|bayesian|conjugate|hmc"
                     )));
                 }
             };
+            if let Some(bytes) = prior_artifact.as_deref() {
+                let prior = causal::prior_set_from_posterior_bytes(bytes).map_err(py_err)?;
+                cfg = cfg.prior(prior);
+            }
             builder = builder.inference(InferenceMode::Bayesian(cfg));
         }
         let analysis = builder.build().map_err(py_err)?;
@@ -1194,6 +1554,7 @@ fn build_static_dag(
     seed=1,
     threads=1
 ))]
+
 fn analyze_distribution(
     py: Python<'_>,
     names: Vec<String>,
@@ -1358,6 +1719,52 @@ fn ate_result_from_analysis(
         (None, None, None, None, None, None, None, None)
     };
 
+
+    use causal_validate::PredictiveCheckKind;
+    let mut prior_ppc_p_value = None;
+    let mut prior_ppc_observed = None;
+    let mut prior_ppc_predictive_mean = None;
+    let mut prior_ppc_predictive_sd = None;
+    let mut prior_ppc_n_sims = None;
+    let mut posterior_ppc_p_value = None;
+    let mut posterior_ppc_observed = None;
+    let mut posterior_ppc_predictive_mean = None;
+    let mut posterior_ppc_predictive_sd = None;
+    let mut posterior_ppc_n_sims = None;
+    for pc in &result.predictive_checks {
+        match pc.kind {
+            PredictiveCheckKind::Prior => {
+                prior_ppc_p_value = Some(pc.p_value);
+                prior_ppc_observed = Some(pc.observed);
+                prior_ppc_predictive_mean = Some(pc.predictive_mean);
+                prior_ppc_predictive_sd = Some(pc.predictive_sd);
+                prior_ppc_n_sims = Some(pc.n_sims);
+            }
+            PredictiveCheckKind::Posterior => {
+                posterior_ppc_p_value = Some(pc.p_value);
+                posterior_ppc_observed = Some(pc.observed);
+                posterior_ppc_predictive_mean = Some(pc.predictive_mean);
+                posterior_ppc_predictive_sd = Some(pc.predictive_sd);
+                posterior_ppc_n_sims = Some(pc.n_sims);
+            }
+        }
+    }
+    let (prior_sensitivity_scales, prior_sensitivity_means, prior_sensitivity_sds) =
+        if let Some(post) = result.posterior.as_ref() {
+            if let Some(sens) = post.prior_sensitivity.as_ref() {
+                (
+                    Some(sens.prior_scales.iter().copied().collect()),
+                    Some(sens.effect_means.iter().copied().collect()),
+                    Some(sens.effect_sds.iter().copied().collect()),
+                )
+            } else {
+                (None, None, None)
+            }
+        } else {
+            (None, None, None)
+        };
+    let posterior_unidentified_mass = result.posterior.as_ref().map(|p| p.unidentified_mass);
+
     Ok(AteAnalysisResult {
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
@@ -1393,6 +1800,20 @@ fn ate_result_from_analysis(
         peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
         worker_threads: result.physical_plan.worker_threads,
         expected_python_crossings: result.physical_plan.expected_python_crossings,
+        prior_ppc_p_value,
+        prior_ppc_observed,
+        prior_ppc_predictive_mean,
+        prior_ppc_predictive_sd,
+        prior_ppc_n_sims,
+        posterior_ppc_p_value,
+        posterior_ppc_observed,
+        posterior_ppc_predictive_mean,
+        posterior_ppc_predictive_sd,
+        posterior_ppc_n_sims,
+        prior_sensitivity_scales,
+        prior_sensitivity_means,
+        prior_sensitivity_sds,
+        posterior_unidentified_mass,
     })
 }
 
@@ -2508,6 +2929,38 @@ struct AnalysisResult {
     worker_threads: u32,
     #[pyo3(get)]
     expected_python_crossings: u32,
+    #[pyo3(get)]
+    adjustment_set: Vec<String>,
+    #[pyo3(get)]
+    assumption_count: usize,
+    #[pyo3(get)]
+    derivation_step_count: usize,
+    #[pyo3(get)]
+    estimator_id: String,
+    #[pyo3(get)]
+    posterior_effect_mean: Option<f64>,
+    #[pyo3(get)]
+    posterior_effect_sd: Option<f64>,
+    #[pyo3(get)]
+    posterior_q025: Option<f64>,
+    #[pyo3(get)]
+    posterior_q975: Option<f64>,
+    #[pyo3(get)]
+    posterior_n_draws: Option<usize>,
+    #[pyo3(get)]
+    posterior_p_below_zero: Option<f64>,
+    #[pyo3(get)]
+    posterior_backend: Option<String>,
+    #[pyo3(get)]
+    posterior_artifact: Option<Vec<u8>>,
+    #[pyo3(get)]
+    posterior_unidentified_mass: Option<f64>,
+    #[pyo3(get)]
+    mediation_total: Option<f64>,
+    #[pyo3(get)]
+    mediation_direct: Option<f64>,
+    #[pyo3(get)]
+    mediation_mediated: Option<f64>,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -2528,6 +2981,12 @@ struct AnalysisResult {
     horizon_steps=1,
     active_level=1.0,
     policy="pulse",
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
+    prior_artifact=None,
+    refute=None,
+    validators=None,
     seed=1,
     bootstrap=0,
     threads=1
@@ -2543,12 +3002,21 @@ fn analyze(
     horizon_steps: u32,
     active_level: f64,
     policy: &str,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let policy = policy.to_ascii_lowercase();
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
     drop(columns);
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
@@ -2587,34 +3055,24 @@ fn analyze(
             active_level,
         )?;
 
-        let analysis = CausalAnalysis::builder()
+        let mut builder = CausalAnalysis::builder()
             .series(series)
             .temporal_graph(g)
             .temporal_query(q)
-            .bootstrap_replicates(bootstrap)
-            .build()
-            .map_err(py_err)?;
+            .refute(suite)
+            .custom_validators(custom_validators)
+            .bootstrap_replicates(bootstrap);
+        builder = apply_temporal_inference(
+            builder,
+            inference.as_deref(),
+            n_draws,
+            prior_scale,
+            prior_artifact.as_deref(),
+        )?;
+        let analysis = builder.build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
-        Ok(AnalysisResult {
-            ate: result.estimate.ate,
-            se_analytic: result.estimate.se_analytic,
-            se_bootstrap: result.estimate.se_bootstrap,
-            plan_id: result.logical_plan.plan_id.to_string(),
-            modality: format!("{:?}", result.logical_plan.data_classification),
-            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-            identification_status: format!("{:?}", result.identification.status),
-            method: result.estimand.method.to_string(),
-            diagnostics: result
-                .diagnostics
-                .iter()
-                .map(|d| format!("{}: {}", d.code, d.message))
-                .collect(),
-            provenance_node_count: result.provenance.len(),
-            refutation_count: result.refutations.len(),
-            worker_threads: result.physical_plan.worker_threads,
-            expected_python_crossings: result.physical_plan.expected_python_crossings,
-        })
+        analysis_result_from_run(&names, result)
     })
 }
 
@@ -2631,6 +3089,12 @@ fn analyze(
     horizon_steps=1,
     active_level=1.0,
     policy="pulse",
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
+    prior_artifact=None,
+    refute=None,
+    validators=None,
     seed=1,
     bootstrap=0,
     threads=1
@@ -2646,12 +3110,21 @@ fn analyze_temporal_pag(
     horizon_steps: u32,
     active_level: f64,
     policy: &str,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let policy = policy.to_ascii_lowercase();
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
     drop(columns);
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
@@ -2680,38 +3153,30 @@ fn analyze_temporal_pag(
             active_level,
         )?;
 
-        let analysis = CausalAnalysis::builder()
+        let mut builder = CausalAnalysis::builder()
             .series(series)
             .temporal_pag(graph.pag)
             .temporal_query(q)
-            .bootstrap_replicates(bootstrap)
-            .build()
-            .map_err(py_err)?;
+            .refute(suite)
+            .custom_validators(custom_validators)
+            .bootstrap_replicates(bootstrap);
+        builder = apply_temporal_inference(
+            builder,
+            inference.as_deref(),
+            n_draws,
+            prior_scale,
+            prior_artifact.as_deref(),
+        )?;
+        let analysis = builder.build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
-        Ok(AnalysisResult {
-            ate: result.estimate.ate,
-            se_analytic: result.estimate.se_analytic,
-            se_bootstrap: result.estimate.se_bootstrap,
-            plan_id: result.logical_plan.plan_id.to_string(),
-            modality: format!("{:?}", result.logical_plan.data_classification),
-            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-            identification_status: format!("{:?}", result.identification.status),
-            method: result.estimand.method.to_string(),
-            diagnostics: result
-                .diagnostics
-                .iter()
-                .map(|d| format!("{}: {}", d.code, d.message))
-                .collect(),
-            provenance_node_count: result.provenance.len(),
-            refutation_count: result.refutations.len(),
-            worker_threads: result.physical_plan.worker_threads,
-            expected_python_crossings: result.physical_plan.expected_python_crossings,
-        })
+        analysis_result_from_run(&names, result)
     })
 }
 
 /// Temporal effect on irregular event data (aligned via duration bins before estimation).
+///
+/// Optional `algorithm` enables PCMCI-family / DBN discovery after align-to-grid.
 #[pyfunction]
 #[pyo3(signature = (
     names,
@@ -2726,9 +3191,26 @@ fn analyze_temporal_pag(
     horizon_steps=1,
     active_level=1.0,
     policy="pulse",
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
+    prior_artifact=None,
+    refute=None,
+    validators=None,
     seed=1,
     bootstrap=0,
-    threads=1
+    threads=1,
+    algorithm=None,
+    max_lag=1,
+    alpha=0.05,
+    fdr=true,
+    accept_discovered=true,
+    regimes=None,
+    n_chains=2,
+    n_warmup=100,
+    mcmc_draws=200,
+    force_mcmc=false,
+    ci=None,
 ))]
 fn analyze_events(
     py: Python<'_>,
@@ -2743,33 +3225,52 @@ fn analyze_events(
     horizon_steps: u32,
     active_level: f64,
     policy: &str,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    algorithm: Option<String>,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    accept_discovered: bool,
+    regimes: Option<Vec<u32>>,
+    n_chains: u32,
+    n_warmup: u32,
+    mcmc_draws: u32,
+    force_mcmc: bool,
+    ci: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AnalysisResult> {
     let batch = columns_to_batch(&names, &columns)?;
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
+    let threads = if custom_validators.is_empty() && !is_ci_callback { threads } else { 1 };
     drop(columns);
     let policy = policy.to_string();
+    let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
+    let accept = if accept_discovered {
+        DiscoveryAccept::AutoAccept
+    } else {
+        DiscoveryAccept::Review
+    };
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let event = EventData::try_new(loaded.data.storage().clone(), Arc::from(event_times_ns))
             .map_err(py_err)?;
+        let schema = event.schema().clone();
         let name_to_id = |nm: &str| {
-            event
-                .schema()
+            schema
                 .id_of(nm)
                 .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
         };
         let t_id = name_to_id(&treatment)?;
         let y_id = name_to_id(&outcome)?;
-        let mut g = TemporalDag::empty();
-        for (src, slag, tgt, tlag) in &edges {
-            let s =
-                ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
-            let t =
-                ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
-            g.insert_directed(s, t).map_err(py_err)?;
-        }
         let q = temporal_query_from_policy(
             &policy,
             t_id,
@@ -2778,34 +3279,65 @@ fn analyze_events(
             horizon_steps,
             active_level,
         )?;
-        let analysis = CausalAnalysis::builder()
+        let graph = if algorithm.is_none() {
+            let mut g = TemporalDag::empty();
+            for (src, slag, tgt, tlag) in &edges {
+                let s =
+                    ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
+                let t =
+                    ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
+                g.insert_directed(s, t).map_err(py_err)?;
+            }
+            Some(g)
+        } else {
+            None
+        };
+        let mut builder = CausalAnalysis::builder()
             .events(event, align_interval_ns)
-            .temporal_graph(g)
             .temporal_query(q)
+            .refute(suite)
+            .custom_validators(custom_validators)
             .bootstrap_replicates(bootstrap)
-            .build()
-            .map_err(py_err)?;
+            .discovery_ci(ci_impl);
+        if let Some(g) = graph {
+            builder = builder.temporal_graph(g);
+        } else if let Some(algo) = algorithm.as_deref() {
+            let algo = algo.to_ascii_lowercase();
+            builder = match algo.as_str() {
+                "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
+                "pcmci_plus" => builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept),
+                "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
+                "rpcmci" => {
+                    let regimes = regimes.ok_or_else(|| {
+                        PyValueError::new_err("analyze_events(algorithm='rpcmci') requires regimes=[…]")
+                    })?;
+                    let assign = RegimeAssignment::try_new(
+                        regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
+                    )
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                    builder.discover_rpcmci(max_lag, alpha, fdr_ctrl, accept, assign)
+                }
+                "dbn_posterior" => builder.discover_dbn_posterior(
+                    max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws,
+                ),
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "EventFrame discovery algorithm {other:?} unsupported"
+                    )));
+                }
+            };
+        }
+        builder = apply_temporal_inference(
+            builder,
+            inference.as_deref(),
+            n_draws,
+            prior_scale,
+            prior_artifact.as_deref(),
+        )?;
+        let analysis = builder.build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
-        Ok(AnalysisResult {
-            ate: result.estimate.ate,
-            se_analytic: result.estimate.se_analytic,
-            se_bootstrap: result.estimate.se_bootstrap,
-            plan_id: result.logical_plan.plan_id.to_string(),
-            modality: format!("{:?}", result.logical_plan.data_classification),
-            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-            identification_status: format!("{:?}", result.identification.status),
-            method: result.estimand.method.to_string(),
-            diagnostics: result
-                .diagnostics
-                .iter()
-                .map(|d| format!("{}: {}", d.code, d.message))
-                .collect(),
-            provenance_node_count: result.provenance.len(),
-            refutation_count: result.refutations.len(),
-            worker_threads: result.physical_plan.worker_threads,
-            expected_python_crossings: result.physical_plan.expected_python_crossings,
-        })
+        analysis_result_from_run(&names, result)
     })
 }
 
@@ -2823,6 +3355,12 @@ fn analyze_events(
     horizon_steps=1,
     active_level=1.0,
     policy="pulse",
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
+    prior_artifact=None,
+    refute=None,
+    validators=None,
     seed=1,
     bootstrap=0,
     threads=1
@@ -2839,6 +3377,12 @@ fn analyze_panel(
     horizon_steps: u32,
     active_level: f64,
     policy: &str,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -2853,6 +3397,9 @@ fn analyze_panel(
     for cols in &unit_columns {
         batches.push(columns_to_batch(&names, cols)?);
     }
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
     drop(unit_columns);
     let policy = policy.to_string();
     detach_catch(py, move || {
@@ -2886,34 +3433,25 @@ fn analyze_panel(
             horizon_steps,
             active_level,
         )?;
-        let analysis = CausalAnalysis::builder()
+        let mut builder = CausalAnalysis::builder()
             .panel(panel)
             .temporal_graph(g)
             .temporal_query(q)
-            .bootstrap_replicates(bootstrap)
-            .build()
+            .refute(suite)
+            .custom_validators(custom_validators)
+            .bootstrap_replicates(bootstrap);
+        builder = apply_temporal_inference(
+            builder,
+            inference.as_deref(),
+            n_draws,
+            prior_scale,
+            prior_artifact.as_deref(),
+        )?;
+        let analysis = builder.build()
             .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
-        Ok(AnalysisResult {
-            ate: result.estimate.ate,
-            se_analytic: result.estimate.se_analytic,
-            se_bootstrap: result.estimate.se_bootstrap,
-            plan_id: result.logical_plan.plan_id.to_string(),
-            modality: format!("{:?}", result.logical_plan.data_classification),
-            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-            identification_status: format!("{:?}", result.identification.status),
-            method: result.estimand.method.to_string(),
-            diagnostics: result
-                .diagnostics
-                .iter()
-                .map(|d| format!("{}: {}", d.code, d.message))
-                .collect(),
-            provenance_node_count: result.provenance.len(),
-            refutation_count: result.refutations.len(),
-            worker_threads: result.physical_plan.worker_threads,
-            expected_python_crossings: result.physical_plan.expected_python_crossings,
-        })
+        analysis_result_from_run(&names, result)
     })
 }
 
@@ -2926,6 +3464,7 @@ fn analyze_panel(
     treatment,
     outcome,
     *,
+    algorithm="jpcmci_plus",
     max_lag=3,
     alpha=0.05,
     fdr=true,
@@ -2934,6 +3473,12 @@ fn analyze_panel(
     horizon_steps=1,
     active_level=1.0,
     policy="pulse",
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
+    prior_artifact=None,
+    refute=None,
+    validators=None,
     seed=1,
     bootstrap=0,
     threads=1,
@@ -2951,6 +3496,7 @@ fn analyze_panel_discover(
     unit_ids: Vec<u32>,
     treatment: String,
     outcome: String,
+    algorithm: &str,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -2959,6 +3505,12 @@ fn analyze_panel_discover(
     horizon_steps: u32,
     active_level: f64,
     policy: &str,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -2979,9 +3531,13 @@ fn analyze_panel_discover(
     for cols in &unit_columns {
         batches.push(columns_to_batch(&names, cols)?);
     }
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
     drop(unit_columns);
     let policy = policy.to_string();
     let time_dummy_encoding = time_dummy_encoding.to_string();
+        let algorithm = algorithm.to_string();
     detach_catch(py, move || {
         let mut units = Vec::with_capacity(batches.len());
         for (batch, unit_id) in batches.iter().zip(unit_ids.into_iter()) {
@@ -3043,34 +3599,40 @@ fn analyze_panel_discover(
             time_dummy_ci: time_mode,
             ..MultiDatasetConstraints::default()
         };
-        let analysis = CausalAnalysis::builder()
-            .panel(panel)
-            .discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset)
+        let algo = algorithm.to_ascii_lowercase();
+        let mut builder = CausalAnalysis::builder().panel(panel);
+        builder = match algo.as_str() {
+            "jpcmci_plus" | "jpcmci+" => {
+                builder.discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset)
+            }
+            "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
+            "pcmci_plus" | "pcmci+" => {
+                builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept)
+            }
+            "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown panel discovery algorithm {other:?};                      use jpcmci_plus|pcmci|pcmci_plus|lpcmci"
+                )));
+            }
+        };
+        let mut builder = builder
             .temporal_query(q)
-            .bootstrap_replicates(bootstrap)
-            .build()
+            .refute(suite)
+            .custom_validators(custom_validators)
+            .bootstrap_replicates(bootstrap);
+        builder = apply_temporal_inference(
+            builder,
+            inference.as_deref(),
+            n_draws,
+            prior_scale,
+            prior_artifact.as_deref(),
+        )?;
+        let analysis = builder.build()
             .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
-        Ok(AnalysisResult {
-            ate: result.estimate.ate,
-            se_analytic: result.estimate.se_analytic,
-            se_bootstrap: result.estimate.se_bootstrap,
-            plan_id: result.logical_plan.plan_id.to_string(),
-            modality: format!("{:?}", result.logical_plan.data_classification),
-            peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-            identification_status: format!("{:?}", result.identification.status),
-            method: result.estimand.method.to_string(),
-            diagnostics: result
-                .diagnostics
-                .iter()
-                .map(|d| format!("{}: {}", d.code, d.message))
-                .collect(),
-            provenance_node_count: result.provenance.len(),
-            refutation_count: result.refutations.len(),
-            worker_threads: result.physical_plan.worker_threads,
-            expected_python_crossings: result.physical_plan.expected_python_crossings,
-        })
+        analysis_result_from_run(&names, result)
     })
 }
 
@@ -3820,6 +4382,12 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<(Vec<String>, Vec<(u32, u32)>, 
     horizon_steps=1,
     active_level=1.0,
     policy="pulse",
+    inference=None,
+    n_draws=1000,
+    prior_scale=10.0,
+    prior_artifact=None,
+    refute=None,
+    validators=None,
     seed=1,
     bootstrap=0,
     threads=1,
@@ -3832,6 +4400,10 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<(Vec<String>, Vec<(u32, u32)>, 
     time_dummy_encoding="integer",
     time_dummy_ci="scalar",
     ci=None,
+    n_chains=2,
+    n_warmup=100,
+    mcmc_draws=200,
+    force_mcmc=false,
 ))]
 fn analyze_temporal_discover(
     py: Python<'_>,
@@ -3848,6 +4420,12 @@ fn analyze_temporal_discover(
     horizon_steps: u32,
     active_level: f64,
     policy: &str,
+    inference: Option<String>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<Vec<u8>>,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -3860,8 +4438,14 @@ fn analyze_temporal_discover(
     time_dummy_encoding: &str,
     time_dummy_ci: &str,
     ci: Option<Bound<'_, PyAny>>,
+    n_chains: u32,
+    n_warmup: u32,
+    mcmc_draws: u32,
+    force_mcmc: bool,
 ) -> PyResult<AnalysisResult> {
     let algo = algorithm.to_string();
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
     let policy = policy.to_ascii_lowercase();
     let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
     let accept = if accept_discovered {
@@ -3956,6 +4540,10 @@ fn analyze_temporal_discover(
                 let analysis = CausalAnalysis::builder()
                     .series_multi(multi)
                     .temporal_query(q)
+                    .refute(suite.clone())
+                    .custom_validators(custom_validators.clone())
+                    .refute(suite.clone())
+                    .custom_validators(custom_validators.clone())
                     .bootstrap_replicates(bootstrap)
                     .discovery_ci(ci_impl)
                     .discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset)
@@ -3963,7 +4551,7 @@ fn analyze_temporal_discover(
                     .map_err(py_err)?;
                 let ctx = py_execution_context(seed, threads);
                 let result = analysis.run(&ctx).map_err(py_err)?;
-                Ok(analysis_result_from_run(result))
+                analysis_result_from_run(&names, result)
             })
         }
         "rpcmci" => {
@@ -4012,6 +4600,8 @@ fn analyze_temporal_discover(
                 let analysis = CausalAnalysis::builder()
                     .series(series)
                     .temporal_query(q)
+                    .refute(suite.clone())
+                    .custom_validators(custom_validators.clone())
                     .bootstrap_replicates(bootstrap)
                     .discovery_ci(ci_impl)
                     .discover_rpcmci(max_lag, alpha, fdr_ctrl, accept, assign)
@@ -4019,7 +4609,7 @@ fn analyze_temporal_discover(
                     .map_err(py_err)?;
                 let ctx = py_execution_context(seed, threads);
                 let result = analysis.run(&ctx).map_err(py_err)?;
-                Ok(analysis_result_from_run(result))
+                analysis_result_from_run(&names, result)
             })
         }
         "pcmci" | "pcmci_plus" | "lpcmci" => {
@@ -4052,6 +4642,8 @@ fn analyze_temporal_discover(
                 let mut builder = CausalAnalysis::builder()
                     .series(series)
                     .temporal_query(q)
+                    .refute(suite.clone())
+                    .custom_validators(custom_validators.clone())
                     .bootstrap_replicates(bootstrap)
                     .discovery_ci(ci_impl);
                 builder = match algo.as_str() {
@@ -4060,20 +4652,124 @@ fn analyze_temporal_discover(
                     "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
                     _ => unreachable!(),
                 };
+                builder = apply_temporal_inference(
+                    builder,
+                    inference.as_deref(),
+                    n_draws,
+                    prior_scale,
+                    prior_artifact.as_deref(),
+                )?;
                 let analysis = builder.build().map_err(py_err)?;
                 let ctx = py_execution_context(seed, threads);
                 let result = analysis.run(&ctx).map_err(py_err)?;
-                Ok(analysis_result_from_run(result))
+                analysis_result_from_run(&names, result)
+            })
+        }
+        "dbn_posterior" => {
+            let batch = columns_to_batch(&names, &columns)?;
+            drop(columns);
+            detach_catch(py, move || {
+                let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+                let tabular = loaded.data;
+                let n = tabular.row_count();
+                let series = TimeSeriesData::try_new(
+                    tabular.storage().clone(),
+                    TimeIndex {
+                        regularity: SamplingRegularity::Regular { interval_ns: 1 },
+                        length: n,
+                    },
+                )
+                .map_err(py_err)?;
+                let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+                let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+                let q = temporal_query_from_policy(
+                    &policy,
+                    t_id,
+                    y_id,
+                    treatment_lag,
+                    horizon_steps,
+                    active_level,
+                )?;
+                let mut builder = CausalAnalysis::builder()
+                    .series(series)
+                    .temporal_query(q)
+                    .refute(suite)
+                    .custom_validators(custom_validators)
+                    .bootstrap_replicates(bootstrap)
+                    .discover_dbn_posterior(max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws);
+                builder = apply_temporal_inference(
+                    builder,
+                    inference.as_deref(),
+                    n_draws,
+                    prior_scale,
+                    prior_artifact.as_deref(),
+                )?;
+                let analysis = builder.build().map_err(py_err)?;
+                let ctx = py_execution_context(seed, threads);
+                let result = analysis.run(&ctx).map_err(py_err)?;
+                analysis_result_from_run(&names, result)
             })
         }
         other => Err(PyValueError::new_err(format!(
-            "unknown discovery algorithm {other:?}; use pcmci|pcmci_plus|lpcmci|jpcmci_plus|rpcmci"
+            "unknown discovery algorithm {other:?}; use pcmci|pcmci_plus|lpcmci|jpcmci_plus|rpcmci|dbn_posterior"
         ))),
     }
 }
 
-fn analysis_result_from_run(result: causal::CausalAnalysisResult) -> AnalysisResult {
-    AnalysisResult {
+fn analysis_result_from_run(
+    names: &[String],
+    result: causal::CausalAnalysisResult,
+) -> PyResult<AnalysisResult> {
+    let adjustment_set: Vec<String> = result
+        .estimand
+        .adjustment_set
+        .iter()
+        .map(|id| {
+            names
+                .get(id.as_usize())
+                .cloned()
+                .unwrap_or_else(|| format!("var{}", id.raw()))
+        })
+        .collect();
+    let estimator_id = if result.posterior.is_some() {
+        "bayesian.temporal.gcomp".to_string()
+    } else {
+        result
+            .logical_plan
+            .estimator
+            .as_deref()
+            .unwrap_or("temporal.linear.adjustment")
+            .to_string()
+    };
+    let (
+        posterior_effect_mean,
+        posterior_effect_sd,
+        posterior_q025,
+        posterior_q975,
+        posterior_n_draws,
+        posterior_p_below_zero,
+        posterior_backend,
+        posterior_artifact,
+        posterior_unidentified_mass,
+    ) = if let Some(post) = result.posterior.as_ref() {
+        let eq = post.effect_column().unwrap_or(0);
+        let artifact = encode_causal_posterior_bytes(post, "temporal-analysis").map_err(py_err)?;
+        let p_below = post.probability_below(0.0).map_err(py_estimate)?;
+        (
+            Some(post.summaries.mean[eq]),
+            Some(post.summaries.sd[eq]),
+            Some(post.summaries.q025[eq]),
+            Some(post.summaries.q975[eq]),
+            Some(post.draws.n_draws),
+            Some(p_below),
+            Some(post.diagnostics.backend_id.to_string()),
+            Some(artifact),
+            Some(post.unidentified_mass),
+        )
+    } else {
+        (None, None, None, None, None, None, None, None, None)
+    };
+    Ok(AnalysisResult {
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
@@ -4091,7 +4787,57 @@ fn analysis_result_from_run(result: causal::CausalAnalysisResult) -> AnalysisRes
         refutation_count: result.refutations.len(),
         worker_threads: result.physical_plan.worker_threads,
         expected_python_crossings: result.physical_plan.expected_python_crossings,
+        adjustment_set,
+        assumption_count: result.estimate.assumptions.len(),
+        derivation_step_count: result.identification.derivation.steps.len(),
+        estimator_id,
+        posterior_effect_mean,
+        posterior_effect_sd,
+        posterior_q025,
+        posterior_q975,
+        posterior_n_draws,
+        posterior_p_below_zero,
+        posterior_backend,
+        posterior_artifact,
+        posterior_unidentified_mass,
+        mediation_total: result.mediation.as_ref().and_then(|m| m.total),
+        mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
+        mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
+    })
+}
+
+fn apply_temporal_inference(
+    mut builder: causal::CausalAnalysisBuilder,
+    inference: Option<&str>,
+    n_draws: usize,
+    prior_scale: f64,
+    prior_artifact: Option<&[u8]>,
+) -> PyResult<causal::CausalAnalysisBuilder> {
+    let Some(mode) = inference else {
+        return Ok(builder);
+    };
+    let mut cfg = match mode.to_ascii_lowercase().as_str() {
+        "bayesian" | "bayesian.laplace" | "laplace" => {
+            BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
+        }
+        "bayesian.conjugate" | "conjugate" => {
+            BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+        }
+        "bayesian.hmc" | "hmc" => BayesianConfig::hmc().n_draws(n_draws).prior_scale(prior_scale),
+        "frequentist" => {
+            return Ok(builder.inference(InferenceMode::Frequentist));
+        }
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unknown inference mode {other:?}; use frequentist|bayesian|conjugate|hmc"
+            )));
+        }
+    };
+    if let Some(bytes) = prior_artifact {
+        let prior = causal::prior_set_from_posterior_bytes(bytes).map_err(py_err)?;
+        cfg = cfg.prior(prior);
     }
+    Ok(builder.inference(InferenceMode::Bayesian(cfg)))
 }
 
 /// Anomaly scores for listed outcomes.
@@ -4429,6 +5175,130 @@ fn dag_to_networkx_adjacency(
 }
 
 /// Python module `causal._native`.
+
+/// Conditional / context average effect (single effect modifier).
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, edges, treatment, outcome, modifier, *,
+    control_level=0.0, active_level=1.0,
+    refute=None, validators=None, seed=1, bootstrap=50, threads=1
+))]
+fn analyze_conditional(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    modifier: String,
+    control_level: f64,
+    active_level: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    validators: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
+        let inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
+            .with_effect_modifiers([w_id]);
+        let cq = ConditionalEffectQuery::try_new(inner)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let dag = build_static_dag(&data, &edges)?;
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(dag)
+            .causal_query(CausalQuery::ConditionalEffect(cq))
+            .refute(suite)
+            .custom_validators(custom_validators)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        ate_result_from_analysis(&names, result)
+    })
+}
+
+/// Temporal linear mediation (treatment → mediator → outcome).
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, edges, treatment, mediator, outcome, *,
+    contrast="mediated", control_level=0.0, active_level=1.0,
+    seed=1, bootstrap=0, threads=1
+))]
+fn analyze_temporal_mediation(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, u32, String, u32)>,
+    treatment: String,
+    mediator: String,
+    outcome: String,
+    contrast: &str,
+    control_level: f64,
+    active_level: f64,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let contrast = contrast.to_string();
+    drop(columns);
+    detach_catch(py, move || {
+        let (series, _) = series_from_batch(&batch)?;
+        let name_to_id = |nm: &str| {
+            series
+                .schema()
+                .id_of(nm)
+                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
+        };
+        let t_id = name_to_id(&treatment)?;
+        let m_id = name_to_id(&mediator)?;
+        let y_id = name_to_id(&outcome)?;
+        let contrast = match contrast.to_ascii_lowercase().as_str() {
+            "total" => MediationContrast::Total,
+            "direct" => MediationContrast::Direct,
+            "mediated" | "indirect" => MediationContrast::Mediated,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown mediation contrast {other:?}; use total|direct|mediated"
+                )));
+            }
+        };
+        let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
+        q.control = Intervention::set(t_id, Value::f64(control_level));
+        q.active = Intervention::set(t_id, Value::f64(active_level));
+        let mut g = TemporalDag::empty();
+        for (src, slag, tgt, tlag) in &edges {
+            let s = ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
+            let t = ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
+            g.insert_directed(s, t).map_err(py_err)?;
+        }
+        let analysis = CausalAnalysis::builder()
+            .series(series)
+            .temporal_graph(g)
+            .causal_query(CausalQuery::Mediation(q))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        analysis_result_from_run(&names, result)
+    })
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CausalError", m.py().get_type::<CausalError>())?;
@@ -4458,6 +5328,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_path_specific, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_conditional, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_temporal_mediation, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_pag, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_events, m)?)?;

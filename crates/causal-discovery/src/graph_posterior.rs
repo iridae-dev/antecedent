@@ -16,7 +16,7 @@ use std::sync::Arc;
 use causal_core::{ExecutionContext, Lag, VariableId};
 use causal_data::TabularData;
 use causal_graph::algo::is_dag;
-use causal_graph::DenseNodeId;
+use causal_graph::{Dag, DenseNodeId};
 use causal_prob::{
     max_split_rhat, min_bulk_ess, GraphIdentFlag, HessianFactorization, InferenceDiagnostics,
     WeightedGraphSamples,
@@ -127,6 +127,8 @@ pub struct GraphPosterior {
     pub lagged_edge_marginals: Option<Arc<[f64]>>,
     /// Max lag encoded in `lagged_edge_marginals` (`None` if static).
     pub max_lag: Option<u32>,
+    /// Optional per-atom lag-edge bitmasks (DBN templates; same length as `adjacency`).
+    pub lag_masks: Option<Arc<[u64]>>,
 }
 
 impl GraphPosterior {
@@ -193,6 +195,7 @@ impl GraphPosterior {
             rejected_invalid,
             lagged_edge_marginals: None,
             max_lag: None,
+            lag_masks: None,
         })
     }
 
@@ -213,8 +216,24 @@ impl GraphPosterior {
                 "lagged edge marginal length mismatch",
             ));
         }
-        self.lagged_edge_marginals = Some(lagged);
+        self.lagged_edge_marginals.replace(lagged);
         self.max_lag = Some(max_lag);
+        Ok(self)
+    }
+
+    /// Attach per-atom lag-edge bitmasks (same length as `adjacency`).
+    ///
+    /// # Errors
+    ///
+    /// Length mismatch.
+    pub fn with_lag_masks(mut self, masks: impl Into<Arc<[u64]>>) -> Result<Self, DiscoveryError> {
+        let masks = masks.into();
+        if masks.len() != self.n_graphs {
+            return Err(DiscoveryError::unsupported(
+                "lag_masks/adjacency length mismatch",
+            ));
+        }
+        self.lag_masks = Some(masks);
         Ok(self)
     }
 
@@ -316,6 +335,44 @@ pub fn mask_is_dag(mask: u64, n: usize) -> bool {
         }
     }
     is_dag(&parents, &children)
+}
+
+/// Build a [`Dag`] from a packed adjacency bitmask.
+///
+/// # Errors
+///
+/// When `mask` is not a DAG on `n_vars` nodes, or `n_vars` exceeds packing capacity.
+pub fn dag_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Dag, DiscoveryError> {
+    if n_vars == 0 {
+        return Err(DiscoveryError::data_msg(
+            "dag_from_adjacency_mask: n_vars must be > 0",
+        ));
+    }
+    if n_directed_edges(n_vars) > 64 {
+        return Err(DiscoveryError::data_msg(format!(
+            "dag_from_adjacency_mask: n_vars={n_vars} exceeds u64 adjacency packing"
+        )));
+    }
+    if !mask_is_dag(mask, n_vars) {
+        return Err(DiscoveryError::data_msg(format!(
+            "adjacency mask {mask:#x} is not a DAG on {n_vars} nodes"
+        )));
+    }
+    let n_u32 = u32::try_from(n_vars).map_err(|_| {
+        DiscoveryError::data_msg("n_vars too large for DenseNodeId")
+    })?;
+    let mut dag = Dag::with_variables(n_u32);
+    for i in 0..n_vars {
+        for j in 0..n_vars {
+            if i != j && has_edge(mask, n_vars, i, j) {
+                dag.insert_directed(
+                    DenseNodeId::from_raw(i as u32),
+                    DenseNodeId::from_raw(j as u32),
+                )?;
+            }
+        }
+    }
+    Ok(dag)
 }
 
 /// Contemporaneous `LaggedLink` for dense indices into `variables`.

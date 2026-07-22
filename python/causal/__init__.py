@@ -22,9 +22,11 @@ from . import (
     discovery,
     estimation,
     extensibility,
+    gcm,
     graph,
     inference,
     model,
+    population,
     query,
     state,
     validation,
@@ -110,7 +112,21 @@ from ._native import (
     sample_do,
     sample_interventional_distribution,
 )
-from .design import evaluate_decision
+from .gcm import (
+    anomaly_attribution_discovered,
+    attribute_distribution_change_discovered,
+    attribute_paths_discovered,
+    fit_gcm_discovered,
+)
+from .population import (
+    PopulationRegistry,
+    target_all,
+    target_custom_distribution,
+    target_named,
+    target_rows,
+    target_treated,
+    target_untreated,
+)
 from .discovery import (
     CiScreenedPosterior,
     DbnPosterior,
@@ -146,14 +162,22 @@ from .discovery import (
     discover_structure_mcmc,
     two_regime_half_split,
 )
-from .estimation import AnalysisResult, analyze
+from .estimation import (
+    AnalysisResult,
+    EffectEnvelope,
+    PredictiveCheckReport,
+    PriorSensitivityReport,
+    analyze,
+)
 from .inference import Bayesian, Frequentist
 from .query import (
     AverageEffect,
+    ConditionalEffect,
     InterventionalDistribution,
     PathSpecificEffect,
     PulseEffect,
     SustainedEffect,
+    TemporalMediationEffect,
 )
 from .validation import (
     validate_environment_holdout,
@@ -194,6 +218,7 @@ __all__ = [
     "CausalUnsupportedError",
     "CausalValidateError",
     "ChangeAttributionResult",
+    "ConditionalEffect",
     "CiScreenedPosterior",
     "Contribution",
     "Cpdag",
@@ -226,8 +251,12 @@ __all__ = [
     "Pag",
     "PathSpecificEffect",
     "PcmciDiscoveryResult",
+    "PopulationRegistry",
     "PosteriorArtifact",
     "PredictSummary",
+    "EffectEnvelope",
+    "PredictiveCheckReport",
+    "PriorSensitivityReport",
     "PulseEffect",
     "RFCI",
     "RPCMCI",
@@ -236,6 +265,7 @@ __all__ = [
     "SustainedEffect",
     "TemporalCpdag",
     "TemporalDag",
+    "TemporalMediationEffect",
     "TemporalPag",
     "analyze",
     "anomaly_attribution",
@@ -289,6 +319,8 @@ __all__ = [
     "EventFrame",
     "extensibility",
     "fit_gcm",
+    "fit_gcm_discovered",
+    "gcm",
     "graph",
     "inference",
     "load_float64_arrow_c_columns",
@@ -300,6 +332,7 @@ __all__ = [
     "MultiEnvFrame",
     "panel",
     "PanelFrame",
+    "population",
     "predict_intervened_summary",
     "query",
     "rank_designs",
@@ -307,6 +340,15 @@ __all__ = [
     "sample_do",
     "sample_interventional_distribution",
     "state",
+    "target_all",
+    "target_custom_distribution",
+    "target_named",
+    "target_rows",
+    "target_treated",
+    "target_untreated",
+    "attribute_paths_discovered",
+    "anomaly_attribution_discovered",
+    "attribute_distribution_change_discovered",
     "validate_environment_holdout",
     "validate_pcmci_alpha_sensitivity",
     "validate_pcmci_block_bootstrap",

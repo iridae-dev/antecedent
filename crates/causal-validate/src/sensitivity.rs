@@ -24,8 +24,8 @@ use causal_data::TableView;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, fit_once, float64_full,
-    linear_estimator_no_bootstrap, masked_sample_sd, sample_sd, with_replaced_float,
+    RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, float64_full,
+    linear_estimator_no_bootstrap, masked_sample_sd, refit_effect, sample_sd, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -47,7 +47,9 @@ fn run_grid(
     let t0 = float64_full(problem.data, problem.treatment())?;
     let y0 = float64_full(problem.data, problem.outcome())?;
     let mut ids = vec![problem.treatment(), problem.outcome()];
-    ids.extend_from_slice(&problem.estimand.adjustment_set);
+    if problem.temporal.is_none() {
+        ids.extend_from_slice(&problem.estimand.adjustment_set);
+    }
     let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
     let sd_t = masked_sample_sd(problem.data, problem.treatment(), &mask)?.max(1e-12);
     let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?.max(1e-12);
@@ -74,7 +76,7 @@ fn run_grid(
         let y: Vec<f64> = y0.iter().zip(&u).map(|(&y, &u)| y + dir * scale * sd_y * u).collect();
         let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t))?;
         let data = with_replaced_float(&data, problem.outcome(), Arc::from(y))?;
-        let est = fit_once(estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
+        let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
         last_ate = est.ate;
         let explained_away = est.ate.abs() < 1e-9 || est.ate.signum() != original_sign;
         if explained_away {

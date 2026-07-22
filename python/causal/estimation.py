@@ -16,12 +16,14 @@ from ._native import (
     analyze_ate_cpdag as _analyze_ate_cpdag,
     analyze_ate_discover as _analyze_ate_discover,
     analyze_ate_pag as _analyze_ate_pag,
+    analyze_conditional as _analyze_conditional,
     analyze_distribution as _analyze_distribution,
     analyze_events as _analyze_events,
     analyze_panel as _analyze_panel,
     analyze_panel_discover as _analyze_panel_discover,
     analyze_path_specific as _analyze_path_specific,
     analyze_temporal_discover as _analyze_temporal_discover,
+    analyze_temporal_mediation as _analyze_temporal_mediation,
     analyze_temporal_pag as _analyze_temporal_pag,
 )
 from .data import EventFrame, MultiEnvFrame, PanelFrame
@@ -37,15 +39,25 @@ from .discovery import (
     PCMCIPlus,
     RFCI,
     RPCMCI,
+    CiScreenedPosterior,
+    DbnPosterior,
+    ExactDagPosterior,
+    OrderMcmc,
+    StructureMcmc,
+    cpdag_oriented_edges,
+    discovery_to_dag,
+    graph_posterior_map_edges,
 )
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 from .inference import Bayesian, Frequentist
 from .query import (
     AverageEffect,
+    ConditionalEffect,
     InterventionalDistribution,
     PathSpecificEffect,
     PulseEffect,
     SustainedEffect,
+    TemporalMediationEffect,
 )
 
 # Preferred name for the native temporal DTO.
@@ -62,6 +74,13 @@ class IdentificationView:
 
 
 @dataclass(frozen=True)
+class MediationView:
+    total: float | None
+    direct: float | None
+    mediated: float | None
+
+
+@dataclass(frozen=True)
 class EstimateView:
     ate: float
     se_analytic: float
@@ -70,6 +89,7 @@ class EstimateView:
     method: str
     overlap_ess: float | None = None
     overlap_propensity_min: float | None = None
+    mediation: MediationView | None = None
 
 
 @dataclass(frozen=True)
@@ -82,6 +102,42 @@ class PosteriorView:
     p_below_zero: float | None
     backend: str | None
     artifact: bytes | list[int] | None = None
+    unidentified_mass: float | None = None
+    envelope: EffectEnvelope | None = None
+
+
+@dataclass(frozen=True)
+class EffectEnvelope:
+    """Mixture effect posterior over weighted graphs (PAG / graph-posterior path)."""
+
+    effect_mean: float | None
+    effect_sd: float | None
+    q025: float | None
+    q975: float | None
+    unidentified_mass: float
+    n_draws: int | None
+    backend: str | None = None
+
+
+@dataclass(frozen=True)
+class PredictiveCheckReport:
+    """Prior or posterior predictive check summary."""
+
+    kind: str
+    observed: float
+    predictive_mean: float
+    predictive_sd: float
+    p_value: float
+    n_sims: int
+
+
+@dataclass(frozen=True)
+class PriorSensitivityReport:
+    """Isotropic prior-scale sensitivity grid (Bayesian + ``refute="full"``)."""
+
+    scales: list[float]
+    effect_means: list[float]
+    effect_sds: list[float]
 
 
 @dataclass(frozen=True)
@@ -89,6 +145,9 @@ class ValidationView:
     passed: bool
     ran: bool
     count: int
+    prior_predictive: PredictiveCheckReport | None = None
+    posterior_predictive: PredictiveCheckReport | None = None
+    prior_sensitivity: PriorSensitivityReport | None = None
 
 
 @dataclass(frozen=True)
@@ -109,6 +168,7 @@ class AnalysisResult:
     performance: PerformanceView
     diagnostics: list[str]
     provenance: dict[str, Any]
+    mediation: MediationView | None = None
     _raw: Any = None
 
     @property
@@ -119,6 +179,18 @@ class AnalysisResult:
 def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
     posterior = None
     if raw.posterior_n_draws is not None:
+        mass = getattr(raw, "posterior_unidentified_mass", None)
+        envelope = None
+        if mass is not None and float(mass) > 0.0:
+            envelope = EffectEnvelope(
+                effect_mean=raw.posterior_effect_mean,
+                effect_sd=raw.posterior_effect_sd,
+                q025=raw.posterior_q025,
+                q975=raw.posterior_q975,
+                unidentified_mass=float(mass),
+                n_draws=raw.posterior_n_draws,
+                backend=raw.posterior_backend,
+            )
         posterior = PosteriorView(
             effect_mean=raw.posterior_effect_mean,
             effect_sd=raw.posterior_effect_sd,
@@ -128,6 +200,36 @@ def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
             p_below_zero=raw.posterior_p_below_zero,
             backend=raw.posterior_backend,
             artifact=raw.posterior_artifact,
+            unidentified_mass=None if mass is None else float(mass),
+            envelope=envelope,
+        )
+    prior_predictive = None
+    if getattr(raw, "prior_ppc_p_value", None) is not None:
+        prior_predictive = PredictiveCheckReport(
+            kind="prior_predictive",
+            observed=float(raw.prior_ppc_observed),
+            predictive_mean=float(raw.prior_ppc_predictive_mean),
+            predictive_sd=float(raw.prior_ppc_predictive_sd),
+            p_value=float(raw.prior_ppc_p_value),
+            n_sims=int(raw.prior_ppc_n_sims),
+        )
+    posterior_predictive = None
+    if getattr(raw, "posterior_ppc_p_value", None) is not None:
+        posterior_predictive = PredictiveCheckReport(
+            kind="posterior_predictive",
+            observed=float(raw.posterior_ppc_observed),
+            predictive_mean=float(raw.posterior_ppc_predictive_mean),
+            predictive_sd=float(raw.posterior_ppc_predictive_sd),
+            p_value=float(raw.posterior_ppc_p_value),
+            n_sims=int(raw.posterior_ppc_n_sims),
+        )
+    prior_sensitivity = None
+    scales = getattr(raw, "prior_sensitivity_scales", None)
+    if scales is not None:
+        prior_sensitivity = PriorSensitivityReport(
+            scales=list(scales),
+            effect_means=list(raw.prior_sensitivity_means),
+            effect_sds=list(raw.prior_sensitivity_sds),
         )
     return AnalysisResult(
         identification=IdentificationView(
@@ -151,6 +253,9 @@ def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
             passed=raw.refutation_passed,
             ran=raw.refutation_ran,
             count=raw.refutation_count,
+            prior_predictive=prior_predictive,
+            posterior_predictive=posterior_predictive,
+            prior_sensitivity=prior_sensitivity,
         ),
         performance=PerformanceView(
             plan_id=raw.plan_id,
@@ -163,46 +268,13 @@ def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
     )
 
 
-def _wrap_temporal(raw: TemporalAnalysisResult) -> AnalysisResult:
-    # Mirror static ate_result_from_analysis: never claim pass when nothing ran.
-    ran = raw.refutation_count > 0
-    return AnalysisResult(
-        identification=IdentificationView(
-            status=raw.identification_status,
-            method=raw.method,
-            adjustment_set=[],
-            assumption_count=0,
-            derivation_step_count=0,
-        ),
-        estimate=EstimateView(
-            ate=raw.ate,
-            se_analytic=raw.se_analytic,
-            se_bootstrap=raw.se_bootstrap,
-            estimator_id="",
-            method=raw.method,
-        ),
-        posterior=None,
-        validation=ValidationView(
-            passed=False if not ran else True,
-            ran=ran,
-            count=raw.refutation_count,
-        ),
-        performance=PerformanceView(
-            plan_id=raw.plan_id,
-            modality=raw.modality,
-            peak_memory_bytes=raw.peak_memory_bytes,
-        ),
-        diagnostics=list(raw.diagnostics),
-        provenance={
-            "node_count": raw.provenance_node_count,
-            "worker_threads": getattr(raw, "worker_threads", None),
-            "expected_python_crossings": getattr(raw, "expected_python_crossings", None),
-        },
-        _raw=raw,
-    )
-
-
 _STATIC_DISCOVERY = (PC, GES, LiNGAM, NOTEARS, FCI, RFCI)
+_GRAPH_POSTERIOR_DISCOVERY = (
+    ExactDagPosterior,
+    OrderMcmc,
+    StructureMcmc,
+    CiScreenedPosterior,
+)
 _TEMPORAL_DISCOVERY = (PCMCI, PCMCIPlus, LPCMCI, JPCMCIPlus, RPCMCI)
 
 
@@ -305,16 +377,61 @@ def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "ci": discovery.ci,
             "max_cond_size": discovery.max_cond_size,
         }
+    if isinstance(discovery, ExactDagPosterior):
+        return {"algorithm": "exact_dag_posterior"}
+    if isinstance(discovery, OrderMcmc):
+        return {
+            "algorithm": "order_mcmc",
+            "n_chains": discovery.n_chains,
+            "n_warmup": discovery.n_warmup,
+            "mcmc_draws": discovery.n_draws,
+            "thin": discovery.thin,
+            "require_diagnostics_gate": discovery.require_diagnostics_gate,
+        }
+    if isinstance(discovery, StructureMcmc):
+        return {
+            "algorithm": "structure_mcmc",
+            "n_chains": discovery.n_chains,
+            "n_warmup": discovery.n_warmup,
+            "mcmc_draws": discovery.n_draws,
+            "thin": discovery.thin,
+        }
+    if isinstance(discovery, CiScreenedPosterior):
+        return {
+            "algorithm": "ci_screened_posterior",
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
+            "soft_weight": discovery.soft_weight,
+            "n_chains": discovery.n_chains,
+            "n_warmup": discovery.n_warmup,
+            "mcmc_draws": discovery.n_draws,
+            "thin": discovery.thin,
+        }
+    if isinstance(discovery, DbnPosterior):
+        return {
+            "algorithm": "dbn_posterior",
+            "max_lag": discovery.max_lag,
+            "force_mcmc": discovery.force_mcmc,
+            "n_chains": discovery.n_chains,
+            "n_warmup": discovery.n_warmup,
+            "mcmc_draws": discovery.n_draws,
+        }
     raise TypeError(f"unsupported discovery config: {type(discovery)!r}")
 
 
 def _static_edges(
-    graph: Dag | Sequence[tuple[str, str]] | None,
+    graph: Dag | Cpdag | Sequence[tuple[str, str]] | None,
 ) -> list[tuple[str, str]]:
     if graph is None:
         raise ValueError("graph= is required")
     if isinstance(graph, Dag):
         return [(str(a), str(b)) for a, b in graph.edges()]
+    if isinstance(graph, Cpdag):
+        # PathSpecific / Interventional need a fully oriented DAG; incomplete
+        # CPDAGs fail closed with a clear undirected-count message.
+        return cpdag_oriented_edges(graph, require_oriented=True)
     return [(str(a), str(b)) for a, b in graph]  # type: ignore[misc]
 
 
@@ -344,19 +461,229 @@ def _reject_unsupported_temporal(
     refute: bool | str,
     validators: Sequence[Any] | None,
 ) -> None:
+    # Bayesian, refute, and validators are supported on series Pulse/Sustained.
+    _ = (inference, refute, validators)
+    return
+
+
+def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
+    backend = str(inference.backend).strip().lower()
+    if backend == "laplace":
+        inference_s = "bayesian"
+    elif backend == "conjugate":
+        inference_s = "conjugate"
+    elif backend == "hmc":
+        inference_s = "hmc"
+    else:
+        raise ValueError(
+            f"unknown Bayesian backend {inference.backend!r}; "
+            "use laplace|conjugate|hmc"
+        )
+    kw: dict[str, Any] = {
+        "inference": inference_s,
+        "n_draws": inference.n_draws,
+        "prior_scale": inference.prior_scale,
+    }
+    if inference.prior_from is not None:
+        kw["prior_artifact"] = bytes(inference.prior_from)
+    return kw
+
+
+def _temporal_inference_kwargs(
+    inference: Frequentist | Bayesian | None,
+) -> dict[str, Any]:
     if isinstance(inference, Bayesian):
-        raise TypeError(
-            "inference=Bayesian(...) is not supported for temporal queries; "
-            "omit inference or use Frequentist()"
+        return _bayesian_inference_kwargs(inference)
+    if isinstance(inference, Frequentist) or inference is None:
+        return {}
+    return {}
+
+
+def _wrap_temporal(raw: TemporalAnalysisResult) -> AnalysisResult:
+    # Mirror static ate_result_from_analysis: never claim pass when nothing ran.
+    ran = raw.refutation_count > 0
+    mediation = None
+    if getattr(raw, "mediation_total", None) is not None or getattr(raw, "mediation_mediated", None) is not None:
+        mediation = MediationView(
+            total=getattr(raw, "mediation_total", None),
+            direct=getattr(raw, "mediation_direct", None),
+            mediated=getattr(raw, "mediation_mediated", None),
         )
-    if _refute_requested(refute):
-        raise TypeError(
-            "refute= is not supported for temporal queries yet; pass refute=False"
+    posterior = None
+    if getattr(raw, "posterior_n_draws", None) is not None:
+        mass = getattr(raw, "posterior_unidentified_mass", None)
+        envelope = None
+        if mass is not None and float(mass) > 0.0:
+            envelope = EffectEnvelope(
+                effect_mean=raw.posterior_effect_mean,
+                effect_sd=raw.posterior_effect_sd,
+                q025=raw.posterior_q025,
+                q975=raw.posterior_q975,
+                unidentified_mass=float(mass),
+                n_draws=raw.posterior_n_draws,
+                backend=raw.posterior_backend,
+            )
+        posterior = PosteriorView(
+            effect_mean=raw.posterior_effect_mean,
+            effect_sd=raw.posterior_effect_sd,
+            q025=raw.posterior_q025,
+            q975=raw.posterior_q975,
+            n_draws=raw.posterior_n_draws,
+            p_below_zero=raw.posterior_p_below_zero,
+            backend=raw.posterior_backend,
+            artifact=raw.posterior_artifact,
+            unidentified_mass=None if mass is None else float(mass),
+            envelope=envelope,
         )
-    if validators is not None:
-        raise TypeError(
-            "validators= is not supported for temporal queries yet"
+    return AnalysisResult(
+        identification=IdentificationView(
+            status=raw.identification_status,
+            method=raw.method,
+            adjustment_set=list(getattr(raw, "adjustment_set", []) or []),
+            assumption_count=int(getattr(raw, "assumption_count", 0) or 0),
+            derivation_step_count=int(getattr(raw, "derivation_step_count", 0) or 0),
+        ),
+        estimate=EstimateView(
+            ate=raw.ate,
+            se_analytic=raw.se_analytic,
+            se_bootstrap=raw.se_bootstrap,
+            estimator_id=str(getattr(raw, "estimator_id", "") or ""),
+            method=raw.method,
+            mediation=mediation,
+        ),
+        posterior=posterior,
+        mediation=mediation,
+        validation=ValidationView(
+            passed=False if not ran else True,
+            ran=ran,
+            count=raw.refutation_count,
+        ),
+        performance=PerformanceView(
+            plan_id=raw.plan_id,
+            modality=raw.modality,
+            peak_memory_bytes=raw.peak_memory_bytes,
+        ),
+        diagnostics=list(raw.diagnostics),
+        provenance={
+            "node_count": raw.provenance_node_count,
+            "worker_threads": getattr(raw, "worker_threads", None),
+            "expected_python_crossings": getattr(raw, "expected_python_crossings", None),
+        },
+        _raw=raw,
+    )
+
+
+
+def _resolve_static_discovery_edges(data, discovery, accept_discovered: bool, seed: int, threads: int):
+    """Run static discovery and return oriented DAG edge list.
+
+    When ``accept_discovered`` is True, incomplete CPDAG/PAG marks raise
+    ``ValueError`` (auto-accept cannot invent orientations). When False,
+    raises ``CausalReviewError`` with structured attrs.
+    """
+    from . import discovery as disc
+    from ._native import CausalReviewError
+
+    def _require_oriented(result, *, kind: str, algorithm: str):
+        try:
+            return list(discovery_to_dag(result).edges())
+        except ValueError as exc:
+            pending = sum(
+                1
+                for e in result.graph_edges
+                if not (
+                    (e.at_source == "tail" and e.at_target == "arrow")
+                    or (e.at_source == "arrow" and e.at_target == "tail")
+                )
+            )
+            if accept_discovered:
+                raise ValueError(
+                    f"{algorithm}: accept_discovered=True but graph is incomplete "
+                    f"({pending} non-directed marks); cannot invent orientations. {exc}"
+                ) from exc
+            err = CausalReviewError(
+                "cannot execute while graph review is required"
+            )
+            err.kind = kind
+            err.algorithm = algorithm
+            err.pending_edge_count = pending
+            err.hint = (
+                "orient remaining edges into a Dag, or use finish_*_review / "
+                "supply graph= edges"
+            )
+            err.message = str(err)
+            raise err from exc
+
+    if isinstance(discovery, ExactDagPosterior):
+        return graph_posterior_map_edges(disc.discover_exact_dag_posterior(data))
+    if isinstance(discovery, OrderMcmc):
+        return graph_posterior_map_edges(
+            disc.discover_order_mcmc(
+                data,
+                n_warmup=discovery.n_warmup,
+                n_draws=discovery.n_draws,
+                seed=seed,
+                threads=threads,
+            )
         )
+    if isinstance(discovery, StructureMcmc):
+        return graph_posterior_map_edges(
+            disc.discover_structure_mcmc(
+                data,
+                n_warmup=discovery.n_warmup,
+                n_draws=discovery.n_draws,
+                seed=seed,
+                threads=threads,
+            )
+        )
+    if isinstance(discovery, CiScreenedPosterior):
+        return graph_posterior_map_edges(
+            disc.discover_ci_screened_posterior(
+                data,
+                alpha=discovery.alpha,
+                fdr=discovery.fdr,
+                seed=seed,
+                threads=threads,
+            )
+        )
+    if isinstance(discovery, PC):
+        result = disc.discover_pc(
+            data, alpha=discovery.alpha, fdr=discovery.fdr, seed=seed, threads=threads
+        )
+        return _require_oriented(result, kind="static_cpdag", algorithm="pc")
+    if isinstance(discovery, GES):
+        result = disc.discover_ges(
+            data, alpha=discovery.alpha, fdr=discovery.fdr, seed=seed, threads=threads
+        )
+        return _require_oriented(result, kind="static_cpdag", algorithm="ges")
+    if isinstance(discovery, LiNGAM):
+        result = disc.discover_lingam(data, seed=seed, threads=threads)
+        return _require_oriented(result, kind="static_dag", algorithm="lingam")
+    if isinstance(discovery, NOTEARS):
+        result = disc.discover_notears(data, seed=seed, threads=threads)
+        return _require_oriented(result, kind="static_dag", algorithm="notears")
+    if isinstance(discovery, (FCI, RFCI)):
+        algo = "fci" if isinstance(discovery, FCI) else "rfci"
+        if not accept_discovered:
+            err = CausalReviewError(
+                "FCI/RFCI PathSpecific/Interventional queries require a fully "
+                "oriented DAG; accept_discovered=False leaves PAG review open"
+            )
+            err.kind = "static_pag"
+            err.algorithm = algo
+            err.pending_edge_count = 0
+            err.hint = (
+                "orient the PAG to a Dag (or use PC/GES/LiNGAM/NOTEARS); "
+                "PathSpecific/Interventional do not run generalized PAG adjustment"
+            )
+            err.message = str(err)
+            raise err
+        raise ValueError(
+            f"{algo}: PathSpecific/Interventional require a fully oriented DAG; "
+            "use PC/GES/LiNGAM/NOTEARS or supply graph= edges "
+            "(accept_discovered cannot invent PAG orientations)"
+        )
+    raise TypeError(f"unsupported discovery type for path/distribution: {type(discovery)!r}")
 
 
 def analyze(
@@ -368,6 +695,8 @@ def analyze(
         | SustainedEffect
         | InterventionalDistribution
         | PathSpecificEffect
+        | ConditionalEffect
+        | TemporalMediationEffect
     ),
     graph: (
         Dag
@@ -392,6 +721,10 @@ def analyze(
     bootstrap: int = 50,
     threads: int = 1,
     regimes: Sequence[int] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
+    population_registry: Any | None = None,
 ) -> AnalysisResult:
     """Identify then estimate a causal effect.
 
@@ -419,11 +752,61 @@ def analyze(
     """
     inference = inference or Frequentist()
 
-    if isinstance(query, InterventionalDistribution):
+    if isinstance(query, ConditionalEffect):
+        if isinstance(inference, Bayesian):
+            raise TypeError("ConditionalEffect does not support inference=Bayesian(...)")
         if discovery is not None:
-            raise ValueError("InterventionalDistribution does not support discovery=")
+            raise ValueError("ConditionalEffect does not support discovery=")
         names, columns = as_columns(data)  # type: ignore[arg-type]
         edges = _static_edges(graph)  # type: ignore[arg-type]
+        raw = _analyze_conditional(
+            names,
+            columns,
+            edges,
+            query.treatment,
+            query.outcome,
+            query.modifier,
+            control_level=query.control_level,
+            active_level=query.active_level,
+            refute=refute,
+            validators=list(validators) if validators is not None else None,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+        )
+        return _wrap_ate(raw)
+
+    if isinstance(query, TemporalMediationEffect):
+        if isinstance(inference, Bayesian):
+            raise TypeError("TemporalMediationEffect does not support inference=Bayesian(...)")
+        if discovery is not None:
+            raise ValueError("TemporalMediationEffect does not support discovery=")
+        names, columns = as_columns(data)  # type: ignore[arg-type]
+        lagged = _lagged_edges(graph)  # type: ignore[arg-type]
+        raw = _analyze_temporal_mediation(
+            names,
+            columns,
+            lagged,
+            query.treatment,
+            query.mediator,
+            query.outcome,
+            contrast=query.contrast,
+            control_level=query.control_level,
+            active_level=query.active_level,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+        )
+        return _wrap_temporal(raw)
+
+    if isinstance(query, InterventionalDistribution):
+        if discovery is not None:
+            edges = _resolve_static_discovery_edges(
+                data, discovery, accept_discovered, seed, threads
+            )
+        else:
+            edges = _static_edges(graph)  # type: ignore[arg-type]
+        names, columns = as_columns(data)  # type: ignore[arg-type]
         raw = _analyze_distribution(
             names,
             columns,
@@ -438,9 +821,12 @@ def analyze(
 
     if isinstance(query, PathSpecificEffect):
         if discovery is not None:
-            raise ValueError("PathSpecificEffect does not support discovery=")
+            edges = _resolve_static_discovery_edges(
+                data, discovery, accept_discovered, seed, threads
+            )
+        else:
+            edges = _static_edges(graph)  # type: ignore[arg-type]
         names, columns = as_columns(data)  # type: ignore[arg-type]
-        edges = _static_edges(graph)  # type: ignore[arg-type]
         raw = _analyze_path_specific(
             names,
             columns,
@@ -458,20 +844,25 @@ def analyze(
         )
         return _wrap_ate(raw)
 
-    if discovery is not None and isinstance(discovery, _STATIC_DISCOVERY):
+    if discovery is not None and isinstance(
+        discovery, _STATIC_DISCOVERY + _GRAPH_POSTERIOR_DISCOVERY
+    ):
         if not isinstance(query, AverageEffect):
             raise ValueError(
                 f"discovery={type(discovery).__name__}(...) requires AverageEffect"
             )
+        if isinstance(discovery, _GRAPH_POSTERIOR_DISCOVERY) and not isinstance(
+            inference, Bayesian
+        ):
+            raise TypeError(
+                "graph-posterior discovery requires inference=Bayesian(...) "
+                "for effect mixture"
+            )
         names, columns = as_columns(data)  # type: ignore[arg-type]
         cfg = _discovery_algorithm(discovery)
-        inference_s = None
-        n_draws = 1000
-        prior_scale = 10.0
+        bayes_kw: dict[str, Any] = {}
         if isinstance(inference, Bayesian):
-            inference_s = "bayesian"
-            n_draws = inference.n_draws
-            prior_scale = inference.prior_scale
+            bayes_kw = _bayesian_inference_kwargs(inference)
         raw = _analyze_ate_discover(
             names,
             columns,
@@ -490,15 +881,19 @@ def analyze(
             active_level=query.active_level,
             identifier=identifier,
             estimator=estimator,
-            inference=inference_s,
-            n_draws=n_draws,
-            prior_scale=prior_scale,
             refute=refute,
             validators=list(validators) if validators is not None else None,
             ci=cfg.get("ci"),
+            n_chains=cfg.get("n_chains", 2),
+            n_warmup=cfg.get("n_warmup", 100),
+            mcmc_draws=cfg.get("mcmc_draws", 200),
+            thin=cfg.get("thin", 1),
+            soft_weight=cfg.get("soft_weight", "none"),
+            require_diagnostics_gate=cfg.get("require_diagnostics_gate", True),
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            **bayes_kw,
         )
         return _wrap_ate(raw)
 
@@ -510,13 +905,20 @@ def analyze(
         )
 
     if isinstance(query, AverageEffect):
-        inference_s = None
-        n_draws = 1000
-        prior_scale = 10.0
+        bayes_kw: dict[str, Any] = {}
         if isinstance(inference, Bayesian):
-            inference_s = "bayesian"
-            n_draws = inference.n_draws
-            prior_scale = inference.prior_scale
+            bayes_kw = _bayesian_inference_kwargs(inference)
+        if estimator == "rd.sharp" or any(
+            v is not None for v in (running_variable, cutoff, bandwidth)
+        ):
+            if running_variable is None or cutoff is None or bandwidth is None:
+                raise ValueError(
+                    "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth"
+                )
+            if estimator is None:
+                estimator = "rd.sharp"
+            if identifier is None:
+                identifier = "rd.sharp"
         common = dict(
             treatment=query.treatment,
             outcome=query.outcome,
@@ -524,15 +926,34 @@ def analyze(
             active_level=query.active_level,
             identifier=identifier,
             estimator=estimator,
-            inference=inference_s,
-            n_draws=n_draws,
-            prior_scale=prior_scale,
             refute=refute,
             validators=list(validators) if validators is not None else None,
+            running_variable=running_variable,
+            cutoff=cutoff,
+            bandwidth=bandwidth,
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
+            **bayes_kw,
         )
+        from .population import coerce_target_population, registry_wire
+
+        pop = coerce_target_population(
+            getattr(query, "target_population", None)
+        )
+        preds, dists = registry_wire(population_registry)
+        pop_kw: dict[str, Any] = {}
+        if pop is not None:
+            pop_kw["target_population"] = pop
+        if preds:
+            pop_kw["population_predicates"] = preds
+        if dists:
+            pop_kw["population_distributions"] = dists
+        if pop_kw and isinstance(graph, (Pag, Cpdag, Admg)):
+            raise ValueError(
+                "target_population / population_registry currently require a Dag "
+                "(or edge list); PAG/CPDAG/ADMG analyze paths do not accept them yet"
+            )
         if isinstance(graph, Pag):
             names, columns = as_columns(data)  # type: ignore[arg-type]
             return _wrap_ate(_analyze_ate_pag(names, columns, graph, **common))
@@ -544,8 +965,8 @@ def analyze(
             return _wrap_ate(_analyze_ate_admg(names, columns, graph, **common))
         edges = _static_edges(graph)  # type: ignore[arg-type]
         arrow = try_as_arrow_c_columns(data)
-        ate_kwargs = dict(edges=edges, **common)
-        if arrow is not None:
+        ate_kwargs = dict(edges=edges, **common, **pop_kw)
+        if arrow is not None and not pop_kw:
             names, columns = arrow
             raw = _analyze_ate_arrow_c(names, columns, **ate_kwargs)
         else:
@@ -558,9 +979,56 @@ def analyze(
         _reject_unsupported_temporal(
             inference=inference, refute=refute, validators=validators
         )
+        bayes_kw = _temporal_inference_kwargs(inference)
         if isinstance(data, EventFrame):
             if discovery is not None:
-                raise ValueError("EventFrame does not support discovery= yet; supply a TemporalDag")
+                if isinstance(discovery, JPCMCIPlus):
+                    raise TypeError(
+                        "EventFrame does not support discovery=JPCMCIPlus(...); "
+                        "use MultiEnvFrame or PanelFrame for multi-environment discovery"
+                    )
+                if isinstance(discovery, DbnPosterior):
+                    if not isinstance(inference, Bayesian):
+                        raise TypeError(
+                            "EventFrame discovery=DbnPosterior(...) requires inference=Bayesian(...)"
+                        )
+                elif not isinstance(discovery, (PCMCI, PCMCIPlus, LPCMCI, RPCMCI)):
+                    raise TypeError(
+                        f"EventFrame discovery expects PCMCI/PCMCIPlus/LPCMCI/RPCMCI/DbnPosterior, "
+                        f"got {type(discovery)!r}"
+                    )
+                cfg = _discovery_algorithm(discovery)
+                raw = _analyze_events(
+                    data.names,
+                    data.columns,
+                    data.event_times_ns.tolist(),
+                    data.align_interval_ns,
+                    [],  # discovery path ignores edges
+                    query.treatment,
+                    query.outcome,
+                    treatment_lag=query.treatment_lag,
+                    horizon_steps=query.horizon_steps,
+                    active_level=query.active_level,
+                    policy=policy,
+                    **bayes_kw,
+                    refute=refute,
+                    validators=list(validators) if validators is not None else None,
+                    seed=seed,
+                    bootstrap=bootstrap,
+                    threads=threads,
+                    algorithm=cfg["algorithm"],
+                    max_lag=cfg.get("max_lag", 1),
+                    alpha=cfg.get("alpha", 0.05),
+                    fdr=cfg.get("fdr", True),
+                    accept_discovered=accept_discovered,
+                    regimes=list(regimes) if regimes is not None else None,
+                    **{
+                        k: cfg[k]
+                        for k in ("n_chains", "n_warmup", "mcmc_draws", "force_mcmc", "ci")
+                        if k in cfg
+                    },
+                )
+                return _wrap_temporal(raw)
             lagged = _lagged_edges(graph)  # type: ignore[arg-type]
             raw = _analyze_events(
                 data.names,
@@ -574,6 +1042,9 @@ def analyze(
                 horizon_steps=query.horizon_steps,
                 active_level=query.active_level,
                 policy=policy,
+                **bayes_kw,
+                refute=refute,
+                validators=list(validators) if validators is not None else None,
                 seed=seed,
                 bootstrap=bootstrap,
                 threads=threads,
@@ -581,36 +1052,67 @@ def analyze(
             return _wrap_temporal(raw)
         if isinstance(data, PanelFrame):
             if discovery is not None:
-                if not isinstance(discovery, JPCMCIPlus):
-                    raise TypeError(
-                        "PanelFrame discovery currently supports only JPCMCIPlus(...)"
+                if isinstance(discovery, JPCMCIPlus):
+                    cfg = _discovery_algorithm(discovery)
+                    raw = _analyze_panel_discover(
+                        data.names,
+                        data.unit_columns,
+                        data.unit_ids,
+                        query.treatment,
+                        query.outcome,
+                        max_lag=cfg["max_lag"],
+                        alpha=cfg["alpha"],
+                        fdr=cfg["fdr"],
+                        accept_discovered=accept_discovered,
+                        treatment_lag=query.treatment_lag,
+                        horizon_steps=query.horizon_steps,
+                        active_level=query.active_level,
+                        policy=policy,
+                        **bayes_kw,
+                        refute=refute,
+                        validators=list(validators) if validators is not None else None,
+                        seed=seed,
+                        bootstrap=bootstrap,
+                        threads=threads,
+                        context_names=cfg["context_names"],
+                        include_space_dummy=cfg["include_space_dummy"],
+                        include_time_dummy=cfg["include_time_dummy"],
+                        space_dummy_ci=cfg["space_dummy_ci"]
+                        in ("multivariate", "multivariate_block", "block", True),
+                        time_dummy_encoding=cfg["time_dummy_encoding"],
+                        time_dummy_ci=cfg["time_dummy_ci"]
+                        in ("multivariate", "multivariate_block", "block", True),
                     )
-                cfg = _discovery_algorithm(discovery)
-                raw = _analyze_panel_discover(
-                    data.names,
-                    data.unit_columns,
-                    data.unit_ids,
-                    query.treatment,
-                    query.outcome,
-                    max_lag=cfg["max_lag"],
-                    alpha=cfg["alpha"],
-                    fdr=cfg["fdr"],
-                    accept_discovered=accept_discovered,
-                    treatment_lag=query.treatment_lag,
-                    horizon_steps=query.horizon_steps,
-                    active_level=query.active_level,
-                    policy=policy,
-                    seed=seed,
-                    bootstrap=bootstrap,
-                    threads=threads,
-                    context_names=cfg["context_names"],
-                    include_space_dummy=cfg["include_space_dummy"],
-                    include_time_dummy=cfg["include_time_dummy"],
-                    space_dummy_ci=cfg["space_dummy_ci"] in ("multivariate", "multivariate_block", "block", True),
-                    time_dummy_encoding=cfg["time_dummy_encoding"],
-                    time_dummy_ci=cfg["time_dummy_ci"] in ("multivariate", "multivariate_block", "block", True),
+                    return _wrap_temporal(raw)
+                if isinstance(discovery, (PCMCI, PCMCIPlus, LPCMCI)):
+                    cfg = _discovery_algorithm(discovery)
+                    # Pooled-units discovery: treat panel as multi-env without JPCMCI+ context.
+                    raw = _analyze_panel_discover(
+                        data.names,
+                        data.unit_columns,
+                        data.unit_ids,
+                        query.treatment,
+                        query.outcome,
+                        max_lag=cfg["max_lag"],
+                        alpha=cfg["alpha"],
+                        fdr=cfg["fdr"],
+                        accept_discovered=accept_discovered,
+                        treatment_lag=query.treatment_lag,
+                        horizon_steps=query.horizon_steps,
+                        active_level=query.active_level,
+                        policy=policy,
+                        **bayes_kw,
+                        refute=refute,
+                        validators=list(validators) if validators is not None else None,
+                        seed=seed,
+                        bootstrap=bootstrap,
+                        threads=threads,
+                        algorithm=cfg["algorithm"],
+                    )
+                    return _wrap_temporal(raw)
+                raise TypeError(
+                    "PanelFrame discovery supports JPCMCIPlus, PCMCI, PCMCIPlus, or LPCMCI"
                 )
-                return _wrap_temporal(raw)
             lagged = _lagged_edges(graph)  # type: ignore[arg-type]
             raw = _analyze_panel(
                 data.names,
@@ -623,6 +1125,9 @@ def analyze(
                 horizon_steps=query.horizon_steps,
                 active_level=query.active_level,
                 policy=policy,
+                **bayes_kw,
+                refute=refute,
+                validators=list(validators) if validators is not None else None,
                 seed=seed,
                 bootstrap=bootstrap,
                 threads=threads,
@@ -648,6 +1153,7 @@ def analyze(
                 horizon_steps=query.horizon_steps,
                 active_level=query.active_level,
                 policy=policy,
+                **bayes_kw,
                 seed=seed,
                 bootstrap=bootstrap,
                 threads=threads,
@@ -662,9 +1168,39 @@ def analyze(
             )
             return _wrap_temporal(raw)
         if discovery is not None:
+            if isinstance(discovery, DbnPosterior):
+                if not isinstance(inference, Bayesian):
+                    raise TypeError(
+                        "discovery=DbnPosterior(...) requires inference=Bayesian(...) "
+                        "for temporal effect mixture"
+                    )
+                cfg = _discovery_algorithm(discovery)
+                names, columns = as_columns(data)  # type: ignore[arg-type]
+                raw = _analyze_temporal_discover(
+                    names,
+                    columns,
+                    query.treatment,
+                    query.outcome,
+                    algorithm="dbn_posterior",
+                    max_lag=cfg["max_lag"],
+                    accept_discovered=accept_discovered,
+                    treatment_lag=query.treatment_lag,
+                    horizon_steps=query.horizon_steps,
+                    active_level=query.active_level,
+                    policy=policy,
+                    **bayes_kw,
+                    n_chains=cfg["n_chains"],
+                    n_warmup=cfg["n_warmup"],
+                    mcmc_draws=cfg["mcmc_draws"],
+                    force_mcmc=cfg["force_mcmc"],
+                    seed=seed,
+                    bootstrap=bootstrap,
+                    threads=threads,
+                )
+                return _wrap_temporal(raw)
             if not isinstance(discovery, _TEMPORAL_DISCOVERY):
                 raise TypeError(
-                    f"temporal discovery expects PCMCI-family config, got {type(discovery)!r}"
+                    f"temporal discovery expects PCMCI-family or DbnPosterior, got {type(discovery)!r}"
                 )
             cfg = _discovery_algorithm(discovery)
             algo = cfg["algorithm"]
@@ -689,6 +1225,7 @@ def analyze(
                     horizon_steps=query.horizon_steps,
                     active_level=query.active_level,
                     policy=policy,
+                    **bayes_kw,
                     seed=seed,
                     bootstrap=bootstrap,
                     threads=threads,
@@ -720,6 +1257,7 @@ def analyze(
                     horizon_steps=query.horizon_steps,
                     active_level=query.active_level,
                     policy=policy,
+                    **bayes_kw,
                     seed=seed,
                     bootstrap=bootstrap,
                     threads=threads,
@@ -742,6 +1280,7 @@ def analyze(
                 horizon_steps=query.horizon_steps,
                 active_level=query.active_level,
                 policy=policy,
+                **bayes_kw,
                 seed=seed,
                 bootstrap=bootstrap,
                 threads=threads,
@@ -760,6 +1299,9 @@ def analyze(
                 horizon_steps=query.horizon_steps,
                 active_level=query.active_level,
                 policy=policy,
+                **bayes_kw,
+                refute=refute,
+                validators=list(validators) if validators is not None else None,
                 seed=seed,
                 bootstrap=bootstrap,
                 threads=threads,
@@ -784,6 +1326,9 @@ def analyze(
             horizon_steps=query.horizon_steps,
             active_level=query.active_level,
             policy=policy,
+            **bayes_kw,
+            refute=refute,
+            validators=list(validators) if validators is not None else None,
             seed=seed,
             bootstrap=bootstrap,
             threads=threads,
@@ -797,10 +1342,12 @@ __all__ = [
     "AnalysisResult",
     "AteAnalysisResult",
     "EstimateView",
+    "MediationView",
     "IdentificationView",
     "NativeAnalysisResult",
     "PerformanceView",
     "PosteriorView",
+    "PredictiveCheckReport",
     "TemporalAnalysisResult",
     "ValidationView",
     "analyze",

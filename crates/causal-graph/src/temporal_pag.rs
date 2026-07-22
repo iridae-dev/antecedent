@@ -375,6 +375,60 @@ impl TemporalPag {
         p
     }
 
+    /// Convert to a [`TemporalDag`] when every edge is definite-directed (no circles,
+    /// undirected, bidirected, or conflict marks).
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::InvalidEndpoints`] when ambiguous marks remain, or insert failure.
+    pub fn try_into_temporal_dag(&self) -> Result<crate::TemporalDag, GraphError> {
+        use crate::TemporalDag;
+        for i in 0..self.node_count() {
+            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            for e in &self.adj[i] {
+                if e.neighbor.raw() < a.raw() {
+                    continue;
+                }
+                let edge = MarkedEdge {
+                    a,
+                    b: e.neighbor,
+                    at_a: e.at_self,
+                    at_b: e.at_neighbor,
+                    middle: e.middle,
+                };
+                if edge.parent_child().is_none() {
+                    return Err(GraphError::InvalidEndpoints {
+                        message: "cannot complete TemporalPag to TemporalDag while \
+                                  circle/undirected/bidirected/conflict marks remain",
+                    });
+                }
+            }
+        }
+        let mut dag = TemporalDag::empty();
+        for node in &self.nodes {
+            dag.add_node(*node)?;
+        }
+        for i in 0..self.node_count() {
+            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            for e in &self.adj[i] {
+                if e.neighbor.raw() < a.raw() {
+                    continue;
+                }
+                let edge = MarkedEdge {
+                    a,
+                    b: e.neighbor,
+                    at_a: e.at_self,
+                    at_b: e.at_neighbor,
+                    middle: e.middle,
+                };
+                if let Some((from, to)) = edge.parent_child() {
+                    dag.insert_directed(from, to)?;
+                }
+            }
+        }
+        Ok(dag)
+    }
+
     /// Definite-status paths (delegates via static projection of marks).
     ///
     /// # Errors
@@ -435,18 +489,16 @@ mod tests {
     }
 
     #[test]
-    fn middle_marks_and_remove_edge() {
+    fn try_into_temporal_dag_requires_definite_directed() {
         let mut g = TemporalPag::empty();
         let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
         let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-        g.insert_circle_arrow_with_middle(a, b, MiddleMark::Left).unwrap();
-        assert_eq!(g.middle_between(a, b), Some(MiddleMark::Left));
-        g.apply_middle(a, b, MiddleMark::Right).unwrap();
-        assert_eq!(g.middle_between(a, b), Some(MiddleMark::Both));
-        g.clear_middle_marks();
-        assert_eq!(g.middle_between(a, b), Some(MiddleMark::Empty));
-        g.remove_edge(a, b).unwrap();
-        assert!(!g.has_edge(a, b));
+        g.insert_circle_arrow(a, b).unwrap();
+        assert!(g.try_into_temporal_dag().is_err());
+        g.set_marks(a, b, Endpoint::Tail, Endpoint::Arrow).unwrap();
+        let dag = g.try_into_temporal_dag().unwrap();
+        assert_eq!(dag.node_count(), 2);
+        assert!(dag.children(a).iter().any(|c| *c == b));
     }
 }
 

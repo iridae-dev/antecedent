@@ -32,7 +32,7 @@ group = "discovery"
 description = "Rpcmci regime assignments + per-regime graphs"
 status = "done"
 owner = "context"
-notes = "Caller-supplied RegimeAssignment (e.g. two_regime_half_split); unsupervised regime search is out of scope — "
+notes = "Caller-supplied RegimeAssignment (e.g. two_regime_half_split); unsupervised regime search from scratch is permanent out-of-scope (optional alternating refinement of supplied labels only)"
 
 [[capabilities]]
 id = "context.mediation"
@@ -40,7 +40,7 @@ group = "identify_estimate"
 description = "MediationQuery + temporal mediation ID/estimate"
 status = "done"
 owner = "context"
-notes = "conformance/context/temporal_mediation"
+notes = "conformance/context/temporal_mediation; python_facade=full via TemporalMediationEffect"
 
 [[capabilities]]
 id = "context.conditional"
@@ -48,7 +48,7 @@ group = "estimate"
 description = "ConditionalEffectQuery / ConditionalLinearAdjustment"
 status = "done"
 owner = "context"
-notes = "conformance/context/conditional_effect"
+notes = "conformance/context/conditional_effect; python_facade=full via ConditionalEffect"
 
 [[capabilities]]
 id = "context.prediction"
@@ -64,7 +64,7 @@ group = "identify_estimate"
 description = "Nonparametric / path-specific natural-effect ID beyond linear SEM"
 status = "done"
 owner = "context"
-notes = "PathSpecificIdentifier (recanting + surgery + ID) + functional.effect plug-in through CausalAnalysis; contribution remains path_decompose"
+notes = "PathSpecificIdentifier (recanting + surgery + ID) + functional.effect plug-in through CausalAnalysis; GCM path_decompose contribution remains linear-Gaussian only"
 
 [[capabilities]]
 id = "context.query_model_planned_variants"
@@ -72,4 +72,4 @@ group = "query"
 description = "TemporalPolicy::Dynamic + TargetPopulation::{Predicate, CustomDistribution} types and CBOR wire"
 status = "done"
 owner = "context"
-notes = "Types + CBOR round-trip + PopulationRegistry::resolve; Dynamic ID usable; Named Predicate/CustomDistribution propensity plumbing is not claimed here"
+notes = "Types + CBOR round-trip + PopulationRegistry::resolve; Dynamic ID usable; Named Predicate/CustomDistribution propensity claimed for Rust+Python IPW/matching via analyze(..., population_registry=, target_population=); stratification remains rejected for CustomDistribution"

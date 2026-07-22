@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal_estimate::BayesianBackendKind;
-use causal_prob::BayesLikelihood;
+use causal_prob::{BayesLikelihood, PriorSet};
 
 /// Frequentist vs Bayesian inference mode.
 #[derive(Clone, Debug, PartialEq)]
@@ -29,8 +29,11 @@ pub struct BayesianConfig {
     pub likelihood: BayesLikelihood,
     /// Posterior draws.
     pub n_draws: usize,
-    /// Isotropic prior scale.
+    /// Isotropic prior scale (used when [`Self::prior`] is `None`).
     pub prior_scale: f64,
+    /// Explicit coefficient prior (e.g. hydrated from a previous posterior artifact).
+    /// When set, overrides isotropic [`Self::prior_scale`].
+    pub prior: Option<PriorSet>,
 }
 
 impl BayesianConfig {
@@ -42,6 +45,7 @@ impl BayesianConfig {
             likelihood: BayesLikelihood::GaussianIdentity,
             n_draws: 1000,
             prior_scale: 10.0,
+            prior: None,
         }
     }
 
@@ -53,6 +57,7 @@ impl BayesianConfig {
             likelihood: BayesLikelihood::GaussianIdentity,
             n_draws: 1000,
             prior_scale: 10.0,
+            prior: None,
         }
     }
 
@@ -64,6 +69,7 @@ impl BayesianConfig {
             likelihood: BayesLikelihood::GaussianIdentity,
             n_draws: 200,
             prior_scale: 10.0,
+            prior: None,
         }
     }
 
@@ -78,6 +84,13 @@ impl BayesianConfig {
     #[must_use]
     pub fn n_draws(mut self, n: usize) -> Self {
         self.n_draws = n;
+        self
+    }
+
+    /// Explicit prior set (sequential Bayes / custom coefficients).
+    #[must_use]
+    pub fn prior(mut self, prior: PriorSet) -> Self {
+        self.prior = Some(prior);
         self
     }
 }

@@ -10,7 +10,7 @@ use causal_core::ExecutionContext;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, fit_once, linear_estimator_no_bootstrap,
+    RefutationProblem, RefutationReport, linear_estimator_no_bootstrap, refit_effect,
     replicate_p_value, with_row_subset,
 };
 use crate::error::ValidationError;
@@ -76,8 +76,7 @@ impl DataSubsetRefuter {
                 ctx,
                 0xA7E0_0007_0000_u64.wrapping_add(u64::from(r)),
             )?;
-            let est =
-                fit_once(&self.estimator, &data, problem.estimand, problem.query, workspace, ctx)?;
+            let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
             ates.push(est.ate);
         }
         let mean_ate = ates.iter().sum::<f64>() / f64::from(self.replicates);
