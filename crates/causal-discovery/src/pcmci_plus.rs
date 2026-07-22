@@ -11,8 +11,10 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::match_same_arms,
     clippy::similar_names,
-    clippy::too_many_lines
+    clippy::too_many_lines,
+    clippy::type_complexity
 )]
 
 use std::collections::HashMap;
@@ -25,17 +27,15 @@ use causal_stats::{ConfidenceMethod, FdrAdjustment};
 
 use crate::combinations::for_each_combination;
 use crate::constraints::DiscoveryConstraints;
-use crate::engine::{
-    DiscoveryWorkspace, PcmciEngine, mci_conditioning, parents_of_target,
-};
+use crate::engine::{DiscoveryWorkspace, PcmciEngine, mci_conditioning, parents_of_target};
 use crate::error::DiscoveryError;
 use crate::evidence::{
     cpdag_evidence_from_oriented, cpdag_from_scored_links, symmetrize_contemporaneous_links,
     threshold_scored_links,
 };
 use crate::orientation::{
-    ContempMeekR1, ContempMeekR2, ContempMeekR3, ContempMeekR4, OrientationRule, OrientationState, RuleDelta,
-    run_orientation_to_fixed_point, try_orient_undirected,
+    ContempMeekR1, ContempMeekR2, ContempMeekR3, ContempMeekR4, OrientationRule, OrientationState,
+    RuleDelta, run_orientation_to_fixed_point, try_orient_undirected,
 };
 use crate::pcmci_family::pcmci_family_builders;
 use crate::pipeline::{
@@ -94,9 +94,8 @@ impl PcmciPlus {
     ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
         let frame_depth = 2 * max_lag;
-        let frame =
-            LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
-                .map_err(DiscoveryError::from)?;
+        let frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
+            .map_err(DiscoveryError::from)?;
         self.run_on_frame(&frame, variables, workspace, ctx)
     }
 
@@ -130,19 +129,18 @@ impl PcmciPlus {
                 significance: self.engine.constraints.significance,
                 confidence: ConfidenceMethod::default(),
             };
-            workspace.prepared_ci = Some(
-                self.engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?,
-            );
+            workspace.prepared_ci =
+                Some(self.engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
         }
 
         // --- Step 1: lagged-only PC1 → B̂⁻ ---
         let (lagged_parents, mut iterations, mut ci_tests, mut sepsets) =
-            lagged_pc1_parents(&self.engine, &frame, variables, workspace, ctx, threads)?;
+            lagged_pc1_parents(&self.engine, frame, variables, workspace, ctx, threads)?;
 
         // --- Step 2: contemporaneous MCI phase ---
         let (scored, contemp_sepsets, contemp_tests, truncated) = contemp_mci_phase(
             &self.engine,
-            &frame,
+            frame,
             variables,
             &compiled,
             &lagged_parents,
@@ -169,7 +167,7 @@ impl PcmciPlus {
         // --- Step 3: majority collider (with subset re-tests) ---
         let majority_delta = orient_majority_colliders(
             &self.engine,
-            &frame,
+            frame,
             &lagged_parents,
             &mut cpdag,
             &mut state,
@@ -274,12 +272,11 @@ pub(crate) fn lagged_pc1_parents(
         let empty: Vec<_> = variables.iter().map(|&t| (t, Vec::new())).collect();
         return Ok((empty, Vec::new(), 0, PcSepsets::default()));
     }
-    let lagged_engine =
-        PcmciEngine {
-            constraints: lagged_constraints,
-            ci: Arc::clone(&engine.ci),
-            column_blocks: Arc::clone(&engine.column_blocks),
-        };
+    let lagged_engine = PcmciEngine {
+        constraints: lagged_constraints,
+        ci: Arc::clone(&engine.ci),
+        column_blocks: Arc::clone(&engine.column_blocks),
+    };
     let lagged_compiled = lagged_engine.constraints.compile(variables)?;
     let (parents, iters, tests) = lagged_engine.select_parents_all(
         frame,
@@ -355,9 +352,9 @@ pub(crate) fn contemp_mci_phase(
             order.sort_by(|a, b| {
                 let sa = min_stat.get(&(target, a.0, a.1)).copied().unwrap_or(f64::INFINITY);
                 let sb = min_stat.get(&(target, b.0, b.1)).copied().unwrap_or(f64::INFINITY);
-                sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal).then_with(|| {
-                    (a.0.raw(), a.1.raw()).cmp(&(b.0.raw(), b.1.raw()))
-                })
+                sb.partial_cmp(&sa)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| (a.0.raw(), a.1.raw()).cmp(&(b.0.raw(), b.1.raw())))
             });
 
             for pi in 0..order.len() {
@@ -376,7 +373,9 @@ pub(crate) fn contemp_mci_phase(
                     .iter()
                     .enumerate()
                     .filter(|(j, (v, l))| {
-                        *j != pi && l.is_contemporaneous() && !(*v == src && slag.is_contemporaneous())
+                        *j != pi
+                            && l.is_contemporaneous()
+                            && !(*v == src && slag.is_contemporaneous())
                     })
                     .map(|(_, x)| *x)
                     .take(cond_size)
@@ -459,12 +458,7 @@ pub(crate) fn contemp_mci_phase(
             let Some(&(p, stat)) = scores.get(&(src, slag, target)) else {
                 continue;
             };
-            scored.push(ScoredLink {
-                link,
-                statistic: stat,
-                p_value: p,
-                adjusted_p_value: None,
-            });
+            scored.push(ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None });
         }
     }
     Ok((scored, sepsets, ci_tests, truncated))
@@ -503,8 +497,7 @@ pub(crate) fn orient_majority_colliders(
             .into_iter()
             .filter(|&nb| is_contemp_node(graph, nb))
             .collect();
-        let mut legs: Vec<(DenseNodeId, bool)> =
-            neighbors.iter().map(|&nb| (nb, true)).collect();
+        let mut legs: Vec<(DenseNodeId, bool)> = neighbors.iter().map(|&nb| (nb, true)).collect();
         for p in graph.parents(c) {
             if !legs.iter().any(|(x, _)| *x == p) {
                 legs.push((p, false));
@@ -600,15 +593,12 @@ fn majority_sep_counts(
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<(u32, u32), DiscoveryError> {
-    let (va, la) = node_var_lag(graph, a).ok_or_else(|| {
-        DiscoveryError::unsupported("majority collider: missing node a")
-    })?;
-    let (vb, lb) = node_var_lag(graph, b).ok_or_else(|| {
-        DiscoveryError::unsupported("majority collider: missing node b")
-    })?;
-    let (vc, lc) = node_var_lag(graph, c).ok_or_else(|| {
-        DiscoveryError::unsupported("majority collider: missing node c")
-    })?;
+    let (va, la) = node_var_lag(graph, a)
+        .ok_or_else(|| DiscoveryError::unsupported("majority collider: missing node a"))?;
+    let (vb, lb) = node_var_lag(graph, b)
+        .ok_or_else(|| DiscoveryError::unsupported("majority collider: missing node b"))?;
+    let (vc, lc) = node_var_lag(graph, c)
+        .ok_or_else(|| DiscoveryError::unsupported("majority collider: missing node c"))?;
 
     // Candidate contemporaneous neighbors of a (excl b) and of b (excl a).
     let mut cand: Vec<(VariableId, Lag)> = Vec::new();
@@ -640,12 +630,7 @@ fn majority_sep_counts(
     for q in 0..=max_cond.min(cand.len()) {
         for_each_combination(&cand, q, &mut scratch, |s| {
             // Build MCI-style Z = S ∪ lagged parents.
-            let link = LaggedLink {
-                source: va,
-                source_lag: la,
-                target: vb,
-                target_lag: lb,
-            };
+            let link = LaggedLink { source: va, source_lag: la, target: vb, target_lag: lb };
             let _ = mci_conditioning(
                 link,
                 parents_of_target(lagged_parents, vb),
@@ -658,16 +643,7 @@ fn majority_sep_counts(
                 }
             }
             let cond = std::mem::take(&mut workspace.others);
-            let result = engine.ci_statistic(
-                frame,
-                va,
-                la,
-                vb,
-                lb,
-                &cond,
-                workspace,
-                ctx,
-            );
+            let result = engine.ci_statistic(frame, va, la, vb, lb, &cond, workspace, ctx);
             workspace.others = cond;
             match result {
                 Ok((_, p)) if p > alpha => {

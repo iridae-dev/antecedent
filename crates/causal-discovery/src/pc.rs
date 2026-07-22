@@ -8,18 +8,23 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::field_reassign_with_default,
     clippy::similar_names,
-    clippy::too_many_lines
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::unreadable_literal,
+    clippy::zero_sized_map_values
 )]
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
-use causal_data::{TabularData, TableView};
+use causal_data::{TableView, TabularData};
 use causal_graph::{Cpdag, CpdagReview, DenseNodeId};
 use causal_stats::{
-    CiBatchRequest, CiPreparationPlan, CiQuery, ConfidenceMethod, ConditionalIndependence,
+    CiBatchRequest, CiPreparationPlan, CiQuery, ConditionalIndependence, ConfidenceMethod,
     FdrAdjustment, PartialCorrelation, PreparedCiTest,
 };
 
@@ -34,7 +39,8 @@ use crate::orientation::{
 };
 use crate::result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
+    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets,
+    ScoredLink,
 };
 
 /// Static PC discovery result (`Cpdag` evidence + review).
@@ -68,7 +74,7 @@ impl Default for Pc {
 }
 
 impl Pc {
-    /// Default PC with ParCorr and BH FDR over all undirected tests.
+    /// Default PC with `ParCorr` and BH FDR over all undirected tests.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -79,7 +85,7 @@ impl Pc {
                 },
                 ..DiscoveryConstraints::default()
             },
-            ci: Arc::new(PartialCorrelation::default()),
+            ci: Arc::new(PartialCorrelation),
             fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
         }
     }
@@ -126,7 +132,9 @@ impl Pc {
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
         if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported { message: "PC requires at least one variable" });
+            return Err(DiscoveryError::Unsupported {
+                message: "PC requires at least one variable",
+            });
         }
 
         let col_owned = collect_float_columns(data, variables)?;
@@ -148,7 +156,8 @@ impl Pc {
             significance: self.constraints.significance,
             confidence: ConfidenceMethod::default(),
         };
-        let prepared: PreparedCiTest = self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
+        let prepared: PreparedCiTest =
+            self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
         workspace.prepared_ci = Some(prepared);
 
         let alpha = self.constraints.alpha;
@@ -214,15 +223,7 @@ impl Pc {
                 let mut best_sep: Arc<[VariableId]> = Arc::from([]);
 
                 for z in &cand_sets {
-                    let (stat, p) = self.ci_test(
-                        &cols,
-                        &var_index,
-                        x,
-                        y,
-                        z,
-                        workspace,
-                        ctx,
-                    )?;
+                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
                     best_stat = stat;
@@ -235,15 +236,7 @@ impl Pc {
                 }
 
                 if depth == 0 && cand_sets.is_empty() {
-                    let (stat, p) = self.ci_test(
-                        &cols,
-                        &var_index,
-                        x,
-                        y,
-                        &[],
-                        workspace,
-                        ctx,
-                    )?;
+                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, &[], workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
                     best_stat = stat;
@@ -258,19 +251,13 @@ impl Pc {
                 if independent {
                     adj.remove(&key);
                     let sep_lagged: Arc<[(VariableId, Lag)]> = Arc::from(
-                        best_sep
-                            .iter()
-                            .map(|&v| (v, Lag::CONTEMPORANEOUS))
-                            .collect::<Vec<_>>(),
+                        best_sep.iter().map(|&v| (v, Lag::CONTEMPORANEOUS)).collect::<Vec<_>>(),
                     );
                     sepsets.insert(
                         (x, Lag::CONTEMPORANEOUS, y, Lag::CONTEMPORANEOUS),
                         Arc::clone(&sep_lagged),
                     );
-                    sepsets.insert(
-                        (y, Lag::CONTEMPORANEOUS, x, Lag::CONTEMPORANEOUS),
-                        sep_lagged,
-                    );
+                    sepsets.insert((y, Lag::CONTEMPORANEOUS, x, Lag::CONTEMPORANEOUS), sep_lagged);
                 } else if best_p.is_finite() {
                     let link = ScoredLink {
                         link: LaggedLink {
@@ -340,13 +327,11 @@ impl Pc {
             })
             .collect();
         scored = threshold_scored_links(scored, self.fdr, alpha);
-        let kept: HashSet<(u32, u32)> = scored
-            .iter()
-            .map(|s| edge_key(s.link.source, s.link.target))
-            .collect();
+        let kept: HashSet<(u32, u32)> =
+            scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
         // If FDR ran, drop edges that failed; if FDR off, keep skeleton as-is.
         if self.fdr.is_some() {
-            adj.retain(|k, _| kept.contains(k));
+            adj.retain(|k, ()| kept.contains(k));
         }
 
         // Build undirected CPDAG skeleton.
@@ -360,9 +345,9 @@ impl Pc {
             }
         }
         let dense_of = |v: VariableId| -> Result<DenseNodeId, DiscoveryError> {
-            let idx = *var_index.get(&v).ok_or_else(|| {
-                DiscoveryError::data_msg(format!("unknown variable {v:?}"))
-            })?;
+            let idx = *var_index
+                .get(&v)
+                .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
             Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
         };
         for &(lo, hi) in adj.keys() {
@@ -380,10 +365,8 @@ impl Pc {
             }
             let a = dense_of(*sx)?;
             let b = dense_of(*ty)?;
-            let dense_sep: Vec<DenseNodeId> = sep
-                .iter()
-                .filter_map(|(v, _)| dense_of(*v).ok())
-                .collect();
+            let dense_sep: Vec<DenseNodeId> =
+                sep.iter().filter_map(|(v, _)| dense_of(*v).ok()).collect();
             state.set_sepset(a, b, Arc::from(dense_sep));
         }
 
@@ -510,15 +493,10 @@ impl Pc {
             let zi = *var_index.get(&v).ok_or_else(|| DiscoveryError::data_msg("missing z"))?;
             workspace.z_flat.push(zi);
         }
-        let prepared = workspace.prepared_ci.as_ref().ok_or_else(|| {
+        let prepared = workspace.prepared_ci.as_ref().ok_or({
             DiscoveryError::Unsupported { message: "CI test used before prepare()" }
         })?;
-        let queries = [CiQuery {
-            x: xi,
-            y: yi,
-            z_start: 0,
-            z_len: workspace.z_flat.len(),
-        }];
+        let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
         let req = CiBatchRequest {
             columns: cols,
             queries: &queries,
@@ -543,11 +521,7 @@ impl Pc {
 }
 
 pub(crate) fn edge_key(a: VariableId, b: VariableId) -> (u32, u32) {
-    if a.raw() <= b.raw() {
-        (a.raw(), b.raw())
-    } else {
-        (b.raw(), a.raw())
-    }
+    if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) }
 }
 
 pub(crate) fn adjacent_vars(
@@ -555,11 +529,7 @@ pub(crate) fn adjacent_vars(
     adj: &HashMap<(u32, u32), ()>,
     variables: &[VariableId],
 ) -> Vec<VariableId> {
-    variables
-        .iter()
-        .copied()
-        .filter(|&u| u != v && adj.contains_key(&edge_key(v, u)))
-        .collect()
+    variables.iter().copied().filter(|&u| u != v && adj.contains_key(&edge_key(v, u))).collect()
 }
 
 pub(crate) fn collect_float_columns(
@@ -583,7 +553,9 @@ mod tests {
         CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
         ValueType, VariableId,
     };
-    use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
+    use causal_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    };
     use causal_stats::OracleCi;
 
     use super::*;
@@ -623,11 +595,7 @@ mod tests {
         // True: 0→1→2. Dependent pairs: (0,1), (1,2). Oracle drops (0,2) at depth 0
         // (no cond-set awareness), so orientation may treat it as a collider — skeleton only.
         let data = tabular_n(3, 50);
-        let vars = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
         let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle));
         let mut ws = DiscoveryWorkspace::default();
@@ -669,11 +637,7 @@ mod tests {
             .collect();
         let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
         let data = TabularData::new(storage);
-        let vars = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
         let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle));
         let mut ws = DiscoveryWorkspace::default();
@@ -686,11 +650,7 @@ mod tests {
     fn oracle_collider_orients() {
         // True: 0→1←2. Dependent: (0,1), (1,2). (0,2) independent with empty sepset.
         let data = tabular_n(3, 40);
-        let vars = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
         let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle));
         let mut ws = DiscoveryWorkspace::default();
@@ -772,8 +732,7 @@ mod tests {
             min_lag: Lag::CONTEMPORANEOUS,
         };
         let pc = Pc::new().with_fdr(false).with_constraints(constraints);
-        let vars: Vec<VariableId> =
-            (0..N_VARS as u32).map(VariableId::from_raw).collect();
+        let vars: Vec<VariableId> = (0..N_VARS as u32).map(VariableId::from_raw).collect();
         let mut retained = 0u32;
         let mut total = 0u32;
         for s in 0..N_SIM {

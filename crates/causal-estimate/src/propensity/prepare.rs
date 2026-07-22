@@ -2,10 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::too_many_lines)]
+
 use std::sync::Arc;
 
-use causal_core::{AverageEffectQuery, PopulationRegistry, PredicateExpr, TargetPopulation, VariableId};
-use causal_data::{TabularData, TableView};
+use causal_core::{
+    AverageEffectQuery, PopulationRegistry, PredicateExpr, TargetPopulation, VariableId,
+};
+use causal_data::{TableView, TabularData};
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
     FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityFit, PropensityWorkspace,
@@ -14,7 +18,7 @@ use causal_stats::{
 
 use crate::adjustment::intervention_f64;
 use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::overlap::OverlapPolicy;
 use crate::util::stats_err;
 
 /// Prepared covariate design + treatment/outcome shared by every propensity estimator.
@@ -196,16 +200,7 @@ pub const fn default_propensity_overlap() -> OverlapPolicy {
 // Shared prepare / small helpers
 // ---------------------------------------------------------------------------------------------
 
-pub(crate) fn prepare_propensity_problem(
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
-    overlap: OverlapPolicy,
-) -> Result<PreparedPropensityProblem, EstimationError> {
-    prepare_propensity_problem_with_registry(data, estimand, query, overlap, None)
-}
-
-/// Like [`prepare_propensity_problem`], with optional named-predicate / distribution bindings.
+/// Prepare propensity inputs with optional named-predicate / distribution bindings.
 pub(crate) fn prepare_propensity_problem_with_registry(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
@@ -217,19 +212,29 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         overlap,
         "propensity estimators require RequireDiagnostics overlap policy; positivity is mandatory",
     )?;
-    if !matches!(estimand.method_kind().ok(), Some(causal_expr::EstimandMethod::BackdoorAdjustment | causal_expr::EstimandMethod::BackdoorEfficient)) {
+    if !matches!(
+        estimand.method_kind().ok(),
+        Some(
+            causal_expr::EstimandMethod::BackdoorAdjustment
+                | causal_expr::EstimandMethod::BackdoorEfficient
+        )
+    ) {
         return Err(EstimationError::IncompatibleEstimand {
             message: "propensity estimators expect backdoor.adjustment or backdoor.efficient",
         });
     }
     query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::unsupported("propensity estimators do not support effect modifiers"));
+        return Err(EstimationError::unsupported(
+            "propensity estimators do not support effect modifiers",
+        ));
     }
     let active = intervention_f64(&query.active)?;
     let control = intervention_f64(&query.control)?;
     if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
-        return Err(EstimationError::unsupported("propensity estimators require binary treatment coded active=1.0, control=0.0"));
+        return Err(EstimationError::unsupported(
+            "propensity estimators require binary treatment coded active=1.0, control=0.0",
+        ));
     }
 
     let treatment = query.treatment;
@@ -238,13 +243,11 @@ pub(crate) fn prepare_propensity_problem_with_registry(
     ids.push(treatment);
     ids.push(outcome);
     ids.extend_from_slice(&estimand.adjustment_set);
-    let mut row_mask =
-        data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+    let mut row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
     let n_full = data.row_count();
     let mut full_weights: Option<Arc<[f64]>> = None;
     match &query.target_population {
-        TargetPopulation::Predicate(PredicateExpr::Rows(_))
-        | TargetPopulation::Predicate(PredicateExpr::Named(_)) => {
+        TargetPopulation::Predicate(PredicateExpr::Rows(_) | PredicateExpr::Named(_)) => {
             let sel = query
                 .target_population
                 .resolve(n_full, None, registry)
@@ -263,12 +266,8 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         }
         _ => {}
     }
-    let t = data
-        .float64_masked(treatment, &row_mask)
-        .map_err(EstimationError::from)?;
-    let y = data
-        .float64_masked(outcome, &row_mask)
-        .map_err(EstimationError::from)?;
+    let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
+    let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
     let nrows = t.len();
     if nrows == 0 {
         return Err(EstimationError::data_msg("no complete-case rows for propensity design"));
@@ -313,8 +312,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
     }
     let mut covariate_cols: Vec<Arc<[f64]>> = Vec::with_capacity(estimand.adjustment_set.len());
     for (i, &z) in estimand.adjustment_set.iter().enumerate() {
-        let col =
-            data.float64_masked(z, &row_mask).map_err(EstimationError::from)?;
+        let col = data.float64_masked(z, &row_mask).map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
         for r in 0..nrows {
             design[base + r] = col[r];
@@ -366,7 +364,9 @@ pub(crate) fn trim_retained_rows(
         .filter_map(|(i, &p)| (p >= t && p <= 1.0 - t).then_some(i))
         .collect();
     if retained.is_empty() {
-        return Err(EstimationError::data_msg("overlap trim removed every row; no common-support units remain"));
+        return Err(EstimationError::data_msg(
+            "overlap trim removed every row; no common-support units remain",
+        ));
     }
     Ok(Some(retained))
 }

@@ -48,7 +48,7 @@ use crate::propensity::{
     trim_retained_rows,
 };
 use crate::se::AnalyticSeKind;
-use crate::util::{bootstrap_se, stats_err, BootstrapSeResult};
+use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -228,8 +228,8 @@ impl AipwAte {
             self.se_kind,
             &workspace.psi,
             problem.nrows,
-            &self.cluster_ids,
-            &self.multiway_ids,
+            self.cluster_ids.as_deref(),
+            self.multiway_ids.as_deref(),
             retained.as_deref(),
         )?;
 
@@ -264,7 +264,7 @@ impl AipwAte {
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
         let trim = trim_of(problem.overlap);
-                let n = problem.nrows;
+        let n = problem.nrows;
         let ncols = problem.design_ncols;
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
@@ -450,8 +450,7 @@ fn aipw_psi(
             for (((&t, &y), &e), (&m0, &m1)) in
                 treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
             {
-                let augmented =
-                    (m1 - m0) + (t / e) * (y - m1) - ((1.0 - t) / (1.0 - e)) * (y - m0);
+                let augmented = (m1 - m0) + (t / e) * (y - m1) - ((1.0 - t) / (1.0 - e)) * (y - m0);
                 out.push(augmented);
             }
         }
@@ -463,8 +462,7 @@ fn aipw_psi(
             for (((&t, &y), &e), (&m0, &m1)) in
                 treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
             {
-                let aug = (t / pi) * (m1 - m0)
-                    + (t / pi) * (y - m1) / e
+                let aug = (t / pi) * (m1 - m0) + (t / pi) * (y - m1) / e
                     - ((1.0 - t) / pi) * (e / (1.0 - e)) * (y - m0);
                 out.push(aug);
             }
@@ -478,8 +476,7 @@ fn aipw_psi(
             for (((&t, &y), &e), (&m0, &m1)) in
                 treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
             {
-                let aug = ((1.0 - t) / pi0) * (m1 - m0)
-                    + (t / pi0) * ((1.0 - e) / e) * (y - m1)
+                let aug = ((1.0 - t) / pi0) * (m1 - m0) + (t / pi0) * ((1.0 - e) / e) * (y - m1)
                     - ((1.0 - t) / pi0) * (y - m0) / (1.0 - e);
                 out.push(aug);
             }
@@ -651,14 +648,12 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let n = 400;
-        let dim_a: Vec<u32> = (0..n).map(|i| (i % 20) as u32).collect();
-        let dim_b: Vec<u32> = (0..n).map(|i| (i % 15) as u32).collect();
-        for kind in [
-            AnalyticSeKind::Hc1,
-            AnalyticSeKind::Multiway,
-            AnalyticSeKind::NeweyWest { lag: 2 },
-        ] {
-            let mut est = AipwAte {
+        let dim_a: Vec<u32> = (0..n).map(|i| u32::try_from(i % 20).unwrap_or(0)).collect();
+        let dim_b: Vec<u32> = (0..n).map(|i| u32::try_from(i % 15).unwrap_or(0)).collect();
+        for kind in
+            [AnalyticSeKind::Hc1, AnalyticSeKind::Multiway, AnalyticSeKind::NeweyWest { lag: 2 }]
+        {
+            let est = AipwAte {
                 bootstrap_replicates: 0,
                 se_kind: kind,
                 multiway_ids: Some(vec![dim_a.clone(), dim_b.clone()]),

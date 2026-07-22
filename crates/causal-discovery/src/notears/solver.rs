@@ -15,7 +15,7 @@
     clippy::too_many_lines
 )]
 
-use super::acyclicity::{grad_h, h_of_w, AcyclicityWorkspace};
+use super::acyclicity::{AcyclicityWorkspace, grad_h, h_of_w};
 
 /// Grow-only scratch for the NOTEARS continuous solver.
 #[derive(Clone, Debug, Default)]
@@ -395,7 +395,8 @@ fn lbfgs_minimize_al(
                             ws.s_hist[hist_pos][t] = ws.free[t] - ws.free_prev[t];
                             ws.y_hist[hist_pos][t] = ws.free_grad[t] - ws.grad_prev[t];
                         }
-                        let ys = dot(&ws.y_hist[hist_pos][..n_free], &ws.s_hist[hist_pos][..n_free]);
+                        let ys =
+                            dot(&ws.y_hist[hist_pos][..n_free], &ws.s_hist[hist_pos][..n_free]);
                         if ys > 1e-16 {
                             ws.rho_hist[hist_pos] = 1.0 / ys;
                             hist_pos = (hist_pos + 1) % m;

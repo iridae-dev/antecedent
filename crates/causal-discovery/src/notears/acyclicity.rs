@@ -8,6 +8,8 @@
     clippy::needless_range_loop
 )]
 
+const TAYLOR_TERMS: u32 = 20;
+
 /// Scratch buffers for \(h(W)\) / \(\nabla h\) (grow-only).
 #[derive(Clone, Debug, Default)]
 pub(crate) struct AcyclicityWorkspace {
@@ -41,7 +43,11 @@ fn grow(v: &mut Vec<f64>, n: usize) {
 /// \(h(W)=\operatorname{tr}(\exp(W\circ W))-d\).
 ///
 /// Writes `expm(W∘W)` into `ws.expm` for reuse by [`grad_h`].
-pub(crate) fn h_of_w(w: &[f64], d: usize, ws: &mut AcyclicityWorkspace) -> Result<f64, &'static str> {
+pub(crate) fn h_of_w(
+    w: &[f64],
+    d: usize,
+    ws: &mut AcyclicityWorkspace,
+) -> Result<f64, &'static str> {
     ws.prepare(d);
     let n2 = d * d;
     for i in 0..n2 {
@@ -111,7 +117,6 @@ fn matrix_exp_inplace(d: usize, ws: &mut AcyclicityWorkspace) -> Result<(), &'st
 
     // Taylor: exp(A) = Σ_{k=0}^{K} A^k / k!
     // t0 = current power A^k / k!, accumulate into expm.
-    const TAYLOR_TERMS: u32 = 20;
     for i in 0..n2 {
         ws.expm[i] = 0.0;
         ws.t0[i] = 0.0;
@@ -184,9 +189,9 @@ mod tests {
     fn grad_h_matches_finite_difference() {
         let d = 3;
         let mut w = vec![0.0; d * d];
-        w[0 * d + 1] = 0.2;
-        w[1 * d + 2] = -0.15;
-        w[2 * d + 0] = 0.1;
+        w[1] = 0.2;
+        w[d + 2] = -0.15;
+        w[2 * d] = 0.1;
         // zero diagonal already
         let mut ws = AcyclicityWorkspace::default();
         let h0 = h_of_w(&w, d, &mut ws).unwrap();

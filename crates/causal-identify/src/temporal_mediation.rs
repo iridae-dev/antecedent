@@ -6,6 +6,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::too_many_lines
+)]
+
 use std::sync::Arc;
 
 use causal_core::{
@@ -24,6 +28,7 @@ use crate::temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificatio
 
 /// Temporal linear mediation identifier.
 #[derive(Clone, Debug)]
+#[derive(Default)]
 pub struct TemporalMediationIdentifier {
     /// Reuses temporal unfolding / backdoor machinery for optional horizon checks.
     pub temporal: TemporalBackdoorIdentifier,
@@ -32,11 +37,6 @@ pub struct TemporalMediationIdentifier {
     pub allow_natural_controlled_alias: bool,
 }
 
-impl Default for TemporalMediationIdentifier {
-    fn default() -> Self {
-        Self { temporal: TemporalBackdoorIdentifier::default(), allow_natural_controlled_alias: false }
-    }
-}
 
 impl TemporalMediationIdentifier {
     /// Create with defaults.
@@ -272,10 +272,7 @@ mod tests {
             MediationContrast::Mediated,
         );
         let id = TemporalMediationIdentifier::new().identify(&g, &q).unwrap();
-        assert!(matches!(
-            id.status,
-            IdentificationStatus::IdentifiedUnderParametricRestrictions
-        ));
+        assert!(matches!(id.status, IdentificationStatus::IdentifiedUnderParametricRestrictions));
         assert_eq!(id.estimands[0].mediators.len(), 1);
         assert!(id.estimands[0].method.as_ref().starts_with("temporal_mediation."));
         assert_eq!(

@@ -47,12 +47,12 @@ pub fn fill_standard_normal(rng: &mut CausalRng, out: &mut [f64]) {
 pub fn unbiased_index(rng: &mut CausalRng, n: usize) -> usize {
     assert!(n > 0, "unbiased_index requires n > 0");
     // Largest multiple of n that fits in u64.
-    let n64 = n as u64;
+    let n64 = u64::try_from(n).expect("usize fits u64");
     let limit = u64::MAX - (u64::MAX % n64);
     loop {
         let v = rng.next_u64();
         if v < limit {
-            return (v % n64) as usize;
+            return usize::try_from(v % n64).expect("remainder < n fits usize");
         }
     }
 }
@@ -74,7 +74,7 @@ pub fn sample_categorical(rng: &mut CausalRng, weights: &[f64]) -> usize {
         return 0;
     }
     let sum: f64 = weights.iter().copied().sum();
-    if !(sum > 0.0) {
+    if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         return 0;
     }
     let u = rng.next_f64() * sum;

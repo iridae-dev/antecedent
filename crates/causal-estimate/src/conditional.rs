@@ -84,13 +84,19 @@ impl ConditionalLinearAdjustment {
         query: &AverageEffectQuery,
     ) -> Result<EffectEstimate, EstimationError> {
         if query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported("ConditionalLinearAdjustment requires effect modifiers"));
+            return Err(EstimationError::unsupported(
+                "ConditionalLinearAdjustment requires effect modifiers",
+            ));
         }
         if query.effect_modifiers.len() != 1 {
-            return Err(EstimationError::unsupported("ConditionalLinearAdjustment currently supports one effect modifier"));
+            return Err(EstimationError::unsupported(
+                "ConditionalLinearAdjustment currently supports one effect modifier",
+            ));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported("ConditionalLinearAdjustment only supports AllObserved"));
+            return Err(EstimationError::unsupported(
+                "ConditionalLinearAdjustment only supports AllObserved",
+            ));
         }
         if estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::BackdoorAdjustment) {
             return Err(EstimationError::IncompatibleEstimand {
@@ -101,7 +107,9 @@ impl ConditionalLinearAdjustment {
         let control = intervention_f64(&query.control)?;
         let delta = active - control;
         if delta == 0.0 {
-            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
+            return Err(EstimationError::unsupported(
+                "active and control treatment levels must differ",
+            ));
         }
 
         let w_id = query.effect_modifiers[0];

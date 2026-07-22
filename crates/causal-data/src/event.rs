@@ -88,8 +88,9 @@ impl EventData {
     /// Always returns [`DataError::InvalidArgument`].
     pub fn reject_integer_lag_planning(&self) -> Result<(), DataError> {
         Err(DataError::InvalidArgument {
-            message: "integer lags are not valid on EventData; use duration windows or event models"
-                .into(),
+            message:
+                "integer lags are not valid on EventData; use duration windows or event models"
+                    .into(),
         })
     }
 
@@ -162,10 +163,7 @@ impl EventData {
         )?;
         TimeSeriesData::try_new(
             storage,
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns },
-                length: n_bins,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns }, length: n_bins },
         )
     }
 }
@@ -358,10 +356,7 @@ mod tests {
         let data = EventData::try_new(storage, Arc::<[i64]>::from(vec![0, 5, 15])).unwrap();
         let series = data.align_to_grid(10).unwrap();
         assert_eq!(series.row_count(), 2);
-        assert_eq!(
-            series.time_index().regularity,
-            SamplingRegularity::Regular { interval_ns: 10 }
-        );
+        assert_eq!(series.time_index().regularity, SamplingRegularity::Regular { interval_ns: 10 });
         let ColumnView::Float64(c) = series.column(VariableId::from_raw(0)).unwrap() else {
             panic!("expected float");
         };

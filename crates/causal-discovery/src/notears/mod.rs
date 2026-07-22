@@ -21,6 +21,7 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::float_cmp,
     clippy::similar_names,
     clippy::too_many_lines
 )]
@@ -45,7 +46,7 @@ use crate::result::{
     DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
 };
 
-use solver::{solve_notears, NotearsWorkspace, SolverConfig};
+use solver::{NotearsWorkspace, SolverConfig, solve_notears};
 
 /// NOTEARS discovery result: hard DAG review plus soft weight matrix for mechanism seeding.
 #[derive(Clone, Debug)]
@@ -165,9 +166,7 @@ impl Notears {
             return Err(DiscoveryError::unsupported("NOTEARS lambda must be finite and >= 0"));
         }
         if !self.threshold.is_finite() || self.threshold < 0.0 {
-            return Err(DiscoveryError::unsupported(
-                "NOTEARS threshold must be finite and >= 0",
-            ));
+            return Err(DiscoveryError::unsupported("NOTEARS threshold must be finite and >= 0"));
         }
 
         let col_owned = collect_float_columns(data, variables)?;
@@ -235,7 +234,9 @@ impl Notears {
             }
         }
         for parents in &mut by_child {
-            parents.sort_by(|a, b| b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal));
+            parents.sort_by(|a, b| {
+                b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal)
+            });
             if parents.len() > max_parents {
                 parents.truncate(max_parents);
             }
@@ -266,7 +267,8 @@ impl Notears {
         }
 
         // Insert by decreasing |weight| so stronger edges win if a residual cycle appears.
-        edge_coefs.sort_by(|a, b| b.2.abs().partial_cmp(&a.2.abs()).unwrap_or(std::cmp::Ordering::Equal));
+        edge_coefs
+            .sort_by(|a, b| b.2.abs().partial_cmp(&a.2.abs()).unwrap_or(std::cmp::Ordering::Equal));
 
         let mut dag = Dag::empty();
         for &v in variables {
@@ -324,9 +326,7 @@ impl Notears {
             graph: dag,
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(links),
-            source: EvidenceSource::Discovery {
-                algorithm: Arc::from("notears"),
-            },
+            source: EvidenceSource::Discovery { algorithm: Arc::from("notears") },
         };
 
         let discovery = DiscoveryResult {
@@ -352,11 +352,7 @@ impl Notears {
             sepsets: crate::result::PcSepsets::default(),
         };
 
-        Ok(NotearsDiscoveryResult {
-            discovery,
-            weights: Arc::from(soft_w),
-            dim: d,
-        })
+        Ok(NotearsDiscoveryResult { discovery, weights: Arc::from(soft_w), dim: d })
     }
 }
 
@@ -473,8 +469,8 @@ mod tests {
             g.edges().collect::<Vec<_>>()
         );
         // Soft weights for true edges should be non-trivial.
-        assert!(result.weights[0 * 3 + 1].abs() > 0.1);
-        assert!(result.weights[1 * 3 + 2].abs() > 0.1);
+        assert!(result.weights[1].abs() > 0.1);
+        assert!(result.weights[3 + 2].abs() > 0.1);
     }
 
     #[test]
@@ -493,20 +489,15 @@ mod tests {
             target: vars[1],
             target_lag: Lag::CONTEMPORANEOUS,
         }]);
-        let alg = Notears::new()
-            .with_constraints(constraints)
-            .with_lambda(0.05)
-            .with_threshold(0.15);
+        let alg =
+            Notears::new().with_constraints(constraints).with_lambda(0.05).with_threshold(0.15);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let result = alg.run(&data, &vars, &mut ws, &ctx).unwrap();
         let g = &result.discovery.evidence.graph;
         let d = |i: u32| DenseNodeId::from_raw(i);
-        assert!(
-            !g.children(d(0)).contains(&d(1)),
-            "forbidden 0→1 must be absent"
-        );
-        assert_eq!(result.weights[0 * 3 + 1], 0.0);
+        assert!(!g.children(d(0)).contains(&d(1)), "forbidden 0→1 must be absent");
+        assert_eq!(result.weights[1], 0.0);
     }
 
     #[test]

@@ -98,6 +98,7 @@ impl std::fmt::Debug for CausalAnalysisBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CausalAnalysisBuilder")
             .field("data", &self.data.as_ref().map(|_| "<data>"))
+            .field("event_pending", &self.event_pending.as_ref().map(|_| "<event>"))
             .field("graph", &self.graph)
             .field("query", &self.query.as_ref().map(|_| "<query>"))
             .field("refute", &self.refute)
@@ -108,10 +109,7 @@ impl std::fmt::Debug for CausalAnalysisBuilder {
             .field("rd", &self.rd)
             .field("inference", &self.inference)
             .field("overlap_policy", &self.overlap_policy)
-            .field(
-                "population_registry",
-                &self.population_registry.as_ref().map(|_| "<registry>"),
-            )
+            .field("population_registry", &self.population_registry.as_ref().map(|_| "<registry>"))
             .field("discovery_ci", &self.discovery_ci.as_ref().map(|_| "<dyn CI>"))
             .field("custom_validators", &self.custom_validators.len())
             .finish()
@@ -451,12 +449,7 @@ impl CausalAnalysisBuilder {
         n_draws: u32,
         thin: u32,
     ) -> Self {
-        self.graph = Some(GraphInput::DiscoverStructureMcmc {
-            n_chains,
-            n_warmup,
-            n_draws,
-            thin,
-        });
+        self.graph = Some(GraphInput::DiscoverStructureMcmc { n_chains, n_warmup, n_draws, thin });
         self
     }
 

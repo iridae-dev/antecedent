@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use causal_core::{
     AverageEffectQuery, BufferMaterialization, CausalQuery, DataClassification, ExecutionContext,
-    KernelSelection, LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
-    TargetPopulation, TemporalEffectQuery,
+    Intervention, KernelSelection, LogicalAnalysisPlanRecord, ParallelTaskSpec,
+    PhysicalExecutionPlanRecord, TargetPopulation, TemporalEffectQuery,
 };
 use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
 use causal_graph::{
@@ -147,7 +147,7 @@ pub enum GraphInput {
         /// Auto-accept when no undirected marks remain.
         accept_discovered: bool,
     },
-    /// Discover with DirectLiNGAM (tabular DAG; auto-accept clears pending edges).
+    /// Discover with `DirectLiNGAM` (tabular DAG; auto-accept clears pending edges).
     DiscoverLingam {
         /// Max parent bound hint (via static constraints).
         max_cond_size: usize,
@@ -323,7 +323,12 @@ impl LogicalAnalysisPlan {
         resolved_temporal_graph: Option<TemporalDag>,
         resolved_static_graph: Option<Dag>,
     ) -> Result<PhysicalExecutionPlan, AnalysisError> {
-        self.compile_physical_with_all_graphs(ctx, resolved_temporal_graph, resolved_static_graph, None)
+        self.compile_physical_with_all_graphs(
+            ctx,
+            resolved_temporal_graph,
+            resolved_static_graph,
+            None,
+        )
     }
 
     /// Compile a physical plan with optional resolved temporal DAG, static DAG, and/or static PAG.
@@ -369,8 +374,7 @@ impl LogicalAnalysisPlan {
                 .record
                 .estimator
                 .as_deref()
-                .map(EstimatorId::parse)
-                .unwrap_or(EstimatorId::Other(Arc::from("")));
+                .map_or(EstimatorId::Other(Arc::from("")), EstimatorId::parse);
             Arc::from([ParallelTaskSpec {
                 dimension: Arc::from(estimator.parallel_task_dimension()),
                 units: workers,
@@ -381,8 +385,7 @@ impl LogicalAnalysisPlan {
             .record
             .estimator
             .as_deref()
-            .map(EstimatorId::parse)
-            .unwrap_or(EstimatorId::Other(Arc::from("")));
+            .map_or(EstimatorId::Other(Arc::from("")), EstimatorId::parse);
         let record = PhysicalExecutionPlanRecord {
             plan_id: Arc::clone(&self.record.plan_id),
             materializations: Arc::from([(
@@ -458,7 +461,7 @@ pub enum CompiledAnalysis {
     ReviewRequiredCpdag(TemporalCpdagReview),
     /// Static PC CPDAG needs orientation before ATE estimation.
     ReviewRequiredStaticCpdag(CpdagReview),
-    /// DirectLiNGAM (or other full-DAG discovery) needs edge acceptance.
+    /// `DirectLiNGAM` (or other full-DAG discovery) needs edge acceptance.
     ReviewRequiredStaticDag(DagReview),
     /// Classic static FCI/RFCI PAG when `accept_discovered` is false (review UI).
     ReviewRequiredStaticPag(PagReview),
@@ -653,15 +656,14 @@ pub fn compile_logical_distribution(
             message: "functional.distribution only supports TargetPopulation::AllObserved".into(),
         });
     }
-    let treatment = input
-        .query
-        .interventions
-        .first()
-        .and_then(|iv| iv.primary_variable())
-        .ok_or_else(|| AnalysisError::Compile {
-            message: "distribution query requires at least one intervention with a primary variable"
-                .into(),
-        })?;
+    let treatment =
+        input.query.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
+            || AnalysisError::Compile {
+                message:
+                    "distribution query requires at least one intervention with a primary variable"
+                        .into(),
+            },
+        )?;
     let outcome = *input.query.outcomes.first().ok_or_else(|| AnalysisError::Compile {
         message: "distribution query requires at least one outcome".into(),
     })?;
@@ -817,14 +819,14 @@ fn validate_query_vars_in_pag(
 /// Modality / query validation failures.
 pub fn compile_logical_temporal_effect(
     data: &TimeSeriesData,
-    _graph: &TemporalDag,
+    graph: &TemporalDag,
     query: &TemporalEffectQuery,
     split: Option<DiscoveryEstimationSplit>,
     review_required: bool,
 ) -> Result<LogicalAnalysisPlan, AnalysisError> {
     compile_logical_temporal_effect_classified(
         data,
-        _graph,
+        graph,
         query,
         split,
         review_required,
@@ -1156,8 +1158,11 @@ mod tests {
         )
         .unwrap();
         let graph = TemporalDag::empty();
-        let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
-            .with_target_population(TargetPopulation::Predicate(PredicateExpr::named("cohort_a")));
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_target_population(TargetPopulation::Predicate(PredicateExpr::named(
+                    "cohort_a",
+                )));
         let err = compile_logical_temporal_effect(&data, &graph, &query, None, false).unwrap_err();
         assert!(matches!(err, AnalysisError::Compile { .. }));
     }

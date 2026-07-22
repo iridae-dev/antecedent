@@ -114,7 +114,7 @@ impl InstrumentalVariableIdentifier {
             candidates.push(v);
         }
 
-                let mut valid: Vec<DenseNodeId> = Vec::new();
+        let mut valid: Vec<DenseNodeId> = Vec::new();
         let mut examined = 0u64;
 
         for &z in &candidates {

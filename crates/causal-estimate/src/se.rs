@@ -2,6 +2,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::manual_map,
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_arguments
+)]
+
 use causal_stats::{SandwichKind, coefficient_covariance};
 
 use crate::error::EstimationError;
@@ -50,11 +60,13 @@ pub use causal_stats::DEFAULT_RIDGE_ON_SEPARATION;
 ///
 /// Missing ids or length mismatch.
 pub(crate) fn require_clusters(
-    ids: &Option<Vec<u32>>,
+    ids: Option<&[u32]>,
     n: usize,
 ) -> Result<&[u32], EstimationError> {
-    let Some(ids) = ids.as_ref() else {
-        return Err(EstimationError::unsupported("AnalyticSeKind::Cluster/PanelClusterHac requires estimator.cluster_ids"));
+    let Some(ids) = ids else {
+        return Err(EstimationError::unsupported(
+            "AnalyticSeKind::Cluster/PanelClusterHac requires estimator.cluster_ids",
+        ));
     };
     if ids.len() != n {
         return Err(EstimationError::data_msg(format!(
@@ -62,7 +74,7 @@ pub(crate) fn require_clusters(
             ids.len()
         )));
     }
-    Ok(ids.as_slice())
+    Ok(ids)
 }
 
 /// Require multiway cluster label dimensions matching prepared row count.
@@ -71,14 +83,18 @@ pub(crate) fn require_clusters(
 ///
 /// Missing ids, empty dimensions, or length mismatch.
 pub(crate) fn require_multiway(
-    ids: &Option<Vec<Vec<u32>>>,
+    ids: Option<&[Vec<u32>]>,
     n: usize,
 ) -> Result<&[Vec<u32>], EstimationError> {
-    let Some(ids) = ids.as_ref() else {
-        return Err(EstimationError::unsupported("AnalyticSeKind::Multiway requires estimator.multiway_ids"));
+    let Some(ids) = ids else {
+        return Err(EstimationError::unsupported(
+            "AnalyticSeKind::Multiway requires estimator.multiway_ids",
+        ));
     };
     if ids.is_empty() {
-        return Err(EstimationError::unsupported("AnalyticSeKind::Multiway requires at least one clustering dimension"));
+        return Err(EstimationError::unsupported(
+            "AnalyticSeKind::Multiway requires at least one clustering dimension",
+        ));
     }
     for (i, dim) in ids.iter().enumerate() {
         if dim.len() != n {
@@ -88,7 +104,7 @@ pub(crate) fn require_multiway(
             )));
         }
     }
-    Ok(ids.as_slice())
+    Ok(ids)
 }
 
 /// Coefficient SE from residual sandwich, or `None` when [`AnalyticSeKind::Homoskedastic`].
@@ -103,8 +119,8 @@ pub(crate) fn residual_sandwich_coef_se(
     ncols: usize,
     residuals: &[f64],
     t_col: usize,
-    cluster_ids: &Option<Vec<u32>>,
-    multiway_ids: &Option<Vec<Vec<u32>>>,
+    cluster_ids: Option<&[u32]>,
+    multiway_ids: Option<&[Vec<u32>]>,
 ) -> Result<Option<f64>, EstimationError> {
     if matches!(kind, AnalyticSeKind::Homoskedastic) {
         return Ok(None);
@@ -208,10 +224,13 @@ pub(crate) fn hetero_influence_se(psi: &[f64]) -> f64 {
         return f64::NAN;
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
-    let sum_sq: f64 = psi.iter().map(|v| {
-        let d = v - mean;
-        d * d
-    }).sum();
+    let sum_sq: f64 = psi
+        .iter()
+        .map(|v| {
+            let d = v - mean;
+            d * d
+        })
+        .sum();
     (sum_sq / ((n * (n - 1)) as f64)).max(0.0).sqrt()
 }
 
@@ -314,8 +333,8 @@ pub(crate) fn influence_se_kind(
     kind: AnalyticSeKind,
     psi: &[f64],
     nrows: usize,
-    cluster_ids: &Option<Vec<u32>>,
-    multiway_ids: &Option<Vec<Vec<u32>>>,
+    cluster_ids: Option<&[u32]>,
+    multiway_ids: Option<&[Vec<u32>]>,
     row_map: Option<&[usize]>,
 ) -> Result<f64, EstimationError> {
     let gather_ids = |ids: &[u32]| -> Vec<u32> {
@@ -329,10 +348,9 @@ pub(crate) fn influence_se_kind(
             let n = psi.len() as f64;
             crate::util::sample_std(psi) / n.sqrt()
         }
-        AnalyticSeKind::Hc0
-        | AnalyticSeKind::Hc1
-        | AnalyticSeKind::Hc2
-        | AnalyticSeKind::Hc3 => hetero_influence_se(psi),
+        AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 | AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
+            hetero_influence_se(psi)
+        }
         AnalyticSeKind::Cluster => {
             let groups_full = require_clusters(cluster_ids, nrows)?;
             let g = gather_ids(groups_full);

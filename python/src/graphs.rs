@@ -3,27 +3,30 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal::{
-    dag_from_dot as facade_dag_from_dot, dag_to_dot as facade_dag_to_dot,
-    pag_from_dot as facade_pag_from_dot, pag_to_dot as facade_pag_to_dot,
-    pag_from_json as facade_pag_from_json, pag_to_json as facade_pag_to_json,
-    pag_from_gml as facade_pag_from_gml, pag_to_gml as facade_pag_to_gml,
-    pag_from_networkx_node_link as facade_pag_from_networkx_node_link,
-    pag_to_networkx_node_link as facade_pag_to_networkx_node_link,
-    cpdag_from_dot as facade_cpdag_from_dot, cpdag_to_dot as facade_cpdag_to_dot,
-    cpdag_from_json as facade_cpdag_from_json, cpdag_to_json as facade_cpdag_to_json,
-    cpdag_from_gml as facade_cpdag_from_gml, cpdag_to_gml as facade_cpdag_to_gml,
-    cpdag_from_networkx_node_link as facade_cpdag_from_networkx_node_link,
-    cpdag_to_networkx_node_link as facade_cpdag_to_networkx_node_link,
-    admg_from_dot as facade_admg_from_dot, admg_to_dot as facade_admg_to_dot,
-    admg_from_json as facade_admg_from_json, admg_to_json as facade_admg_to_json,
-    admg_from_gml as facade_admg_from_gml, admg_to_gml as facade_admg_to_gml,
+    admg_from_dot as facade_admg_from_dot, admg_from_gml as facade_admg_from_gml,
+    admg_from_json as facade_admg_from_json,
     admg_from_networkx_node_link as facade_admg_from_networkx_node_link,
+    admg_to_dot as facade_admg_to_dot, admg_to_gml as facade_admg_to_gml,
+    admg_to_json as facade_admg_to_json,
     admg_to_networkx_node_link as facade_admg_to_networkx_node_link,
+    cpdag_from_dot as facade_cpdag_from_dot, cpdag_from_gml as facade_cpdag_from_gml,
+    cpdag_from_json as facade_cpdag_from_json,
+    cpdag_from_networkx_node_link as facade_cpdag_from_networkx_node_link,
+    cpdag_to_dot as facade_cpdag_to_dot, cpdag_to_gml as facade_cpdag_to_gml,
+    cpdag_to_json as facade_cpdag_to_json,
+    cpdag_to_networkx_node_link as facade_cpdag_to_networkx_node_link,
+    dag_from_dot as facade_dag_from_dot, dag_to_dot as facade_dag_to_dot,
+    pag_from_dot as facade_pag_from_dot, pag_from_gml as facade_pag_from_gml,
+    pag_from_json as facade_pag_from_json,
+    pag_from_networkx_node_link as facade_pag_from_networkx_node_link,
+    pag_to_dot as facade_pag_to_dot, pag_to_gml as facade_pag_to_gml,
+    pag_to_json as facade_pag_to_json,
+    pag_to_networkx_node_link as facade_pag_to_networkx_node_link,
 };
 use causal_core::{Lag, VariableId};
 use causal_graph::{
-    DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef, TemporalDag as RustTemporalDag,
-    ensure_lagged, Dag as RustDag,
+    Dag as RustDag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef,
+    TemporalDag as RustTemporalDag, ensure_lagged,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -155,20 +158,12 @@ impl Dag {
 
     fn parents(&self, name: &str) -> PyResult<Vec<String>> {
         let id = self.name_index(name)?;
-        self.dag
-            .parents(id)
-            .iter()
-            .map(|&p| id_name(&self.names, p))
-            .collect()
+        self.dag.parents(id).iter().map(|&p| id_name(&self.names, p)).collect()
     }
 
     fn children(&self, name: &str) -> PyResult<Vec<String>> {
         let id = self.name_index(name)?;
-        self.dag
-            .children(id)
-            .iter()
-            .map(|&c| id_name(&self.names, c))
-            .collect()
+        self.dag.children(id).iter().map(|&c| id_name(&self.names, c)).collect()
     }
 
     fn node_count(&self) -> usize {
@@ -258,9 +253,17 @@ impl Cpdag {
         for e in self.cpdag.edges() {
             let mark = cpdag_mark_str(e);
             if let Some((from, to)) = e.parent_child() {
-                out.push((id_name(&self.names, from)?, id_name(&self.names, to)?, mark.to_string()));
+                out.push((
+                    id_name(&self.names, from)?,
+                    id_name(&self.names, to)?,
+                    mark.to_string(),
+                ));
             } else {
-                out.push((id_name(&self.names, e.a)?, id_name(&self.names, e.b)?, mark.to_string()));
+                out.push((
+                    id_name(&self.names, e.a)?,
+                    id_name(&self.names, e.b)?,
+                    mark.to_string(),
+                ));
             }
         }
         Ok(out)
@@ -268,29 +271,17 @@ impl Cpdag {
 
     fn parents(&self, name: &str) -> PyResult<Vec<String>> {
         let id = self.name_index(name)?;
-        self.cpdag
-            .parents(id)
-            .into_iter()
-            .map(|p| id_name(&self.names, p))
-            .collect()
+        self.cpdag.parents(id).into_iter().map(|p| id_name(&self.names, p)).collect()
     }
 
     fn children(&self, name: &str) -> PyResult<Vec<String>> {
         let id = self.name_index(name)?;
-        self.cpdag
-            .children(id)
-            .into_iter()
-            .map(|c| id_name(&self.names, c))
-            .collect()
+        self.cpdag.children(id).into_iter().map(|c| id_name(&self.names, c)).collect()
     }
 
     fn undirected_neighbors(&self, name: &str) -> PyResult<Vec<String>> {
         let id = self.name_index(name)?;
-        self.cpdag
-            .undirected_neighbors(id)
-            .into_iter()
-            .map(|n| id_name(&self.names, n))
-            .collect()
+        self.cpdag.undirected_neighbors(id).into_iter().map(|n| id_name(&self.names, n)).collect()
     }
 
     fn try_into_dag(&self) -> PyResult<Dag> {
@@ -347,11 +338,7 @@ impl Cpdag {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "Cpdag(nodes={}, edges={})",
-            self.cpdag.node_count(),
-            self.cpdag.edges().len()
-        )
+        format!("Cpdag(nodes={}, edges={})", self.cpdag.node_count(), self.cpdag.edges().len())
     }
 }
 
@@ -413,11 +400,7 @@ impl Pag {
 
     fn directed_children(&self, name: &str) -> PyResult<Vec<String>> {
         let id = self.name_index(name)?;
-        self.pag
-            .directed_children(id)
-            .into_iter()
-            .map(|c| id_name(&self.names, c))
-            .collect()
+        self.pag.directed_children(id).into_iter().map(|c| id_name(&self.names, c)).collect()
     }
 
     fn node_count(&self) -> usize {
@@ -520,29 +503,17 @@ impl Admg {
 
     fn parents(&self, name: &str) -> PyResult<Vec<String>> {
         let id = self.name_index(name)?;
-        self.admg
-            .parents(id)
-            .iter()
-            .map(|&p| id_name(&self.names, p))
-            .collect()
+        self.admg.parents(id).iter().map(|&p| id_name(&self.names, p)).collect()
     }
 
     fn children(&self, name: &str) -> PyResult<Vec<String>> {
         let id = self.name_index(name)?;
-        self.admg
-            .children(id)
-            .iter()
-            .map(|&c| id_name(&self.names, c))
-            .collect()
+        self.admg.children(id).iter().map(|&c| id_name(&self.names, c)).collect()
     }
 
     fn bidirected_neighbors(&self, name: &str) -> PyResult<Vec<String>> {
         let id = self.name_index(name)?;
-        self.admg
-            .bidirected_neighbors(id)
-            .iter()
-            .map(|&n| id_name(&self.names, n))
-            .collect()
+        self.admg.bidirected_neighbors(id).iter().map(|&n| id_name(&self.names, n)).collect()
     }
 
     fn node_count(&self) -> usize {
@@ -620,22 +591,17 @@ impl TemporalDag {
     fn node_label(&self, id: DenseNodeId) -> PyResult<(String, u32)> {
         match self.dag.nodes().get(id.as_usize()) {
             Some(NodeRef::Lagged { variable, lag }) => {
-                let name = self
-                    .names
-                    .get(variable.as_usize())
-                    .cloned()
-                    .ok_or_else(|| {
-                        CausalGraphError::new_err(format!(
-                            "variable id {} out of range",
-                            variable.raw()
-                        ))
-                    })?;
+                let name = self.names.get(variable.as_usize()).cloned().ok_or_else(|| {
+                    CausalGraphError::new_err(format!(
+                        "variable id {} out of range",
+                        variable.raw()
+                    ))
+                })?;
                 Ok((name, lag.raw()))
             }
-            _ => Err(CausalGraphError::new_err(format!(
-                "temporal node {} is not lagged",
-                id.raw()
-            ))),
+            _ => {
+                Err(CausalGraphError::new_err(format!("temporal node {} is not lagged", id.raw())))
+            }
         }
     }
 }
@@ -692,11 +658,7 @@ impl TemporalDag {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "TemporalDag(variables={}, nodes={})",
-            self.names.len(),
-            self.dag.node_count()
-        )
+        format!("TemporalDag(variables={}, nodes={})", self.names.len(), self.dag.node_count())
     }
 }
 
@@ -750,11 +712,7 @@ impl TemporalCpdag {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "TemporalCpdag(variables={}, nodes={})",
-            self.names.len(),
-            self.cpdag.node_count()
-        )
+        format!("TemporalCpdag(variables={}, nodes={})", self.names.len(), self.cpdag.node_count())
     }
 }
 
@@ -802,11 +760,7 @@ impl TemporalPag {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "TemporalPag(variables={}, nodes={})",
-            self.names.len(),
-            self.pag.node_count()
-        )
+        format!("TemporalPag(variables={}, nodes={})", self.names.len(), self.pag.node_count())
     }
 }
 

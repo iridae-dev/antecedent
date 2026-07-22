@@ -18,10 +18,8 @@ use causal_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, Pag, TemporalPag}
 use crate::discriminating_paths::{
     discriminating_implies_collider, find_discriminating_paths_with_budget,
 };
-use crate::orientation::{
-    OrientationError, OrientationQueue, OrientationState, PagOps, RuleDelta,
-};
-use crate::uncovered_paths::{uncovered_pd_paths_with_budget, EndpointPattern};
+use crate::orientation::{OrientationError, OrientationQueue, OrientationState, PagOps, RuleDelta};
+use crate::uncovered_paths::{EndpointPattern, uncovered_pd_paths_with_budget};
 
 /// Drain the orientation queue into a focus set, or scan all nodes when empty
 /// (same contract as Meek [`crate::orientation`] rules).
@@ -133,9 +131,9 @@ fn set_arrow_at<G: PagOps>(
     at: DenseNodeId,
     other: DenseNodeId,
 ) -> Result<bool, OrientationError> {
-    let e = graph.edge_between(at, other).ok_or(OrientationError::Precondition {
-        message: "discriminating path missing edge",
-    })?;
+    let e = graph
+        .edge_between(at, other)
+        .ok_or(OrientationError::Precondition { message: "discriminating path missing edge" })?;
     let at_other = if e.a == other { e.at_a } else { e.at_b };
     set_marks_oriented(graph, state, delta, at, other, Endpoint::Arrow, at_other)
 }
@@ -346,15 +344,8 @@ fn apply_r3<G: PagOps>(
                     {
                         continue;
                     }
-                    if set_marks_oriented(
-                        graph,
-                        state,
-                        &mut delta,
-                        d,
-                        b,
-                        at_d_db,
-                        Endpoint::Arrow,
-                    )? {
+                    if set_marks_oriented(graph, state, &mut delta, d, b, at_d_db, Endpoint::Arrow)?
+                    {
                         delta.edges_changed += 1;
                         enqueue_local(graph, d, queue);
                         enqueue_local(graph, b, queue);
@@ -590,8 +581,7 @@ fn apply_r10<G: PagOps>(
             if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Circle) {
                 o_arrow_into.push(n);
             }
-            if matches!(at_c, Endpoint::Arrow)
-                && matches!(at_n, Endpoint::Tail | Endpoint::Circle)
+            if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Tail | Endpoint::Circle)
             {
                 parents_into.push(n);
             }
@@ -639,15 +629,8 @@ fn apply_r10<G: PagOps>(
             if !found_pair {
                 continue;
             }
-            if set_marks_oriented(
-                graph,
-                state,
-                &mut delta,
-                a,
-                c,
-                Endpoint::Tail,
-                Endpoint::Arrow,
-            )? {
+            if set_marks_oriented(graph, state, &mut delta, a, c, Endpoint::Tail, Endpoint::Arrow)?
+            {
                 delta.edges_changed += 1;
                 enqueue_local(graph, a, queue);
                 enqueue_local(graph, c, queue);
@@ -993,11 +976,8 @@ impl LpcmciOrientationRule for LpcmciApr {
                 let Some(e) = graph.edge_between(a, b) else {
                     continue;
                 };
-                let (at_a, at_b, mid) = if e.a == a {
-                    (e.at_a, e.at_b, e.middle)
-                } else {
-                    (e.at_b, e.at_a, e.middle)
-                };
+                let (at_a, at_b, mid) =
+                    if e.a == a { (e.at_a, e.at_b, e.middle) } else { (e.at_b, e.at_a, e.middle) };
                 // Definite a → b with non-empty middle that APR clears.
                 if !matches!(at_a, Endpoint::Tail) || !matches!(at_b, Endpoint::Arrow) {
                     continue;
@@ -1062,19 +1042,13 @@ impl LpcmciOrientationRule for LpcmciMmr {
                 }
                 let mark = if is_later(graph, a, b) {
                     // a later than b: arrow into a → Left; else Right.
-                    if matches!(
-                        if e.a == a { e.at_a } else { e.at_b },
-                        Endpoint::Arrow
-                    ) {
+                    if matches!(if e.a == a { e.at_a } else { e.at_b }, Endpoint::Arrow) {
                         MiddleMark::Left
                     } else {
                         MiddleMark::Right
                     }
                 } else if is_later(graph, b, a) {
-                    if matches!(
-                        if e.a == b { e.at_a } else { e.at_b },
-                        Endpoint::Arrow
-                    ) {
+                    if matches!(if e.a == b { e.at_a } else { e.at_b }, Endpoint::Arrow) {
                         MiddleMark::Left
                     } else {
                         MiddleMark::Right

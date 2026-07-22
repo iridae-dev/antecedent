@@ -8,7 +8,10 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
-    clippy::cast_sign_loss
+    clippy::cast_sign_loss,
+    clippy::needless_range_loop,
+    clippy::neg_cmp_op_on_partial_ord,
+    clippy::too_many_arguments
 )]
 
 use std::sync::Arc;
@@ -18,8 +21,8 @@ use causal_data::TabularData;
 use causal_graph::algo::is_dag;
 use causal_graph::{Dag, DenseNodeId};
 use causal_prob::{
-    max_split_rhat, min_bulk_ess, GraphIdentFlag, HessianFactorization, InferenceDiagnostics,
-    WeightedGraphSamples,
+    GraphIdentFlag, HessianFactorization, InferenceDiagnostics, WeightedGraphSamples,
+    max_split_rhat, min_bulk_ess,
 };
 use causal_state::GraphScoreFamily;
 
@@ -71,9 +74,7 @@ impl GraphPrior {
     /// `p` outside `(0, 1)`.
     pub fn bernoulli_edges(p: f64) -> Result<Self, DiscoveryError> {
         if !(p > 0.0 && p < 1.0) {
-            return Err(DiscoveryError::unsupported(
-                "Bernoulli edge prior requires p in (0, 1)",
-            ));
+            return Err(DiscoveryError::unsupported("Bernoulli edge prior requires p in (0, 1)"));
         }
         Ok(Self {
             constraints: DiscoveryConstraints {
@@ -156,22 +157,16 @@ impl GraphPosterior {
             return Err(DiscoveryError::unsupported("empty graph posterior"));
         }
         if adjacency.len() != n_graphs {
-            return Err(DiscoveryError::unsupported(
-                "adjacency/weights length mismatch",
-            ));
+            return Err(DiscoveryError::unsupported("adjacency/weights length mismatch"));
         }
         let cell = n_vars.saturating_mul(n_vars);
         if edge_marginals.len() != cell || orientation_marginals.len() != cell {
-            return Err(DiscoveryError::unsupported(
-                "edge/orientation marginal length mismatch",
-            ));
+            return Err(DiscoveryError::unsupported("edge/orientation marginal length mismatch"));
         }
         let mut total = 0.0;
         for &w in weights.iter() {
             if !w.is_finite() || w < 0.0 {
-                return Err(DiscoveryError::unsupported(
-                    "non-finite or negative posterior weight",
-                ));
+                return Err(DiscoveryError::unsupported("non-finite or negative posterior weight"));
             }
             total += w;
         }
@@ -212,9 +207,7 @@ impl GraphPosterior {
         let lagged = lagged.into();
         let expect = (max_lag as usize).saturating_mul(self.n_vars.saturating_mul(self.n_vars));
         if lagged.len() != expect {
-            return Err(DiscoveryError::unsupported(
-                "lagged edge marginal length mismatch",
-            ));
+            return Err(DiscoveryError::unsupported("lagged edge marginal length mismatch"));
         }
         self.lagged_edge_marginals.replace(lagged);
         self.max_lag = Some(max_lag);
@@ -229,9 +222,7 @@ impl GraphPosterior {
     pub fn with_lag_masks(mut self, masks: impl Into<Arc<[u64]>>) -> Result<Self, DiscoveryError> {
         let masks = masks.into();
         if masks.len() != self.n_graphs {
-            return Err(DiscoveryError::unsupported(
-                "lag_masks/adjacency length mismatch",
-            ));
+            return Err(DiscoveryError::unsupported("lag_masks/adjacency length mismatch"));
         }
         self.lag_masks = Some(masks);
         Ok(self)
@@ -300,11 +291,7 @@ pub fn has_edge(mask: u64, n: usize, from: usize, to: usize) -> bool {
 #[must_use]
 pub fn set_edge(mask: u64, n: usize, from: usize, to: usize, present: bool) -> u64 {
     let b = edge_bit(n, from, to);
-    if present {
-        mask | (1u64 << b)
-    } else {
-        mask & !(1u64 << b)
-    }
+    if present { mask | (1u64 << b) } else { mask & !(1u64 << b) }
 }
 
 /// Parent indices of `node` under `mask`.
@@ -344,9 +331,7 @@ pub fn mask_is_dag(mask: u64, n: usize) -> bool {
 /// When `mask` is not a DAG on `n_vars` nodes, or `n_vars` exceeds packing capacity.
 pub fn dag_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Dag, DiscoveryError> {
     if n_vars == 0 {
-        return Err(DiscoveryError::data_msg(
-            "dag_from_adjacency_mask: n_vars must be > 0",
-        ));
+        return Err(DiscoveryError::data_msg("dag_from_adjacency_mask: n_vars must be > 0"));
     }
     if n_directed_edges(n_vars) > 64 {
         return Err(DiscoveryError::data_msg(format!(
@@ -358,9 +343,8 @@ pub fn dag_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Dag, Discover
             "adjacency mask {mask:#x} is not a DAG on {n_vars} nodes"
         )));
     }
-    let n_u32 = u32::try_from(n_vars).map_err(|_| {
-        DiscoveryError::data_msg("n_vars too large for DenseNodeId")
-    })?;
+    let n_u32 = u32::try_from(n_vars)
+        .map_err(|_| DiscoveryError::data_msg("n_vars too large for DenseNodeId"))?;
     let mut dag = Dag::with_variables(n_u32);
     for i in 0..n_vars {
         for j in 0..n_vars {
@@ -471,11 +455,7 @@ pub fn log_prior_mask(
 #[must_use]
 pub fn kish_ess(weights: &[f64]) -> f64 {
     let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-    if sum_sq > 0.0 {
-        1.0 / sum_sq
-    } else {
-        0.0
-    }
+    if sum_sq > 0.0 { 1.0 / sum_sq } else { 0.0 }
 }
 
 /// Normalize log-weights with log-sum-exp; returns normalized weights.
@@ -496,10 +476,8 @@ pub fn normalize_log_weights(log_w: &[f64]) -> Result<Vec<f64>, DiscoveryError> 
     if !m.is_finite() {
         return Err(DiscoveryError::unsupported("no finite graph log-weights"));
     }
-    let mut w: Vec<f64> = log_w
-        .iter()
-        .map(|&lw| if lw.is_finite() { (lw - m).exp() } else { 0.0 })
-        .collect();
+    let mut w: Vec<f64> =
+        log_w.iter().map(|&lw| if lw.is_finite() { (lw - m).exp() } else { 0.0 }).collect();
     let z: f64 = w.iter().sum();
     if !(z > 0.0) {
         return Err(DiscoveryError::unsupported("zero posterior mass after LSE"));
@@ -511,11 +489,7 @@ pub fn normalize_log_weights(log_w: &[f64]) -> Result<Vec<f64>, DiscoveryError> 
 }
 
 /// Accumulate edge / orientation marginals from weighted adjacency masks.
-pub fn accumulate_marginals(
-    n: usize,
-    weights: &[f64],
-    masks: &[u64],
-) -> (Vec<f64>, Vec<f64>) {
+#[must_use] pub fn accumulate_marginals(n: usize, weights: &[f64], masks: &[u64]) -> (Vec<f64>, Vec<f64>) {
     let cell = n * n;
     let mut edge = vec![0.0; cell];
     let mut orient = vec![0.0; cell];
@@ -590,12 +564,8 @@ pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
     if diagnostics.factorization != HessianFactorization::Mcmc {
         return diagnostics.allows_posterior();
     }
-    let rhat_ok = diagnostics
-        .rhat_max
-        .is_some_and(|r| r.is_finite() && r < 1.2);
-    let ess_ok = diagnostics
-        .ess_bulk_min
-        .is_some_and(|e| e.is_finite() && e > 10.0);
+    let rhat_ok = diagnostics.rhat_max.is_some_and(|r| r.is_finite() && r < 1.2);
+    let ess_ok = diagnostics.ess_bulk_min.is_some_and(|e| e.is_finite() && e > 10.0);
     let div_ok = diagnostics.n_divergences.is_some();
     diagnostics.converged && rhat_ok && ess_ok && div_ok
 }

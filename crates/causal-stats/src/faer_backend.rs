@@ -60,11 +60,8 @@ impl DenseLinearAlgebra for FaerBackend {
         if rank < ncols {
             return Err(StatsError::RankDeficient { rank, ncols });
         }
-        let rcond = if max_diag > 0.0 && min_diag.is_finite() {
-            Some(min_diag / max_diag)
-        } else {
-            None
-        };
+        let rcond =
+            if max_diag > 0.0 && min_diag.is_finite() { Some(min_diag / max_diag) } else { None };
 
         // solve_lstsq writes β into the leading ncols entries of the RHS.
         let mut rhs = Mat::<f64>::from_fn(nrows, 1, |r, _| y[r]);

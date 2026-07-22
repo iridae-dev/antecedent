@@ -13,10 +13,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    clippy::manual_map,
     clippy::similar_names,
-    clippy::float_cmp
+    clippy::too_many_arguments
 )]
 
 use std::sync::Arc;
@@ -28,7 +30,7 @@ use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
     CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    score_coefficient_covariance, fit_glm, form_xtx, invert_square,
+    fit_glm, form_xtx, invert_square, score_coefficient_covariance,
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
@@ -36,7 +38,7 @@ use crate::error::EstimationError;
 use crate::gcomp::gcomp_diffs;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
-use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
+use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -145,7 +147,9 @@ impl GlmAdjustmentAte {
         }
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported("GLM adjustment does not support effect modifiers"));
+            return Err(EstimationError::unsupported(
+                "GLM adjustment does not support effect modifiers",
+            ));
         }
         if !matches!(
             query.target_population,
@@ -163,7 +167,9 @@ impl GlmAdjustmentAte {
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
         if active == control {
-            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
+            return Err(EstimationError::unsupported(
+                "active and control treatment levels must differ",
+            ));
         }
 
         let mut ids = Vec::with_capacity(2 + estimand.adjustment_set.len());
@@ -177,14 +183,18 @@ impl GlmAdjustmentAte {
             GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
                 for &yi in &y {
                     if !(yi == 0.0 || yi == 1.0) {
-                        return Err(EstimationError::unsupported("Binomial GlmAdjustmentAte requires a binary (0/1) outcome"));
+                        return Err(EstimationError::unsupported(
+                            "Binomial GlmAdjustmentAte requires a binary (0/1) outcome",
+                        ));
                     }
                 }
             }
             GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => {
                 for &yi in &y {
                     if !(yi.is_finite() && yi >= 0.0) {
-                        return Err(EstimationError::unsupported("Poisson/NB GlmAdjustmentAte requires non-negative outcomes"));
+                        return Err(EstimationError::unsupported(
+                            "Poisson/NB GlmAdjustmentAte requires non-negative outcomes",
+                        ));
                     }
                 }
             }
@@ -279,8 +289,8 @@ impl GlmAdjustmentAte {
                 problem.active,
                 problem.control,
                 glm_fit.nb_alpha.unwrap_or(0.0),
-                &self.cluster_ids,
-                &self.multiway_ids,
+                self.cluster_ids.as_deref(),
+                self.multiway_ids.as_deref(),
             )?,
         };
 
@@ -311,7 +321,7 @@ impl GlmAdjustmentAte {
         ctx: &ExecutionContext,
         t_col: usize,
     ) -> Result<BootstrapSeResult, EstimationError> {
-                let n = problem.design.nrows;
+        let n = problem.design.nrows;
         let p = problem.design.ncols;
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
@@ -519,8 +529,8 @@ fn gcomp_sandwich_se(
     active: f64,
     control: f64,
     nb_alpha: f64,
-    cluster_ids: &Option<Vec<u32>>,
-    multiway_ids: &Option<Vec<Vec<u32>>>,
+    cluster_ids: Option<&[u32]>,
+    multiway_ids: Option<&[Vec<u32>]>,
 ) -> Result<f64, EstimationError> {
     let (score_u, fisher_w) =
         glm_score_components(family, x_colmajor, nrows, ncols, coefficients, y, nb_alpha);
@@ -536,12 +546,19 @@ fn gcomp_sandwich_se(
     )?;
     let Some(cov) = cov else {
         return Ok(gcomp_delta_method_se(
-            family, x_colmajor, nrows, ncols, t_col, coefficients, active, control, 0.0,
+            family,
+            x_colmajor,
+            nrows,
+            ncols,
+            t_col,
+            coefficients,
+            active,
+            control,
+            0.0,
         ));
     };
-    let grad = gcomp_gradient(
-        family, x_colmajor, nrows, ncols, t_col, coefficients, active, control,
-    );
+    let grad =
+        gcomp_gradient(family, x_colmajor, nrows, ncols, t_col, coefficients, active, control);
     let mut quad = 0.0;
     for i in 0..ncols {
         for j in 0..ncols {
@@ -558,48 +575,28 @@ fn sandwich_cov_matrix(
     ncols: usize,
     score_u: &[f64],
     fisher_w: &[f64],
-    cluster_ids: &Option<Vec<u32>>,
-    multiway_ids: &Option<Vec<Vec<u32>>>,
+    cluster_ids: Option<&[u32]>,
+    multiway_ids: Option<&[Vec<u32>]>,
 ) -> Result<Option<Vec<f64>>, EstimationError> {
-    use causal_stats::SandwichKind;
     use crate::se::{require_clusters, require_multiway};
+    use causal_stats::SandwichKind;
     if matches!(kind, AnalyticSeKind::Homoskedastic) {
         return Ok(None);
     }
     let cov = match kind {
         AnalyticSeKind::Homoskedastic => unreachable!(),
-        AnalyticSeKind::Hc0 => score_coefficient_covariance(
-            x,
-            nrows,
-            ncols,
-            score_u,
-            fisher_w,
-            SandwichKind::Hc0,
-        ),
-        AnalyticSeKind::Hc1 => score_coefficient_covariance(
-            x,
-            nrows,
-            ncols,
-            score_u,
-            fisher_w,
-            SandwichKind::Hc1,
-        ),
-        AnalyticSeKind::Hc2 => score_coefficient_covariance(
-            x,
-            nrows,
-            ncols,
-            score_u,
-            fisher_w,
-            SandwichKind::Hc2,
-        ),
-        AnalyticSeKind::Hc3 => score_coefficient_covariance(
-            x,
-            nrows,
-            ncols,
-            score_u,
-            fisher_w,
-            SandwichKind::Hc3,
-        ),
+        AnalyticSeKind::Hc0 => {
+            score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, SandwichKind::Hc0)
+        }
+        AnalyticSeKind::Hc1 => {
+            score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, SandwichKind::Hc1)
+        }
+        AnalyticSeKind::Hc2 => {
+            score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, SandwichKind::Hc2)
+        }
+        AnalyticSeKind::Hc3 => {
+            score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, SandwichKind::Hc3)
+        }
         AnalyticSeKind::Cluster => {
             let groups = require_clusters(cluster_ids, nrows)?;
             score_coefficient_covariance(
@@ -1030,10 +1027,7 @@ mod tests {
     #[test]
     fn recovers_att_via_gcomp() {
         let (data, estimand) = binary_scm(800, 5);
-        let est = GlmAdjustmentAte {
-            bootstrap_replicates: 0,
-            ..GlmAdjustmentAte::new()
-        };
+        let est = GlmAdjustmentAte { bootstrap_replicates: 0, ..GlmAdjustmentAte::new() };
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
@@ -1088,11 +1082,8 @@ mod tests {
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
         let data = TabularData::new(storage);
-        let estimand = IdentifiedEstimand::backdoor(
-            "backdoor.adjustment",
-            Arc::from([]),
-            ExprId::from_raw(0),
-        );
+        let estimand =
+            IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from([]), ExprId::from_raw(0));
         let est = GlmAdjustmentAte {
             family: GlmFamily::NegativeBinomial,
             bootstrap_replicates: 0,

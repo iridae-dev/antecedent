@@ -9,7 +9,10 @@ macro_rules! pcmci_family_builders {
     () => {
         /// Configure discovery constraints.
         #[must_use]
-        pub fn with_constraints(mut self, constraints: crate::constraints::DiscoveryConstraints) -> Self {
+        pub fn with_constraints(
+            mut self,
+            constraints: crate::constraints::DiscoveryConstraints,
+        ) -> Self {
             self.engine.constraints = constraints;
             self
         }
@@ -23,10 +26,7 @@ macro_rules! pcmci_family_builders {
 
         /// Full FDR / FWER configuration.
         #[must_use]
-        pub fn with_fdr_adjustment(
-            mut self,
-            fdr: Option<causal_stats::FdrAdjustment>,
-        ) -> Self {
+        pub fn with_fdr_adjustment(mut self, fdr: Option<causal_stats::FdrAdjustment>) -> Self {
             self.fdr = fdr;
             self
         }

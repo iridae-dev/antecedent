@@ -11,8 +11,8 @@
 use std::sync::Arc;
 
 use causal::{
-    CausalAnalysis, CompiledAnalysis, EstimatorId, IdentifierId, RefuteSuite, identify_static_query,
-    select_estimand,
+    CausalAnalysis, CompiledAnalysis, EstimatorId, IdentifierId, RefuteSuite,
+    identify_static_query, select_estimand,
 };
 use causal_core::{
     AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CausalSchemaBuilder,
@@ -45,7 +45,8 @@ fn chain_table(n: usize) -> (TabularData, Dag) {
     .unwrap();
     let schema = b.build().unwrap();
     let t: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
-    let y: Vec<f64> = t.iter().enumerate().map(|(i, &ti)| 1.0 + 2.0 * ti + 0.01 * (i as f64)).collect();
+    let y: Vec<f64> =
+        t.iter().enumerate().map(|(i, &ti)| 1.0 + 2.0 * ti + 0.01 * (i as f64)).collect();
     let cols = vec![
         OwnedColumn::Float64(
             Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))

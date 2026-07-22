@@ -135,4 +135,3 @@ impl ConditionalEffectQuery {
         self.inner.validate()
     }
 }
-

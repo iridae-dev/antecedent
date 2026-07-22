@@ -7,6 +7,7 @@ use std::sync::Arc;
 use causal_core::{
     AverageEffectQuery, ExecutionContext, KernelPolicy, TemporalEffectQuery, VariableId,
 };
+use causal_data::TemporalIndexer;
 use causal_data::{
     DiscoveryEstimationSplit, PanelData, PanelUnit, TableView, TabularData, TimeIndex,
     TimeSeriesData, ValidityBitmap,
@@ -16,11 +17,10 @@ use causal_estimate::{
     TemporalLinearAdjustment,
 };
 use causal_identify::IdentifiedEstimand;
+use causal_kernels::erfc;
 use causal_stats::{
     FaerBackend, GlmOptions, PropensityFit, PropensityWorkspace, fit_propensity_diagnostic,
 };
-use causal_kernels::erfc;
-use causal_data::TemporalIndexer;
 
 use crate::error::ValidationError;
 
@@ -136,16 +136,6 @@ pub(crate) fn fit_once(
         .map_err(ValidationError::from)
 }
 
-/// Whether this problem should use temporal lag-aware refits.
-#[must_use]
-pub(crate) fn is_temporal_refit(problem: &RefutationProblem<'_>) -> bool {
-    problem.temporal.is_some()
-        || matches!(
-            problem.estimator,
-            Some("temporal.linear.adjustment" | "bayesian.temporal.gcomp")
-        )
-}
-
 /// Static or temporal effect refit (bootstrap disabled).
 pub(crate) fn refit_effect(
     problem: &RefutationProblem<'_>,
@@ -192,8 +182,8 @@ pub(crate) fn refit_effect(
     let time_index = temporal.time_index.ok_or(ValidationError::NotApplicable {
         message: "temporal series refit requires time_index",
     })?;
-    let series =
-        TimeSeriesData::try_new(data.storage().clone(), time_index.clone()).map_err(ValidationError::from)?;
+    let series = TimeSeriesData::try_new(data.storage().clone(), time_index.clone())
+        .map_err(ValidationError::from)?;
     let prep = estimator
         .prepare_with_extras(
             &series,
@@ -257,8 +247,9 @@ fn panel_prepare_with_extras(
     let cov_refs: Vec<(VariableId, &[f64])> =
         all_covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
     let selected: Vec<usize> = (0..all_t.len()).collect();
-    let design = causal_stats::CompiledDesign::linear_adjustment(&all_t, &cov_refs, &all_y, &selected)
-        .map_err(ValidationError::from)?;
+    let design =
+        causal_stats::CompiledDesign::linear_adjustment(&all_t, &cov_refs, &all_y, &selected)
+            .map_err(ValidationError::from)?;
     Ok(causal_estimate::PreparedEstimationProblem {
         design,
         method: Arc::from("temporal.linear.adjustment.panel"),
@@ -289,22 +280,25 @@ pub(crate) fn panel_from_stacked(
     for u in original.units() {
         let n = u.series.row_count();
         let slice = slice_tabular(stacked, offset, n)?;
-        let series = TimeSeriesData::try_new(slice.storage().clone(), u.series.time_index().clone())
-            .map_err(ValidationError::from)?;
+        let series =
+            TimeSeriesData::try_new(slice.storage().clone(), u.series.time_index().clone())
+                .map_err(ValidationError::from)?;
         units.push(PanelUnit { unit_id: u.unit_id, series });
         offset += n;
     }
     PanelData::try_new(Arc::from(units)).map_err(ValidationError::from)
 }
 
-fn slice_tabular(data: &TabularData, start: usize, len: usize) -> Result<TabularData, ValidationError> {
+fn slice_tabular(
+    data: &TabularData,
+    start: usize,
+    len: usize,
+) -> Result<TabularData, ValidationError> {
     use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
     let storage = data.storage();
     let end = start + len;
     if end > data.row_count() {
-        return Err(ValidationError::NotApplicable {
-            message: "panel slice out of range",
-        });
+        return Err(ValidationError::NotApplicable { message: "panel slice out of range" });
     }
     let mut cols = Vec::with_capacity(storage.columns().len());
     for col in storage.columns() {
@@ -334,13 +328,8 @@ fn slice_tabular(data: &TabularData, start: usize, len: usize) -> Result<Tabular
     });
     let mask = mask.transpose().map_err(ValidationError::from)?;
     let weights = storage.weights().map(|w| Arc::<[f64]>::from(w[start..end].to_vec()));
-    let new_storage = OwnedColumnarStorage::try_new(
-        storage.schema().clone(),
-        cols,
-        mask,
-        weights,
-    )
-    .map_err(ValidationError::from)?;
+    let new_storage = OwnedColumnarStorage::try_new(storage.schema().clone(), cols, mask, weights)
+        .map_err(ValidationError::from)?;
     Ok(TabularData::new(new_storage))
 }
 
@@ -353,20 +342,25 @@ pub fn stack_panel_tabular(panel: &PanelData) -> Result<TabularData, ValidationE
     let mut col_vals: Vec<Vec<f64>> = (0..n_cols).map(|_| Vec::with_capacity(total)).collect();
     for u in panel.units() {
         for (j, dest) in col_vals.iter_mut().enumerate() {
-            let id = VariableId::from_raw(j as u32);
+            let id = VariableId::from_raw(u32::try_from(j).map_err(|_| {
+                ValidationError::data_msg("panel column index exceeds u32::MAX")
+            })?);
             let vals = u.series.float64_values(id).map_err(ValidationError::from)?;
             dest.extend_from_slice(&vals);
         }
     }
     let mut cols = Vec::with_capacity(n_cols);
     for (j, values) in col_vals.into_iter().enumerate() {
-        let id = VariableId::from_raw(j as u32);
+        let id = VariableId::from_raw(u32::try_from(j).map_err(|_| {
+            ValidationError::data_msg("panel column index exceeds u32::MAX")
+        })?);
         cols.push(OwnedColumn::Float64(
             Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(total))
                 .map_err(ValidationError::from)?,
         ));
     }
-    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).map_err(ValidationError::from)?;
+    let storage =
+        OwnedColumnarStorage::try_new(schema, cols, None, None).map_err(ValidationError::from)?;
     Ok(TabularData::new(storage))
 }
 
@@ -422,7 +416,13 @@ pub(crate) fn fit_diagnostic_propensity(
     let backend = FaerBackend;
     let mut ws = PropensityWorkspace::default();
     let fit: PropensityFit = fit_propensity_diagnostic(
-        &design, nrows, ncols, &treatment, &backend, &mut ws, glm_options,
+        &design,
+        nrows,
+        ncols,
+        &treatment,
+        &backend,
+        &mut ws,
+        glm_options,
     )
     .map_err(ValidationError::from)?;
     Ok(DiagnosticPropensityColumns { scores: fit.scores, treatment, outcome })

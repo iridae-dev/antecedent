@@ -64,10 +64,7 @@ impl PyGraphPosterior {
             ess: post.ess,
             rejected_invalid: post.rejected_invalid,
             converged: post.diagnostics.converged,
-            lagged_edge_marginals: post
-                .lagged_edge_marginals
-                .as_ref()
-                .map(|v| v.as_ref().to_vec()),
+            lagged_edge_marginals: post.lagged_edge_marginals.as_ref().map(|v| v.as_ref().to_vec()),
             max_lag: post.max_lag,
         }
     }
@@ -115,12 +112,7 @@ fn bayesian_params() -> BayesianDiscoverParams {
 }
 
 fn schedule_from_args(n_chains: u32, n_warmup: u32, n_draws: u32, thin: u32) -> GraphMcmcSchedule {
-    GraphMcmcSchedule {
-        n_chains,
-        n_warmup,
-        n_draws,
-        thin,
-    }
+    GraphMcmcSchedule { n_chains, n_warmup, n_draws, thin }
 }
 
 fn parse_soft_weight(name: &str) -> PyResult<CiSoftWeight> {
@@ -152,7 +144,8 @@ fn discover_exact_dag_posterior(
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, threads);
-        let post = facade_discover_exact(&data, &variables, &bayesian_params(), &ctx).map_err(py_err)?;
+        let post =
+            facade_discover_exact(&data, &variables, &bayesian_params(), &ctx).map_err(py_err)?;
         Ok(PyGraphPosterior::from_rust(names, post))
     })
 }
@@ -232,14 +225,9 @@ fn discover_structure_mcmc(
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, threads);
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
-        let post = facade_discover_structure_mcmc(
-            &data,
-            &variables,
-            &bayesian_params(),
-            &schedule,
-            &ctx,
-        )
-        .map_err(py_err)?;
+        let post =
+            facade_discover_structure_mcmc(&data, &variables, &bayesian_params(), &schedule, &ctx)
+                .map_err(py_err)?;
         Ok(PyGraphPosterior::from_rust(names, post))
     })
 }
@@ -281,7 +269,7 @@ fn discover_ci_screened_posterior(
     let soft = parse_soft_weight(soft_weight)?;
     let ci_name = ci.unwrap_or_else(|| "parcorr".to_string());
     let ci_impl = if ci_name.eq_ignore_ascii_case("parcorr") {
-        std::sync::Arc::new(PartialCorrelation::default())
+        std::sync::Arc::new(PartialCorrelation)
             as std::sync::Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>
     } else {
         resolve_ci(&ci_name, None).map_err(py_err)?

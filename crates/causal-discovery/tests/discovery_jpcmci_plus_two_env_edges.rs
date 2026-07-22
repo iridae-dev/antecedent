@@ -129,9 +129,7 @@ fn discovery_jpcmci_plus_two_env_edge_equality() {
         ..DiscoveryConstraints::default()
     });
     let mut ws = DiscoveryWorkspace::default();
-    let result = algo
-        .run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(42))
-        .unwrap();
+    let result = algo.run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(42)).unwrap();
 
     let recovered: BTreeSet<(u32, u32, u32, u32)> = result
         .evidence

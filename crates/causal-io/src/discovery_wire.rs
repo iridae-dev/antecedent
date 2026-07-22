@@ -1,4 +1,4 @@
-//! Temporal discovery graph wire types (stable TemporalNodeKey / Lag edges).
+//! Temporal discovery graph wire types (stable `TemporalNodeKey` / Lag edges).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -154,11 +154,7 @@ pub fn discovery_dag_sections(
         targets: result.performance.targets,
         lagged_frame_bytes: result.performance.lagged_frame_bytes,
         worker_threads: result.performance.worker_threads,
-        iterations: result
-            .iterations
-            .iter()
-            .map(|i| (i.label.to_string(), i.ci_tests))
-            .collect(),
+        iterations: result.iterations.iter().map(|i| (i.label.to_string(), i.ci_tests)).collect(),
         diagnostics: result
             .diagnostics
             .iter()
@@ -182,7 +178,7 @@ fn edge_evidence_to_wire(e: &EdgeEvidence) -> EdgeEvidenceWire {
         p_value: e.p_value,
         adjusted_p_value: e.adjusted_p_value,
         interval: e.interval,
-        provenance: e.provenance.iter().map(|p| p.to_string()).collect(),
+        provenance: e.provenance.iter().map(ToString::to_string).collect(),
     }
 }
 
@@ -211,7 +207,12 @@ pub fn discovery_dag_from_sections(
             adjusted_p_value: e.adjusted_p_value,
             interval: e.interval,
             separating_sets: Arc::from([]),
-            provenance: e.provenance.iter().map(|p| Arc::<str>::from(p.as_str())).collect::<Vec<_>>().into(),
+            provenance: e
+                .provenance
+                .iter()
+                .map(|p| Arc::<str>::from(p.as_str()))
+                .collect::<Vec<_>>()
+                .into(),
         })
         .collect();
     let links: Vec<ScoredLink> = edge_evidence
@@ -243,10 +244,7 @@ pub fn discovery_dag_from_sections(
         iterations: header
             .iterations
             .iter()
-            .map(|(l, c)| DiscoveryIteration {
-                label: Arc::from(l.as_str()),
-                ci_tests: *c,
-            })
+            .map(|(l, c)| DiscoveryIteration { label: Arc::from(l.as_str()), ci_tests: *c })
             .collect(),
         diagnostics: header
             .diagnostics

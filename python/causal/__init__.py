@@ -32,6 +32,7 @@ from . import (
     validation,
 )
 from .data import EventFrame, MultiEnvFrame, PanelFrame, event, multi_env, panel
+from .design import evaluate_decision
 from ._native import (
     Admg,
     AnomalyScores,

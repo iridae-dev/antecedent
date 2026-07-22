@@ -36,11 +36,10 @@ pub mod trace;
 pub mod wire;
 
 pub use analysis_wire::{
-    DiagnosticWire, EffectEstimateWire, IdentifiedEstimandWire, IdentificationResultWire,
-    RdDesignWire,
-    RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire, effect_estimate_from_wire,
-    effect_estimate_to_wire, identification_from_wire, identification_to_wire,
-    refutation_from_wire, refutation_to_wire,
+    DiagnosticWire, EffectEstimateWire, IdentificationResultWire, IdentifiedEstimandWire,
+    RdDesignWire, RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire,
+    effect_estimate_from_wire, effect_estimate_to_wire, identification_from_wire,
+    identification_to_wire, refutation_from_wire, refutation_to_wire,
 };
 pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section, arrow_ipc_section_shared};
 pub use container::{
@@ -66,11 +65,11 @@ pub use graph_gml::{dag_from_gml, dag_to_gml, dag_wire_from_gml, dag_wire_to_gml
 pub use graph_json::{DagJson, dag_from_json, dag_json_from_str, dag_to_json};
 pub use graph_mixed::{
     AdmgJson, CpdagJson, PagJson, admg_from_dot, admg_from_gml, admg_from_json,
-    admg_from_networkx_node_link, admg_to_dot, admg_to_gml, admg_to_json, admg_to_networkx_node_link,
-    cpdag_from_dot, cpdag_from_gml, cpdag_from_json, cpdag_from_networkx_node_link, cpdag_to_dot,
-    cpdag_to_gml, cpdag_to_json, cpdag_to_networkx_node_link, pag_from_dot, pag_from_gml,
-    pag_from_json, pag_from_networkx_node_link, pag_to_dot, pag_to_gml, pag_to_json,
-    pag_to_networkx_node_link,
+    admg_from_networkx_node_link, admg_to_dot, admg_to_gml, admg_to_json,
+    admg_to_networkx_node_link, cpdag_from_dot, cpdag_from_gml, cpdag_from_json,
+    cpdag_from_networkx_node_link, cpdag_to_dot, cpdag_to_gml, cpdag_to_json,
+    cpdag_to_networkx_node_link, pag_from_dot, pag_from_gml, pag_from_json,
+    pag_from_networkx_node_link, pag_to_dot, pag_to_gml, pag_to_json, pag_to_networkx_node_link,
 };
 pub use graph_networkx::{
     NetworkXAdjacency, NetworkXNodeLink, dag_from_networkx_adjacency, dag_from_networkx_node_link,
@@ -84,8 +83,7 @@ pub use migrate::{
     migrate_from_seek, read_and_migrate,
 };
 pub use model_bundle::{
-    ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle,
-    encode_model_bundle,
+    ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle, encode_model_bundle,
 };
 pub use plan_wire::{
     ExecutionPerformanceWire, LogicalAnalysisPlanWire, PhysicalExecutionPlanWire,
@@ -103,7 +101,7 @@ pub use provenance_wire::{
     ProvenanceGraphWire, ProvenanceNodeWire, provenance_from_wire, provenance_to_wire,
 };
 pub use query_wire::{
-    CausalQueryWire, InterventionalDistributionQueryWire, InterventionWire,
+    CausalQueryWire, InterventionWire, InterventionalDistributionQueryWire,
     PathSpecificEffectQueryWire, SetInterventionWire, TargetPopulationWire, TemporalPolicyWire,
     ValueWire, causal_query_from_wire, causal_query_to_wire, interventional_distribution_from_wire,
     interventional_distribution_to_wire, path_specific_from_wire, path_specific_to_wire,

@@ -4,7 +4,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::many_single_char_names)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    clippy::many_single_char_names,
+    clippy::needless_range_loop,
+    clippy::too_many_lines
+)]
 
 use causal_core::CausalRng;
 use causal_kernels::{categorical_from_u, standard_normal};
@@ -78,7 +84,7 @@ pub fn evaluate_column(
     parents: ParentBatch<'_>,
     noise: &[f64],
     output: &mut [f64],
-    _ws: &mut MechanismWorkspace,
+    ws: &mut MechanismWorkspace,
 ) -> Result<(), ModelError> {
     let n = parents.n_rows;
     if output.len() < n || noise.len() < n {
@@ -133,9 +139,7 @@ pub fn evaluate_column(
             ..
         } => {
             if *n_parents != parents.n_parents {
-                return Err(ModelError::Shape {
-                    message: "GP n_parents mismatch".into(),
-                });
+                return Err(ModelError::Shape { message: "GP n_parents mismatch".into() });
             }
             let inv_l2 = 1.0 / (length_scale * length_scale);
             for r in 0..n {
@@ -187,7 +191,7 @@ pub fn evaluate_column(
             Ok(())
         }
         MechanismSlot::Dynamic { mechanism, .. } => {
-            mechanism.evaluate_column(parents, noise, output, _ws)
+            mechanism.evaluate_column(parents, noise, output, ws)
         }
     }
 }
@@ -231,9 +235,7 @@ pub fn infer_noise_column_rng(
 ) -> Result<NoiseInferenceMode, ModelError> {
     let n = parents.n_rows;
     if value.len() < n || output.len() < n {
-        return Err(ModelError::Shape {
-            message: "infer_noise buffers too short".into(),
-        });
+        return Err(ModelError::Shape { message: "infer_noise buffers too short".into() });
     }
     match slot {
         MechanismSlot::LinearGaussian { intercept, coeffs, .. }
@@ -269,9 +271,7 @@ pub fn infer_noise_column_rng(
             ..
         } => {
             if *n_parents != parents.n_parents {
-                return Err(ModelError::Shape {
-                    message: "GP n_parents mismatch".into(),
-                });
+                return Err(ModelError::Shape { message: "GP n_parents mismatch".into() });
             }
             let inv_l2 = 1.0 / (length_scale * length_scale);
             for r in 0..n {
@@ -289,7 +289,15 @@ pub fn infer_noise_column_rng(
             Ok(NoiseInferenceMode::Invertible)
         }
         MechanismSlot::Discrete { support, probs, logit_coeffs } => {
-            infer_discrete_posterior_noise(support, probs, logit_coeffs.as_deref(), value, parents, output, rng)?;
+            infer_discrete_posterior_noise(
+                support,
+                probs,
+                logit_coeffs.as_deref(),
+                value,
+                parents,
+                output,
+                rng,
+            )?;
             Ok(NoiseInferenceMode::Posterior)
         }
         MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
@@ -325,9 +333,7 @@ fn infer_discrete_posterior_noise(
 ) -> Result<(), ModelError> {
     let n = parents.n_rows;
     if support.is_empty() {
-        return Err(ModelError::Shape {
-            message: "empty discrete support".into(),
-        });
+        return Err(ModelError::Shape { message: "empty discrete support".into() });
     }
     let k = support.len();
     let mut row_probs = vec![0.0; k];
@@ -355,12 +361,11 @@ fn infer_discrete_posterior_noise(
                 softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
             }
         }
-        let cat = support
-            .iter()
-            .position(|&s| (value[r] - s).abs() < 1e-12)
-            .ok_or_else(|| ModelError::Unsupported {
+        let cat = support.iter().position(|&s| (value[r] - s).abs() < 1e-12).ok_or_else(|| {
+            ModelError::Unsupported {
                 message: format!("discrete value {} not in support", value[r]),
-            })?;
+            }
+        })?;
         let mut lo = 0.0;
         for i in 0..cat {
             lo += row_probs[i];
@@ -725,10 +730,8 @@ mod tests {
                 Ok(())
             }
         }
-        let slot = MechanismSlot::Dynamic {
-            id: Arc::from("y"),
-            mechanism: Arc::new(ConstMech(7.0)),
-        };
+        let slot =
+            MechanismSlot::Dynamic { id: Arc::from("y"), mechanism: Arc::new(ConstMech(7.0)) };
         let parents = ParentBatch { n_rows: 3, n_parents: 0, values: &[] };
         let noise = [0.0; 3];
         let mut out = [0.0; 3];

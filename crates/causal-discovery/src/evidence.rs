@@ -2,6 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    clippy::needless_pass_by_value
+)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -57,7 +63,11 @@ pub fn threshold_scored_links(
 
 /// Backward-compatible BH toggle (excludes contemporaneous links, matching pinned baseline).
 #[must_use]
-pub fn threshold_scored_links_bh(scored: Vec<ScoredLink>, fdr: bool, alpha: f64) -> Vec<ScoredLink> {
+pub fn threshold_scored_links_bh(
+    scored: Vec<ScoredLink>,
+    fdr: bool,
+    alpha: f64,
+) -> Vec<ScoredLink> {
     threshold_scored_links(scored, fdr.then(FdrAdjustment::bh), alpha)
 }
 
@@ -72,8 +82,8 @@ pub fn symmetrize_contemporaneous_links(links: Vec<ScoredLink>) -> Vec<ScoredLin
     let mut lagged = Vec::new();
     let mut contemp: HashMap<(u32, u32), (Option<ScoredLink>, Option<ScoredLink>)> = HashMap::new();
     for s in links {
-        let contemp_pair = s.link.source_lag.is_contemporaneous()
-            && s.link.target_lag.is_contemporaneous();
+        let contemp_pair =
+            s.link.source_lag.is_contemporaneous() && s.link.target_lag.is_contemporaneous();
         if !contemp_pair {
             lagged.push(s);
             continue;
@@ -101,10 +111,8 @@ pub fn symmetrize_contemporaneous_links(links: Vec<ScoredLink>) -> Vec<ScoredLin
             continue;
         };
         // Conservative p across both directions.
-        let (p_a, p_b) = (
-            a.adjusted_p_value.unwrap_or(a.p_value),
-            b.adjusted_p_value.unwrap_or(b.p_value),
-        );
+        let (p_a, p_b) =
+            (a.adjusted_p_value.unwrap_or(a.p_value), b.adjusted_p_value.unwrap_or(b.p_value));
         if p_b > p_a {
             a.p_value = b.p_value;
             a.adjusted_p_value = b.adjusted_p_value;
@@ -167,7 +175,10 @@ pub fn graph_evidence_from_scored_with_sepsets(
             .map_err(DiscoveryError::from)?;
         match graph.insert_directed(from, to) {
             Ok(()) => kept.push(*s),
-            Err(causal_graph::GraphError::Cycle { .. } | causal_graph::GraphError::DuplicateEdge { .. }) => {
+            Err(
+                causal_graph::GraphError::Cycle { .. }
+                | causal_graph::GraphError::DuplicateEdge { .. },
+            ) => {
                 // Keep links/graph aligned: cycle-forming or duplicate edges stay out of both.
             }
             Err(e) => return Err(DiscoveryError::from(e)),
@@ -310,8 +321,8 @@ pub fn pag_evidence_from_oriented(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use causal_graph::Endpoint;
     use crate::result::LaggedLink;
+    use causal_graph::Endpoint;
 
     #[test]
     fn lagged_links_initialize_as_circle_arrow() {
@@ -351,11 +362,7 @@ mod tests {
         let src = src_id.expect("source node");
         let tgt = tgt_id.expect("target node");
         let e = pag.edge_between(src, tgt).expect("lagged edge");
-        let (at_src, at_tgt) = if e.a == src {
-            (e.at_a, e.at_b)
-        } else {
-            (e.at_b, e.at_a)
-        };
+        let (at_src, at_tgt) = if e.a == src { (e.at_a, e.at_b) } else { (e.at_b, e.at_a) };
         assert!(matches!(at_src, Endpoint::Circle), "circle at earlier node");
         assert!(matches!(at_tgt, Endpoint::Arrow), "arrow at later node");
     }
@@ -457,10 +464,7 @@ mod tests {
         );
         assert_eq!(out.len(), 2);
         let lagged_out = out.iter().find(|s| s.link.source_lag.raw() == 1).unwrap();
-        let contemp_out = out
-            .iter()
-            .find(|s| s.link.source_lag.is_contemporaneous())
-            .unwrap();
+        let contemp_out = out.iter().find(|s| s.link.source_lag.is_contemporaneous()).unwrap();
         assert!(lagged_out.adjusted_p_value.is_some());
         assert!(contemp_out.adjusted_p_value.is_none());
     }

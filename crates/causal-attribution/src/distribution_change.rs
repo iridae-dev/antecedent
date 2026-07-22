@@ -20,11 +20,9 @@ use causal_model::{
 };
 use causal_stats::mean_var;
 
-use crate::change_common::{measure_value, run_change_allocation, total_change, ChangeOptions};
+use crate::change_common::{ChangeOptions, measure_value, run_change_allocation, total_change};
 use crate::error::AttributionError;
-use crate::prep::{
-    require_mechanism_or_joint, resolve_change_populations, resolve_outcome_dense,
-};
+use crate::prep::{require_mechanism_or_joint, resolve_change_populations, resolve_outcome_dense};
 use crate::result::ChangeAttributionResult;
 use crate::shapley::CoalitionPayoff;
 
@@ -88,12 +86,8 @@ pub fn distribution_change(
 
     let outcome_dense = resolve_outcome_dense(graph_model, query.outcome)?;
 
-    let (players, player_kinds) = joint_players(
-        graph_model,
-        outcome_dense,
-        query.max_components,
-        query.components,
-    )?;
+    let (players, player_kinds) =
+        joint_players(graph_model, outcome_dense, query.max_components, query.components)?;
     if players.is_empty() {
         return Err(AttributionError::invalid_input("no components to attribute"));
     }
@@ -311,24 +305,15 @@ impl MechanismSwapPayoff<'_> {
             if !matches!(self.player_kinds[i], PlayerKind::Input | PlayerKind::Both) {
                 continue;
             }
-            let data = if mask & (1u64 << i) != 0 {
-                &self.comparison_data
-            } else {
-                &self.baseline_data
-            };
+            let data =
+                if mask & (1u64 << i) != 0 { &self.comparison_data } else { &self.baseline_data };
             let col = data.float64_values(comp.variable())?;
             let mean = col.iter().sum::<f64>() / col.len().max(1) as f64;
             interventions.push(Intervention::set(comp.variable(), Value::f64(mean)));
         }
 
         let batch = if interventions.is_empty() {
-            sample_observational(
-                &model,
-                self.n_samples.max(1),
-                &mut rng,
-                &mut self.ws,
-                self.ctx,
-            )?
+            sample_observational(&model, self.n_samples.max(1), &mut rng, &mut self.ws, self.ctx)?
         } else {
             causal_model::sample_interventional(
                 &model,

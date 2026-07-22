@@ -123,9 +123,7 @@ pub trait DynamicMechanism: Send + Sync {
     ) -> Result<(), ModelError> {
         let n = parents.n_rows;
         if values.len() < n || output.len() < n {
-            return Err(ModelError::Shape {
-                message: "dynamic log_prob buffers too short".into(),
-            });
+            return Err(ModelError::Shape { message: "dynamic log_prob buffers too short".into() });
         }
         let mut resid = vec![0.0; n];
         self.infer_noise_column(values, parents, &mut resid)?;
@@ -186,7 +184,7 @@ pub enum MechanismSlot {
         coeffs: Arc<[f64]>,
         /// Residual standard deviation.
         sigma: f64,
-        /// Shrinkage strength used at fit (`λ` on diagonal of XtX).
+        /// Shrinkage strength used at fit (`λ` on diagonal of `XtX`).
         shrinkage: f64,
     },
     /// Bayesian VAR-style linear Gaussian on parent lags (single-equation).
@@ -242,7 +240,9 @@ impl std::fmt::Debug for MechanismSlot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Vacant => write!(f, "Vacant"),
-            Self::Pending { family_id } => f.debug_struct("Pending").field("family_id", family_id).finish(),
+            Self::Pending { family_id } => {
+                f.debug_struct("Pending").field("family_id", family_id).finish()
+            }
             Self::LinearGaussian { intercept, coeffs, sigma } => f
                 .debug_struct("LinearGaussian")
                 .field("intercept", intercept)
@@ -277,12 +277,7 @@ impl std::fmt::Debug for MechanismSlot {
                 .field("initial_mean", initial_mean)
                 .finish(),
             Self::GaussianProcess {
-                length_scale,
-                variance,
-                noise_std,
-                n_train,
-                n_parents,
-                ..
+                length_scale, variance, noise_std, n_train, n_parents, ..
             } => f
                 .debug_struct("GaussianProcess")
                 .field("length_scale", length_scale)
@@ -325,16 +320,10 @@ impl CompiledMechanismStore {
     /// # Errors
     ///
     /// Out-of-range dense id.
-    pub fn with_replaced(
-        &self,
-        id: DenseNodeId,
-        slot: MechanismSlot,
-    ) -> Result<Self, ModelError> {
+    pub fn with_replaced(&self, id: DenseNodeId, slot: MechanismSlot) -> Result<Self, ModelError> {
         let idx = id.as_usize();
         if idx >= self.slots.len() {
-            return Err(ModelError::Shape {
-                message: "mechanism slot index out of range".into(),
-            });
+            return Err(ModelError::Shape { message: "mechanism slot index out of range".into() });
         }
         let mut slots = self.slots.as_ref().to_vec();
         slots[idx] = slot;

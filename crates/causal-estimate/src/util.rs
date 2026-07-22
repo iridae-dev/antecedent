@@ -72,11 +72,7 @@ pub(crate) fn finalize_bootstrap_se(ates: &[f64], replicates: u32) -> BootstrapS
     let ok = u32::try_from(ates.len()).unwrap_or(u32::MAX);
     let failed = replicates.saturating_sub(ok);
     let too_few = ates.len() < 2;
-    let fail_frac = if replicates == 0 {
-        0.0
-    } else {
-        f64::from(failed) / f64::from(replicates)
-    };
+    let fail_frac = if replicates == 0 { 0.0 } else { f64::from(failed) / f64::from(replicates) };
     let se = if too_few || fail_frac > BOOTSTRAP_MAX_FAILURE_FRAC {
         None
     } else {
@@ -129,26 +125,14 @@ pub(crate) fn bootstrap_se(
     Ok(finalize_bootstrap_se(&ates, replicates))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn finalize_refuses_se_when_too_few_or_too_many_failures() {
-        assert!(finalize_bootstrap_se(&[], 10).se.is_none());
-        assert!(finalize_bootstrap_se(&[1.0], 10).se.is_none());
-        let many_fail = finalize_bootstrap_se(&[1.0, 1.1], 10);
-        assert_eq!(many_fail.replicates_ok, 2);
-        assert_eq!(many_fail.replicates_failed, 8);
-        assert!(many_fail.se.is_none(), "80% failure must refuse SE");
-        let ok = finalize_bootstrap_se(&[1.0, 1.2, 0.9, 1.1], 4);
-        assert!(ok.se.is_some());
-        assert_eq!(ok.replicates_failed, 0);
-    }
-}
-
 /// OLS residual variance `σ² = RSS / (n − p)` for a fitted coefficient vector.
-pub(crate) fn ols_sigma2(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], beta: &[f64]) -> f64 {
+pub(crate) fn ols_sigma2(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    beta: &[f64],
+) -> f64 {
     let mut rss = 0.0;
     for r in 0..nrows {
         let mut pred = 0.0;
@@ -204,4 +188,22 @@ pub(crate) fn delta_method_se(inv_xtx: &[f64], ncols: usize, g: &[f64], sigma2: 
         return f64::NAN;
     }
     var.max(0.0).sqrt()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finalize_refuses_se_when_too_few_or_too_many_failures() {
+        assert!(finalize_bootstrap_se(&[], 10).se.is_none());
+        assert!(finalize_bootstrap_se(&[1.0], 10).se.is_none());
+        let many_fail = finalize_bootstrap_se(&[1.0, 1.1], 10);
+        assert_eq!(many_fail.replicates_ok, 2);
+        assert_eq!(many_fail.replicates_failed, 8);
+        assert!(many_fail.se.is_none(), "80% failure must refuse SE");
+        let ok = finalize_bootstrap_se(&[1.0, 1.2, 0.9, 1.1], 4);
+        assert!(ok.se.is_some());
+        assert_eq!(ok.replicates_failed, 0);
+    }
 }

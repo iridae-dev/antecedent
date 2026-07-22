@@ -13,12 +13,13 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::similar_names,
+    clippy::cast_precision_loss,
+    
     clippy::float_cmp,
+    clippy::manual_memcpy,
     clippy::needless_range_loop,
-    clippy::manual_memcpy
+    clippy::similar_names
 )]
 
 use std::sync::Arc;
@@ -28,16 +29,15 @@ use causal_core::{
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
-use causal_stats::{
-    FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx,
-    invert_square,
-};
+use causal_stats::{FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx, invert_square};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::se::{AnalyticSeKind, cluster_influence_se, require_clusters, residual_sandwich_coef_se};
-use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
+use crate::se::{
+    AnalyticSeKind, residual_sandwich_coef_se,
+};
+use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
 /// [`WaldIv`] and [`TwoStageLeastSquares`].
@@ -94,7 +94,9 @@ fn prepare_iv_problem(
         return Err(EstimationError::unsupported("IV estimators do not support effect modifiers"));
     }
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::unsupported("IV estimators only support TargetPopulation::AllObserved"));
+        return Err(EstimationError::unsupported(
+            "IV estimators only support TargetPopulation::AllObserved",
+        ));
     }
     let treatment = query.treatment;
     let outcome = query.outcome;
@@ -102,7 +104,9 @@ fn prepare_iv_problem(
     let control = intervention_f64(&query.control)?;
     let treatment_delta = active - control;
     if treatment_delta == 0.0 {
-        return Err(EstimationError::unsupported("active and control treatment levels must differ"));
+        return Err(EstimationError::unsupported(
+            "active and control treatment levels must differ",
+        ));
     }
 
     let mut ids =
@@ -226,12 +230,16 @@ impl WaldIv {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         if problem.instruments.len() != 1 {
-            return Err(EstimationError::unsupported("WaldIv requires exactly one instrument; use TwoStageLeastSquares for multiple instruments"));
+            return Err(EstimationError::unsupported(
+                "WaldIv requires exactly one instrument; use TwoStageLeastSquares for multiple instruments",
+            ));
         }
         let n = problem.nrows;
         let z: Vec<f64> = (0..n).map(|r| problem.instruments_matrix[n + r]).collect();
         if !z.iter().all(|&v| v == 0.0 || v == 1.0) {
-            return Err(EstimationError::unsupported("WaldIv requires a binary (0/1) instrument; use TwoStageLeastSquares for continuous instruments"));
+            return Err(EstimationError::unsupported(
+                "WaldIv requires a binary (0/1) instrument; use TwoStageLeastSquares for continuous instruments",
+            ));
         }
 
         let wald = wald_ratio(&z, &problem.treatment, &problem.outcome)?;
@@ -241,8 +249,8 @@ impl WaldIv {
             self.se_kind,
             &psi,
             problem.nrows,
-            &self.cluster_ids,
-            &self.multiway_ids,
+            self.cluster_ids.as_deref(),
+            self.multiway_ids.as_deref(),
             None,
         )?;
         let se_analytic = se_unit * problem.treatment_delta.abs();
@@ -273,7 +281,7 @@ impl WaldIv {
         z: &[f64],
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
-                let n = problem.nrows;
+        let n = problem.nrows;
         let mut z_boot = vec![0.0; n];
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
@@ -293,26 +301,19 @@ impl WaldIv {
 
 struct WaldResult {
     ratio: f64,
-    se: f64,
 }
 
 /// Ratio-of-differences point estimate.
-///
-/// The accompanying `se` field is the classical delta-method SE that ignores
-/// first-stage sampling variability; callers that need analytic uncertainty
-/// should prefer [`wald_influence_se`].
 fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationError> {
-    let (mut sy1, mut sy0, mut sy1sq, mut sy0sq, mut st1, mut st0) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    let (mut sy1, mut sy0, mut st1, mut st0) = (0.0, 0.0, 0.0, 0.0);
     let (mut n1, mut n0) = (0usize, 0usize);
     for i in 0..z.len() {
         if z[i] > 0.5 {
             sy1 += y[i];
-            sy1sq += y[i] * y[i];
             st1 += t[i];
             n1 += 1;
         } else {
             sy0 += y[i];
-            sy0sq += y[i] * y[i];
             st0 += t[i];
             n0 += 1;
         }
@@ -335,19 +336,7 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
         ));
     }
     let ratio = (mean_y1 - mean_y0) / denom;
-    // Bessel-corrected per-arm sample variances (divide by n−1).
-    let var_y1 = if n1 > 1 {
-        ((sy1sq - n1f * mean_y1 * mean_y1) / (n1f - 1.0)).max(0.0)
-    } else {
-        0.0
-    };
-    let var_y0 = if n0 > 1 {
-        ((sy0sq - n0f * mean_y0 * mean_y0) / (n0f - 1.0)).max(0.0)
-    } else {
-        0.0
-    };
-    let se = (var_y1 / n1f + var_y0 / n0f).sqrt() / denom.abs();
-    Ok(WaldResult { ratio, se })
+    Ok(WaldResult { ratio })
 }
 
 /// Influence-function SE for the Wald ratio `(ȳ₁−ȳ₀)/(t̄₁−t̄₀)`.
@@ -395,24 +384,6 @@ fn wald_influence_scores(
         psi[i] = (psi_dy - ratio * psi_dt) / dt;
     }
     Ok(psi)
-}
-
-fn wald_influence_se(
-    z: &[f64],
-    t: &[f64],
-    y: &[f64],
-    ratio: f64,
-    groups: Option<&[u32]>,
-) -> Result<f64, EstimationError> {
-    let psi = wald_influence_scores(z, t, y, ratio)?;
-    Ok(match groups {
-        None => sample_std_psi(&psi) / (psi.len() as f64).sqrt(),
-        Some(g) => cluster_influence_se(&psi, g),
-    })
-}
-
-fn sample_std_psi(values: &[f64]) -> f64 {
-    crate::util::sample_std(values)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -524,8 +495,8 @@ impl TwoStageLeastSquares {
             ncols,
             &fit.structural_residuals,
             0,
-            &self.cluster_ids,
-            &self.multiway_ids,
+            self.cluster_ids.as_deref(),
+            self.multiway_ids.as_deref(),
         )? {
             se
         } else {
@@ -565,7 +536,7 @@ impl TwoStageLeastSquares {
         workspace: &mut TwoStageLeastSquaresWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
-                let n = problem.nrows;
+        let n = problem.nrows;
         let zc = problem.z_ncols;
         let xc = problem.x_ncols;
         let mut z_boot = vec![0.0; n * zc];

@@ -18,6 +18,9 @@ use pyo3::types::{PyAny, PyDict, PyList, PyModule};
 use crate::gcm_api::{DesignConstraintViolation, DesignRanking, RankedDesign};
 use crate::{catch_ffi, py_err, py_execution_context, py_msg};
 
+type QueryVarUnlock = (QueryId, Arc<[VariableId]>);
+type QueryEnvUnlock = (QueryId, Arc<[EnvironmentId]>);
+
 fn cost_from_dict(d: &Bound<'_, PyDict>) -> PyResult<DesignCost> {
     let amount: f64 = d.get_item("cost")?.map(|v| v.extract()).transpose()?.unwrap_or(0.0);
     let sample_budget: u64 =
@@ -26,9 +29,9 @@ fn cost_from_dict(d: &Bound<'_, PyDict>) -> PyResult<DesignCost> {
 }
 
 fn parse_candidate(item: &Bound<'_, PyAny>, default_tag: u64) -> PyResult<CandidateDesign> {
-    let d = item.cast::<PyDict>().map_err(|_| {
-        PyValueError::new_err("each candidate must be a dict with a 'kind' field")
-    })?;
+    let d = item
+        .cast::<PyDict>()
+        .map_err(|_| PyValueError::new_err("each candidate must be a dict with a 'kind' field"))?;
     let kind: String = d
         .get_item("kind")?
         .ok_or_else(|| PyValueError::new_err("candidate missing 'kind'"))?
@@ -73,11 +76,8 @@ fn parse_candidate(item: &Bound<'_, PyAny>, default_tag: u64) -> PyResult<Candid
                 .get_item("environment")?
                 .ok_or_else(|| PyValueError::new_err("observe_environment requires environment"))?
                 .extract()?;
-            let additional_rows: u64 = d
-                .get_item("additional_rows")?
-                .map(|v| v.extract())
-                .transpose()?
-                .unwrap_or(0);
+            let additional_rows: u64 =
+                d.get_item("additional_rows")?.map(|v| v.extract()).transpose()?.unwrap_or(0);
             CandidateDesign::ObserveEnvironment(EnvironmentPlan {
                 environment: EnvironmentId::from_raw(environment),
                 additional_rows,
@@ -92,11 +92,7 @@ fn parse_candidate(item: &Bound<'_, PyAny>, default_tag: u64) -> PyResult<Candid
                     PyValueError::new_err("increase_sampling_rate requires additional_samples")
                 })?
                 .extract()?;
-            CandidateDesign::IncreaseSamplingRate(SamplingPlan {
-                additional_samples,
-                cost,
-                tag,
-            })
+            CandidateDesign::IncreaseSamplingRate(SamplingPlan { additional_samples, cost, tag })
         }
         other => {
             return Err(PyValueError::new_err(format!(
@@ -127,9 +123,7 @@ fn parse_objective(
                 let q = query_id.ok_or_else(|| {
                     PyValueError::new_err("reduce_effect_posterior_width requires query_id")
                 })?;
-                Ok(DesignObjective::ReduceEffectPosteriorWidth {
-                    query: QueryId::from_raw(q),
-                })
+                Ok(DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(q) })
             }
             "reduce_decision_regret" | "decision_regret" => {
                 let d = decision_id.ok_or_else(|| {
@@ -153,9 +147,9 @@ fn parse_objective(
             other => Err(PyValueError::new_err(format!("unknown objective `{other}`"))),
         };
     }
-    let d = objective.cast::<PyDict>().map_err(|_| {
-        PyValueError::new_err("objective must be a string or dict")
-    })?;
+    let d = objective
+        .cast::<PyDict>()
+        .map_err(|_| PyValueError::new_err("objective must be a string or dict"))?;
     let kind: String = d
         .get_item("kind")?
         .ok_or_else(|| PyValueError::new_err("objective dict missing 'kind'"))?
@@ -170,17 +164,13 @@ fn parse_objective(
             let q = q.ok_or_else(|| {
                 PyValueError::new_err("increase_identification_probability requires query_id")
             })?;
-            Ok(DesignObjective::IncreaseIdentificationProbability {
-                query: QueryId::from_raw(q),
-            })
+            Ok(DesignObjective::IncreaseIdentificationProbability { query: QueryId::from_raw(q) })
         }
         "reduce_effect_posterior_width" | "effect_width" => {
             let q = q.ok_or_else(|| {
                 PyValueError::new_err("reduce_effect_posterior_width requires query_id")
             })?;
-            Ok(DesignObjective::ReduceEffectPosteriorWidth {
-                query: QueryId::from_raw(q),
-            })
+            Ok(DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(q) })
         }
         "reduce_decision_regret" | "decision_regret" => {
             let d = did.ok_or_else(|| {
@@ -191,8 +181,8 @@ fn parse_objective(
             })
         }
         "distinguish_models" => {
-            let ids = mids
-                .ok_or_else(|| PyValueError::new_err("distinguish_models requires model_ids"))?;
+            let ids =
+                mids.ok_or_else(|| PyValueError::new_err("distinguish_models requires model_ids"))?;
             if ids.len() < 2 {
                 return Err(PyValueError::new_err("distinguish_models needs ≥2 model_ids"));
             }
@@ -206,7 +196,7 @@ fn parse_objective(
 
 fn parse_unlock_vars(
     raw: Option<Bound<'_, PyAny>>,
-) -> PyResult<Option<Vec<(QueryId, Arc<[VariableId]>)>>> {
+) -> PyResult<Option<Vec<QueryVarUnlock>>> {
     let Some(raw) = raw else {
         return Ok(None);
     };
@@ -226,7 +216,7 @@ fn parse_unlock_vars(
 
 fn parse_unlock_envs(
     raw: Option<Bound<'_, PyAny>>,
-) -> PyResult<Option<Vec<(QueryId, Arc<[EnvironmentId]>)>>> {
+) -> PyResult<Option<Vec<QueryEnvUnlock>>> {
     let Some(raw) = raw else {
         return Ok(None);
     };
@@ -244,13 +234,67 @@ fn parse_unlock_envs(
     Ok(Some(out))
 }
 
+fn parse_measure_columns(cols: &Bound<'_, PyList>) -> PyResult<Arc<[MeasureColumnSpec]>> {
+    let mut specs = Vec::with_capacity(cols.len());
+    for item in cols.iter() {
+        let c = item.cast::<PyDict>()?;
+        let variable: u32 = c
+            .get_item("variable")?
+            .ok_or_else(|| PyValueError::new_err("measure_columns entry needs variable"))?
+            .extract()?;
+        let cross: Vec<f64> = c
+            .get_item("cross")?
+            .ok_or_else(|| PyValueError::new_err("measure_columns entry needs cross"))?
+            .extract()?;
+        let self_dot: f64 = c
+            .get_item("self_dot")?
+            .ok_or_else(|| PyValueError::new_err("measure_columns entry needs self_dot"))?
+            .extract()?;
+        let sigma2_after: Option<f64> =
+            c.get_item("sigma2_after")?.map(|v| v.extract()).transpose()?;
+        specs.push(MeasureColumnSpec {
+            variable: VariableId::from_raw(variable),
+            cross: Arc::from(cross),
+            self_dot,
+            sigma2_after,
+        });
+    }
+    Ok(Arc::from(specs))
+}
+
+fn parse_environment_grams(grams: &Bound<'_, PyList>) -> PyResult<Arc<[EnvironmentGramSpec]>> {
+    let mut specs = Vec::with_capacity(grams.len());
+    for item in grams.iter() {
+        let c = item.cast::<PyDict>()?;
+        let environment: u32 = c
+            .get_item("environment")?
+            .ok_or_else(|| PyValueError::new_err("environment_grams entry needs environment"))?
+            .extract()?;
+        let g_xtx: Vec<f64> = c
+            .get_item("xtx")?
+            .ok_or_else(|| PyValueError::new_err("environment_grams entry needs xtx"))?
+            .extract()?;
+        let g_n: u64 = c
+            .get_item("n")?
+            .ok_or_else(|| PyValueError::new_err("environment_grams entry needs n"))?
+            .extract()?;
+        let g_sigma2: Option<f64> = c.get_item("sigma2")?.map(|v| v.extract()).transpose()?;
+        specs.push(EnvironmentGramSpec {
+            environment: EnvironmentId::from_raw(environment),
+            xtx: Arc::from(g_xtx),
+            n: g_n,
+            sigma2: g_sigma2,
+        });
+    }
+    Ok(Arc::from(specs))
+}
+
 fn parse_effect_width(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<EffectWidthContext>> {
     let Some(raw) = raw else {
         return Ok(None);
     };
-    let d = raw.cast::<PyDict>().map_err(|_| {
-        PyValueError::new_err("effect_width must be a dict")
-    })?;
+    let d =
+        raw.cast::<PyDict>().map_err(|_| PyValueError::new_err("effect_width must be a dict"))?;
     let xtx: Vec<f64> = d
         .get_item("xtx")?
         .ok_or_else(|| PyValueError::new_err("effect_width requires xtx"))?
@@ -267,35 +311,11 @@ fn parse_effect_width(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<EffectWi
         .get_item("n")?
         .ok_or_else(|| PyValueError::new_err("effect_width requires n"))?
         .extract()?;
-    let mut measure_columns = None;
-    if let Some(cols) = d.get_item("measure_columns")? {
-        let list = cols.cast::<PyList>()?;
-        let mut specs = Vec::with_capacity(list.len());
-        for item in list.iter() {
-            let c = item.cast::<PyDict>()?;
-            let variable: u32 = c
-                .get_item("variable")?
-                .ok_or_else(|| PyValueError::new_err("measure_columns entry needs variable"))?
-                .extract()?;
-            let cross: Vec<f64> = c
-                .get_item("cross")?
-                .ok_or_else(|| PyValueError::new_err("measure_columns entry needs cross"))?
-                .extract()?;
-            let self_dot: f64 = c
-                .get_item("self_dot")?
-                .ok_or_else(|| PyValueError::new_err("measure_columns entry needs self_dot"))?
-                .extract()?;
-            let sigma2_after: Option<f64> =
-                c.get_item("sigma2_after")?.map(|v| v.extract()).transpose()?;
-            specs.push(MeasureColumnSpec {
-                variable: VariableId::from_raw(variable),
-                cross: Arc::from(cross),
-                self_dot,
-                sigma2_after,
-            });
-        }
-        measure_columns = Some(Arc::from(specs));
-    }
+    let measure_columns = if let Some(cols) = d.get_item("measure_columns")? {
+        Some(parse_measure_columns(cols.cast::<PyList>()?)?)
+    } else {
+        None
+    };
     let mut intervention_design = None;
     if let Some(iv) = d.get_item("intervention_design")? {
         let c = iv.cast::<PyDict>()?;
@@ -311,40 +331,14 @@ fn parse_effect_width(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<EffectWi
             .get_item("n")?
             .ok_or_else(|| PyValueError::new_err("intervention_design needs n"))?
             .extract()?;
-        intervention_design = Some(InterventionDesignEffect {
-            xtx: Arc::from(iv_xtx),
-            sigma2: iv_sigma2,
-            n: iv_n,
-        });
+        intervention_design =
+            Some(InterventionDesignEffect { xtx: Arc::from(iv_xtx), sigma2: iv_sigma2, n: iv_n });
     }
-    let mut environment_grams = None;
-    if let Some(grams) = d.get_item("environment_grams")? {
-        let list = grams.cast::<PyList>()?;
-        let mut specs = Vec::with_capacity(list.len());
-        for item in list.iter() {
-            let c = item.cast::<PyDict>()?;
-            let environment: u32 = c
-                .get_item("environment")?
-                .ok_or_else(|| PyValueError::new_err("environment_grams entry needs environment"))?
-                .extract()?;
-            let g_xtx: Vec<f64> = c
-                .get_item("xtx")?
-                .ok_or_else(|| PyValueError::new_err("environment_grams entry needs xtx"))?
-                .extract()?;
-            let g_n: u64 = c
-                .get_item("n")?
-                .ok_or_else(|| PyValueError::new_err("environment_grams entry needs n"))?
-                .extract()?;
-            let g_sigma2: Option<f64> = c.get_item("sigma2")?.map(|v| v.extract()).transpose()?;
-            specs.push(EnvironmentGramSpec {
-                environment: EnvironmentId::from_raw(environment),
-                xtx: Arc::from(g_xtx),
-                n: g_n,
-                sigma2: g_sigma2,
-            });
-        }
-        environment_grams = Some(Arc::from(specs));
-    }
+    let environment_grams = if let Some(grams) = d.get_item("environment_grams")? {
+        Some(parse_environment_grams(grams.cast::<PyList>()?)?)
+    } else {
+        None
+    };
     Ok(Some(EffectWidthContext {
         xtx: Arc::from(xtx),
         sigma2,
@@ -360,9 +354,8 @@ fn parse_model_loglik(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<ModelLog
     let Some(raw) = raw else {
         return Ok(None);
     };
-    let d = raw.cast::<PyDict>().map_err(|_| {
-        PyValueError::new_err("model_loglik must be a dict")
-    })?;
+    let d =
+        raw.cast::<PyDict>().map_err(|_| PyValueError::new_err("model_loglik must be a dict"))?;
     let models: Vec<u32> = d
         .get_item("models")?
         .ok_or_else(|| PyValueError::new_err("model_loglik requires models"))?

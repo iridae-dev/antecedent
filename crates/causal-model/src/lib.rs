@@ -37,8 +37,9 @@ pub use lgssm::{
     unpack_innovations,
 };
 pub use mechanism::{
-    evaluate_batch_topo, evaluate_column, infer_noise_column, infer_noise_column_rng,
-    log_prob_column, sample_column, sample_noise_batch, sample_noise_column, NoiseInferenceMode,
+    NoiseInferenceMode, evaluate_batch_topo, evaluate_column, infer_noise_column,
+    infer_noise_column_rng, log_prob_column, sample_column, sample_noise_batch,
+    sample_noise_column,
 };
 pub use overlay::{InterventionOverlay, ModelView};
 pub use registry::{

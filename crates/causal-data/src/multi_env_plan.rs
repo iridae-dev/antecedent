@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[cfg(test)]
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
 use crate::multi_env::MultiEnvironmentData;
@@ -139,6 +140,7 @@ impl PanelSamplePlan {
 }
 
 /// Pointer identity helper for copy-avoidance tests.
+#[cfg(test)]
 #[must_use]
 pub(crate) fn series_columnar_ptr(series: &TimeSeriesData) -> *const [crate::column::OwnedColumn] {
     series.columnar_ptr()

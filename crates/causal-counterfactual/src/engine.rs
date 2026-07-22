@@ -15,9 +15,9 @@ use causal_core::{ExecutionContext, Intervention, VariableId};
 use causal_data::{TableView, TabularData};
 use causal_graph::DenseNodeId;
 use causal_model::{
-    CompiledCausalModel, InterventionOverlay, MechanismWorkspace, NoiseInferenceMode,
-    ParentBatch, ValueBatchMut, evaluate_column, infer_noise_column_rng, sample_noise_column,
-    sample_stochastic, soft_to_slot,
+    CompiledCausalModel, InterventionOverlay, MechanismWorkspace, NoiseInferenceMode, ParentBatch,
+    ValueBatchMut, evaluate_column, infer_noise_column_rng, sample_noise_column, sample_stochastic,
+    soft_to_slot,
 };
 
 use crate::error::CounterfactualError;
@@ -196,13 +196,8 @@ impl CounterfactualEngine {
             let parents =
                 ParentBatch { n_rows: n, n_parents: gather.n_parents(), values: &parent_owned };
             let y = &values[idx * n..(idx + 1) * n];
-            let mode = infer_noise_column_rng(
-                self.model.mechanisms.get(node),
-                y,
-                parents,
-                out,
-                rng,
-            )?;
+            let mode =
+                infer_noise_column_rng(self.model.mechanisms.get(node), y, parents, out, rng)?;
             if mode == NoiseInferenceMode::Posterior && kind == NoiseInferenceKind::Invertible {
                 kind = NoiseInferenceKind::PosteriorNoise;
             }
@@ -637,9 +632,7 @@ mod tests {
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};
     use causal_graph::{Dag, DenseNodeId};
-    use causal_model::{
-        CompiledMechanismStore, MechanismRegistry, MechanismSlot, SelectionPolicy,
-    };
+    use causal_model::{CompiledMechanismStore, MechanismRegistry, MechanismSlot, SelectionPolicy};
 
     fn unit_normal(rng: &mut causal_core::CausalRng) -> f64 {
         let u1 = rng.next_f64().clamp(1e-12, 1.0);
@@ -747,11 +740,7 @@ mod tests {
             };
             let res = engine.predict(&exo, &[world], &[y], false, &mut ws, &ctx).unwrap();
             let pred = res.get(0, DenseNodeId::from_raw(1), u);
-            assert!(
-                (pred - y_vals[u]).abs() < 1e-8,
-                "unit {u}: pred={pred} factual={}",
-                y_vals[u]
-            );
+            assert!((pred - y_vals[u]).abs() < 1e-8, "unit {u}: pred={pred} factual={}", y_vals[u]);
         }
 
         let ite = engine
@@ -769,8 +758,10 @@ mod tests {
         let var = ite.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / ite.len() as f64;
         assert!(var.is_finite() && var > 0.0, "ite variance={var}");
 
-        let do_world =
-            CounterfactualWorld { unit_rows: None, interventions: Arc::from([Intervention::set(t, Value::f64(1.0))]) };
+        let do_world = CounterfactualWorld {
+            unit_rows: None,
+            interventions: Arc::from([Intervention::set(t, Value::f64(1.0))]),
+        };
         let shift_world = CounterfactualWorld {
             unit_rows: None,
             interventions: Arc::from([Intervention::shift(t, Value::f64(0.5))]),
@@ -825,7 +816,7 @@ mod tests {
     }
 
     /// Invertible linear SEM with pinned β: mean ITE must recover structural β
-    /// (`ToleranceClass::StableFloat` under exact mechanisms; MonteCarlo floor if fit noise).
+    /// (`ToleranceClass::StableFloat` under exact mechanisms; `MonteCarlo` floor if fit noise).
     #[test]
     fn random_linear_sem_mean_ite_matches_structural_beta() {
         let mut rng = ExecutionContext::for_tests(0xCF_B7).rng.stream(0x1E_E7);
@@ -921,12 +912,12 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let t = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
-        let nested = Intervention::sequence(InterventionSequence::new(vec![SequencedIntervention::new(
-            Intervention::set(t, Value::f64(1.0)),
-            TemporalPolicy::pulse(0),
-        )]));
-        let world =
-            CounterfactualWorld { unit_rows: None, interventions: Arc::from([nested]) };
+        let nested =
+            Intervention::sequence(InterventionSequence::new(vec![SequencedIntervention::new(
+                Intervention::set(t, Value::f64(1.0)),
+                TemporalPolicy::pulse(0),
+            )]));
+        let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from([nested]) };
         let err = engine.predict(&exo, &[world], &[y], false, &mut ws, &ctx).unwrap_err();
         assert_eq!(err, CounterfactualError::NestedNotAllowed);
     }

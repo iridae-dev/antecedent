@@ -16,10 +16,8 @@ use crate::wire::{FormatVersion, SchemaWire, SchemaWireV01};
 pub const STABLE_FORMAT: FormatVersion = FormatVersion { major: 0, minor: 2 };
 
 /// Formats this reader can migrate *from* into [`STABLE_FORMAT`].
-pub const SUPPORTED_SOURCE_FORMATS: &[FormatVersion] = &[
-    FormatVersion { major: 0, minor: 1 },
-    FormatVersion { major: 0, minor: 2 },
-];
+pub const SUPPORTED_SOURCE_FORMATS: &[FormatVersion] =
+    &[FormatVersion { major: 0, minor: 1 }, FormatVersion { major: 0, minor: 2 }];
 
 /// True when `v` is a known source format.
 #[must_use]
@@ -62,12 +60,11 @@ fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, 
         if desc.id == "schema" {
             // Prefer already-v2 decode (`variables`); else upgrade skinny v01 (`variable_names`).
             // The two wire shapes require different fields, so they do not cross-decode.
-            let upgraded = match from_cbor::<SchemaWire>(&sec.data) {
-                Ok(w) => w,
-                Err(_) => {
-                    let v01: SchemaWireV01 = from_cbor(&sec.data)?;
-                    schema_wire_from_v01(&v01)
-                }
+            let upgraded = if let Ok(w) = from_cbor::<SchemaWire>(&sec.data) {
+                w
+            } else {
+                let v01: SchemaWireV01 = from_cbor(&sec.data)?;
+                schema_wire_from_v01(&v01)
             };
             let bytes = to_cbor(&upgraded)?;
             *desc = section_descriptor_with_policy(
@@ -193,10 +190,7 @@ mod tests {
         assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
         let schema: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
         assert_eq!(schema.variable_names(), vec!["x".to_string(), "y".to_string()]);
-        assert!(matches!(
-            schema.variables[0].value_type,
-            crate::wire::ValueTypeWire::Continuous
-        ));
+        assert!(matches!(schema.variables[0].value_type, crate::wire::ValueTypeWire::Continuous));
     }
 
     #[test]

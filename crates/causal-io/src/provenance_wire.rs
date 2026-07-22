@@ -43,10 +43,10 @@ pub fn provenance_to_wire(g: &ProvenanceGraph) -> ProvenanceGraphWire {
             .map(|n| ProvenanceNodeWire {
                 artifact_id: n.artifact_id.to_string(),
                 operation: n.operation.to_string(),
-                parents: n.parents.iter().map(|p| p.to_string()).collect(),
+                parents: n.parents.iter().map(ToString::to_string).collect(),
                 assumptions: assumptions_to_wire(&n.assumptions),
                 library_version: n.library_version.to_string(),
-                config_digest: n.config_digest.as_ref().map(|c| c.to_string()),
+                config_digest: n.config_digest.as_ref().map(ToString::to_string),
             })
             .collect(),
     }
@@ -60,7 +60,12 @@ pub fn provenance_from_wire(w: &ProvenanceGraphWire) -> ProvenanceGraph {
         g.push(ProvenanceNode {
             artifact_id: Arc::from(n.artifact_id.as_str()),
             operation: Arc::from(n.operation.as_str()),
-            parents: n.parents.iter().map(|p| Arc::<str>::from(p.as_str())).collect::<Vec<_>>().into(),
+            parents: n
+                .parents
+                .iter()
+                .map(|p| Arc::<str>::from(p.as_str()))
+                .collect::<Vec<_>>()
+                .into(),
             // Assumptions are audit metadata; empty set on decode keeps graph structure.
             assumptions: AssumptionSet::new(),
             library_version: Arc::from(n.library_version.as_str()),

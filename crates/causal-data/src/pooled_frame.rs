@@ -200,7 +200,7 @@ pub fn pool_multi_env_lagged_frame(
     })
 }
 
-/// Absolute raw time index for each stacked effective row (`j + frame_depth` under SeriesOrigin).
+/// Absolute raw time index for each stacked effective row (`j + frame_depth` under `SeriesOrigin`).
 fn effective_raw_times(
     data: &MultiEnvironmentData,
     env_effective: &[usize],
@@ -208,14 +208,13 @@ fn effective_raw_times(
 ) -> Result<Vec<u32>, DataError> {
     let mut times = Vec::new();
     let base = frame_depth as usize;
-    for i in 0..data.env_count() {
-        let series = data.environment(i)?;
+    for (env_idx, &n_eff) in env_effective.iter().enumerate() {
+        let series = data.environment(env_idx)?;
         let n_raw = series.row_count();
-        let n_eff = env_effective[i];
         if base + n_eff > n_raw {
             return Err(DataError::InvalidArgument {
                 message: format!(
-                    "time dummy: env {i} effective {n_eff} + depth {frame_depth} exceeds rows {n_raw}"
+                    "time dummy: env {env_idx} effective {n_eff} + depth {frame_depth} exceeds rows {n_raw}"
                 ),
             });
         }
@@ -229,7 +228,7 @@ fn effective_raw_times(
 }
 
 fn next_synthetic_id(variables: &[VariableId]) -> u32 {
-    variables.iter().map(|v| v.raw()).max().map(|m| m.saturating_add(1)).unwrap_or(0)
+    variables.iter().map(|v| v.raw()).max().map_or(0, |m| m.saturating_add(1))
 }
 
 #[cfg(test)]
@@ -254,7 +253,11 @@ mod tests {
             &multi,
             &vars,
             depth,
-            DummyOptions { include_space_dummy: false, include_time_dummy: false, ..DummyOptions::default() },
+            DummyOptions {
+                include_space_dummy: false,
+                include_time_dummy: false,
+                ..DummyOptions::default()
+            },
             &KernelPolicy::default_policy(),
         )
         .unwrap();
@@ -276,15 +279,17 @@ mod tests {
             &multi,
             &vars,
             2,
-            DummyOptions { include_space_dummy: true, include_time_dummy: false, ..DummyOptions::default() },
+            DummyOptions {
+                include_space_dummy: true,
+                include_time_dummy: false,
+                ..DummyOptions::default()
+            },
             &KernelPolicy::default_policy(),
         )
         .unwrap();
         assert_eq!(pooled.space_dummy_variables.len(), 2);
         let d0 = pooled.space_dummy_variables[0];
-        let col = pooled
-            .frame
-            .column(pooled.frame.column_index(d0, Lag::CONTEMPORANEOUS).unwrap());
+        let col = pooled.frame.column(pooled.frame.column_index(d0, Lag::CONTEMPORANEOUS).unwrap());
         // First env block: 14 effective rows of 1.0
         assert!((col[0] - 1.0).abs() < 1e-12);
         assert!((col[13] - 1.0).abs() < 1e-12);
@@ -312,9 +317,8 @@ mod tests {
         .unwrap();
         assert_eq!(pooled.time_dummy_variables.len(), 1);
         let tid = pooled.time_dummy_variables[0];
-        let col = pooled
-            .frame
-            .column(pooled.frame.column_index(tid, Lag::CONTEMPORANEOUS).unwrap());
+        let col =
+            pooled.frame.column(pooled.frame.column_index(tid, Lag::CONTEMPORANEOUS).unwrap());
         assert_eq!(col.len(), 10);
         assert!((col[0] - 2.0).abs() < 1e-12);
         assert!((col[9] - 11.0).abs() < 1e-12);
@@ -341,9 +345,8 @@ mod tests {
         .unwrap();
         assert_eq!(pooled.time_dummy_variables.len(), 3);
         let t0 = pooled.time_dummy_variables[0];
-        let col0 = pooled
-            .frame
-            .column(pooled.frame.column_index(t0, Lag::CONTEMPORANEOUS).unwrap());
+        let col0 =
+            pooled.frame.column(pooled.frame.column_index(t0, Lag::CONTEMPORANEOUS).unwrap());
         // Row 0 → time 2 → first level → 1
         assert!((col0[0] - 1.0).abs() < 1e-12);
         // Row 1 → time 3 → 0 on first column
@@ -351,9 +354,8 @@ mod tests {
         // Last row → time 5 (reference) → all zeros
         let last = col0.len() - 1;
         for &tid in pooled.time_dummy_variables.iter() {
-            let col = pooled
-                .frame
-                .column(pooled.frame.column_index(tid, Lag::CONTEMPORANEOUS).unwrap());
+            let col =
+                pooled.frame.column(pooled.frame.column_index(tid, Lag::CONTEMPORANEOUS).unwrap());
             assert!(col[last].abs() < 1e-12, "reference time should be all-zero");
         }
     }
@@ -376,10 +378,7 @@ mod tests {
             &KernelPolicy::default_policy(),
         )
         .unwrap_err();
-        assert!(
-            err.to_string().contains("max_time_one_hot_levels"),
-            "unexpected error: {err}"
-        );
+        assert!(err.to_string().contains("max_time_one_hot_levels"), "unexpected error: {err}");
     }
 
     #[test]

@@ -3,8 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
     clippy::many_single_char_names,
     clippy::needless_range_loop,
     clippy::too_many_arguments
@@ -157,9 +158,7 @@ impl WeightingDoSampler {
         for w in &mut weights {
             *w /= wsum;
         }
-        notes.push(Arc::from(format!(
-            "IPW / Silverman-kernel weighting (bandwidth={bw:.6})"
-        )));
+        notes.push(Arc::from(format!("IPW / Silverman-kernel weighting (bandwidth={bw:.6})")));
         Ok(DoSampleResult {
             values: Arc::from(values),
             weights: Arc::from(weights),
@@ -327,8 +326,8 @@ impl McmcDoSampler {
         let iters = self.burn_in + n_samples * self.thin.max(1);
         // Degenerate pilot (near-zero bandwidth) → independent draws from the pilot
         // empirical measure (random-walk MH cannot move).
-        let degenerate = pilot_bw < 1e-6
-            || pilot_col.iter().all(|&v| (v - pilot_col[0]).abs() < 1e-12);
+        let degenerate =
+            pilot_bw < 1e-6 || pilot_col.iter().all(|&v| (v - pilot_col[0]).abs() < 1e-12);
 
         for i in 0..iters {
             if degenerate {

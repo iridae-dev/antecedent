@@ -317,17 +317,13 @@ impl CausalSchemaBuilder {
     ///
     /// Returns [`SchemaError::TooManyVariables`] if the count exceeds `u32::MAX`.
     pub fn build(self) -> Result<CausalSchema, SchemaError> {
-        let n = self.pending.len();
-        if n > u32::MAX as usize {
-            return Err(SchemaError::TooManyVariables);
-        }
+        let n_u32 = u32::try_from(self.pending.len()).map_err(|_| SchemaError::TooManyVariables)?;
         let variables: Arc<[VariableSchema]> = self
             .pending
             .into_iter()
-            .enumerate()
-            .map(|(i, p)| VariableSchema {
-                // Dense IDs are 0..n-1 by construction.
-                id: VariableId::from_raw(u32::try_from(i).expect("checked length")),
+            .zip(0..n_u32)
+            .map(|(p, i)| VariableSchema {
+                id: VariableId::from_raw(i),
                 name: p.name,
                 value_type: p.value_type,
                 role_hints: p.role_hints,

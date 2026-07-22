@@ -4,6 +4,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::manual_let_else
+)]
+
 use std::sync::Arc;
 
 use causal_core::{
@@ -74,9 +78,10 @@ impl SharpRdIdentifier {
             crate::intervention_support::normalize_to_set(&ate.active),
             crate::intervention_support::normalize_to_set(&ate.control),
         ) {
-            (Ok(causal_core::Intervention::Set { value: active, .. }), Ok(causal_core::Intervention::Set { value: control, .. })) => {
-                (active, control)
-            }
+            (
+                Ok(causal_core::Intervention::Set { value: active, .. }),
+                Ok(causal_core::Intervention::Set { value: control, .. }),
+            ) => (active, control),
             _ => {
                 return Err(IdentificationError::UnsupportedQuery {
                     message: "sharp RD ATE requires Set (or Soft(constant)/Shift) interventions",

@@ -6,7 +6,11 @@
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::needless_range_loop,
-    clippy::float_cmp
+    clippy::float_cmp,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::too_many_lines,
+    clippy::cast_sign_loss
 )]
 
 use causal_kernels::{norm_cdf, norm_pdf};
@@ -108,7 +112,7 @@ impl Default for GlmOptions {
 }
 
 impl GlmOptions {
-    /// Construct options (MoM NB α, default ridge-on-separation).
+    /// Construct options (`MoM` NB α, default ridge-on-separation).
     #[must_use]
     pub const fn new(max_iter: u32, tol: f64) -> Self {
         Self {
@@ -323,7 +327,7 @@ fn fit_logistic(
             }
             let mu = 1.0 / (1.0 + (-eta).exp());
             // Soft clamp masks the MLE under separation; flag when μ hits the band.
-            if mu < 1e-8 || mu > 1.0 - 1e-8 {
+            if !(1e-8..=1.0 - 1e-8).contains(&mu) {
                 separated = true;
             }
             let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
@@ -415,7 +419,7 @@ fn fit_probit(
                 eta += x_colmajor[c * nrows + r] * beta[c];
             }
             let mu = norm_cdf(eta);
-            if mu < 1e-8 || mu > 1.0 - 1e-8 {
+            if !(1e-8..=1.0 - 1e-8).contains(&mu) {
                 separated = true;
             }
             let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
@@ -472,7 +476,7 @@ fn fit_probit(
     })
 }
 
-/// NB2 IRLS with fixed, MoM, or nested-MLE dispersion α (`Var = μ + α μ²`).
+/// NB2 IRLS with fixed, `MoM`, or nested-MLE dispersion α (`Var = μ + α μ²`).
 fn fit_negbin(
     design: GlmDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
@@ -516,9 +520,7 @@ fn fit_negbin(
     match options.nb_alpha {
         NbAlphaPolicy::Fixed(a) => {
             if !(a.is_finite() && a > 0.0) {
-                return Err(StatsError::Shape {
-                    message: "nb_alpha Fixed must be finite and > 0",
-                });
+                return Err(StatsError::Shape { message: "nb_alpha Fixed must be finite and > 0" });
             }
             fit_negbin_fixed_alpha(design, backend, workspace, options, a)
         }
@@ -644,9 +646,8 @@ fn fit_negbin_fixed_alpha(
             }
             let theta = 1.0 / alpha;
             if yi > 0.0 {
-                deviance += 2.0
-                    * (yi * (yi / mu).ln()
-                        - (yi + theta) * ((yi + theta) / (mu + theta)).ln());
+                deviance +=
+                    2.0 * (yi * (yi / mu).ln() - (yi + theta) * ((yi + theta) / (mu + theta)).ln());
             } else {
                 deviance += 2.0 * theta * ((theta + mu) / theta).ln();
             }
@@ -821,9 +822,7 @@ impl MultinomialFit {
     /// Non-converged or separated fits.
     pub fn require_ok(&self) -> Result<(), StatsError> {
         if !self.converged {
-            return Err(StatsError::Backend(
-                "multinomial logit IRLS did not converge".into(),
-            ));
+            return Err(StatsError::Backend("multinomial logit IRLS did not converge".into()));
         }
         if self.separated {
             return Err(StatsError::Backend(
@@ -996,10 +995,7 @@ fn fit_multinomial_fisher(
         for i in 0..m {
             h[i * m + i] += 1e-8;
         }
-        let h_inv = invert_square(&h, m).ok_or(StatsError::RankDeficient {
-            rank: 0,
-            ncols: m,
-        })?;
+        let h_inv = invert_square(&h, m).ok_or(StatsError::RankDeficient { rank: 0, ncols: m })?;
         let mut delta = vec![0.0; m];
         let mut max_delta = 0.0_f64;
         let mut score_norm = 0.0_f64;
@@ -1089,10 +1085,7 @@ mod tests {
             y[i] = t;
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let opts = GlmOptions {
-            ridge_on_separation: None,
-            ..GlmOptions::new(100, 1e-6)
-        };
+        let opts = GlmOptions { ridge_on_separation: None, ..GlmOptions::new(100, 1e-6) };
         let fit = fit_glm(
             GlmFamily::BinomialLogit,
             GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
@@ -1215,10 +1208,7 @@ mod tests {
             };
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let opts = GlmOptions {
-            nb_alpha: NbAlphaPolicy::Fixed(0.5),
-            ..GlmOptions::new(100, 1e-8)
-        };
+        let opts = GlmOptions { nb_alpha: NbAlphaPolicy::Fixed(0.5), ..GlmOptions::new(100, 1e-8) };
         let fit = fit_glm(
             GlmFamily::NegativeBinomial,
             GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
@@ -1268,10 +1258,8 @@ mod tests {
                 < 1e-12
         );
         // Fixed-α fit at that MoM should match default MethodOfMoments path coefficients.
-        let opts = GlmOptions {
-            nb_alpha: NbAlphaPolicy::Fixed(expected),
-            ..GlmOptions::new(100, 1e-10)
-        };
+        let opts =
+            GlmOptions { nb_alpha: NbAlphaPolicy::Fixed(expected), ..GlmOptions::new(100, 1e-10) };
         let fit_fixed = fit_glm(
             GlmFamily::NegativeBinomial,
             GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 1, y: &y },
@@ -1320,10 +1308,7 @@ mod tests {
         )
         .unwrap();
         let mom_a = mom.nb_alpha.unwrap();
-        assert!(
-            (alpha - mom_a).abs() / mom_a.max(1e-6) < 2.0,
-            "nested={alpha} mom={mom_a}"
-        );
+        assert!((alpha - mom_a).abs() / mom_a.max(1e-6) < 2.0, "nested={alpha} mom={mom_a}");
     }
 
     #[test]
@@ -1338,10 +1323,7 @@ mod tests {
             y[i] = t;
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let opts = GlmOptions {
-            ridge_on_separation: Some(1.0),
-            ..GlmOptions::new(100, 1e-6)
-        };
+        let opts = GlmOptions { ridge_on_separation: Some(1.0), ..GlmOptions::new(100, 1e-6) };
         let fit = fit_glm(
             GlmFamily::BinomialLogit,
             GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
@@ -1387,7 +1369,6 @@ mod tests {
         assert!(fit.coefficients[3] > 0.5, "slope={}", fit.coefficients[3]);
     }
 
-
     #[test]
     fn multinomial_intercept_only_three_class() {
         let n = 90usize;
@@ -1428,11 +1409,9 @@ mod tests {
             x[i] = 1.0;
             x[n + i] = t;
             y[i] = match (t < 0.5, i % 5) {
-                (true, 0) => 1,
+                (true, 0) | (false, 1) => 1,
                 (true, 1) => 2,
-                (true, _) => 0,
-                (false, 0) => 0,
-                (false, 1) => 1,
+                (true, _) | (false, 0) => 0,
                 (false, _) => 2,
             };
         }

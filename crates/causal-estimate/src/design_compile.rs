@@ -15,7 +15,7 @@ use causal_data::{
 };
 use causal_stats::{
     CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
-    RecordedContrast, StandardizationRecord, StandardizedColumn, standardize_columns, StatsError,
+    RecordedContrast, StandardizationRecord, StatsError, standardize_columns,
 };
 
 use crate::error::EstimationError;
@@ -107,7 +107,8 @@ pub fn compile_adjustment_design(
                         message: "categorical codes length mismatch",
                     }));
                 }
-                let cm = compile_contrast_matrix(domain, contrast).map_err(EstimationError::from)?;
+                let cm =
+                    compile_contrast_matrix(domain, contrast).map_err(EstimationError::from)?;
                 let start = matrix_cols.len();
                 let contrast_idx = contrasts.len();
                 expand_contrast_columns(
@@ -119,8 +120,9 @@ pub fn compile_adjustment_design(
                     contrast_idx,
                 )?;
                 let end = matrix_cols.len();
-                let labels: Arc<[Arc<str>]> =
-                    Arc::from(domain.levels.iter().map(|l| Arc::clone(&l.label)).collect::<Vec<_>>());
+                let labels: Arc<[Arc<str>]> = Arc::from(
+                    domain.levels.iter().map(|l| Arc::clone(&l.label)).collect::<Vec<_>>(),
+                );
                 contrasts.push(RecordedContrast {
                     variable: *id,
                     coding: coding_kind(contrast),
@@ -218,16 +220,14 @@ mod tests {
 
     use causal_core::{CategoryDomainId, VariableId};
     use causal_data::{CategoryDomain, CategoryLevel, Contrast, compile_contrast_matrix};
+    use causal_stats::StandardizedColumn;
 
     use super::*;
 
     fn two_level_domain() -> CategoryDomain {
         CategoryDomain::try_new(
             CategoryDomainId::from_raw(0),
-            vec![
-                CategoryLevel { label: Arc::from("a") },
-                CategoryLevel { label: Arc::from("b") },
-            ],
+            vec![CategoryLevel { label: Arc::from("a") }, CategoryLevel { label: Arc::from("b") }],
             false,
             Some(CategoryCode::from_raw(0)),
             causal_data::UnknownCategoryPolicy::Fail,

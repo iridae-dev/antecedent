@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::too_many_arguments)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::needless_range_loop,
+    clippy::too_many_arguments
+)]
 
 use causal_core::{CausalRng, ExecutionContext, Intervention, MechanismOverride, StochasticPolicy};
 use causal_kernels::standard_normal;
@@ -336,7 +342,10 @@ fn apply_shift(out: &mut [f64], shift: f64) {
 /// # Errors
 ///
 /// Unknown family or shape mismatches.
-pub fn soft_to_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismSlot, ModelError> {
+pub fn soft_to_slot(
+    soft: &MechanismOverride,
+    n_parents: usize,
+) -> Result<MechanismSlot, ModelError> {
     match soft.family_id.as_ref() {
         "constant" => {
             let v = soft.parameters.first().copied().unwrap_or(0.0);
@@ -402,7 +411,10 @@ pub fn soft_to_slot(soft: &MechanismOverride, n_parents: usize) -> Result<Mechan
     }
 }
 
-fn soft_discrete_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismSlot, ModelError> {
+fn soft_discrete_slot(
+    soft: &MechanismOverride,
+    n_parents: usize,
+) -> Result<MechanismSlot, ModelError> {
     if soft.parameters.is_empty() {
         return Err(ModelError::Shape {
             message: "discrete override needs k, support..., probs/logits...".into(),
@@ -410,16 +422,12 @@ fn soft_discrete_slot(soft: &MechanismOverride, n_parents: usize) -> Result<Mech
     }
     let k = soft.parameters[0] as usize;
     if k == 0 {
-        return Err(ModelError::Shape {
-            message: "discrete override k must be > 0".into(),
-        });
+        return Err(ModelError::Shape { message: "discrete override k must be > 0".into() });
     }
     if soft.parameters.len() < 1 + k {
-        return Err(ModelError::Shape {
-            message: "discrete override truncated support".into(),
-        });
+        return Err(ModelError::Shape { message: "discrete override truncated support".into() });
     }
-    let support: std::sync::Arc<[f64]> = std::sync::Arc::from(soft.parameters[1..1 + k].to_vec());
+    let support: std::sync::Arc<[f64]> = std::sync::Arc::from(soft.parameters[1..=k].to_vec());
     let rest = &soft.parameters[1 + k..];
     if rest.len() == k {
         Ok(MechanismSlot::Discrete {

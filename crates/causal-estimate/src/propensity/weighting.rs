@@ -2,24 +2,26 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
+
+#![allow(
+    clippy::many_single_char_names
+)]
 
 use causal_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
-use causal_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
+use causal_stats::{FaerBackend, GlmOptions, fit_propensity};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, restrict_to_rows,
-    trim_of, trim_retained_rows,
+    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, trim_of,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
-use crate::util::{bootstrap_se, BootstrapSeResult};
+use crate::util::{BootstrapSeResult, bootstrap_se};
 
 /// Inverse-probability weighting estimator (ATE/ATT/ATC via `TargetPopulation`).
 ///
@@ -206,16 +208,15 @@ impl PropensityWeighting {
 // Stratification
 // ---------------------------------------------------------------------------------------------
 
-
 // IPW weights + Hajek estimator (shared by `PropensityWeighting`)
 // ---------------------------------------------------------------------------------------------
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum IpwTarget {
+pub(crate) enum IpwTarget {
     Ate,
     Att,
     Atc,
-    /// ATE-style IPW reweighted by CustomDistribution observation weights.
+    /// ATE-style IPW reweighted by `CustomDistribution` observation weights.
     Custom,
 }
 
@@ -308,7 +309,9 @@ pub(crate) fn hajek_difference(
         }
     }
     if den1 <= 0.0 || den0 <= 0.0 {
-        return Err(EstimationError::data_msg("IPW weighting left an arm with zero total weight (trimming/clipping removed all treated or all control units)"));
+        return Err(EstimationError::data_msg(
+            "IPW weighting left an arm with zero total weight (trimming/clipping removed all treated or all control units)",
+        ));
     }
     Ok(num1 / den1 - num0 / den0)
 }
@@ -380,11 +383,7 @@ pub(crate) fn hajek_influence_se(
     let nf = n as f64;
     let mut psi = vec![0.0; n];
     for i in 0..n {
-        let (w1, w0) = if treatment[i] > 0.5 {
-            (weights[i], 0.0)
-        } else {
-            (0.0, weights[i])
-        };
+        let (w1, w0) = if treatment[i] > 0.5 { (weights[i], 0.0) } else { (0.0, weights[i]) };
         // Linearized Hajek ratio contributions (E[ψ]=0).
         psi[i] = nf * (w1 / sum_w1) * (outcome[i] - mu1) - nf * (w0 / sum_w0) * (outcome[i] - mu0);
     }

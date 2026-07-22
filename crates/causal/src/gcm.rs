@@ -31,7 +31,7 @@ use causal_core::{
     TargetPopulation, UnitChangeQuery, Value, VariableId,
 };
 use causal_counterfactual::{
-    CounterfactualEngine, CounterfactualError, ExogenousPosterior, AbductionMissingPolicy,
+    AbductionMissingPolicy, CounterfactualEngine, CounterfactualError, ExogenousPosterior,
     NoiseInferenceKind,
 };
 use causal_data::TabularData;
@@ -240,8 +240,7 @@ pub fn sample_interventional_distribution(
     query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
     if query.target_population != TargetPopulation::AllObserved {
         return Err(AnalysisError::Unsupported {
-            message:
-                "sample_interventional_distribution only supports TargetPopulation::AllObserved",
+            message: "sample_interventional_distribution only supports TargetPopulation::AllObserved",
         });
     }
     sample_do(model, &query.interventions, n, rng, ctx)

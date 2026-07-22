@@ -119,8 +119,7 @@ fn lpcmci_chain() {
             let tgt = edge["target"].as_u64().unwrap() as u32;
             let forward = (src, slag, tgt);
             let reverse = (tgt, slag, src);
-            let ok = recovered.contains(&forward)
-                || (slag == 0 && recovered.contains(&reverse));
+            let ok = recovered.contains(&forward) || (slag == 0 && recovered.contains(&reverse));
             assert!(ok, "missing true link {forward:?} in {recovered:?}");
         }
     }

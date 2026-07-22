@@ -42,12 +42,9 @@ pub mod util;
 mod calibration_coverage;
 
 pub use adjustment::{
-    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
+    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind,
+    PreparedEstimationProblem,
 };
-pub use se::DEFAULT_RIDGE_ON_SEPARATION;
-pub use design_compile::{CovariateSpec, compile_adjustment_design};
-pub use se::{AnalyticSeKind, LinearSeKind};
-pub use util::BootstrapSeResult;
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
@@ -57,6 +54,7 @@ pub use bayesian::{
 };
 pub use causal_expr::EstimandMethod;
 pub use conditional::ConditionalLinearAdjustment;
+pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use envelope::{EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope};
 pub use error::EstimationError;
 pub use estimator::{Estimator, TabularAteEstimator};
@@ -74,7 +72,10 @@ pub use propensity::{
     PropensityModel, PropensityStratification, PropensityWeighting, default_propensity_overlap,
 };
 pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
+pub use se::DEFAULT_RIDGE_ON_SEPARATION;
+pub use se::{AnalyticSeKind, LinearSeKind};
 pub use temporal_adjustment::TemporalLinearAdjustment;
 pub use temporal_mediation::{
     TemporalEffectSurface, TemporalMediationEstimate, TemporalMediationEstimator,
 };
+pub use util::BootstrapSeResult;

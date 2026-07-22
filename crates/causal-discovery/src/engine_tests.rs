@@ -105,7 +105,11 @@ fn recovers_lagged_parent_with_analysis_mask() {
     }
     let mask = ValidityBitmap::from_bytes(bytes, n).unwrap();
     let data = data.with_analysis_mask(mask).unwrap();
-    assert!(!LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap().is_fully_valid());
+    assert!(
+        !LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy())
+            .unwrap()
+            .is_fully_valid()
+    );
 
     let engine = PcmciEngine::new().with_constraints(constraints());
     let mut ws = DiscoveryWorkspace::default();
@@ -284,7 +288,9 @@ fn parallel_matches_serial_link_set() {
 #[test]
 fn ci_hot_path_no_scratch_growth() {
     let (data, vars) = var_series();
-    let frame = LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap();
+    let frame =
+        LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy())
+            .unwrap();
     let engine = PcmciEngine::new().with_constraints(constraints());
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
@@ -481,7 +487,9 @@ fn pc1_ranks_required_independent_edge_by_statistic_not_infinity() {
     };
     let engine = PcmciEngine::new().with_constraints(constraints.clone());
     let compiled = constraints.compile(&vars).unwrap();
-    let frame = LaggedFrame::from_series(&data, &vars, 1, &causal_core::KernelPolicy::default_policy()).unwrap();
+    let frame =
+        LaggedFrame::from_series(&data, &vars, 1, &causal_core::KernelPolicy::default_policy())
+            .unwrap();
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(21);
     let (parents, _) =

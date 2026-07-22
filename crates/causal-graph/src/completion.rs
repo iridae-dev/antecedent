@@ -207,12 +207,14 @@ mod tests {
         let mut pag = Pag::with_variables(n);
         // Prefer a topological skeleton so directed inserts stay acyclic.
         let mut order: Vec<u32> = (0..n).collect();
-        for i in (1..n as usize).rev() {
-            let j = (rng.next_u64() as usize) % (i + 1);
+        for i in (1..usize::try_from(n).unwrap_or(0)).rev() {
+            let bound = u64::try_from(i + 1).unwrap_or(1);
+            let j = usize::try_from(rng.next_u64() % bound).unwrap_or(0);
             order.swap(i, j);
         }
-        for i in 0..n as usize {
-            for j in (i + 1)..n as usize {
+        let n_usize = usize::try_from(n).unwrap_or(0);
+        for i in 0..n_usize {
+            for j in (i + 1)..n_usize {
                 if rng.next_u64() % 3 != 0 {
                     continue;
                 }
@@ -237,9 +239,9 @@ mod tests {
 
         let mut rng = CausalRng::from_seed(23);
         for _ in 0..40 {
-            let n = 2 + (rng.next_u64() % 3) as u32; // 2..=4
+            let n = 2 + u32::try_from(rng.next_u64() % 3).unwrap_or(0); // 2..=4
             let pag = random_pag_with_circles(&mut rng, n);
-            let max_c = 1 + (rng.next_u64() as usize % 4); // 1..=4
+            let max_c = 1 + usize::try_from(rng.next_u64() % 4).unwrap_or(0); // 1..=4
             let Ok(sampler) = CompletionSampler::new(pag, max_c) else {
                 continue; // too many circle sites
             };
@@ -303,9 +305,7 @@ mod tests {
                         assert!(
                             !comp_sep,
                             "PAG m-connected but completion {} separated {}–{}",
-                            c.index,
-                            x,
-                            y
+                            c.index, x, y
                         );
                     }
                 }

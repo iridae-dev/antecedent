@@ -10,8 +10,11 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::many_single_char_names,
     clippy::similar_names,
-    clippy::too_many_lines
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::zero_sized_map_values
 )]
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -21,7 +24,7 @@ use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::TabularData;
 use causal_graph::{DenseNodeId, Endpoint, Pag, PagReview};
 use causal_stats::{
-    CiBatchRequest, CiPreparationPlan, CiQuery, ConfidenceMethod, ConditionalIndependence,
+    CiBatchRequest, CiPreparationPlan, CiQuery, ConditionalIndependence, ConfidenceMethod,
     FdrAdjustment, PartialCorrelation, PreparedCiTest,
 };
 
@@ -34,17 +37,18 @@ use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::evidence::threshold_scored_links;
 use crate::fci::{
-    build_pag_circle_skeleton, load_sepsets_into_state, record_sepset, StaticPagDiscoveryResult,
+    StaticPagDiscoveryResult, build_pag_circle_skeleton, load_sepsets_into_state, record_sepset,
 };
 use crate::orientation::{OrientationError, OrientationState, RuleDelta};
 use crate::pc::{adjacent_vars, collect_float_columns, edge_key};
 use crate::result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
+    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets,
+    ScoredLink,
 };
 use crate::rule_scheduling::{
-    run_fci_orientation_to_fixed_point, FciOrientationRule, LpcmciR1, LpcmciR10, LpcmciR2,
-    LpcmciR3, LpcmciR8, LpcmciR9,
+    FciOrientationRule, LpcmciR1, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9, LpcmciR10,
+    run_fci_orientation_to_fixed_point,
 };
 
 /// Classic RFCI over tabular (non-temporal) data.
@@ -75,7 +79,7 @@ impl Default for Rfci {
 }
 
 impl Rfci {
-    /// Default RFCI with ParCorr and BH FDR.
+    /// Default RFCI with `ParCorr` and BH FDR.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -86,7 +90,7 @@ impl Rfci {
                 },
                 ..DiscoveryConstraints::default()
             },
-            ci: Arc::new(PartialCorrelation::default()),
+            ci: Arc::new(PartialCorrelation),
             fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
         }
     }
@@ -223,8 +227,7 @@ impl Rfci {
                 let mut best_sep: Arc<[VariableId]> = Arc::from([]);
 
                 for z in &cand_sets {
-                    let (stat, p) =
-                        self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
+                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
                     best_stat = stat;
@@ -237,8 +240,7 @@ impl Rfci {
                 }
 
                 if depth == 0 && cand_sets.is_empty() {
-                    let (stat, p) =
-                        self.ci_test(&cols, &var_index, x, y, &[], workspace, ctx)?;
+                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, &[], workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
                     best_stat = stat;
@@ -320,18 +322,16 @@ impl Rfci {
             })
             .collect();
         scored = threshold_scored_links(scored, self.fdr, alpha);
-        let kept: HashSet<(u32, u32)> = scored
-            .iter()
-            .map(|s| edge_key(s.link.source, s.link.target))
-            .collect();
+        let kept: HashSet<(u32, u32)> =
+            scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
         if self.fdr.is_some() {
-            adj.retain(|k, _| kept.contains(k));
+            adj.retain(|k, ()| kept.contains(k));
         }
 
         let dense_of = |v: VariableId| -> Result<DenseNodeId, DiscoveryError> {
-            let idx = *var_index.get(&v).ok_or_else(|| {
-                DiscoveryError::data_msg(format!("unknown variable {v:?}"))
-            })?;
+            let idx = *var_index
+                .get(&v)
+                .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
             Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
         };
 
@@ -453,9 +453,7 @@ impl Rfci {
             graph: pag.clone(),
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(scored),
-            source: EvidenceSource::Discovery {
-                algorithm: Arc::from("rfci"),
-            },
+            source: EvidenceSource::Discovery { algorithm: Arc::from("rfci") },
         };
         let review = PagReview::from_pag(pag, "rfci");
 
@@ -510,11 +508,7 @@ impl Rfci {
                        a: VariableId,
                        b: VariableId,
                        c: VariableId| {
-            let (lo, hi) = if a.raw() <= c.raw() {
-                (a, c)
-            } else {
-                (c, a)
-            };
+            let (lo, hi) = if a.raw() <= c.raw() { (a, c) } else { (c, a) };
             let key = (lo.raw(), b.raw(), hi.raw());
             if pending.insert(key) {
                 queue.push_back((lo, b, hi));
@@ -546,33 +540,50 @@ impl Rfci {
             let cond: Vec<VariableId> = sep_ac.into_iter().filter(|&z| z != b).collect();
 
             // a ⊥? b | sep(a,c)\{b}
-            let (_stat_ab, p_ab) =
-                self.ci_test(cols, var_index, a, b, &cond, workspace, ctx)?;
+            let (_stat_ab, p_ab) = self.ci_test(cols, var_index, a, b, &cond, workspace, ctx)?;
             tests += 1;
             if p_ab > alpha {
-                let minimal =
-                    self.minimize_sepset(cols, var_index, a, b, &cond, workspace, ctx, alpha, &mut tests)?;
+                let minimal = self.minimize_sepset(
+                    cols, var_index, a, b, &cond, workspace, ctx, alpha, &mut tests,
+                )?;
                 self.remove_edge_update(
-                    a, b, &minimal, adj, sepsets, pag, dense_of, variables, &mut queue, &mut pending,
+                    a,
+                    b,
+                    &minimal,
+                    adj,
+                    sepsets,
+                    pag,
+                    dense_of,
+                    variables,
+                    &mut queue,
+                    &mut pending,
                 )?;
                 continue;
             }
 
-            let (_stat_bc, p_bc) =
-                self.ci_test(cols, var_index, b, c, &cond, workspace, ctx)?;
+            let (_stat_bc, p_bc) = self.ci_test(cols, var_index, b, c, &cond, workspace, ctx)?;
             tests += 1;
             if p_bc > alpha {
-                let minimal =
-                    self.minimize_sepset(cols, var_index, b, c, &cond, workspace, ctx, alpha, &mut tests)?;
+                let minimal = self.minimize_sepset(
+                    cols, var_index, b, c, &cond, workspace, ctx, alpha, &mut tests,
+                )?;
                 self.remove_edge_update(
-                    b, c, &minimal, adj, sepsets, pag, dense_of, variables, &mut queue, &mut pending,
+                    b,
+                    c,
+                    &minimal,
+                    adj,
+                    sepsets,
+                    pag,
+                    dense_of,
+                    variables,
+                    &mut queue,
+                    &mut pending,
                 )?;
                 continue;
             }
 
             // Both dependent: orient v-structure iff b ∉ sep(a,c).
-            let b_in_sep = sepset_vars(sepsets, a, c)
-                .is_some_and(|s| s.iter().any(|&z| z == b));
+            let b_in_sep = sepset_vars(sepsets, a, c).is_some_and(|s| s.iter().any(|&z| z == b));
             if !b_in_sep {
                 let ad = dense_of(a)?;
                 let bd = dense_of(b)?;
@@ -665,10 +676,7 @@ impl Rfci {
                         ud,
                         vd,
                         Arc::from(
-                            minimal
-                                .iter()
-                                .filter_map(|x| dense_of(*x).ok())
-                                .collect::<Vec<_>>(),
+                            minimal.iter().filter_map(|x| dense_of(*x).ok()).collect::<Vec<_>>(),
                         ),
                     );
                     delta.edges_changed += 1;
@@ -677,9 +685,7 @@ impl Rfci {
             }
 
             // Standard R4 orientation (Zhang) after Lemma 3.2 checks pass.
-            let c_in_sep = sep_ab.iter().any(|&z| {
-                dense_of(z).ok().is_some_and(|d| d == c)
-            });
+            let c_in_sep = sep_ab.iter().any(|&z| dense_of(z).ok().is_some_and(|d| d == c));
             let collider = discriminating_implies_collider(c_in_sep);
             let Some(e_cb) = pag.edge_between(c, b) else {
                 continue;
@@ -695,8 +701,15 @@ impl Rfci {
                 if set_arrow_at(pag, state, &mut delta, c, b)? {
                     delta.edges_changed += 1;
                 }
-            } else if set_marks_oriented(pag, state, &mut delta, c, b, Endpoint::Tail, Endpoint::Arrow)?
-            {
+            } else if set_marks_oriented(
+                pag,
+                state,
+                &mut delta,
+                c,
+                b,
+                Endpoint::Tail,
+                Endpoint::Arrow,
+            )? {
                 delta.edges_changed += 1;
             }
         }
@@ -833,17 +846,10 @@ impl Rfci {
             let zi = *var_index.get(&v).ok_or_else(|| DiscoveryError::data_msg("missing z"))?;
             workspace.z_flat.push(zi);
         }
-        let prepared = workspace.prepared_ci.as_ref().ok_or_else(|| {
-            DiscoveryError::Unsupported {
-                message: "CI test used before prepare()",
-            }
+        let prepared = workspace.prepared_ci.as_ref().ok_or({
+            DiscoveryError::Unsupported { message: "CI test used before prepare()" }
         })?;
-        let queries = [CiQuery {
-            x: xi,
-            y: yi,
-            z_start: 0,
-            z_len: workspace.z_flat.len(),
-        }];
+        let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
         let req = CiBatchRequest {
             columns: cols,
             queries: &queries,
@@ -855,9 +861,11 @@ impl Rfci {
             .ci
             .test_batch(prepared, &req, &mut workspace.ci, ctx)
             .map_err(DiscoveryError::from)?;
-        let result = out.results.into_iter().next().ok_or_else(|| {
-            DiscoveryError::stats_msg("CI batch returned no results")
-        })?;
+        let result = out
+            .results
+            .into_iter()
+            .next()
+            .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
         if !result.statistic.is_finite() || !result.p_value.is_finite() {
             return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
         }
@@ -871,7 +879,11 @@ fn sepset_vars(sepsets: &PcSepsets, a: VariableId, b: VariableId) -> Option<Vec<
         .map(|s| s.iter().map(|(v, _)| *v).collect())
 }
 
-fn orient_arrow_into(pag: &mut Pag, from: DenseNodeId, into: DenseNodeId) -> Result<(), DiscoveryError> {
+fn orient_arrow_into(
+    pag: &mut Pag,
+    from: DenseNodeId,
+    into: DenseNodeId,
+) -> Result<(), DiscoveryError> {
     let Some(e) = pag.edge_between(from, into) else {
         return Ok(());
     };
@@ -881,11 +893,9 @@ fn orient_arrow_into(pag: &mut Pag, from: DenseNodeId, into: DenseNodeId) -> Res
         return Ok(());
     }
     if e.a == from {
-        pag.set_marks(from, into, at_from, Endpoint::Arrow)
-            .map_err(DiscoveryError::from)?;
+        pag.set_marks(from, into, at_from, Endpoint::Arrow).map_err(DiscoveryError::from)?;
     } else {
-        pag.set_marks(into, from, Endpoint::Arrow, at_from)
-            .map_err(DiscoveryError::from)?;
+        pag.set_marks(into, from, Endpoint::Arrow, at_from).map_err(DiscoveryError::from)?;
     }
     Ok(())
 }
@@ -931,9 +941,9 @@ fn set_arrow_at(
     at: DenseNodeId,
     other: DenseNodeId,
 ) -> Result<bool, OrientationError> {
-    let e = graph.edge_between(at, other).ok_or(OrientationError::Precondition {
-        message: "discriminating path missing edge",
-    })?;
+    let e = graph
+        .edge_between(at, other)
+        .ok_or(OrientationError::Precondition { message: "discriminating path missing edge" })?;
     let at_other = if e.a == other { e.at_a } else { e.at_b };
     set_marks_oriented(graph, state, delta, at, other, Endpoint::Arrow, at_other)
 }
@@ -946,7 +956,9 @@ mod tests {
         CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
         VariableId,
     };
-    use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
+    use causal_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    };
     use causal_graph::Endpoint;
     use causal_stats::OracleCi;
 
@@ -985,11 +997,7 @@ mod tests {
     #[test]
     fn oracle_chain_recovers_skeleton() {
         let data = tabular_n(3, 50);
-        let vars = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
         let rfci = Rfci::new().with_fdr(false).with_ci(Arc::new(oracle));
         let mut ws = DiscoveryWorkspace::default();
@@ -1008,23 +1016,15 @@ mod tests {
     #[test]
     fn oracle_collider_orients_into_middle() {
         let data = tabular_n(3, 40);
-        let vars = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
         let rfci = Rfci::new().with_fdr(false).with_ci(Arc::new(oracle));
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
         let result = rfci.run(&data, &vars, &mut ws, &ctx).unwrap();
         let g = &result.evidence.graph;
-        let e01 = g
-            .edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
-        let e21 = g
-            .edge_between(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1))
-            .unwrap();
+        let e01 = g.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let e21 = g.edge_between(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
         let at_1_from_0 = if e01.a.raw() == 1 { e01.at_a } else { e01.at_b };
         let at_1_from_2 = if e21.a.raw() == 1 { e21.at_a } else { e21.at_b };
         assert!(matches!(at_1_from_0, Endpoint::Arrow));

@@ -703,7 +703,13 @@ impl TemporalCpdag {
                     || (a.raw() == e.neighbor.raw()
                         && matches!((e.at_self, e.at_neighbor), (Endpoint::Tail, Endpoint::Arrow)))
                 {
-                    out.push(MarkedEdge { a, b: e.neighbor, at_a: e.at_self, at_b: e.at_neighbor, middle: e.middle });
+                    out.push(MarkedEdge {
+                        a,
+                        b: e.neighbor,
+                        at_a: e.at_self,
+                        at_b: e.at_neighbor,
+                        middle: e.middle,
+                    });
                 } else if a.raw() > e.neighbor.raw() {
                     // skip reverse half
                 } else if matches!((e.at_self, e.at_neighbor), (Endpoint::Arrow, Endpoint::Tail)) {
@@ -912,12 +918,13 @@ mod tests {
     #[test]
     fn static_rejects_non_static_nodes() {
         let mut g = Cpdag::empty();
-        assert!(g
-            .add_node(NodeRef::Lagged {
+        assert!(
+            g.add_node(NodeRef::Lagged {
                 variable: VariableId::from_raw(0),
                 lag: Lag::CONTEMPORANEOUS,
             })
-            .is_err());
+            .is_err()
+        );
     }
 
     #[test]

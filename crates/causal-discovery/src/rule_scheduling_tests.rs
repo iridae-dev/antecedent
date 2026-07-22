@@ -334,7 +334,9 @@ fn discriminating_r4_orients_collider_when_c_not_in_sep_ab() {
     let mut state = OrientationState::default();
     state.set_sepset(a, b, std::sync::Arc::from([])); // c ∉ Sep(a,b)
     let mut queue = OrientationQueue::new();
-    let delta = LpcmciOrientationRule::apply(&LpcmciDiscriminatingPathRule, &mut g, &mut state, &mut queue).unwrap();
+    let delta =
+        LpcmciOrientationRule::apply(&LpcmciDiscriminatingPathRule, &mut g, &mut state, &mut queue)
+            .unwrap();
     assert!(delta.edges_changed > 0);
 
     let (at_c_cb, at_b) = marks_between(&g, c, b).unwrap();
@@ -361,7 +363,9 @@ fn discriminating_r4_orients_noncollider_when_c_in_sep_ab() {
     let mut state = OrientationState::default();
     state.set_sepset(a, b, std::sync::Arc::from([c])); // c ∈ Sep(a,b)
     let mut queue = OrientationQueue::new();
-    let delta = LpcmciOrientationRule::apply(&LpcmciDiscriminatingPathRule, &mut g, &mut state, &mut queue).unwrap();
+    let delta =
+        LpcmciOrientationRule::apply(&LpcmciDiscriminatingPathRule, &mut g, &mut state, &mut queue)
+            .unwrap();
     assert!(delta.edges_changed > 0);
 
     let (at_c, at_b) = marks_between(&g, c, b).unwrap();

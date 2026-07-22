@@ -13,6 +13,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::too_many_lines,
+    clippy::unused_self
+)]
+
 use std::sync::Arc;
 
 use causal_core::{
@@ -24,10 +32,10 @@ use causal_graph::{
     BitSet, DenseNodeId, GraphWorkspace, NodeRef, TemporalDag, UnfoldedTemporalGraph,
 };
 
-use crate::identifier::IdentificationWorkspace;
 use crate::backdoor::BackdoorIdentifier;
 use crate::error::IdentificationError;
 use crate::id::IdIdentifier;
+use crate::identifier::IdentificationWorkspace;
 use crate::prepared::PreparedAdmg;
 use crate::result::{IdentificationResult, IdentificationStatus};
 use causal_expr::EstimandMethod;
@@ -92,11 +100,10 @@ impl TemporalBackdoorIdentifier {
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid temporal-effect query",
         })?;
-        let treatment_at = query.try_treatment_offset().map_err(|_| {
-            IdentificationError::UnsupportedQuery {
+        let treatment_at =
+            query.try_treatment_offset().map_err(|_| IdentificationError::UnsupportedQuery {
                 message: "TemporalPolicy::Dynamic requires a non-empty active_at schedule",
-            }
-        })?;
+            })?;
         let outcome_at = query.outcome_offset();
         match &query.policy {
             TemporalPolicy::Sustained { from, until } => {
@@ -340,7 +347,6 @@ impl TemporalBackdoorIdentifier {
         })
     }
 }
-
 
 fn template_max_lag(template: &TemporalDag) -> u32 {
     template
@@ -645,16 +651,8 @@ mod tests {
         );
         let identifier = TemporalBackdoorIdentifier::new();
         let res = identifier.identify_temporal(&template, &query).unwrap();
-        assert_eq!(
-            res.result.status,
-            IdentificationStatus::NonparametricallyIdentified
-        );
-        assert!(res
-            .result
-            .derivation
-            .steps
-            .iter()
-            .any(|s| s.rule.as_ref() == "temporal.schedule"));
+        assert_eq!(res.result.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(res.result.derivation.steps.iter().any(|s| s.rule.as_ref() == "temporal.schedule"));
     }
 
     #[test]
@@ -664,23 +662,12 @@ mod tests {
         let x = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
         template.insert_directed(x, y).unwrap();
-        let query = TemporalEffectQuery::pulse(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            1.0,
-        )
-        .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), [0, 1]));
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), [0, 1]));
         let identifier = TemporalBackdoorIdentifier::new();
         let res = identifier.identify_temporal(&template, &query).unwrap();
-        assert_eq!(
-            res.result.status,
-            IdentificationStatus::NonparametricallyIdentified
-        );
-        assert!(res
-            .result
-            .derivation
-            .steps
-            .iter()
-            .any(|s| s.rule.as_ref() == "temporal.schedule"));
+        assert_eq!(res.result.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(res.result.derivation.steps.iter().any(|s| s.rule.as_ref() == "temporal.schedule"));
     }
 }

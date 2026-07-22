@@ -42,7 +42,8 @@ impl ArrowCColumn {
     pub fn into_array(self) -> Result<ArrayRef, DataError> {
         // SAFETY: ArrowCColumn is only constructed at the FFI boundary with a
         // compliant CDI pair (see module docs).
-        unsafe { import_array(self.array, self.schema) }
+        let Self { array, schema, .. } = self;
+        unsafe { import_array(array, &schema) }
     }
 }
 
@@ -52,12 +53,16 @@ impl ArrowCColumn {
 ///
 /// `array` and `schema` must form a valid Arrow C Data Interface pair produced
 /// by a compliant exporter. This function takes ownership and will release them.
+///
+/// # Errors
+///
+/// Returns [`DataError::InvalidArgument`] when the FFI pair cannot be decoded.
 pub unsafe fn import_array(
     array: FFI_ArrowArray,
-    schema: FFI_ArrowSchema,
+    schema: &FFI_ArrowSchema,
 ) -> Result<ArrayRef, DataError> {
     // SAFETY: caller guarantees a valid CDI pair; from_ffi releases on drop/error.
-    let data = unsafe { from_ffi(array, &schema) }.map_err(|e| DataError::InvalidArgument {
+    let data = unsafe { from_ffi(array, schema) }.map_err(|e| DataError::InvalidArgument {
         message: format!("Arrow CDI import failed: {e}"),
     })?;
     Ok(arrow_array::make_array(data))
@@ -68,10 +73,10 @@ pub(crate) fn float64_column_from_array(
     id: VariableId,
     array: ArrayRef,
 ) -> Result<(OwnedColumn, u64, u64, causal_core::Diagnostic), DataError> {
-    let floats = array.as_any().downcast_ref::<Float64Array>().ok_or(DataError::TypeMismatch {
-        id,
-        expected: "float64",
-    })?;
+    let floats = array
+        .as_any()
+        .downcast_ref::<Float64Array>()
+        .ok_or(DataError::TypeMismatch { id, expected: "float64" })?;
     let n = floats.len();
     let (validity, validity_copied) = validity_from_arrow(floats)?;
 
@@ -82,16 +87,14 @@ pub(crate) fn float64_column_from_array(
     if can_borrow {
         let ptr = values_slice.as_ptr();
         // SAFETY: `array` owns the buffer for the lifetime of ForeignF64Buffer.
-        let foreign =
-            unsafe { ForeignF64Buffer::new(Arc::new(ArrayOwner(array)), ptr, n) };
+        let foreign = unsafe { ForeignF64Buffer::new(Arc::new(ArrayOwner(array)), ptr, n) };
         // Ensure owner holds the array (read through for dead_code).
         debug_assert!(!foreign.as_slice().is_empty() || n == 0);
         let _ = foreign.len();
         let values = F64Buffer::foreign(foreign);
         let borrowed = values.nbytes();
         let col = Float64Column::new(id, values, validity)?;
-        let diag =
-            materialization_diagnostic(MaterializationReason::ExplicitCopy, validity_copied);
+        let diag = materialization_diagnostic(MaterializationReason::ExplicitCopy, validity_copied);
         Ok((OwnedColumn::Float64(col), borrowed, validity_copied, diag))
     } else {
         let mut values = Vec::with_capacity(n);

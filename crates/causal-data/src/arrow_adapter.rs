@@ -39,7 +39,8 @@ pub struct ArrowLoadResult {
 ///
 /// # Errors
 ///
-/// Unsupported column types, empty batches, or schema construction failures.
+/// Unsupported column types, empty batches, schema construction failures, or more
+/// than `u32::MAX` columns.
 pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult, DataError> {
     if batch.num_columns() == 0 {
         return Err(DataError::InvalidArgument { message: "record batch has no columns".into() });
@@ -52,7 +53,9 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
 
     for (i, field) in batch.schema().fields().iter().enumerate() {
         let name = field.name().clone();
-        let id = VariableId::from_raw(u32::try_from(i).expect("col"));
+        let id = VariableId::from_raw(u32::try_from(i).map_err(|_| {
+            DataError::InvalidArgument { message: "too many Arrow columns for VariableId".into() }
+        })?);
         let array = batch.column(i);
 
         if let Some(floats) = array.as_any().downcast_ref::<Float64Array>() {
@@ -77,18 +80,20 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
         }
 
         if let Some(list) = array.as_any().downcast_ref::<FixedSizeListArray>() {
-            let dim = usize::try_from(list.value_length()).map_err(|_| DataError::InvalidArgument {
-                message: "FixedSizeList width must fit usize".into(),
+            let dim = usize::try_from(list.value_length()).map_err(|_| {
+                DataError::InvalidArgument { message: "FixedSizeList width must fit usize".into() }
             })?;
             if dim == 0 {
                 return Err(DataError::InvalidArgument {
                     message: "FixedSizeList width must be > 0".into(),
                 });
             }
-            let width = NonZeroU32::new(u32::try_from(dim).map_err(|_| DataError::InvalidArgument {
-                message: "FixedSizeList width must fit u32".into(),
+            let width = NonZeroU32::new(u32::try_from(dim).map_err(|_| {
+                DataError::InvalidArgument { message: "FixedSizeList width must fit u32".into() }
             })?)
-            .expect("dim > 0");
+            .ok_or(DataError::InvalidArgument {
+                message: "FixedSizeList width must be > 0".into(),
+            })?;
             builder
                 .add_variable(
                     Arc::<str>::from(name),
@@ -109,10 +114,7 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
             continue;
         }
 
-        return Err(DataError::TypeMismatch {
-            id,
-            expected: "float64 or FixedSizeList<float64>",
-        });
+        return Err(DataError::TypeMismatch { id, expected: "float64 or FixedSizeList<float64>" });
     }
 
     let schema: CausalSchema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
@@ -156,10 +158,10 @@ fn fixed_vector_from_list(
     dim: usize,
 ) -> Result<(FixedVectorColumn, u64), DataError> {
     let values = list.values();
-    let floats = values.as_any().downcast_ref::<Float64Array>().ok_or(DataError::TypeMismatch {
-        id,
-        expected: "FixedSizeList<float64>",
-    })?;
+    let floats = values
+        .as_any()
+        .downcast_ref::<Float64Array>()
+        .ok_or(DataError::TypeMismatch { id, expected: "FixedSizeList<float64>" })?;
     let mut flat = Vec::with_capacity(n_rows.saturating_mul(dim));
     let mut validity_bytes = vec![0u8; n_rows.div_ceil(8)];
     for row in 0..n_rows {
@@ -195,7 +197,8 @@ fn fixed_vector_from_list(
 ///
 /// # Errors
 ///
-/// Empty input, non-float64 columns, CDI import failure, or schema errors.
+/// Empty input, non-float64 columns, CDI import failure, schema errors, or more
+/// than `u32::MAX` columns.
 pub fn tabular_from_arrow_c_columns(
     columns: Vec<ArrowCColumn>,
 ) -> Result<ArrowLoadResult, DataError> {
@@ -237,7 +240,9 @@ pub fn tabular_from_arrow_c_columns(
             n_rows = Some(array.len());
         }
 
-        let id = VariableId::from_raw(u32::try_from(i).expect("col"));
+        let id = VariableId::from_raw(u32::try_from(i).map_err(|_| {
+            DataError::InvalidArgument { message: "too many Arrow columns for VariableId".into() }
+        })?);
         let (owned, borrowed, copied, diag) = float64_column_from_array(id, array)?;
         bytes_borrowed += borrowed;
         bytes_copied += copied;
@@ -257,8 +262,8 @@ pub fn tabular_from_arrow_c_columns(
 
 #[cfg(test)]
 mod tests {
-    use arrow_array::{Array, Float64Array};
     use arrow_array::ffi::to_ffi;
+    use arrow_array::{Array, Float64Array};
     use arrow_schema::{DataType, Field, Schema};
     use causal_core::VariableId;
 

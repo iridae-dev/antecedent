@@ -1,4 +1,4 @@
-//! NetworkX-compatible JSON graph interchange (node_link / adjacency).
+//! `NetworkX`-compatible JSON graph interchange (`node_link` / adjacency).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -12,7 +12,7 @@ use crate::convert::{dag_from_wire, dag_to_wire};
 use crate::error::IoError;
 use crate::wire::DagWire;
 
-/// NetworkX `node_link_data` subset.
+/// `NetworkX` `node_link_data` subset.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct NetworkXNodeLink {
     /// Must be true.
@@ -45,7 +45,7 @@ pub struct NetworkXLink {
     pub target: JsonValue,
 }
 
-/// NetworkX `adjacency_data` subset.
+/// `NetworkX` `adjacency_data` subset.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct NetworkXAdjacency {
     /// Must be true.
@@ -70,7 +70,7 @@ pub struct NetworkXAdjNode {
     pub adjacency: Vec<HashMap<String, JsonValue>>,
 }
 
-/// Parse NetworkX node-link JSON into a [`Dag`].
+/// Parse `NetworkX` node-link JSON into a [`Dag`].
 ///
 /// # Errors
 ///
@@ -79,7 +79,7 @@ pub fn dag_from_networkx_node_link(json: &str) -> Result<Dag, IoError> {
     dag_from_wire(&dag_wire_from_networkx_node_link(json)?)
 }
 
-/// Serialize a [`Dag`] to NetworkX node-link JSON.
+/// Serialize a [`Dag`] to `NetworkX` node-link JSON.
 ///
 /// # Errors
 ///
@@ -117,10 +117,7 @@ pub fn dag_wire_from_networkx_node_link(json: &str) -> Result<DagWire, IoError> 
         let to = intern(&t, &mut order, &mut index)?;
         edges.push((from, to));
     }
-    Ok(DagWire {
-        node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?,
-        edges,
-    })
+    Ok(DagWire { node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?, edges })
 }
 
 /// Build node-link document from wire.
@@ -162,7 +159,7 @@ pub fn networkx_node_link_from_wire(wire: &DagWire, names: Option<&[String]>) ->
     }
 }
 
-/// Parse NetworkX adjacency JSON into a [`Dag`].
+/// Parse `NetworkX` adjacency JSON into a [`Dag`].
 ///
 /// # Errors
 ///
@@ -196,7 +193,7 @@ pub fn dag_from_networkx_adjacency(json: &str) -> Result<Dag, IoError> {
     })
 }
 
-/// Serialize a [`Dag`] to NetworkX adjacency JSON.
+/// Serialize a [`Dag`] to `NetworkX` adjacency JSON.
 ///
 /// # Errors
 ///
@@ -248,7 +245,11 @@ pub(crate) fn json_id_to_string(v: &JsonValue) -> Result<String, IoError> {
     }
 }
 
-fn intern(name: &str, order: &mut Vec<String>, index: &mut HashMap<String, u32>) -> Result<u32, IoError> {
+fn intern(
+    name: &str,
+    order: &mut Vec<String>,
+    index: &mut HashMap<String, u32>,
+) -> Result<u32, IoError> {
     if let Some(&id) = index.get(name) {
         return Ok(id);
     }
@@ -277,7 +278,8 @@ mod tests {
 
     #[test]
     fn rejects_undirected_node_link() {
-        let json = r#"{"directed":false,"multigraph":false,"graph":{},"nodes":[{"id":0}],"links":[]}"#;
+        let json =
+            r#"{"directed":false,"multigraph":false,"graph":{},"nodes":[{"id":0}],"links":[]}"#;
         assert!(dag_from_networkx_node_link(json).is_err());
     }
 

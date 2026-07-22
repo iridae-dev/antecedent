@@ -47,15 +47,11 @@ pub fn select_impl(policy: &KernelPolicy) -> KernelImpl {
     if arch_ok {
         return KernelImpl::ArchSimd;
     }
-    if portable_ok {
-        KernelImpl::PortableOptimized
-    } else {
-        KernelImpl::Scalar
-    }
+    if portable_ok { KernelImpl::PortableOptimized } else { KernelImpl::Scalar }
 }
 
-fn portable_or_scalar_reductions(policy: &KernelPolicy) -> KernelImpl {
-    match select_impl(policy) {
+fn portable_or_scalar_reductions(policy: KernelPolicy) -> KernelImpl {
+    match select_impl(&policy) {
         KernelImpl::ArchSimd => KernelImpl::PortableOptimized,
         other => other,
     }
@@ -68,9 +64,11 @@ pub fn masked_sum(
     x: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
 ) -> f64 {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::masked_sum(x, mask),
-        KernelImpl::PortableOptimized | KernelImpl::ArchSimd => crate::portable::masked_sum(x, mask),
+        KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
+            crate::portable::masked_sum(x, mask)
+        }
     }
 }
 
@@ -81,7 +79,7 @@ pub fn masked_mean(
     x: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
 ) -> Option<f64> {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::masked_mean(x, mask),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
             crate::portable::masked_mean(x, mask)
@@ -96,7 +94,7 @@ pub fn masked_variance(
     x: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
 ) -> Option<f64> {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::masked_variance(x, mask),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
             crate::portable::masked_variance(x, mask)
@@ -106,17 +104,17 @@ pub fn masked_variance(
 
 /// Public semantic entry: gather.
 pub fn gather(policy: &KernelPolicy, src: F64VectorView<'_>, indices: &[usize], out: &mut [f64]) {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::gather(src, indices, out),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
-            crate::portable::gather(src, indices, out)
+            crate::portable::gather(src, indices, out);
         }
     }
 }
 
 /// Public semantic entry: copy.
 pub fn copy_vec(policy: &KernelPolicy, src: F64VectorView<'_>, dst: &mut [f64]) {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::copy_vec(src, dst),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => crate::portable::copy_vec(src, dst),
     }
@@ -131,7 +129,7 @@ pub fn partial_correlation(
     z_cols: &[&[f64]],
     workspace: &mut crate::parcorr::ParCorrWorkspace,
 ) -> Option<f64> {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::parcorr::partial_correlation_scalar(x, y, z_cols, workspace),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
             crate::parcorr::partial_correlation_portable(x, y, z_cols, workspace)
@@ -149,7 +147,7 @@ pub fn masked_covariance(
     y: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
 ) -> Option<f64> {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::masked_covariance(x, y, mask),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
             crate::portable::masked_covariance(x, y, mask)
@@ -162,7 +160,7 @@ pub fn masked_covariance(
 /// Contract: `StableFloat`; beneficial for `n ≳ 32`.
 #[must_use]
 pub fn standardize_inplace(policy: &KernelPolicy, x: &mut [f64], eps: f64) -> (f64, f64) {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::standardize_inplace(x, eps),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
             crate::portable::standardize_inplace(x, eps)
@@ -174,10 +172,10 @@ pub fn standardize_inplace(policy: &KernelPolicy, x: &mut [f64], eps: f64) -> (f
 ///
 /// Contract: exact for finite inputs; beneficial for `n ≳ 64`.
 pub fn pairwise_l1_fill(policy: &KernelPolicy, x: &[f64], out: &mut [f64]) {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::pairwise_l1_fill(x, out),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
-            crate::portable::pairwise_l1_fill(x, out)
+            crate::portable::pairwise_l1_fill(x, out);
         }
     }
 }
@@ -192,12 +190,12 @@ pub fn accumulate_contingency(
     out: &mut [f64],
     n_y_levels: usize,
 ) {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => {
-            crate::scalar::accumulate_contingency(x_codes, y_codes, out, n_y_levels)
+            crate::scalar::accumulate_contingency(x_codes, y_codes, out, n_y_levels);
         }
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
-            crate::portable::accumulate_contingency(x_codes, y_codes, out, n_y_levels)
+            crate::portable::accumulate_contingency(x_codes, y_codes, out, n_y_levels);
         }
     }
 }
@@ -211,12 +209,12 @@ pub fn accumulate_contingency_rows(
     out: &mut [f64],
     n_y_levels: usize,
 ) {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => {
-            crate::scalar::accumulate_contingency_rows(x_codes, y_codes, rows, out, n_y_levels)
+            crate::scalar::accumulate_contingency_rows(x_codes, y_codes, rows, out, n_y_levels);
         }
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
-            crate::portable::accumulate_contingency_rows(x_codes, y_codes, rows, out, n_y_levels)
+            crate::portable::accumulate_contingency_rows(x_codes, y_codes, rows, out, n_y_levels);
         }
     }
 }
@@ -226,7 +224,7 @@ pub fn accumulate_contingency_rows(
 /// Contract: non-finite/negative weights → 0; `StableFloat`; beneficial for `n ≳ 64`.
 #[must_use]
 pub fn weighted_sum(policy: &KernelPolicy, x: &[f64], weights: &[f64]) -> f64 {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::weighted_sum(x, weights),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
             crate::portable::weighted_sum(x, weights)
@@ -237,7 +235,7 @@ pub fn weighted_sum(policy: &KernelPolicy, x: &[f64], weights: &[f64]) -> f64 {
 /// Public semantic entry: weighted mean.
 #[must_use]
 pub fn weighted_mean(policy: &KernelPolicy, x: &[f64], weights: &[f64]) -> Option<f64> {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::weighted_mean(x, weights),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
             crate::portable::weighted_mean(x, weights)
@@ -248,7 +246,7 @@ pub fn weighted_mean(policy: &KernelPolicy, x: &[f64], weights: &[f64]) -> Optio
 /// Public semantic entry: weighted dot product.
 #[must_use]
 pub fn weighted_dot(policy: &KernelPolicy, x: &[f64], y: &[f64], weights: &[f64]) -> f64 {
-    match portable_or_scalar_reductions(policy) {
+    match portable_or_scalar_reductions(*policy) {
         KernelImpl::Scalar => crate::scalar::weighted_dot(x, y, weights),
         KernelImpl::PortableOptimized | KernelImpl::ArchSimd => {
             crate::portable::weighted_dot(x, y, weights)

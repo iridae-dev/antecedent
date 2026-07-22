@@ -137,11 +137,7 @@ pub fn standardize_inplace(x: &mut [f64], eps: f64) -> (f64, f64) {
         let d = v - mean;
         var += d * d;
     }
-    let scale = if n > 1 {
-        (var / (n - 1) as f64).sqrt().max(eps)
-    } else {
-        1.0_f64.max(eps)
-    };
+    let scale = if n > 1 { (var / (n - 1) as f64).sqrt().max(eps) } else { 1.0_f64.max(eps) };
     for v in x.iter_mut() {
         *v = (*v - mean) / scale;
     }
@@ -184,12 +180,12 @@ pub fn accumulate_contingency(
 ) {
     assert_eq!(x_codes.len(), y_codes.len(), "contingency code lengths");
     assert!(n_y_levels > 0, "n_y_levels must be > 0");
-    let n_x_levels = out.len() / n_y_levels;
-    assert_eq!(out.len(), n_x_levels.saturating_mul(n_y_levels), "contingency out shape");
+    let x_cardinality = out.len() / n_y_levels;
+    assert_eq!(out.len(), x_cardinality.saturating_mul(n_y_levels), "contingency out shape");
     for (&xc, &yc) in x_codes.iter().zip(y_codes.iter()) {
         let ix = xc as usize;
         let iy = yc as usize;
-        assert!(ix < n_x_levels && iy < n_y_levels, "contingency code out of range");
+        assert!(ix < x_cardinality && iy < n_y_levels, "contingency code out of range");
         out[ix * n_y_levels + iy] += 1.0;
     }
 }
@@ -208,12 +204,12 @@ pub fn accumulate_contingency_rows(
 ) {
     assert_eq!(x_codes.len(), y_codes.len(), "contingency code lengths");
     assert!(n_y_levels > 0, "n_y_levels must be > 0");
-    let n_x_levels = out.len() / n_y_levels;
-    assert_eq!(out.len(), n_x_levels.saturating_mul(n_y_levels), "contingency out shape");
+    let x_cardinality = out.len() / n_y_levels;
+    assert_eq!(out.len(), x_cardinality.saturating_mul(n_y_levels), "contingency out shape");
     for &r in rows {
         let xc = x_codes[r] as usize;
         let yc = y_codes[r] as usize;
-        assert!(xc < n_x_levels && yc < n_y_levels, "contingency code out of range");
+        assert!(xc < x_cardinality && yc < n_y_levels, "contingency code out of range");
         out[xc * n_y_levels + yc] += 1.0;
     }
 }

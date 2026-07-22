@@ -17,7 +17,7 @@ use causal_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
 };
 use causal_discovery::{DiscoveryWorkspace, Notears};
-use causal_graph::DenseNodeId;
+use causal_graph::{DenseNodeId, MarkedEdge};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {
@@ -105,11 +105,8 @@ fn discovery_notears_chain_required_directed_edges() {
     assert_eq!(result.discovery.algorithm.id.as_ref(), "notears");
 
     let g = &result.discovery.evidence.graph;
-    let recovered: BTreeSet<(u32, u32)> = g
-        .edges()
-        .filter_map(|e| e.parent_child())
-        .map(|(a, b)| (a.raw(), b.raw()))
-        .collect();
+    let recovered: BTreeSet<(u32, u32)> =
+        g.edges().filter_map(MarkedEdge::parent_child).map(|(a, b)| (a.raw(), b.raw())).collect();
 
     let mut true_edges = BTreeSet::new();
     for e in expected["true_directed_edges"].as_array().unwrap() {

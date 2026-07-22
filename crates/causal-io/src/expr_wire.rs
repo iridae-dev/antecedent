@@ -19,7 +19,7 @@ pub struct ExprArenaWire {
     pub var_sets: Vec<Vec<u32>>,
     /// Intervention assignment sets.
     pub interventions: Vec<Vec<InterventionAssignmentWire>>,
-    /// Expression lists (raw ExprIds).
+    /// Expression lists (raw `ExprIds`).
     pub lists: Vec<Vec<u32>>,
     /// Expression nodes in id order.
     pub nodes: Vec<ExprNodeWire>,
@@ -173,10 +173,9 @@ fn node_to_wire(n: &ExprNode) -> ExprNodeWire {
         ExprNode::IntegralOut { variables, expr } => {
             ExprNodeWire::IntegralOut { variables: variables.raw(), expr: expr.raw() }
         }
-        ExprNode::Ratio { numerator, denominator } => ExprNodeWire::Ratio {
-            numerator: numerator.raw(),
-            denominator: denominator.raw(),
-        },
+        ExprNode::Ratio { numerator, denominator } => {
+            ExprNodeWire::Ratio { numerator: numerator.raw(), denominator: denominator.raw() }
+        }
         ExprNode::Expectation { function, distribution } => ExprNodeWire::Expectation {
             function: function.variable().raw(),
             distribution: distribution.raw(),

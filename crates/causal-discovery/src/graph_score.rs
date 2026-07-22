@@ -9,7 +9,7 @@ use causal_data::TabularData;
 use causal_state::{GraphScoreData, LocalScoreCache};
 
 use crate::error::DiscoveryError;
-use crate::graph_posterior::{log_prior_mask, parents_of, GraphPrior};
+use crate::graph_posterior::{GraphPrior, log_prior_mask, parents_of};
 use crate::pc::collect_float_columns;
 
 /// Build column-major [`GraphScoreData`] from tabular float columns.
@@ -20,9 +20,7 @@ pub(crate) fn tabular_score_data(
     let col_owned = collect_float_columns(data, variables)?;
     let n_rows = col_owned[0].len();
     if n_rows < 2 {
-        return Err(DiscoveryError::stats_msg(
-            "insufficient rows for graph score",
-        ));
+        return Err(DiscoveryError::stats_msg("insufficient rows for graph score"));
     }
     for c in &col_owned {
         if c.len() != n_rows {
@@ -53,9 +51,7 @@ pub(crate) fn score_dag_mask(
     let mut total = lp;
     for node in 0..n {
         let pa = Arc::from(parents_of(mask, n, node));
-        let s = cache
-            .local_score(data, u32::try_from(node).ok()?, &pa)
-            .ok()?;
+        let s = cache.local_score(data, u32::try_from(node).ok()?, &pa).ok()?;
         if !s.is_finite() {
             return None;
         }

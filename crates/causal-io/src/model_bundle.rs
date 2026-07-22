@@ -14,10 +14,10 @@ use crate::container::{
     ArtifactManifest, CompressPolicy, EncodedArtifact, SectionBytes, pack_section,
 };
 use crate::contrast_wire::ContrastBundleWire;
-use crate::convert::{dag_from_wire, dag_to_wire, from_cbor, schema_from_wire, schema_to_wire, to_cbor};
-use crate::discovery_wire::{
-    DiscoveryHeaderWire, EdgeEvidenceWire, TemporalGraphWire,
+use crate::convert::{
+    dag_from_wire, dag_to_wire, from_cbor, schema_from_wire, schema_to_wire, to_cbor,
 };
+use crate::discovery_wire::{DiscoveryHeaderWire, EdgeEvidenceWire, TemporalGraphWire};
 use crate::error::IoError;
 use crate::mechanism_wire::{
     MechanismStoreWire, ModelKindWire, mechanisms_from_wire, mechanisms_to_wire,
@@ -127,98 +127,77 @@ pub struct ModelBundleEncode<'a> {
     pub discovery: Option<(&'a DiscoveryHeaderWire, &'a TemporalGraphWire, &'a [EdgeEvidenceWire])>,
 }
 
-/// Encode a model bundle artifact.
-///
-/// # Errors
-///
-/// CBOR / DAG conversion failures.
-pub fn encode_model_bundle(input: ModelBundleEncode<'_>) -> Result<EncodedArtifact, IoError> {
-    let mut descs = Vec::new();
-    let mut sections = Vec::new();
+fn push_bundle_cbor_section(
+    id: &str,
+    logical_schema: &str,
+    bytes: Vec<u8>,
+    descs: &mut Vec<crate::wire::SectionDescriptor>,
+    sections: &mut Vec<SectionBytes>,
+) {
+    let (mut desc, sec) = pack_section(id, "application/cbor", bytes, CompressPolicy::Auto);
+    desc.logical_schema = logical_schema.into();
+    descs.push(desc);
+    sections.push(sec);
+}
 
-    fn push_cbor(
-        id: &str,
-        logical_schema: &str,
-        bytes: Vec<u8>,
-        descs: &mut Vec<crate::wire::SectionDescriptor>,
-        sections: &mut Vec<SectionBytes>,
-    ) {
-        let (mut desc, sec) = pack_section(id, "application/cbor", bytes, CompressPolicy::Auto);
-        desc.logical_schema = logical_schema.into();
-        descs.push(desc);
-        sections.push(sec);
-    }
-
-    push_cbor(
-        "bundle.header",
-        "model_bundle.header.v1",
-        to_cbor(&input.header)?,
-        &mut descs,
-        &mut sections,
-    );
-    push_cbor(
-        "schema",
-        "schema.v2",
-        to_cbor(&schema_to_wire(input.schema))?,
-        &mut descs,
-        &mut sections,
-    );
-    push_cbor("dag", "dag.v1", to_cbor(&dag_to_wire(input.dag)?)?, &mut descs, &mut sections);
-    push_cbor(
-        "mechanisms",
-        "mechanisms.v1",
-        to_cbor(&mechanisms_to_wire(input.mechanisms)?)?,
-        &mut descs,
-        &mut sections,
-    );
-
+fn push_model_bundle_optional_sections(
+    input: &ModelBundleEncode<'_>,
+    descs: &mut Vec<crate::wire::SectionDescriptor>,
+    sections: &mut Vec<SectionBytes>,
+) -> Result<(), IoError> {
     if let Some(c) = input.contrast {
-        push_cbor("contrast", "contrast.v1", to_cbor(c)?, &mut descs, &mut sections);
+        push_bundle_cbor_section("contrast", "contrast.v1", to_cbor(c)?, descs, sections);
     }
     if let Some(q) = input.query {
-        push_cbor("query", "query.v1", to_cbor(q)?, &mut descs, &mut sections);
+        push_bundle_cbor_section("query", "query.v1", to_cbor(q)?, descs, sections);
     }
     if let Some(t) = input.analysis_trace {
-        push_cbor("analysis.trace", "analysis.trace.v1", to_cbor(t)?, &mut descs, &mut sections);
+        push_bundle_cbor_section("analysis.trace", "analysis.trace.v1", to_cbor(t)?, descs, sections);
     }
     if let Some(i) = input.identification {
-        push_cbor("identification", "identification.v1", to_cbor(i)?, &mut descs, &mut sections);
+        push_bundle_cbor_section("identification", "identification.v1", to_cbor(i)?, descs, sections);
     }
     if let Some(e) = input.estimate {
-        push_cbor("estimate", "estimate.v1", to_cbor(e)?, &mut descs, &mut sections);
+        push_bundle_cbor_section("estimate", "estimate.v1", to_cbor(e)?, descs, sections);
     }
     if let Some(r) = input.refutations {
-        push_cbor(
+        push_bundle_cbor_section(
             "refutations",
             "refutations.v1",
             to_cbor(&r.to_vec())?,
-            &mut descs,
-            &mut sections,
+            descs,
+            sections,
         );
     }
     if let Some(p) = input.logical_plan {
-        push_cbor("logical_plan", "logical_plan.v1", to_cbor(p)?, &mut descs, &mut sections);
+        push_bundle_cbor_section("logical_plan", "logical_plan.v1", to_cbor(p)?, descs, sections);
     }
     if let Some(p) = input.physical_plan {
-        push_cbor("physical_plan", "physical_plan.v1", to_cbor(p)?, &mut descs, &mut sections);
+        push_bundle_cbor_section("physical_plan", "physical_plan.v1", to_cbor(p)?, descs, sections);
     }
     if let Some(p) = input.performance {
-        push_cbor("performance", "performance.v1", to_cbor(p)?, &mut descs, &mut sections);
+        push_bundle_cbor_section("performance", "performance.v1", to_cbor(p)?, descs, sections);
     }
     if let Some(d) = input.diagnostics {
-        push_cbor(
+        push_bundle_cbor_section(
             "diagnostics",
             "diagnostics.v1",
             to_cbor(&d.to_vec())?,
-            &mut descs,
-            &mut sections,
+            descs,
+            sections,
         );
     }
     if let Some(p) = input.provenance {
-        push_cbor("provenance", "provenance.v1", to_cbor(p)?, &mut descs, &mut sections);
+        push_bundle_cbor_section("provenance", "provenance.v1", to_cbor(p)?, descs, sections);
     }
     if let Some((meta, draws)) = input.posterior {
-        push_cbor("posterior.meta", "posterior.meta.v1", to_cbor(meta)?, &mut descs, &mut sections);
+        push_bundle_cbor_section(
+            "posterior.meta",
+            "posterior.meta.v1",
+            to_cbor(meta)?,
+            descs,
+            sections,
+        );
         let mut draw_bytes = Vec::with_capacity(draws.len() * 8);
         for &v in draws {
             draw_bytes.extend_from_slice(&v.to_le_bytes());
@@ -233,22 +212,63 @@ pub fn encode_model_bundle(input: ModelBundleEncode<'_>) -> Result<EncodedArtifa
         sections.push(sec);
     }
     if let Some((h, g, e)) = input.discovery {
-        push_cbor(
+        push_bundle_cbor_section(
             "discovery.header",
             "discovery.header.v1",
             to_cbor(h)?,
-            &mut descs,
-            &mut sections,
+            descs,
+            sections,
         );
-        push_cbor("discovery.graph", "discovery.graph.v1", to_cbor(g)?, &mut descs, &mut sections);
-        push_cbor(
+        push_bundle_cbor_section("discovery.graph", "discovery.graph.v1", to_cbor(g)?, descs, sections);
+        push_bundle_cbor_section(
             "discovery.evidence",
             "discovery.evidence.v1",
             to_cbor(&e.to_vec())?,
-            &mut descs,
-            &mut sections,
+            descs,
+            sections,
         );
     }
+    Ok(())
+}
+
+/// Encode a model bundle artifact.
+///
+/// # Errors
+///
+/// CBOR / DAG conversion failures.
+pub fn encode_model_bundle(input: &ModelBundleEncode<'_>) -> Result<EncodedArtifact, IoError> {
+    let mut descs = Vec::new();
+    let mut sections = Vec::new();
+
+    push_bundle_cbor_section(
+        "bundle.header",
+        "model_bundle.header.v1",
+        to_cbor(&input.header)?,
+        &mut descs,
+        &mut sections,
+    );
+    push_bundle_cbor_section(
+        "schema",
+        "schema.v2",
+        to_cbor(&schema_to_wire(input.schema))?,
+        &mut descs,
+        &mut sections,
+    );
+    push_bundle_cbor_section(
+        "dag",
+        "dag.v1",
+        to_cbor(&dag_to_wire(input.dag)?)?,
+        &mut descs,
+        &mut sections,
+    );
+    push_bundle_cbor_section(
+        "mechanisms",
+        "mechanisms.v1",
+        to_cbor(&mechanisms_to_wire(input.mechanisms)?)?,
+        &mut descs,
+        &mut sections,
+    );
+    push_model_bundle_optional_sections(input, &mut descs, &mut sections)?;
 
     Ok(EncodedArtifact {
         manifest: ArtifactManifest {
@@ -365,6 +385,73 @@ mod tests {
 
     use super::*;
 
+    fn two_variable_bundle_fixtures() -> (CausalSchema, Dag, CompiledMechanismStore) {
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let mechanisms = CompiledMechanismStore {
+            slots: vec![
+                MechanismSlot::Constant { value: 0.0 },
+                MechanismSlot::Constant { value: 1.0 },
+            ]
+            .into(),
+        };
+        (schema, dag, mechanisms)
+    }
+
+    fn encode_query_bundle(
+        artifact_id: &str,
+        label: &str,
+        query: &CausalQueryWire,
+        schema: &CausalSchema,
+        dag: &Dag,
+        mechanisms: &CompiledMechanismStore,
+    ) -> EncodedArtifact {
+        encode_model_bundle(&ModelBundleEncode {
+            header: ModelBundleHeaderWire {
+                model_kind: ModelKindWire::Scm,
+                label: Some(label.into()),
+            },
+            schema,
+            dag,
+            mechanisms,
+            artifact_id,
+            contrast: None,
+            query: Some(query),
+            analysis_trace: None,
+            identification: None,
+            estimate: None,
+            refutations: None,
+            logical_plan: None,
+            physical_plan: None,
+            performance: None,
+            diagnostics: None,
+            provenance: None,
+            posterior: None,
+            discovery: None,
+        })
+        .unwrap()
+    }
+
     #[test]
     fn model_bundle_round_trip() {
         let mut b = CausalSchemaBuilder::new();
@@ -414,7 +501,7 @@ mod tests {
             },
             target_population: crate::query_wire::TargetPopulationWire::AllObserved,
         };
-        let art = encode_model_bundle(ModelBundleEncode {
+        let art = encode_model_bundle(&ModelBundleEncode {
             header: ModelBundleHeaderWire {
                 model_kind: ModelKindWire::Scm,
                 label: Some("test".into()),
@@ -451,12 +538,10 @@ mod tests {
 
     #[test]
     fn model_bundle_embeds_distribution_and_path_specific_queries() {
+        use crate::query_wire::{CausalQueryWire, causal_query_from_wire, causal_query_to_wire};
         use causal_core::{
             CausalQuery, Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery,
             Value, VariableId as Vid,
-        };
-        use crate::query_wire::{
-            causal_query_from_wire, causal_query_to_wire, CausalQueryWire,
         };
 
         let dist = CausalQuery::Distribution(
@@ -486,59 +571,8 @@ mod tests {
         ));
 
         // Full bundle round-trip with Distribution query section.
-        let mut b = CausalSchemaBuilder::new();
-        b.add_variable(
-            "t",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        b.add_variable(
-            "y",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        let schema = b.build().unwrap();
-        let mut dag = Dag::with_variables(2);
-        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let mechanisms = CompiledMechanismStore {
-            slots: vec![
-                MechanismSlot::Constant { value: 0.0 },
-                MechanismSlot::Constant { value: 1.0 },
-            ]
-            .into(),
-        };
-        let art = encode_model_bundle(ModelBundleEncode {
-            header: ModelBundleHeaderWire {
-                model_kind: ModelKindWire::Scm,
-                label: Some("dist-bundle".into()),
-            },
-            schema: &schema,
-            dag: &dag,
-            mechanisms: &mechanisms,
-            artifact_id: "bundle-dist",
-            contrast: None,
-            query: Some(&dist_wire),
-            analysis_trace: None,
-            identification: None,
-            estimate: None,
-            refutations: None,
-            logical_plan: None,
-            physical_plan: None,
-            performance: None,
-            diagnostics: None,
-            provenance: None,
-            posterior: None,
-            discovery: None,
-        })
-        .unwrap();
+        let (schema, dag, mechanisms) = two_variable_bundle_fixtures();
+        let art = encode_query_bundle("bundle-dist", "dist-bundle", &dist_wire, &schema, &dag, &mechanisms);
         let mut buf = Vec::new();
         art.write_to(&mut buf).unwrap();
         let decoded = EncodedArtifact::read_from(buf.as_slice()).unwrap();
@@ -547,30 +581,8 @@ mod tests {
         assert!(matches!(q, CausalQueryWire::Distribution(_)));
 
         // PathSpecific query section in a second bundle.
-        let art2 = encode_model_bundle(ModelBundleEncode {
-            header: ModelBundleHeaderWire {
-                model_kind: ModelKindWire::Scm,
-                label: Some("path-bundle".into()),
-            },
-            schema: &schema,
-            dag: &dag,
-            mechanisms: &mechanisms,
-            artifact_id: "bundle-path",
-            contrast: None,
-            query: Some(&path_wire),
-            analysis_trace: None,
-            identification: None,
-            estimate: None,
-            refutations: None,
-            logical_plan: None,
-            physical_plan: None,
-            performance: None,
-            diagnostics: None,
-            provenance: None,
-            posterior: None,
-            discovery: None,
-        })
-        .unwrap();
+        let art2 =
+            encode_query_bundle("bundle-path", "path-bundle", &path_wire, &schema, &dag, &mechanisms);
         let mut buf2 = Vec::new();
         art2.write_to(&mut buf2).unwrap();
         let decoded2 = EncodedArtifact::read_from(buf2.as_slice()).unwrap();

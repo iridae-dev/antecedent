@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::similar_names)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names,
+    clippy::needless_range_loop,
+    clippy::similar_names
+)]
 
 use std::sync::Arc;
 
@@ -251,8 +257,8 @@ impl LinearAdjustmentAte {
             problem.design.ncols,
             &residuals,
             t_col,
-            &self.cluster_ids,
-            &self.multiway_ids,
+            self.cluster_ids.as_deref(),
+            self.multiway_ids.as_deref(),
         )? {
             se
         } else {
@@ -353,7 +359,7 @@ impl LinearAdjustmentAte {
         ctx: &ExecutionContext,
         t_col: usize,
     ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
-                let n = problem.design.nrows;
+        let n = problem.design.nrows;
         let p = problem.design.ncols;
         let mut x_boot = vec![0.0; n * p];
         let mut y_boot = vec![0.0; n];
@@ -372,8 +378,15 @@ impl LinearAdjustmentAte {
                     }
                 }
                 LinearFitKind::Ridge { lambda } => {
-                    match fit_ridge(&x_boot, n, p, &y_boot, lambda, &self.backend, &mut workspace.ols)
-                    {
+                    match fit_ridge(
+                        &x_boot,
+                        n,
+                        p,
+                        &y_boot,
+                        lambda,
+                        &self.backend,
+                        &mut workspace.ols,
+                    ) {
                         Ok(fit) => fit.coefficients,
                         Err(_) => return Ok(None),
                     }
@@ -459,9 +472,7 @@ pub(crate) fn intervention_f64(intervention: &Intervention) -> Result<f64, Estim
         Intervention::Set { value, .. } => value.as_f64().ok_or_else(|| {
             EstimationError::unsupported(" linear adjustment requires numeric treatment levels")
         }),
-        _ => Err(EstimationError::unsupported(
-            " linear adjustment requires Set interventions",
-        )),
+        _ => Err(EstimationError::unsupported(" linear adjustment requires Set interventions")),
     }
 }
 
@@ -690,9 +701,9 @@ mod tests {
             };
             let prep = est.prepare(&data, &estimand, &query).unwrap();
             let mut ws = EstimationWorkspace::default();
-            let effect =
-                est.fit(&prep, &mut ws, &ExecutionContext::for_tests(1), AssumptionSet::new())
-                    .unwrap();
+            let effect = est
+                .fit(&prep, &mut ws, &ExecutionContext::for_tests(1), AssumptionSet::new())
+                .unwrap();
             assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0, "{kind:?}");
         }
     }
@@ -714,9 +725,9 @@ mod tests {
             };
             let prep = est.prepare(&data, &estimand, &query).unwrap();
             let mut ws = EstimationWorkspace::default();
-            let effect =
-                est.fit(&prep, &mut ws, &ExecutionContext::for_tests(2), AssumptionSet::new())
-                    .unwrap();
+            let effect = est
+                .fit(&prep, &mut ws, &ExecutionContext::for_tests(2), AssumptionSet::new())
+                .unwrap();
             assert!(effect.ate.is_finite(), "{kind:?}");
             assert!((effect.ate - 2.0).abs() < 0.05, "ate={} kind={kind:?}", effect.ate);
         }

@@ -38,11 +38,8 @@ pub fn make_sepset_weakly_minimal(
         return Ok(z.to_vec());
     }
 
-    let removable: Vec<(VariableId, Lag)> = z
-        .iter()
-        .copied()
-        .filter(|&(v, l)| !ancs_set.contains(&(v.raw(), l.raw())))
-        .collect();
+    let removable: Vec<(VariableId, Lag)> =
+        z.iter().copied().filter(|&(v, l)| !ancs_set.contains(&(v.raw(), l.raw()))).collect();
 
     let mut best_sepsets: Vec<(f64, Vec<(VariableId, Lag)>)> = Vec::new();
     for &drop in &removable {
@@ -59,10 +56,7 @@ pub fn make_sepset_weakly_minimal(
 
     best_sepsets.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
     let top = best_sepsets[0].0;
-    for (s, cand) in &best_sepsets {
-        if (*s - top).abs() > 1e-12 {
-            break;
-        }
+    if let Some((_, cand)) = best_sepsets.iter().find(|(s, _)| (*s - top).abs() <= 1e-12) {
         return make_sepset_weakly_minimal(
             engine, frame, x, x_lag, y, y_lag, cand, ancs, workspace, ctx,
         );

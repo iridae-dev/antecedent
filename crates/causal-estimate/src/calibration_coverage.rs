@@ -13,8 +13,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg(test)]
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names
+)]
 
 use std::sync::Arc;
 
@@ -30,9 +34,7 @@ use causal_kernels::standard_normal;
 use crate::adjustment::LinearAdjustmentAte;
 use crate::aipw::AipwAte;
 use crate::iv::WaldIv;
-use crate::propensity::{
-    PropensityEstimationWorkspace, PropensityMatching, PropensityWeighting,
-};
+use crate::propensity::{PropensityEstimationWorkspace, PropensityMatching, PropensityWeighting};
 use crate::se::AnalyticSeKind;
 
 const TRUE_ATE: f64 = 2.0;
@@ -43,7 +45,7 @@ const N_SIM_BOOT: u32 = 200;
 const N_OBS: usize = 300;
 const Z95: f64 = 1.96;
 /// Bootstrap replicates for IPW SE: R=60 keeps gate runtime acceptable while
-/// stabilizing the replicate SD used as se_bootstrap.
+/// stabilizing the replicate SD used as `se_bootstrap`.
 const BOOT_REPS: u32 = 60;
 
 fn coverage_band(n_sim: u32) -> (f64, f64) {
@@ -208,10 +210,7 @@ fn linear_adjustment_hc1_ci_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn ipw_hajek_bootstrap_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = PropensityWeighting {
-        bootstrap_replicates: BOOT_REPS,
-        ..PropensityWeighting::new()
-    };
+    let est = PropensityWeighting { bootstrap_replicates: BOOT_REPS, ..PropensityWeighting::new() };
     let ctx = ExecutionContext::for_tests(2);
     let mut covered = 0u32;
     let mut skipped = 0u32;
@@ -324,17 +323,10 @@ fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn wald_iv_analytic_ci_coverage() {
-    let query = AverageEffectQuery::with_levels(
-        VariableId::from_raw(0),
-        VariableId::from_raw(1),
-        0.0,
-        1.0,
-    );
-    let est = WaldIv {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Homoskedastic,
-        ..WaldIv::new()
-    };
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+    let est =
+        WaldIv { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Homoskedastic, ..WaldIv::new() };
     let ctx = ExecutionContext::for_tests(5);
     let mut covered = 0u32;
     for s in 0..N_SIM {
@@ -351,17 +343,9 @@ fn wald_iv_analytic_ci_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn wald_iv_hc1_ci_coverage() {
-    let query = AverageEffectQuery::with_levels(
-        VariableId::from_raw(0),
-        VariableId::from_raw(1),
-        0.0,
-        1.0,
-    );
-    let est = WaldIv {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Hc1,
-        ..WaldIv::new()
-    };
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+    let est = WaldIv { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Hc1, ..WaldIv::new() };
     let ctx = ExecutionContext::for_tests(15);
     let mut covered = 0u32;
     for s in 0..N_SIM {

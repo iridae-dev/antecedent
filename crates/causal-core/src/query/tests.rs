@@ -153,10 +153,7 @@ fn path_specific_query_validates() {
     assert!(matches!(bad.validate(), Err(QueryError::NonPositivePathLimit)));
 
     let overlap = PathSpecificEffectQuery::binary(t, y).with_path_nodes([t]);
-    assert!(matches!(
-        overlap.validate(),
-        Err(QueryError::PathNodeOverlapsTreatmentOrOutcome)
-    ));
+    assert!(matches!(overlap.validate(), Err(QueryError::PathNodeOverlapsTreatmentOrOutcome)));
 }
 
 #[test]
@@ -166,13 +163,15 @@ fn dynamic_policy_and_planned_populations() {
     let t = VariableId::from_raw(0);
     let y = VariableId::from_raw(1);
     let rule = DynamicRuleId::from_raw(7);
-    let q = TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::dynamic(rule, [0, 3]));
+    let q =
+        TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::dynamic(rule, [0, 3]));
     q.validate().unwrap();
     assert_eq!(q.try_treatment_offset(), Ok(0));
     assert_eq!(q.treatment_offset(), 0);
-    let empty = TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::dynamic(rule, []));
+    let empty =
+        TemporalEffectQuery::pulse(t, y, 1.0).with_policy(TemporalPolicy::dynamic(rule, []));
     assert_eq!(empty.try_treatment_offset(), Err(QueryError::DynamicPolicyHasNoTreatmentOffset));
-    assert!(matches!(empty.validate(), Err(_)));
+    assert!(empty.validate().is_err());
 
     let named = AverageEffectQuery::binary_ate(t, y)
         .with_target_population(TargetPopulation::Predicate(PredicateExpr::named("cohort_a")));

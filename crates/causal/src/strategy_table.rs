@@ -51,7 +51,7 @@ pub enum IdentifierId {
     GeneralId,
     /// Path-restricted natural effects.
     PathSpecificNatural,
-    /// AutoIdentifier — all applicable estimands, no silent estimator choice.
+    /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
     Auto,
     /// Unknown / extension id (not in the compile-time allowlist).
     Other(Arc<str>),
@@ -343,25 +343,26 @@ pub fn validate_static_pair(
             | EstimatorId::ConditionalLinearAdjustment
     );
     let supported = match (&identifier, &estimator) {
-        (
-            IdentifierId::BackdoorAdjustment | IdentifierId::BackdoorEfficient,
-            _,
-        ) if backdoor_estimators => true,
-        (IdentifierId::Frontdoor, EstimatorId::FrontDoorTwoStage) => true,
-        (IdentifierId::Iv, EstimatorId::IvWald | EstimatorId::Iv2Sls) => true,
-        (IdentifierId::RdSharp, EstimatorId::RdSharp) => true,
-        (
+        (IdentifierId::BackdoorAdjustment | IdentifierId::BackdoorEfficient, _)
+            if backdoor_estimators =>
+        {
+            true
+        }
+        (IdentifierId::Frontdoor, EstimatorId::FrontDoorTwoStage)
+        | (IdentifierId::Iv, EstimatorId::IvWald | EstimatorId::Iv2Sls)
+        | (IdentifierId::RdSharp, EstimatorId::RdSharp)
+        | (
             IdentifierId::GeneralizedAdjustment,
             EstimatorId::LinearAdjustmentAte
-                | EstimatorId::PropensityWeighting
-                | EstimatorId::PropensityMatching
-                | EstimatorId::PropensityStratification
-                | EstimatorId::DistanceMatching
-                | EstimatorId::Aipw
-                | EstimatorId::GlmAdjustment
-                | EstimatorId::BayesianGcomp,
-        ) => true,
-        (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
+            | EstimatorId::PropensityWeighting
+            | EstimatorId::PropensityMatching
+            | EstimatorId::PropensityStratification
+            | EstimatorId::DistanceMatching
+            | EstimatorId::Aipw
+            | EstimatorId::GlmAdjustment
+            | EstimatorId::BayesianGcomp,
+        )
+        | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
         (IdentifierId::Auto, _)
             if backdoor_estimators
                 || matches!(
@@ -450,9 +451,7 @@ pub fn identification_status_acceptable(status: IdentificationStatus) -> bool {
 /// Effect not identified or no estimand returned.
 pub fn require_identified(result: &IdentificationResult) -> Result<(), AnalysisError> {
     if result.status == IdentificationStatus::NotIdentified || result.estimands.is_empty() {
-        return Err(AnalysisError::Compile {
-            message: "effect not identified".into(),
-        });
+        return Err(AnalysisError::Compile { message: "effect not identified".into() });
     }
     if !identification_status_acceptable(result.status) {
         return Err(AnalysisError::Compile {
@@ -486,10 +485,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         }
         EstimatorId::FunctionalDistribution => matches!(method, EstimandMethod::GeneralId),
         EstimatorId::FunctionalEffect => {
-            matches!(
-                method,
-                EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId
-            )
+            matches!(method, EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId)
         }
         EstimatorId::Other(_) => true,
     }
@@ -507,9 +503,7 @@ pub fn select_estimand(
     let estimator = estimator.into();
     let estimands = &identification.estimands;
     if estimands.is_empty() {
-        return Err(AnalysisError::Compile {
-            message: "no estimand returned".into(),
-        });
+        return Err(AnalysisError::Compile { message: "no estimand returned".into() });
     }
     if estimands.len() == 1 {
         return Ok(estimands[0].clone());
@@ -548,10 +542,7 @@ pub fn validate_distribution_pair(
     let estimator = estimator.into();
     let supported = matches!(
         (&identifier, &estimator),
-        (
-            IdentifierId::GeneralId | IdentifierId::Auto,
-            EstimatorId::FunctionalDistribution
-        )
+        (IdentifierId::GeneralId | IdentifierId::Auto, EstimatorId::FunctionalDistribution)
     );
     if !supported {
         return Err(AnalysisError::Compile {
@@ -579,10 +570,7 @@ pub fn validate_path_specific_pair(
     let estimator = estimator.into();
     let supported = matches!(
         (&identifier, &estimator),
-        (
-            IdentifierId::PathSpecificNatural | IdentifierId::Auto,
-            EstimatorId::FunctionalEffect
-        )
+        (IdentifierId::PathSpecificNatural | IdentifierId::Auto, EstimatorId::FunctionalEffect)
     );
     if !supported {
         return Err(AnalysisError::Compile {
@@ -699,9 +687,7 @@ pub fn identify_static_query_with_rd(
             });
         }
         IdentifierId::Other(_) => {
-            return Err(AnalysisError::Unsupported {
-                message: "unknown static identifier",
-            });
+            return Err(AnalysisError::Unsupported { message: "unknown static identifier" });
         }
     };
     require_identified(&result)?;
@@ -730,9 +716,7 @@ pub fn identify_pag(
                 other.as_str()
             ),
         }),
-        _ => Err(AnalysisError::Unsupported {
-            message: "unsupported PAG identifier",
-        }),
+        _ => Err(AnalysisError::Unsupported { message: "unsupported PAG identifier" }),
     }
 }
 
@@ -769,7 +753,9 @@ pub fn identify_admg(
 
 /// Provenance `(artifact_id, operation)` for an identifier id.
 #[must_use]
-pub fn identify_provenance_step(identifier: impl Into<IdentifierId>) -> (&'static str, &'static str) {
+pub fn identify_provenance_step(
+    identifier: impl Into<IdentifierId>,
+) -> (&'static str, &'static str) {
     match identifier.into() {
         IdentifierId::BackdoorAdjustment => ("identify.backdoor", "identify.backdoor"),
         IdentifierId::BackdoorEfficient => {
@@ -798,7 +784,9 @@ pub fn estimate_provenance_step(estimator: impl Into<EstimatorId>) -> (&'static 
         EstimatorId::LinearAdjustmentAte => {
             ("estimate.linear_adjustment", "estimate.linear_adjustment_ate")
         }
-        EstimatorId::PropensityWeighting => ("estimate.propensity", "estimate.propensity_weighting"),
+        EstimatorId::PropensityWeighting => {
+            ("estimate.propensity", "estimate.propensity_weighting")
+        }
         EstimatorId::PropensityMatching => ("estimate.propensity", "estimate.propensity_matching"),
         EstimatorId::PropensityStratification => {
             ("estimate.propensity", "estimate.propensity_stratification")
@@ -817,7 +805,9 @@ pub fn estimate_provenance_step(estimator: impl Into<EstimatorId>) -> (&'static 
         EstimatorId::FunctionalDistribution => {
             ("estimate.functional_distribution", "estimate.functional_distribution")
         }
-        EstimatorId::FunctionalEffect => ("estimate.functional_effect", "estimate.functional_effect"),
+        EstimatorId::FunctionalEffect => {
+            ("estimate.functional_effect", "estimate.functional_effect")
+        }
         EstimatorId::ConditionalLinearAdjustment => {
             ("estimate.conditional_linear", "estimate.conditional_linear_adjustment")
         }

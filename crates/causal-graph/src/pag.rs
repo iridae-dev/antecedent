@@ -215,13 +215,7 @@ impl Pag {
         }
         let previous =
             marked_storage::edge_between(&self.adj, a, b).expect("edge present after has_edge");
-        let edge = MarkedEdge {
-            a,
-            b,
-            at_a,
-            at_b,
-            middle: previous.middle,
-        };
+        let edge = MarkedEdge { a, b, at_a, at_b, middle: previous.middle };
         if let Some((from, to)) = edge.parent_child() {
             marked_storage::remove_edge(&mut self.adj, a, b);
             let cycle = self.reaches_directed(to, from);

@@ -10,6 +10,9 @@ use causal_core::{Value, VariableId};
 
 use crate::{DomainRef, InterventionAssignment};
 
+/// Weighted quadrature nodes: assignment rows paired with integration weights.
+pub type QuadratureNodes = Arc<[(Arc<[Value]>, f64)]>;
+
 /// Evaluation context (optional posterior draw index).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct EvalContext {
@@ -131,10 +134,7 @@ impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnsupportedIntegralOut => {
-                write!(
-                    f,
-                    "IntegralOut requires provider quadrature nodes or discrete support"
-                )
+                write!(f, "IntegralOut requires provider quadrature nodes or discrete support")
             }
             Self::MissingTableEntry => write!(f, "missing probability table entry"),
             Self::MissingBinding(v) => write!(f, "missing binding for V{}", v.raw()),
@@ -190,7 +190,7 @@ pub trait DistributionProvider {
         &self,
         _vars: &[VariableId],
         _ctx: &EvalContext,
-    ) -> Result<Option<Arc<[(Arc<[Value]>, f64)]>>, EvalError> {
+    ) -> Result<Option<QuadratureNodes>, EvalError> {
         Ok(None)
     }
 
@@ -455,10 +455,8 @@ impl DistributionProvider for GaussianDensityProvider {
         let mut dens = 1.0;
         for &v in spec.variables {
             let (mean, var) = self.params.get(&v).copied().ok_or(EvalError::EmptySupport(v))?;
-            let x = assignment
-                .get(v)
-                .and_then(Value::as_f64)
-                .ok_or(EvalError::MissingBinding(v))?;
+            let x =
+                assignment.get(v).and_then(Value::as_f64).ok_or(EvalError::MissingBinding(v))?;
             let inv_sqrt = (2.0 * std::f64::consts::PI * var).sqrt().recip();
             let z = (x - mean) / var.sqrt();
             dens *= inv_sqrt * (-0.5 * z * z).exp();
@@ -481,7 +479,7 @@ impl DistributionProvider for GaussianDensityProvider {
         &self,
         vars: &[VariableId],
         _ctx: &EvalContext,
-    ) -> Result<Option<Arc<[(Arc<[Value]>, f64)]>>, EvalError> {
+    ) -> Result<Option<QuadratureNodes>, EvalError> {
         if vars.is_empty() {
             return Ok(Some(Arc::from([(Arc::from(Vec::<Value>::new()), 1.0)])));
         }

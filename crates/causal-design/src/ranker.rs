@@ -3,17 +3,19 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::too_many_lines,
-    clippy::similar_names
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::float_cmp,
+    clippy::similar_names,
+    clippy::too_many_lines
 )]
 
 use std::sync::Arc;
 
 use causal_core::{
-    CausalRng, EnvironmentId, ExecutionContext, ModelId, MonteCarloBudget, MonteCarloError, QueryId,
-    VariableId,
+    CausalRng, EnvironmentId, ExecutionContext, ModelId, MonteCarloBudget, MonteCarloError,
+    QueryId, VariableId,
 };
 use causal_kernels::sample_categorical;
 use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
@@ -398,13 +400,9 @@ where
     O: Clone,
 {
     match objective {
-        DesignObjective::ReduceGraphEntropy => Ok(eig_graph_entropy(
-            candidate,
-            ctx.graphs,
-            graph_idx,
-            ctx.graph_features,
-            rng,
-        )),
+        DesignObjective::ReduceGraphEntropy => {
+            Ok(eig_graph_entropy(candidate, ctx.graphs, graph_idx, ctx.graph_features, rng))
+        }
         DesignObjective::IncreaseIdentificationProbability { query } => {
             Ok(id_prob_gain(candidate, ctx, *query))
         }
@@ -468,9 +466,7 @@ fn eig_graph_entropy(
         return 0.0;
     }
 
-    let cat_index = |label: u32| -> usize {
-        categories.binary_search(&label).unwrap_or(0)
-    };
+    let cat_index = |label: u32| -> usize { categories.binary_search(&label).unwrap_or(0) };
 
     let prior_h = shannon_entropy(&graphs.weights);
     let reliability = observation_reliability(candidate);
@@ -539,7 +535,8 @@ fn id_prob_gain<A, O>(
         .and_then(|m| m.iter().find(|(q, _)| *q == query).map(|(_, v)| v.as_ref()))
         .unwrap_or(&[]);
 
-    let intervene_flags = ctx.identified_under_intervention.filter(|f| f.len() == ctx.graphs.n_samples);
+    let intervene_flags =
+        ctx.identified_under_intervention.filter(|f| f.len() == ctx.graphs.n_samples);
 
     let mut identified = 0.0;
     let mut total = 0.0;
@@ -954,11 +951,8 @@ mod tests {
         use crate::candidate::ExperimentPlan;
         let graphs = toy_graphs();
         let q = QueryId::from_raw(0);
-        let flags = [
-            GraphIdentFlag::Identified,
-            GraphIdentFlag::Identified,
-            GraphIdentFlag::Identified,
-        ];
+        let flags =
+            [GraphIdentFlag::Identified, GraphIdentFlag::Identified, GraphIdentFlag::Identified];
         let candidates = vec![CandidateDesign::Intervene(ExperimentPlan {
             targets: Arc::from([VariableId::from_raw(0)]),
             cost: DesignCost::zero(),

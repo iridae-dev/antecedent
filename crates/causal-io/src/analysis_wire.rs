@@ -182,7 +182,9 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> EffectEstimate {
 /// # Errors
 ///
 /// Query encode failures.
-pub fn identification_to_wire(r: &IdentificationResult) -> Result<IdentificationResultWire, IoError> {
+pub fn identification_to_wire(
+    r: &IdentificationResult,
+) -> Result<IdentificationResultWire, IoError> {
     Ok(IdentificationResultWire {
         status: match r.status {
             IdentificationStatus::NonparametricallyIdentified => {
@@ -234,7 +236,9 @@ pub fn identification_to_wire(r: &IdentificationResult) -> Result<Identification
 /// # Errors
 ///
 /// Unknown status / query / arena.
-pub fn identification_from_wire(w: &IdentificationResultWire) -> Result<IdentificationResult, IoError> {
+pub fn identification_from_wire(
+    w: &IdentificationResultWire,
+) -> Result<IdentificationResult, IoError> {
     let status = match w.status.as_str() {
         "nonparametrically_identified" => IdentificationStatus::NonparametricallyIdentified,
         "identified_under_parametric_restrictions" => {
@@ -281,7 +285,11 @@ pub fn identification_from_wire(w: &IdentificationResultWire) -> Result<Identifi
                 .collect(),
         },
         required_assumptions: causal_core::AssumptionSet::new(),
-        diagnostics: w.diagnostics.iter().map(diagnostic_from_wire).collect::<Result<Vec<_>, _>>()?,
+        diagnostics: w
+            .diagnostics
+            .iter()
+            .map(diagnostic_from_wire)
+            .collect::<Result<Vec<_>, _>>()?,
         performance: IdentificationPerformanceRecord {
             candidates_examined: w.candidates_examined,
             sets_returned: w.sets_returned,
@@ -300,7 +308,7 @@ pub fn refutation_to_wire(r: &RefutationReport) -> RefutationReportWire {
         comparison: r.comparison,
         informative: r.informative,
         passed: r.passed,
-        failure_condition: r.failure_condition.as_ref().map(|s| s.to_string()),
+        failure_condition: r.failure_condition.as_ref().map(ToString::to_string),
         replicates: r.replicates,
     }
 }
@@ -337,7 +345,7 @@ pub fn diagnostic_to_wire(d: &Diagnostic) -> DiagnosticWire {
         }
         .into(),
         message: d.message.to_string(),
-        artifact_id: d.artifact_id.as_ref().map(|a| a.to_string()),
+        artifact_id: d.artifact_id.as_ref().map(ToString::to_string),
     }
 }
 

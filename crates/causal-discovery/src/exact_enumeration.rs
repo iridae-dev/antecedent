@@ -6,11 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::too_many_lines
-)]
+#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::too_many_lines)]
 
 use std::collections::HashSet;
 
@@ -21,9 +17,9 @@ use causal_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    accumulate_marginals, analytic_graph_diagnostics, kish_ess, mask_is_dag, normalize_log_weights,
-    n_directed_edges, set_edge, GraphPosterior, GraphPosteriorEngine, GraphPrior,
-    EXACT_ENUM_MAX_NODES,
+    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorEngine, GraphPrior, accumulate_marginals,
+    analytic_graph_diagnostics, kish_ess, mask_is_dag, n_directed_edges, normalize_log_weights,
+    set_edge,
 };
 use crate::graph_score::{score_dag_mask, tabular_score_data};
 
@@ -41,9 +37,7 @@ impl ExactDagPosterior {
     /// Default exact engine.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            max_nodes: EXACT_ENUM_MAX_NODES,
-        }
+        Self { max_nodes: EXACT_ENUM_MAX_NODES }
     }
 
     /// Override max nodes (still capped at [`EXACT_ENUM_MAX_NODES`]).
@@ -153,25 +147,14 @@ impl ExactDagPosterior {
             }
         }
         if kept_masks.is_empty() {
-            return Err(DiscoveryError::unsupported(
-                "no constraint-valid DAGs under prior",
-            ));
+            return Err(DiscoveryError::unsupported("no constraint-valid DAGs under prior"));
         }
 
         let weights = normalize_log_weights(&kept_log)?;
         let ess = kish_ess(&weights);
         let (edge, orient) = accumulate_marginals(n, &weights, &kept_masks);
         let diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
-        GraphPosterior::new(
-            n,
-            weights,
-            kept_masks,
-            edge,
-            orient,
-            ess,
-            diagnostics,
-            rejected,
-        )
+        GraphPosterior::new(n, weights, kept_masks, edge, orient, ess, diagnostics, rejected)
     }
 }
 
@@ -242,10 +225,12 @@ mod tests {
     use causal_core::{
         CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
     };
-    use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
+    use causal_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    };
     use causal_state::GraphScoreFamily;
 
-    use crate::graph_posterior::{edge_bit, has_edge, set_edge, GraphPrior};
+    use crate::graph_posterior::{GraphPrior, edge_bit, has_edge, set_edge};
 
     fn chain_tabular(n_rows: usize, seed: u64) -> (TabularData, Vec<VariableId>) {
         let mut b = CausalSchemaBuilder::new();
@@ -304,23 +289,15 @@ mod tests {
         let prior = GraphPrior::uniform();
         let ctx = ExecutionContext::for_tests(1);
         let mut ws = DiscoveryWorkspace::default();
-        let post = eng
-            .run(
-                &data,
-                &vars,
-                &prior,
-                GraphScoreFamily::GaussianBic,
-                &mut ws,
-                &ctx,
-            )
-            .unwrap();
+        let post =
+            eng.run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx).unwrap();
         assert!(post.diagnostics.converged);
         let n = 3;
         // Chain A→B→C is Markov-equivalent to A←B←C and A←B→C; assert skeleton
         // mass, not a single orientation.
-        let sk01 = post.edge_marginals[0 * n + 1] + post.edge_marginals[1 * n + 0];
-        let sk12 = post.edge_marginals[1 * n + 2] + post.edge_marginals[2 * n + 1];
-        let sk02 = post.edge_marginals[0 * n + 2] + post.edge_marginals[2 * n + 0];
+        let sk01 = post.edge_marginals[1] + post.edge_marginals[n];
+        let sk12 = post.edge_marginals[n + 2] + post.edge_marginals[2 * n + 1];
+        let sk02 = post.edge_marginals[2] + post.edge_marginals[2 * n];
         assert!(sk01 > 0.5, "P(A—B)={sk01}");
         assert!(sk12 > 0.5, "P(B—C)={sk12}");
         assert!(sk02 < 0.3, "P(A—C)={sk02}");
@@ -348,8 +325,12 @@ mod tests {
             .iter()
             .map(|&id| {
                 OwnedColumn::Float64(
-                    Float64Column::new(id, Arc::from([0.0_f64, 1.0, 2.0]), ValidityBitmap::all_valid(3))
-                        .unwrap(),
+                    Float64Column::new(
+                        id,
+                        Arc::from([0.0_f64, 1.0, 2.0]),
+                        ValidityBitmap::all_valid(3),
+                    )
+                    .unwrap(),
                 )
             })
             .collect();

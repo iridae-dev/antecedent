@@ -97,13 +97,10 @@ impl RegimeStability {
             // Re-apply fixed labels by mapping bootstrap row indexes back to original regimes.
             let boot_labels: Vec<_> = index_scratch
                 .iter()
-                .map(|&i| {
-                    self.assignment
-                        .at(i as usize)
-                        .expect("bootstrap index in range")
-                })
+                .map(|&i| self.assignment.at(i as usize).expect("bootstrap index in range"))
                 .collect();
-            let boot_assign = RegimeAssignment::try_new(boot_labels).map_err(ValidationError::from)?;
+            let boot_assign =
+                RegimeAssignment::try_new(boot_labels).map_err(ValidationError::from)?;
             let result = self
                 .rpcmci
                 .run(&boot, variables, &boot_assign, workspace, ctx)
@@ -134,8 +131,8 @@ impl RegimeStability {
 #[allow(clippy::cast_precision_loss)]
 mod tests {
     use causal_core::{
-        ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
-        CausalSchemaBuilder,
+        CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
+        ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -206,23 +203,17 @@ mod tests {
         let n = 200usize;
         let (data, vars) = two_regime_series(n);
         let assign = two_regime_half_split(n);
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.temporal = TemporalConstraints {
-            max_lag: Lag::from_raw(1),
-            min_lag: Lag::from_raw(1),
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+            max_cond_size: 1,
+            alpha: 0.15,
+            ..Default::default()
         };
-        constraints.max_cond_size = 1;
-        constraints.alpha = 0.15;
         let rpcmci = Rpcmci::new()
             .with_pcmci_plus(PcmciPlus::new().with_fdr(false).with_constraints(constraints))
             .with_min_regime_len(40)
             .with_alternating_iters(0);
-        let stab = RegimeStability {
-            rpcmci,
-            assignment: assign,
-            replicates: 3,
-            block_size: 25,
-        };
+        let stab = RegimeStability { rpcmci, assignment: assign, replicates: 3, block_size: 25 };
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(3);
         let report = stab.run(&data, &vars, &mut ws, &ctx).unwrap();

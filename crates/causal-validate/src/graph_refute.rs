@@ -60,7 +60,8 @@ impl GraphRefuter {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
-        if problem.estimand.method_kind().ok() != Some(causal_expr::EstimandMethod::BackdoorAdjustment)
+        if problem.estimand.method_kind().ok()
+            != Some(causal_expr::EstimandMethod::BackdoorAdjustment)
         {
             return Err(ValidationError::NotApplicable {
                 message: "adjustment drop-covariate requires backdoor.adjustment estimand",
@@ -138,6 +139,6 @@ fn drop_adjustment_at(base: &IdentifiedEstimand, drop_idx: usize) -> IdentifiedE
         instruments: Arc::clone(&base.instruments),
         mediators: Arc::clone(&base.mediators),
         functional: base.functional,
-        rd_design: base.rd_design.clone(),
+        rd_design: base.rd_design,
     }
 }

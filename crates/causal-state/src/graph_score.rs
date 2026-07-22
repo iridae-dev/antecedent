@@ -2,6 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::implicit_hasher,
+    clippy::similar_names
+)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -247,8 +252,7 @@ fn gaussian_bic_local(
     let sigma2 = (sse / n as f64).max(1e-12);
     let n_f = n as f64;
     let k_f = k as f64;
-    Ok(-0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln())
-        - 0.5 * k_f * n_f.ln())
+    Ok(-0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - 0.5 * k_f * n_f.ln())
 }
 
 /// Rebuild full graph score without using the cache (acceptance oracle).
@@ -309,10 +313,7 @@ mod tests {
         assert!((s0 - full0).abs() < 1e-10);
 
         let (delta, new_total) = cache
-            .delta_score(
-                &data,
-                ParentSetOp::SetParents { node: 1, parents: Arc::from([0u32]) },
-            )
+            .delta_score(&data, ParentSetOp::SetParents { node: 1, parents: Arc::from([0u32]) })
             .unwrap();
         let full1 = full_graph_score(&data, GraphScoreFamily::GaussianBic, &cache.parents).unwrap();
         assert!((new_total - full1).abs() < 1e-10, "inc={new_total} full={full1}");

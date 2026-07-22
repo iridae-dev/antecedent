@@ -232,11 +232,7 @@ impl SamplePlan {
         }
         let max_lag = max_lag_in_request(request);
         let lag_map = if max_lag > 0 || has_lagged(request) {
-            Some(Arc::new(LagMap::with_reference(
-                data.row_count(),
-                max_lag,
-                request.reference,
-            )?))
+            Some(Arc::new(LagMap::with_reference(data.row_count(), max_lag, request.reference)?))
         } else {
             None
         };
@@ -421,9 +417,9 @@ fn max_lag_in_request(request: &SampleRequest<'_>) -> u32 {
         .iter()
         .chain(request.y.iter())
         .chain(request.z.iter())
-        .filter_map(|n| match n {
-            NodeRef::Lagged { lag, .. } => Some(lag.raw()),
-            NodeRef::Static(_) | NodeRef::Context { .. } => Some(0),
+        .map(|n| match n {
+            NodeRef::Lagged { lag, .. } => lag.raw(),
+            NodeRef::Static(_) | NodeRef::Context { .. } => 0,
         })
         .max()
         .unwrap_or(0)
@@ -468,10 +464,7 @@ fn compile_inner(
             let prep = node_to_prepared(node, role)?;
             // Ensure column exists and is float64 at compile time.
             let ColumnView::Float64(_) = data.column(prep.variable)? else {
-                return Err(DataError::TypeMismatch {
-                    id: prep.variable,
-                    expected: "float64",
-                });
+                return Err(DataError::TypeMismatch { id: prep.variable, expected: "float64" });
             };
             nodes_key.push((prep.variable.raw(), prep.lag.raw(), role));
             columns.push(prep);
@@ -483,11 +476,8 @@ fn compile_inner(
         });
     }
 
-    let partitions = SamplePartitions {
-        n_x: request.x.len(),
-        n_y: request.y.len(),
-        n_z: request.z.len(),
-    };
+    let partitions =
+        SamplePartitions { n_x: request.x.len(), n_y: request.y.len(), n_z: request.z.len() };
 
     let candidate_rows: Arc<[u32]> = if let Some(map) = lag_map.as_ref() {
         let n = map.n_effective();
@@ -563,9 +553,7 @@ fn resolve_raw_row(lag_map: Option<&LagMap>, lag: Lag, base_row: u32) -> Result<
     // base_row is a contemporaneous raw row in the effective window.
     let base_t = map.row_index(Lag::CONTEMPORANEOUS, 0);
     if (base_row as usize) < base_t {
-        return Err(DataError::InvalidArgument {
-            message: "sample row before lag base".into(),
-        });
+        return Err(DataError::InvalidArgument { message: "sample row before lag base".into() });
     }
     let sample_i = (base_row as usize) - base_t;
     if sample_i >= map.n_effective() {
@@ -608,7 +596,8 @@ mod tests {
         let req = SampleRequest::new(&x, &y, &[]);
         let plan = SamplePlan::compile_tabular(&tabular, &req).unwrap();
         let mut ws = SampleWorkspace::default();
-        let prep = plan.prepare_tabular(&tabular, &mut ws, &KernelPolicy::default_policy()).unwrap();
+        let prep =
+            plan.prepare_tabular(&tabular, &mut ws, &KernelPolicy::default_policy()).unwrap();
         assert_eq!(prep.effective_n, 20);
         assert_eq!(prep.partitions.ncols(), 2);
         assert_eq!(prep.matrix.nrows(), 20);
@@ -618,18 +607,13 @@ mod tests {
     #[test]
     fn timeseries_lagged_request() {
         let data = float_series(30, 2);
-        let x = [NodeRef::Lagged {
-            variable: VariableId::from_raw(0),
-            lag: Lag::from_raw(2),
-        }];
-        let y = [NodeRef::Lagged {
-            variable: VariableId::from_raw(1),
-            lag: Lag::CONTEMPORANEOUS,
-        }];
+        let x = [NodeRef::Lagged { variable: VariableId::from_raw(0), lag: Lag::from_raw(2) }];
+        let y = [NodeRef::Lagged { variable: VariableId::from_raw(1), lag: Lag::CONTEMPORANEOUS }];
         let req = SampleRequest::new(&x, &y, &[]);
         let plan = SamplePlan::compile_timeseries(&data, &req).unwrap();
         let mut ws = SampleWorkspace::default();
-        let prep = plan.prepare_timeseries(&data, &mut ws, &KernelPolicy::default_policy()).unwrap();
+        let prep =
+            plan.prepare_timeseries(&data, &mut ws, &KernelPolicy::default_policy()).unwrap();
         assert_eq!(prep.effective_n, 28);
         assert!((prep.matrix.get(0, 0).unwrap() - 0.0).abs() < 1e-12);
         assert!((prep.matrix.get(0, 1).unwrap() - 102.0).abs() < 1e-12);
@@ -649,10 +633,7 @@ mod tests {
     fn lagged_rejected_on_tabular() {
         let series = float_series(10, 1);
         let tabular = TabularData::new(series.storage().clone());
-        let x = [NodeRef::Lagged {
-            variable: VariableId::from_raw(0),
-            lag: Lag::from_raw(1),
-        }];
+        let x = [NodeRef::Lagged { variable: VariableId::from_raw(0), lag: Lag::from_raw(1) }];
         let req = SampleRequest::new(&x, &[], &[]);
         assert!(SamplePlan::compile_tabular(&tabular, &req).is_err());
     }

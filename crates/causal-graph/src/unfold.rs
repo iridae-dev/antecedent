@@ -528,8 +528,7 @@ mod tests {
                     for ob in min_off..=max_off {
                         let from =
                             TemporalNodeKey { variable: VariableId::from_raw(va), offset: oa };
-                        let to =
-                            TemporalNodeKey { variable: VariableId::from_raw(vb), offset: ob };
+                        let to = TemporalNodeKey { variable: VariableId::from_raw(vb), offset: ob };
                         if !lazy.has_edge(from, to).unwrap() {
                             continue;
                         }
@@ -562,18 +561,12 @@ mod tests {
                 for oa in min_off..=max_off {
                     for vb in 0..n_vars {
                         for ob in min_off..=max_off {
-                            let from = TemporalNodeKey {
-                                variable: VariableId::from_raw(va),
-                                offset: oa,
-                            };
-                            let to = TemporalNodeKey {
-                                variable: VariableId::from_raw(vb),
-                                offset: ob,
-                            };
-                            let dense_a =
-                                DenseNodeId::from_raw(indexer.dense_id(from).unwrap());
-                            let dense_b =
-                                DenseNodeId::from_raw(indexer.dense_id(to).unwrap());
+                            let from =
+                                TemporalNodeKey { variable: VariableId::from_raw(va), offset: oa };
+                            let to =
+                                TemporalNodeKey { variable: VariableId::from_raw(vb), offset: ob };
+                            let dense_a = DenseNodeId::from_raw(indexer.dense_id(from).unwrap());
+                            let dense_b = DenseNodeId::from_raw(indexer.dense_id(to).unwrap());
                             let eager = unfolded.dag.children(dense_a).contains(&dense_b);
                             assert_eq!(
                                 lazy.has_edge(from, to).unwrap(),
@@ -608,7 +601,7 @@ mod tests {
                 let mut b = unfolded.dag.children(u).to_vec();
                 a.sort_by_key(|x| x.raw());
                 b.sort_by_key(|x| x.raw());
-                assert_eq!(a, b, "lazy-scan adjacency ≠ materialize at {}", i);
+                assert_eq!(a, b, "lazy-scan adjacency ≠ materialize at {i}");
             }
             for _ in 0..10 {
                 let x = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
@@ -629,7 +622,8 @@ mod tests {
                 let lazy_sep = scanned.is_d_separated(x, y, &z, &mut ws).unwrap();
                 let mat_sep = unfolded.dag.is_d_separated(x, y, &z, &mut ws).unwrap();
                 assert_eq!(
-                    lazy_sep, mat_sep,
+                    lazy_sep,
+                    mat_sep,
                     "unfolded d-sep mismatch x={} y={}",
                     x.raw(),
                     y.raw()

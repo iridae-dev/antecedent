@@ -162,7 +162,7 @@ impl JpcmciNodeRole {
 /// How space (dataset) dummies enter CI tests in J-PCMCI+.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum SpaceDummyCiMode {
-    /// Production default: `M−1` one-hot columns, each a scalar ParCorr variable.
+    /// Production default: `M−1` one-hot columns, each a scalar `ParCorr` variable.
     #[default]
     ScalarOneHot,
     /// pinned baseline-style: one logical space-dummy node; CI expands to the full one-hot block
@@ -173,7 +173,7 @@ pub enum SpaceDummyCiMode {
 /// How time one-hot dummies enter CI tests in J-PCMCI+ (ignored for integer-index encoding).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum TimeDummyCiMode {
-    /// Production default: each one-hot column is a scalar ParCorr variable.
+    /// Production default: each one-hot column is a scalar `ParCorr` variable.
     #[default]
     ScalarOneHot,
     /// One logical time-dummy node; CI expands to the full one-hot block
@@ -249,8 +249,7 @@ impl MultiDatasetConstraints {
         self.context_kinds
             .iter()
             .find(|(id, _)| *id == v)
-            .map(|(_, k)| *k)
-            .unwrap_or(ContextKind::Space)
+            .map_or(ContextKind::Space, |(_, k)| *k)
     }
 
     /// Resolve the J-PCMCI+ role of `v` (system if unmarked).

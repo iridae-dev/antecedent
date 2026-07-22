@@ -87,10 +87,8 @@ impl MiddleMark {
         use MiddleMark::{Both, Empty, Left, Right, Unknown};
         match (self, update) {
             (Empty, _) | (_, Empty) => Empty,
-            (Both, _) | (_, Both) => Both,
-            (Left, Right) | (Right, Left) => Both,
-            (Unknown, x) => x,
-            (x, Unknown) => x,
+            (Both, _) | (_, Both) | (Left, Right) | (Right, Left) => Both,
+            (Unknown, other) | (other, Unknown) => other,
             (Left, Left) => Left,
             (Right, Right) => Right,
         }
@@ -129,13 +127,7 @@ impl MarkedEdge {
     #[must_use]
     pub fn undirected(a: DenseNodeId, b: DenseNodeId) -> Self {
         if a.raw() <= b.raw() {
-            Self {
-                a,
-                b,
-                at_a: Endpoint::Tail,
-                at_b: Endpoint::Tail,
-                middle: MiddleMark::Empty,
-            }
+            Self { a, b, at_a: Endpoint::Tail, at_b: Endpoint::Tail, middle: MiddleMark::Empty }
         } else {
             Self {
                 a: b,
@@ -178,13 +170,7 @@ impl MarkedEdge {
     #[must_use]
     pub fn bidirected(a: DenseNodeId, b: DenseNodeId) -> Self {
         if a.raw() <= b.raw() {
-            Self {
-                a,
-                b,
-                at_a: Endpoint::Arrow,
-                at_b: Endpoint::Arrow,
-                middle: MiddleMark::Empty,
-            }
+            Self { a, b, at_a: Endpoint::Arrow, at_b: Endpoint::Arrow, middle: MiddleMark::Empty }
         } else {
             Self {
                 a: b,
@@ -230,9 +216,8 @@ impl MarkedEdge {
     pub const fn is_cpdag_legal(self) -> bool {
         matches!(
             (self.at_a, self.at_b),
-            (Endpoint::Tail, Endpoint::Arrow)
+            (Endpoint::Tail, Endpoint::Arrow | Endpoint::Tail)
                 | (Endpoint::Arrow, Endpoint::Tail)
-                | (Endpoint::Tail, Endpoint::Tail)
                 | (Endpoint::Conflict, Endpoint::Conflict)
         )
     }
@@ -242,9 +227,7 @@ impl MarkedEdge {
     pub const fn is_admg_legal(self) -> bool {
         matches!(
             (self.at_a, self.at_b),
-            (Endpoint::Tail, Endpoint::Arrow)
-                | (Endpoint::Arrow, Endpoint::Tail)
-                | (Endpoint::Arrow, Endpoint::Arrow)
+            (Endpoint::Tail | Endpoint::Arrow, Endpoint::Arrow) | (Endpoint::Arrow, Endpoint::Tail)
         )
     }
 

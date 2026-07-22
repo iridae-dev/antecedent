@@ -2,7 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::needless_range_loop,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::unreadable_literal,
+    clippy::cast_possible_truncation,
+    clippy::unnecessary_wraps
+)]
 
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};
@@ -133,15 +141,7 @@ fn sandwich_from_multipliers(
             Ok(bread.iter().map(|v| v * sigma2).collect())
         }
         SandwichKind::Hc0 | SandwichKind::Hc1 | SandwichKind::Hc2 | SandwichKind::Hc3 => {
-            let meat = hc_meat(
-                x_colmajor,
-                nrows,
-                ncols,
-                multipliers,
-                &gram,
-                fisher_weights,
-                kind,
-            )?;
+            let meat = hc_meat(x_colmajor, nrows, ncols, multipliers, &gram, fisher_weights, kind)?;
             Ok(sandwich_product(&bread, &meat, ncols))
         }
         SandwichKind::Cluster { groups } => {
@@ -174,9 +174,7 @@ fn sandwich_from_multipliers(
         }
         SandwichKind::PanelClusterHac { groups, lag } => {
             if groups.len() != nrows {
-                return Err(StatsError::Shape {
-                    message: "panel HAC groups length != nrows",
-                });
+                return Err(StatsError::Shape { message: "panel HAC groups length != nrows" });
             }
             let meat = panel_cluster_hac_meat(x_colmajor, nrows, ncols, multipliers, groups, lag)?;
             let g = distinct_count(groups);
@@ -333,9 +331,7 @@ fn multiway_meat(
     // Two-way: V1 + V2 − V12. General: inclusion–exclusion over non-empty subsets.
     let d = dimensions.len();
     if d > 4 {
-        return Err(StatsError::Shape {
-            message: "multiway supports at most 4 dimensions",
-        });
+        return Err(StatsError::Shape { message: "multiway supports at most 4 dimensions" });
     }
     let mut meat = vec![0.0; ncols * ncols];
     let n_sub = 1usize << d;
@@ -405,8 +401,7 @@ fn newey_west_meat_on_rows(
         for t in ell..t_len {
             for a in 0..ncols {
                 for b in 0..ncols {
-                    gamma[a * ncols + b] +=
-                        scores[t * ncols + a] * scores[(t - ell) * ncols + b];
+                    gamma[a * ncols + b] += scores[t * ncols + a] * scores[(t - ell) * ncols + b];
                 }
             }
         }
@@ -526,18 +521,14 @@ mod tests {
             x[i] = 1.0;
             x[n + i] = t;
             // Strong within-cluster residual shock + small idiosyncratic noise.
-            e[i] = (g as f64) * 1.5 + if i % 2 == 0 { 0.05 } else { -0.05 };
+            e[i] = f64::from(g) * 1.5 + if i % 2 == 0 { 0.05 } else { -0.05 };
         }
         let homo = coefficient_covariance(&x, n, 2, &e, SandwichKind::Homoskedastic).unwrap();
-        let cl =
-            coefficient_covariance(&x, n, 2, &e, SandwichKind::Cluster { groups: &groups })
-                .unwrap();
+        let cl = coefficient_covariance(&x, n, 2, &e, SandwichKind::Cluster { groups: &groups })
+            .unwrap();
         let se_homo = homo[0].sqrt();
         let se_cl = cl[0].sqrt();
-        assert!(
-            se_cl > se_homo,
-            "cluster intercept SE {se_cl} should exceed homo {se_homo}"
-        );
+        assert!(se_cl > se_homo, "cluster intercept SE {se_cl} should exceed homo {se_homo}");
     }
 
     #[test]
@@ -550,8 +541,7 @@ mod tests {
             x[n + i] = i as f64;
             e[i] = ((i % 3) as f64) - 1.0;
         }
-        let cov =
-            coefficient_covariance(&x, n, 2, &e, SandwichKind::NeweyWest { lag: 2 }).unwrap();
+        let cov = coefficient_covariance(&x, n, 2, &e, SandwichKind::NeweyWest { lag: 2 }).unwrap();
         assert!(cov.iter().all(|v| v.is_finite()));
         assert!(cov[0] > 0.0);
     }
@@ -578,10 +568,7 @@ mod tests {
             &[5.777352607709759, -2.727465986394562, -2.7274659863945616, 1.5688775510204103],
         );
         check(SandwichKind::Homoskedastic, &[0.65625, -0.28125, -0.28125, 0.1875]);
-        check(
-            SandwichKind::NeweyWest { lag: 1 },
-            &[0.411875, -0.2084375, -0.2084375, 0.124375],
-        );
+        check(SandwichKind::NeweyWest { lag: 1 }, &[0.411875, -0.2084375, -0.2084375, 0.124375]);
     }
 
     #[test]

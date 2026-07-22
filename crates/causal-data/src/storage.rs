@@ -43,7 +43,9 @@ impl OwnedColumnarStorage {
         }
         let row_count = columns.first().map_or(0, OwnedColumn::len);
         for (i, col) in columns.iter().enumerate() {
-            let expected_id = VariableId::from_raw(u32::try_from(i).expect("schema sized"));
+            let expected_id = VariableId::from_raw(u32::try_from(i).map_err(|_| {
+                DataError::InvalidArgument { message: "schema exceeds VariableId range".into() }
+            })?);
             if col.id() != expected_id {
                 return Err(DataError::UnknownVariable { id: col.id() });
             }

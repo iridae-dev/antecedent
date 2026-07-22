@@ -30,9 +30,8 @@ pub fn path_decompose(
     max_len: usize,
     _ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
-    let outcome_dense = model
-        .dense_of(outcome)
-        .ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
+    let outcome_dense =
+        model.dense_of(outcome).ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
     let strengths = edge_strength_map(model)?;
 
     if sources.len() > 1 {
@@ -41,11 +40,11 @@ pub fn path_decompose(
                 .dense_of(src_i)
                 .ok_or_else(|| AttributionError::missing_var("source", src_i))?;
             for &src_j in sources.iter().skip(i + 1) {
-                let src_j_dense = model
+                let dense_j = model
                     .dense_of(src_j)
                     .ok_or_else(|| AttributionError::missing_var("source", src_j))?;
-                if model.graph.reaches(src_i_dense, src_j_dense)
-                    || model.graph.reaches(src_j_dense, src_i_dense)
+                if model.graph.reaches(src_i_dense, dense_j)
+                    || model.graph.reaches(dense_j, src_i_dense)
                 {
                     return Err(AttributionError::unsupported(
                         "path_decompose with multiple sources requires disjoint ancestry; \
@@ -61,9 +60,8 @@ pub fn path_decompose(
     let mut evaluations = 0u64;
 
     for &src in sources {
-        let src_dense = model
-            .dense_of(src)
-            .ok_or_else(|| AttributionError::missing_var("source", src))?;
+        let src_dense =
+            model.dense_of(src).ok_or_else(|| AttributionError::missing_var("source", src))?;
         let paths = model.graph.directed_paths(src_dense, outcome_dense, max_paths, max_len)?;
         for path in paths {
             evaluations += 1;
@@ -210,7 +208,7 @@ mod tests {
         assert!(result.total_change > 0.0);
     }
 
-    /// Pinned linear SEM X→M→Y with β=2,3: path product = 6 and Σ path shares = total_change.
+    /// Pinned linear SEM X→M→Y with β=2,3: path product = 6 and Σ path shares = `total_change`.
     #[test]
     fn path_product_pins_and_sums_to_total_change() {
         let mut g = Dag::with_variables(3);

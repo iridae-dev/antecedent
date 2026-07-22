@@ -59,8 +59,7 @@ mod tests {
 
     #[test]
     fn enumerates_combinations_not_powerset() {
-        let c: Vec<DenseNodeId> =
-            (0..5).map(|i| DenseNodeId::from_raw(i)).collect();
+        let c: Vec<DenseNodeId> = (0..5).map(DenseNodeId::from_raw).collect();
         let mut n = 0usize;
         for_each_mask_of_size(&c, 2, |_| {
             n += 1;
@@ -71,8 +70,7 @@ mod tests {
 
     #[test]
     fn early_stop_halts() {
-        let c: Vec<DenseNodeId> =
-            (0..8).map(|i| DenseNodeId::from_raw(i)).collect();
+        let c: Vec<DenseNodeId> = (0..8).map(DenseNodeId::from_raw).collect();
         let mut n = 0usize;
         let stopped = for_each_mask_of_size(&c, 3, |_| {
             n += 1;

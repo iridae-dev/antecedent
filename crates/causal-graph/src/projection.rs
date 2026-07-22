@@ -51,8 +51,7 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
                 // Longer latent paths can propose edges that cycle with shorter ones already
                 // inserted; skip only those conflicts.
                 match admg.insert_directed(from, to) {
-                    Ok(()) => {}
-                    Err(GraphError::DuplicateEdge { .. }) => {}
+                    Ok(()) | Err(GraphError::DuplicateEdge { .. }) => {}
                     Err(GraphError::Cycle { .. }) => {
                         // Silent skip would drop a required projection edge and can
                         // break d/m-separation equivalence — fail closed instead.
@@ -75,8 +74,7 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
                 let a = map[u.as_usize()].expect("mapped");
                 let b = map[v.as_usize()].expect("mapped");
                 match admg.insert_bidirected(a, b) {
-                    Ok(()) => {}
-                    Err(GraphError::Cycle { .. } | GraphError::DuplicateEdge { .. }) => {}
+                    Ok(()) | Err(GraphError::Cycle { .. } | GraphError::DuplicateEdge { .. }) => {}
                     Err(e) => return Err(e),
                 }
             }

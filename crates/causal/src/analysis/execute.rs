@@ -16,13 +16,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use causal_core::{
-    AverageEffectQuery, CausalQuery, DataClassification, ExecutionContext, PopulationRegistry, Intervention,
-    MediationContrast, ProvenanceGraph, TemporalEffectQuery, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, VariableId,
+    AverageEffectQuery, CausalQuery, DataClassification, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, ExecutionContext, Intervention, MediationContrast, PopulationRegistry,
+    ProvenanceGraph, TemporalEffectQuery, VariableId,
 };
-use causal_data::{
-    DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData,
-};
+use causal_data::{DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData};
 use causal_discovery::{dag_from_adjacency_mask, temporal_dag_from_dbn_masks};
 use causal_estimate::{
     AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
@@ -37,21 +35,22 @@ use causal_graph::{
     Admg, Dag, DenseNodeId, Pag, PagReview, TemporalCpdagReview, TemporalDag, TemporalGraphReview,
 };
 use causal_identify::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
-    IdentificationEnvelope, SharpRdConfig, SharpRdIdentifier, TemporalBackdoorIdentifier,
+    DerivationTrace, IdentificationEnvelope, IdentificationPerformanceRecord, IdentificationResult,
+    IdentificationStatus, SharpRdConfig, SharpRdIdentifier, TemporalBackdoorIdentifier,
     TemporalMediationIdentifier,
 };
 use causal_prob::{GraphIdentFlag, InferenceDiagnostics, PriorSet, WeightedGraphSamples};
 use causal_validate::{
     BayesianSuiteContext, PosteriorPredictiveCheck, PriorPredictiveCheck, PriorSensitivity,
-    TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular, with_prior_sensitivity,
+    TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular,
+    with_prior_sensitivity,
 };
 
 use crate::callback_plan::mark_python_callback_plan;
 use crate::discovery::{
-    BayesianDiscoverParams, GraphMcmcSchedule, StaticDiscoverParams, discover_ci_screened_posterior,
-    discover_dbn_posterior, discover_exact_dag_posterior, discover_order_mcmc,
-    discover_structure_mcmc,
+    BayesianDiscoverParams, GraphMcmcSchedule, StaticDiscoverParams,
+    discover_ci_screened_posterior, discover_dbn_posterior, discover_exact_dag_posterior,
+    discover_order_mcmc, discover_structure_mcmc,
 };
 use crate::error::AnalysisError;
 use crate::gcm::{
@@ -76,21 +75,21 @@ use crate::strategy_table::{
     DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR_ID,
     DEFAULT_CONDITIONAL_IDENTIFIER_ID, DEFAULT_DISTRIBUTION_ESTIMATOR,
     DEFAULT_DISTRIBUTION_ESTIMATOR_ID, DEFAULT_DISTRIBUTION_IDENTIFIER,
-    DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER,
-    DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR,
-    DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER, DEFAULT_PATH_IDENTIFIER_ID, EstimatorId,
-    IdentifierId, estimate_provenance_step, estimate_static_effect, identify_admg, identify_pag,
-    identify_provenance_step, identify_static, identify_static_query, identify_static_query_with_rd,
-    require_identified, select_estimand, validate_static_pair,
+    DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID,
+    DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID,
+    DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER,
+    DEFAULT_PATH_IDENTIFIER_ID, EstimatorId, IdentifierId, estimate_provenance_step,
+    estimate_static_effect, identify_admg, identify_pag, identify_provenance_step, identify_static,
+    identify_static_query, identify_static_query_with_rd, require_identified, select_estimand,
+    validate_static_pair,
 };
 
 use super::builder::{CausalAnalysisBuilder, DataInput, RdConfig, RefuteSuite};
 use super::helpers::{
-    AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic,
-    provenance_pair, resolve_analysis_ci, run_jpcmci_plus_review, run_lpcmci_review,
-    run_pcmci_plus_review, run_pcmci_review, run_fci_review, run_rfci_review, run_ges_review,
-    run_lingam_review, run_notears_review, run_pc_review, run_refuters,
-    run_rpcmci_discovery,
+    AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic, provenance_pair,
+    resolve_analysis_ci, run_fci_review, run_ges_review, run_jpcmci_plus_review, run_lingam_review,
+    run_lpcmci_review, run_notears_review, run_pc_review, run_pcmci_plus_review, run_pcmci_review,
+    run_refuters, run_rfci_review, run_rpcmci_discovery,
 };
 
 /// Prepared analysis (static or temporal).
@@ -115,11 +114,18 @@ pub struct CausalAnalysis {
 impl std::fmt::Debug for CausalAnalysis {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CausalAnalysis")
+            .field("data", &"<data>")
             .field("graph", &self.graph)
+            .field("query", &"<query>")
             .field("refute", &self.refute)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
+            .field("split", &self.split)
             .field("identifier", &self.identifier)
             .field("estimator", &self.estimator)
+            .field("rd", &self.rd)
+            .field("inference", &self.inference)
+            .field("overlap_policy", &self.overlap_policy)
+            .field("population_registry", &self.population_registry.as_ref().map(|_| "<registry>"))
             .field("discovery_ci", &self.discovery_ci.as_ref().map(|_| "<dyn CI>"))
             .field("custom_validators", &self.custom_validators.len())
             .finish()
@@ -185,11 +191,7 @@ impl CausalAnalysis {
                     estimator,
                 })
             }
-            (
-                DataInput::Tabular(data),
-                CausalQuery::Distribution(q),
-                GraphInput::Static(graph),
-            ) => {
+            (DataInput::Tabular(data), CausalQuery::Distribution(q), GraphInput::Static(graph)) => {
                 let (identifier, estimator) = self.resolve_distribution_pair();
                 compile_logical_distribution(StaticDistributionCompileInput {
                     data,
@@ -200,11 +202,7 @@ impl CausalAnalysis {
                     estimator,
                 })
             }
-            (
-                DataInput::Tabular(data),
-                CausalQuery::PathSpecific(q),
-                GraphInput::Static(graph),
-            ) => {
+            (DataInput::Tabular(data), CausalQuery::PathSpecific(q), GraphInput::Static(graph)) => {
                 let (identifier, estimator) = self.resolve_path_pair();
                 compile_logical_path_specific(StaticPathSpecificCompileInput {
                     data,
@@ -224,9 +222,7 @@ impl CausalAnalysis {
                     DataInput::Event(_) => DataClassification::Event,
                     _ => DataClassification::Temporal,
                 };
-                compile_logical_temporal_effect_classified(
-                    data, graph, q, self.split, false, class,
-                )
+                compile_logical_temporal_effect_classified(data, graph, q, self.split, false, class)
             }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
@@ -242,7 +238,12 @@ impl CausalAnalysis {
                     _ => DataClassification::Temporal,
                 };
                 compile_logical_temporal_effect_classified(
-                    data, &TemporalDag::empty(), q, self.split, true, class,
+                    data,
+                    &TemporalDag::empty(),
+                    q,
+                    self.split,
+                    true,
+                    class,
                 )
             }
             (
@@ -266,14 +267,15 @@ impl CausalAnalysis {
                 DataInput::Panel(panel),
                 CausalQuery::TemporalEffect(q),
                 GraphInput::DiscoverJpcmciPlus { .. }
-                    | GraphInput::DiscoverPcmci { .. }
-                    | GraphInput::DiscoverPcmciPlus { .. }
-                    | GraphInput::DiscoverLpcmci { .. }
-                    | GraphInput::Temporal(_),
+                | GraphInput::DiscoverPcmci { .. }
+                | GraphInput::DiscoverPcmciPlus { .. }
+                | GraphInput::DiscoverLpcmci { .. }
+                | GraphInput::Temporal(_),
             ) => {
-                let data = &panel.unit(0).map_err(|e| AnalysisError::Compile {
-                    message: format!("panel: {e}"),
-                })?.series;
+                let data = &panel
+                    .unit(0)
+                    .map_err(|e| AnalysisError::Compile { message: format!("panel: {e}") })?
+                    .series;
                 let review = matches!(
                     self.graph,
                     GraphInput::DiscoverJpcmciPlus { .. }
@@ -341,11 +343,7 @@ impl CausalAnalysis {
                 plan.query = CausalQuery::Mediation(q.clone());
                 Ok(plan)
             }
-            (
-                DataInput::Tabular(data),
-                CausalQuery::Mediation(q),
-                GraphInput::Static(graph),
-            ) => {
+            (DataInput::Tabular(data), CausalQuery::Mediation(q), GraphInput::Static(graph)) => {
                 q.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
                 if !matches!(q.contrast, MediationContrast::Total) {
                     return Err(AnalysisError::Unsupported {
@@ -378,9 +376,9 @@ impl CausalAnalysis {
             ) => {
                 // Parametric SCM paths: logical metadata only (no classic identifier/estimator).
                 let (treatment, outcome) = gcm_query_vars(&self.query)?;
-                self.query.validate().map_err(|e| AnalysisError::Compile {
-                    message: e.to_string(),
-                })?;
+                self.query
+                    .validate()
+                    .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
                 Ok(LogicalAnalysisPlan {
                     record: causal_core::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("gcm_query"),
@@ -551,11 +549,7 @@ impl CausalAnalysis {
                 let physical = logical.compile_physical(ctx)?;
                 Ok(CompiledAnalysis::Ready(physical))
             }
-            (
-                DataInput::Tabular(data),
-                CausalQuery::Distribution(q),
-                GraphInput::Static(graph),
-            ) => {
+            (DataInput::Tabular(data), CausalQuery::Distribution(q), GraphInput::Static(graph)) => {
                 let (identifier, estimator) = self.resolve_distribution_pair();
                 let logical = compile_logical_distribution(StaticDistributionCompileInput {
                     data,
@@ -568,11 +562,7 @@ impl CausalAnalysis {
                 let physical = logical.compile_physical(ctx)?;
                 Ok(CompiledAnalysis::Ready(physical))
             }
-            (
-                DataInput::Tabular(data),
-                CausalQuery::PathSpecific(q),
-                GraphInput::Static(graph),
-            ) => {
+            (DataInput::Tabular(data), CausalQuery::PathSpecific(q), GraphInput::Static(graph)) => {
                 let (identifier, estimator) = self.resolve_path_pair();
                 let logical = compile_logical_path_specific(StaticPathSpecificCompileInput {
                     data,
@@ -606,7 +596,7 @@ impl CausalAnalysis {
                 CausalQuery::TemporalEffect(q),
                 GraphInput::DiscoverPcmci { max_lag, alpha, fdr, accept_discovered },
             ) => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let review = run_pcmci_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
                 if *accept_discovered {
                     PendingGraphReview::new(review, data.row_count(), q.clone(), self.split)
@@ -621,7 +611,7 @@ impl CausalAnalysis {
                 CausalQuery::TemporalEffect(q),
                 GraphInput::DiscoverPcmciPlus { max_lag, alpha, fdr, accept_discovered },
             ) => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let review = run_pcmci_plus_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
                 if *accept_discovered && review.pending_undirected.is_empty() {
                     PendingCpdagReview::new(review, data.row_count(), q.clone(), self.split)
@@ -642,16 +632,9 @@ impl CausalAnalysis {
                     multi_dataset,
                 },
             ) => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
-                let review = run_jpcmci_plus_review(
-                    multi,
-                    *max_lag,
-                    *alpha,
-                    *fdr,
-                    multi_dataset,
-                    ci,
-                    ctx,
-                )?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
+                let review =
+                    run_jpcmci_plus_review(multi, *max_lag, *alpha, *fdr, multi_dataset, ci, ctx)?;
                 let data = multi.environment(0).map_err(|e| AnalysisError::Compile {
                     message: format!("jpcmci+ multi-env: {e}"),
                 })?;
@@ -670,9 +653,7 @@ impl CausalAnalysis {
             ) => {
                 let data = &panel
                     .unit(0)
-                    .map_err(|e| AnalysisError::Compile {
-                        message: format!("panel: {e}"),
-                    })?
+                    .map_err(|e| AnalysisError::Compile { message: format!("panel: {e}") })?
                     .series;
                 let logical = compile_logical_temporal_effect_classified(
                     data,
@@ -700,31 +681,18 @@ impl CausalAnalysis {
                 let multi = panel.as_multi_env().map_err(|e| AnalysisError::Compile {
                     message: format!("panel as multi-env: {e}"),
                 })?;
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
-                let review = run_jpcmci_plus_review(
-                    &multi,
-                    *max_lag,
-                    *alpha,
-                    *fdr,
-                    multi_dataset,
-                    ci,
-                    ctx,
-                )?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
+                let review =
+                    run_jpcmci_plus_review(&multi, *max_lag, *alpha, *fdr, multi_dataset, ci, ctx)?;
                 let data = &panel
                     .unit(0)
-                    .map_err(|e| AnalysisError::Compile {
-                        message: format!("panel: {e}"),
-                    })?
+                    .map_err(|e| AnalysisError::Compile { message: format!("panel: {e}") })?
                     .series;
                 if *accept_discovered && review.pending_undirected.is_empty() {
-                    let compiled = PendingCpdagReview::new(
-                        review,
-                        data.row_count(),
-                        q.clone(),
-                        self.split,
-                    )
-                    .accept_all_directed()
-                    .finish(data, ctx)?;
+                    let compiled =
+                        PendingCpdagReview::new(review, data.row_count(), q.clone(), self.split)
+                            .accept_all_directed()
+                            .finish(data, ctx)?;
                     Ok(mark_panel_classification(compiled))
                 } else {
                     Ok(compile_review_required_cpdag(review))
@@ -733,12 +701,7 @@ impl CausalAnalysis {
             (
                 DataInput::Panel(panel),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmci {
-                    max_lag,
-                    alpha,
-                    fdr,
-                    accept_discovered,
-                },
+                GraphInput::DiscoverPcmci { max_lag, alpha, fdr, accept_discovered },
             ) => {
                 let pooled = stack_panel_tabular(panel).map_err(AnalysisError::from)?;
                 let n = pooled.row_count();
@@ -750,13 +713,11 @@ impl CausalAnalysis {
                     },
                 )
                 .map_err(AnalysisError::from)?;
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let review = run_pcmci_review(&series, *max_lag, *alpha, *fdr, ci, ctx)?;
                 let data = &panel
                     .unit(0)
-                    .map_err(|e| AnalysisError::Compile {
-                        message: format!("panel: {e}"),
-                    })?
+                    .map_err(|e| AnalysisError::Compile { message: format!("panel: {e}") })?
                     .series;
                 if *accept_discovered {
                     let compiled =
@@ -771,12 +732,7 @@ impl CausalAnalysis {
             (
                 DataInput::Panel(panel),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmciPlus {
-                    max_lag,
-                    alpha,
-                    fdr,
-                    accept_discovered,
-                },
+                GraphInput::DiscoverPcmciPlus { max_lag, alpha, fdr, accept_discovered },
             ) => {
                 let pooled = stack_panel_tabular(panel).map_err(AnalysisError::from)?;
                 let n = pooled.row_count();
@@ -788,23 +744,17 @@ impl CausalAnalysis {
                     },
                 )
                 .map_err(AnalysisError::from)?;
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let review = run_pcmci_plus_review(&series, *max_lag, *alpha, *fdr, ci, ctx)?;
                 let data = &panel
                     .unit(0)
-                    .map_err(|e| AnalysisError::Compile {
-                        message: format!("panel: {e}"),
-                    })?
+                    .map_err(|e| AnalysisError::Compile { message: format!("panel: {e}") })?
                     .series;
                 if *accept_discovered && review.pending_undirected.is_empty() {
-                    let compiled = PendingCpdagReview::new(
-                        review,
-                        data.row_count(),
-                        q.clone(),
-                        self.split,
-                    )
-                    .accept_all_directed()
-                    .finish(data, ctx)?;
+                    let compiled =
+                        PendingCpdagReview::new(review, data.row_count(), q.clone(), self.split)
+                            .accept_all_directed()
+                            .finish(data, ctx)?;
                     Ok(mark_panel_classification(compiled))
                 } else {
                     Ok(compile_review_required_cpdag(review))
@@ -825,7 +775,7 @@ impl CausalAnalysis {
                     },
                 )
                 .map_err(AnalysisError::from)?;
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let review = run_lpcmci_review(&series, *max_lag, *alpha, *fdr, ci, ctx)?;
                 Ok(compile_review_required_pag(review))
             }
@@ -840,7 +790,7 @@ impl CausalAnalysis {
                     regime_assignment,
                 },
             ) => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let result =
                     run_rpcmci_discovery(data, *max_lag, *alpha, *fdr, regime_assignment, ci, ctx)?;
                 // Multi-regime estimation is not auto-wired; surface the first regime's CPDAG
@@ -876,25 +826,19 @@ impl CausalAnalysis {
                 CausalQuery::TemporalEffect(q),
                 GraphInput::DiscoverLpcmci { max_lag, alpha, fdr, accept_discovered },
             ) => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let review = run_lpcmci_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
                 // Temporal backdoor is DAG-only. Auto-accept only when the PAG is already
                 // fully definite-directed (no circle/ambiguous marks) — never invent orientations.
                 if *accept_discovered && review.is_complete() {
                     match review.graph.try_into_temporal_dag() {
                         Ok(dag) => {
-                            let mut logical = compile_logical_temporal_effect(
-                                data,
-                                &dag,
-                                q,
-                                self.split,
-                                false,
-                            )?;
+                            let mut logical =
+                                compile_logical_temporal_effect(data, &dag, q, self.split, false)?;
                             // Completion→DAG (not class-aware temporal PAG ID).
                             logical.record.discovery_algorithm =
                                 Some(Arc::from("lpcmci.pag_completed_to_dag"));
-                            let physical =
-                                logical.compile_physical_with_graph(ctx, Some(dag))?;
+                            let physical = logical.compile_physical_with_graph(ctx, Some(dag))?;
                             Ok(CompiledAnalysis::Ready(physical))
                         }
                         Err(_) => Ok(compile_review_required_pag(review)),
@@ -913,13 +857,8 @@ impl CausalAnalysis {
                 if review.is_complete() {
                     match review.graph.try_into_temporal_dag() {
                         Ok(dag) => {
-                            let mut logical = compile_logical_temporal_effect(
-                                data,
-                                &dag,
-                                q,
-                                self.split,
-                                false,
-                            )?;
+                            let mut logical =
+                                compile_logical_temporal_effect(data, &dag, q, self.split, false)?;
                             logical.record.discovery_algorithm =
                                 Some(Arc::from("supplied.temporal_pag.completed_to_dag"));
                             let physical = logical.compile_physical_with_graph(ctx, Some(dag))?;
@@ -935,43 +874,33 @@ impl CausalAnalysis {
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(q),
                 GraphInput::TemporalCpdag(cpdag),
-            ) => {
-                match cpdag.try_into_temporal_dag() {
-                    Ok(dag) => {
-                        let logical = compile_logical_temporal_effect(
-                            data,
-                            &dag,
-                            q,
-                            self.split,
-                            false,
-                        )?;
-                        let physical = logical.compile_physical_with_graph(ctx, Some(dag))?;
-                        Ok(CompiledAnalysis::Ready(physical))
-                    }
-                    Err(_) => Ok(compile_review_required_cpdag(
-                        causal_graph::TemporalCpdagReview::from_cpdag(
-                            cpdag.clone(),
-                            "supplied.temporal_cpdag",
-                        ),
-                    )),
+            ) => match cpdag.try_into_temporal_dag() {
+                Ok(dag) => {
+                    let logical =
+                        compile_logical_temporal_effect(data, &dag, q, self.split, false)?;
+                    let physical = logical.compile_physical_with_graph(ctx, Some(dag))?;
+                    Ok(CompiledAnalysis::Ready(physical))
                 }
-            }
+                Err(_) => Ok(compile_review_required_cpdag(
+                    causal_graph::TemporalCpdagReview::from_cpdag(
+                        cpdag.clone(),
+                        "supplied.temporal_cpdag",
+                    ),
+                )),
+            },
             (
                 DataInput::Tabular(data),
                 CausalQuery::AverageEffect(q),
-                GraphInput::DiscoverPc {
-                    alpha,
-                    max_cond_size,
-                    fdr,
-                    accept_discovered,
-                },
+                GraphInput::DiscoverPc { alpha, max_cond_size, fdr, accept_discovered },
             ) => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let review = run_pc_review(data, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 if *accept_discovered && review.pending_undirected.is_empty() {
                     let mut accepted = review;
                     accepted.pending_edges = Arc::from([]);
-                    let dag = accepted.try_into_dag().map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
+                    let dag = accepted
+                        .try_into_dag()
+                        .map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
                     let mut logical = compile_logical_static_ate(StaticAteCompileInput {
@@ -983,8 +912,7 @@ impl CausalAnalysis {
                         estimator,
                     })?;
                     logical.record.discovery_algorithm = Some(Arc::from("pc"));
-                    let physical =
-                        logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
+                    let physical = logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
                     Ok(CompiledAnalysis::Ready(physical))
                 } else {
                     Ok(compile_review_required_static_cpdag(review))
@@ -993,19 +921,16 @@ impl CausalAnalysis {
             (
                 DataInput::Tabular(data),
                 CausalQuery::AverageEffect(q),
-                GraphInput::DiscoverGes {
-                    alpha,
-                    max_cond_size,
-                    fdr,
-                    accept_discovered,
-                },
+                GraphInput::DiscoverGes { alpha, max_cond_size, fdr, accept_discovered },
             ) => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let review = run_ges_review(data, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 if *accept_discovered && review.pending_undirected.is_empty() {
                     let mut accepted = review;
                     accepted.pending_edges = Arc::from([]);
-                    let dag = accepted.try_into_dag().map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
+                    let dag = accepted
+                        .try_into_dag()
+                        .map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
                     let mut logical = compile_logical_static_ate(StaticAteCompileInput {
@@ -1017,8 +942,7 @@ impl CausalAnalysis {
                         estimator,
                     })?;
                     logical.record.discovery_algorithm = Some(Arc::from("ges"));
-                    let physical =
-                        logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
+                    let physical = logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
                     Ok(CompiledAnalysis::Ready(physical))
                 } else {
                     Ok(compile_review_required_static_cpdag(review))
@@ -1027,17 +951,14 @@ impl CausalAnalysis {
             (
                 DataInput::Tabular(data),
                 CausalQuery::AverageEffect(q),
-                GraphInput::DiscoverLingam {
-                    max_cond_size,
-                    prune_threshold,
-                    accept_discovered,
-                },
+                GraphInput::DiscoverLingam { max_cond_size, prune_threshold, accept_discovered },
             ) => {
                 let review = run_lingam_review(data, *max_cond_size, *prune_threshold, ctx)?;
                 if *accept_discovered {
-                    let dag = review.accept_all().try_into_dag().map_err(|e| {
-                        AnalysisError::review_required_msg(e.to_string())
-                    })?;
+                    let dag = review
+                        .accept_all()
+                        .try_into_dag()
+                        .map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
                     let mut logical = compile_logical_static_ate(StaticAteCompileInput {
@@ -1049,8 +970,7 @@ impl CausalAnalysis {
                         estimator,
                     })?;
                     logical.record.discovery_algorithm = Some(Arc::from("direct_lingam"));
-                    let physical =
-                        logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
+                    let physical = logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
                     Ok(CompiledAnalysis::Ready(physical))
                 } else {
                     Ok(compile_review_required_static_dag(review))
@@ -1076,9 +996,10 @@ impl CausalAnalysis {
                     ctx,
                 )?;
                 if *accept_discovered {
-                    let dag = review.accept_all().try_into_dag().map_err(|e| {
-                        AnalysisError::review_required_msg(e.to_string())
-                    })?;
+                    let dag = review
+                        .accept_all()
+                        .try_into_dag()
+                        .map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
                     let mut logical = compile_logical_static_ate(StaticAteCompileInput {
@@ -1090,8 +1011,7 @@ impl CausalAnalysis {
                         estimator,
                     })?;
                     logical.record.discovery_algorithm = Some(Arc::from("notears"));
-                    let physical =
-                        logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
+                    let physical = logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
                     Ok(CompiledAnalysis::Ready(physical))
                 } else {
                     Ok(compile_review_required_static_dag(review))
@@ -1108,14 +1028,9 @@ impl CausalAnalysis {
             (
                 DataInput::Tabular(data),
                 CausalQuery::AverageEffect(q),
-                graph @ GraphInput::DiscoverFci {
-                    alpha,
-                    max_cond_size,
-                    fdr,
-                    accept_discovered,
-                },
+                graph @ GraphInput::DiscoverFci { alpha, max_cond_size, fdr, accept_discovered },
             ) => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let (identifier, estimator) = self.resolve_pag_pair();
                 reject_dag_only_on_pag(graph, IdentifierId::parse(&identifier))?;
                 let review = run_fci_review(data, *alpha, *max_cond_size, *fdr, ci, ctx)?;
@@ -1146,14 +1061,9 @@ impl CausalAnalysis {
             (
                 DataInput::Tabular(data),
                 CausalQuery::AverageEffect(q),
-                graph @ GraphInput::DiscoverRfci {
-                    alpha,
-                    max_cond_size,
-                    fdr,
-                    accept_discovered,
-                },
+                graph @ GraphInput::DiscoverRfci { alpha, max_cond_size, fdr, accept_discovered },
             ) => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let (identifier, estimator) = self.resolve_pag_pair();
                 reject_dag_only_on_pag(graph, IdentifierId::parse(&identifier))?;
                 let review = run_rfci_review(data, *alpha, *max_cond_size, *fdr, ci, ctx)?;
@@ -1216,21 +1126,7 @@ impl CausalAnalysis {
                 }
             }
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Admg(admg)) => {
-                if !admg_has_bidirected(admg) {
-                    let dag = admg_to_dag(admg)?;
-                    let (identifier, estimator) = self.resolve_static_pair();
-                    self.ensure_rd_config_present(&estimator)?;
-                    let logical = compile_logical_static_ate(StaticAteCompileInput {
-                        data,
-                        graph: &dag,
-                        query: q,
-                        validation_suite: self.validation_suite_id(),
-                        identifier,
-                        estimator,
-                    })?;
-                    let physical = logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
-                    Ok(CompiledAnalysis::Ready(physical))
-                } else {
+                if admg_has_bidirected(admg) {
                     let (identifier, estimator) = self.resolve_admg_pair();
                     validate_static_pair(
                         IdentifierId::parse(&identifier),
@@ -1256,6 +1152,20 @@ impl CausalAnalysis {
                     logical.validate()?;
                     let physical = logical.compile_physical(ctx)?;
                     Ok(CompiledAnalysis::Ready(physical))
+                } else {
+                    let dag = admg_to_dag(admg)?;
+                    let (identifier, estimator) = self.resolve_static_pair();
+                    self.ensure_rd_config_present(&estimator)?;
+                    let logical = compile_logical_static_ate(StaticAteCompileInput {
+                        data,
+                        graph: &dag,
+                        query: q,
+                        validation_suite: self.validation_suite_id(),
+                        identifier,
+                        estimator,
+                    })?;
+                    let physical = logical.compile_physical_with_graphs(ctx, None, Some(dag))?;
+                    Ok(CompiledAnalysis::Ready(physical))
                 }
             }
             (
@@ -1274,7 +1184,8 @@ impl CausalAnalysis {
                 })?;
                 logical.record.plan_id = Arc::from("static_conditional");
                 logical.query = CausalQuery::ConditionalEffect(q.clone());
-                let physical = logical.compile_physical_with_graphs(ctx, None, Some(graph.clone()))?;
+                let physical =
+                    logical.compile_physical_with_graphs(ctx, None, Some(graph.clone()))?;
                 Ok(CompiledAnalysis::Ready(physical))
             }
             (
@@ -1295,15 +1206,10 @@ impl CausalAnalysis {
                 logical.record.estimator = Some(Arc::from("temporal.mediation"));
                 logical.record.query_variables = Arc::from([q.treatment, q.outcome]);
                 logical.query = CausalQuery::Mediation(q.clone());
-                let physical =
-                    logical.compile_physical_with_graph(ctx, Some(graph.clone()))?;
+                let physical = logical.compile_physical_with_graph(ctx, Some(graph.clone()))?;
                 Ok(CompiledAnalysis::Ready(physical))
             }
-            (
-                DataInput::Tabular(data),
-                CausalQuery::Mediation(q),
-                GraphInput::Static(graph),
-            ) => {
+            (DataInput::Tabular(data), CausalQuery::Mediation(q), GraphInput::Static(graph)) => {
                 q.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
                 if !matches!(q.contrast, MediationContrast::Total) {
                     return Err(AnalysisError::Unsupported {
@@ -1323,7 +1229,8 @@ impl CausalAnalysis {
                 })?;
                 logical.record.plan_id = Arc::from("static_mediation_total");
                 logical.query = CausalQuery::Mediation(q.clone());
-                let physical = logical.compile_physical_with_graphs(ctx, None, Some(graph.clone()))?;
+                let physical =
+                    logical.compile_physical_with_graphs(ctx, None, Some(graph.clone()))?;
                 Ok(CompiledAnalysis::Ready(physical))
             }
             (
@@ -1357,14 +1264,22 @@ impl CausalAnalysis {
 
     fn ensure_supported_combination(&self) -> Result<(), AnalysisError> {
         match (&self.data, &self.query, &self.graph) {
-            (DataInput::Tabular(_), CausalQuery::Distribution(_), GraphInput::Static(_)) => {}
-            (_, CausalQuery::Distribution(_), _) => {
+            (_, CausalQuery::Distribution(_), graph)
+                if !matches!(
+                    (&self.data, graph),
+                    (DataInput::Tabular(_), GraphInput::Static(_))
+                ) =>
+            {
                 return Err(AnalysisError::Unsupported {
                     message: "CausalQuery::Distribution requires tabular data and a static DAG",
                 });
             }
-            (DataInput::Tabular(_), CausalQuery::PathSpecific(_), GraphInput::Static(_)) => {}
-            (_, CausalQuery::PathSpecific(_), _) => {
+            (_, CausalQuery::PathSpecific(_), graph)
+                if !matches!(
+                    (&self.data, graph),
+                    (DataInput::Tabular(_), GraphInput::Static(_))
+                ) =>
+            {
                 return Err(AnalysisError::Unsupported {
                     message: "CausalQuery::PathSpecific requires tabular data and a static DAG",
                 });
@@ -1374,13 +1289,11 @@ impl CausalAnalysis {
                     message: "temporal effect query requires temporal data".into(),
                 });
             }
-            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::AverageEffect(_), _) => {
-                return Err(AnalysisError::Compile {
-                    message: "static ATE on temporal data is unsupported; use TemporalEffect"
-                        .into(),
-                });
-            }
-            (DataInput::MultiEnv(_), CausalQuery::AverageEffect(_), _) => {
+            (
+                DataInput::Temporal(_) | DataInput::Event(_) | DataInput::MultiEnv(_),
+                CausalQuery::AverageEffect(_),
+                _,
+            ) => {
                 return Err(AnalysisError::Compile {
                     message: "static ATE on temporal data is unsupported; use TemporalEffect"
                         .into(),
@@ -1388,8 +1301,7 @@ impl CausalAnalysis {
             }
             (DataInput::Panel(_), CausalQuery::AverageEffect(_), _) => {
                 return Err(AnalysisError::Compile {
-                    message: "static ATE on panel data is unsupported; use TemporalEffect"
-                        .into(),
+                    message: "static ATE on panel data is unsupported; use TemporalEffect".into(),
                 });
             }
             (
@@ -1408,30 +1320,35 @@ impl CausalAnalysis {
                             .into(),
                 });
             }
-            (DataInput::Temporal(_) | DataInput::Event(_), _, GraphInput::DiscoverPc { .. })
-            | (DataInput::MultiEnv(_), _, GraphInput::DiscoverPc { .. })
-            | (DataInput::Temporal(_) | DataInput::Event(_), _, GraphInput::DiscoverGes { .. })
-            | (DataInput::MultiEnv(_), _, GraphInput::DiscoverGes { .. })
-            | (DataInput::Temporal(_) | DataInput::Event(_), _, GraphInput::DiscoverLingam { .. })
-            | (DataInput::MultiEnv(_), _, GraphInput::DiscoverLingam { .. })
-            | (DataInput::Temporal(_) | DataInput::Event(_), _, GraphInput::DiscoverNotears { .. })
-            | (DataInput::MultiEnv(_), _, GraphInput::DiscoverNotears { .. })
-            | (DataInput::Temporal(_) | DataInput::Event(_), _, GraphInput::DiscoverFci { .. })
-            | (DataInput::MultiEnv(_), _, GraphInput::DiscoverFci { .. })
-            | (DataInput::Temporal(_) | DataInput::Event(_), _, GraphInput::DiscoverRfci { .. })
-            | (DataInput::MultiEnv(_), _, GraphInput::DiscoverRfci { .. }) => {
+            (
+                DataInput::Temporal(_) | DataInput::Event(_) | DataInput::MultiEnv(_),
+                _,
+                GraphInput::DiscoverPc { .. }
+                | GraphInput::DiscoverGes { .. }
+                | GraphInput::DiscoverLingam { .. }
+                | GraphInput::DiscoverNotears { .. }
+                | GraphInput::DiscoverFci { .. }
+                | GraphInput::DiscoverRfci { .. },
+            ) => {
                 return Err(AnalysisError::Compile {
                     message: "static PC/GES/LiNGAM/NOTEARS/FCI/RFCI discovery requires tabular data and AverageEffect"
                         .into(),
                 });
             }
-            (DataInput::Temporal(_) | DataInput::Event(_), _, GraphInput::DiscoverJpcmciPlus { .. }) => {
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                _,
+                GraphInput::DiscoverJpcmciPlus { .. },
+            ) => {
                 return Err(AnalysisError::Compile {
-                    message: "J-PCMCI+ discovery requires series_multi (MultiEnvironmentData) or panel"
-                        .into(),
+                    message:
+                        "J-PCMCI+ discovery requires series_multi (MultiEnvironmentData) or panel"
+                            .into(),
                 });
             }
-            (DataInput::MultiEnv(_), _, graph) if !matches!(graph, GraphInput::DiscoverJpcmciPlus { .. }) => {
+            (DataInput::MultiEnv(_), _, graph)
+                if !matches!(graph, GraphInput::DiscoverJpcmciPlus { .. }) =>
+            {
                 return Err(AnalysisError::Compile {
                     message: "multi-environment data currently supports only DiscoverJpcmciPlus"
                         .into(),
@@ -1453,12 +1370,11 @@ impl CausalAnalysis {
                         .into(),
                 });
             }
-            (DataInput::Temporal(_) | DataInput::Event(_), _, GraphInput::Pag(_)) => {
-                return Err(AnalysisError::Compile {
-                    message: "static Pag requires tabular data and an average-effect query".into(),
-                });
-            }
-            (DataInput::MultiEnv(_), _, GraphInput::Pag(_)) => {
+            (
+                DataInput::Temporal(_) | DataInput::Event(_) | DataInput::MultiEnv(_),
+                _,
+                GraphInput::Pag(_),
+            ) => {
                 return Err(AnalysisError::Compile {
                     message: "static Pag requires tabular data and an average-effect query".into(),
                 });
@@ -1467,27 +1383,6 @@ impl CausalAnalysis {
                 let (identifier, _) = self.resolve_pag_pair();
                 reject_dag_only_on_pag(&self.graph, IdentifierId::parse(&identifier))?;
             }
-            (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_), GraphInput::Static(_)) => {}
-            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_), GraphInput::Temporal(_)) => {}
-            (DataInput::Panel(_), CausalQuery::TemporalEffect(_), GraphInput::Temporal(_)) => {}
-            (DataInput::Panel(_), CausalQuery::TemporalEffect(_), GraphInput::DiscoverJpcmciPlus { .. }) => {}
-            (
-                DataInput::Panel(_),
-                CausalQuery::TemporalEffect(_),
-                GraphInput::DiscoverPcmci { .. }
-                    | GraphInput::DiscoverPcmciPlus { .. }
-                    | GraphInput::DiscoverLpcmci { .. },
-            ) => {}
-            (DataInput::Tabular(_), CausalQuery::Mediation(_), GraphInput::Static(_)) => {}
-            (
-                DataInput::Tabular(_),
-                CausalQuery::Counterfactual(_)
-                | CausalQuery::AnomalyAttribution(_)
-                | CausalQuery::ChangeAttribution(_)
-                | CausalQuery::MechanismChange(_)
-                | CausalQuery::UnitChange(_),
-                GraphInput::Static(_),
-            ) => {}
             _ => {}
         }
         // The temporal path is linear/temporal-backdoor only; refuse an explicitly
@@ -1627,56 +1522,51 @@ impl CausalAnalysis {
         };
         ensure_review_complete(&physical.logical)?;
         match (&self.data, &self.query) {
-            (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => {
-                match &self.graph {
-                    GraphInput::Static(graph) => {
-                        self.execute_static(data, graph, q, physical, ctx)
-                    }
-                    GraphInput::DiscoverPc { .. }
-                    | GraphInput::DiscoverGes { .. }
-                    | GraphInput::DiscoverLingam { .. }
-                    | GraphInput::DiscoverNotears { .. }
-                    | GraphInput::Cpdag(_) => {
-                        let graph = physical.static_graph().ok_or(AnalysisError::Compile {
+            (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => match &self.graph {
+                GraphInput::Static(graph) => self.execute_static(data, graph, q, physical, ctx),
+                GraphInput::DiscoverPc { .. }
+                | GraphInput::DiscoverGes { .. }
+                | GraphInput::DiscoverLingam { .. }
+                | GraphInput::DiscoverNotears { .. }
+                | GraphInput::Cpdag(_) => {
+                    let graph = physical.static_graph().ok_or(AnalysisError::Compile {
                             message:
                                 "Ready PC/GES/LiNGAM/NOTEARS/CPDAG plan missing resolved static DAG (complete review first)"
                                     .into(),
                         })?;
+                    self.execute_static(data, graph, q, physical, ctx)
+                }
+                GraphInput::Admg(admg) => {
+                    if admg_has_bidirected(admg) {
+                        self.execute_admg(data, admg, q, physical, ctx)
+                    } else {
+                        let graph = physical.static_graph().ok_or(AnalysisError::Compile {
+                            message: "Ready ADMG (DAG-coerced) plan missing resolved static DAG"
+                                .into(),
+                        })?;
                         self.execute_static(data, graph, q, physical, ctx)
                     }
-                    GraphInput::Admg(admg) => {
-                        if !admg_has_bidirected(admg) {
-                            let graph = physical.static_graph().ok_or(AnalysisError::Compile {
-                                message: "Ready ADMG (DAG-coerced) plan missing resolved static DAG"
-                                    .into(),
-                            })?;
-                            self.execute_static(data, graph, q, physical, ctx)
-                        } else {
-                            self.execute_admg(data, admg, q, physical, ctx)
-                        }
-                    }
-                    GraphInput::Pag(_)
-                    | GraphInput::DiscoverFci { .. }
-                    | GraphInput::DiscoverRfci { .. } => {
-                        let pag = physical.static_pag().ok_or(AnalysisError::Compile {
-                            message:
-                                "Ready PAG plan missing resolved static PAG (complete review first)"
-                                    .into(),
-                        })?;
-                        self.execute_pag(data, pag, q, physical, ctx)
-                    }
-                    GraphInput::DiscoverExactDagPosterior
-                    | GraphInput::DiscoverOrderMcmc { .. }
-                    | GraphInput::DiscoverStructureMcmc { .. }
-                    | GraphInput::DiscoverCiScreenedPosterior { .. } => {
-                        self.execute_graph_posterior_bayesian(data, q, physical, ctx)
-                    }
-                    _ => Err(AnalysisError::Unsupported {
-                        message:
-                            "static ATE execute requires a supplied static DAG/PAG/CPDAG/ADMG or DiscoverPc/Ges/Lingam/Notears/Fci/Rfci/graph-posterior",
-                    }),
                 }
-            }
+                GraphInput::Pag(_)
+                | GraphInput::DiscoverFci { .. }
+                | GraphInput::DiscoverRfci { .. } => {
+                    let pag = physical.static_pag().ok_or(AnalysisError::Compile {
+                        message:
+                            "Ready PAG plan missing resolved static PAG (complete review first)"
+                                .into(),
+                    })?;
+                    self.execute_pag(data, pag, q, physical, ctx)
+                }
+                GraphInput::DiscoverExactDagPosterior
+                | GraphInput::DiscoverOrderMcmc { .. }
+                | GraphInput::DiscoverStructureMcmc { .. }
+                | GraphInput::DiscoverCiScreenedPosterior { .. } => {
+                    self.execute_graph_posterior_bayesian(data, q, physical, ctx)
+                }
+                _ => Err(AnalysisError::Unsupported {
+                    message: "static ATE execute requires a supplied static DAG/PAG/CPDAG/ADMG or DiscoverPc/Ges/Lingam/Notears/Fci/Rfci/graph-posterior",
+                }),
+            },
             (DataInput::Tabular(data), CausalQuery::Distribution(q)) => {
                 let GraphInput::Static(graph) = &self.graph else {
                     return Err(AnalysisError::Unsupported {
@@ -1755,7 +1645,10 @@ impl CausalAnalysis {
                 };
                 self.execute_unit_change(data, graph, q, physical, ctx)
             }
-            (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::TemporalEffect(q)) => {
+            (
+                DataInput::Temporal(data) | DataInput::Event(data),
+                CausalQuery::TemporalEffect(q),
+            ) => {
                 if matches!(self.graph, GraphInput::DiscoverDbnPosterior { .. }) {
                     return self.execute_dbn_posterior_bayesian(data, q, physical, ctx);
                 }
@@ -1906,7 +1799,7 @@ impl CausalAnalysis {
                 self.refute,
                 estimator,
                 &self.custom_validators,
-            None,
+                None,
             )?
         };
 
@@ -1917,7 +1810,8 @@ impl CausalAnalysis {
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
         );
 
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -1957,12 +1851,8 @@ impl CausalAnalysis {
             .identifier
             .as_deref()
             .unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER);
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
+        let estimator =
+            physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
         if !matches!(EstimatorId::parse(estimator), EstimatorId::FunctionalDistribution) {
             return Err(AnalysisError::Compile {
                 message: format!(
@@ -1980,7 +1870,13 @@ impl CausalAnalysis {
             ..FunctionalDistribution::new()
         };
         let prepared = est
-            .prepare(data, query, &estimand, &identification.arena, identification.required_assumptions.clone())
+            .prepare(
+                data,
+                query,
+                &estimand,
+                &identification.arena,
+                identification.required_assumptions.clone(),
+            )
             .map_err(AnalysisError::from)?;
         let mut ws = FunctionalDistributionWorkspace::default();
         let dist = est.estimate(&prepared, &[], &mut ws, ctx).map_err(AnalysisError::from)?;
@@ -1997,12 +1893,11 @@ impl CausalAnalysis {
             retained_memory_bytes: dist.retained_memory_bytes,
         };
 
-        let treatment = query
-            .interventions
-            .first()
-            .and_then(|iv| iv.primary_variable())
-            .ok_or_else(|| AnalysisError::Compile {
-                message: "distribution query missing intervention target".into(),
+        let treatment =
+            query.interventions.first().and_then(Intervention::primary_variable).ok_or_else(|| {
+                AnalysisError::Compile {
+                    message: "distribution query missing intervention target".into(),
+                }
             })?;
         let outcome = *query.outcomes.first().ok_or_else(|| AnalysisError::Compile {
             message: "distribution query missing outcome".into(),
@@ -2024,7 +1919,7 @@ impl CausalAnalysis {
                 self.refute,
                 estimator,
                 &self.custom_validators,
-            None,
+                None,
             )?
         } else {
             diagnostics.push(Diagnostic::new(
@@ -2043,7 +1938,8 @@ impl CausalAnalysis {
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
         );
 
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -2136,7 +2032,8 @@ impl CausalAnalysis {
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
         );
 
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -2210,7 +2107,7 @@ impl CausalAnalysis {
                 self.refute,
                 "bayesian.gcomp",
                 &self.custom_validators,
-            None,
+                None,
             )?,
         };
         // Prior + posterior PPC whenever refute is enabled (full PredictiveCheckReport retained).
@@ -2266,7 +2163,8 @@ impl CausalAnalysis {
             ),
         );
 
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         let mut result = assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -2343,7 +2241,8 @@ impl CausalAnalysis {
             ("estimate.rd", "estimate.rd_sharp", &["identify.rd_design"], &estimate.assumptions),
         );
 
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -2376,8 +2275,7 @@ impl CausalAnalysis {
         if matches!(self.inference, InferenceMode::Frequentist) {
             return Err(AnalysisError::Unsupported {
                 message:
-                    "DBN graph-posterior discovery requires inference=Bayesian for effect mixture"
-                        .into(),
+                    "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
             });
         }
         let class = match &self.data {
@@ -2410,8 +2308,7 @@ impl CausalAnalysis {
             InferenceMode::Frequentist => {
                 return Err(AnalysisError::Unsupported {
                     message:
-                        "DBN graph-posterior discovery requires inference=Bayesian for effect mixture"
-                            .into(),
+                        "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
                 });
             }
         };
@@ -2431,21 +2328,8 @@ impl CausalAnalysis {
         };
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
         let params = BayesianDiscoverParams::default();
-        let schedule = GraphMcmcSchedule {
-            n_chains,
-            n_warmup,
-            n_draws,
-            thin: 1,
-        };
-        let gp = discover_dbn_posterior(
-            data,
-            &vars,
-            &params,
-            max_lag,
-            force_mcmc,
-            &schedule,
-            ctx,
-        )?;
+        let schedule = GraphMcmcSchedule { n_chains, n_warmup, n_draws, thin: 1 };
+        let gp = discover_dbn_posterior(data, &vars, &params, max_lag, force_mcmc, &schedule, ctx)?;
         let lag_masks = gp.lag_masks.as_ref().ok_or_else(|| AnalysisError::Compile {
             message: "DBN posterior missing per-atom lag masks".into(),
         })?;
@@ -2475,35 +2359,27 @@ impl CausalAnalysis {
             let key = gp.graph_keys[i];
             keys.push(key);
             weights.push(gp.weights[i]);
-            let tdag = match temporal_dag_from_dbn_masks(cmask, lmask, gp.n_vars, max_lag, &vars) {
-                Ok(g) => g,
-                Err(_) => {
-                    flags.push(GraphIdentFlag::Unidentified);
-                    continue;
-                }
+            let Ok(tdag) = temporal_dag_from_dbn_masks(cmask, lmask, gp.n_vars, max_lag, &vars) else {
+                flags.push(GraphIdentFlag::Unidentified);
+                continue;
             };
-            let id_res = match TemporalBackdoorIdentifier::new().identify_temporal(&tdag, query) {
-                Ok(r) => r,
-                Err(_) => {
-                    flags.push(GraphIdentFlag::Unidentified);
-                    continue;
-                }
+            let Ok(id_res) = TemporalBackdoorIdentifier::new().identify_temporal(&tdag, query) else {
+                flags.push(GraphIdentFlag::Unidentified);
+                continue;
             };
             let identification = id_res.result;
-            if !identification_status_ok_for_case(&identification.status)
+            if !identification_status_ok_for_case(identification.status)
                 || identification.estimands.is_empty()
             {
                 flags.push(GraphIdentFlag::Unidentified);
                 continue;
             }
-            let estimand =
-                match select_estimand(&identification, EstimatorId::TemporalLinearAdjustment) {
-                    Ok(e) => e,
-                    Err(_) => {
-                        flags.push(GraphIdentFlag::Unidentified);
-                        continue;
-                    }
-                };
+            let Ok(estimand) =
+                select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)
+            else {
+                flags.push(GraphIdentFlag::Unidentified);
+                continue;
+            };
             flags.push(GraphIdentFlag::Identified);
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
@@ -2511,57 +2387,43 @@ impl CausalAnalysis {
             }
             let mut temporal_est = TemporalLinearAdjustment::new();
             temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
-            let prep = match temporal_est.prepare(
+            let Ok(prep) = temporal_est.prepare(
                 data,
                 &estimand,
                 query,
                 &id_res.indexer,
                 self.split.as_ref(),
                 &ctx.kernel_policy,
-            ) {
-                Ok(p) => p,
-                Err(_) => {
-                    // Already pushed Identified — fix by continuing without draws.
-                    // Re-mark last flag as Unidentified.
-                    if let Some(f) = flags.last_mut() {
-                        *f = GraphIdentFlag::Unidentified;
-                    }
-                    continue;
+            ) else {
+                // Already pushed Identified — fix by continuing without draws.
+                // Re-mark last flag as Unidentified.
+                if let Some(f) = flags.last_mut() {
+                    *f = GraphIdentFlag::Unidentified;
                 }
+                continue;
             };
             let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
             let mut ws = BayesianGCompWorkspace::default();
-            let posterior = match bayes.fit(&bprep, identification.status, &mut ws, ctx) {
-                Ok(p) => p,
-                Err(_) => {
-                    if let Some(f) = flags.last_mut() {
-                        *f = GraphIdentFlag::Unidentified;
-                    }
-                    continue;
+            let Ok(posterior) = bayes.fit(&bprep, identification.status, &mut ws, ctx) else {
+                if let Some(f) = flags.last_mut() {
+                    *f = GraphIdentFlag::Unidentified;
                 }
+                continue;
             };
-            let col = match posterior.effect_column() {
-                Some(c) => c,
-                None => {
-                    if let Some(f) = flags.last_mut() {
-                        *f = GraphIdentFlag::Unidentified;
-                    }
-                    continue;
+            let Some(col) = posterior.effect_column() else {
+                if let Some(f) = flags.last_mut() {
+                    *f = GraphIdentFlag::Unidentified;
                 }
+                continue;
             };
-            let draws = match posterior.draws.column(col) {
-                Ok(d) => d.to_vec(),
-                Err(_) => {
-                    if let Some(f) = flags.last_mut() {
-                        *f = GraphIdentFlag::Unidentified;
-                    }
-                    continue;
+            let Ok(d) = posterior.draws.column(col) else {
+                if let Some(f) = flags.last_mut() {
+                    *f = GraphIdentFlag::Unidentified;
                 }
+                continue;
             };
-            per_graph.push(GraphEffectDraws {
-                graph_key: key,
-                effect_draws: Arc::from(draws),
-            });
+            let draws = d.to_vec();
+            per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
         }
 
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
@@ -2591,12 +2453,7 @@ impl CausalAnalysis {
         ));
 
         let provenance = provenance_pair(
-            (
-                "discover.dbn_posterior",
-                "dbn_posterior",
-                &[],
-                &identification.required_assumptions,
-            ),
+            ("discover.dbn_posterior", "dbn_posterior", &[], &identification.required_assumptions),
             (
                 "estimate.aggregate_effect_envelope",
                 "estimate.bayesian.temporal.gcomp",
@@ -2604,7 +2461,8 @@ impl CausalAnalysis {
                 &estimate.assumptions,
             ),
         );
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -2806,7 +2664,8 @@ impl CausalAnalysis {
             }
         }
 
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -2952,7 +2811,8 @@ impl CausalAnalysis {
             Some(temporal_ctx),
         )?;
 
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -3000,9 +2860,7 @@ impl CausalAnalysis {
             .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR);
         if !matches!(EstimatorId::parse(estimator), EstimatorId::FunctionalEffect) {
             return Err(AnalysisError::Compile {
-                message: format!(
-                    "ADMG ATE requires estimator functional.effect; got {estimator}"
-                ),
+                message: format!("ADMG ATE requires estimator functional.effect; got {estimator}"),
             });
         }
 
@@ -3048,7 +2906,8 @@ impl CausalAnalysis {
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
         );
 
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -3102,13 +2961,8 @@ impl CausalAnalysis {
             if matches!(self.inference, InferenceMode::Bayesian(_))
                 || matches!(estimator_id, EstimatorId::BayesianGcomp)
             {
-                return self.execute_pag_nonidentified_prior(
-                    query,
-                    physical,
-                    ctx,
-                    &envelope,
-                    started,
-                );
+                return self
+                    .execute_pag_nonidentified_prior(query, physical, ctx, &envelope, started);
             }
             return Err(AnalysisError::Compile {
                 message: "PAG effect not identified (no identified mass in envelope)".into(),
@@ -3148,7 +3002,7 @@ impl CausalAnalysis {
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut assumptions = causal_core::AssumptionSet::default();
         for (i, case) in envelope.cases.iter().enumerate() {
-            if !identification_status_ok_for_case(&case.result.status)
+            if !identification_status_ok_for_case(case.result.status)
                 || case.result.estimands.is_empty()
             {
                 continue;
@@ -3182,7 +3036,7 @@ impl CausalAnalysis {
             }
             let _ = i;
         }
-        if !(total_w > 0.0) {
+        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
             return Err(AnalysisError::Compile {
                 message: "PAG envelope had no estimable identified cases".into(),
             });
@@ -3223,7 +3077,8 @@ impl CausalAnalysis {
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
         );
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -3271,13 +3126,17 @@ impl CausalAnalysis {
         let posterior = nonidentified_with_prior(
             &prior,
             InferenceDiagnostics::analytic("pag_nonidentified_prior"),
-            cfg.n_draws.max(1) as usize,
+            cfg.n_draws.max(1),
             ctx.rng.master_seed(),
         );
         let estimate = effect_from_posterior(&posterior)?;
         let identification = envelope_to_identification_result(envelope, query);
         let estimand = envelope.invariant.clone().unwrap_or_else(|| {
-            IdentifiedEstimand::backdoor("pag.nonidentified", Arc::from([]), causal_expr::ExprId::from_raw(0))
+            IdentifiedEstimand::backdoor(
+                "pag.nonidentified",
+                Arc::from([]),
+                causal_expr::ExprId::from_raw(0),
+            )
         });
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(Diagnostic::new(
@@ -3336,9 +3195,7 @@ impl CausalAnalysis {
     ) -> Result<CompiledAnalysis, AnalysisError> {
         if matches!(self.inference, InferenceMode::Frequentist) {
             return Err(AnalysisError::Unsupported {
-                message:
-                    "graph-posterior discovery requires inference=Bayesian for effect mixture"
-                        .into(),
+                message: "graph-posterior discovery requires inference=Bayesian for effect mixture",
             });
         }
         let algo = match &self.graph {
@@ -3391,21 +3248,9 @@ impl CausalAnalysis {
                     n_draws: *n_draws,
                     thin: *thin,
                 };
-                discover_order_mcmc(
-                    data,
-                    &vars,
-                    &params,
-                    &schedule,
-                    *require_diagnostics_gate,
-                    ctx,
-                )
+                discover_order_mcmc(data, &vars, &params, &schedule, *require_diagnostics_gate, ctx)
             }
-            GraphInput::DiscoverStructureMcmc {
-                n_chains,
-                n_warmup,
-                n_draws,
-                thin,
-            } => {
+            GraphInput::DiscoverStructureMcmc { n_chains, n_warmup, n_draws, thin } => {
                 let schedule = GraphMcmcSchedule {
                     n_chains: *n_chains,
                     n_warmup: *n_warmup,
@@ -3424,7 +3269,7 @@ impl CausalAnalysis {
                 n_draws,
                 thin,
             } => {
-                let ci = resolve_analysis_ci(&self.discovery_ci)?;
+                let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let screen = StaticDiscoverParams {
                     alpha: *alpha,
                     max_cond_size: *max_cond_size,
@@ -3468,8 +3313,7 @@ impl CausalAnalysis {
             InferenceMode::Frequentist => {
                 return Err(AnalysisError::Unsupported {
                     message:
-                        "graph-posterior discovery requires inference=Bayesian for effect mixture"
-                            .into(),
+                        "graph-posterior discovery requires inference=Bayesian for effect mixture",
                 });
             }
         };
@@ -3496,21 +3340,15 @@ impl CausalAnalysis {
             let key = gp.graph_keys[i];
             keys.push(key);
             weights.push(gp.weights[i]);
-            let dag = match dag_from_adjacency_mask(mask, gp.n_vars) {
-                Ok(d) => d,
-                Err(_) => {
-                    flags.push(GraphIdentFlag::Unidentified);
-                    continue;
-                }
+            let Ok(dag) = dag_from_adjacency_mask(mask, gp.n_vars) else {
+                flags.push(GraphIdentFlag::Unidentified);
+                continue;
             };
-            let identification = match identify_static(DEFAULT_IDENTIFIER, &dag, query) {
-                Ok(id) => id,
-                Err(_) => {
-                    flags.push(GraphIdentFlag::Unidentified);
-                    continue;
-                }
+            let Ok(identification) = identify_static(DEFAULT_IDENTIFIER, &dag, query) else {
+                flags.push(GraphIdentFlag::Unidentified);
+                continue;
             };
-            if identification_status_ok_for_case(&identification.status)
+            if identification_status_ok_for_case(identification.status)
                 && !identification.estimands.is_empty()
             {
                 flags.push(GraphIdentFlag::Identified);
@@ -3532,10 +3370,7 @@ impl CausalAnalysis {
                     .column(col)
                     .map_err(|e| AnalysisError::Compile { message: e.to_string() })?
                     .to_vec();
-                per_graph.push(GraphEffectDraws {
-                    graph_key: key,
-                    effect_draws: Arc::from(draws),
-                });
+                per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
             } else {
                 flags.push(GraphIdentFlag::Unidentified);
             }
@@ -3580,23 +3415,14 @@ impl CausalAnalysis {
                 self.refute,
                 "bayesian.gcomp",
                 &self.custom_validators,
-            None,
+                None,
             )?,
         };
 
-        let algo = physical
-            .logical
-            .record
-            .discovery_algorithm
-            .as_deref()
-            .unwrap_or("graph_posterior");
+        let algo =
+            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
         let provenance = provenance_pair(
-            (
-                "discover.graph_posterior",
-                algo,
-                &[],
-                &identification.required_assumptions,
-            ),
+            ("discover.graph_posterior", algo, &[], &identification.required_assumptions),
             (
                 "estimate.aggregate_effect_envelope",
                 "estimate.bayesian_gcomp",
@@ -3605,7 +3431,8 @@ impl CausalAnalysis {
             ),
         );
 
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -3662,7 +3489,7 @@ impl CausalAnalysis {
             let key = i as u64 + 1;
             keys.push(key);
             weights.push(case.weight.0);
-            if identification_status_ok_for_case(&case.result.status)
+            if identification_status_ok_for_case(case.result.status)
                 && !case.result.estimands.is_empty()
             {
                 flags.push(GraphIdentFlag::Identified);
@@ -3686,10 +3513,7 @@ impl CausalAnalysis {
                     .column(col)
                     .map_err(|e| AnalysisError::Compile { message: e.to_string() })?
                     .to_vec();
-                per_graph.push(GraphEffectDraws {
-                    graph_key: key,
-                    effect_draws: Arc::from(draws),
-                });
+                per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
             } else {
                 flags.push(GraphIdentFlag::Unidentified);
             }
@@ -3730,7 +3554,7 @@ impl CausalAnalysis {
                 self.refute,
                 "bayesian.gcomp",
                 &self.custom_validators,
-            None,
+                None,
             )?,
         };
         if matches!(self.refute, RefuteSuite::Full) {
@@ -3757,7 +3581,8 @@ impl CausalAnalysis {
                 &estimate.assumptions,
             ),
         );
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -3794,9 +3619,7 @@ impl CausalAnalysis {
         let identification = identify_static(identifier.as_ref(), graph, &query.inner)?;
         let estimand = select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;
         let est = ConditionalLinearAdjustment::new();
-        let estimate = est
-            .estimate(data, &estimand, query, ctx)
-            .map_err(AnalysisError::from)?;
+        let estimate = est.estimate(data, &estimand, query, ctx).map_err(AnalysisError::from)?;
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         let mut refute_ws = EstimationWorkspace::default();
@@ -3822,7 +3645,8 @@ impl CausalAnalysis {
                 &estimate.assumptions,
             ),
         );
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -3865,9 +3689,7 @@ impl CausalAnalysis {
         let estimand = select_estimand(&identification, EstimatorId::TemporalMediation)?;
         let mut est = TemporalMediationEstimator::new();
         est.allow_natural_controlled_alias = true;
-        let mediation = est
-            .estimate(data, &estimand, query, ctx)
-            .map_err(AnalysisError::from)?;
+        let mediation = est.estimate(data, &estimand, query, ctx).map_err(AnalysisError::from)?;
         let estimate = mediation.effect.clone();
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
@@ -3885,7 +3707,8 @@ impl CausalAnalysis {
                 &estimate.assumptions,
             ),
         );
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -3974,7 +3797,8 @@ impl CausalAnalysis {
                 &estimate.assumptions,
             ),
         );
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -4013,15 +3837,7 @@ impl CausalAnalysis {
             message: "counterfactual query missing outcome".into(),
         })?;
         let (treatment, active, control) = binary_cf_interventions(query)?;
-        let ite = counterfactual_ite(
-            fitted.model,
-            data,
-            treatment,
-            outcome,
-            active,
-            control,
-            ctx,
-        )?;
+        let ite = counterfactual_ite(fitted.model, data, treatment, outcome, active, control, ctx)?;
         let estimate = EffectEstimate {
             ate: ite.mean_ite,
             se_analytic: f64::NAN,
@@ -4044,7 +3860,8 @@ impl CausalAnalysis {
             DiagnosticSeverity::Info,
             format!("noise_inference={:?}", ite.noise_inference),
         )];
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -4095,7 +3912,8 @@ impl CausalAnalysis {
             outcome,
         );
         let mut diagnostics = Vec::new();
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -4156,7 +3974,8 @@ impl CausalAnalysis {
             outcome,
         );
         let mut diagnostics = Vec::new();
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -4207,7 +4026,8 @@ impl CausalAnalysis {
             outcome,
         );
         let mut diagnostics = Vec::new();
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -4252,7 +4072,8 @@ impl CausalAnalysis {
             outcome,
         );
         let mut diagnostics = Vec::new();
-        let physical_record = self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let physical_record =
+            self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -4318,11 +4139,8 @@ fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, VariableId), Analy
             let outcome = *q.outcomes.first().ok_or_else(|| AnalysisError::Compile {
                 message: "counterfactual missing outcome".into(),
             })?;
-            let treatment = q
-                .interventions
-                .first()
-                .and_then(|iv| iv.primary_variable())
-                .unwrap_or(outcome);
+            let treatment =
+                q.interventions.first().and_then(Intervention::primary_variable).unwrap_or(outcome);
             Ok((treatment, outcome))
         }
         CausalQuery::AnomalyAttribution(q) => {
@@ -4335,9 +4153,7 @@ fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, VariableId), Analy
             Ok((outcome, outcome))
         }
         CausalQuery::UnitChange(q) => Ok((q.outcome, q.outcome)),
-        _ => Err(AnalysisError::Compile {
-            message: "gcm_query_vars: unsupported query".into(),
-        }),
+        _ => Err(AnalysisError::Compile { message: "gcm_query_vars: unsupported query".into() }),
     }
 }
 
@@ -4399,7 +4215,7 @@ fn binary_cf_interventions(
     Ok((*variable, active, 0.0))
 }
 
-fn identification_status_ok_for_case(status: &IdentificationStatus) -> bool {
+fn identification_status_ok_for_case(status: IdentificationStatus) -> bool {
     matches!(
         status,
         IdentificationStatus::NonparametricallyIdentified
@@ -4417,7 +4233,7 @@ fn envelope_to_identification_result(
     let mut assumptions = causal_core::AssumptionSet::default();
     let mut diagnostics = Vec::new();
     for case in &envelope.cases {
-        if identification_status_ok_for_case(&case.result.status) {
+        if identification_status_ok_for_case(case.result.status) {
             estimands.extend(case.result.estimands.iter().cloned());
             assumptions = case.result.required_assumptions.clone();
             diagnostics.extend(case.result.diagnostics.iter().cloned());
@@ -4459,16 +4275,14 @@ fn admg_has_bidirected(admg: &Admg) -> bool {
 }
 
 fn admg_to_dag(admg: &Admg) -> Result<Dag, AnalysisError> {
-    let n = u32::try_from(admg.node_count()).map_err(|_| AnalysisError::Compile {
-        message: "ADMG too large".into(),
-    })?;
+    let n = u32::try_from(admg.node_count())
+        .map_err(|_| AnalysisError::Compile { message: "ADMG too large".into() })?;
     let mut dag = Dag::with_variables(n);
     for i in 0..admg.node_count() {
         let from = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
         for &to in admg.children(from) {
-            dag.insert_directed(from, to).map_err(|e| AnalysisError::Compile {
-                message: e.to_string(),
-            })?;
+            dag.insert_directed(from, to)
+                .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
         }
     }
     Ok(dag)

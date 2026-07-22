@@ -146,10 +146,7 @@ fn collect_critical_features<G>(
     };
 
     if unidentified > 0.0 {
-        push(
-            "unidentified_mass",
-            format!("unidentified_weight={unidentified}"),
-        );
+        push("unidentified_mass", format!("unidentified_weight={unidentified}"));
     }
     if matches!(status, IdentificationStatus::GraphDependent) {
         push(
@@ -231,9 +228,7 @@ mod tests {
         assert!((env.unidentified_weight.0 - 0.6).abs() < 1e-12);
         assert_eq!(env.status, IdentificationStatus::GraphDependent);
         assert!(
-            env.critical_graph_features
-                .iter()
-                .any(|f| f.kind.as_ref() == "unidentified_mass"),
+            env.critical_graph_features.iter().any(|f| f.kind.as_ref() == "unidentified_mass"),
             "features={:?}",
             env.critical_graph_features
         );

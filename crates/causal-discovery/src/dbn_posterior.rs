@@ -14,23 +14,26 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
-    clippy::too_many_lines
+    clippy::needless_range_loop,
+    clippy::neg_cmp_op_on_partial_ord,
+    clippy::similar_names,
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::unused_self
 )]
 
 use std::sync::Arc;
 
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::{TableView, TimeSeriesData};
-use causal_state::{
-    GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache,
-};
+use causal_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_posterior::{
-    accumulate_marginals, analytic_graph_diagnostics, has_edge, kish_ess, log_prior_mask,
-    mask_is_dag, normalize_log_weights, n_directed_edges, parents_of, set_edge, GraphPosterior,
-    GraphPrior, EXACT_ENUM_MAX_NODES,
+    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, accumulate_marginals,
+    analytic_graph_diagnostics, has_edge, kish_ess, log_prior_mask, mask_is_dag, n_directed_edges,
+    normalize_log_weights, parents_of, set_edge,
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
@@ -173,8 +176,9 @@ impl DbnPosterior {
                 continue;
             }
             for lmask in 0..lag_limit {
-                match score_dbn_template(cmask, lmask, p, max_lag, score_data, &mut cache, prior, variables)
-                {
+                match score_dbn_template(
+                    cmask, lmask, p, max_lag, score_data, &mut cache, prior, variables,
+                ) {
                     Some(lw) => {
                         kept_masks.push(cmask);
                         kept_lag.push(lmask);
@@ -185,9 +189,7 @@ impl DbnPosterior {
             }
         }
         if kept_masks.is_empty() {
-            return Err(DiscoveryError::unsupported(
-                "no valid DBN templates under prior",
-            ));
+            return Err(DiscoveryError::unsupported("no valid DBN templates under prior"));
         }
         let weights = normalize_log_weights(&kept_log)?;
         let ess = kish_ess(&weights);
@@ -209,7 +211,7 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        use crate::graph_mcmc::{diagnostics_from_traces, GraphMcmcSchedule};
+        use crate::graph_mcmc::{GraphMcmcSchedule, diagnostics_from_traces};
         use std::collections::HashMap;
 
         let schedule = GraphMcmcSchedule {
@@ -333,9 +335,7 @@ fn build_lagged_score_data(
     let t_len = data.row_count();
     let l = max_lag as usize;
     if t_len <= l + 1 {
-        return Err(DiscoveryError::stats_msg(
-            "insufficient time points for DBN lag window",
-        ));
+        return Err(DiscoveryError::stats_msg("insufficient time points for DBN lag window"));
     }
     let n_rows = t_len - l;
     let n_cols = p * (l + 1);
@@ -383,8 +383,8 @@ pub fn temporal_dag_from_dbn_masks(
     variables: &[VariableId],
 ) -> Result<causal_graph::TemporalDag, DiscoveryError> {
     use causal_core::Lag;
-    use causal_graph::unfold::ensure_lagged;
     use causal_graph::TemporalDag;
+    use causal_graph::unfold::ensure_lagged;
 
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
@@ -454,9 +454,7 @@ fn score_dbn_template(
         }
         pa.sort_unstable();
         pa.dedup();
-        let s = cache
-            .local_score(data, j as u32, &Arc::from(pa))
-            .ok()?;
+        let s = cache.local_score(data, j as u32, &Arc::from(pa)).ok()?;
         if !s.is_finite() {
             return None;
         }
@@ -573,10 +571,7 @@ mod tests {
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
         let data = TimeSeriesData::try_new(
             storage,
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: n_obs,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n_obs },
         )
         .unwrap();
         (data, vars)
@@ -586,13 +581,14 @@ mod tests {
     fn dbn_recovers_lag1_edge() {
         let (data, vars) = lag1_series(200);
         let eng = DbnPosterior::new(1);
-        let prior = GraphPrior::uniform().with_constraints(crate::constraints::DiscoveryConstraints {
-            temporal: crate::constraints::TemporalConstraints {
-                max_lag: Lag::from_raw(1),
-                min_lag: Lag::from_raw(1),
-            },
-            ..Default::default()
-        });
+        let prior =
+            GraphPrior::uniform().with_constraints(crate::constraints::DiscoveryConstraints {
+                temporal: crate::constraints::TemporalConstraints {
+                    max_lag: Lag::from_raw(1),
+                    min_lag: Lag::from_raw(1),
+                },
+                ..Default::default()
+            });
         let post = eng
             .run(
                 &data,

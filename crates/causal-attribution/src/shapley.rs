@@ -406,7 +406,7 @@ mod tests {
         struct Interactive;
         impl CoalitionPayoff for Interactive {
             fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-                let size = (mask & 0b111).count_ones() as f64;
+                let size = f64::from((mask & 0b111).count_ones());
                 let bonus = f64::from((mask & 0b11) == 0b11);
                 Ok(size + bonus)
             }

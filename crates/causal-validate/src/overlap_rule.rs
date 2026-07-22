@@ -206,7 +206,8 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-         temporal: None, };
+            temporal: None,
+        };
         let report = OverlapRuleRefuter::new().refute(&problem).unwrap();
         assert_eq!(report.refuter.as_ref(), "overlap.rule");
         assert!(report.informative);

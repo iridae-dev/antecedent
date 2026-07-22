@@ -40,6 +40,7 @@ pub mod unfold;
 pub mod workspace;
 
 pub use admg::Admg;
+pub use causal_core::NodeRef;
 pub use completion::{CompletionSampler, PagCompletion, is_mag_completion};
 pub use cpdag::{Cpdag, CpdagReview, TemporalCpdag};
 pub use cpdag_completion::{CpdagCompletion, CpdagCompletionSampler, is_mec_member};
@@ -51,7 +52,6 @@ pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag, PagReview};
 pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use temporal::TemporalDag;
 pub use temporal_pag::{TemporalPag, TemporalPagReview};
-pub use causal_core::NodeRef;
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};
 pub use unfold::{
     LazyUnfoldedTemporalGraph, TemporalCpdagReview, TemporalGraphReview, UnfoldedTemporalGraph,

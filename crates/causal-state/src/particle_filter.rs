@@ -85,11 +85,7 @@ impl ParticleFilterState {
     pub fn ess(&self) -> f64 {
         let weights = normalized_weights(&self.log_weights);
         let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-        if sum_sq <= 0.0 {
-            0.0
-        } else {
-            1.0 / sum_sq
-        }
+        if sum_sq <= 0.0 { 0.0 } else { 1.0 / sum_sq }
     }
 
     /// Weighted mean of the latent particles.
@@ -110,8 +106,7 @@ impl ParticleFilterState {
             *p = self.params.a * *p + self.params.process_std * standard_normal(&mut rng);
         }
         let inv_var = 1.0 / (self.params.obs_std * self.params.obs_std);
-        let log_norm =
-            -0.5 * (2.0 * std::f64::consts::PI).ln() - self.params.obs_std.ln();
+        let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - self.params.obs_std.ln();
         for i in 0..self.n_particles {
             let err = y - self.particles[i];
             self.log_weights[i] += log_norm - 0.5 * err * err * inv_var;

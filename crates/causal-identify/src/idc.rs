@@ -2,10 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::large_enum_variant,
+    clippy::too_many_arguments
+)]
+
 use std::sync::Arc;
 
 use causal_core::{
-    AssumptionSet, CausalQuery, InterventionalDistributionQuery, Intervention, Value, VariableId,
+    AssumptionSet, CausalQuery, Intervention, InterventionalDistributionQuery, Value, VariableId,
 };
 use causal_expr::{CausalExprArena, EstimandMethod, ExprNode, IdentifiedEstimand};
 use causal_graph::{Admg, BitSet, DSeparationWorkspace, Dag, DenseNodeId};
@@ -80,12 +85,10 @@ impl IdcIdentifier {
                 if q.conditioning.is_empty() {
                     return self.inner.identify(prepared, query, workspace);
                 }
-                if let Err(e) = crate::intervention_support::require_hard_set_interventions(
+                crate::intervention_support::require_hard_set_interventions(
                     q.interventions.iter(),
                     "IDC",
-                ) {
-                    return Err(e);
-                }
+                )?;
                 let mut result = self.identify_conditional(
                     prepared,
                     q.outcomes.as_ref(),
@@ -126,9 +129,9 @@ impl IdcIdentifier {
         let mut x = BitSet::with_len(n);
         let mut known_values = std::collections::BTreeMap::<VariableId, Value>::new();
         for iv in interventions {
-            let v = iv.primary_variable().ok_or(IdentificationError::unsupported(
-                "intervention missing primary variable",
-            ))?;
+            let v = iv
+                .primary_variable()
+                .ok_or(IdentificationError::unsupported("intervention missing primary variable"))?;
             x.insert(prepared.var_to_dense(v)?);
             if let Intervention::Set { value, .. } = iv {
                 known_values.insert(v, value.clone());
@@ -268,10 +271,7 @@ fn distribution_query_from_sets(
             prepared.dense_to_var(d).map(|variable| {
                 // Prefer caller Set values; for IDC-moved conditioning vars use a finite
                 // structure-only placeholder (ID cares about variable sets, not levels).
-                let value = known_values
-                    .get(&variable)
-                    .cloned()
-                    .unwrap_or_else(|| Value::Int64(0));
+                let value = known_values.get(&variable).cloned().unwrap_or(Value::Int64(0));
                 Intervention::set(variable, value)
             })
         })
@@ -294,7 +294,7 @@ fn intern_bitset_vars(
     Ok(arena.intern_var_set(vars?))
 }
 
-/// Y ⊥ z_node | cond in G_{\overline{x_nodes} \underline{z_nodes}}.
+/// Y ⊥ `z_node` | cond in `G_{\overline{x_nodes} \underline{z_nodes}}`.
 fn independent_in_mutilated(
     admg: &Admg,
     y: &BitSet,

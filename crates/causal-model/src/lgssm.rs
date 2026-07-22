@@ -4,7 +4,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::many_single_char_names)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names,
+    clippy::needless_range_loop
+)]
 
 use causal_core::CausalRng;
 use causal_kernels::standard_normal;
@@ -14,8 +20,8 @@ use crate::error::ModelError;
 /// Pack unit-normal process and observation innovations into one `f64` (f32×2).
 #[must_use]
 pub fn pack_innovations(process_eps: f64, obs_eta: f64) -> f64 {
-    let bits = u64::from((process_eps as f32).to_bits())
-        | (u64::from((obs_eta as f32).to_bits()) << 32);
+    let bits =
+        u64::from((process_eps as f32).to_bits()) | (u64::from((obs_eta as f32).to_bits()) << 32);
     f64::from_bits(bits)
 }
 
@@ -23,17 +29,19 @@ pub fn pack_innovations(process_eps: f64, obs_eta: f64) -> f64 {
 #[must_use]
 pub fn unpack_innovations(packed: f64) -> (f64, f64) {
     let bits = packed.to_bits();
-    let eps = f32::from_bits(bits as u32) as f64;
-    let eta = f32::from_bits((bits >> 32) as u32) as f64;
+    let eps = f64::from(f32::from_bits(bits as u32));
+    let eta = f64::from(f32::from_bits((bits >> 32) as u32));
     (eps, eta)
 }
 
 /// Sample packed LGSSM innovations into `output`.
-pub fn sample_lgssm_noise(n_rows: usize, rng: &mut CausalRng, output: &mut [f64]) -> Result<(), ModelError> {
+pub fn sample_lgssm_noise(
+    n_rows: usize,
+    rng: &mut CausalRng,
+    output: &mut [f64],
+) -> Result<(), ModelError> {
     if output.len() < n_rows {
-        return Err(ModelError::Shape {
-            message: "lgssm noise output too short".into(),
-        });
+        return Err(ModelError::Shape { message: "lgssm noise output too short".into() });
     }
     for i in 0..n_rows {
         output[i] = pack_innovations(standard_normal(rng), standard_normal(rng));
@@ -115,9 +123,7 @@ pub fn infer_lgssm_innovations(
 ) -> Result<(), ModelError> {
     let n = y.len();
     if output.len() < n {
-        return Err(ModelError::Shape {
-            message: "lgssm infer output too short".into(),
-        });
+        return Err(ModelError::Shape { message: "lgssm infer output too short".into() });
     }
     if n == 0 {
         return Ok(());
@@ -177,11 +183,7 @@ mod tests {
         let mut x = initial_mean;
         for t in 0..n {
             let (eps, eta) = unpack_innovations(noise[t]);
-            x = if t == 0 {
-                initial_mean + process_std * eps
-            } else {
-                a * x + process_std * eps
-            };
+            x = if t == 0 { initial_mean + process_std * eps } else { a * x + process_std * eps };
             y[t] = x + obs_std * eta;
         }
 
@@ -192,17 +194,9 @@ mod tests {
         let mut x2 = initial_mean;
         for t in 0..n {
             let (eps, eta) = unpack_innovations(inferred[t]);
-            x2 = if t == 0 {
-                initial_mean + process_std * eps
-            } else {
-                a * x2 + process_std * eps
-            };
+            x2 = if t == 0 { initial_mean + process_std * eps } else { a * x2 + process_std * eps };
             let yhat = x2 + obs_std * eta;
-            assert!(
-                (yhat - y[t]).abs() < 1e-4,
-                "t={t}: yhat={yhat} y={}",
-                y[t]
-            );
+            assert!((yhat - y[t]).abs() < 1e-4, "t={t}: yhat={yhat} y={}", y[t]);
         }
     }
 }

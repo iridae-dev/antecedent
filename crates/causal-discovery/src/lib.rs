@@ -37,9 +37,9 @@ pub mod graph_mcmc;
 pub mod graph_posterior;
 pub mod graph_score;
 pub mod jpcmci_plus;
+pub mod lingam;
 pub mod lpcmci;
 pub mod lpcmci_phases;
-pub mod lingam;
 pub mod notears;
 pub mod order_mcmc;
 pub mod orientation;
@@ -64,13 +64,16 @@ pub use ci::{
     PreparedCiTest, SignificanceMethod, ci_from_name,
 };
 
+pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
+pub use ci_screened_posterior::{CiScreenedPosterior, CiSoftWeight};
 pub use constraints::{
     CandidateCatalog, CiMaskType, CompiledConstraints, ContextKind, CrossEnvLinkAssumption,
     DiscoveryConstraints, JpcmciNodeRole, MultiDatasetConstraints, SpaceDummyCiMode,
     TemporalConstraints, TimeDummyCiMode,
 };
-pub use ci_screened_posterior::{CiScreenedPosterior, CiSoftWeight};
-pub use dbn_posterior::{DbnPosterior, DBN_EXACT_MAX_LAG, DBN_EXACT_MAX_VARS, temporal_dag_from_dbn_masks};
+pub use dbn_posterior::{
+    DBN_EXACT_MAX_LAG, DBN_EXACT_MAX_VARS, DbnPosterior, temporal_dag_from_dbn_masks,
+};
 pub use discriminating_paths::{DiscriminatingPath, find_discriminating_paths};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
@@ -80,13 +83,12 @@ pub use evidence::{
     symmetrize_contemporaneous_links, threshold_scored_links, threshold_scored_links_bh,
 };
 pub use exact_enumeration::ExactDagPosterior;
-pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
 pub use graph_posterior::{
-    allows_graph_posterior, dag_from_adjacency_mask, edge_bit, has_edge, mask_is_dag,
-    n_directed_edges, parents_of, publish_graph_posterior, set_edge, GraphPosterior,
-    GraphPosteriorEngine, GraphPrior, EXACT_ENUM_MAX_NODES,
+    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorEngine, GraphPrior, allows_graph_posterior,
+    dag_from_adjacency_mask, edge_bit, has_edge, mask_is_dag, n_directed_edges, parents_of,
+    publish_graph_posterior, set_edge,
 };
 pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lingam::{DirectLingam, StaticDagDiscoveryResult};
@@ -94,13 +96,14 @@ pub use lpcmci::Lpcmci;
 pub use notears::{Notears, NotearsDiscoveryResult};
 pub use order_mcmc::OrderMcmc;
 pub use orientation::{
-    OrientCollider, OrientationError, OrientationRule, OrientationState, PagOps,
-    StaticOrientationRule, run_static_orientation_to_fixed_point,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationError, OrientationQueue,
+    OrientationRule, OrientationState, PagOps, RuleDelta, StaticOrientationRule,
+    run_orientation_to_fixed_point, run_static_orientation_to_fixed_point,
 };
 pub use pc::{Pc, StaticCpdagDiscoveryResult};
 pub use pcmci::Pcmci;
 pub use pcmci_plus::PcmciPlus;
-pub use possible_d_sep::{possible_d_sep, pds_triple_ok, PossibleDSepBudget};
+pub use possible_d_sep::{PossibleDSepBudget, pds_triple_ok, possible_d_sep};
 pub use result::{
     AlgorithmRecord, CpdagDiscoveryResult, CpdagGraphEvidence, DagDiscoveryResult,
     DagGraphEvidence, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
@@ -114,7 +117,7 @@ pub use rpcmci::{
 };
 pub use rule_scheduling::{
     FciOrientationRule, LpcmciApr, LpcmciDiscriminatingPathRule, LpcmciMmr, LpcmciOrientCollider,
-    LpcmciOrientationRule, LpcmciR1, LpcmciR10, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9,
+    LpcmciOrientationRule, LpcmciR1, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9, LpcmciR10,
     default_fci_rules, default_lpcmci_rules, run_fci_orientation_to_fixed_point,
     run_lpcmci_orientation,
 };

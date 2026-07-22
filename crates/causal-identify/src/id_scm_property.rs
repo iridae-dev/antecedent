@@ -8,12 +8,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg(test)]
+#![allow(clippy::many_single_char_names)]
 
 use causal_core::{AverageEffectQuery, CausalQuery, ToleranceClass, Value, VariableId};
 use causal_expr::{
-    Assignment, DomainRef, EmpiricalTableProvider, EvalContext, FactorSpec,
-    InterventionAssignment,
+    Assignment, DomainRef, EmpiricalTableProvider, EvalContext, FactorSpec, InterventionAssignment,
 };
 use causal_graph::{Dag, DenseNodeId};
 
@@ -119,11 +118,8 @@ fn id_scm_backdoor_confounding_structure_and_functional() {
         res.estimands.iter().map(|e| e.adjustment_set.clone()).collect::<Vec<_>>()
     );
 
-    let est = res
-        .estimands
-        .iter()
-        .find(|e| e.adjustment_set.as_ref() == [v(2)])
-        .expect("Z estimand");
+    let est =
+        res.estimands.iter().find(|e| e.adjustment_set.as_ref() == [v(2)]).expect("Z estimand");
     let provider = confounding_provider(v(0), v(1), v(2));
     let ate = res
         .arena

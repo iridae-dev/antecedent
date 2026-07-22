@@ -9,9 +9,7 @@ use causal_core::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, ScalarType, SmallRoleSet, ValueType,
     VariableId,
 };
-use causal_graph::{
-    Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag,
-};
+use causal_graph::{Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};
 
 use crate::error::IoError;
 use crate::wire::{
@@ -31,10 +29,10 @@ pub fn schema_to_wire(schema: &CausalSchema) -> SchemaWire {
                 name: v.name.to_string(),
                 value_type: value_type_to_wire(&v.value_type),
                 role_bits: v.role_hints.bits(),
-                unit: v.unit.as_ref().map(|u| u.to_string()),
-                category_domain: v.category_domain.map(|d| d.raw()),
+                unit: v.unit.as_ref().map(ToString::to_string),
+                category_domain: v.category_domain.map(causal_core::CategoryDomainId::raw),
                 measurement: MeasurementSpecWire {
-                    description: v.measurement.description.as_ref().map(|d| d.to_string()),
+                    description: v.measurement.description.as_ref().map(ToString::to_string),
                     noisy: v.measurement.noisy,
                 },
             })
@@ -63,7 +61,11 @@ pub fn schema_from_wire(wire: &SchemaWire) -> Result<CausalSchema, IoError> {
             v.unit.as_ref().map(|u| Arc::<str>::from(u.as_str())),
             v.category_domain.map(causal_core::CategoryDomainId::from_raw),
             MeasurementSpec {
-                description: v.measurement.description.as_ref().map(|d| Arc::<str>::from(d.as_str())),
+                description: v
+                    .measurement
+                    .description
+                    .as_ref()
+                    .map(|d| Arc::<str>::from(d.as_str())),
                 noisy: v.measurement.noisy,
             },
         )

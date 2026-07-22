@@ -21,5 +21,5 @@ pub use causal_core::{
 pub use causal_data::{
     EventData, MultiEnvironmentData, PanelData, PanelUnit, TabularData, TimeSeriesData,
 };
-pub use causal_graph::{Dag, TemporalDag};
 pub use causal_estimate::CausalPosterior;
+pub use causal_graph::{Dag, TemporalDag};

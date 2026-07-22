@@ -46,20 +46,12 @@ fn xy_series(n: usize, seed: f64) -> TimeSeriesData {
     }
     let cols = vec![
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(0),
-                Arc::from(x),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(0), Arc::from(x), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(1),
-                Arc::from(y),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -83,7 +75,9 @@ fn event_align_then_temporal_effect() {
     // Dense regular events at every ns → align_to_grid(1) recovers the series.
     let series = xy_series(200, 0.0);
     let n = series.row_count();
-    let times: Vec<i64> = (0..n as i64).collect();
+    let times: Vec<i64> = (0..n)
+        .map(|i| i64::try_from(i).expect("test row count fits i64"))
+        .collect();
     let event = EventData::try_new(series.storage().clone(), Arc::from(times)).unwrap();
     let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))

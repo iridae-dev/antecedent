@@ -383,7 +383,10 @@ fn property_topological_order_on_random_dags() {
                 let last = *order.last().unwrap();
                 if first != last && g.reaches(first, last) && !g.children(last).contains(&first) {
                     assert!(
-                        matches!(g.clone().insert_directed(last, first), Err(GraphError::Cycle { .. })),
+                        matches!(
+                            g.clone().insert_directed(last, first),
+                            Err(GraphError::Cycle { .. })
+                        ),
                         "back-edge closing a path must be rejected"
                     );
                     let mut cyclic = g.clone();

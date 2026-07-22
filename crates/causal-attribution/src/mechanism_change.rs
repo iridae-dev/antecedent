@@ -121,12 +121,10 @@ fn residuals(
     data: &TabularData,
     target: VariableId,
 ) -> Result<Vec<f64>, AttributionError> {
-    let dense = model
-        .dense_of(target)
-        .ok_or_else(|| AttributionError::missing_var("target", target))?;
-    let gather = model
-        .gather_for(dense)
-        .ok_or(AttributionError::MissingArtifact("missing gather"))?;
+    let dense =
+        model.dense_of(target).ok_or_else(|| AttributionError::missing_var("target", target))?;
+    let gather =
+        model.gather_for(dense).ok_or(AttributionError::MissingArtifact("missing gather"))?;
     let n = data.row_count();
     let y = data.float64_values(target)?;
     let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
@@ -377,7 +375,7 @@ mod tests {
         assert!(!y.changed, "residual mean diff should not flag mechanism change: {y:?}");
     }
 
-    /// Null split of a homogeneous SCM: residual MeanDiff Type I smoke.
+    /// Null split of a homogeneous SCM: residual `MeanDiff` Type I smoke.
     /// Not a full calibration gate — only checks flag rate stays near α.
     #[test]
     fn mean_diff_null_split_type_i_smoke() {

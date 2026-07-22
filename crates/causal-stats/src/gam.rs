@@ -10,16 +10,17 @@
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::needless_range_loop,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::too_many_arguments,
+    clippy::too_many_lines
 )]
 
 use std::sync::Arc;
 
 use causal_core::VariableId;
 
-use crate::design::{
-    BasisKind, DesignColumn, DesignColumnMap, DesignColumnRole, RecordedSmooth,
-};
+use crate::design::{BasisKind, DesignColumn, DesignColumnMap, DesignColumnRole, RecordedSmooth};
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
@@ -171,7 +172,9 @@ pub fn expand_bspline(
     }
     for &v in x {
         if !v.is_finite() {
-            return Err(StatsError::Shape { message: "non-finite predictor in B-spline expansion" });
+            return Err(StatsError::Shape {
+                message: "non-finite predictor in B-spline expansion",
+            });
         }
     }
     let knot_vec: Arc<[f64]> = if let Some(k) = knots {
@@ -362,13 +365,8 @@ pub fn fit_gam(
             }
 
             if iter == 1 {
-                edf_approx += ridge_edf(
-                    basis,
-                    nrows,
-                    spec.n_basis,
-                    spec.lambda,
-                    &mut workspace.gram,
-                )?;
+                edf_approx +=
+                    ridge_edf(basis, nrows, spec.n_basis, spec.lambda, &mut workspace.gram)?;
             }
         }
         // Refresh intercept: mean(y - Σ f_j)
@@ -393,10 +391,8 @@ pub fn fit_gam(
             rss += e * e;
         }
 
-        let fit_scale = workspace.fitted[..nrows]
-            .iter()
-            .fold(0.0_f64, |acc, &v| acc.max(v.abs()))
-            .max(1.0);
+        let fit_scale =
+            workspace.fitted[..nrows].iter().fold(0.0_f64, |acc, &v| acc.max(v.abs())).max(1.0);
         let rss_delta = (prev_rss - rss).abs();
         prev_rss = rss;
         if max_delta < options.tol * fit_scale || rss_delta < options.tol * (1.0 + rss) {
@@ -549,11 +545,8 @@ fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
         return Err(StatsError::Shape { message: "non-finite predictor range" });
     }
     // Degenerate constant column: spread slightly so basis is defined.
-    let (xmin, xmax) = if (xmax - xmin).abs() < 1e-15 {
-        (xmin - 1.0, xmax + 1.0)
-    } else {
-        (xmin, xmax)
-    };
+    let (xmin, xmax) =
+        if (xmax - xmin).abs() < 1e-15 { (xmin - 1.0, xmax + 1.0) } else { (xmin, xmax) };
     let n_interior = n_basis.saturating_sub(CUBIC_ORDER);
     let mut knots = Vec::with_capacity(n_basis + CUBIC_ORDER);
     for _ in 0..CUBIC_ORDER {
@@ -578,12 +571,25 @@ fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
 }
 
 /// Cox–de Boor evaluation of all cubic basis functions at `x` into column-major `out`.
-fn eval_cubic_bspline(x: f64, knots: &[f64], n_basis: usize, out: &mut [f64], row: usize, nrows: usize) {
+fn eval_cubic_bspline(
+    x: f64,
+    knots: &[f64],
+    n_basis: usize,
+    out: &mut [f64],
+    row: usize,
+    nrows: usize,
+) {
     // Clamp to open interval of the interior so the last basis is hit at xmax.
     let eps = 1e-14;
     let left = knots[CUBIC_DEGREE];
     let right = knots[knots.len() - CUBIC_ORDER];
-    let xx = if x >= right { right - eps } else if x < left { left } else { x };
+    let xx = if x >= right {
+        right - eps
+    } else if x < left {
+        left
+    } else {
+        x
+    };
 
     // Find knot span.
     let mut span = CUBIC_DEGREE;
@@ -728,9 +734,7 @@ mod tests {
         let x1 = linspace(n, 0.0, 1.0);
         let x2: Vec<f64> = (0..n).map(|i| (i as f64 / n as f64) * 2.0 - 1.0).collect();
         let y: Vec<f64> = (0..n)
-            .map(|i| {
-                2.0 + (2.0 * std::f64::consts::PI * x1[i]).sin() + 0.5 * x2[i] * x2[i]
-            })
+            .map(|i| 2.0 + (2.0 * std::f64::consts::PI * x1[i]).sin() + 0.5 * x2[i] * x2[i])
             .collect();
         let (x, nrows, ncols) = colmajor_from_cols(&[x1, x2]);
         let specs = [
@@ -744,10 +748,13 @@ mod tests {
         assert!(fit.converged, "iterations={}", fit.iterations);
         let ss_res: f64 = fit.residuals.iter().map(|e| e * e).sum();
         let y_bar = mean(&y);
-        let ss_tot: f64 = y.iter().map(|yi| {
-            let d = yi - y_bar;
-            d * d
-        }).sum();
+        let ss_tot: f64 = y
+            .iter()
+            .map(|yi| {
+                let d = yi - y_bar;
+                d * d
+            })
+            .sum();
         let r2 = 1.0 - ss_res / ss_tot;
         assert!(r2 > 0.95, "R²={r2}");
         assert!(fit.edf_approx > 1.0);
@@ -768,11 +775,8 @@ mod tests {
         let fit = fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &backend, &mut ws)
             .unwrap();
         assert!((fit.intercept - 3.0).abs() < 0.05);
-        let max_abs_smooth: f64 = fit
-            .fitted
-            .iter()
-            .map(|&f| (f - fit.intercept).abs())
-            .fold(0.0, f64::max);
+        let max_abs_smooth: f64 =
+            fit.fitted.iter().map(|&f| (f - fit.intercept).abs()).fold(0.0, f64::max);
         assert!(max_abs_smooth < 0.05, "max_abs_smooth={max_abs_smooth}");
     }
 
@@ -850,10 +854,12 @@ mod tests {
         let specs = [SmoothSpec::new(0, 6, -1.0)];
         let backend = FaerBackend;
         let mut ws = GamWorkspace::default();
-        let err = fit_gam(&x, 3, 1, &[1.0, 2.0, 3.0], &specs, &GamOptions::default(), &backend, &mut ws);
+        let err =
+            fit_gam(&x, 3, 1, &[1.0, 2.0, 3.0], &specs, &GamOptions::default(), &backend, &mut ws);
         assert!(err.is_err());
         let specs = [SmoothSpec::new(1, 6, 0.1)];
-        let err = fit_gam(&x, 3, 1, &[1.0, 2.0, 3.0], &specs, &GamOptions::default(), &backend, &mut ws);
+        let err =
+            fit_gam(&x, 3, 1, &[1.0, 2.0, 3.0], &specs, &GamOptions::default(), &backend, &mut ws);
         assert!(err.is_err());
     }
 

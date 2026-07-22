@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-
 use crate::ids::VariableId;
 use crate::intervention::{Intervention, TemporalPolicy};
 use crate::value::Value;
@@ -136,10 +135,7 @@ impl TemporalEffectQuery {
     /// Treatment time offset for Pulse `at` / Sustained `from` / Dynamic first active step.
     #[must_use]
     pub fn treatment_offset(&self) -> i32 {
-        match self.try_treatment_offset() {
-            Ok(offset) => offset,
-            Err(_) => 0,
-        }
+        self.try_treatment_offset().unwrap_or_default()
     }
 
     /// Treatment time offset when the policy has a defined origin.
@@ -151,10 +147,9 @@ impl TemporalEffectQuery {
         match &self.policy {
             TemporalPolicy::Pulse { at } => Ok(*at),
             TemporalPolicy::Sustained { from, .. } => Ok(*from),
-            TemporalPolicy::Dynamic { active_at, .. } => active_at
-                .first()
-                .copied()
-                .ok_or(QueryError::DynamicPolicyHasNoTreatmentOffset),
+            TemporalPolicy::Dynamic { active_at, .. } => {
+                active_at.first().copied().ok_or(QueryError::DynamicPolicyHasNoTreatmentOffset)
+            }
         }
     }
 
@@ -164,4 +159,3 @@ impl TemporalEffectQuery {
         i32::try_from(self.horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX)
     }
 }
-

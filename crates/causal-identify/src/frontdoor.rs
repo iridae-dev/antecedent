@@ -16,7 +16,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
+#![allow(clippy::many_single_char_names, clippy::too_many_lines)]
 
 use std::sync::Arc;
 

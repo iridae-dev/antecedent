@@ -27,7 +27,7 @@ use crate::table::TableView;
 pub struct LaggedFrameOptions {
     /// How the optional analysis mask is applied when recording column validity.
     pub mask: MaskPolicy,
-    /// How column missingness is recorded (CompleteCase marks invalid; ErrorOnMissing fails).
+    /// How column missingness is recorded (`CompleteCase` marks invalid; `ErrorOnMissing` fails).
     pub missing: MissingPolicy,
 }
 
@@ -57,7 +57,7 @@ pub struct LaggedFrame {
 impl LaggedFrame {
     /// Materialize all lags `0..=max_lag` for `variables` from `data`.
     ///
-    /// Uses [`LaggedFrameOptions::default`] (Honor analysis mask + CompleteCase).
+    /// Uses [`LaggedFrameOptions::default`] (Honor analysis mask + `CompleteCase`).
     ///
     /// # Errors
     ///
@@ -142,17 +142,16 @@ impl LaggedFrame {
             if options.missing == MissingPolicy::ErrorOnMissing && !src.validity.is_all_valid() {
                 return Err(DataError::IncompleteSeries {
                     id: Some(src.id),
-                    message: "missing values under ErrorOnMissing policy".into(),
+                    message: "missing values under ErrorOnMissing policy",
                 });
             }
-            if options.mask == MaskPolicy::Honor
-                && options.missing == MissingPolicy::ErrorOnMissing
+            if options.mask == MaskPolicy::Honor && options.missing == MissingPolicy::ErrorOnMissing
             {
                 if let Some(mask) = analysis {
                     if !mask.is_all_valid() {
                         return Err(DataError::IncompleteSeries {
                             id: None,
-                            message: "analysis mask hides rows under ErrorOnMissing policy".into(),
+                            message: "analysis mask hides rows under ErrorOnMissing policy",
                         });
                     }
                 }
@@ -167,14 +166,7 @@ impl LaggedFrame {
             }
         }
 
-        Ok(Self {
-            variables: Arc::from(variables),
-            max_lag,
-            n_effective,
-            n_lags,
-            values,
-            validity,
-        })
+        Ok(Self { variables: Arc::from(variables), max_lag, n_effective, n_lags, values, validity })
     }
 
     /// Variables in slot order.
@@ -328,7 +320,7 @@ impl LaggedFrame {
     ///
     /// # Errors
     ///
-    /// Empty input, or mismatched variables / max_lag across frames.
+    /// Empty input, or mismatched variables / `max_lag` across frames.
     pub fn stack(frames: &[Self]) -> Result<Self, DataError> {
         let Some(first) = frames.first() else {
             return Err(DataError::InvalidArgument {
@@ -474,7 +466,9 @@ mod tests {
     fn builds_with_missing_values_marking_invalid() {
         let data = float_series_with_gap(20, 2, 5);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let frame = LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap();
+        let frame =
+            LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy())
+                .unwrap();
         assert_eq!(frame.n_effective(), 18);
         // Row index 5 in the series is invalid for v0; lag-0 effective index = 5 - 2 = 3.
         let i0 = frame.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
@@ -488,7 +482,9 @@ mod tests {
     fn builds_with_analysis_mask_marking_invalid() {
         let data = float_series_with_mask(20, 2, 5);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let frame = LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap();
+        let frame =
+            LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy())
+                .unwrap();
         let i0 = frame.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
         assert!(!frame.column_valid(i0).is_valid(3));
         let keep = frame.keep_mask_for_columns(&[i0]).unwrap();
@@ -521,10 +517,7 @@ mod tests {
             &vars,
             2,
             ReferencePointPolicy::SeriesOrigin,
-            LaggedFrameOptions {
-                mask: MaskPolicy::Honor,
-                missing: MissingPolicy::ErrorOnMissing,
-            },
+            LaggedFrameOptions { mask: MaskPolicy::Honor, missing: MissingPolicy::ErrorOnMissing },
             &KernelPolicy::default_policy(),
         )
         .unwrap_err();
@@ -538,7 +531,9 @@ mod tests {
     fn frame_matches_lag_map_gather() {
         let data = float_series(20, 2);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let frame = LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap();
+        let frame =
+            LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy())
+                .unwrap();
         assert_eq!(frame.n_effective(), 18);
         assert_eq!(frame.ncols(), 6);
         assert!(frame.is_fully_valid());
@@ -552,7 +547,9 @@ mod tests {
     fn retain_effective_compacts_validity() {
         let data = float_series_with_mask(20, 2, 5);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
-        let frame = LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy()).unwrap();
+        let frame =
+            LaggedFrame::from_series(&data, &vars, 2, &causal_core::KernelPolicy::default_policy())
+                .unwrap();
         let cols: Vec<usize> = (0..frame.ncols()).collect();
         let keep = frame.keep_mask_for_columns(&cols).unwrap();
         let compacted = frame.retain_effective(&keep).unwrap();

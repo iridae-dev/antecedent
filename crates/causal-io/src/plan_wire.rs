@@ -87,11 +87,11 @@ pub fn logical_plan_to_wire(p: &LogicalAnalysisPlanRecord) -> LogicalAnalysisPla
             DataClassification::Event => "event",
         }
         .into(),
-        discovery_algorithm: p.discovery_algorithm.as_ref().map(|s| s.to_string()),
+        discovery_algorithm: p.discovery_algorithm.as_ref().map(ToString::to_string),
         graph_review_required: p.graph_review_required,
-        identifier: p.identifier.as_ref().map(|s| s.to_string()),
-        estimator: p.estimator.as_ref().map(|s| s.to_string()),
-        validation_suite: p.validation_suite.as_ref().map(|s| s.to_string()),
+        identifier: p.identifier.as_ref().map(ToString::to_string),
+        estimator: p.estimator.as_ref().map(ToString::to_string),
+        validation_suite: p.validation_suite.as_ref().map(ToString::to_string),
         query_variables: vars_to_raw(&p.query_variables),
     }
 }
@@ -101,7 +101,9 @@ pub fn logical_plan_to_wire(p: &LogicalAnalysisPlanRecord) -> LogicalAnalysisPla
 /// # Errors
 ///
 /// Unknown classification.
-pub fn logical_plan_from_wire(w: &LogicalAnalysisPlanWire) -> Result<LogicalAnalysisPlanRecord, IoError> {
+pub fn logical_plan_from_wire(
+    w: &LogicalAnalysisPlanWire,
+) -> Result<LogicalAnalysisPlanRecord, IoError> {
     Ok(LogicalAnalysisPlanRecord {
         plan_id: Arc::from(w.plan_id.as_str()),
         data_classification: match w.data_classification.as_str() {
@@ -173,20 +175,12 @@ pub fn physical_plan_to_wire(p: &PhysicalExecutionPlanRecord) -> PhysicalExecuti
             .iter()
             .map(|(n, m)| (n.to_string(), mat_to_str(*m).into()))
             .collect(),
-        kernels: p
-            .kernels
-            .iter()
-            .map(|(n, k)| (n.to_string(), kernel_to_str(*k).into()))
-            .collect(),
+        kernels: p.kernels.iter().map(|(n, k)| (n.to_string(), kernel_to_str(*k).into())).collect(),
         batch_size: p.batch_size.map(|b| u64::try_from(b).unwrap_or(u64::MAX)),
         workspace_bytes: p.workspace_bytes,
         estimated_peak_memory_bytes: p.estimated_peak_memory_bytes,
         estimated_copy_bytes: p.estimated_copy_bytes,
-        task_schedule: p
-            .task_schedule
-            .iter()
-            .map(|t| (t.dimension.to_string(), t.units))
-            .collect(),
+        task_schedule: p.task_schedule.iter().map(|t| (t.dimension.to_string(), t.units)).collect(),
         worker_threads: p.worker_threads,
         deterministic_reductions: p.deterministic_reductions,
         expected_python_crossings: p.expected_python_crossings,

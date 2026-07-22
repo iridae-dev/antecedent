@@ -2,9 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_core::{
-    ComponentId, ExecutionContext, Intervention, ShapleyConfig, Value, VariableId,
-};
+use causal_core::{ComponentId, ExecutionContext, Intervention, ShapleyConfig, Value, VariableId};
 use causal_data::{TableView, TabularData};
 use causal_model::{CompiledCausalModel, MechanismWorkspace, sample_interventional};
 
@@ -46,9 +44,8 @@ pub fn feature_relevance(
             max: 64,
         });
     }
-    let outcome_dense = model
-        .dense_of(outcome)
-        .ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
+    let outcome_dense =
+        model.dense_of(outcome).ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
 
     let mut means = Vec::with_capacity(features.len());
     for &feat in features {
@@ -97,8 +94,7 @@ impl CoalitionPayoff for FeaturePayoff<'_> {
         let mut interventions = Vec::new();
         for (i, &feat) in self.features.iter().enumerate() {
             if mask & (1u64 << i) != 0 {
-                interventions
-                    .push(Intervention::set(feat, Value::f64(self.means[i] + self.delta)));
+                interventions.push(Intervention::set(feat, Value::f64(self.means[i] + self.delta)));
             }
         }
         // Common random numbers across coalitions (fixed seed).
@@ -121,9 +117,7 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    use causal_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
+    use causal_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
     use causal_data::column::{Float64Column, ValidityBitmap};
     use causal_data::{OwnedColumn, OwnedColumnarStorage};
     use causal_graph::{Dag, DenseNodeId};

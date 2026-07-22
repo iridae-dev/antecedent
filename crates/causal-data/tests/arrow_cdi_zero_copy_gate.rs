@@ -4,8 +4,8 @@
 
 #![cfg(feature = "arrow")]
 
-use arrow_array::{Array, Float64Array};
 use arrow_array::ffi::to_ffi;
+use arrow_array::{Array, Float64Array};
 use causal_data::{ArrowCColumn, TableView, tabular_from_arrow_c_columns};
 
 #[test]
@@ -20,10 +20,7 @@ fn rust_arrow_cdi_zero_copy_acceptance() {
     ])
     .unwrap();
     assert_eq!(loaded.data.row_count(), 4);
-    assert!(
-        loaded.bytes_borrowed > 0,
-        "expected zero-copy borrow of float64 value buffers"
-    );
+    assert!(loaded.bytes_borrowed > 0, "expected zero-copy borrow of float64 value buffers");
     // Validity bitmaps may be copied; value buffers must not be.
     let value_bytes = (4 * 2 * core::mem::size_of::<f64>()) as u64;
     assert!(loaded.bytes_borrowed >= value_bytes);

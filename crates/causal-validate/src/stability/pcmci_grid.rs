@@ -108,7 +108,7 @@ impl BlockBootstrapStability {
 /// Alpha-threshold sensitivity: re-run PCMCI across an `alpha` grid on the same data.
 #[derive(Clone, Debug)]
 pub struct AlphaThresholdSensitivity {
-    /// Base PCMCI configuration (FDR, CI, max_lag, …).
+    /// Base PCMCI configuration (FDR, CI, `max_lag`, …).
     pub pcmci: Pcmci,
     /// Significance levels to sweep.
     pub alphas: Arc<[f64]>,
@@ -240,7 +240,7 @@ impl CiTestSensitivity {
             })?;
             configs.push(self.pcmci.clone().with_ci(ci));
         }
-        run_param_grid(configs.into_iter(), data, variables, workspace, ctx)
+        run_param_grid(configs, data, variables, workspace, ctx)
     }
 }
 
@@ -275,17 +275,11 @@ pub(crate) fn report_from_counts(
 ) -> DiscoveryStabilityReport {
     let mut frequencies = Vec::with_capacity(counts.len());
     for (link, c) in counts {
-        frequencies
-            .push(LinkStability { link, frequency: f64::from(c) / f64::from(replicates) });
+        frequencies.push(LinkStability { link, frequency: f64::from(c) / f64::from(replicates) });
     }
-    frequencies.sort_by(|a, b| {
-        b.frequency.partial_cmp(&a.frequency).unwrap_or(std::cmp::Ordering::Equal)
-    });
-    DiscoveryStabilityReport {
-        frequencies: Arc::from(frequencies),
-        replicates,
-        block_size,
-    }
+    frequencies
+        .sort_by(|a, b| b.frequency.partial_cmp(&a.frequency).unwrap_or(std::cmp::Ordering::Equal));
+    DiscoveryStabilityReport { frequencies: Arc::from(frequencies), replicates, block_size }
 }
 
 #[cfg(test)]
@@ -360,10 +354,7 @@ mod tests {
 
     fn base_pcmci() -> Pcmci {
         Pcmci::new().with_fdr(false).with_constraints(DiscoveryConstraints {
-            temporal: TemporalConstraints {
-                max_lag: Lag::from_raw(2),
-                min_lag: Lag::from_raw(1),
-            },
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(2), min_lag: Lag::from_raw(1) },
             max_cond_size: 1,
             alpha: 0.05,
             ..DiscoveryConstraints::default()

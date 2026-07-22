@@ -20,10 +20,7 @@ fn meek_r1_cycle_records_conflict_and_continues() {
     let delta = run_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
     assert!(state.conflicts >= 1, "conflicts={}", state.conflicts);
     assert!(delta.conflicts >= 1);
-    assert!(
-        g.edge_between(b, c).unwrap().is_conflict(),
-        "cycle conflict should mark x-x"
-    );
+    assert!(g.edge_between(b, c).unwrap().is_conflict(), "cycle conflict should mark x-x");
 }
 
 #[test]
@@ -97,8 +94,7 @@ fn collider_fires_on_triple_with_directed_lagged_leg() {
     g.insert_undirected(k, j).unwrap();
     let mut state = OrientationState::default();
     state.set_sepset(x1, j, Arc::from([]));
-    let rules: [&dyn OrientationRule; 5] =
-        [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
+    let rules: [&dyn OrientationRule; 5] = [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
     run_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
     assert_eq!(g.edge_between(j, k).unwrap().parent_child(), Some((j, k)));
 }

@@ -10,7 +10,8 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
-    clippy::many_single_char_names
+    clippy::many_single_char_names,
+    clippy::needless_range_loop
 )]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -253,7 +254,7 @@ impl Rpcmci {
         let regimes = assignments.unique_regimes();
         if regimes.is_empty() {
             return Err(DiscoveryError::Unsupported {
-                message: "RPCMCI needs ≥1 distinct regime",
+                message: "RPCMCI needs ≥1 distinct regime"
             });
         }
 
@@ -502,6 +503,7 @@ pub fn regime_edge_counts(graphs: &RegimeGraphCollection) -> BTreeMap<u32, (usiz
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::constraints::{DiscoveryConstraints, TemporalConstraints};
     use causal_core::{
         CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
     };
@@ -509,7 +511,6 @@ mod tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         ValidityBitmap,
     };
-    use crate::constraints::{DiscoveryConstraints, TemporalConstraints};
 
     fn two_regime_series(n: usize) -> TimeSeriesData {
         let mut b = CausalSchemaBuilder::new();
@@ -575,20 +576,17 @@ mod tests {
         let data = two_regime_series(200);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
         let assign = two_regime_half_split(200);
-        let algo = Rpcmci::new()
-            .with_min_regime_len(40)
-            .with_alternating_iters(0)
-            .with_pcmci_plus(PcmciPlus::new().with_fdr(false).with_constraints(
-                DiscoveryConstraints {
-                    temporal: TemporalConstraints {
-                        max_lag: Lag::from_raw(1),
-                        min_lag: Lag::CONTEMPORANEOUS,
-                    },
-                    alpha: 0.3,
-                    max_cond_size: 1,
-                    ..DiscoveryConstraints::default()
+        let algo = Rpcmci::new().with_min_regime_len(40).with_alternating_iters(0).with_pcmci_plus(
+            PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(1),
+                    min_lag: Lag::CONTEMPORANEOUS,
                 },
-            ));
+                alpha: 0.3,
+                max_cond_size: 1,
+                ..DiscoveryConstraints::default()
+            }),
+        );
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(3);
         let result = algo.run(&data, &vars, &assign, &mut ws, &ctx).unwrap();

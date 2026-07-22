@@ -236,7 +236,7 @@ impl ValidationSuite {
 
     /// Run Bayesian validators that need a fitted posterior / prepared design.
     ///
-    /// Frequentist `run` leaves Prior/Posterior predictive and PriorSensitivity as
+    /// Frequentist `run` leaves Prior/Posterior predictive and `PriorSensitivity` as
     /// [`ValidationOutcome::NotApplicable`]; call this path from Bayesian execute.
     ///
     /// # Errors
@@ -266,8 +266,7 @@ impl ValidationSuite {
         let method = problem.estimand.method_kind().ok();
         let static_linear = method == Some(causal_expr::EstimandMethod::BackdoorAdjustment)
             && problem.estimator.is_none_or(|e| e == "linear.adjustment.ate");
-        let temporal_linear = method
-            == Some(causal_expr::EstimandMethod::TemporalBackdoorUnfolded)
+        let temporal_linear = method == Some(causal_expr::EstimandMethod::TemporalBackdoorUnfolded)
             && problem.temporal.is_some()
             && problem.estimator.is_none_or(|e| {
                 matches!(e, "temporal.linear.adjustment" | "bayesian.temporal.gcomp")
@@ -517,10 +516,9 @@ impl ValidationSuite {
                     )),
                 }
             }
-            other => Ok(na(
-                other,
-                "validator is not a Bayesian diagnostic; use ValidationSuite::run",
-            )),
+            other => {
+                Ok(na(other, "validator is not a Bayesian diagnostic; use ValidationSuite::run"))
+            }
         }
     }
 
@@ -646,7 +644,8 @@ mod tests {
             query: &query,
             original: &original,
             estimator: Some("linear.adjustment.ate"),
-         temporal: None, };
+            temporal: None,
+        };
         let outcomes = ValidationSuite::full_effect().run(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(outcomes.len(), 14);
         let reports = ValidationSuite::reports_only(&outcomes);

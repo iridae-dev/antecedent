@@ -1,8 +1,13 @@
-//! Rolling linear-Gaussian mechanism diagnostics under CausalState.
+//! Rolling linear-Gaussian mechanism diagnostics under `CausalState`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::implicit_hasher
+)]
 
 use std::collections::VecDeque;
 
@@ -66,9 +71,7 @@ impl RollingMechanismDiagnostics {
         Ok(Self {
             state_version: StateVersion::ZERO,
             data_version: 0,
-            retention: RetentionPolicy::BoundedWindow {
-                max_rows: window as u64,
-            },
+            retention: RetentionPolicy::BoundedWindow { max_rows: window as u64 },
             window,
             n: 0,
             beta: Vec::new(),
@@ -191,9 +194,7 @@ impl RollingMechanismDiagnostics {
 
     fn rebuild_ols_from_ring(&mut self) {
         let mut ols = LinearOlsSuffStats::new(self.ols.ncols);
-        ols.retention = RetentionPolicy::BoundedWindow {
-            max_rows: self.window as u64,
-        };
+        ols.retention = RetentionPolicy::BoundedWindow { max_rows: self.window as u64 };
         for (row, y) in &self.ring {
             let _ = ols.append_row(row, *y);
         }
@@ -204,11 +205,7 @@ impl RollingMechanismDiagnostics {
 
 fn subtract_row(ols: &mut LinearOlsSuffStats, row: &[f64], y: f64) -> Result<(), StateError> {
     if row.len() != ols.ncols {
-        return Err(StateError::Shape(format!(
-            "row len {} != ncols {}",
-            row.len(),
-            ols.ncols
-        )));
+        return Err(StateError::Shape(format!("row len {} != ncols {}", row.len(), ols.ncols)));
     }
     if ols.n == 0 {
         return Err(StateError::Numerical("cannot subtract from empty OLS".into()));
@@ -278,9 +275,7 @@ mod tests {
 
         let start = all_y.len() - w;
         let mut batch = LinearOlsSuffStats::new(p);
-        batch
-            .append_batch(&all_rows[start * p..], &all_y[start..])
-            .unwrap();
+        batch.append_batch(&all_rows[start * p..], &all_y[start..]).unwrap();
         let beta_b = batch.solve_beta().unwrap();
         assert_eq!(roll.n, w as u64);
         assert!((roll.beta[0] - beta_b[0]).abs() < 1e-8);

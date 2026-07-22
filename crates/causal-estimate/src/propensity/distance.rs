@@ -2,15 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
 
 use causal_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
+    AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry,
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
 use causal_stats::{
-    FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityWorkspace, fit_propensity,
+    FaerBackend, GlmOptions, MatchingDistance, fit_propensity,
 };
 
 use super::matching::matching_contrast;
@@ -23,7 +22,7 @@ use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::se::AnalyticSeKind;
-use crate::util::{bootstrap_se, stats_err, BootstrapSeResult};
+use crate::util::{BootstrapSeResult, bootstrap_se};
 
 /// Distance matching on raw adjustment covariates (Euclidean), not the propensity score.
 ///
@@ -112,7 +111,9 @@ impl DistanceMatching {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         if problem.adjustment_set.is_empty() {
-            return Err(EstimationError::unsupported("distance matching requires a non-empty adjustment set"));
+            return Err(EstimationError::unsupported(
+                "distance matching requires a non-empty adjustment set",
+            ));
         }
         let trim = trim_of(problem.overlap);
         let dim = problem.covariates.len();
@@ -209,7 +210,7 @@ impl DistanceMatching {
         workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
-                let n = problem.nrows;
+        let n = problem.nrows;
         let ncols = problem.design_ncols;
         let mut feat_boot = vec![0.0; n * dim];
         // Diagnostic design resample, needed only to recompute the trim per replicate.

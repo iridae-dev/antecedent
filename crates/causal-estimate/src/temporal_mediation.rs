@@ -6,10 +6,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
     clippy::many_single_char_names,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::too_many_lines
 )]
 
 use std::sync::Arc;
@@ -92,14 +93,18 @@ impl TemporalMediationEstimator {
             });
         }
         if estimand.mediators.len() != 1 {
-            return Err(EstimationError::unsupported("TemporalMediationEstimator supports exactly one mediator"));
+            return Err(EstimationError::unsupported(
+                "TemporalMediationEstimator supports exactly one mediator",
+            ));
         }
         let mediator = estimand.mediators[0];
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
         let delta = active - control;
         if delta == 0.0 {
-            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
+            return Err(EstimationError::unsupported(
+                "active and control treatment levels must differ",
+            ));
         }
 
         let cols = Arc::from([
@@ -109,9 +114,8 @@ impl TemporalMediationEstimator {
         ]);
         let plan = data.plan_lagged_sample(1, cols).map_err(EstimationError::from)?;
         let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan
-            .prepare(data, &mut ws, &ctx.kernel_policy)
-            .map_err(EstimationError::from)?;
+        let prep =
+            plan.prepare(data, &mut ws, &ctx.kernel_policy).map_err(EstimationError::from)?;
         let t = prep.column(0);
         let m = prep.column(1);
         let y = prep.column(2);

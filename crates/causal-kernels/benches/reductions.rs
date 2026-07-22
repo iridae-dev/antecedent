@@ -11,20 +11,20 @@ use causal_kernels::{
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
-fn bench_reductions(c: &mut Criterion) {
-    let n = 10_000usize;
-    let x: Vec<f64> = (0..n).map(|i| i as f64 * 0.01).collect();
-    let y: Vec<f64> = (0..n).map(|i| (i as f64 * 0.02) + 1.0).collect();
-    let w: Vec<f64> = (0..n).map(|i| 0.5 + (i % 7) as f64 * 0.1).collect();
+fn bench_reductions(criterion: &mut Criterion) {
+    let length = 10_000usize;
+    let x: Vec<f64> = (0..length).map(|idx| idx as f64 * 0.01).collect();
+    let y: Vec<f64> = (0..length).map(|idx| (idx as f64 * 0.02) + 1.0).collect();
+    let w: Vec<f64> = (0..length).map(|idx| 0.5 + (idx % 7) as f64 * 0.1).collect();
     let policy = KernelPolicy::default_policy();
     let xv = F64VectorView::contiguous(&x);
     let yv = F64VectorView::contiguous(&y);
 
-    c.bench_function("masked_covariance_n10k", |b| {
+    criterion.bench_function("masked_covariance_n10k", |b| {
         b.iter(|| masked_covariance(black_box(&policy), black_box(xv), black_box(yv), None));
     });
 
-    c.bench_function("standardize_inplace_n10k", |b| {
+    criterion.bench_function("standardize_inplace_n10k", |b| {
         let mut buf = x.clone();
         b.iter(|| {
             buf.copy_from_slice(&x);
@@ -32,23 +32,27 @@ fn bench_reductions(c: &mut Criterion) {
         });
     });
 
-    c.bench_function("weighted_sum_n10k", |b| {
+    criterion.bench_function("weighted_sum_n10k", |b| {
         b.iter(|| weighted_sum(black_box(&policy), black_box(&x), black_box(&w)));
     });
 
-    let n_pair = 256usize;
-    let xp: Vec<f64> = (0..n_pair).map(|i| i as f64).collect();
-    let mut pair_out = vec![0.0; n_pair * n_pair];
-    c.bench_function("pairwise_l1_n256", |b| {
+    let pair_len = 256usize;
+    let xp: Vec<f64> = (0..pair_len).map(|idx| idx as f64).collect();
+    let mut pair_out = vec![0.0; pair_len * pair_len];
+    criterion.bench_function("pairwise_l1_n256", |b| {
         b.iter(|| {
             pairwise_l1_fill(black_box(&policy), black_box(&xp), black_box(&mut pair_out));
         });
     });
 
-    let xc: Vec<u32> = (0..n).map(|i| (i % 8) as u32).collect();
-    let yc: Vec<u32> = (0..n).map(|i| (i % 5) as u32).collect();
+    let xc: Vec<u32> = (0..length)
+        .map(|idx| u32::try_from(idx % 8).unwrap_or(0))
+        .collect();
+    let yc: Vec<u32> = (0..length)
+        .map(|idx| u32::try_from(idx % 5).unwrap_or(0))
+        .collect();
     let mut table = vec![0.0; 8 * 5];
-    c.bench_function("accumulate_contingency_n10k", |b| {
+    criterion.bench_function("accumulate_contingency_n10k", |b| {
         b.iter(|| {
             table.fill(0.0);
             accumulate_contingency(

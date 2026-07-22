@@ -284,7 +284,7 @@ mod tests {
     }
 }
 
-/// Review-required static DAG artifact (DirectLiNGAM and other full-DAG discovery).
+/// Review-required static DAG artifact (`DirectLiNGAM` and other full-DAG discovery).
 #[derive(Clone, Debug)]
 pub struct DagReview {
     /// Proposed discovery DAG.
@@ -302,7 +302,8 @@ impl DagReview {
         let mut pending = Vec::new();
         for e in graph.edges() {
             if let Some((from, to)) = e.parent_child() {
-                if let (Some(fv), Some(tv)) = (variable_id_of(&graph, from), variable_id_of(&graph, to))
+                if let (Some(fv), Some(tv)) =
+                    (variable_id_of(&graph, from), variable_id_of(&graph, to))
                 {
                     pending.push((fv, tv));
                 }

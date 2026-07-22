@@ -40,9 +40,10 @@ pub fn equal_width_bin(col: &[f64], n_bins: usize, out: &mut [f64]) -> Result<()
         max_v = max_v.max(v);
     }
     let width = (max_v - min_v).max(1e-12);
-    for (i, &v) in col.iter().enumerate() {
-        let b = ((v - min_v) / width * n_bins as f64).floor() as usize;
-        out[i] = b.min(n_bins - 1) as f64;
+    let last_bin = (n_bins - 1) as f64;
+    for (slot, &v) in out.iter_mut().zip(col.iter()) {
+        let b = ((v - min_v) / width * n_bins as f64).floor();
+        *slot = b.clamp(0.0, last_bin);
     }
     Ok(())
 }
@@ -77,7 +78,7 @@ pub fn ordinal_patterns(
         idx.sort_by(|&a, &b| {
             col[t + a * tau]
                 .partial_cmp(&col[t + b * tau])
-                .expect("finite values checked")
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
         // Lehmer code
         let mut code = 0usize;
@@ -110,11 +111,11 @@ pub fn moving_average(col: &[f64], window: usize, out: &mut [f64]) -> Result<(),
     require_finite(col, "moving_average")?;
     let half = window / 2;
     let n = col.len();
-    for i in 0..n {
+    for (i, slot) in out.iter_mut().enumerate() {
         let lo = i.saturating_sub(half);
         let hi = (i + half + 1).min(n);
         let s: f64 = col[lo..hi].iter().sum();
-        out[i] = s / (hi - lo) as f64;
+        *slot = s / (hi - lo) as f64;
     }
     Ok(())
 }
@@ -128,8 +129,8 @@ mod tests {
         let col = [0.0, 1.0, 2.0, 3.0];
         let mut out = [0.0; 4];
         equal_width_bin(&col, 2, &mut out).unwrap();
-        assert_eq!(out[0], 0.0);
-        assert_eq!(out[3], 1.0);
+        assert!((out[0] - 0.0).abs() < f64::EPSILON);
+        assert!((out[3] - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -141,7 +142,7 @@ mod tests {
 
     #[test]
     fn ordinal_runs() {
-        let col: Vec<f64> = (0..20).map(|i| (i as f64).sin()).collect();
+        let col: Vec<f64> = (0..20).map(|i| f64::from(i).sin()).collect();
         let mut out = vec![0.0; 20];
         let n = ordinal_patterns(&col, 3, 1, &mut out).unwrap();
         assert!(n > 0);

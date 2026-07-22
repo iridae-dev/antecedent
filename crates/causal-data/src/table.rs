@@ -7,6 +7,14 @@ use causal_core::{CausalSchema, VariableId};
 use crate::column::ColumnView;
 use crate::error::DataError;
 
+/// Lossy `i64` → `f64` for the float analysis path (mantissa cannot hold all `i64`).
+fn analysis_f64_from_i64(v: i64) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    {
+        v as f64
+    }
+}
+
 /// Borrowed table access used by algorithms.
 pub trait TableView {
     /// Immutable causal schema.
@@ -38,7 +46,7 @@ pub trait TableView {
                 let mut out = Vec::with_capacity(c.values.len());
                 for (i, &v) in c.values.iter().enumerate() {
                     out.push(if c.validity.is_valid(i) {
-                        v as f64
+                        analysis_f64_from_i64(v)
                     } else {
                         f64::NAN
                     });
@@ -48,11 +56,7 @@ pub trait TableView {
             ColumnView::Boolean(c) => {
                 let mut out = Vec::with_capacity(c.values.len());
                 for (i, &v) in c.values.iter().enumerate() {
-                    out.push(if c.validity.is_valid(i) {
-                        f64::from(v)
-                    } else {
-                        f64::NAN
-                    });
+                    out.push(if c.validity.is_valid(i) { f64::from(v) } else { f64::NAN });
                 }
                 Ok(out)
             }

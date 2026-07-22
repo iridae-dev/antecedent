@@ -11,8 +11,8 @@ use causal_core::{
     VariableId,
 };
 use causal_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex, TimeSeriesData,
-    ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+    TimeSeriesData, ValidityBitmap,
 };
 use causal_discovery::{DiscoveryWorkspace, Pcmci};
 use causal_kernels::standard_normal;
@@ -90,22 +90,15 @@ impl SyntheticNullCalibration {
         let mut trials = 0u64;
         for _ in 0..self.n_sim {
             let data = independent_noise_series(self.n_obs, self.n_vars, &mut rng)?;
-            let result = self
-                .pcmci
-                .run(&data, &variables, workspace, ctx)
-                .map_err(ValidationError::from)?;
+            let result =
+                self.pcmci.run(&data, &variables, workspace, ctx).map_err(ValidationError::from)?;
             edge_hits += result.evidence.links.len() as u64;
             trials += family as u64;
         }
-        let empirical_fpr = if trials == 0 {
-            0.0
-        } else {
-            edge_hits as f64 / trials as f64
-        };
-        let se = (self.alpha * (1.0 - self.alpha) / self.n_sim as f64).sqrt();
+        let empirical_fpr = if trials == 0 { 0.0 } else { edge_hits as f64 / trials as f64 };
+        let se = (self.alpha * (1.0 - self.alpha) / f64::from(self.n_sim)).sqrt();
         let abs_floor = 0.05;
-        let within_band =
-            (empirical_fpr - self.alpha).abs() <= (self.band_tol * se).max(abs_floor);
+        let within_band = (empirical_fpr - self.alpha).abs() <= (self.band_tol * se).max(abs_floor);
         Ok(NullCalibrationReport {
             alpha: self.alpha,
             n_sim: self.n_sim,
@@ -151,14 +144,11 @@ fn independent_noise_series(
             .map_err(ValidationError::from)?,
         ));
     }
-    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None)
-        .map_err(ValidationError::from)?;
+    let storage =
+        OwnedColumnarStorage::try_new(schema, cols, None, None).map_err(ValidationError::from)?;
     TimeSeriesData::try_new(
         storage,
-        TimeIndex {
-            regularity: SamplingRegularity::Regular { interval_ns: 1 },
-            length: n_obs,
-        },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n_obs },
     )
     .map_err(ValidationError::from)
 }
@@ -172,13 +162,12 @@ mod tests {
 
     #[test]
     fn synthetic_null_smoke() {
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.temporal = TemporalConstraints {
-            max_lag: Lag::from_raw(1),
-            min_lag: Lag::from_raw(1),
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+            max_cond_size: 1,
+            alpha: 0.05,
+            ..Default::default()
         };
-        constraints.max_cond_size = 1;
-        constraints.alpha = 0.05;
         let cal = SyntheticNullCalibration::new(
             Pcmci::new().with_fdr(false).with_constraints(constraints),
             0.05,
@@ -197,13 +186,12 @@ mod tests {
     #[test]
     #[ignore = "scheduled calibration gate; run via scripts/gate_calibration.sh"]
     fn synthetic_null_fpr_near_alpha_gate() {
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.temporal = TemporalConstraints {
-            max_lag: Lag::from_raw(1),
-            min_lag: Lag::from_raw(1),
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+            max_cond_size: 1,
+            alpha: 0.05,
+            ..Default::default()
         };
-        constraints.max_cond_size = 1;
-        constraints.alpha = 0.05;
         let mut cal = SyntheticNullCalibration::new(
             Pcmci::new().with_fdr(false).with_constraints(constraints),
             0.05,

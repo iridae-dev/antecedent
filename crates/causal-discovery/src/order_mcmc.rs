@@ -5,11 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::too_many_lines
-)]
+#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::too_many_lines)]
 
 use causal_core::{CausalRng, ExecutionContext, VariableId};
 use causal_data::TabularData;
@@ -17,11 +13,9 @@ use causal_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::graph_mcmc::{
-    run_parallel_mask_chains, FinishMaskPosterior, GraphMcmcSchedule,
-};
+use crate::graph_mcmc::{FinishMaskPosterior, GraphMcmcSchedule, run_parallel_mask_chains};
 use crate::graph_posterior::{
-    has_edge, n_directed_edges, set_edge, GraphPosterior, GraphPosteriorEngine, GraphPrior,
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, n_directed_edges, set_edge,
 };
 use crate::graph_score::{score_dag_mask, tabular_score_data};
 
@@ -50,13 +44,7 @@ impl OrderMcmc {
     /// Default sampler.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            n_chains: 4,
-            n_warmup: 500,
-            n_draws: 1000,
-            thin: 1,
-            require_diagnostics_gate: true,
-        }
+        Self { n_chains: 4, n_warmup: 500, n_draws: 1000, thin: 1, require_diagnostics_gate: true }
     }
 
     /// Configure chain lengths.
@@ -104,9 +92,7 @@ impl OrderMcmc {
         prior.constraints.validate()?;
         let n = variables.len();
         if n == 0 {
-            return Err(DiscoveryError::unsupported(
-                "order MCMC requires at least one variable",
-            ));
+            return Err(DiscoveryError::unsupported("order MCMC requires at least one variable"));
         }
         if n_directed_edges(n) > 63 {
             return Err(DiscoveryError::unsupported(
@@ -126,12 +112,8 @@ impl OrderMcmc {
         let n_params = n_directed_edges(n);
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
 
-        let (traces, sample_masks, rejected) = run_parallel_mask_chains(
-            n_chains,
-            n_draws,
-            n_params,
-            threads,
-            |start, end| {
+        let (traces, sample_masks, rejected) =
+            run_parallel_mask_chains(n_chains, n_draws, n_params, threads, |start, end| {
                 let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
                 let mut local_samples = vec![Vec::new(); end - start];
                 let mut local_rej = 0u64;
@@ -206,8 +188,7 @@ impl OrderMcmc {
                     }
                 }
                 (start, local_traces, local_samples, local_rej)
-            },
-        );
+            });
 
         FinishMaskPosterior {
             n,
@@ -307,10 +288,10 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    use causal_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+    use causal_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
+    use causal_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
-    use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
 
     use crate::graph_posterior::GraphPrior;
 
@@ -359,23 +340,14 @@ mod tests {
     #[test]
     fn order_mcmc_chain_signal() {
         let (data, vars) = chain_data(220);
-        let eng = OrderMcmc::new()
-            .with_schedule(2, 300, 600, 1)
-            .with_diagnostics_gate(false);
+        let eng = OrderMcmc::new().with_schedule(2, 300, 600, 1).with_diagnostics_gate(false);
         let ctx = ExecutionContext::for_tests(9);
         let mut ws = DiscoveryWorkspace::default();
         let post = eng
-            .run(
-                &data,
-                &vars,
-                &GraphPrior::uniform(),
-                GraphScoreFamily::GaussianBic,
-                &mut ws,
-                &ctx,
-            )
+            .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap();
         let n = 3;
-        let sk01 = post.edge_marginals[0 * n + 1] + post.edge_marginals[1 * n + 0];
+        let sk01 = post.edge_marginals[1] + post.edge_marginals[n];
         assert!(sk01 > 0.25, "P(A—B)={sk01}");
         assert!(crate::graph_posterior::allows_graph_posterior(&post.diagnostics));
     }

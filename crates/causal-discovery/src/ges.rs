@@ -10,6 +10,7 @@
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::similar_names,
+    clippy::too_many_arguments,
     clippy::too_many_lines
 )]
 
@@ -19,9 +20,7 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::TabularData;
 use causal_graph::{Cpdag, CpdagReview, Dag, DenseNodeId, Endpoint, NodeRef};
-use causal_state::{
-    GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache,
-};
+use causal_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 use causal_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::constraints::DiscoveryConstraints;
@@ -82,7 +81,7 @@ impl Ges {
                 },
                 ..DiscoveryConstraints::default()
             },
-            ci: Arc::new(PartialCorrelation::default()),
+            ci: Arc::new(PartialCorrelation),
             fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
             screen_pc: false,
             max_subset: None,
@@ -188,7 +187,17 @@ impl Ges {
 
         // Forward equivalence search (Insert).
         loop {
-            let Some(best) = best_insert(&cpdag, &score_data, &mut cache, max_parents, max_subset, screen.as_ref(), &self.constraints, variables)? else {
+            let Some(best) = best_insert(
+                &cpdag,
+                &score_data,
+                &mut cache,
+                max_parents,
+                max_subset,
+                screen.as_ref(),
+                &self.constraints,
+                variables,
+            )?
+            else {
                 break;
             };
             if best.delta <= 0.0 {
@@ -199,7 +208,17 @@ impl Ges {
 
         // Turning phase (Reverse = Delete then Insert opposite).
         loop {
-            let Some(best) = best_reverse(&cpdag, &score_data, &mut cache, max_parents, max_subset, screen.as_ref(), &self.constraints, variables)? else {
+            let Some(best) = best_reverse(
+                &cpdag,
+                &score_data,
+                &mut cache,
+                max_parents,
+                max_subset,
+                screen.as_ref(),
+                &self.constraints,
+                variables,
+            )?
+            else {
                 break;
             };
             if best.delta <= 0.0 {
@@ -211,7 +230,15 @@ impl Ges {
 
         // Backward equivalence search (Delete).
         loop {
-            let Some(best) = best_delete(&cpdag, &score_data, &mut cache, max_subset, &self.constraints, variables)? else {
+            let Some(best) = best_delete(
+                &cpdag,
+                &score_data,
+                &mut cache,
+                max_subset,
+                &self.constraints,
+                variables,
+            )?
+            else {
                 break;
             };
             if best.delta <= 0.0 {
@@ -225,7 +252,7 @@ impl Ges {
             let dag = pdag_to_dag(&cpdag)?;
             for node in 0..n_vars as u32 {
                 let d = DenseNodeId::from_raw(node);
-                let parents: Vec<u32> = dag.parents(d).into_iter().map(|p| p.raw()).collect();
+                let parents: Vec<u32> = dag.parents(d).iter().map(|p| p.raw()).collect();
                 let _ = cache.local_score(&score_data, node, &Arc::from(parents))?;
             }
             cache.score_graph(&score_data)?
@@ -235,11 +262,7 @@ impl Ges {
             .edges()
             .into_iter()
             .filter_map(|e| {
-                let (a, b) = if e.a.raw() <= e.b.raw() {
-                    (e.a, e.b)
-                } else {
-                    (e.b, e.a)
-                };
+                let (a, b) = if e.a.raw() <= e.b.raw() { (e.a, e.b) } else { (e.b, e.a) };
                 let va = cpdag.variable_id(a)?;
                 let vb = cpdag.variable_id(b)?;
                 Some(EdgeEvidence {
@@ -273,9 +296,7 @@ impl Ges {
             graph: cpdag.clone(),
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(links),
-            source: EvidenceSource::Discovery {
-                algorithm: Arc::from("ges"),
-            },
+            source: EvidenceSource::Discovery { algorithm: Arc::from("ges") },
         };
         let review = CpdagReview::from_cpdag(cpdag, "ges");
         let edge_count = evidence.graph.edges().len();
@@ -337,11 +358,8 @@ fn seed_required_edges(
     constraints: &DiscoveryConstraints,
 ) -> Result<(), DiscoveryError> {
     let var_set: HashSet<VariableId> = variables.iter().copied().collect();
-    let index: HashMap<VariableId, DenseNodeId> = variables
-        .iter()
-        .enumerate()
-        .map(|(i, v)| (*v, DenseNodeId::from_raw(i as u32)))
-        .collect();
+    let index: HashMap<VariableId, DenseNodeId> =
+        variables.iter().enumerate().map(|(i, v)| (*v, DenseNodeId::from_raw(i as u32))).collect();
     for r in constraints.required.iter() {
         if r.source_lag != Lag::CONTEMPORANEOUS || r.target_lag != Lag::CONTEMPORANEOUS {
             continue;
@@ -446,11 +464,7 @@ fn required_pair(
 }
 
 fn na_yx(cpdag: &Cpdag, y: DenseNodeId, x: DenseNodeId) -> Vec<DenseNodeId> {
-    cpdag
-        .undirected_neighbors(y)
-        .into_iter()
-        .filter(|&n| cpdag.has_edge(n, x))
-        .collect()
+    cpdag.undirected_neighbors(y).into_iter().filter(|&n| cpdag.has_edge(n, x)).collect()
 }
 
 fn is_clique(cpdag: &Cpdag, nodes: &[DenseNodeId]) -> bool {
@@ -546,7 +560,7 @@ fn delete_valid(cpdag: &Cpdag, x: DenseNodeId, y: DenseNodeId, h: &[DenseNodeId]
 }
 
 fn parents_u32(cpdag: &Cpdag, y: DenseNodeId) -> Vec<u32> {
-    cpdag.parents(y).into_iter().map(|p| p.raw()).collect()
+    cpdag.parents(y).into_iter().map(causal_graph::DenseNodeId::raw).collect()
 }
 
 fn insert_delta(
@@ -586,11 +600,8 @@ fn delete_delta(
     // Corollary 18: s(Y, (NA\H) ∪ (Pa\{X})) − s(Y, (NA\H) ∪ Pa)
     let na = na_yx(cpdag, y, x);
     let h_set: HashSet<DenseNodeId> = h.iter().copied().collect();
-    let na_rest: Vec<u32> = na
-        .into_iter()
-        .filter(|n| !h_set.contains(n))
-        .map(|n| n.raw())
-        .collect();
+    let na_rest: Vec<u32> =
+        na.into_iter().filter(|n| !h_set.contains(n)).map(causal_graph::DenseNodeId::raw).collect();
     let mut pa = parents_u32(cpdag, y);
     let mut with_x = pa.clone();
     with_x.extend_from_slice(&na_rest);
@@ -674,11 +685,8 @@ fn best_insert(
             }
             // T ⊆ Ne(Y) \ adj(X)
             let adj_x: HashSet<DenseNodeId> = cpdag.adjacent(x).into_iter().collect();
-            let candidates: Vec<DenseNodeId> = cpdag
-                .undirected_neighbors(y)
-                .into_iter()
-                .filter(|n| !adj_x.contains(n))
-                .collect();
+            let candidates: Vec<DenseNodeId> =
+                cpdag.undirected_neighbors(y).into_iter().filter(|n| !adj_x.contains(n)).collect();
             let mut subsets: Vec<Vec<DenseNodeId>> = Vec::new();
             for_each_subset(&candidates, max_subset, |t| subsets.push(t.to_vec()));
             for t in subsets {
@@ -774,11 +782,8 @@ fn best_reverse(
             apply_delete(&mut tmp, x, y, &h)?;
             // Insert opposite Y → X
             let adj_y: HashSet<DenseNodeId> = tmp.adjacent(y).into_iter().collect();
-            let candidates: Vec<DenseNodeId> = tmp
-                .undirected_neighbors(x)
-                .into_iter()
-                .filter(|n| !adj_y.contains(n))
-                .collect();
+            let candidates: Vec<DenseNodeId> =
+                tmp.undirected_neighbors(x).into_iter().filter(|n| !adj_y.contains(n)).collect();
             let mut t_subsets: Vec<Vec<DenseNodeId>> = Vec::new();
             for_each_subset(&candidates, max_subset, |t| t_subsets.push(t.to_vec()));
             for t in t_subsets {
@@ -967,10 +972,10 @@ fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
                 let q = parents[j];
                 if !dag.has_edge(p, q) && !dag.has_edge(q, p) {
                     // p → z ← q
-                    if cpdag.edge_between(p, z).is_some_and(|e| e.is_undirected()) {
+                    if cpdag.edge_between(p, z).is_some_and(causal_graph::MarkedEdge::is_undirected) {
                         cpdag.orient_undirected(p, z)?;
                     }
-                    if cpdag.edge_between(q, z).is_some_and(|e| e.is_undirected()) {
+                    if cpdag.edge_between(q, z).is_some_and(causal_graph::MarkedEdge::is_undirected) {
                         cpdag.orient_undirected(q, z)?;
                     }
                 }

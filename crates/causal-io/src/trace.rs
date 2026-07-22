@@ -115,16 +115,16 @@ fn assumption_to_tag(a: &Assumption) -> AssumptionTagWire {
         Assumption::Stationarity => AssumptionTagWire::Stationarity,
         Assumption::PiecewiseStationarity => AssumptionTagWire::PiecewiseStationarity,
         Assumption::NoSelectionBias => AssumptionTagWire::NoSelectionBias,
-        Assumption::ExclusionRestriction { instrument } => AssumptionTagWire::ExclusionRestriction {
-            instrument: instrument.raw(),
-        },
+        Assumption::ExclusionRestriction { instrument } => {
+            AssumptionTagWire::ExclusionRestriction { instrument: instrument.raw() }
+        }
         Assumption::Monotonicity => AssumptionTagWire::Monotonicity,
-        Assumption::ParametricRestriction(p) => AssumptionTagWire::ParametricRestriction {
-            id: p.id.to_string(),
-        },
-        Assumption::PriorRestriction(p) => AssumptionTagWire::PriorRestriction {
-            id: p.id.to_string(),
-        },
+        Assumption::ParametricRestriction(p) => {
+            AssumptionTagWire::ParametricRestriction { id: p.id.to_string() }
+        }
+        Assumption::PriorRestriction(p) => {
+            AssumptionTagWire::PriorRestriction { id: p.id.to_string() }
+        }
         Assumption::Custom { id, .. } => AssumptionTagWire::Custom { id: id.to_string() },
     }
 }

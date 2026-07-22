@@ -135,11 +135,7 @@ mod tests {
 
     #[test]
     fn combinations_vars_match() {
-        let items = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
+        let items = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let alloc = combinations_vars(&items, 2);
         assert_eq!(alloc.len(), 3);
     }

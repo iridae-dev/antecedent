@@ -1,4 +1,4 @@
-//! PAG / CPDAG / ADMG interchange (DOT / JSON / GML / NetworkX).
+//! PAG / CPDAG / ADMG interchange (DOT / JSON / GML / `NetworkX`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -205,9 +205,7 @@ pub fn cpdag_from_dot(dot: &str) -> Result<Cpdag, IoError> {
             DotKind::Directed => directed.push((e.from, e.to)),
             DotKind::Undirected => undirected.push(canon(e.from, e.to)),
             _ => {
-                return Err(IoError::Convert(
-                    "CPDAG DOT accepts only -> and -- edges".into(),
-                ));
+                return Err(IoError::Convert("CPDAG DOT accepts only -> and -- edges".into()));
             }
         }
     }
@@ -252,11 +250,8 @@ pub fn pag_from_dot(dot: &str) -> Result<Pag, IoError> {
             DotKind::Bidirected => (EndpointWire::Arrow, EndpointWire::Arrow),
             DotKind::Marked { at_a, at_b } => (at_a, at_b),
         };
-        let (a, b, at_a, at_b) = if e.from <= e.to {
-            (e.from, e.to, at_a, at_b)
-        } else {
-            (e.to, e.from, at_b, at_a)
-        };
+        let (a, b, at_a, at_b) =
+            if e.from <= e.to { (e.from, e.to, at_a, at_b) } else { (e.to, e.from, at_b, at_a) };
         edges.push(MarkedEdgeWire { a, b, at_a, at_b });
     }
     pag_from_wire(&PagWire { node_count: parsed.node_count, edges })
@@ -316,7 +311,7 @@ pub fn pag_to_dot(pag: &Pag, names: Option<&[String]>) -> Result<String, IoError
     for (i, present) in seen.iter().enumerate() {
         if !*present {
             out.push(' ');
-            push_label(&mut out, i as u32, names, use_names);
+            push_label(&mut out, u32::try_from(i).map_err(|_| IoError::TooLarge)?, names, use_names);
             out.push_str(";\n");
         }
     }
@@ -337,10 +332,9 @@ pub fn admg_from_dot(dot: &str) -> Result<Admg, IoError> {
         match e.kind {
             DotKind::Directed => directed.push((e.from, e.to)),
             DotKind::Bidirected
-            | DotKind::Marked {
-                at_a: EndpointWire::Arrow,
-                at_b: EndpointWire::Arrow,
-            } => bidirected.push(canon(e.from, e.to)),
+            | DotKind::Marked { at_a: EndpointWire::Arrow, at_b: EndpointWire::Arrow } => {
+                bidirected.push(canon(e.from, e.to));
+            }
             _ => {
                 return Err(IoError::Convert(
                     "ADMG DOT accepts only -> and dir=both / arrow-arrow marks".into(),
@@ -447,19 +441,12 @@ fn parse_dot(dot: &str, allow_undirected: bool) -> Result<DotGraph, IoError> {
         lexer.skip_ws_and_comments();
         let to = lexer.expect_node_id()?;
         lexer.skip_ws_and_comments();
-        let attrs = if lexer.peek_char() == Some('[') {
-            lexer.parse_attr_list()?
-        } else {
-            HashMap::new()
-        };
+        let attrs =
+            if lexer.peek_char() == Some('[') { lexer.parse_attr_list()? } else { HashMap::new() };
         let _ = lexer.eat_char(';');
         let fi = graph_dot::intern(&from, &mut order, &mut index)?;
         let ti = graph_dot::intern(&to, &mut order, &mut index)?;
-        edges.push(DotEdge {
-            from: fi,
-            to: ti,
-            kind: classify_edge(directed, &attrs)?,
-        });
+        edges.push(DotEdge { from: fi, to: ti, kind: classify_edge(directed, &attrs)? });
     }
     if order.is_empty() {
         return Err(IoError::Convert("DOT graph has no nodes".into()));
@@ -469,7 +456,10 @@ fn parse_dot(dot: &str, allow_undirected: bool) -> Result<DotGraph, IoError> {
         let map: HashMap<u32, u32> = order
             .iter()
             .enumerate()
-            .filter_map(|(i, label)| label.parse::<u32>().ok().map(|n| (i as u32, n)))
+            .filter_map(|(i, label)| {
+                let i_u32 = u32::try_from(i).ok()?;
+                label.parse::<u32>().ok().map(|n| (i_u32, n))
+            })
             .collect();
         let edges = edges
             .into_iter()
@@ -481,18 +471,12 @@ fn parse_dot(dot: &str, allow_undirected: bool) -> Result<DotGraph, IoError> {
             .collect();
         return Ok(DotGraph { node_count: remapped.node_count, edges });
     }
-    Ok(DotGraph {
-        node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?,
-        edges,
-    })
+    Ok(DotGraph { node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?, edges })
 }
 
 fn classify_edge(directed: bool, attrs: &HashMap<String, String>) -> Result<DotKind, IoError> {
     if let (Some(a), Some(b)) = (attrs.get("mark_a"), attrs.get("mark_b")) {
-        return Ok(DotKind::Marked {
-            at_a: parse_endpoint(a)?,
-            at_b: parse_endpoint(b)?,
-        });
+        return Ok(DotKind::Marked { at_a: parse_endpoint(a)?, at_b: parse_endpoint(b)? });
     }
     if attrs.get("dir").is_some_and(|d| d.eq_ignore_ascii_case("both")) {
         return Ok(DotKind::Bidirected);
@@ -540,28 +524,13 @@ pub fn pag_from_gml(gml: &str) -> Result<Pag, IoError> {
     let g = parse_gml(gml)?;
     let mut edges = g.marked;
     for &(a, b) in &g.directed {
-        edges.push(MarkedEdgeWire {
-            a,
-            b,
-            at_a: EndpointWire::Tail,
-            at_b: EndpointWire::Arrow,
-        });
+        edges.push(MarkedEdgeWire { a, b, at_a: EndpointWire::Tail, at_b: EndpointWire::Arrow });
     }
     for &(a, b) in &g.undirected {
-        edges.push(MarkedEdgeWire {
-            a,
-            b,
-            at_a: EndpointWire::Tail,
-            at_b: EndpointWire::Tail,
-        });
+        edges.push(MarkedEdgeWire { a, b, at_a: EndpointWire::Tail, at_b: EndpointWire::Tail });
     }
     for &(a, b) in &g.bidirected {
-        edges.push(MarkedEdgeWire {
-            a,
-            b,
-            at_a: EndpointWire::Arrow,
-            at_b: EndpointWire::Arrow,
-        });
+        edges.push(MarkedEdgeWire { a, b, at_a: EndpointWire::Arrow, at_b: EndpointWire::Arrow });
     }
     pag_from_wire(&PagWire { node_count: g.node_count, edges })
 }
@@ -618,6 +587,27 @@ struct GmlGraph {
     marked: Vec<MarkedEdgeWire>,
 }
 
+struct GmlParseState {
+    order: Vec<String>,
+    index: HashMap<String, u32>,
+    directed: Vec<(u32, u32)>,
+    undirected: Vec<(u32, u32)>,
+    bidirected: Vec<(u32, u32)>,
+    marked: Vec<MarkedEdgeWire>,
+}
+
+impl GmlParseState {
+    fn into_graph(self) -> Result<GmlGraph, IoError> {
+        Ok(GmlGraph {
+            node_count: u32::try_from(self.order.len()).map_err(|_| IoError::TooLarge)?,
+            directed: self.directed,
+            undirected: self.undirected,
+            bidirected: self.bidirected,
+            marked: self.marked,
+        })
+    }
+}
+
 enum GmlEdge {
     Dir(u32, u32),
     Undir(u32, u32),
@@ -640,18 +630,84 @@ impl GmlEdge {
     }
 }
 
+fn parse_gml_node(state: &mut GmlParseState, tokens: &[Tok], i: &mut usize) -> Result<(), IoError> {
+    *i += 1;
+    graph_gml::expect_char(tokens, i, '[')?;
+    let mut id = None;
+    let mut label = None;
+    while *i < tokens.len() && !matches!(&tokens[*i], Tok::Char(']')) {
+        let key = graph_gml::expect_any_ident(tokens, i)?.to_ascii_lowercase();
+        let val = graph_gml::expect_value(tokens, i)?;
+        match key.as_str() {
+            "id" => id = Some(val),
+            "label" => label = Some(val),
+            _ => {}
+        }
+    }
+    graph_gml::expect_char(tokens, i, ']')?;
+    let name = label.or(id).ok_or_else(|| IoError::Convert("node missing id".into()))?;
+    graph_dot::intern(&name, &mut state.order, &mut state.index)?;
+    Ok(())
+}
+
+fn parse_gml_edge(state: &mut GmlParseState, tokens: &[Tok], i: &mut usize) -> Result<(), IoError> {
+    *i += 1;
+    graph_gml::expect_char(tokens, i, '[')?;
+    let mut source = None;
+    let mut target = None;
+    let mut is_undirected = false;
+    let mut is_bidirected = false;
+    let mut mark_a = None;
+    let mut mark_b = None;
+    while *i < tokens.len() && !matches!(&tokens[*i], Tok::Char(']')) {
+        let key = graph_gml::expect_any_ident(tokens, i)?.to_ascii_lowercase();
+        let val = graph_gml::expect_value(tokens, i)?;
+        match key.as_str() {
+            "source" => source = Some(val),
+            "target" => target = Some(val),
+            "undirected" => is_undirected = val != "0",
+            "bidirected" => is_bidirected = val != "0",
+            "mark_a" => mark_a = Some(val),
+            "mark_b" => mark_b = Some(val),
+            _ => {}
+        }
+    }
+    graph_gml::expect_char(tokens, i, ']')?;
+    let s = source.ok_or_else(|| IoError::Convert("edge missing source".into()))?;
+    let t = target.ok_or_else(|| IoError::Convert("edge missing target".into()))?;
+    let from = graph_dot::intern(&s, &mut state.order, &mut state.index)?;
+    let to = graph_dot::intern(&t, &mut state.order, &mut state.index)?;
+    if let (Some(a), Some(b)) = (mark_a, mark_b) {
+        state.marked.push(MarkedEdgeWire {
+            a: from,
+            b: to,
+            at_a: parse_endpoint(&a)?,
+            at_b: parse_endpoint(&b)?,
+        });
+    } else if is_bidirected {
+        state.bidirected.push(canon(from, to));
+    } else if is_undirected {
+        state.undirected.push(canon(from, to));
+    } else {
+        state.directed.push((from, to));
+    }
+    Ok(())
+}
+
 fn parse_gml(gml: &str) -> Result<GmlGraph, IoError> {
     let tokens = graph_gml::tokenize(gml)?;
     let mut i = 0;
     graph_gml::expect_ident(&tokens, &mut i, "graph")?;
     graph_gml::expect_char(&tokens, &mut i, '[')?;
     let mut directed_flag = None;
-    let mut order = Vec::new();
-    let mut index = HashMap::new();
-    let mut directed = Vec::new();
-    let mut undirected = Vec::new();
-    let mut bidirected = Vec::new();
-    let mut marked = Vec::new();
+    let mut state = GmlParseState {
+        order: Vec::new(),
+        index: HashMap::new(),
+        directed: Vec::new(),
+        undirected: Vec::new(),
+        bidirected: Vec::new(),
+        marked: Vec::new(),
+    };
     while i < tokens.len() {
         if matches!(&tokens[i], Tok::Char(']')) {
             break;
@@ -662,64 +718,10 @@ fn parse_gml(gml: &str) -> Result<GmlGraph, IoError> {
                 directed_flag = Some(graph_gml::expect_number(&tokens, &mut i)? != 0.0);
             }
             Tok::Ident(k) if k.eq_ignore_ascii_case("node") => {
-                i += 1;
-                graph_gml::expect_char(&tokens, &mut i, '[')?;
-                let mut id = None;
-                let mut label = None;
-                while i < tokens.len() && !matches!(&tokens[i], Tok::Char(']')) {
-                    let key = graph_gml::expect_any_ident(&tokens, &mut i)?.to_ascii_lowercase();
-                    let val = graph_gml::expect_value(&tokens, &mut i)?;
-                    match key.as_str() {
-                        "id" => id = Some(val),
-                        "label" => label = Some(val),
-                        _ => {}
-                    }
-                }
-                graph_gml::expect_char(&tokens, &mut i, ']')?;
-                let name = label.or(id).ok_or_else(|| IoError::Convert("node missing id".into()))?;
-                graph_dot::intern(&name, &mut order, &mut index)?;
+                parse_gml_node(&mut state, &tokens, &mut i)?;
             }
             Tok::Ident(k) if k.eq_ignore_ascii_case("edge") => {
-                i += 1;
-                graph_gml::expect_char(&tokens, &mut i, '[')?;
-                let mut source = None;
-                let mut target = None;
-                let mut is_undirected = false;
-                let mut is_bidirected = false;
-                let mut mark_a = None;
-                let mut mark_b = None;
-                while i < tokens.len() && !matches!(&tokens[i], Tok::Char(']')) {
-                    let key = graph_gml::expect_any_ident(&tokens, &mut i)?.to_ascii_lowercase();
-                    let val = graph_gml::expect_value(&tokens, &mut i)?;
-                    match key.as_str() {
-                        "source" => source = Some(val),
-                        "target" => target = Some(val),
-                        "undirected" => is_undirected = val != "0",
-                        "bidirected" => is_bidirected = val != "0",
-                        "mark_a" => mark_a = Some(val),
-                        "mark_b" => mark_b = Some(val),
-                        _ => {}
-                    }
-                }
-                graph_gml::expect_char(&tokens, &mut i, ']')?;
-                let s = source.ok_or_else(|| IoError::Convert("edge missing source".into()))?;
-                let t = target.ok_or_else(|| IoError::Convert("edge missing target".into()))?;
-                let from = graph_dot::intern(&s, &mut order, &mut index)?;
-                let to = graph_dot::intern(&t, &mut order, &mut index)?;
-                if let (Some(a), Some(b)) = (mark_a, mark_b) {
-                    marked.push(MarkedEdgeWire {
-                        a: from,
-                        b: to,
-                        at_a: parse_endpoint(&a)?,
-                        at_b: parse_endpoint(&b)?,
-                    });
-                } else if is_bidirected {
-                    bidirected.push(canon(from, to));
-                } else if is_undirected {
-                    undirected.push(canon(from, to));
-                } else {
-                    directed.push((from, to));
-                }
+                parse_gml_edge(&mut state, &tokens, &mut i)?;
             }
             Tok::Ident(_) => {
                 i += 1;
@@ -733,16 +735,10 @@ fn parse_gml(gml: &str) -> Result<GmlGraph, IoError> {
     if directed_flag != Some(true) {
         return Err(IoError::Convert("GML graph must be directed 1".into()));
     }
-    if order.is_empty() {
+    if state.order.is_empty() {
         return Err(IoError::Convert("empty GML graph".into()));
     }
-    Ok(GmlGraph {
-        node_count: u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?,
-        directed,
-        undirected,
-        bidirected,
-        marked,
-    })
+    state.into_graph()
 }
 
 fn emit_gml(
@@ -753,13 +749,8 @@ fn emit_gml(
 ) -> String {
     let mut out = String::from("graph [\n  directed 1\n");
     for i in 0..node_count {
-        let label = names
-            .and_then(|n| n.get(i as usize))
-            .cloned()
-            .unwrap_or_else(|| i.to_string());
-        out.push_str(&format!(
-            "  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n"
-        ));
+        let label = names.and_then(|n| n.get(i as usize)).cloned().unwrap_or_else(|| i.to_string());
+        out.push_str(&format!("  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n"));
     }
     for e in edges_a.chain(edges_b) {
         let (a, b, extra) = match e {
@@ -776,17 +767,9 @@ fn emit_gml(
                 ),
             ),
         };
-        let sa = names
-            .and_then(|n| n.get(a as usize))
-            .cloned()
-            .unwrap_or_else(|| a.to_string());
-        let sb = names
-            .and_then(|n| n.get(b as usize))
-            .cloned()
-            .unwrap_or_else(|| b.to_string());
-        out.push_str(&format!(
-            "  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n{extra}  ]\n"
-        ));
+        let sa = names.and_then(|n| n.get(a as usize)).cloned().unwrap_or_else(|| a.to_string());
+        let sb = names.and_then(|n| n.get(b as usize)).cloned().unwrap_or_else(|| b.to_string());
+        out.push_str(&format!("  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n{extra}  ]\n"));
     }
     out.push(']');
     out
@@ -794,7 +777,7 @@ fn emit_gml(
 
 // ── NetworkX node-link ──────────────────────────────────────────────────────
 
-/// Parse NetworkX node-link JSON into a [`Cpdag`].
+/// Parse `NetworkX` node-link JSON into a [`Cpdag`].
 ///
 /// # Errors
 ///
@@ -817,7 +800,7 @@ pub fn cpdag_from_networkx_node_link(json: &str) -> Result<Cpdag, IoError> {
     })
 }
 
-/// Serialize a [`Cpdag`] to NetworkX node-link JSON.
+/// Serialize a [`Cpdag`] to `NetworkX` node-link JSON.
 ///
 /// # Errors
 ///
@@ -837,7 +820,7 @@ pub fn cpdag_to_networkx_node_link(
     emit_nx(wire.node_count, names, links)
 }
 
-/// Parse NetworkX node-link JSON into a [`Pag`].
+/// Parse `NetworkX` node-link JSON into a [`Pag`].
 ///
 /// # Errors
 ///
@@ -870,7 +853,7 @@ pub fn pag_from_networkx_node_link(json: &str) -> Result<Pag, IoError> {
     })
 }
 
-/// Serialize a [`Pag`] to NetworkX node-link JSON.
+/// Serialize a [`Pag`] to `NetworkX` node-link JSON.
 ///
 /// # Errors
 ///
@@ -895,7 +878,7 @@ pub fn pag_to_networkx_node_link(pag: &Pag, names: Option<&[String]>) -> Result<
     emit_nx(wire.node_count, names, links)
 }
 
-/// Parse NetworkX node-link JSON into an [`Admg`].
+/// Parse `NetworkX` node-link JSON into an [`Admg`].
 ///
 /// # Errors
 ///
@@ -920,7 +903,7 @@ pub fn admg_from_networkx_node_link(json: &str) -> Result<Admg, IoError> {
     })
 }
 
-/// Serialize an [`Admg`] to NetworkX node-link JSON.
+/// Serialize an [`Admg`] to `NetworkX` node-link JSON.
 ///
 /// # Errors
 ///
@@ -1051,10 +1034,12 @@ fn nx_link(
     }
 }
 
-fn emit_nx(node_count: u32, names: Option<&[String]>, links: Vec<NxOutLink>) -> Result<String, IoError> {
-    let nodes = (0..node_count)
-        .map(|i| NetworkXNode { id: node_id(i, names) })
-        .collect();
+fn emit_nx(
+    node_count: u32,
+    names: Option<&[String]>,
+    links: Vec<NxOutLink>,
+) -> Result<String, IoError> {
+    let nodes = (0..node_count).map(|i| NetworkXNode { id: node_id(i, names) }).collect();
     let doc = NxOut {
         directed: true,
         multigraph: false,
@@ -1144,9 +1129,11 @@ fn emit_isolated(
     }
     for (i, present) in seen.iter().enumerate() {
         if !*present {
-            out.push(' ');
-            push_label(out, i as u32, names, use_names);
-            out.push_str(";\n");
+            if let Ok(id) = u32::try_from(i) {
+                out.push(' ');
+                push_label(out, id, names, use_names);
+                out.push_str(";\n");
+            }
         }
     }
 }
@@ -1163,9 +1150,18 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         g.insert_undirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
         let names = vec!["a".into(), "b".into(), "c".into()];
-        assert_eq!(cpdag_from_json(&cpdag_to_json(&g, Some(&names)).unwrap()).unwrap().edges().len(), 2);
-        assert_eq!(cpdag_from_dot(&cpdag_to_dot(&g, Some(&names)).unwrap()).unwrap().node_count(), 3);
-        assert_eq!(cpdag_from_gml(&cpdag_to_gml(&g, Some(&names)).unwrap()).unwrap().node_count(), 3);
+        assert_eq!(
+            cpdag_from_json(&cpdag_to_json(&g, Some(&names)).unwrap()).unwrap().edges().len(),
+            2
+        );
+        assert_eq!(
+            cpdag_from_dot(&cpdag_to_dot(&g, Some(&names)).unwrap()).unwrap().node_count(),
+            3
+        );
+        assert_eq!(
+            cpdag_from_gml(&cpdag_to_gml(&g, Some(&names)).unwrap()).unwrap().node_count(),
+            3
+        );
         assert_eq!(
             cpdag_from_networkx_node_link(&cpdag_to_networkx_node_link(&g, Some(&names)).unwrap())
                 .unwrap()

@@ -3,11 +3,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
     clippy::cast_sign_loss,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::too_many_arguments
 )]
 
 use std::sync::Arc;
@@ -144,9 +145,7 @@ impl TemporalLinearAdjustment {
             .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
         let mut sample_ws = LaggedSampleWorkspace::default();
-        let prep = plan
-            .prepare(data, &mut sample_ws, policy)
-            .map_err(EstimationError::from)?;
+        let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
 
         let n = prep.n;
         let (row_start, row_end) = if let Some(s) = split {
@@ -180,7 +179,9 @@ impl TemporalLinearAdjustment {
         let control = intervention_f64(&query.control)?;
         let treatment_delta = active - control;
         if treatment_delta == 0.0 {
-            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
+            return Err(EstimationError::unsupported(
+                "active and control treatment levels must differ",
+            ));
         }
 
         Ok(PreparedEstimationProblem {
@@ -226,14 +227,7 @@ impl TemporalLinearAdjustment {
         let mut first = true;
 
         for unit in panel.units() {
-            let prep = self.prepare(
-                &unit.series,
-                estimand,
-                query,
-                indexer,
-                split,
-                policy,
-            )?;
+            let prep = self.prepare(&unit.series, estimand, query, indexer, split, policy)?;
             if first {
                 active = prep.active;
                 control = prep.control;
@@ -294,7 +288,9 @@ impl TemporalLinearAdjustment {
 
 fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
     if offset > 0 {
-        return Err(EstimationError::unsupported("positive offsets (future treatment/outcome) unsupported for temporal adjustment"));
+        return Err(EstimationError::unsupported(
+            "positive offsets (future treatment/outcome) unsupported for temporal adjustment",
+        ));
     }
     let lag = u32::try_from(-offset)
         .map_err(|_| EstimationError::unsupported("offset does not fit lag"))?;
@@ -388,7 +384,14 @@ mod tests {
         let estimand = id_res.result.estimands.first().unwrap();
         let est = TemporalLinearAdjustment::new();
         let prep = est
-            .prepare(&data, estimand, &q, &id_res.indexer, None, &ExecutionContext::for_tests(1).kernel_policy)
+            .prepare(
+                &data,
+                estimand,
+                &q,
+                &id_res.indexer,
+                None,
+                &ExecutionContext::for_tests(1).kernel_policy,
+            )
             .unwrap();
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
@@ -401,10 +404,11 @@ mod tests {
     #[test]
     fn rejects_planned_target_populations() {
         let (data, g) = series();
-        let base = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
-            .with_policy(TemporalPolicy::pulse(-1))
-            .with_horizon_steps(1)
-            .with_max_history_lag(Some(1));
+        let base =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1));
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &base).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
         let est = TemporalLinearAdjustment::new();
@@ -415,9 +419,7 @@ mod tests {
             TargetPopulation::CustomDistribution(DistributionRef::from_raw(1)),
         ] {
             let q = base.clone().with_target_population(population);
-            let err = est
-                .prepare(&data, estimand, &q, &id_res.indexer, None, policy)
-                .unwrap_err();
+            let err = est.prepare(&data, estimand, &q, &id_res.indexer, None, policy).unwrap_err();
             assert!(matches!(err, EstimationError::TargetPopulation));
         }
     }

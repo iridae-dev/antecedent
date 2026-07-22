@@ -63,7 +63,9 @@ impl PendingGraphReview {
         if edge_in_graph(&self.review.graph, from, to) {
             return Ok(self);
         }
-        Err(AnalysisError::review_required_msg(format!("required edge {from:?} -> {to:?} not in proposed graph")))
+        Err(AnalysisError::review_required_msg(format!(
+            "required edge {from:?} -> {to:?} not in proposed graph"
+        )))
     }
 
     /// Accept all remaining pending edges.
@@ -273,7 +275,7 @@ pub fn compile_review_required_static_cpdag(review: CpdagReview) -> CompiledAnal
     CompiledAnalysis::ReviewRequiredStaticCpdag(review)
 }
 
-/// Wrap DirectLiNGAM / static DAG discovery as review-required.
+/// Wrap `DirectLiNGAM` / static DAG discovery as review-required.
 #[must_use]
 pub fn compile_review_required_static_dag(review: DagReview) -> CompiledAnalysis {
     CompiledAnalysis::ReviewRequiredStaticDag(review)
@@ -298,9 +300,7 @@ pub fn compile_review_required_pag(review: TemporalPagReview) -> CompiledAnalysi
 /// [`AnalysisError::ReviewRequired`] when the flag is set.
 pub fn ensure_review_complete(plan: &LogicalAnalysisPlan) -> Result<(), AnalysisError> {
     if plan.record.graph_review_required {
-        return Err(AnalysisError::review_required_msg(
-            "graph review required before estimation",
-        ));
+        return Err(AnalysisError::review_required_msg("graph review required before estimation"));
     }
     Ok(())
 }

@@ -15,8 +15,8 @@ mod parcorr_variants;
 mod types;
 
 pub use advanced::{Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi};
-pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 pub use analytic::analytic_parcorr_ci;
+pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 pub use calibration::{
     CalibrationReport, calibrate_gsquared, calibrate_parcorr_like, chi2_crit_approx,
     collect_null_pvalues_parcorr_like, type_i_within_three_se, type_i_within_two_se,
@@ -36,7 +36,12 @@ pub use types::{
 };
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    clippy::similar_names
+)]
 mod tests {
     use causal_core::ExecutionContext;
 
@@ -141,10 +146,10 @@ mod tests {
     ///, matching an explicit scalar policy bit-for-bit.
     #[test]
     fn kernel_policy_from_context_matches_explicit_scalar() {
-        use causal_core::KernelPolicy;
-        use causal_kernels::{ParCorrMode, select_impl, KernelImpl};
-        use crate::design::standardize_columns;
         use crate::ci::parcorr::parcorr_mode;
+        use crate::design::standardize_columns;
+        use causal_core::KernelPolicy;
+        use causal_kernels::{KernelImpl, ParCorrMode, select_impl};
 
         let ctx = ExecutionContext::for_tests(42);
         assert!(ctx.kernel_policy.force_scalar);
@@ -179,8 +184,7 @@ mod tests {
         assert_eq!(g_ctx.results[0].statistic, g_exp.results[0].statistic);
         assert_eq!(g_ctx.results[0].p_value, g_exp.results[0].p_value);
 
-        let p_ctx =
-            PartialCorrelation::new().test_batch_adhoc(&req, &mut ws_ctx, &ctx).unwrap();
+        let p_ctx = PartialCorrelation::new().test_batch_adhoc(&req, &mut ws_ctx, &ctx).unwrap();
         let p_exp = PartialCorrelation::new()
             .test_batch_adhoc(&req, &mut ws_explicit, &ctx_explicit)
             .unwrap();
@@ -207,23 +211,15 @@ mod tests {
             confidence: ConfidenceMethod::default(),
         };
         let gp_ctx = Gpdc::new().test_batch_adhoc(&req_c, &mut ws_ctx, &ctx).unwrap();
-        let gp_exp =
-            Gpdc::new().test_batch_adhoc(&req_c, &mut ws_explicit, &ctx_explicit).unwrap();
+        let gp_exp = Gpdc::new().test_batch_adhoc(&req_c, &mut ws_explicit, &ctx_explicit).unwrap();
         assert_eq!(gp_ctx.results[0].statistic, gp_exp.results[0].statistic);
 
         let mut m_ctx = vec![1.0, 1.0, 1.0, 1.0, 0.0, 2.0, 4.0, 6.0];
         let mut m_exp = m_ctx.clone();
-        let r_ctx =
-            standardize_columns(&mut m_ctx, 4, 2, &[1], 1e-12, &ctx.kernel_policy).unwrap();
-        let r_exp = standardize_columns(
-            &mut m_exp,
-            4,
-            2,
-            &[1],
-            1e-12,
-            &KernelPolicy::scalar_only(),
-        )
-        .unwrap();
+        let r_ctx = standardize_columns(&mut m_ctx, 4, 2, &[1], 1e-12, &ctx.kernel_policy).unwrap();
+        let r_exp =
+            standardize_columns(&mut m_exp, 4, 2, &[1], 1e-12, &KernelPolicy::scalar_only())
+                .unwrap();
         assert_eq!(r_ctx.entries[0].mean, r_exp.entries[0].mean);
         assert_eq!(r_ctx.entries[0].scale, r_exp.entries[0].scale);
         assert_eq!(m_ctx, m_exp);

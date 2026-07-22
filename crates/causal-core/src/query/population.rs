@@ -37,13 +37,13 @@ impl PopulationRegistry {
     /// Look up a named predicate.
     #[must_use]
     pub fn predicate(&self, name: &str) -> Option<&[usize]> {
-        self.predicates.get(name).map(|r| r.as_ref())
+        self.predicates.get(name).map(std::convert::AsRef::as_ref)
     }
 
     /// Look up distribution weights.
     #[must_use]
     pub fn distribution(&self, id: DistributionRef) -> Option<&[f64]> {
-        self.distributions.get(&id.raw()).map(|w| w.as_ref())
+        self.distributions.get(&id.raw()).map(std::convert::AsRef::as_ref)
     }
 }
 
@@ -52,7 +52,7 @@ impl PopulationRegistry {
 pub struct PopulationSelection {
     /// Length-`n` keep mask (`true` = include).
     pub keep: Arc<[bool]>,
-    /// Optional length-`n` non-negative weights (CustomDistribution).
+    /// Optional length-`n` non-negative weights (`CustomDistribution`).
     pub weights: Option<Arc<[f64]>>,
 }
 
@@ -72,10 +72,9 @@ impl TargetPopulation {
         registry: Option<&PopulationRegistry>,
     ) -> Result<PopulationSelection, QueryError> {
         match self {
-            Self::AllObserved => Ok(PopulationSelection {
-                keep: Arc::from(vec![true; n]),
-                weights: None,
-            }),
+            Self::AllObserved => {
+                Ok(PopulationSelection { keep: Arc::from(vec![true; n]), weights: None })
+            }
             Self::Treated | Self::Untreated => {
                 let t = treatment.ok_or(QueryError::PopulationNeedsTreatment)?;
                 if t.len() != n {
@@ -118,9 +117,9 @@ impl TargetPopulation {
             }
             Self::CustomDistribution(id) => {
                 let reg = registry.ok_or(QueryError::PopulationRegistryRequired)?;
-                let weights = reg.distribution(*id).ok_or(QueryError::UnknownDistributionRef {
-                    id: id.raw(),
-                })?;
+                let weights = reg
+                    .distribution(*id)
+                    .ok_or(QueryError::UnknownDistributionRef { id: id.raw() })?;
                 if weights.len() != n {
                     return Err(QueryError::PopulationLengthMismatch {
                         expected: n,

@@ -2,7 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments)]
+#![allow(
+    clippy::many_single_char_names,
+    clippy::needless_pass_by_value,
+    clippy::too_many_arguments,
+    clippy::unused_self
+)]
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -21,9 +26,7 @@ use crate::error::IdentificationError;
 use crate::hedge::HedgeCertificate;
 use crate::identifier::IdentificationWorkspace;
 use crate::prepared::PreparedAdmg;
-use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
-};
+use crate::result::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 
 /// Memo key: canonical (Y, X, V) plus optional hard assignment for ATE contrast sides.
 ///
@@ -107,21 +110,19 @@ impl IdIdentifier {
                         "conditional Distribution requires IdcIdentifier (or AutoIdentifier)",
                     ));
                 }
-                if let Err(e) = crate::intervention_support::require_hard_set_interventions(
+                crate::intervention_support::require_hard_set_interventions(
                     q.interventions.iter(),
                     "general ID",
-                ) {
-                    return Err(e);
-                }
+                )?;
                 // Flatten Sequence-of-Sets / Soft(constant) reductions for multi-do.
                 let normalized = crate::intervention_support::normalize_intervention_list(
                     q.interventions.iter().cloned(),
                 )?;
                 let mut x = BitSet::with_len(prepared.admg().node_count());
                 for intervention in &normalized {
-                    let v = intervention.primary_variable().ok_or(IdentificationError::unsupported(
-                        "intervention missing primary variable",
-                    ))?;
+                    let v = intervention.primary_variable().ok_or(
+                        IdentificationError::unsupported("intervention missing primary variable"),
+                    )?;
                     x.insert(prepared.var_to_dense(v)?);
                 }
                 let mut y = BitSet::with_len(prepared.admg().node_count());
@@ -147,7 +148,9 @@ impl IdIdentifier {
         query: &AverageEffectQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        query.validate().map_err(|_| IdentificationError::unsupported("invalid average-effect query"))?;
+        query
+            .validate()
+            .map_err(|_| IdentificationError::unsupported("invalid average-effect query"))?;
         let t = prepared.var_to_dense(query.treatment)?;
         let y = prepared.var_to_dense(query.outcome)?;
         let mut y_set = BitSet::with_len(prepared.admg().node_count());
@@ -341,17 +344,14 @@ fn not_identified_with_hedge(
         fields: Arc::from([
             (
                 Arc::from("f"),
-                Arc::from(hedge.f.iter().map(|v| v.raw().to_string()).collect::<Vec<_>>().join(",")),
+                Arc::from(
+                    hedge.f.iter().map(|v| v.raw().to_string()).collect::<Vec<_>>().join(","),
+                ),
             ),
             (
                 Arc::from("f_prime"),
                 Arc::from(
-                    hedge
-                        .f_prime
-                        .iter()
-                        .map(|v| v.raw().to_string())
-                        .collect::<Vec<_>>()
-                        .join(","),
+                    hedge.f_prime.iter().map(|v| v.raw().to_string()).collect::<Vec<_>>().join(","),
                 ),
             ),
         ]),
@@ -380,12 +380,7 @@ fn id_recurse(
     assign: Option<(DenseNodeId, Value)>,
 ) -> Result<IdOutcome, IdentificationError> {
     perf.candidates_examined = perf.candidates_examined.saturating_add(1);
-    let key = SubproblemKey {
-        y: y.clone(),
-        x: x.clone(),
-        v: v.clone(),
-        assign: assign.clone(),
-    };
+    let key = SubproblemKey { y: y.clone(), x: x.clone(), v: v.clone(), assign: assign.clone() };
     if let Some(hit) = memo.get(&key) {
         perf.sets_returned = perf.sets_returned.saturating_add(1);
         return Ok(hit.clone());
@@ -445,7 +440,8 @@ fn id_body(
     }
 
     if comps.len() > 1 {
-        derivation.push("general.id.line4", format!("C-component factorization ({} parts)", comps.len()));
+        derivation
+            .push("general.id.line4", format!("C-component factorization ({} parts)", comps.len()));
         let mut factors = Vec::with_capacity(comps.len());
         for s_i in &comps {
             let mut x_i = v.clone();
@@ -520,7 +516,8 @@ fn intern_nodes(
     nodes: &BitSet,
     arena: &mut CausalExprArena,
 ) -> Result<causal_expr::VarSetId, IdentificationError> {
-    let vars: Result<Vec<_>, _> = nodes.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
+    let vars: Result<Vec<_>, _> =
+        nodes.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
     Ok(arena.intern_var_set(vars?))
 }
 

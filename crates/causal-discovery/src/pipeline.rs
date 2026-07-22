@@ -27,7 +27,7 @@ pub fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> 
             NodeRef::Context { variable, .. } => {
                 node_ids.insert((variable.raw(), 0), DenseNodeId::from_raw(i as u32));
             }
-            _ => {}
+            NodeRef::Static(_) => {}
         }
     }
     node_ids

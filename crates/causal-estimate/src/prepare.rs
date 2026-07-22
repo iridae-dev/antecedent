@@ -25,7 +25,7 @@ pub fn require_method(
     Ok(kind)
 }
 
-/// Validate an ATE query allowing AllObserved / Treated / Untreated targets.
+/// Validate an ATE query allowing `AllObserved` / Treated / Untreated targets.
 pub fn validate_ate_query_with_targets(query: &AverageEffectQuery) -> Result<(), EstimationError> {
     query.validate()?;
     if !query.effect_modifiers.is_empty() {

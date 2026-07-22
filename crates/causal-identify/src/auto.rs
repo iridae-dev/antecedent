@@ -1,12 +1,19 @@
-//! AutoIdentifier: return all valid estimands with selection rationale.
+//! `AutoIdentifier`: return all valid estimands with selection rationale.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(
+    clippy::match_same_arms,
+    clippy::needless_pass_by_value,
+    clippy::too_many_lines,
+    clippy::unused_self
+)]
 
 use std::sync::Arc;
 
 use causal_core::{
-    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, Intervention, Value,
+    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    Intervention, Value,
 };
 use causal_expr::{CausalExprArena, EstimandMethod, IdentifiedEstimand};
 use causal_graph::Dag;
@@ -110,10 +117,8 @@ impl AutoIdentifier {
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let mut derivation = DerivationTrace::default();
-        derivation.push(
-            "auto",
-            "trying backdoor, efficient backdoor, frontdoor, IV, RD, and general ID",
-        );
+        derivation
+            .push("auto", "trying backdoor, efficient backdoor, frontdoor, IV, RD, and general ID");
         let mut perf = IdentificationPerformanceRecord::default();
         let mut hedge = None;
         let mut assumptions = prepared.dag.declared_assumptions().clone();
@@ -209,35 +214,30 @@ impl AutoIdentifier {
                     &mut hedge,
                     &mut diagnostics,
                 );
-                match &self.rd {
-                    Some(cfg) => {
-                        self.try_method(
-                            "rd.sharp",
-                            || SharpRdIdentifier::new(*cfg).identify(query_norm.clone()),
-                            q,
-                            active.clone(),
-                            control.clone(),
-                            &mut arena,
-                            &mut estimands,
-                            &mut derivation,
-                            &mut perf,
-                            &mut assumptions,
-                            &mut hedge,
-                            &mut diagnostics,
-                        );
-                    }
-                    None => {
-                        diagnostics.push(Diagnostic::new(
-                            "auto.rd.missing_config",
-                            DiagnosticKind::Execution,
-                            DiagnosticSeverity::Info,
-                            "sharp RD skipped: no running-variable / cutoff / bandwidth config on AutoIdentifier",
-                        ));
-                        derivation.push(
-                            "auto.method",
-                            "rd.sharp: not applicable (missing RD config)",
-                        );
-                    }
+                if let Some(cfg) = &self.rd {
+                    self.try_method(
+                        "rd.sharp",
+                        || SharpRdIdentifier::new(*cfg).identify(query_norm.clone()),
+                        q,
+                        active.clone(),
+                        control.clone(),
+                        &mut arena,
+                        &mut estimands,
+                        &mut derivation,
+                        &mut perf,
+                        &mut assumptions,
+                        &mut hedge,
+                        &mut diagnostics,
+                    );
+                } else {
+                    diagnostics.push(Diagnostic::new(
+                        "auto.rd.missing_config",
+                        DiagnosticKind::Execution,
+                        DiagnosticSeverity::Info,
+                        "sharp RD skipped: no running-variable / cutoff / bandwidth config on AutoIdentifier",
+                    ));
+                    derivation
+                        .push("auto.method", "rd.sharp: not applicable (missing RD config)");
                 }
                 self.try_method(
                     "general.id",
@@ -255,11 +255,7 @@ impl AutoIdentifier {
                 );
             }
             CausalQuery::Distribution(q) => {
-                let method = if q.conditioning.is_empty() {
-                    "general.id"
-                } else {
-                    "general.idc"
-                };
+                let method = if q.conditioning.is_empty() { "general.id" } else { "general.idc" };
                 let run = if q.conditioning.is_empty() {
                     self.general_id.identify(&prepared.admg, query, workspace)
                 } else {
@@ -366,10 +362,8 @@ impl AutoIdentifier {
                             DiagnosticSeverity::Warning,
                             format!("path_specific.natural: error ({e})"),
                         ));
-                        derivation.push(
-                            "auto.method",
-                            format!("path_specific.natural: error ({e})"),
-                        );
+                        derivation
+                            .push("auto.method", format!("path_specific.natural: error ({e})"));
                     }
                 }
             }
@@ -445,7 +439,8 @@ impl AutoIdentifier {
                 diagnostics.extend(res.diagnostics);
             }
             Ok(res) => {
-                derivation.push("auto.method", format!("{name}: not identified ({:?})", res.status));
+                derivation
+                    .push("auto.method", format!("{name}: not identified ({:?})", res.status));
                 diagnostics.push(Diagnostic::new(
                     format!("auto.{name}.not_identified"),
                     DiagnosticKind::Scientific,
@@ -537,16 +532,11 @@ fn rebuild_estimand(
             ))
         }
         EstimandMethod::RdSharp => {
-            let functional = arena.backdoor_ate(
-                q.treatment,
-                q.outcome,
-                &[],
-                active.clone(),
-                control.clone(),
-            );
+            let functional =
+                arena.backdoor_ate(q.treatment, q.outcome, &[], active.clone(), control.clone());
             Some(IdentifiedEstimand::rd_sharp(
                 functional,
-                e.rd_design.clone().unwrap_or(causal_expr::RdDesignParams {
+                e.rd_design.unwrap_or(causal_expr::RdDesignParams {
                     running_variable: q.treatment,
                     cutoff: 0.0,
                     bandwidth: 1.0,
@@ -642,10 +632,7 @@ mod tests {
         let q = CausalQuery::AverageEffect(AverageEffectQuery {
             treatment: VariableId::from_raw(0),
             outcome: VariableId::from_raw(1),
-            active: Intervention::soft(
-                VariableId::from_raw(0),
-                MechanismOverride::constant(1.0),
-            ),
+            active: Intervention::soft(VariableId::from_raw(0), MechanismOverride::constant(1.0)),
             control: Intervention::set(VariableId::from_raw(0), Value::f64(0.0)),
             effect_modifiers: Arc::from([]),
             target_population: causal_core::TargetPopulation::AllObserved,

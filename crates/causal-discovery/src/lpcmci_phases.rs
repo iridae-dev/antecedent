@@ -4,9 +4,11 @@
 
 #![allow(
     clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::similar_names,
     clippy::too_many_arguments,
     clippy::too_many_lines,
-    clippy::similar_names
+    clippy::type_complexity
 )]
 
 use std::collections::{HashMap, HashSet};
@@ -97,11 +99,7 @@ fn known_parents_of(
     out
 }
 
-fn known_non_ancestors(
-    pag: &TemporalPag,
-    idx: &NodeIndex,
-    of: VariableId,
-) -> HashSet<(u32, u32)> {
+fn known_non_ancestors(pag: &TemporalPag, idx: &NodeIndex, of: VariableId) -> HashSet<(u32, u32)> {
     let Some(&node) = idx.get(&(of.raw(), 0)) else {
         return HashSet::new();
     };
@@ -183,7 +181,8 @@ fn homologous_pairs(
         }
     }
     // Always include the queried pair.
-    if let (Some(&a), Some(&b)) = (idx.get(&(x.raw(), x_lag.raw())), idx.get(&(y.raw(), y_lag.raw())))
+    if let (Some(&a), Some(&b)) =
+        (idx.get(&(x.raw(), x_lag.raw())), idx.get(&(y.raw(), y_lag.raw())))
     {
         if !out.iter().any(|&(u, v)| (u == a && v == b) || (u == b && v == a)) {
             out.push((a, b));
@@ -192,11 +191,7 @@ fn homologous_pairs(
     out
 }
 
-fn apply_remembered_parents(
-    pag: &mut TemporalPag,
-    idx: &NodeIndex,
-    parents: &ParentMemory,
-) -> Result<(), DiscoveryError> {
+fn apply_remembered_parents(pag: &mut TemporalPag, idx: &NodeIndex, parents: &ParentMemory) {
     for (&tgt_raw, set) in parents {
         let Some(&tgt) = idx.get(&(tgt_raw, 0)) else {
             continue;
@@ -212,7 +207,6 @@ fn apply_remembered_parents(
             let _ = pag.set_middle(src, tgt, MiddleMark::Empty);
         }
     }
-    Ok(())
 }
 
 fn collect_parents(pag: &TemporalPag, idx: &NodeIndex, variables: &[VariableId]) -> ParentMemory {
@@ -287,8 +281,8 @@ fn ancestral_removal_phase(
             }
             // Middle-mark search restrictions.
             let test_y = !matches!(mid, MiddleMark::Right | MiddleMark::Both);
-            let test_x = x_lag.is_contemporaneous()
-                && !matches!(mid, MiddleMark::Left | MiddleMark::Both);
+            let test_x =
+                x_lag.is_contemporaneous() && !matches!(mid, MiddleMark::Left | MiddleMark::Both);
 
             let try_side = |engine: &PcmciEngine,
                             pag: &TemporalPag,
@@ -298,7 +292,10 @@ fn ancestral_removal_phase(
                             other_lag: Lag,
                             other_id: DenseNodeId,
                             workspace: &mut DiscoveryWorkspace|
-             -> Result<Option<(Vec<(VariableId, Lag)>, f64, f64)>, DiscoveryError> {
+             -> Result<
+                Option<(Vec<(VariableId, Lag)>, f64, f64)>,
+                DiscoveryError,
+            > {
                 let s_def = known_parents_of(pag, idx, target);
                 let mut search = potential_parents(pag, idx, target, other_id);
                 search.retain(|p| !s_def.contains(p) && *p != (other, other_lag));
@@ -322,11 +319,7 @@ fn ancestral_removal_phase(
                     workspace,
                     ctx,
                 )?;
-                if p > alpha {
-                    Ok(Some((cond, stat, p)))
-                } else {
-                    Ok(None)
-                }
+                if p > alpha { Ok(Some((cond, stat, p))) } else { Ok(None) }
             };
 
             let mut sep_cond: Option<Vec<(VariableId, Lag)>> = None;
@@ -388,17 +381,24 @@ fn ancestral_removal_phase(
                 .chain(known_parents_of(pag, idx, y))
                 .collect();
             let wm = make_sepset_weakly_minimal(
-                engine, frame, x, x_lag, y, Lag::CONTEMPORANEOUS, &cond, &ancs, workspace, ctx,
+                engine,
+                frame,
+                x,
+                x_lag,
+                y,
+                Lag::CONTEMPORANEOUS,
+                &cond,
+                &ancs,
+                workspace,
+                ctx,
             )?;
             ci_tests += 1;
 
             let sep_arc: Arc<[LaggedParent]> = Arc::from(wm.clone().into_boxed_slice());
             sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), sep_arc);
 
-            let sep_nodes: Vec<DenseNodeId> = wm
-                .iter()
-                .filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied())
-                .collect();
+            let sep_nodes: Vec<DenseNodeId> =
+                wm.iter().filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied()).collect();
             store_weakly_minimal_sepset(state, xid, yid, Arc::from(sep_nodes));
 
             for (a, b) in homologous_pairs(idx, x, x_lag, y, Lag::CONTEMPORANEOUS, max_lag) {
@@ -469,11 +469,7 @@ fn non_ancestral_removal_phase(
                         }
                     }
                     let s_def_y = known_parents_of(pag, idx, y);
-                    let s_def_x = if tau == 0 {
-                        known_parents_of(pag, idx, x)
-                    } else {
-                        Vec::new()
-                    };
+                    let s_def_x = if tau == 0 { known_parents_of(pag, idx, x) } else { Vec::new() };
                     let mut cond = s_def_y.clone();
                     for p in &s_def_x {
                         if !cond.contains(p) {
@@ -505,7 +501,15 @@ fn non_ancestral_removal_phase(
                     }
                     let ancs: Vec<_> = s_def_x.into_iter().chain(s_def_y).collect();
                     let wm = make_sepset_weakly_minimal(
-                        engine, frame, x, x_lag, y, Lag::CONTEMPORANEOUS, &cond, &ancs, workspace,
+                        engine,
+                        frame,
+                        x,
+                        x_lag,
+                        y,
+                        Lag::CONTEMPORANEOUS,
+                        &cond,
+                        &ancs,
+                        workspace,
                         ctx,
                     )?;
                     sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), Arc::from(wm.clone()));
@@ -514,7 +518,8 @@ fn non_ancestral_removal_phase(
                         .filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied())
                         .collect();
                     store_weakly_minimal_sepset(state, xid, yid, Arc::from(sep_nodes));
-                    for (a, b) in homologous_pairs(idx, x, x_lag, y, Lag::CONTEMPORANEOUS, max_lag) {
+                    for (a, b) in homologous_pairs(idx, x, x_lag, y, Lag::CONTEMPORANEOUS, max_lag)
+                    {
                         let _ = pag.remove_edge(a, b);
                     }
                     any_removal = true;
@@ -545,9 +550,8 @@ pub fn run_lpcmci_algorithm(
     let alpha = engine.constraints.alpha;
     let max_cond = engine.constraints.max_cond_size;
     let frame_depth = 2 * max_lag;
-    let frame =
-        LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
-            .map_err(DiscoveryError::from)?;
+    let frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
+        .map_err(DiscoveryError::from)?;
     workspace.prepared_ci = None;
 
     let mut sepsets = PcSepsets::default();
@@ -560,7 +564,7 @@ pub fn run_lpcmci_algorithm(
     // Preliminary phases.
     for k in 0..n_preliminary {
         let (mut pag, idx) = init_complete_pag(variables, max_lag)?;
-        apply_remembered_parents(&mut pag, &idx, &parents_mem)?;
+        apply_remembered_parents(&mut pag, &idx, &parents_mem);
         let t = ancestral_removal_phase(
             engine,
             &frame,
@@ -585,7 +589,7 @@ pub fn run_lpcmci_algorithm(
 
     // Full ancestral + non-ancestral.
     let (mut pag, idx) = init_complete_pag(variables, max_lag)?;
-    apply_remembered_parents(&mut pag, &idx, &parents_mem)?;
+    apply_remembered_parents(&mut pag, &idx, &parents_mem);
     let t = ancestral_removal_phase(
         engine,
         &frame,
@@ -600,10 +604,7 @@ pub fn run_lpcmci_algorithm(
         max_cond,
     )?;
     ci_tests += t;
-    iterations.push(DiscoveryIteration {
-        label: Arc::from("lpcmci.ancestral"),
-        ci_tests: t,
-    });
+    iterations.push(DiscoveryIteration { label: Arc::from("lpcmci.ancestral"), ci_tests: t });
 
     let t = non_ancestral_removal_phase(
         engine,
@@ -618,14 +619,12 @@ pub fn run_lpcmci_algorithm(
         max_cond,
     )?;
     ci_tests += t;
-    iterations.push(DiscoveryIteration {
-        label: Arc::from("lpcmci.non_ancestral"),
-        ci_tests: t,
-    });
+    iterations.push(DiscoveryIteration { label: Arc::from("lpcmci.non_ancestral"), ci_tests: t });
 
     pag.clear_middle_marks();
     let rules = default_lpcmci_rules();
-    let delta = run_lpcmci_orientation(&mut pag, &rules, &mut state).map_err(DiscoveryError::from)?;
+    let delta =
+        run_lpcmci_orientation(&mut pag, &rules, &mut state).map_err(DiscoveryError::from)?;
 
     let _ = fdr; // alpha-based removals; FDR on residual scored links is not applied in Alg. 1.
 

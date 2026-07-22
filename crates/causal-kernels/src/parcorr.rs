@@ -557,7 +557,14 @@ mod tests {
         let z_flat = [2usize];
         let mut out = [None; 2];
         let mut ws = ParCorrWorkspace::default();
-        partial_correlation_batch(&columns, &queries, &z_flat, &mut out, &mut ws, ParCorrMode::Native);
+        partial_correlation_batch(
+            &columns,
+            &queries,
+            &z_flat,
+            &mut out,
+            &mut ws,
+            ParCorrMode::Native,
+        );
         let cap_n = ws.capacity_n();
         let cap_p = ws.capacity_p();
         for _ in 0..20 {

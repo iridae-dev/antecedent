@@ -46,11 +46,11 @@ pub use rcc::RandomCommonCause;
 pub use reisz::ReiszSensitivity;
 pub use sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 pub use stability::{
-    AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity, DiscoveryStabilityReport,
-    EnvironmentHoldout, EnvironmentHoldoutReport, FalsePositiveCheck, FalsePositiveCheckReport,
-    LagWindowSensitivity, LinkStability, NullCalibrationReport, NullTransform,
-    OrientationStability, OrientationStabilityReport, RegimeStability, RegimeStabilityReport,
-    SyntheticNullCalibration, UndirectedLinkStability,
+    AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity,
+    DiscoveryStabilityReport, EnvironmentHoldout, EnvironmentHoldoutReport, FalsePositiveCheck,
+    FalsePositiveCheckReport, LagWindowSensitivity, LinkStability, NullCalibrationReport,
+    NullTransform, OrientationStability, OrientationStabilityReport, RegimeStability,
+    RegimeStabilityReport, SyntheticNullCalibration, UndirectedLinkStability,
 };
 pub use suite::{BayesianSuiteContext, ValidationOutcome, ValidationSuite, ValidatorId};
 pub use unobserved_common_cause::UnobservedCommonCause;

@@ -15,8 +15,8 @@ use causal_discovery::{
 };
 use causal_validate::{
     AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity, EnvironmentHoldout,
-    FalsePositiveCheck, LagWindowSensitivity, NullTransform, OrientationStability,
-    RegimeStability, SyntheticNullCalibration,
+    FalsePositiveCheck, LagWindowSensitivity, NullTransform, OrientationStability, RegimeStability,
+    SyntheticNullCalibration,
 };
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
@@ -44,13 +44,14 @@ fn pcmci_plus_from_params(max_lag: u32, alpha: f64, fdr: bool, ci: &str) -> PyRe
     let ci_impl = resolve_ci(ci, None).map_err(py_err)?;
     let mut constraints = pcmci_constraints(max_lag, alpha);
     constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
-    Ok(PcmciPlus::new()
-        .with_fdr(fdr)
-        .with_constraints(constraints)
-        .with_ci(ci_impl))
+    Ok(PcmciPlus::new().with_fdr(fdr).with_constraints(constraints).with_ci(ci_impl))
 }
 
-fn link_dict(py: Python<'_>, names: &[String], link: causal_discovery::LaggedLink) -> PyResult<Py<PyDict>> {
+fn link_dict(
+    py: Python<'_>,
+    names: &[String],
+    link: causal_discovery::LaggedLink,
+) -> PyResult<Py<PyDict>> {
     let d = PyDict::new(py);
     let src = names
         .get(link.source.as_usize())
@@ -258,10 +259,10 @@ fn validate_pcmci_ci_sensitivity(
     drop(columns);
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let base_ci = ci_names.first().map(String::as_str).unwrap_or("parcorr");
+        let base_ci = ci_names.first().map_or("parcorr", String::as_str);
         let pcmci = pcmci_from_params(max_lag, alpha, fdr, base_ci)?;
         let names_arc: Arc<[Arc<str>]> =
-            Arc::from(ci_names.into_iter().map(|s| Arc::<str>::from(s)).collect::<Vec<_>>());
+            Arc::from(ci_names.into_iter().map(Arc::<str>::from).collect::<Vec<_>>());
         let checker = CiTestSensitivity::new(pcmci, names_arc);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = py_execution_context(seed, threads);
@@ -477,18 +478,14 @@ fn validate_regime_stability(
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         if regimes.len() != series.row_count() {
-            return Err(PyValueError::new_err(
-                "regimes length must match series length",
-            ));
+            return Err(PyValueError::new_err("regimes length must match series length"));
         }
         let assignment = RegimeAssignment::try_new(
             regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
         )
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let pcmci_plus = pcmci_plus_from_params(max_lag, alpha, fdr, &ci)?;
-        let rpcmci = Rpcmci::new()
-            .with_pcmci_plus(pcmci_plus)
-            .with_alternating_iters(0);
+        let rpcmci = Rpcmci::new().with_pcmci_plus(pcmci_plus).with_alternating_iters(0);
         let mut checker = RegimeStability::new(rpcmci, assignment);
         checker.replicates = replicates;
         checker.block_size = block_size;

@@ -386,13 +386,16 @@ mod tests {
             PopulationSelector::Rows(Arc::from((0..30).collect::<Vec<_>>())),
             PopulationSelector::Rows(Arc::from((30..60).collect::<Vec<_>>())),
         )
-        .with_allocation(AllocationMethod::Shapley {
-            approximation: ShapleyConfig::exact(),
-        });
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
         let ctx = ExecutionContext::for_tests(1);
-        let result =
-            distribution_change_robust(&model, &data, &query, &RobustChangeOptions::default(), &ctx)
-                .unwrap();
+        let result = distribution_change_robust(
+            &model,
+            &data,
+            &query,
+            &RobustChangeOptions::default(),
+            &ctx,
+        )
+        .unwrap();
         assert!(result.total_change.abs() > 0.5);
     }
 }

@@ -12,7 +12,9 @@ use causal_stats::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
     ConditionalIndependenceTest, PreparedCiTest, StatsError,
 };
-use causal_validate::{CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError};
+use causal_validate::{
+    CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError,
+};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -48,9 +50,7 @@ impl ConditionalIndependenceTest for PyConditionalIndependence {
             let queries = PyList::empty(py);
             for q in bound.queries {
                 let z: Vec<usize> = bound.z_flat[q.z_start..q.z_start + q.z_len].to_vec();
-                queries
-                    .append((q.x, q.y, z))
-                    .map_err(|e| StatsError::Backend(e.to_string()))?;
+                queries.append((q.x, q.y, z)).map_err(|e| StatsError::Backend(e.to_string()))?;
             }
             let out = self
                 .callback
@@ -72,12 +72,7 @@ impl ConditionalIndependenceTest for PyConditionalIndependence {
                 let (stat, p): (f64, f64) = item.extract().map_err(|_| StatsError::Shape {
                     message: "each CI result must be (statistic: float, p_value: float)",
                 })?;
-                results.push(CiResult {
-                    statistic: stat,
-                    p_value: p,
-                    df: f64::NAN,
-                    ci: None,
-                });
+                results.push(CiResult { statistic: stat, p_value: p, df: f64::NAN, ci: None });
             }
             Ok(CiBatchResult { results })
         })
@@ -103,13 +98,9 @@ impl DynamicMechanism for PyDynamicMechanism {
         output: &mut [f64],
     ) -> Result<(), ModelError> {
         Python::attach(|py| -> Result<(), ModelError> {
-            let out = self
-                .obj
-                .bind(py)
-                .call_method1("sample_noise", (n_rows,))
-                .map_err(|e| ModelError::Unsupported {
-                    message: format!("Python sample_noise failed: {e}"),
-                })?;
+            let out = self.obj.bind(py).call_method1("sample_noise", (n_rows,)).map_err(|e| {
+                ModelError::Unsupported { message: format!("Python sample_noise failed: {e}") }
+            })?;
             let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
                 message: format!("sample_noise must return float64 ndarray: {e}"),
             })?;
@@ -137,23 +128,19 @@ impl DynamicMechanism for PyDynamicMechanism {
         Python::attach(|py| -> Result<(), ModelError> {
             let parent_cols = PyList::empty(py);
             for p in 0..parents.n_parents {
-                let col = parents.column(p).map_err(|e| ModelError::Shape {
-                    message: e.to_string(),
-                })?;
-                parent_cols
-                    .append(PyArray1::from_slice(py, col))
-                    .map_err(|e| ModelError::Unsupported {
+                let col =
+                    parents.column(p).map_err(|e| ModelError::Shape { message: e.to_string() })?;
+                parent_cols.append(PyArray1::from_slice(py, col)).map_err(|e| {
+                    ModelError::Unsupported {
                         message: format!("failed to build parent columns: {e}"),
-                    })?;
+                    }
+                })?;
             }
             let noise_arr = PyArray1::from_slice(py, &noise[..n]);
-            let out = self
-                .obj
-                .bind(py)
-                .call_method1("evaluate", (parent_cols, noise_arr))
-                .map_err(|e| ModelError::Unsupported {
-                    message: format!("Python evaluate failed: {e}"),
-                })?;
+            let out =
+                self.obj.bind(py).call_method1("evaluate", (parent_cols, noise_arr)).map_err(
+                    |e| ModelError::Unsupported { message: format!("Python evaluate failed: {e}") },
+                )?;
             let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
                 message: format!("evaluate must return float64 ndarray: {e}"),
             })?;
@@ -185,24 +172,26 @@ impl DynamicMechanism for PyDynamicMechanism {
             Some((|| {
                 let parent_cols = PyList::empty(py);
                 for p in 0..parents.n_parents {
-                    let col = parents.column(p).map_err(|e| ModelError::Shape {
-                        message: e.to_string(),
-                    })?;
-                    parent_cols
-                        .append(PyArray1::from_slice(py, col))
-                        .map_err(|e| ModelError::Unsupported {
+                    let col = parents
+                        .column(p)
+                        .map_err(|e| ModelError::Shape { message: e.to_string() })?;
+                    parent_cols.append(PyArray1::from_slice(py, col)).map_err(|e| {
+                        ModelError::Unsupported {
                             message: format!("failed to build parent columns: {e}"),
-                        })?;
+                        }
+                    })?;
                 }
                 let value_arr = PyArray1::from_slice(py, &value[..n]);
-                let out = bound
-                    .call_method1("infer_noise", (value_arr, parent_cols))
-                    .map_err(|e| ModelError::Unsupported {
-                        message: format!("Python infer_noise failed: {e}"),
+                let out =
+                    bound.call_method1("infer_noise", (value_arr, parent_cols)).map_err(|e| {
+                        ModelError::Unsupported {
+                            message: format!("Python infer_noise failed: {e}"),
+                        }
                     })?;
-                let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
-                    message: format!("infer_noise must return float64 ndarray: {e}"),
-                })?;
+                let arr: PyReadonlyArray1<'_, f64> =
+                    out.extract().map_err(|e| ModelError::Shape {
+                        message: format!("infer_noise must return float64 ndarray: {e}"),
+                    })?;
                 let slice = arr.as_slice().map_err(|_| ModelError::Shape {
                     message: "infer_noise ndarray must be contiguous".into(),
                 })?;
@@ -215,19 +204,18 @@ impl DynamicMechanism for PyDynamicMechanism {
                 Ok(())
             })())
         });
-        match py_result {
-            Some(r) => r,
-            None => {
-                // Additive default: noise = y − f(pa, 0).
-                let zeros = vec![0.0; n];
-                let mut mean = vec![0.0; n];
-                let mut ws = MechanismWorkspace::default();
-                self.evaluate_column(parents, &zeros, &mut mean, &mut ws)?;
-                for i in 0..n {
-                    output[i] = value[i] - mean[i];
-                }
-                Ok(())
+        if let Some(r) = py_result {
+            r
+        } else {
+            // Additive default: noise = y − f(pa, 0).
+            let zeros = vec![0.0; n];
+            let mut mean = vec![0.0; n];
+            let mut ws = MechanismWorkspace::default();
+            self.evaluate_column(parents, &zeros, &mut mean, &mut ws)?;
+            for i in 0..n {
+                output[i] = value[i] - mean[i];
             }
+            Ok(())
         }
     }
 
@@ -246,24 +234,24 @@ impl DynamicMechanism for PyDynamicMechanism {
             Some((|| {
                 let parent_cols = PyList::empty(py);
                 for p in 0..parents.n_parents {
-                    let col = parents.column(p).map_err(|e| ModelError::Shape {
-                        message: e.to_string(),
-                    })?;
-                    parent_cols
-                        .append(PyArray1::from_slice(py, col))
-                        .map_err(|e| ModelError::Unsupported {
+                    let col = parents
+                        .column(p)
+                        .map_err(|e| ModelError::Shape { message: e.to_string() })?;
+                    parent_cols.append(PyArray1::from_slice(py, col)).map_err(|e| {
+                        ModelError::Unsupported {
                             message: format!("failed to build parent columns: {e}"),
-                        })?;
+                        }
+                    })?;
                 }
                 let value_arr = PyArray1::from_slice(py, &values[..n]);
-                let out = bound
-                    .call_method1("log_prob", (value_arr, parent_cols))
-                    .map_err(|e| ModelError::Unsupported {
-                        message: format!("Python log_prob failed: {e}"),
+                let out =
+                    bound.call_method1("log_prob", (value_arr, parent_cols)).map_err(|e| {
+                        ModelError::Unsupported { message: format!("Python log_prob failed: {e}") }
                     })?;
-                let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
-                    message: format!("log_prob must return float64 ndarray: {e}"),
-                })?;
+                let arr: PyReadonlyArray1<'_, f64> =
+                    out.extract().map_err(|e| ModelError::Shape {
+                        message: format!("log_prob must return float64 ndarray: {e}"),
+                    })?;
                 let slice = arr.as_slice().map_err(|_| ModelError::Shape {
                     message: "log_prob ndarray must be contiguous".into(),
                 })?;
@@ -276,17 +264,16 @@ impl DynamicMechanism for PyDynamicMechanism {
                 Ok(())
             })())
         });
-        match py_result {
-            Some(r) => r,
-            None => {
-                let mut resid = vec![0.0; n];
-                self.infer_noise_column(values, parents, &mut resid)?;
-                let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln();
-                for i in 0..n {
-                    output[i] = log_norm - 0.5 * resid[i] * resid[i];
-                }
-                Ok(())
+        if let Some(r) = py_result {
+            r
+        } else {
+            let mut resid = vec![0.0; n];
+            self.infer_noise_column(values, parents, &mut resid)?;
+            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln();
+            for i in 0..n {
+                output[i] = log_norm - 0.5 * resid[i] * resid[i];
             }
+            Ok(())
         }
     }
 }
@@ -363,24 +350,12 @@ impl CustomEffectValidator for PyCustomValidator {
             };
             let kwargs = PyDict::new(py);
             kwargs.set_item("ate", problem.original.ate).map_err(py_err)?;
-            kwargs
-                .set_item("se_analytic", problem.original.se_analytic)
-                .map_err(py_err)?;
-            kwargs
-                .set_item("method", problem.estimand.method.to_string())
-                .map_err(py_err)?;
-            let adj: Vec<String> = problem
-                .estimand
-                .adjustment_set
-                .iter()
-                .map(|v| format!("V{}", v.raw()))
-                .collect();
+            kwargs.set_item("se_analytic", problem.original.se_analytic).map_err(py_err)?;
+            kwargs.set_item("method", problem.estimand.method.to_string()).map_err(py_err)?;
+            let adj: Vec<String> =
+                problem.estimand.adjustment_set.iter().map(|v| format!("V{}", v.raw())).collect();
             kwargs.set_item("adjustment_set", adj).map_err(py_err)?;
-            let out = self
-                .callback
-                .bind(py)
-                .call((), Some(&kwargs))
-                .map_err(py_err)?;
+            let out = self.callback.bind(py).call((), Some(&kwargs)).map_err(py_err)?;
             let dict = out.cast::<PyDict>().map_err(|_| {
                 ValidationError::data_msg(format!("validator `{}` must return a dict", self.name))
             })?;
@@ -440,15 +415,13 @@ pub fn resolve_ci_arg(
     weights: Option<Vec<f64>>,
 ) -> PyResult<(Arc<dyn ConditionalIndependence + Send + Sync>, String, bool)> {
     let Some(ci) = ci else {
-        let impl_ = causal::resolve_ci("parcorr", weights).map_err(|e| {
-            crate::CausalCompileError::new_err(e.to_string())
-        })?;
+        let impl_ = causal::resolve_ci("parcorr", weights)
+            .map_err(|e| crate::CausalCompileError::new_err(e.to_string()))?;
         return Ok((impl_, "parcorr".into(), false));
     };
     if let Ok(name) = ci.extract::<&str>() {
-        let impl_ = causal::resolve_ci(name, weights).map_err(|e| {
-            crate::CausalCompileError::new_err(e.to_string())
-        })?;
+        let impl_ = causal::resolve_ci(name, weights)
+            .map_err(|e| crate::CausalCompileError::new_err(e.to_string()))?;
         return Ok((impl_, name.to_string(), false));
     }
     if ci.is_callable() {
@@ -467,19 +440,18 @@ pub fn parse_validators(
     let Some(obj) = validators else {
         return Ok(Vec::new());
     };
-    let list = obj.cast::<PyList>().map_err(|_| {
-        PyValueError::new_err("validators must be a list of callables")
-    })?;
+    let list = obj
+        .cast::<PyList>()
+        .map_err(|_| PyValueError::new_err("validators must be a list of callables"))?;
     let mut out = Vec::with_capacity(list.len());
     for (i, item) in list.iter().enumerate() {
         if !item.is_callable() {
-            return Err(PyValueError::new_err(format!(
-                "validators[{i}] is not callable"
-            )));
+            return Err(PyValueError::new_err(format!("validators[{i}] is not callable")));
         }
         let name = format!("python.validator.{i}");
-        out.push(Arc::new(PyCustomValidator::new(name, item.unbind()))
-            as Arc<dyn CustomEffectValidator>);
+        out.push(
+            Arc::new(PyCustomValidator::new(name, item.unbind())) as Arc<dyn CustomEffectValidator>
+        );
     }
     Ok(out)
 }
@@ -493,10 +465,9 @@ pub fn apply_mechanism_wrappers(
     let mut store = model.mechanisms.clone();
     for (key, val) in wrappers.iter() {
         let name: String = key.extract()?;
-        let idx = names
-            .iter()
-            .position(|n| n == &name)
-            .ok_or_else(|| PyValueError::new_err(format!("unknown mechanism wrapper node {name}")))?;
+        let idx = names.iter().position(|n| n == &name).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown mechanism wrapper node {name}"))
+        })?;
         let slot = MechanismSlot::Dynamic {
             id: Arc::from(name.as_str()),
             mechanism: Arc::new(PyDynamicMechanism::new(val.unbind())),

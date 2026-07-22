@@ -148,7 +148,9 @@ impl CategoricalColumn {
                 context: "categorical validity",
             });
         }
-        let n_levels = u32::try_from(domain.len()).expect("checked");
+        let n_levels = u32::try_from(domain.len()).map_err(|_| DataError::InvalidArgument {
+            message: "category domain too large for u32 codes".into(),
+        })?;
         let mut remapped: Option<Vec<CategoryCode>> = None;
         for (i, code) in codes.iter().enumerate() {
             if !validity.is_valid(i) {
@@ -348,7 +350,14 @@ pub fn compile_contrast_matrix(
             let mut basis = vec![0.0; k * k];
             for d in 0..k {
                 for r in 0..k {
-                    basis[r + d * k] = ((r + 1) as f64).powi(i32::try_from(d).expect("small k"));
+                    basis[r + d * k] = f64::from(
+                        u32::try_from(r).map_err(|_| DataError::InvalidArgument {
+                            message: "polynomial row index exceeds u32".into(),
+                        })? + 1,
+                    )
+                    .powi(i32::try_from(d).map_err(|_| DataError::InvalidArgument {
+                        message: "polynomial degree does not fit i32".into(),
+                    })?);
                 }
             }
             for d in 0..k {

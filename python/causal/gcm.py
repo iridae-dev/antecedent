@@ -22,12 +22,10 @@ from .discovery import (
     NOTEARS,
     PC,
     RFCI,
-    discover_fci,
     discover_ges,
     discover_lingam,
     discover_notears,
     discover_pc,
-    discover_rfci,
     discovery_to_dag,
 )
 

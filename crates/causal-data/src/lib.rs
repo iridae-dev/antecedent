@@ -76,13 +76,11 @@ pub mod vector_vars;
 #[cfg(test)]
 mod testing;
 
+pub use aligned_buffer::AlignedBuffer;
 #[cfg(feature = "arrow")]
-pub use arrow_adapter::{
-    ArrowLoadResult, tabular_from_arrow_c_columns, tabular_from_record_batch,
-};
+pub use arrow_adapter::{ArrowLoadResult, tabular_from_arrow_c_columns, tabular_from_record_batch};
 #[cfg(feature = "arrow")]
 pub use arrow_ffi::{ArrowCColumn, FfiArrowArray, FfiArrowSchema};
-pub use aligned_buffer::AlignedBuffer;
 pub use buffer::{F64Buffer, ForeignBufferOwner, ForeignF64Buffer};
 pub use categorical::{
     CategoricalColumn, CategoricalView, CategoryCode, CategoryDomain, CategoryLevel, Contrast,
@@ -111,12 +109,13 @@ pub use resample::{
     resample_timeseries, resample_timeseries_grouped,
 };
 pub use sample::{
-    DropSummary, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan, LaggedSampleWorkspace,
+    DropSummary, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan,
+    LaggedSampleWorkspace,
 };
 pub use sample_policy::{MaskPolicy, MissingPolicy, WeightPolicy};
 pub use sample_request::{
-    MatrixRef, PreparedColumn, PreparedRowSelector, PreparedSample, RowSelectionRef, SampleCacheKey,
-    SampleLayout, SamplePartitions, SamplePlan, SampleRequest, SampleWorkspace,
+    MatrixRef, PreparedColumn, PreparedRowSelector, PreparedSample, RowSelectionRef,
+    SampleCacheKey, SampleLayout, SamplePartitions, SamplePlan, SampleRequest, SampleWorkspace,
 };
 pub use sim::{KnownLaggedParent, LaggedLinearPair};
 pub use split::{
@@ -129,9 +128,7 @@ pub use surrogate::{surrogate_permute_columns, surrogate_phase_randomize};
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
 pub use transforms::{equal_width_bin, moving_average, ordinal_patterns};
-pub use vector_vars::{
-    VectorVariableGroups, column_blocks_for_frame, expand_fixed_vector_columns,
-};
+pub use vector_vars::{VectorVariableGroups, column_blocks_for_frame, expand_fixed_vector_columns};
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss)]

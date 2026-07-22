@@ -89,8 +89,9 @@ pub fn ensure_random_allowed_on_temporal(policy: TemporalRandomPolicy) -> Result
     match policy {
         TemporalRandomPolicy::Allow => Ok(()),
         TemporalRandomPolicy::Refuse => Err(DataError::InvalidArgument {
-            message: "random IID split refused on temporal/panel/event data without explicit opt-in"
-                .into(),
+            message:
+                "random IID split refused on temporal/panel/event data without explicit opt-in"
+                    .into(),
         }),
     }
 }
@@ -324,11 +325,7 @@ impl RandomIidSplit {
         fisher_yates(&mut idx, seed);
         let train = Arc::from(idx[..n - test_len].to_vec());
         let test = Arc::from(idx[n - test_len..].to_vec());
-        Ok(Self {
-            rows: RowSplit { train, test },
-            seed,
-            test_frac: OrderedFrac(test_frac),
-        })
+        Ok(Self { rows: RowSplit { train, test }, seed, test_frac: OrderedFrac(test_frac) })
     }
 }
 
@@ -475,10 +472,7 @@ impl BlockedTemporalSplit {
             block_len,
             train_blocks: Arc::from(train_blocks),
             test_blocks: Arc::from(test_blocks),
-            rows: RowSplit {
-                train: Arc::from(train_rows),
-                test: Arc::from(test_rows),
-            },
+            rows: RowSplit { train: Arc::from(train_rows), test: Arc::from(test_rows) },
             seed,
         })
     }
@@ -529,10 +523,7 @@ impl RollingOriginSplit {
             folds.push(TemporalFold {
                 fold,
                 train: TimeRange { start: 0, end: origin },
-                test: TimeRange {
-                    start: origin + gap,
-                    end: origin + gap + horizon,
-                },
+                test: TimeRange { start: origin + gap, end: origin + gap + horizon },
                 gap,
             });
             fold += 1;
@@ -543,14 +534,7 @@ impl RollingOriginSplit {
                 message: "series too short for any rolling-origin fold".into(),
             });
         }
-        Ok(Self {
-            series_len,
-            min_train,
-            horizon,
-            gap,
-            step,
-            folds: Arc::from(folds),
-        })
+        Ok(Self { series_len, min_train, horizon, gap, step, folds: Arc::from(folds) })
     }
 }
 
@@ -584,20 +568,20 @@ fn fisher_yates_usize(idx: &mut [usize], seed: u64) {
     }
 }
 
+type LabelSplitResult = (RowSplit, Arc<[i64]>, Arc<[i64]>);
+
 fn split_by_labels(
     labels: &[i64],
     test_frac: f64,
     seed: u64,
-) -> Result<(RowSplit, Arc<[i64]>, Arc<[i64]>), DataError> {
+) -> Result<LabelSplitResult, DataError> {
     if labels.is_empty() {
         return Err(DataError::InvalidArgument {
             message: "grouped/cluster split needs ≥1 row".into(),
         });
     }
     if !(test_frac > 0.0 && test_frac < 1.0) {
-        return Err(DataError::InvalidArgument {
-            message: "test_frac must be in (0, 1)".into(),
-        });
+        return Err(DataError::InvalidArgument { message: "test_frac must be in (0, 1)".into() });
     }
     let mut members: BTreeMap<i64, Vec<u32>> = BTreeMap::new();
     for (i, &g) in labels.iter().enumerate() {

@@ -189,7 +189,9 @@ impl TabularData {
             )
             .map_err(|e| DataError::Schema(e.to_string()))?;
         let schema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
-        let new_id = VariableId::from_raw(u32::try_from(schema.len() - 1).expect("schema sized"));
+        let new_id = VariableId::from_raw(u32::try_from(schema.len() - 1).map_err(|_| {
+            DataError::InvalidArgument { message: "schema exceeds VariableId range".into() }
+        })?);
         let mut cols: Vec<OwnedColumn> = storage.columns().to_vec();
         cols.push(OwnedColumn::Float64(Float64Column::new(
             new_id,

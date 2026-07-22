@@ -24,7 +24,7 @@ pub use estimand::{EstimandMethod, IdentifiedEstimand, RdDesignParams};
 pub use eval::CompiledEvaluator;
 pub use provider::{
     Assignment, DistributionProvider, EmpiricalTableProvider, EvalContext, EvalError, FactorSpec,
-    GaussianDensityProvider, PosteriorDrawProvider,
+    GaussianDensityProvider, PosteriorDrawProvider, QuadratureNodes,
 };
 
 use latex::latex_expr;

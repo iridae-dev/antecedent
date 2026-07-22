@@ -25,13 +25,15 @@ pub use dispatch::{
     partial_correlation, select_impl, standardize_inplace, weighted_dot, weighted_mean,
     weighted_sum,
 };
+pub use parcorr::{
+    ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson,
+};
 pub use posterior_reduce::{PosteriorReduceOp, reduce_posterior_draws};
-pub use scalar::sanitize_weight;
-pub use parcorr::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson};
 pub use rng::{
     categorical_from_u, fill_standard_normal, sample_categorical, shuffle, standard_normal,
     standard_normal_pair, unbiased_index,
 };
+pub use scalar::sanitize_weight;
 pub use special::{erf, erfc, norm_cdf, norm_pdf};
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 
@@ -109,8 +111,8 @@ mod tests {
 
     #[test]
     fn scalar_and_portable_agree_on_contingency() {
-        let x_codes: Vec<u32> = (0..64).map(|i| (i % 4) as u32).collect();
-        let y_codes: Vec<u32> = (0..64).map(|i| (i % 3) as u32).collect();
+        let x_codes: Vec<u32> = (0u32..64).map(|i| i % 4).collect();
+        let y_codes: Vec<u32> = (0u32..64).map(|i| i % 3).collect();
         let mut out_s = vec![0.0; 4 * 3];
         let mut out_p = vec![0.0; 4 * 3];
         scalar::accumulate_contingency(&x_codes, &y_codes, &mut out_s, 3);
@@ -122,7 +124,8 @@ mod tests {
     fn scalar_and_portable_agree_on_weighted() {
         let x = sample_data();
         let y: Vec<f64> = x.iter().map(|v| v + 1.0).collect();
-        let w: Vec<f64> = (0..x.len()).map(|i| if i % 5 == 0 { 0.0 } else { 1.0 + (i as f64) * 0.01 }).collect();
+        let w: Vec<f64> =
+            (0..x.len()).map(|i| if i % 5 == 0 { 0.0 } else { 1.0 + (i as f64) * 0.01 }).collect();
         let s_sum = scalar::weighted_sum(&x, &w);
         let p_sum = portable::weighted_sum(&x, &w);
         assert!(ToleranceClass::StableFloat.close(s_sum, p_sum));
@@ -136,12 +139,12 @@ mod tests {
 
     #[test]
     fn sanitize_weight_drops_nonfinite_and_negative() {
-        assert_eq!(sanitize_weight(1.5), 1.5);
-        assert_eq!(sanitize_weight(0.0), 0.0);
-        assert_eq!(sanitize_weight(-2.0), 0.0);
-        assert_eq!(sanitize_weight(f64::NAN), 0.0);
-        assert_eq!(sanitize_weight(f64::INFINITY), 0.0);
-        assert_eq!(sanitize_weight(f64::NEG_INFINITY), 0.0);
+        assert!(ToleranceClass::Exact.close(sanitize_weight(1.5), 1.5));
+        assert!(ToleranceClass::Exact.close(sanitize_weight(0.0), 0.0));
+        assert!(ToleranceClass::Exact.close(sanitize_weight(-2.0), 0.0));
+        assert!(ToleranceClass::Exact.close(sanitize_weight(f64::NAN), 0.0));
+        assert!(ToleranceClass::Exact.close(sanitize_weight(f64::INFINITY), 0.0));
+        assert!(ToleranceClass::Exact.close(sanitize_weight(f64::NEG_INFINITY), 0.0));
         let x = [1.0, 2.0, 3.0];
         let w = [1.0, f64::NAN, -1.0];
         assert!(ToleranceClass::StableFloat.close(scalar::weighted_mean(&x, &w).unwrap(), 1.0));
@@ -211,9 +214,9 @@ mod tests {
     fn property_scalar_portable_random_strides_masks_nans() {
         let mut rng = causal_core::CausalRng::from_seed(28_02);
         for trial in 0..80 {
-            let len = 1 + (rng.next_u64() as usize % 48); // 1..=48
-            let stride = 1 + (rng.next_u64() as usize % 4); // 1..=4
-            let tail = rng.next_u64() as usize % 5; // unused padding
+            let len = 1 + usize::try_from(rng.next_u64() % 48).unwrap_or(0); // 1..=48
+            let stride = 1 + usize::try_from(rng.next_u64() % 4).unwrap_or(0); // 1..=4
+            let tail = usize::try_from(rng.next_u64() % 5).unwrap_or(0); // unused padding
             let need = (len - 1) * stride + 1 + tail;
             let mut x_buf = vec![0.0f64; need];
             let mut y_buf = vec![0.0f64; need];
@@ -222,11 +225,7 @@ mod tests {
                 let u = rng.next_u64();
                 let base = ((u % 1000) as f64) * 0.01 - 5.0;
                 x_buf[i] = if u % 17 == 0 { f64::NAN } else { base };
-                y_buf[i] = if (u / 17) % 19 == 0 {
-                    f64::NAN
-                } else {
-                    base * 0.3 + 1.0
-                };
+                y_buf[i] = if (u / 17) % 19 == 0 { f64::NAN } else { base * 0.3 + 1.0 };
             }
             let x = F64VectorView::strided(&x_buf, len, stride).unwrap();
             let y = F64VectorView::strided(&y_buf, len, stride).unwrap();
@@ -244,11 +243,7 @@ mod tests {
             if use_mask && bits.iter().all(|&b| b == 0) {
                 bits[0] |= 1;
             }
-            let mask = if use_mask {
-                Some(BitMaskView::new(&bits, len).unwrap())
-            } else {
-                None
-            };
+            let mask = if use_mask { Some(BitMaskView::new(&bits, len).unwrap()) } else { None };
 
             let s_sum = scalar::masked_sum(x, mask);
             let p_sum = portable::masked_sum(x, mask);
@@ -312,7 +307,7 @@ mod tests {
     #[test]
     fn pairwise_and_contingency_reuse_output_buffers() {
         let policy = KernelPolicy::default_policy();
-        let x: Vec<f64> = (0..64).map(|i| i as f64).collect();
+        let x: Vec<f64> = (0..64).map(f64::from).collect();
         let mut out = vec![0.0; 64 * 64];
         let ptr = out.as_ptr();
         let cap = out.capacity();
@@ -322,8 +317,8 @@ mod tests {
             assert_eq!(out.capacity(), cap);
         }
 
-        let xc: Vec<u32> = (0..256).map(|i| (i % 5) as u32).collect();
-        let yc: Vec<u32> = (0..256).map(|i| (i % 4) as u32).collect();
+        let xc: Vec<u32> = (0u32..256).map(|i| i % 5).collect();
+        let yc: Vec<u32> = (0u32..256).map(|i| i % 4).collect();
         let mut table = vec![0.0; 5 * 4];
         let tptr = table.as_ptr();
         let tcap = table.capacity();

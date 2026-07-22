@@ -38,7 +38,10 @@ pub fn bfs_reaches(
 
 /// Kahn topological order. Returns `None` if a directed cycle exists.
 #[must_use]
-pub fn kahn_order(parents: &[Vec<DenseNodeId>], children: &[Vec<DenseNodeId>]) -> Option<Vec<DenseNodeId>> {
+pub fn kahn_order(
+    parents: &[Vec<DenseNodeId>],
+    children: &[Vec<DenseNodeId>],
+) -> Option<Vec<DenseNodeId>> {
     let n = parents.len();
     debug_assert_eq!(n, children.len());
     let mut indeg = vec![0u32; n];

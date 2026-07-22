@@ -2,24 +2,23 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
 
 use causal_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
-use causal_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
+use causal_stats::{FaerBackend, GlmOptions, fit_propensity};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, restrict_to_rows,
-    trim_of, trim_retained_rows,
+    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry,
+    restrict_to_rows, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
-use crate::util::{bootstrap_se, sample_std, BootstrapSeResult};
+use crate::util::{BootstrapSeResult, bootstrap_se};
 
 /// Propensity stratification estimator: within-stratum difference of means pooled by size.
 ///
@@ -122,13 +121,8 @@ impl PropensityStratification {
             retained.as_deref(),
         );
         let stratum = assign_strata(&s_used, n_strata);
-        let result = stratified_ate(
-            &t_used,
-            &y_used,
-            &stratum,
-            n_strata,
-            &problem.target_population,
-        )?;
+        let result =
+            stratified_ate(&t_used, &y_used, &stratum, n_strata, &problem.target_population)?;
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -166,7 +160,7 @@ impl PropensityStratification {
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
-                let n = problem.nrows;
+        let n = problem.nrows;
         let ncols = problem.design_ncols;
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
@@ -213,7 +207,6 @@ impl PropensityStratification {
 // Matching (shared by PropensityMatching and DistanceMatching)
 // ---------------------------------------------------------------------------------------------
 
-
 pub(crate) fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
     let n = scores.len();
     let k = n_strata.max(1);
@@ -227,7 +220,7 @@ pub(crate) fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
     stratum
 }
 
-struct StratifiedResult {
+pub(crate) struct StratifiedResult {
     ate: f64,
     se_analytic: f64,
     /// Fraction of input rows that landed in a stratum with both arms represented. Strata
@@ -288,11 +281,7 @@ pub(crate) fn stratified_ate(
         return Err(EstimationError::data_msg("no strata contain both treated and control units"));
     }
     let ate = diffs.iter().zip(&weights).map(|(d, w)| d * w).sum::<f64>() / total_w;
-    let se_var = vars
-        .iter()
-        .zip(&weights)
-        .map(|(v, w)| v * (w / total_w).powi(2))
-        .sum::<f64>();
+    let se_var = vars.iter().zip(&weights).map(|(v, w)| v * (w / total_w).powi(2)).sum::<f64>();
     let retained_n: f64 = (0..n_strata)
         .filter(|&s| cnt1[s] > 0 && cnt0[s] > 0)
         .map(|s| (cnt1[s] + cnt0[s]) as f64)

@@ -10,8 +10,8 @@ use causal_prob::InferenceDiagnostics;
 
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    accumulate_marginals, graph_chain_diagnostics, kish_ess, mcmc_graph_diagnostics,
-    publish_graph_posterior, GraphPosterior,
+    GraphPosterior, accumulate_marginals, graph_chain_diagnostics, kish_ess,
+    mcmc_graph_diagnostics, publish_graph_posterior,
 };
 
 /// Shared MCMC schedule knobs for mask-based graph samplers.
@@ -27,12 +27,7 @@ impl GraphMcmcSchedule {
     /// Normalize schedule fields (at least one chain, four draws, thin ≥ 1).
     #[must_use]
     pub fn normalize(n_chains: u32, n_warmup: u32, n_draws: u32, thin: u32) -> Self {
-        Self {
-            n_chains: n_chains.max(1),
-            n_warmup,
-            n_draws: n_draws.max(4),
-            thin: thin.max(1),
-        }
+        Self { n_chains: n_chains.max(1), n_warmup, n_draws: n_draws.max(4), thin: thin.max(1) }
     }
 
     /// Require at least `min` chains (R-hat needs ≥ 2).
@@ -50,12 +45,7 @@ impl GraphMcmcSchedule {
     /// `(n_chains, n_warmup, n_draws, thin)` as `usize`.
     #[must_use]
     pub fn as_usize(self) -> (usize, usize, usize, usize) {
-        (
-            self.n_chains as usize,
-            self.n_warmup as usize,
-            self.n_draws as usize,
-            self.thin as usize,
-        )
+        (self.n_chains as usize, self.n_warmup as usize, self.n_draws as usize, self.thin as usize)
     }
 }
 

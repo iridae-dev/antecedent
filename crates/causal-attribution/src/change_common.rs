@@ -69,9 +69,7 @@ pub(crate) fn measure_value(
                 Ok(0.0)
             } else {
                 let (mu0, var0) = baseline_law.ok_or_else(|| {
-                    AttributionError::unsupported(
-                        "Gaussian KL payoff missing cached baseline law",
-                    )
+                    AttributionError::unsupported("Gaussian KL payoff missing cached baseline law")
                 })?;
                 Ok(gaussian_kl(mu, var, mu0, var0)?)
             }
@@ -127,14 +125,13 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     payoff: &mut P,
     total_change: f64,
     unidentified: Arc<[ComponentId]>,
-    _ctx: &ExecutionContext,
+    ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
     use crate::path::path_decompose;
     use crate::result::{ComponentContribution, PathContribution};
 
-    let outcome_dense = model
-        .dense_of(outcome)
-        .ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
+    let outcome_dense =
+        model.dense_of(outcome).ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
     let full = if players.is_empty() { 0 } else { (1u64 << players.len()) - 1 };
     let v_full = payoff.value(full)?;
     let mut path_breakdown: Vec<PathContribution> = Vec::new();
@@ -148,28 +145,21 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
         evaluations += 2;
 
         let src = comp.variable();
-        let src_dense = model
-            .dense_of(src)
-            .ok_or_else(|| AttributionError::missing_var("source", src))?;
+        let src_dense =
+            model.dense_of(src).ok_or_else(|| AttributionError::missing_var("source", src))?;
 
         // Path shares via linear β-products; fall back to single direct share.
-        let path_result = path_decompose(model, &[src], outcome, 64, 16, _ctx);
+        let path_result = path_decompose(model, &[src], outcome, 64, 16, ctx);
         let mut player_paths: Vec<PathContribution> = Vec::new();
         match path_result {
             Ok(res) if !res.path_breakdown.is_empty() => {
-                let weight_sum: f64 = res
-                    .path_breakdown
-                    .iter()
-                    .map(|p| p.contribution.abs())
-                    .sum::<f64>()
-                    .max(1e-12);
+                let weight_sum: f64 =
+                    res.path_breakdown.iter().map(|p| p.contribution.abs()).sum::<f64>().max(1e-12);
                 for p in res.path_breakdown.iter() {
                     let sign = if p.contribution >= 0.0 { 1.0 } else { -1.0 };
                     let share = marginal * (p.contribution.abs() / weight_sum) * sign;
-                    player_paths.push(PathContribution {
-                        path: Arc::clone(&p.path),
-                        contribution: share,
-                    });
+                    player_paths
+                        .push(PathContribution { path: Arc::clone(&p.path), contribution: share });
                 }
             }
             _ => {
@@ -202,11 +192,7 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
         path_breakdown: Arc::from(path_breakdown),
         unidentified,
         graph_sensitivity: None,
-        budget: crate::result::ComputeBudget {
-            evaluations,
-            samples: 0,
-            exact_coalitions: 0,
-        },
+        budget: crate::result::ComputeBudget { evaluations, samples: 0, exact_coalitions: 0 },
         monte_carlo_stderr: None,
         component_mc_stderr: None,
         cache_stats: crate::result::CacheStats::default(),

@@ -2,12 +2,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    clippy::cast_possible_truncation,
+    clippy::unnecessary_wraps
+)]
 
 use causal_core::CausalRng;
 
-use crate::ci::nonparametric_permutation_count;
 use crate::ci::SignificanceMethod;
+use crate::ci::nonparametric_permutation_count;
 use crate::error::StatsError;
 
 /// Gaussian KL divergence `KL(N(μ0,σ0²) ‖ N(μ1,σ1²))`.
@@ -98,7 +105,7 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
     let mut i = 0;
     while i < all.len() {
         let mut j = i + 1;
-        while j < all.len() && all[j].0 == all[i].0 {
+        while j < all.len() && all[j].0.to_bits() == all[i].0.to_bits() {
             j += 1;
         }
         let avg = (i + j + 1) as f64 / 2.0; // 1-based average rank
@@ -165,15 +172,9 @@ pub fn residual_likelihood_ratio(
 /// # Errors
 ///
 /// Empty samples.
-pub fn kernel_two_sample(
-    a: &[f64],
-    b: &[f64],
-    rng_seed: u64,
-) -> Result<(f64, f64), StatsError> {
+pub fn kernel_two_sample(a: &[f64], b: &[f64], rng_seed: u64) -> Result<(f64, f64), StatsError> {
     if a.is_empty() || b.is_empty() {
-        return Err(StatsError::Shape {
-            message: "kernel_two_sample requires non-empty samples",
-        });
+        return Err(StatsError::Shape { message: "kernel_two_sample requires non-empty samples" });
     }
     let n_perm = nonparametric_permutation_count(SignificanceMethod::Analytic);
     let gamma = rbf_gamma_median_heuristic(a, b);
@@ -218,9 +219,7 @@ pub fn change_point_known_split(series: &[f64], split: usize) -> Result<(f64, f6
     let left = &series[..split];
     let right = &series[split..];
     if left.len() < 2 || right.len() < 2 {
-        return Err(StatsError::Shape {
-            message: "each regime needs ≥2 observations",
-        });
+        return Err(StatsError::Shape { message: "each regime needs ≥2 observations" });
     }
     let (stat, p) = gaussian_segment_lr(left, right)?;
     Ok((stat, p))
@@ -256,9 +255,7 @@ pub fn change_point_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), Stats
 /// Series shorter than 4.
 pub fn change_point_scan(series: &[f64], rng_seed: u64) -> Result<(f64, f64), StatsError> {
     if series.len() < 4 {
-        return Err(StatsError::Shape {
-            message: "change_point_scan requires len≥4",
-        });
+        return Err(StatsError::Shape { message: "change_point_scan requires len≥4" });
     }
     let observed = max_abs_cusum(series);
     let n_perm = nonparametric_permutation_count(SignificanceMethod::Analytic);
@@ -332,7 +329,7 @@ fn rbf(x: f64, y: f64, gamma: f64) -> f64 {
 
 fn fisher_yates_shuffle(xs: &mut [f64], rng: &mut CausalRng) {
     for i in (1..xs.len()).rev() {
-        let j = (rng.next_u64() as usize) % (i + 1);
+        let j = usize::try_from(rng.next_u64() % u64::try_from(i + 1).unwrap_or(1)).unwrap_or(0);
         xs.swap(i, j);
     }
 }
@@ -430,7 +427,7 @@ mod tests {
 
     #[test]
     fn residual_lr_identical_residuals_have_unit_p() {
-        let r: Vec<f64> = (0..40).map(|i| (i as f64) * 0.01 - 0.2).collect();
+        let r: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.01 - 0.2).collect();
         let (kl, p) = residual_likelihood_ratio(&r, &r).unwrap();
         assert!(kl.abs() < 1e-12, "kl={kl}");
         assert!((p - 1.0).abs() < 1e-9, "p={p}");
@@ -438,7 +435,7 @@ mod tests {
 
     #[test]
     fn residual_lr_detects_scale_shift() {
-        let a: Vec<f64> = (0..80).map(|i| (i as f64) * 0.01).collect();
+        let a: Vec<f64> = (0..80).map(|i| f64::from(i) * 0.01).collect();
         let b: Vec<f64> = a.iter().map(|x| x * 3.0).collect();
         let (kl, p) = residual_likelihood_ratio(&a, &b).unwrap();
         assert!(kl > 0.1, "kl={kl}");
@@ -480,8 +477,8 @@ mod tests {
 
     #[test]
     fn change_point_two_sample_detects_level_shift() {
-        let a: Vec<f64> = (0..40).map(|i| (i as f64) * 0.01).collect();
-        let b: Vec<f64> = (0..40).map(|i| (i as f64) * 0.01 + 5.0).collect();
+        let a: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.01).collect();
+        let b: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.01 + 5.0).collect();
         let (stat, p) = change_point_two_sample(&a, &b).unwrap();
         assert!(stat > 0.5, "stat={stat}");
         assert!(p < 0.01, "p={p}");
@@ -489,11 +486,11 @@ mod tests {
 
     #[test]
     fn change_point_scan_detects_mid_series_shift() {
-        let mut series: Vec<f64> = (0..80).map(|i| (i as f64) * 0.01).collect();
+        let mut series: Vec<f64> = (0..80).map(|i| f64::from(i) * 0.01).collect();
         for v in &mut series[40..] {
             *v += 4.0;
         }
-        let (stat, p) = change_point_scan(&series, 0x_C05C_A11).unwrap();
+        let (stat, p) = change_point_scan(&series, 0x0C05_CA11).unwrap();
         assert!(stat > 10.0, "stat={stat}");
         assert!(p < 0.05, "p={p}");
     }

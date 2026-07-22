@@ -5,10 +5,15 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::field_reassign_with_default,
+    clippy::float_cmp,
+    clippy::manual_let_else,
     clippy::many_single_char_names,
-    clippy::needless_range_loop
+    clippy::needless_range_loop,
+    clippy::too_many_lines
 )]
 
 use std::sync::Arc;
@@ -275,13 +280,10 @@ fn score_family(
         }
         MechanismSlot::Discrete { support, probs, logit_coeffs } => match logit_coeffs {
             None => {
-                let ent: f64 =
-                    probs.iter().map(|p| if *p > 0.0 { -p * p.ln() } else { 0.0 }).sum();
+                let ent: f64 = probs.iter().map(|p| if *p > 0.0 { -p * p.ln() } else { 0.0 }).sum();
                 -ent
             }
-            Some(logits) => {
-                discrete_mean_loglik(gather, model, data, y, support, logits)?
-            }
+            Some(logits) => discrete_mean_loglik(gather, model, data, y, support, logits)?,
         },
         MechanismSlot::LinearGaussianStateSpace { process_std, obs_std, .. } => {
             let mse = y.iter().map(|yi| yi.powi(2)).sum::<f64>() / y.len().max(1) as f64;
@@ -406,7 +408,9 @@ fn fit_family(
         MechanismFamily::HierarchicalLinear => {
             fit_hierarchical_linear(gather, model, data, y, backend, ls_ws)
         }
-        MechanismFamily::HierarchicalGlm => fit_hierarchical_glm(gather, model, data, y, backend, ls_ws),
+        MechanismFamily::HierarchicalGlm => {
+            fit_hierarchical_glm(gather, model, data, y, backend, ls_ws)
+        }
         MechanismFamily::Bvar => fit_bvar_minnesota(gather, model, data, y, backend, ls_ws),
         MechanismFamily::LinearGaussianStateSpace => {
             fit_lgssm_kalman_em(gather, model, data, y, backend, ls_ws)
@@ -440,7 +444,7 @@ fn gather_parent_cols(
     Ok(parent_cols)
 }
 
-/// Empirical-Bayes hierarchical linear: estimate τ² / λ from OLS, optional UnitId
+/// Empirical-Bayes hierarchical linear: estimate τ² / λ from OLS, optional `UnitId`
 /// random-intercept demeaning for partial pooling.
 fn fit_hierarchical_linear(
     gather: &ParentGatherPlan,
@@ -460,11 +464,8 @@ fn fit_hierarchical_linear(
     let p = ols_coeffs.len();
     // Method-of-moments EB: τ² ≈ mean(β̂²) − σ²·mean(diag((X'X)^{-1})) proxy;
     // use simplified τ² = mean(β̂²) clamped, λ = σ² / τ².
-    let mean_b2 = if p == 0 {
-        0.0
-    } else {
-        ols_coeffs.iter().map(|b| b * b).sum::<f64>() / p as f64
-    };
+    let mean_b2 =
+        if p == 0 { 0.0 } else { ols_coeffs.iter().map(|b| b * b).sum::<f64>() / p as f64 };
     let tau2 = (mean_b2 - ols_sigma * ols_sigma / n.max(1) as f64).max(1e-8);
     let mut lambda = (ols_sigma * ols_sigma / tau2).clamp(1e-6, 1e6);
 
@@ -504,18 +505,13 @@ fn fit_hierarchical_linear(
                 intercept
             };
             let _ = (ols_int, group_tau);
-            Ok(MechanismSlot::HierarchicalLinear {
-                intercept,
-                coeffs,
-                sigma,
-                shrinkage: lambda,
-            })
+            Ok(MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, shrinkage: lambda })
         }
         other => Ok(other),
     }
 }
 
-/// Hierarchical Bernoulli logit with EB ridge (and optional UnitId demeaning of the
+/// Hierarchical Bernoulli logit with EB ridge (and optional `UnitId` demeaning of the
 /// linear predictor target via frequency offsets — here: ridge λ from OLS proxy on
 /// working residuals).
 fn fit_hierarchical_glm(
@@ -556,8 +552,7 @@ fn fit_hierarchical_glm(
         let base = (1 + pi) * n;
         x[base..base + n].copy_from_slice(&col[..n]);
     }
-    let mut opts = GlmOptions::default();
-    opts.ridge_on_separation = Some(lambda);
+    let opts = GlmOptions { ridge_on_separation: Some(lambda), ..Default::default() };
     let fit = fit_glm(
         GlmFamily::BinomialLogit,
         GlmDesignRef { x_colmajor: &x, nrows: n, ncols, y },
@@ -618,14 +613,13 @@ fn fit_bvar_minnesota(
     y2[..n].copy_from_slice(y);
     // Intercept prior: loose (v = 100 * φ)
     let v0: f64 = (100.0 * phi).max(1e-6);
-    x2[0 * (n + extra) + n] = (1.0 / v0).sqrt();
+    x2[n] = (1.0 / v0).sqrt();
     for j in 0..p {
         let lag = (j + 1) as f64;
         let v: f64 = (phi / (lag * lag)).max(1e-8);
         x2[(1 + j) * (n + extra) + (n + 1 + j)] = (1.0 / v).sqrt();
     }
-    let fit =
-        backend.least_squares(&x2, n + extra, ncols, &y2, ls_ws).map_err(ModelError::from)?;
+    let fit = backend.least_squares(&x2, n + extra, ncols, &y2, ls_ws).map_err(ModelError::from)?;
     let intercept = fit.coefficients[0];
     let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
     let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
@@ -669,7 +663,7 @@ fn fit_lgssm_kalman_em(
     })
 }
 
-/// EM for scalar LGSSM: x_t = a x_{t-1} + q ε, y_t = x_t + r η.
+/// EM for scalar LGSSM: `x_t` = a x_{t-1} + q ε, `y_t` = `x_t` + r η.
 fn lgssm_em(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
     let n = y.len();
     if n < 3 {
@@ -694,9 +688,7 @@ fn lgssm_em(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
         a = if den > 1e-12 { (num / den).clamp(-0.999, 0.999) } else { a };
         let mut q_acc = 0.0;
         for t in 1..n {
-            q_acc += p_s[t]
-                + x_s[t] * x_s[t]
-                + a * a * (p_s[t - 1] + x_s[t - 1] * x_s[t - 1])
+            q_acc += p_s[t] + x_s[t] * x_s[t] + a * a * (p_s[t - 1] + x_s[t - 1] * x_s[t - 1])
                 - 2.0 * a * (p_lag[t] + x_s[t] * x_s[t - 1]);
         }
         q = (q_acc / (n - 1) as f64).max(1e-8);
@@ -724,7 +716,7 @@ fn unit_id_groups(data: &TabularData, n: usize) -> Option<Vec<u32>> {
         }
         let mut groups = Vec::with_capacity(n);
         let mut ok = true;
-        for &v in col.iter() {
+        for &v in &col {
             if !v.is_finite() {
                 ok = false;
                 break;
@@ -1146,11 +1138,7 @@ mod tests {
             MechanismSlot::HierarchicalLinear { .. }
         ));
         let (store2, _) = reg
-            .assign_and_fit(
-                &compiled,
-                &data,
-                SelectionPolicy::RequireFamily(MechanismFamily::Bvar),
-            )
+            .assign_and_fit(&compiled, &data, SelectionPolicy::RequireFamily(MechanismFamily::Bvar))
             .unwrap();
         assert!(matches!(store2.get(DenseNodeId::from_raw(1)), MechanismSlot::Bvar { .. }));
         let (store3, _) = reg

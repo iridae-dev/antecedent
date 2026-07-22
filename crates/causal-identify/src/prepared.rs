@@ -48,13 +48,7 @@ impl PreparedAdmg {
         admg.validate().map_err(IdentificationError::from)?;
         let district_of: Arc<[u32]> = Arc::from(admg.districts());
         let topo = Arc::from(topological_order(&admg)?);
-        Ok(Self {
-            admg,
-            declared_assumptions,
-            district_of,
-            topo,
-            ancestor_memo: HashMap::new(),
-        })
+        Ok(Self { admg, declared_assumptions, district_of, topo, ancestor_memo: HashMap::new() })
     }
 
     /// Embed a DAG as an ADMG (directed edges only; no bidirected).

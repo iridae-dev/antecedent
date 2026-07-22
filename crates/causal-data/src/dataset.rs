@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use causal_core::{CausalSchema, VariableId};
 
-use crate::column::{ColumnView, OwnedColumn, ValidityBitmap};
+use crate::column::{ColumnView, ValidityBitmap};
+#[cfg(test)]
+use crate::column::OwnedColumn;
 use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
@@ -86,6 +88,7 @@ impl TimeSeriesData {
     }
 
     /// Pointer identity of the columnar Arc (tests: planning must not clone payloads).
+    #[cfg(test)]
     #[must_use]
     pub(crate) fn columnar_ptr(&self) -> *const [OwnedColumn] {
         Arc::as_ptr(self.storage.columns_arc())

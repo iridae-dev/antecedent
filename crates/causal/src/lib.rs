@@ -43,6 +43,7 @@ pub mod strategy_table;
 
 pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RdConfig, RefuteSuite};
 pub use callback_plan::mark_python_callback_plan;
+pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use design::rank_designs;
 pub use discovery::{
     BayesianDiscoverParams, DiscoverParams, GraphMcmcSchedule, StaticDiscoverParams,
@@ -57,8 +58,6 @@ pub use discovery_defaults::{
     static_pc_constraints,
 };
 pub use error::{AnalysisError, CausalError};
-pub use options::{DiscoveryAccept, FdrControl};
-pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use gcm::{
     FittedGcm, IteResult, anomaly_attribution, attribute_distribution_change,
     attribute_distribution_change_robust, attribute_feature_relevance, attribute_path_specific,
@@ -67,6 +66,7 @@ pub use gcm::{
     sample_interventional_distribution,
 };
 pub use inference::{BayesianConfig, InferenceMode};
+pub use options::{DiscoveryAccept, FdrControl};
 pub use planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
     StaticAteCompileInput, StaticDistributionCompileInput, StaticPagAteCompileInput,
@@ -75,32 +75,31 @@ pub use planner::{
     is_dag_only_identifier, reject_dag_only_on_pag,
 };
 pub use strategy_table::{
-    DEFAULT_CONDITIONAL_ESTIMATOR, DEFAULT_CONDITIONAL_ESTIMATOR_ID, DEFAULT_CONDITIONAL_IDENTIFIER,
-    DEFAULT_CONDITIONAL_IDENTIFIER_ID, DEFAULT_DISTRIBUTION_ESTIMATOR,
-    DEFAULT_DISTRIBUTION_ESTIMATOR_ID, DEFAULT_DISTRIBUTION_IDENTIFIER,
-    DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER,
-    DEFAULT_IDENTIFIER_ID, DEFAULT_MEDIATION_ESTIMATOR, DEFAULT_MEDIATION_ESTIMATOR_ID,
-    DEFAULT_MEDIATION_IDENTIFIER, DEFAULT_MEDIATION_IDENTIFIER_ID, DEFAULT_ADMG_ESTIMATOR,
-    DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER, DEFAULT_ADMG_IDENTIFIER_ID,
-    DEFAULT_PAG_ESTIMATOR,
-    DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER, DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR,
-    DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER, DEFAULT_PATH_IDENTIFIER_ID, EstimatorId,
-    IdentifierId, estimand_compatible_with_estimator, estimate_provenance_step,
-    estimate_static_effect, identification_status_acceptable, identify_admg, identify_pag,
-    identify_provenance_step, identify_static, identify_static_query, identify_static_query_with_rd,
-    require_identified, select_estimand, validate_distribution_pair, validate_path_specific_pair,
-    validate_static_pair,
+    DEFAULT_ADMG_ESTIMATOR, DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER,
+    DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR, DEFAULT_CONDITIONAL_ESTIMATOR_ID,
+    DEFAULT_CONDITIONAL_IDENTIFIER, DEFAULT_CONDITIONAL_IDENTIFIER_ID,
+    DEFAULT_DISTRIBUTION_ESTIMATOR, DEFAULT_DISTRIBUTION_ESTIMATOR_ID,
+    DEFAULT_DISTRIBUTION_IDENTIFIER, DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR,
+    DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, DEFAULT_MEDIATION_ESTIMATOR,
+    DEFAULT_MEDIATION_ESTIMATOR_ID, DEFAULT_MEDIATION_IDENTIFIER, DEFAULT_MEDIATION_IDENTIFIER_ID,
+    DEFAULT_PAG_ESTIMATOR, DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER,
+    DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID,
+    DEFAULT_PATH_IDENTIFIER, DEFAULT_PATH_IDENTIFIER_ID, EstimatorId, IdentifierId,
+    estimand_compatible_with_estimator, estimate_provenance_step, estimate_static_effect,
+    identification_status_acceptable, identify_admg, identify_pag, identify_provenance_step,
+    identify_static, identify_static_query, identify_static_query_with_rd, require_identified,
+    select_estimand, validate_distribution_pair, validate_path_specific_pair, validate_static_pair,
 };
 
 // PAG / LPCMCI / Bayesian graph-posterior surfaces.
 pub use causal_discovery::{
     CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult, DagDiscoveryResult,
-    DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, ExactDagPosterior, Fci, Ges,
-    GraphPosterior, GraphPosteriorEngine, GraphPrior, JpcmciPlus, JpcmciNodeRole, Lpcmci,
-    MultiDatasetConstraints, Notears, NotearsDiscoveryResult, OrderMcmc, PagDiscoveryResult, Pc,
-    RegimeAssignment, RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, ScoredLink,
-    SpaceDummyCiMode, StaticCpdagDiscoveryResult, StaticDagDiscoveryResult,
-    StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode, EXACT_ENUM_MAX_NODES,
+    DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, EXACT_ENUM_MAX_NODES,
+    ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
+    JpcmciPlus, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult, OrderMcmc,
+    PagDiscoveryResult, Pc, RegimeAssignment, RegimeGraphCollection, Rfci, Rpcmci,
+    RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
+    StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode,
     two_regime_half_split,
 };
 pub use causal_estimate::{
@@ -116,10 +115,10 @@ pub use causal_identify::{
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
     IdentificationEnvelope, ProbabilityMass, TemporalMediationIdentifier,
 };
-pub use result::CausalAnalysisResult;
 pub use causal_validate::{
     PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
 };
+pub use result::CausalAnalysisResult;
 pub use review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
     compile_review_required_pag, compile_review_required_static_cpdag,
@@ -191,7 +190,7 @@ pub fn dag_to_gml(
     causal_io::dag_to_gml(dag, names).map_err(AnalysisError::from)
 }
 
-/// Parse NetworkX `node_link_data` JSON into a [`causal_graph::Dag`].
+/// Parse `NetworkX` `node_link_data` JSON into a [`causal_graph::Dag`].
 ///
 /// # Errors
 ///
@@ -200,7 +199,7 @@ pub fn dag_from_networkx_node_link(json: &str) -> Result<causal_graph::Dag, Anal
     causal_io::dag_from_networkx_node_link(json).map_err(AnalysisError::from)
 }
 
-/// Serialize a DAG to NetworkX `node_link_data` JSON.
+/// Serialize a DAG to `NetworkX` `node_link_data` JSON.
 ///
 /// # Errors
 ///
@@ -212,7 +211,7 @@ pub fn dag_to_networkx_node_link(
     causal_io::dag_to_networkx_node_link(dag, names).map_err(AnalysisError::from)
 }
 
-/// Parse NetworkX `adjacency_data` JSON into a [`causal_graph::Dag`].
+/// Parse `NetworkX` `adjacency_data` JSON into a [`causal_graph::Dag`].
 ///
 /// # Errors
 ///
@@ -221,7 +220,7 @@ pub fn dag_from_networkx_adjacency(json: &str) -> Result<causal_graph::Dag, Anal
     causal_io::dag_from_networkx_adjacency(json).map_err(AnalysisError::from)
 }
 
-/// Serialize a DAG to NetworkX `adjacency_data` JSON.
+/// Serialize a DAG to `NetworkX` `adjacency_data` JSON.
 ///
 /// # Errors
 ///
@@ -246,7 +245,10 @@ pub fn pag_from_dot(dot: &str) -> Result<causal_graph::Pag, AnalysisError> {
 /// # Errors
 ///
 /// [`AnalysisError::Serialization`] on conversion failure.
-pub fn pag_to_dot(pag: &causal_graph::Pag, names: Option<&[String]>) -> Result<String, AnalysisError> {
+pub fn pag_to_dot(
+    pag: &causal_graph::Pag,
+    names: Option<&[String]>,
+) -> Result<String, AnalysisError> {
     causal_io::pag_to_dot(pag, names).map_err(AnalysisError::from)
 }
 /// Parse JSON into a [`causal_graph::Pag`].
@@ -262,7 +264,10 @@ pub fn pag_from_json(json: &str) -> Result<causal_graph::Pag, AnalysisError> {
 /// # Errors
 ///
 /// [`AnalysisError::Serialization`] on conversion failure.
-pub fn pag_to_json(pag: &causal_graph::Pag, names: Option<&[String]>) -> Result<String, AnalysisError> {
+pub fn pag_to_json(
+    pag: &causal_graph::Pag,
+    names: Option<&[String]>,
+) -> Result<String, AnalysisError> {
     causal_io::pag_to_json(pag, names).map_err(AnalysisError::from)
 }
 /// Parse GML into a [`causal_graph::Pag`].
@@ -278,10 +283,13 @@ pub fn pag_from_gml(gml: &str) -> Result<causal_graph::Pag, AnalysisError> {
 /// # Errors
 ///
 /// [`AnalysisError::Serialization`] on conversion failure.
-pub fn pag_to_gml(pag: &causal_graph::Pag, names: Option<&[String]>) -> Result<String, AnalysisError> {
+pub fn pag_to_gml(
+    pag: &causal_graph::Pag,
+    names: Option<&[String]>,
+) -> Result<String, AnalysisError> {
     causal_io::pag_to_gml(pag, names).map_err(AnalysisError::from)
 }
-/// Parse NetworkX node-link JSON into a [`causal_graph::Pag`].
+/// Parse `NetworkX` node-link JSON into a [`causal_graph::Pag`].
 ///
 /// # Errors
 ///
@@ -289,7 +297,7 @@ pub fn pag_to_gml(pag: &causal_graph::Pag, names: Option<&[String]>) -> Result<S
 pub fn pag_from_networkx_node_link(json: &str) -> Result<causal_graph::Pag, AnalysisError> {
     causal_io::pag_from_networkx_node_link(json).map_err(AnalysisError::from)
 }
-/// Serialize a PAG to NetworkX node-link JSON.
+/// Serialize a PAG to `NetworkX` node-link JSON.
 ///
 /// # Errors
 ///
@@ -358,7 +366,7 @@ pub fn cpdag_to_gml(
 ) -> Result<String, AnalysisError> {
     causal_io::cpdag_to_gml(cpdag, names).map_err(AnalysisError::from)
 }
-/// Parse NetworkX node-link JSON into a [`causal_graph::Cpdag`].
+/// Parse `NetworkX` node-link JSON into a [`causal_graph::Cpdag`].
 ///
 /// # Errors
 ///
@@ -366,7 +374,7 @@ pub fn cpdag_to_gml(
 pub fn cpdag_from_networkx_node_link(json: &str) -> Result<causal_graph::Cpdag, AnalysisError> {
     causal_io::cpdag_from_networkx_node_link(json).map_err(AnalysisError::from)
 }
-/// Serialize a CPDAG to NetworkX node-link JSON.
+/// Serialize a CPDAG to `NetworkX` node-link JSON.
 ///
 /// # Errors
 ///
@@ -435,7 +443,7 @@ pub fn admg_to_gml(
 ) -> Result<String, AnalysisError> {
     causal_io::admg_to_gml(admg, names).map_err(AnalysisError::from)
 }
-/// Parse NetworkX node-link JSON into a [`causal_graph::Admg`].
+/// Parse `NetworkX` node-link JSON into a [`causal_graph::Admg`].
 ///
 /// # Errors
 ///
@@ -443,7 +451,7 @@ pub fn admg_to_gml(
 pub fn admg_from_networkx_node_link(json: &str) -> Result<causal_graph::Admg, AnalysisError> {
     causal_io::admg_from_networkx_node_link(json).map_err(AnalysisError::from)
 }
-/// Serialize an ADMG to NetworkX node-link JSON.
+/// Serialize an ADMG to `NetworkX` node-link JSON.
 ///
 /// # Errors
 ///
@@ -461,7 +469,7 @@ pub fn admg_to_networkx_node_link(
 ///
 /// [`AnalysisError::Serialization`] on IO failures.
 pub fn encode_model_bundle_bytes(
-    input: causal_io::ModelBundleEncode<'_>,
+    input: &causal_io::ModelBundleEncode<'_>,
 ) -> Result<Vec<u8>, AnalysisError> {
     let art = causal_io::encode_model_bundle(input).map_err(AnalysisError::from)?;
     let mut buf = Vec::new();
@@ -583,8 +591,9 @@ pub use causal_design::{
     CandidateDesign, ConstraintViolation, DecisionConstraint, DecisionEvaluation, DecisionProblem,
     DecisionProblemId, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
     DesignObjective, DesignRankConfig, DesignRanker, DesignRanking, EffectWidthContext,
-    EnvironmentGramSpec, EnvironmentPlan, ExperimentPlan, InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, RankedCandidate,
-    SamplingPlan, Utility, evaluate_decision,
+    EnvironmentGramSpec, EnvironmentPlan, ExperimentPlan, InterventionDesignEffect,
+    MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, RankedCandidate, SamplingPlan, Utility,
+    evaluate_decision,
 };
 pub use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
 pub use causal_state::{
@@ -740,11 +749,8 @@ mod tests {
             result.predictive_checks.iter().any(|c| c.kind == PredictiveCheckKind::Posterior),
             "expected posterior predictive check on Bayesian facade path"
         );
-        let prior = result
-            .predictive_checks
-            .iter()
-            .find(|c| c.kind == PredictiveCheckKind::Prior)
-            .unwrap();
+        let prior =
+            result.predictive_checks.iter().find(|c| c.kind == PredictiveCheckKind::Prior).unwrap();
         assert!(prior.p_value.is_finite());
         assert!(prior.predictive_sd.is_finite());
         let post_ppc = result
@@ -864,7 +870,8 @@ mod tests {
                 .unwrap(),
             ),
         ];
-        let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
         let mut dag = Dag::with_variables(3);
         dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
         dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
@@ -941,12 +948,14 @@ mod tests {
                 .unwrap(),
             ),
         ];
-        let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
         let mut dag = Dag::with_variables(3);
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-        let query = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
-            .with_path_nodes([VariableId::from_raw(1)]);
+        let query =
+            PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
+                .with_path_nodes([VariableId::from_raw(1)]);
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
@@ -956,15 +965,8 @@ mod tests {
             .build()
             .unwrap();
         let result = analysis.run(&ExecutionContext::for_tests(0)).unwrap();
-        assert!(
-            (result.estimate.ate - 1.0).abs() < 0.05,
-            "ate={}",
-            result.estimate.ate
-        );
-        assert_eq!(
-            result.estimand.method.as_ref(),
-            "path_specific.natural"
-        );
+        assert!((result.estimate.ate - 1.0).abs() < 0.05, "ate={}", result.estimate.ate);
+        assert_eq!(result.estimand.method.as_ref(), "path_specific.natural");
     }
 
     /// Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(logit(-0.5 + Z))`, `Y = 2T + Z + noise`.

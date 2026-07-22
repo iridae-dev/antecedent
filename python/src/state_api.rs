@@ -21,6 +21,8 @@ use pyo3::types::{PyDict, PyModule};
 
 use crate::{catch_ffi, columns_to_batch, py_msg};
 
+type BatchColumnsPy<'py> = (Vec<String>, Vec<Bound<'py, PyArray1<f64>>>);
+
 const DEFAULT_CACHE_BYTES: u64 = 1_048_576;
 
 #[derive(Clone, Debug)]
@@ -61,10 +63,7 @@ impl PyCausalState {
         for col in &columns {
             owned.push(col.as_slice()?.to_vec());
         }
-        self.retained.insert(
-            id_str.clone(),
-            RetainedBatch { names, columns: owned },
-        );
+        self.retained.insert(id_str.clone(), RetainedBatch { names, columns: owned });
         Ok((Arc::from(id_str), nrows, bytes))
     }
 }
@@ -101,21 +100,12 @@ impl PyCausalState {
 
     /// Raw ids of registered queries that are currently stale.
     fn stale_queries(&self) -> Vec<u64> {
-        self.inner
-            .stale_queries()
-            .into_iter()
-            .map(|q| u64::from(q.raw()))
-            .collect()
+        self.inner.stale_queries().into_iter().map(|q| u64::from(q.raw())).collect()
     }
 
     /// Batch ids currently retained in Python (catalog order).
     fn batch_ids(&self) -> Vec<String> {
-        self.inner
-            .data_catalog
-            .batches
-            .iter()
-            .map(|b| b.id.to_string())
-            .collect()
+        self.inner.data_catalog.batches.iter().map(|b| b.id.to_string()).collect()
     }
 
     /// Append a tabular batch and retain its float64 columns.
@@ -156,16 +146,13 @@ impl PyCausalState {
         &self,
         py: Python<'py>,
         batch_id: &str,
-    ) -> PyResult<(Vec<String>, Vec<Bound<'py, PyArray1<f64>>>)> {
+    ) -> PyResult<BatchColumnsPy<'py>> {
         let batch = self
             .retained
             .get(batch_id)
             .ok_or_else(|| PyValueError::new_err(format!("unknown batch_id `{batch_id}`")))?;
-        let cols: Vec<_> = batch
-            .columns
-            .iter()
-            .map(|c| PyArray1::from_vec(py, c.clone()))
-            .collect();
+        let cols: Vec<_> =
+            batch.columns.iter().map(|c| PyArray1::from_vec(py, c.clone())).collect();
         Ok((batch.names.clone(), cols))
     }
 
@@ -179,7 +166,12 @@ impl PyCausalState {
     }
 
     /// Add opaque graph evidence; returns new version.
-    fn add_graph_evidence(&mut self, evidence_id: String, fingerprint: u64, bytes: u64) -> PyResult<u64> {
+    fn add_graph_evidence(
+        &mut self,
+        evidence_id: String,
+        fingerprint: u64,
+        bytes: u64,
+    ) -> PyResult<u64> {
         self.apply(StateEvent::AddGraphEvidence(GraphEvidenceRecord {
             id: Arc::from(evidence_id),
             fingerprint,
@@ -280,13 +272,12 @@ impl PyCausalState {
     }
 
     /// Ensure an OLS sufficient-stat slot exists with `ncols` predictors.
-    fn ols_ensure(&mut self, key: String, ncols: usize) -> PyResult<()> {
+    fn ols_ensure(&mut self, key: String, ncols: usize) {
         self.inner
             .suff_stats
             .ols
             .entry(Arc::from(key))
             .or_insert_with(|| LinearOlsSuffStats::new(ncols));
-        Ok(())
     }
 
     /// Append one OLS design row / response under `key`.
@@ -319,13 +310,12 @@ impl PyCausalState {
     }
 
     /// Ensure a streaming-covariance slot of dimension `dim`.
-    fn cov_ensure(&mut self, key: String, dim: usize) -> PyResult<()> {
+    fn cov_ensure(&mut self, key: String, dim: usize) {
         self.inner
             .suff_stats
             .cov
             .entry(Arc::from(key))
             .or_insert_with(|| StreamingCovariance::new(dim));
-        Ok(())
     }
 
     /// Observe one row into streaming covariance `key`.
@@ -431,10 +421,7 @@ pub(crate) fn causal_state_append(n_appends: u64, cache_bytes: u64) -> PyResult<
             let id: Arc<str> = Arc::from(format!("synth{i}"));
             state.retained.insert(
                 id.to_string(),
-                RetainedBatch {
-                    names: vec!["x".into()],
-                    columns: vec![vec![0.0; 8]],
-                },
+                RetainedBatch { names: vec!["x".into()], columns: vec![vec![0.0; 8]] },
             );
             apply_state_event(
                 &mut state.inner,

@@ -42,19 +42,13 @@ impl FdrAdjustment {
     /// BH with pinned baseline's default contemporaneous exclusion.
     #[must_use]
     pub const fn bh() -> Self {
-        Self {
-            method: MultipleTestingMethod::BenjaminiHochberg,
-            exclude_contemporaneous: true,
-        }
+        Self { method: MultipleTestingMethod::BenjaminiHochberg, exclude_contemporaneous: true }
     }
 
     /// BY with contemporaneous exclusion.
     #[must_use]
     pub const fn by() -> Self {
-        Self {
-            method: MultipleTestingMethod::BenjaminiYekutieli,
-            exclude_contemporaneous: true,
-        }
+        Self { method: MultipleTestingMethod::BenjaminiYekutieli, exclude_contemporaneous: true }
     }
 
     /// Override contemporaneous exclusion.
@@ -102,7 +96,7 @@ pub fn benjamini_yekutieli(p_values: &[f64]) -> Vec<f64> {
 #[must_use]
 pub fn bonferroni(p_values: &[f64]) -> Vec<f64> {
     let m = p_values.len() as f64;
-    p_values.iter().map(|&p| (p * m).min(1.0).max(0.0)).collect()
+    p_values.iter().map(|&p| (p * m).clamp(0.0, 1.0)).collect()
 }
 
 /// Holm–Bonferroni adjusted p-values (input order preserved).
@@ -194,9 +188,6 @@ mod tests {
             adjust_pvalues(&p, MultipleTestingMethod::BenjaminiHochberg),
             benjamini_hochberg(&p)
         );
-        assert_eq!(
-            adjust_pvalues(&p, MultipleTestingMethod::Holm),
-            holm(&p)
-        );
+        assert_eq!(adjust_pvalues(&p, MultipleTestingMethod::Holm), holm(&p));
     }
 }

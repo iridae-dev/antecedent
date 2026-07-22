@@ -49,11 +49,7 @@ impl CpdagCompletionSampler {
         let mut undirected = Vec::new();
         for e in cpdag.edges() {
             if e.is_undirected() {
-                let (a, b) = if e.a.raw() <= e.b.raw() {
-                    (e.a, e.b)
-                } else {
-                    (e.b, e.a)
-                };
+                let (a, b) = if e.a.raw() <= e.b.raw() { (e.a, e.b) } else { (e.b, e.a) };
                 undirected.push((a, b));
             }
         }
@@ -64,13 +60,7 @@ impl CpdagCompletionSampler {
                 message: "too many undirected edges for CpdagCompletionSampler mask",
             });
         }
-        Ok(Self {
-            base: cpdag,
-            undirected,
-            max_completions,
-            next_index: 0,
-            assign: 0,
-        })
+        Ok(Self { base: cpdag, undirected, max_completions, next_index: 0, assign: 0 })
     }
 
     /// Hard cap on yielded valid completions.
@@ -95,11 +85,7 @@ impl CpdagCompletionSampler {
             }
         }
         let dag = g.try_into_dag().ok()?;
-        if is_mec_member(&self.base, &dag) {
-            Some(dag)
-        } else {
-            None
-        }
+        if is_mec_member(&self.base, &dag) { Some(dag) } else { None }
     }
 }
 
@@ -146,20 +132,23 @@ pub fn is_mec_member(cpdag: &Cpdag, dag: &Dag) -> bool {
 fn unshielded_colliders_cpdag(g: &Cpdag) -> Vec<(u32, u32, u32)> {
     let n = g.node_count();
     let mut out = Vec::new();
-    for zi in 0..n {
-        let z = DenseNodeId::from_raw(zi as u32);
-        let parents = g.parents(z);
-        for i in 0..parents.len() {
-            for j in (i + 1)..parents.len() {
-                let p = parents[i];
-                let q = parents[j];
-                if !g.has_edge(p, q) {
-                    let (a, b) = if p.raw() <= q.raw() {
-                        (p.raw(), q.raw())
+    for center_idx in 0..n {
+        let Ok(center_raw) = u32::try_from(center_idx) else {
+            break;
+        };
+        let center = DenseNodeId::from_raw(center_raw);
+        let parents = g.parents(center);
+        for left_i in 0..parents.len() {
+            for right_i in (left_i + 1)..parents.len() {
+                let left_parent = parents[left_i];
+                let right_parent = parents[right_i];
+                if !g.has_edge(left_parent, right_parent) {
+                    let (lo, hi) = if left_parent.raw() <= right_parent.raw() {
+                        (left_parent.raw(), right_parent.raw())
                     } else {
-                        (q.raw(), p.raw())
+                        (right_parent.raw(), left_parent.raw())
                     };
-                    out.push((a, z.raw(), b));
+                    out.push((lo, center.raw(), hi));
                 }
             }
         }
@@ -172,21 +161,25 @@ fn unshielded_colliders_cpdag(g: &Cpdag) -> Vec<(u32, u32, u32)> {
 fn unshielded_colliders_dag(g: &Dag) -> Vec<(u32, u32, u32)> {
     let n = g.node_count();
     let mut out = Vec::new();
-    for zi in 0..n {
-        let z = DenseNodeId::from_raw(zi as u32);
-        let parents = g.parents(z);
-        for i in 0..parents.len() {
-            for j in (i + 1)..parents.len() {
-                let p = parents[i];
-                let q = parents[j];
-                let adjacent = g.children(p).contains(&q) || g.children(q).contains(&p);
+    for center_idx in 0..n {
+        let Ok(center_raw) = u32::try_from(center_idx) else {
+            break;
+        };
+        let center = DenseNodeId::from_raw(center_raw);
+        let parents = g.parents(center);
+        for left_i in 0..parents.len() {
+            for right_i in (left_i + 1)..parents.len() {
+                let left_parent = parents[left_i];
+                let right_parent = parents[right_i];
+                let adjacent = g.children(left_parent).contains(&right_parent)
+                    || g.children(right_parent).contains(&left_parent);
                 if !adjacent {
-                    let (a, b) = if p.raw() <= q.raw() {
-                        (p.raw(), q.raw())
+                    let (lo, hi) = if left_parent.raw() <= right_parent.raw() {
+                        (left_parent.raw(), right_parent.raw())
                     } else {
-                        (q.raw(), p.raw())
+                        (right_parent.raw(), left_parent.raw())
                     };
-                    out.push((a, z.raw(), b));
+                    out.push((lo, center.raw(), hi));
                 }
             }
         }
@@ -229,7 +222,12 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let collected: Vec<_> = CpdagCompletionSampler::new(g, 10).unwrap().collect();
         assert_eq!(collected.len(), 1);
-        assert!(collected[0].graph.children(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(1)));
+        assert!(
+            collected[0]
+                .graph
+                .children(DenseNodeId::from_raw(0))
+                .contains(&DenseNodeId::from_raw(1))
+        );
     }
 
     #[test]

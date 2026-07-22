@@ -9,9 +9,7 @@ use super::bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 use super::gsquared::{GSquared, RegressionCi};
 use super::pairwise_mv::PairwiseMultivariateCi;
 use super::parcorr::PartialCorrelation;
-use super::parcorr_variants::{
-    MultivariatePartialCorrelation, RobustPartialCorrelation,
-};
+use super::parcorr_variants::{MultivariatePartialCorrelation, RobustPartialCorrelation};
 use super::types::ConditionalIndependence;
 use crate::error::StatsError;
 
@@ -26,7 +24,7 @@ use crate::error::StatsError;
 /// - `multivariate_parcorr` / `multivariate_partial_corr`
 /// - `pairwise_multivariate` / `pairwise_mv`
 /// - `gsquared` / `g_squared`
-/// - `regression` (ParCorr alias)
+/// - `regression` (`ParCorr` alias)
 /// - `knn_dependence` (kNN distance dependence proxy; **not** KSG CMI)
 /// - `mixed_knn_dependence` (rank discrete-looking columns, then `knn_dependence`)
 /// - `symbolic_cmi`

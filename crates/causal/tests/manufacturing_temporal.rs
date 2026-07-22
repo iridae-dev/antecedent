@@ -9,8 +9,8 @@
 use std::sync::Arc;
 
 use causal::{
-    decode_causal_posterior_bytes, encode_causal_posterior_bytes, BayesianConfig, CausalAnalysis,
-    InferenceMode, RefuteSuite,
+    BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite, decode_causal_posterior_bytes,
+    encode_causal_posterior_bytes,
 };
 use causal_core::{
     CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
@@ -88,7 +88,10 @@ fn manufacturing_series(n: usize) -> (TimeSeriesData, TemporalDag, TemporalEffec
     (series, g, q)
 }
 
-fn white_noise_pulse_series(n: usize, seed: u64) -> (TimeSeriesData, TemporalDag, TemporalEffectQuery) {
+fn white_noise_pulse_series(
+    n: usize,
+    seed: u64,
+) -> (TimeSeriesData, TemporalDag, TemporalEffectQuery) {
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(
         "pressure",
@@ -113,7 +116,7 @@ fn white_noise_pulse_series(n: usize, seed: u64) -> (TimeSeriesData, TemporalDag
     let mut defect = vec![0.0; n];
     let mut state = seed;
     for t in 0..n {
-        state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
         let u = (state >> 33) as f64 / (1u64 << 31) as f64;
         pressure[t] = u * 2.0 - 1.0;
         if t > 0 {
@@ -141,10 +144,7 @@ fn white_noise_pulse_series(n: usize, seed: u64) -> (TimeSeriesData, TemporalDag
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let series = TimeSeriesData::try_new(
         storage,
-        TimeIndex {
-            regularity: SamplingRegularity::Regular { interval_ns: 1 },
-            length: n,
-        },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap();
     let mut g = TemporalDag::empty();
@@ -156,7 +156,6 @@ fn white_noise_pulse_series(n: usize, seed: u64) -> (TimeSeriesData, TemporalDag
         .with_horizon_steps(1);
     (series, g, q)
 }
-
 
 #[test]
 fn manufacturing_dbn_posterior_bayesian_envelope() {
@@ -180,23 +179,15 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
     assert!((0.0..=1.0).contains(&post.unidentified_mass));
     let eq = post.effect_column().unwrap();
     assert!(post.summaries.mean[eq].is_finite());
-    assert!(
-        (post.summaries.mean[eq] - 0.9).abs() < 0.35,
-        "mean={}",
-        post.summaries.mean[eq]
-    );
+    assert!((post.summaries.mean[eq] - 0.9).abs() < 0.35, "mean={}", post.summaries.mean[eq]);
 }
 
 #[test]
 fn supplied_complete_temporal_pag_estimates() {
     let (series, _g, q) = manufacturing_series(200);
     let mut pag = causal_graph::TemporalPag::empty();
-    let p1 = pag
-        .add_lagged(VariableId::from_raw(0), Lag::from_raw(1))
-        .unwrap();
-    let d0 = pag
-        .add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS)
-        .unwrap();
+    let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_directed(p1, d0).unwrap();
     let analysis = CausalAnalysis::builder()
         .series(series)
@@ -209,10 +200,7 @@ fn supplied_complete_temporal_pag_estimates() {
     let result = analysis.run(&ExecutionContext::for_tests(7)).unwrap();
     assert!((result.estimate.ate - 0.9).abs() < 0.05, "ate={}", result.estimate.ate);
     assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "temporal.pag.completed_to_dag"),
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "temporal.pag.completed_to_dag"),
         "expected completion diagnostic"
     );
 }
@@ -221,12 +209,8 @@ fn supplied_complete_temporal_pag_estimates() {
 fn incomplete_temporal_pag_review_required_structured() {
     let (series, _g, q) = manufacturing_series(80);
     let mut pag = causal_graph::TemporalPag::empty();
-    let p1 = pag
-        .add_lagged(VariableId::from_raw(0), Lag::from_raw(1))
-        .unwrap();
-    let d0 = pag
-        .add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS)
-        .unwrap();
+    let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_circle_arrow(p1, d0).unwrap();
     let err = CausalAnalysis::builder()
         .series(series)
@@ -239,12 +223,7 @@ fn incomplete_temporal_pag_review_required_structured() {
         .run(&ExecutionContext::for_tests(7))
         .unwrap_err();
     match err {
-        causal::AnalysisError::ReviewRequired {
-            kind,
-            pending_edge_count,
-            hint,
-            ..
-        } => {
+        causal::AnalysisError::ReviewRequired { kind, pending_edge_count, hint, .. } => {
             assert_eq!(kind, "temporal_pag");
             assert!(pending_edge_count >= 1);
             assert!(hint.contains("TemporalPag") || hint.contains("PAG"));

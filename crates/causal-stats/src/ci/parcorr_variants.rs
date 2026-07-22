@@ -9,7 +9,8 @@
     clippy::doc_markdown,
     clippy::too_many_arguments,
     clippy::similar_names,
-    clippy::many_single_char_names
+    clippy::many_single_char_names,
+    clippy::trivially_copy_pass_by_ref
 )]
 
 use causal_core::{ExecutionContext, KernelPolicy};
@@ -18,7 +19,8 @@ use causal_kernels::{sanitize_weight, weighted_mean};
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod, SignificanceMethod, PreparedCiTest};
+    ConfidenceMethod, PreparedCiTest, SignificanceMethod,
+};
 use crate::error::StatsError;
 use crate::gram::invert_square;
 
@@ -208,7 +210,7 @@ fn weighted_residuals(
             }
         }
     }
-    let g_inv = invert_square(&g, q).ok_or_else(|| StatsError::Shape {
+    let g_inv = invert_square(&g, q).ok_or(StatsError::Shape {
         message: "singular Z design in multivariate ParCorr",
     })?;
     let mut beta = vec![0.0; q];
@@ -229,12 +231,7 @@ fn weighted_residuals(
 }
 
 /// Weighted Pearson correlation with weighted centering.
-fn weighted_pearson(
-    policy: &KernelPolicy,
-    x: &[f64],
-    y: &[f64],
-    weights: &[f64],
-) -> Option<f64> {
+fn weighted_pearson(policy: &KernelPolicy, x: &[f64], y: &[f64], weights: &[f64]) -> Option<f64> {
     let n = x.len();
     let mx = weighted_mean(policy, x, weights)?;
     let my = weighted_mean(policy, y, weights)?;
@@ -445,7 +442,7 @@ fn residualize_block(
             g[i * q + j] = s;
         }
     }
-    let g_inv = invert_square(&g, q).ok_or_else(|| StatsError::Shape {
+    let g_inv = invert_square(&g, q).ok_or(StatsError::Shape {
         message: "singular Z design in multivariate ParCorr",
     })?;
     let mut out = vec![0.0; n * p];
@@ -557,10 +554,10 @@ fn cca_leading(
     for i in 0..py {
         cyy[i * py + i] += 1e-8;
     }
-    let cxx_inv = invert_square(&cxx, px).ok_or_else(|| StatsError::Shape {
+    let cxx_inv = invert_square(&cxx, px).ok_or(StatsError::Shape {
         message: "singular Z design in multivariate ParCorr",
     })?;
-    let cyy_inv = invert_square(&cyy, py).ok_or_else(|| StatsError::Shape {
+    let cyy_inv = invert_square(&cyy, py).ok_or(StatsError::Shape {
         message: "singular Z design in multivariate ParCorr",
     })?;
 

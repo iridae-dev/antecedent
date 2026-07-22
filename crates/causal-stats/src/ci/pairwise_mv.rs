@@ -9,7 +9,7 @@ use causal_core::ExecutionContext;
 use super::parcorr_variants::MultivariatePartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    SignificanceMethod, PreparedCiTest,
+    PreparedCiTest, SignificanceMethod,
 };
 use crate::error::StatsError;
 
@@ -17,7 +17,7 @@ use crate::error::StatsError;
 /// that belong to a configured column block and runs
 /// [`MultivariatePartialCorrelation::test_blocks`].
 ///
-/// Empty [`Self::column_blocks`] ⇒ singleton `{x}` / `{y}` / unchanged `Z` (scalar ParCorr).
+/// Empty [`Self::column_blocks`] ⇒ singleton `{x}` / `{y}` / unchanged `Z` (scalar `ParCorr`).
 #[derive(Clone, Debug)]
 pub struct PairwiseMultivariateCi {
     inner: MultivariatePartialCorrelation,
@@ -36,19 +36,13 @@ impl PairwiseMultivariateCi {
     /// Singleton-block wrapper (equivalent to scalar `ParCorr`).
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            inner: MultivariatePartialCorrelation::new(),
-            column_blocks: Arc::from([]),
-        }
+        Self { inner: MultivariatePartialCorrelation::new(), column_blocks: Arc::from([]) }
     }
 
     /// Construct with column-membership blocks (pinned baseline `vector_vars` style).
     #[must_use]
     pub fn with_column_blocks(column_blocks: Arc<[Arc<[usize]>]>) -> Self {
-        Self {
-            inner: MultivariatePartialCorrelation::new(),
-            column_blocks,
-        }
+        Self { inner: MultivariatePartialCorrelation::new(), column_blocks }
     }
 
     /// Legacy alias for [`Self::with_column_blocks`] using only the X-side lists as blocks.
@@ -165,9 +159,7 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(3);
 
-        let scalar = PairwiseMultivariateCi::new()
-            .test_batch_adhoc(&req, &mut ws, &ctx)
-            .unwrap();
+        let scalar = PairwiseMultivariateCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         let block = PairwiseMultivariateCi::with_column_blocks(Arc::from([Arc::from([0usize, 1])]))
             .test_batch_adhoc(&req, &mut ws, &ctx)
             .unwrap();

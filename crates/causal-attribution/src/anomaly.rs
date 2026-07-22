@@ -7,7 +7,7 @@ use std::sync::Arc;
 use causal_core::{
     AnomalyAttributionQuery, ComponentId, ExecutionContext, ShapleyConfig, VariableId,
 };
-use causal_counterfactual::{CounterfactualEngine, AbductionMissingPolicy};
+use causal_counterfactual::{AbductionMissingPolicy, CounterfactualEngine};
 use causal_data::{TableView, TabularData};
 use causal_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use causal_model::{
@@ -71,7 +71,7 @@ pub fn score_anomalies(
         let dense = model
             .dense_of(target)
             .ok_or_else(|| AttributionError::missing_var("target", target))?;
-        let players_dense = ancestor_nodes(model, dense)?;
+        let players_dense = ancestor_nodes(model, dense);
         if players_dense.len() > 64 {
             return Err(AttributionError::SizeLimit {
                 kind: "components",
@@ -112,8 +112,7 @@ pub fn score_anomalies(
                 let pv = model.output_layout.variables[p.as_usize()];
                 parent_mat[pi] = data.float64_values(pv)?[row];
             }
-            let parents =
-                ParentBatch { n_rows: 1, n_parents: n_par, values: &parent_mat[..n_par] };
+            let parents = ParentBatch { n_rows: 1, n_parents: n_par, values: &parent_mat[..n_par] };
             let mut lp = [0.0];
             log_prob_column(model.mechanisms.get(dense), &[y_all[row]], parents, &mut lp)?;
             scores.push(-lp[0]);
@@ -138,10 +137,7 @@ pub fn score_anomalies(
     Ok(out)
 }
 
-fn ancestor_nodes(
-    model: &CompiledCausalModel,
-    target: DenseNodeId,
-) -> Result<Vec<DenseNodeId>, AttributionError> {
+fn ancestor_nodes(model: &CompiledCausalModel, target: DenseNodeId) -> Vec<DenseNodeId> {
     let mut ws = GraphWorkspace::default();
     let mut anc = BitSet::with_len(model.n_nodes());
     model.graph.ancestors_of(&[target], &mut anc, &mut ws);
@@ -154,7 +150,7 @@ fn ancestor_nodes(
     if nodes.is_empty() {
         nodes.push(target);
     }
-    Ok(nodes)
+    nodes
 }
 
 struct NoiseShapleyPayoff<'a> {
@@ -176,8 +172,7 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
         self.noise_buf.fill(0.0);
         for (i, &node) in self.players.iter().enumerate() {
             let factual = self.exo_noise[node.as_usize() * self.n_units + self.row];
-            self.noise_buf[node.as_usize()] =
-                if mask & (1u64 << i) != 0 { factual } else { 0.0 };
+            self.noise_buf[node.as_usize()] = if mask & (1u64 << i) != 0 { factual } else { 0.0 };
         }
         for node in 0..n_nodes {
             let dense = DenseNodeId::from_raw(node as u32);
@@ -219,8 +214,8 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
     }
 }
 
-/// Direct arrow strength: `|β|` for linear-family edges (LinearGaussian /
-/// HierarchicalLinear / Bvar). Non-linear mechanisms error — use
+/// Direct arrow strength: `|β|` for linear-family edges (`LinearGaussian` /
+/// `HierarchicalLinear` / `Bvar`). Non-linear mechanisms error — use
 /// [`population_do_contrast`] for interventional influence.
 #[derive(Clone, Debug)]
 pub struct ArrowStrength {
@@ -247,13 +242,11 @@ pub fn arrow_strengths(
         if gather.parents.is_empty() {
             continue;
         }
-        let coeffs = match model.mechanisms.get(gather.child) {
-            causal_model::MechanismSlot::LinearGaussian { coeffs, .. }
-            | causal_model::MechanismSlot::HierarchicalLinear { coeffs, .. }
-            | causal_model::MechanismSlot::Bvar { coeffs, .. } => coeffs,
-            _ => {
-                return Err(AttributionError::NonLinearGaussianMechanism);
-            }
+        let (causal_model::MechanismSlot::LinearGaussian { coeffs, .. }
+        | causal_model::MechanismSlot::HierarchicalLinear { coeffs, .. }
+        | causal_model::MechanismSlot::Bvar { coeffs, .. }) = model.mechanisms.get(gather.child)
+        else {
+            return Err(AttributionError::NonLinearGaussianMechanism);
         };
         for (i, &p) in gather.parents.iter().enumerate() {
             let parent = model.output_layout.variables[p.as_usize()];
@@ -382,13 +375,13 @@ mod tests {
             .iter()
             .position(|c| c.variable() == VariableId::from_raw(1))
             .expect("y player");
-        let y_phi = scores[0].noise_contributions[(n - 1) * scores[0].noise_components.len() + y_idx];
+        let y_phi =
+            scores[0].noise_contributions[(n - 1) * scores[0].noise_components.len() + y_idx];
         assert!(y_phi.abs() > 0.0, "y attribution={y_phi}");
         // Efficiency: Σφ redistributes anomaly-score change (signed sum finite; abs sum = residual_abs).
         let n_p = scores[0].noise_components.len();
         let row = n - 1;
-        let phi_sum: f64 =
-            (0..n_p).map(|j| scores[0].noise_contributions[row * n_p + j]).sum();
+        let phi_sum: f64 = (0..n_p).map(|j| scores[0].noise_contributions[row * n_p + j]).sum();
         let abs_sum: f64 =
             (0..n_p).map(|j| scores[0].noise_contributions[row * n_p + j].abs()).sum();
         assert!(phi_sum.is_finite());

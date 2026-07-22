@@ -5,6 +5,7 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::similar_names,
     clippy::too_many_lines
 )]
 
@@ -16,12 +17,10 @@ use causal_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::graph_mcmc::{
-    run_parallel_mask_chains, FinishMaskPosterior, GraphMcmcSchedule,
-};
+use crate::graph_mcmc::{FinishMaskPosterior, GraphMcmcSchedule, run_parallel_mask_chains};
 use crate::graph_posterior::{
-    has_edge, mask_is_dag, n_directed_edges, set_edge, GraphPosterior, GraphPosteriorEngine,
-    GraphPrior,
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, mask_is_dag, n_directed_edges,
+    set_edge,
 };
 use crate::graph_score::{score_dag_mask, tabular_score_data};
 
@@ -143,12 +142,8 @@ impl StructureMcmc {
         let n_params = pairs.len();
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
 
-        let (traces, sample_masks, rejected) = run_parallel_mask_chains(
-            n_chains,
-            n_draws,
-            n_params,
-            threads,
-            |start, end| {
+        let (traces, sample_masks, rejected) =
+            run_parallel_mask_chains(n_chains, n_draws, n_params, threads, |start, end| {
                 let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
                 let mut local_samples = vec![Vec::new(); end - start];
                 let mut local_rej = 0u64;
@@ -168,8 +163,7 @@ impl StructureMcmc {
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
-                        let (prop, q_ratio, rej_inc) =
-                            propose_structure(mask, n, &pairs, &mut rng);
+                        let (prop, q_ratio, rej_inc) = propose_structure(mask, n, &pairs, &mut rng);
                         local_rej += rej_inc;
                         let prop_score =
                             score_dag_mask(prop, n, &score_data, &mut cache, prior, variables);
@@ -202,8 +196,7 @@ impl StructureMcmc {
                     }
                 }
                 (start, local_traces, local_samples, local_rej)
-            },
-        );
+            });
 
         FinishMaskPosterior {
             n,
@@ -277,22 +270,14 @@ fn propose_structure(
     let u = rng.next_f64();
     if !forward && !backward {
         let prop = set_edge(mask, n, i, j, true);
-        if mask_is_dag(prop, n) {
-            (prop, 1.0, 0)
-        } else {
-            (mask, 1.0, 1)
-        }
+        if mask_is_dag(prop, n) { (prop, 1.0, 0) } else { (mask, 1.0, 1) }
     } else if forward && !backward {
         if u < 0.5 {
             (set_edge(mask, n, i, j, false), 1.0, 0)
         } else {
             let mut prop = set_edge(mask, n, i, j, false);
             prop = set_edge(prop, n, j, i, true);
-            if mask_is_dag(prop, n) {
-                (prop, 1.0, 0)
-            } else {
-                (mask, 1.0, 1)
-            }
+            if mask_is_dag(prop, n) { (prop, 1.0, 0) } else { (mask, 1.0, 1) }
         }
     } else if backward && !forward {
         if u < 0.5 {
@@ -300,11 +285,7 @@ fn propose_structure(
         } else {
             let mut prop = set_edge(mask, n, j, i, false);
             prop = set_edge(prop, n, i, j, true);
-            if mask_is_dag(prop, n) {
-                (prop, 1.0, 0)
-            } else {
-                (mask, 1.0, 1)
-            }
+            if mask_is_dag(prop, n) { (prop, 1.0, 0) } else { (mask, 1.0, 1) }
         }
     } else {
         (set_edge(mask, n, i, j, false), 1.0, 1)
@@ -316,10 +297,10 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    use causal_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+    use causal_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
+    use causal_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
-    use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
 
     use crate::graph_posterior::GraphPrior;
 
@@ -372,18 +353,11 @@ mod tests {
         let ctx = ExecutionContext::for_tests(42);
         let mut ws = DiscoveryWorkspace::default();
         let post = eng
-            .run(
-                &data,
-                &vars,
-                &GraphPrior::uniform(),
-                GraphScoreFamily::GaussianBic,
-                &mut ws,
-                &ctx,
-            )
+            .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap();
         let n = 3;
-        let sk_xy = post.edge_marginals[0 * n + 1] + post.edge_marginals[1 * n + 0];
-        let sk_xz = post.edge_marginals[0 * n + 2] + post.edge_marginals[2 * n + 0];
+        let sk_xy = post.edge_marginals[1] + post.edge_marginals[n];
+        let sk_xz = post.edge_marginals[2] + post.edge_marginals[2 * n];
         assert!(sk_xy > 0.4, "P(X—Y)={sk_xy}");
         assert!(sk_xz > 0.4, "P(X—Z)={sk_xz}");
         assert!(crate::graph_posterior::allows_graph_posterior(&post.diagnostics));

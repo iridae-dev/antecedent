@@ -27,11 +27,11 @@
     clippy::needless_pass_by_value
 )]
 
-mod prepare;
-mod weighting;
-mod stratification;
-mod matching;
 mod distance;
+mod matching;
+mod prepare;
+mod stratification;
+mod weighting;
 
 pub use distance::DistanceMatching;
 pub use matching::PropensityMatching;
@@ -40,7 +40,7 @@ pub use prepare::{
     default_propensity_overlap,
 };
 pub(crate) use prepare::{
-    clamp_scores, clip_of, gather, prepare_propensity_problem,
+    clamp_scores, clip_of, gather,
     prepare_propensity_problem_with_registry, split_by_treatment, trim_of, trim_retained_rows,
 };
 pub use stratification::PropensityStratification;
@@ -467,7 +467,9 @@ mod tests {
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         let msg = err.to_string();
         assert!(
-            msg.contains("PopulationRegistry") || msg.contains("registry") || msg.contains("Unsupported"),
+            msg.contains("PopulationRegistry")
+                || msg.contains("registry")
+                || msg.contains("Unsupported"),
             "err={msg}"
         );
     }

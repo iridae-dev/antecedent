@@ -96,9 +96,9 @@ pub enum MechanismSlotWire {
         noise_std: f64,
         /// Training X row-major.
         x_train: Vec<f64>,
-        /// n_train.
+        /// `n_train`.
         n_train: usize,
-        /// n_parents.
+        /// `n_parents`.
         n_parents: usize,
         /// Dual coefficients.
         alpha: Vec<f64>,

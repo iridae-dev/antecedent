@@ -15,8 +15,9 @@ use causal_discovery::{
     CiScreenedPosterior, CiSoftWeight, CpdagDiscoveryResult, DagDiscoveryResult, DbnPosterior,
     DirectLingam, DiscoveryWorkspace, ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPrior,
     JpcmciPlus, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult, OrderMcmc,
-    PagDiscoveryResult, Pc, Pcmci, PcmciPlus, RegimeAssignment, Rfci, Rpcmci, RpcmciDiscoveryResult,
-    StaticCpdagDiscoveryResult, StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc,
+    PagDiscoveryResult, Pc, Pcmci, PcmciPlus, RegimeAssignment, Rfci, Rpcmci,
+    RpcmciDiscoveryResult, StaticCpdagDiscoveryResult, StaticDagDiscoveryResult,
+    StaticPagDiscoveryResult, StructureMcmc,
 };
 use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
 use causal_state::GraphScoreFamily;
@@ -39,10 +40,7 @@ pub struct BayesianDiscoverParams {
 
 impl Default for BayesianDiscoverParams {
     fn default() -> Self {
-        Self {
-            prior: GraphPrior::uniform(),
-            score_family: GraphScoreFamily::GaussianBic,
-        }
+        Self { prior: GraphPrior::uniform(), score_family: GraphScoreFamily::GaussianBic }
     }
 }
 
@@ -61,12 +59,7 @@ pub struct GraphMcmcSchedule {
 
 impl Default for GraphMcmcSchedule {
     fn default() -> Self {
-        Self {
-            n_chains: 4,
-            n_warmup: 500,
-            n_draws: 1000,
-            thin: 1,
-        }
+        Self { n_chains: 4, n_warmup: 500, n_draws: 1000, thin: 1 }
     }
 }
 
@@ -313,7 +306,7 @@ pub fn discover_ges(
     alg.run(data, variables, &mut ws, ctx).map_err(AnalysisError::from)
 }
 
-/// Run DirectLiNGAM over tabular data → DAG.
+/// Run `DirectLiNGAM` over tabular data → DAG.
 ///
 /// # Errors
 ///
@@ -370,15 +363,8 @@ pub fn discover_exact_dag_posterior(
 ) -> Result<GraphPosterior, AnalysisError> {
     let eng = ExactDagPosterior::new();
     let mut ws = DiscoveryWorkspace::default();
-    eng.run(
-        data,
-        variables,
-        &params.prior,
-        params.score_family,
-        &mut ws,
-        ctx,
-    )
-    .map_err(AnalysisError::from)
+    eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
+        .map_err(AnalysisError::from)
 }
 
 /// Order MCMC DAG posterior (Gaussian BIC).
@@ -395,23 +381,11 @@ pub fn discover_order_mcmc(
     ctx: &ExecutionContext,
 ) -> Result<GraphPosterior, AnalysisError> {
     let eng = OrderMcmc::new()
-        .with_schedule(
-            schedule.n_chains,
-            schedule.n_warmup,
-            schedule.n_draws,
-            schedule.thin,
-        )
+        .with_schedule(schedule.n_chains, schedule.n_warmup, schedule.n_draws, schedule.thin)
         .with_diagnostics_gate(require_diagnostics_gate);
     let mut ws = DiscoveryWorkspace::default();
-    eng.run(
-        data,
-        variables,
-        &params.prior,
-        params.score_family,
-        &mut ws,
-        ctx,
-    )
-    .map_err(AnalysisError::from)
+    eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
+        .map_err(AnalysisError::from)
 }
 
 /// Structure MCMC DAG posterior (Gaussian BIC).
@@ -433,15 +407,8 @@ pub fn discover_structure_mcmc(
         schedule.thin,
     );
     let mut ws = DiscoveryWorkspace::default();
-    eng.run(
-        data,
-        variables,
-        &params.prior,
-        params.score_family,
-        &mut ws,
-        ctx,
-    )
-    .map_err(AnalysisError::from)
+    eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
+        .map_err(AnalysisError::from)
 }
 
 /// CI-screened candidate-edge posterior (PC skeleton → structure MCMC).
@@ -474,15 +441,8 @@ pub fn discover_ci_screened_posterior(
     let mut eng = eng;
     eng.fdr = fdr;
     let mut ws = DiscoveryWorkspace::default();
-    eng.run(
-        data,
-        variables,
-        &params.prior,
-        params.score_family,
-        &mut ws,
-        ctx,
-    )
-    .map_err(AnalysisError::from)
+    eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
+        .map_err(AnalysisError::from)
 }
 
 /// Bounded-lag DBN template posterior from a time series (Gaussian BIC).
@@ -499,11 +459,12 @@ pub fn discover_dbn_posterior(
     schedule: &GraphMcmcSchedule,
     ctx: &ExecutionContext,
 ) -> Result<GraphPosterior, AnalysisError> {
-    let eng = DbnPosterior::new(max_lag)
-        .with_force_mcmc(force_mcmc)
-        .with_mcmc_schedule(schedule.n_chains, schedule.n_warmup, schedule.n_draws);
-    eng.run(data, variables, &params.prior, params.score_family, ctx)
-        .map_err(AnalysisError::from)
+    let eng = DbnPosterior::new(max_lag).with_force_mcmc(force_mcmc).with_mcmc_schedule(
+        schedule.n_chains,
+        schedule.n_warmup,
+        schedule.n_draws,
+    );
+    eng.run(data, variables, &params.prior, params.score_family, ctx).map_err(AnalysisError::from)
 }
 
 /// Count definite directed edges in a temporal PAG (Tail–Arrow or Arrow–Tail).

@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop)]
+#![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::similar_names)]
 
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};
@@ -291,15 +291,7 @@ mod tests {
         }
         let fit = fit_lasso(&x, n, 3, &y, 2.0, &LassoOptions::default()).unwrap();
         assert!(fit.converged);
-        assert!(
-            fit.coefficients[2].abs() < 0.05,
-            "noise coef={}",
-            fit.coefficients[2]
-        );
-        assert!(
-            (fit.coefficients[1] - 2.0).abs() < 0.5,
-            "slope={}",
-            fit.coefficients[1]
-        );
+        assert!(fit.coefficients[2].abs() < 0.05, "noise coef={}", fit.coefficients[2]);
+        assert!((fit.coefficients[1] - 2.0).abs() < 0.5, "slope={}", fit.coefficients[1]);
     }
 }

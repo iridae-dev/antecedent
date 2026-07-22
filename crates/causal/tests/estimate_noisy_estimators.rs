@@ -177,14 +177,7 @@ fn estimate_noisy_estimators_val_and_se() {
 
     let (data, graph, query) = load_scenario(&expected, "backdoor");
     for (i, method) in ["linear_regression", "ipw_ate", "ipw_att", "aipw"].iter().enumerate() {
-        run_method(
-            &expected,
-            method,
-            data.clone(),
-            graph.clone(),
-            query.clone(),
-            100 + i as u64,
-        );
+        run_method(&expected, method, data.clone(), graph.clone(), query.clone(), 100 + i as u64);
     }
 
     let (data, graph, query) = load_scenario(&expected, "iv");

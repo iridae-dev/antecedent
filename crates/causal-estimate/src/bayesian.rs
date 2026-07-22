@@ -31,7 +31,7 @@ use causal_prob::{
 };
 use causal_stats::{CompiledDesign, GlmFamily};
 
-use crate::adjustment::{intervention_f64, PreparedEstimationProblem};
+use crate::adjustment::{PreparedEstimationProblem, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
@@ -145,10 +145,7 @@ pub fn hydrate_prior_from_quantity_summaries(
         means.push(m);
         variance.push((s * s).max(HYDRATE_VAR_FLOOR));
     }
-    let coef = GaussianCoefficientPrior {
-        mean: Arc::from(means),
-        variance: Arc::from(variance),
-    };
+    let coef = GaussianCoefficientPrior { mean: Arc::from(means), variance: Arc::from(variance) };
     coef.validate().map_err(EstimationError::from)?;
     Ok(PriorSet {
         specs: vec![PriorSpec::GaussianCoefficients(coef)],
@@ -285,15 +282,21 @@ impl BayesianGComputationAte {
         }
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported("Bayesian g-comp does not support effect modifiers"));
+            return Err(EstimationError::unsupported(
+                "Bayesian g-comp does not support effect modifiers",
+            ));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported("Bayesian g-comp only supports TargetPopulation::AllObserved"));
+            return Err(EstimationError::unsupported(
+                "Bayesian g-comp only supports TargetPopulation::AllObserved",
+            ));
         }
         let active = intervention_f64(&query.active)?;
         let control = intervention_f64(&query.control)?;
         if (active - control).abs() < f64::EPSILON {
-            return Err(EstimationError::unsupported("active and control treatment levels must differ"));
+            return Err(EstimationError::unsupported(
+                "active and control treatment levels must differ",
+            ));
         }
 
         let treatment = query.treatment;
@@ -387,9 +390,7 @@ impl BayesianGComputationAte {
         let source = if sequential {
             AssumptionSource::Artifact
         } else {
-            AssumptionSource::AlgorithmDefault {
-                algorithm: Arc::from("bayesian_gcomp"),
-            }
+            AssumptionSource::AlgorithmDefault { algorithm: Arc::from("bayesian_gcomp") }
         };
         for spec in &prior.specs {
             let mut pa = spec.as_assumption();
@@ -782,9 +783,7 @@ pub fn nonidentified_with_prior(
     let draws = PosteriorDraws::from_column_major(schema, n, Arc::<[f64]>::from(values))
         .unwrap_or_else(|_| PosteriorDraws {
             schema: PosteriorSchema {
-                quantities: Arc::from([PosteriorQuantityKind::Effect {
-                    name: Arc::from("ate"),
-                }]),
+                quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("ate") }]),
             },
             n_draws: 0,
             values: Arc::from([]),
@@ -920,12 +919,7 @@ mod tests {
     #[test]
     fn prior_does_not_create_identification() {
         let prior = PriorSet::weakly_informative(3);
-        let post = nonidentified_with_prior(
-            &prior,
-            InferenceDiagnostics::analytic("none"),
-            64,
-            1,
-        );
+        let post = nonidentified_with_prior(&prior, InferenceDiagnostics::analytic("none"), 64, 1);
         assert_eq!(post.identification, IdentificationStatus::NotIdentified);
         assert!(!post.assumptions.is_empty());
         assert!((post.unidentified_mass - 1.0).abs() < 1e-12);
@@ -1076,10 +1070,7 @@ mod tests {
         assert_eq!(prior.gaussian_coefficients().unwrap().len(), prep.design.ncols);
         assert!(hydrate_prior_from_posterior(&post, Some(prep.design.ncols + 1)).is_err());
 
-        let sequential = BayesianGComputationAte {
-            prior: Some(prior),
-            ..bayes
-        };
+        let sequential = BayesianGComputationAte { prior: Some(prior), ..bayes };
         let post2 = sequential
             .fit(
                 &prep,

@@ -69,7 +69,8 @@ impl PathSpecificIdentifier {
                 "PathSpecificIdentifier supports PathSpecific queries only",
             ));
         };
-        q.validate().map_err(|_| IdentificationError::unsupported("invalid path-specific query"))?;
+        q.validate()
+            .map_err(|_| IdentificationError::unsupported("invalid path-specific query"))?;
         self.identify_path_specific(prepared, q, query.clone(), workspace)
     }
 
@@ -86,25 +87,18 @@ impl PathSpecificIdentifier {
 
         let t = prepared.var_to_dense(q.treatment)?;
         let y = prepared.var_to_dense(q.outcome)?;
-        let path_filter: HashSet<DenseNodeId> = q
-            .path_nodes
-            .iter()
-            .map(|&v| prepared.var_to_dense(v))
-            .collect::<Result<_, _>>()?;
+        let path_filter: HashSet<DenseNodeId> =
+            q.path_nodes.iter().map(|&v| prepared.var_to_dense(v)).collect::<Result<_, _>>()?;
 
         let admg = prepared.admg();
         // Enumerate on the directed skeleton (DAG view of directed edges).
         let dag = admg_to_dag(admg)?;
-        let raw_paths = dag
-            .directed_paths(t, y, q.max_paths, q.max_len)
-            .map_err(IdentificationError::from)?;
-        perf.candidates_examined =
-            perf.candidates_examined.saturating_add(raw_paths.len() as u64);
+        let raw_paths =
+            dag.directed_paths(t, y, q.max_paths, q.max_len).map_err(IdentificationError::from)?;
+        perf.candidates_examined = perf.candidates_examined.saturating_add(raw_paths.len() as u64);
 
-        let pi: Vec<Vec<DenseNodeId>> = raw_paths
-            .into_iter()
-            .filter(|path| path_matches_filter(path, &path_filter))
-            .collect();
+        let pi: Vec<Vec<DenseNodeId>> =
+            raw_paths.into_iter().filter(|path| path_matches_filter(path, &path_filter)).collect();
         if pi.is_empty() {
             derivation.push("path_specific.empty", "no directed paths match path_nodes filter");
             return Ok(IdentificationResult::not_identified(
@@ -114,15 +108,12 @@ impl PathSpecificIdentifier {
                 perf,
             ));
         }
-        derivation.push(
-            "path_specific.paths",
-            format!("{} path(s) retained after filter", pi.len()),
-        );
+        derivation
+            .push("path_specific.paths", format!("{} path(s) retained after filter", pi.len()));
 
         // All directed paths (for complementary / recanting check).
-        let all_paths = dag
-            .directed_paths(t, y, q.max_paths, q.max_len)
-            .map_err(IdentificationError::from)?;
+        let all_paths =
+            dag.directed_paths(t, y, q.max_paths, q.max_len).map_err(IdentificationError::from)?;
         let pi_set: HashSet<Vec<DenseNodeId>> = pi.iter().cloned().collect();
         let complement: Vec<&Vec<DenseNodeId>> =
             all_paths.iter().filter(|p| !pi_set.contains(*p)).collect();
@@ -173,10 +164,8 @@ impl PathSpecificIdentifier {
         };
         let mut id_res = self.inner.identify_ate(&surgical_prep, &ate, workspace)?;
         id_res.derivation.steps.splice(0..0, derivation.steps);
-        id_res.performance.candidates_examined = id_res
-            .performance
-            .candidates_examined
-            .saturating_add(perf.candidates_examined);
+        id_res.performance.candidates_examined =
+            id_res.performance.candidates_examined.saturating_add(perf.candidates_examined);
         id_res.query = query;
         if id_res.status == IdentificationStatus::NonparametricallyIdentified {
             for est in &mut id_res.estimands {
@@ -194,7 +183,8 @@ fn path_matches_filter(path: &[DenseNodeId], filter: &HashSet<DenseNodeId>) -> b
         return true;
     }
     // Intermediates only (exclude endpoints).
-    let mid: HashSet<DenseNodeId> = path.iter().copied().skip(1).take(path.len().saturating_sub(2)).collect();
+    let mid: HashSet<DenseNodeId> =
+        path.iter().copied().skip(1).take(path.len().saturating_sub(2)).collect();
     filter.iter().all(|n| mid.contains(n))
 }
 
@@ -299,10 +289,7 @@ mod tests {
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify(&prep, &cq, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        assert_eq!(
-            res.estimands[0].method.as_ref(),
-            EstimandMethod::PathSpecificNatural.as_str()
-        );
+        assert_eq!(res.estimands[0].method.as_ref(), EstimandMethod::PathSpecificNatural.as_str());
     }
 
     #[test]
@@ -322,7 +309,8 @@ mod tests {
         let dag = chain_with_direct();
         let id = PathSpecificIdentifier::new();
         let prep = id.prepare_dag(&dag).unwrap();
-        let mut q = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2));
+        let mut q =
+            PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2));
         q.control = Intervention::set(VariableId::from_raw(0), Value::f64(0.0));
         let cq = CausalQuery::PathSpecific(q);
         let mut ws = IdentificationWorkspace::default();

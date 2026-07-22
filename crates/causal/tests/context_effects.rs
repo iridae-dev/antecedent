@@ -26,8 +26,8 @@ use causal_data::{
     SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData, ValidityBitmap,
 };
 use causal_discovery::{
-    DiscoveryConstraints, DiscoveryWorkspace, MultiDatasetConstraints, PcmciPlus,
-    SpaceDummyCiMode, TemporalConstraints,
+    DiscoveryConstraints, DiscoveryWorkspace, MultiDatasetConstraints, PcmciPlus, SpaceDummyCiMode,
+    TemporalConstraints,
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use serde_json::Value as JsonValue;
@@ -168,8 +168,7 @@ fn jpcmci_plus_two_env_pin() {
             let tgt = edge["target"].as_u64().unwrap() as u32;
             let forward = (src, slag, tgt);
             let reverse = (tgt, slag, src);
-            let ok = recovered.contains(&forward)
-                || (slag == 0 && recovered.contains(&reverse));
+            let ok = recovered.contains(&forward) || (slag == 0 && recovered.contains(&reverse));
             assert!(ok, "missing true link {forward:?} in {recovered:?}");
         }
     }
@@ -208,10 +207,7 @@ fn jpcmci_plus_space_dummy_mv_pin() {
     );
     if expected["require_multivariate_diagnostic"].as_bool() == Some(true) {
         assert!(
-            result
-                .diagnostics
-                .iter()
-                .any(|d| d.message.contains("multivariate(k=2)")),
+            result.diagnostics.iter().any(|d| d.message.contains("multivariate(k=2)")),
             "expected multivariate(k=2) diagnostic; got {:?}",
             result.diagnostics
         );
@@ -243,30 +239,24 @@ fn rpcmci_two_regime_pin() {
     let data = two_regime_toy(200);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
     let assign = two_regime_half_split(data.row_count());
-    let alg = Rpcmci::new()
-        .with_min_regime_len(40)
-        .with_alternating_iters(0)
-        .with_pcmci_plus(PcmciPlus::new().with_fdr(false).with_constraints(
-            DiscoveryConstraints {
-                temporal: TemporalConstraints {
-                    max_lag: Lag::from_raw(1),
-                    min_lag: Lag::CONTEMPORANEOUS,
-                },
-                alpha: 0.25,
-                max_cond_size: 2,
-                ..DiscoveryConstraints::default()
+    let alg = Rpcmci::new().with_min_regime_len(40).with_alternating_iters(0).with_pcmci_plus(
+        PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::CONTEMPORANEOUS,
             },
-        ));
+            alpha: 0.25,
+            max_cond_size: 2,
+            ..DiscoveryConstraints::default()
+        }),
+    );
     let mut ws = DiscoveryWorkspace::default();
     let result = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2)).unwrap();
     assert_eq!(result.algorithm.id.as_ref(), expected["algorithm_id"].as_str().unwrap());
     assert_eq!(result.graphs.graphs.len(), expected["n_regimes"].as_u64().unwrap() as usize);
     let min_nodes = expected["min_nodes_per_regime"].as_u64().unwrap_or(2) as usize;
     for (i, (_regime, g)) in result.graphs.graphs.iter().enumerate() {
-        assert!(
-            g.node_count() >= min_nodes,
-            "regime {i} node_count too small"
-        );
+        assert!(g.node_count() >= min_nodes, "regime {i} node_count too small");
     }
 }
 

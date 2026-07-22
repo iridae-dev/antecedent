@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use causal::{
     DifferenceMeasure, DistributionChangeOptions, MechanismChangeMethod, StructureChangeOptions,
-    attribute_distribution_change, attribute_structure_change, fit_gcm,
-    mechanism_change_detection, rank_root_causes,
+    attribute_distribution_change, attribute_structure_change, fit_gcm, mechanism_change_detection,
+    rank_root_causes,
 };
 use causal_core::{
     AllocationMethod, AttributionComponents, CachePolicy, CausalSchemaBuilder,
@@ -147,9 +147,10 @@ fn mechanism_change_detect_conformance() {
 
 #[test]
 fn mechanism_change_kernel_conformance() {
-    let expected: Value =
-        serde_json::from_str(&fs::read_to_string(fixture("mechanism_change_kernel_shift")).unwrap())
-            .unwrap();
+    let expected: Value = serde_json::from_str(
+        &fs::read_to_string(fixture("mechanism_change_kernel_shift")).unwrap(),
+    )
+    .unwrap();
     let (model, data) = two_period_chain();
     let q = MechanismChangeQuery::new(
         [VariableId::from_raw(0), VariableId::from_raw(1)],
@@ -201,11 +202,9 @@ fn mechanism_change_change_point_conformance() {
 fn parent_swap_graphs() -> (CompiledCausalModel, CompiledCausalModel, TabularData) {
     let n = 80usize;
     let mut b = CausalSchemaBuilder::new();
-    for (name, role) in [
-        ("x", RoleHint::Context),
-        ("z", RoleHint::Context),
-        ("y", RoleHint::OutcomeCandidate),
-    ] {
+    for (name, role) in
+        [("x", RoleHint::Context), ("z", RoleHint::Context), ("y", RoleHint::OutcomeCandidate)]
+    {
         b.add_variable(
             name,
             ValueType::Continuous,
@@ -244,19 +243,14 @@ fn parent_swap_graphs() -> (CompiledCausalModel, CompiledCausalModel, TabularDat
     g0.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     let mut g1 = Dag::with_variables(3);
     g1.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    (
-        CompiledCausalModel::compile(g0).unwrap(),
-        CompiledCausalModel::compile(g1).unwrap(),
-        data,
-    )
+    (CompiledCausalModel::compile(g0).unwrap(), CompiledCausalModel::compile(g1).unwrap(), data)
 }
 
 #[test]
 fn structure_change_parent_swap_conformance() {
-    let expected: Value = serde_json::from_str(
-        &fs::read_to_string(fixture("structure_change_parent_swap")).unwrap(),
-    )
-    .unwrap();
+    let expected: Value =
+        serde_json::from_str(&fs::read_to_string(fixture("structure_change_parent_swap")).unwrap())
+            .unwrap();
     let (baseline, comparison, data) = parent_swap_graphs();
     let query = ChangeAttributionQuery::new(
         VariableId::from_raw(2),

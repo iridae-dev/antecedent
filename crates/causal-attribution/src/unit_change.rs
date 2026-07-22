@@ -4,15 +4,11 @@
 
 use std::sync::Arc;
 
-use causal_core::{
-    ComponentId, ExecutionContext, UnitChangeQuery, VariableId,
-};
-use causal_counterfactual::{CounterfactualEngine, AbductionMissingPolicy};
+use causal_core::{ComponentId, ExecutionContext, UnitChangeQuery, VariableId};
+use causal_counterfactual::{AbductionMissingPolicy, CounterfactualEngine};
 use causal_data::{TableView, TabularData};
 use causal_graph::DenseNodeId;
-use causal_model::{
-    CompiledCausalModel, MechanismWorkspace, ParentBatch, evaluate_column,
-};
+use causal_model::{CompiledCausalModel, MechanismWorkspace, ParentBatch, evaluate_column};
 
 use crate::error::AttributionError;
 use crate::prep::{require_input_components, require_shapley_config, resolve_outcome_dense};
@@ -61,9 +57,7 @@ pub fn unit_change(
     let parents: Vec<VariableId> =
         gather.parents.iter().map(|&p| model.output_layout.variables[p.as_usize()]).collect();
     if parents.is_empty() {
-        return Err(AttributionError::unsupported(
-            "unit_change requires parents of the outcome",
-        ));
+        return Err(AttributionError::unsupported("unit_change requires parents of the outcome"));
     }
     let players: Vec<ComponentId> =
         parents.iter().copied().map(ComponentId::from_variable).collect();
@@ -85,10 +79,8 @@ pub fn unit_change(
     let mut sum_se2 = 0.0;
     let mut n_se = 0usize;
 
-    let approximation = require_shapley_config(
-        &query.allocation,
-        "unit_change supports Shapley allocation",
-    )?;
+    let approximation =
+        require_shapley_config(&query.allocation, "unit_change supports Shapley allocation")?;
 
     for (ui, &row) in rows.iter().enumerate() {
         let factual: Vec<f64> = parents
@@ -164,11 +156,8 @@ impl CoalitionPayoff for UnitPayoff<'_> {
                 if mask & (1u64 << i) != 0 { self.factual[i] } else { self.reference[i] };
         }
         self.noise_buf[0] = self.noise;
-        let parents = ParentBatch {
-            n_rows: 1,
-            n_parents: n_par,
-            values: &self.parent_buf[..n_par],
-        };
+        let parents =
+            ParentBatch { n_rows: 1, n_parents: n_par, values: &self.parent_buf[..n_par] };
         evaluate_column(
             self.model.mechanisms.get(self.outcome),
             parents,

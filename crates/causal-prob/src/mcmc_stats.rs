@@ -35,11 +35,7 @@ pub fn min_bulk_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: 
         let e = bulk_ess_one(samples, n_chains, n_draws, n_params, p);
         min_ess = min_ess.min(e);
     }
-    if min_ess.is_finite() {
-        min_ess
-    } else {
-        0.0
-    }
+    if min_ess.is_finite() { min_ess } else { 0.0 }
 }
 
 fn split_rhat_one(
@@ -125,7 +121,7 @@ fn bulk_ess_one(
         return n_total as f64;
     }
 
-    let max_lag = (n_draws / 2).max(1).min(50);
+    let max_lag = (n_draws / 2).clamp(1, 50);
     let mut tau = 1.0;
     for lag in 1..=max_lag {
         let mut num = 0.0;

@@ -13,7 +13,9 @@
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::needless_range_loop,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::similar_names, // xtx / xty, cxx / cxy conjugate notation
+    clippy::many_single_char_names // Marsaglia gamma / conjugate scalars
 )]
 
 use causal_core::{CausalRng, ExecutionContext};
@@ -27,7 +29,7 @@ use super::types::{
 use crate::error::StatsError;
 use crate::special::ln_gamma;
 
-/// Default NIG shape/scale (matches `causal-prob` weakly informative InvGamma).
+/// Default NIG shape/scale (matches `causal-prob` weakly informative `InvGamma`).
 const ALPHA0: f64 = 1e-3;
 const BETA0: f64 = 1e-3;
 /// Diagonal prior precision on the residual slope (1 / V0); V0 = 100 ⇒ scale 10.
@@ -217,12 +219,7 @@ impl ConditionalIndependenceTest for PosteriorPredictiveCi {
             let p = f64::from(extreme) / f64::from(self.n_sims + 1);
             let df = (n as f64) - 2.0 - (q.z_len as f64);
             let _ = ctx;
-            results.push(CiResult {
-                statistic: abs_obs,
-                p_value: p.clamp(0.0, 1.0),
-                df,
-                ci: None,
-            });
+            results.push(CiResult { statistic: abs_obs, p_value: p.clamp(0.0, 1.0), df, ci: None });
         }
         Ok(CiBatchResult { results })
     }
@@ -330,9 +327,7 @@ fn null_nig_posterior(y: &[f64], n: usize) -> Result<(f64, f64), StatsError> {
 fn log_marginal_null(y: &[f64], n: usize) -> Result<f64, StatsError> {
     let (alpha_n, beta_n) = null_nig_posterior(y, n)?;
     let nf = n as f64;
-    Ok(-0.5 * nf * (2.0 * std::f64::consts::PI).ln()
-        + ALPHA0 * BETA0.ln()
-        - alpha_n * beta_n.ln()
+    Ok(-0.5 * nf * (2.0 * std::f64::consts::PI).ln() + ALPHA0 * BETA0.ln() - alpha_n * beta_n.ln()
         + ln_gamma(alpha_n)
         - ln_gamma(ALPHA0))
 }
@@ -349,13 +344,13 @@ fn log_marginal_slope(x: &[f64], y: &[f64], n: usize) -> Result<f64, StatsError>
     }
     let lam0 = COEF_PRIOR_PREC;
     let vn_inv = lam0 + xtx;
-    if !(vn_inv > 0.0) {
+    if vn_inv.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         return Err(StatsError::Backend("singular slope precision".into()));
     }
     let mn = xty / vn_inv;
     let alpha_n = ALPHA0 + 0.5 * (n as f64);
     let beta_n = BETA0 + 0.5 * (yty - mn * vn_inv * mn);
-    if !(beta_n > 0.0) {
+    if beta_n.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         return Err(StatsError::Backend("invalid slope NIG scale".into()));
     }
     let nf = n as f64;

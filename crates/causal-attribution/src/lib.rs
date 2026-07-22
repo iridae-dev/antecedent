@@ -72,7 +72,5 @@ pub use root_cause::{
 pub use shapley::{
     CoalitionPayoff, ShapleyEstimate, check_shapley_size, estimate_shapley, sequential_allocate,
 };
-pub use structure_change::{
-    StructureChangeOptions, structure_change, structure_change_shapley,
-};
+pub use structure_change::{StructureChangeOptions, structure_change, structure_change_shapley};
 pub use unit_change::unit_change;

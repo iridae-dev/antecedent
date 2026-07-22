@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names,
+    clippy::too_many_lines,
+    clippy::unnecessary_wraps
+)]
 
 use std::sync::Arc;
 
@@ -69,10 +76,7 @@ impl AdjustmentSearchConfig {
         let Some(max_lag) = self.max_history_lag else {
             return false;
         };
-        self.history_lags
-            .iter()
-            .find(|(v, _)| *v == id)
-            .is_some_and(|(_, lag)| *lag > max_lag)
+        self.history_lags.iter().find(|(v, _)| *v == id).is_some_and(|(_, lag)| *lag > max_lag)
     }
 }
 
@@ -234,9 +238,7 @@ impl BackdoorIdentifier {
             .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
             .filter(|id| !forbidden.contains(*id))
             .filter(|id| {
-                dense_to_var(*id, dag)
-                    .map(|v| !self.config.exceeds_history_lag(v))
-                    .unwrap_or(true)
+                dense_to_var(*id, dag).map(|v| !self.config.exceeds_history_lag(v)).unwrap_or(true)
             })
             .collect();
 
@@ -267,7 +269,8 @@ impl BackdoorIdentifier {
         // Still over cap → try O-set (Henckel) before fail-closed.
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
         if candidates.len() > cap {
-            let o_set = crate::efficient::optimal_adjustment_set_pub(dag, t, y, &mut workspace.graph);
+            let o_set =
+                crate::efficient::optimal_adjustment_set_pub(dag, t, y, &mut workspace.graph);
             examined += 1;
             if o_set.iter().all(|v| !forbidden.contains(*v))
                 && is_backdoor_adjustment(&mutilated, t, y, &o_set, &mut workspace.dsep)?
@@ -285,55 +288,55 @@ impl BackdoorIdentifier {
                 )));
             }
         } else {
-        // Enumerate subsets by increasing size for minimal-first (or all / maximal).
-        // When more than `max_results` qualifying sets exist, the first `max_results`
-        // (in size-then-mask order, optionally cost-sorted afterward) are returned.
-        let m = candidates.len();
-        let size_iter: Vec<usize> = if self.config.maximal_only && !self.config.minimal_only {
-            (0..=m).rev().collect()
-        } else {
-            (0..=m).collect()
-        };
-        'sizes: for size in size_iter {
-            let mut early_stop = false;
-            let mut enum_err: Option<IdentificationError> = None;
-            crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
-                if enum_err.is_some() {
-                    return true;
-                }
-                examined += 1;
-                match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
-                    Ok(false) => return false,
-                    Err(e) => {
-                        enum_err = Some(e);
+            // Enumerate subsets by increasing size for minimal-first (or all / maximal).
+            // When more than `max_results` qualifying sets exist, the first `max_results`
+            // (in size-then-mask order, optionally cost-sorted afterward) are returned.
+            let m = candidates.len();
+            let size_iter: Vec<usize> = if self.config.maximal_only && !self.config.minimal_only {
+                (0..=m).rev().collect()
+            } else {
+                (0..=m).collect()
+            };
+            'sizes: for size in size_iter {
+                let mut early_stop = false;
+                let mut enum_err: Option<IdentificationError> = None;
+                crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
+                    if enum_err.is_some() {
                         return true;
                     }
-                    Ok(true) => {}
+                    examined += 1;
+                    match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
+                        Ok(false) => return false,
+                        Err(e) => {
+                            enum_err = Some(e);
+                            return true;
+                        }
+                        Ok(true) => {}
+                    }
+                    if self.config.minimal_only && valid.iter().any(|prev| is_subset(prev, z)) {
+                        return false;
+                    }
+                    if self.config.maximal_only
+                        && !self.config.minimal_only
+                        && valid.iter().any(|prev| is_subset(z, prev))
+                    {
+                        return false;
+                    }
+                    valid.push(z.to_vec());
+                    if valid.len() >= self.config.max_results {
+                        truncated = true;
+                        early_stop = true;
+                        return true;
+                    }
+                    false
+                });
+                if let Some(e) = enum_err {
+                    return Err(e);
                 }
-                if self.config.minimal_only && valid.iter().any(|prev| is_subset(prev, z)) {
-                    return false;
+                if early_stop {
+                    break 'sizes;
                 }
-                if self.config.maximal_only
-                    && !self.config.minimal_only
-                    && valid.iter().any(|prev| is_subset(z, prev))
-                {
-                    return false;
-                }
-                valid.push(z.to_vec());
-                if valid.len() >= self.config.max_results {
-                    truncated = true;
-                    early_stop = true;
-                    return true;
-                }
-                false
-            });
-            if let Some(e) = enum_err {
-                return Err(e);
             }
-            if early_stop {
-                break 'sizes;
-            }
-        }
         } // end else exact enumeration
 
         // Cost-weighted ordering (stable; lower total cost first).
@@ -428,17 +431,13 @@ fn screen_ancestor_candidates(
         .collect()
 }
 
-fn total_cost(
-    z: &[DenseNodeId],
-    dag: &Dag,
-    costs: &[(VariableId, f64)],
-) -> f64 {
+fn total_cost(z: &[DenseNodeId], dag: &Dag, costs: &[(VariableId, f64)]) -> f64 {
     z.iter()
         .map(|d| {
             let Ok(v) = dense_to_var(*d, dag) else {
                 return 1.0;
             };
-            costs.iter().find(|(id, _)| *id == v).map(|(_, c)| *c).unwrap_or(1.0)
+            costs.iter().find(|(id, _)| *id == v).map_or(1.0, |(_, c)| *c)
         })
         .sum()
 }
@@ -481,9 +480,7 @@ impl BackdoorIdentifier {
             .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
             .filter(|id| !forbidden.contains(*id))
             .filter(|id| {
-                dense_to_var(*id, dag)
-                    .map(|v| !self.config.exceeds_history_lag(v))
-                    .unwrap_or(true)
+                dense_to_var(*id, dag).map(|v| !self.config.exceeds_history_lag(v)).unwrap_or(true)
             })
             .collect();
         let cap = self.config.max_candidates;
@@ -499,7 +496,8 @@ impl BackdoorIdentifier {
         }
         if candidates.len() > cap {
             // Prefer a single valid O-set over failing the stream.
-            let o_set = crate::efficient::optimal_adjustment_set_pub(dag, t, y, &mut workspace.graph);
+            let o_set =
+                crate::efficient::optimal_adjustment_set_pub(dag, t, y, &mut workspace.graph);
             if o_set.iter().all(|v| !forbidden.contains(*v))
                 && is_backdoor_adjustment(&mutilated, t, y, &o_set, &mut workspace.dsep)?
             {
@@ -597,8 +595,7 @@ impl BackdoorIdentifier {
                             .measurement_costs
                             .iter()
                             .find(|(id, _)| id == v)
-                            .map(|(_, c)| *c)
-                            .unwrap_or(1.0)
+                            .map_or(1.0, |(_, c)| *c)
                     })
                     .sum();
                 let mut cols = vec![treatment];
@@ -824,11 +821,8 @@ mod tests {
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        let sets: Vec<Vec<VariableId>> = res
-            .estimands
-            .iter()
-            .map(|e| e.adjustment_set.iter().copied().collect())
-            .collect();
+        let sets: Vec<Vec<VariableId>> =
+            res.estimands.iter().map(|e| e.adjustment_set.iter().copied().collect()).collect();
         // Inclusion-minimal: {A,B} and {A,C} (size 2). Supersets like {A,B,C} excluded.
         assert!(sets.iter().all(|s| s.len() == 2), "sets={sets:?}");
         assert_eq!(sets.len(), 2, "sets={sets:?}");
@@ -930,11 +924,8 @@ mod tests {
         let mutilated = remove_outgoing(g, t).unwrap();
         let descendants = descendants_of(g, t);
         for est in estimands {
-            let z: Vec<DenseNodeId> = est
-                .adjustment_set
-                .iter()
-                .map(|v| var_to_dense(*v, g).unwrap())
-                .collect();
+            let z: Vec<DenseNodeId> =
+                est.adjustment_set.iter().map(|v| var_to_dense(*v, g).unwrap()).collect();
             for &zi in &z {
                 assert!(
                     !descendants.contains(&zi),

@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_truncation, clippy::unreadable_literal)]
 
 use std::sync::Arc;
 
@@ -86,11 +86,7 @@ impl Pcmci {
 }
 
 #[cfg(test)]
-#[allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 mod calibration_tests {
     use super::*;
     use causal_core::{
@@ -142,10 +138,7 @@ mod calibration_tests {
         let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
         TimeSeriesData::try_new(
             storage,
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: n_obs,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n_obs },
         )
         .unwrap()
     }
@@ -204,10 +197,7 @@ mod calibration_tests {
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
         let data = TimeSeriesData::try_new(
             storage,
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: n_obs,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n_obs },
         )
         .unwrap();
         (data, vec![VariableId::from_raw(0), VariableId::from_raw(1)])
@@ -215,8 +205,8 @@ mod calibration_tests {
 
     /// Independent noise series: PCMCI link retention rate should track α.
     ///
-    /// Candidate family size = n_vars² · (max_lag−min_lag+1) − n_vars (skip self@0 when
-    /// lag0 allowed; here min_lag=1 so family = n_vars² · n_lags). FDR off so alpha is
+    /// Candidate family size = `n_vars²` · (`max_lag−min_lag+1`) − `n_vars` (skip self@0 when
+    /// lag0 allowed; here `min_lag=1` so family = `n_vars²` · `n_lags`). FDR off so alpha is
     /// the sole threshold. Band: ±4 MC SE of Bernoulli(α) plus floor/ceiling.
     #[test]
     #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -236,8 +226,7 @@ mod calibration_tests {
             ..DiscoveryConstraints::default()
         };
         let pcmci = Pcmci::new().with_fdr(false).with_constraints(constraints.clone());
-        let vars: Vec<VariableId> =
-            (0..N_VARS as u32).map(VariableId::from_raw).collect();
+        let vars: Vec<VariableId> = (0..N_VARS as u32).map(VariableId::from_raw).collect();
         let mut family = 0u32;
         for &t in &vars {
             family += constraints.candidate_sources(&vars, t).len() as u32;
@@ -271,10 +260,7 @@ mod calibration_tests {
         const N_SIM: u32 = 30;
         const N_OBS: usize = 250;
         let constraints = DiscoveryConstraints {
-            temporal: TemporalConstraints {
-                max_lag: Lag::from_raw(1),
-                min_lag: Lag::from_raw(1),
-            },
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
             alpha: 0.05,
             max_cond_size: 1,
             ..DiscoveryConstraints::default()

@@ -13,7 +13,9 @@
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::similar_names,
-    clippy::too_many_lines
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::zero_sized_map_values
 )]
 
 use std::collections::{HashMap, HashSet};
@@ -23,7 +25,7 @@ use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::TabularData;
 use causal_graph::{DenseNodeId, Pag, PagReview};
 use causal_stats::{
-    CiBatchRequest, CiPreparationPlan, CiQuery, ConfidenceMethod, ConditionalIndependence,
+    CiBatchRequest, CiPreparationPlan, CiQuery, ConditionalIndependence, ConfidenceMethod,
     FdrAdjustment, PartialCorrelation, PreparedCiTest,
 };
 
@@ -34,13 +36,14 @@ use crate::error::DiscoveryError;
 use crate::evidence::threshold_scored_links;
 use crate::orientation::{OrientationError, OrientationState};
 use crate::pc::{adjacent_vars, collect_float_columns, edge_key};
-use crate::possible_d_sep::{possible_d_sep, PossibleDSepBudget};
+use crate::possible_d_sep::{PossibleDSepBudget, possible_d_sep};
 use crate::result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
+    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets,
+    ScoredLink,
 };
 use crate::rule_scheduling::{
-    default_fci_rules, run_fci_orientation_to_fixed_point, FciOrientationRule, LpcmciOrientCollider,
+    FciOrientationRule, LpcmciOrientCollider, default_fci_rules, run_fci_orientation_to_fixed_point,
 };
 
 /// Static FCI discovery result (`Pag` evidence + review).
@@ -80,7 +83,7 @@ impl Default for Fci {
 }
 
 impl Fci {
-    /// Default FCI with ParCorr and BH FDR over skeleton tests.
+    /// Default FCI with `ParCorr` and BH FDR over skeleton tests.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -91,7 +94,7 @@ impl Fci {
                 },
                 ..DiscoveryConstraints::default()
             },
-            ci: Arc::new(PartialCorrelation::default()),
+            ci: Arc::new(PartialCorrelation),
             fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
             pds_max_nodes: DEFAULT_PDS_MAX_NODES,
         }
@@ -236,8 +239,7 @@ impl Fci {
                 let mut best_sep: Arc<[VariableId]> = Arc::from([]);
 
                 for z in &cand_sets {
-                    let (stat, p) =
-                        self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
+                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
                     best_stat = stat;
@@ -250,8 +252,7 @@ impl Fci {
                 }
 
                 if depth == 0 && cand_sets.is_empty() {
-                    let (stat, p) =
-                        self.ci_test(&cols, &var_index, x, y, &[], workspace, ctx)?;
+                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, &[], workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
                     best_stat = stat;
@@ -334,18 +335,16 @@ impl Fci {
             })
             .collect();
         scored = threshold_scored_links(scored, self.fdr, alpha);
-        let kept: HashSet<(u32, u32)> = scored
-            .iter()
-            .map(|s| edge_key(s.link.source, s.link.target))
-            .collect();
+        let kept: HashSet<(u32, u32)> =
+            scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
         if self.fdr.is_some() {
-            adj.retain(|k, _| kept.contains(k));
+            adj.retain(|k, ()| kept.contains(k));
         }
 
         let dense_of = |v: VariableId| -> Result<DenseNodeId, DiscoveryError> {
-            let idx = *var_index.get(&v).ok_or_else(|| {
-                DiscoveryError::data_msg(format!("unknown variable {v:?}"))
-            })?;
+            let idx = *var_index
+                .get(&v)
+                .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
             Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
         };
 
@@ -398,8 +397,7 @@ impl Fci {
                     true
                 });
                 for z in &depth_sets {
-                    let (_stat, p) =
-                        self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
+                    let (_stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
                     pds_tests += 1;
                     ci_tests += 1;
                     if p > alpha {
@@ -477,9 +475,7 @@ impl Fci {
             graph: pag.clone(),
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(scored),
-            source: EvidenceSource::Discovery {
-                algorithm: Arc::from("fci"),
-            },
+            source: EvidenceSource::Discovery { algorithm: Arc::from("fci") },
         };
         let review = PagReview::from_pag(pag, "fci");
 
@@ -559,17 +555,10 @@ impl Fci {
             let zi = *var_index.get(&v).ok_or_else(|| DiscoveryError::data_msg("missing z"))?;
             workspace.z_flat.push(zi);
         }
-        let prepared = workspace.prepared_ci.as_ref().ok_or_else(|| {
-            DiscoveryError::Unsupported {
-                message: "CI test used before prepare()",
-            }
+        let prepared = workspace.prepared_ci.as_ref().ok_or({
+            DiscoveryError::Unsupported { message: "CI test used before prepare()" }
         })?;
-        let queries = [CiQuery {
-            x: xi,
-            y: yi,
-            z_start: 0,
-            z_len: workspace.z_flat.len(),
-        }];
+        let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
         let req = CiBatchRequest {
             columns: cols,
             queries: &queries,
@@ -581,9 +570,11 @@ impl Fci {
             .ci
             .test_batch(prepared, &req, &mut workspace.ci, ctx)
             .map_err(DiscoveryError::from)?;
-        let result = out.results.into_iter().next().ok_or_else(|| {
-            DiscoveryError::stats_msg("CI batch returned no results")
-        })?;
+        let result = out
+            .results
+            .into_iter()
+            .next()
+            .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
         if !result.statistic.is_finite() || !result.p_value.is_finite() {
             return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
         }
@@ -599,17 +590,15 @@ fn pds_budget_err(b: PossibleDSepBudget) -> DiscoveryError {
     })
 }
 
-pub(crate) fn record_sepset(sepsets: &mut PcSepsets, x: VariableId, y: VariableId, best_sep: &[VariableId]) {
-    let sep_lagged: Arc<[(VariableId, Lag)]> = Arc::from(
-        best_sep
-            .iter()
-            .map(|&v| (v, Lag::CONTEMPORANEOUS))
-            .collect::<Vec<_>>(),
-    );
-    sepsets.insert(
-        (x, Lag::CONTEMPORANEOUS, y, Lag::CONTEMPORANEOUS),
-        Arc::clone(&sep_lagged),
-    );
+pub(crate) fn record_sepset(
+    sepsets: &mut PcSepsets,
+    x: VariableId,
+    y: VariableId,
+    best_sep: &[VariableId],
+) {
+    let sep_lagged: Arc<[(VariableId, Lag)]> =
+        Arc::from(best_sep.iter().map(|&v| (v, Lag::CONTEMPORANEOUS)).collect::<Vec<_>>());
+    sepsets.insert((x, Lag::CONTEMPORANEOUS, y, Lag::CONTEMPORANEOUS), Arc::clone(&sep_lagged));
     sepsets.insert((y, Lag::CONTEMPORANEOUS, x, Lag::CONTEMPORANEOUS), sep_lagged);
 }
 
@@ -640,8 +629,7 @@ pub(crate) fn build_pag_circle_skeleton(
     if variables.iter().enumerate().any(|(i, v)| v.raw() as usize != i) {
         pag = Pag::empty();
         for &v in variables {
-            pag.add_node(causal_graph::NodeRef::Static(v))
-                .map_err(DiscoveryError::from)?;
+            pag.add_node(causal_graph::NodeRef::Static(v)).map_err(DiscoveryError::from)?;
         }
     }
     for &(lo, hi) in adj.keys() {
@@ -666,7 +654,9 @@ mod tests {
         CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
         VariableId,
     };
-    use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
+    use causal_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    };
     use causal_graph::Endpoint;
     use causal_stats::OracleCi;
 
@@ -705,11 +695,7 @@ mod tests {
     #[test]
     fn oracle_chain_recovers_skeleton() {
         let data = tabular_n(3, 50);
-        let vars = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
         let fci = Fci::new().with_fdr(false).with_ci(Arc::new(oracle));
         let mut ws = DiscoveryWorkspace::default();
@@ -725,23 +711,15 @@ mod tests {
     #[test]
     fn oracle_collider_orients_into_middle() {
         let data = tabular_n(3, 40);
-        let vars = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
         let fci = Fci::new().with_fdr(false).with_ci(Arc::new(oracle));
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(2);
         let result = fci.run(&data, &vars, &mut ws, &ctx).unwrap();
         let g = &result.evidence.graph;
-        let e01 = g
-            .edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
-        let e21 = g
-            .edge_between(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1))
-            .unwrap();
+        let e01 = g.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let e21 = g.edge_between(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
         // Collider at 1: arrow into 1 on both edges.
         let at_1_from_0 = if e01.a.raw() == 1 { e01.at_a } else { e01.at_b };
         let at_1_from_2 = if e21.a.raw() == 1 { e21.at_a } else { e21.at_b };
@@ -752,11 +730,7 @@ mod tests {
     #[test]
     fn review_tracks_remaining_circles() {
         let data = tabular_n(3, 40);
-        let vars = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         // Fully connected dependent — skeleton retains all edges; circles remain.
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize), (0usize, 2usize)]);
         let fci = Fci::new().with_fdr(false).with_ci(Arc::new(oracle));

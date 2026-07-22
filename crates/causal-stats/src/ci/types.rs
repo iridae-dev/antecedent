@@ -120,9 +120,7 @@ impl PreparedCiTest {
     pub fn ensure_compatible(&self, request: &CiBatchRequest<'_>) -> Result<(), StatsError> {
         let n = request.nrows()?;
         if n != self.n {
-            return Err(StatsError::Shape {
-                message: "CI batch row count differs from prepare()",
-            });
+            return Err(StatsError::Shape { message: "CI batch row count differs from prepare()" });
         }
         if request.columns.len() != self.ncols {
             return Err(StatsError::Shape {

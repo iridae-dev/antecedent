@@ -11,18 +11,20 @@
     clippy::too_many_arguments,
     clippy::similar_names,
     clippy::many_single_char_names,
-    clippy::doc_markdown
+    clippy::doc_markdown,
+    clippy::trivially_copy_pass_by_ref
 )]
 
 use std::collections::HashMap;
 
 use causal_core::{CausalRng, ExecutionContext, KernelPolicy};
 
-use crate::special::{gamma_q, normal_ppf};
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    analytic_confidence_level, PreparedCiTest};
+    PreparedCiTest, analytic_confidence_level,
+};
+use crate::special::{gamma_q, normal_ppf};
 
 #[cfg(test)]
 use super::types::{CiQuery, ConfidenceMethod, SignificanceMethod};

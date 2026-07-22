@@ -56,25 +56,18 @@ impl EnvironmentHoldout {
     ) -> Result<EnvironmentHoldoutReport, ValidationError> {
         let train = subset_envs(data, &self.split.discovery_envs)?;
         let holdout = subset_envs(data, &self.split.estimation_envs)?;
-        let train_res = self
-            .jpcmci
-            .run(&train, variables, workspace, ctx)
-            .map_err(ValidationError::from)?;
-        let hold_res = self
-            .jpcmci
-            .run(&holdout, variables, workspace, ctx)
-            .map_err(ValidationError::from)?;
+        let train_res =
+            self.jpcmci.run(&train, variables, workspace, ctx).map_err(ValidationError::from)?;
+        let hold_res =
+            self.jpcmci.run(&holdout, variables, workspace, ctx).map_err(ValidationError::from)?;
         let train_set: BTreeSet<LaggedLink> =
             train_res.evidence.links.iter().map(|s| s.link).collect();
         let hold_set: BTreeSet<LaggedLink> =
             hold_res.evidence.links.iter().map(|s| s.link).collect();
         let shared = train_set.intersection(&hold_set).count();
         let union = train_set.union(&hold_set).count();
-        let shared_frequency = if train_set.is_empty() {
-            1.0
-        } else {
-            shared as f64 / train_set.len() as f64
-        };
+        let shared_frequency =
+            if train_set.is_empty() { 1.0 } else { shared as f64 / train_set.len() as f64 };
         let jaccard = if union == 0 { 1.0 } else { shared as f64 / union as f64 };
         Ok(EnvironmentHoldoutReport {
             discovery_links: Arc::from(train_set.into_iter().collect::<Vec<_>>()),
@@ -166,19 +159,16 @@ mod tests {
 
     #[test]
     fn env_holdout_runs_two_envs() {
-        let multi = MultiEnvironmentData::try_new([
-            shared_lag_env(180, 0.0),
-            shared_lag_env(180, 1.0),
-        ])
-        .unwrap();
+        let multi =
+            MultiEnvironmentData::try_new([shared_lag_env(180, 0.0), shared_lag_env(180, 1.0)])
+                .unwrap();
         let split = EnvHoldoutSplit::try_prefix(2, 1).unwrap();
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.temporal = TemporalConstraints {
-            max_lag: Lag::from_raw(1),
-            min_lag: Lag::from_raw(1),
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+            max_cond_size: 1,
+            alpha: 0.15,
+            ..Default::default()
         };
-        constraints.max_cond_size = 1;
-        constraints.alpha = 0.15;
         let hold = EnvironmentHoldout::new(
             JpcmciPlus::new().with_fdr(false).with_constraints(constraints),
             split,

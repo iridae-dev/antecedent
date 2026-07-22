@@ -34,7 +34,7 @@ use causal_stats::{
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
+use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
 
 /// Local-linear RD design column count: `[1, T, (R-c), T·(R-c)]`.
 const RD_NCOLS: usize = 4;
@@ -143,7 +143,9 @@ impl SharpRegressionDiscontinuity {
             return Err(EstimationError::unsupported("sharp RD does not support effect modifiers"));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported("sharp RD only supports TargetPopulation::AllObserved"));
+            return Err(EstimationError::unsupported(
+                "sharp RD only supports TargetPopulation::AllObserved",
+            ));
         }
         // The sharp-RD estimand is the outcome jump at the cutoff for the 0/1 crossing
         // indicator `T = 1{R ≥ c}` — a local ATE, not a per-unit-of-treatment slope. Scaling
@@ -259,7 +261,7 @@ impl SharpRegressionDiscontinuity {
         workspace: &mut RdWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
-                let n = problem.nrows;
+        let n = problem.nrows;
         let mut x_boot = vec![0.0; n * RD_NCOLS];
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0x5D0C_u64, n, |idx| {

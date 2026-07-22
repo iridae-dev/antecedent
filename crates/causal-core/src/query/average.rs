@@ -115,4 +115,3 @@ impl AverageEffectQuery {
         Ok(())
     }
 }
-

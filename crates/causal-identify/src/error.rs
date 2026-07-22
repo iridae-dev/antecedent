@@ -22,12 +22,12 @@ pub enum IdentificationError {
         message: &'static str,
     },
     /// Temporal backdoor is Pulse-only when used as single-node backdoor; Sustained
-/// is handled by sequential / g-formula ID on the unfolded graph.
-#[error(
-    "temporal backdoor identification supports Pulse policies only; \
+    /// is handled by sequential / g-formula ID on the unfolded graph.
+    #[error(
+        "temporal backdoor identification supports Pulse policies only; \
      sustained interventions require sequential (g-formula) identification"
-)]
-SustainedPolicyUnsupported,
+    )]
+    SustainedPolicyUnsupported,
     /// No adjustment set exists / not identified.
     #[error("not identified: {message}")]
     NotIdentified {

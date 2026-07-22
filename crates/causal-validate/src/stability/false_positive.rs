@@ -5,9 +5,7 @@
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 
 use causal_core::{ExecutionContext, VariableId};
-use causal_data::{
-    TimeSeriesData, surrogate_permute_columns, surrogate_phase_randomize,
-};
+use causal_data::{TimeSeriesData, surrogate_permute_columns, surrogate_phase_randomize};
 use causal_discovery::{DiscoveryWorkspace, Pcmci};
 
 use crate::error::ValidationError;
@@ -85,10 +83,8 @@ impl FalsePositiveCheck {
                     surrogate_phase_randomize(data, &mut rng).map_err(ValidationError::from)?
                 }
             };
-            let result = self
-                .pcmci
-                .run(&null, variables, workspace, ctx)
-                .map_err(ValidationError::from)?;
+            let result =
+                self.pcmci.run(&null, variables, workspace, ctx).map_err(ValidationError::from)?;
             total_edges += result.evidence.links.len() as u64;
         }
         let mean_edge_count = total_edges as f64 / f64::from(self.replicates);
@@ -174,13 +170,12 @@ mod tests {
     #[test]
     fn permute_null_reduces_edges() {
         let (data, vars) = linked_series();
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.temporal = TemporalConstraints {
-            max_lag: Lag::from_raw(1),
-            min_lag: Lag::from_raw(1),
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+            max_cond_size: 1,
+            alpha: 0.05,
+            ..Default::default()
         };
-        constraints.max_cond_size = 1;
-        constraints.alpha = 0.05;
         let pcmci = Pcmci::new().with_fdr(false).with_constraints(constraints);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(8);

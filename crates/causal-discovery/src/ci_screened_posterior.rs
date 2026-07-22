@@ -7,22 +7,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::too_many_lines
-)]
+#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::too_many_lines)]
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::TabularData;
+use causal_state::GraphScoreFamily;
 use causal_stats::{
     BayesFactorCi, ConditionalIndependence, FdrAdjustment, PartialCorrelation,
     PosteriorDependenceCi,
 };
-use causal_state::GraphScoreFamily;
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
@@ -37,7 +33,7 @@ pub enum CiSoftWeight {
     /// No soft weights (uniform among screened candidates).
     #[default]
     None,
-    /// Log Bayes factor for dependence (BayesFactorCi statistic).
+    /// Log Bayes factor for dependence (`BayesFactorCi` statistic).
     BayesFactor,
     /// Posterior probability of dependence.
     PosteriorDependence,
@@ -77,7 +73,7 @@ impl Default for CiScreenedPosterior {
 }
 
 impl CiScreenedPosterior {
-    /// Default: ParCorr PC screen + structure MCMC.
+    /// Default: `ParCorr` PC screen + structure MCMC.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -88,7 +84,7 @@ impl CiScreenedPosterior {
                 },
                 ..DiscoveryConstraints::default()
             },
-            ci: Arc::new(PartialCorrelation::default()),
+            ci: Arc::new(PartialCorrelation),
             fdr: Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
             soft_weight: CiSoftWeight::None,
             mcmc: StructureMcmc::new().with_schedule(2, 300, 600, 1),
@@ -142,9 +138,7 @@ impl CiScreenedPosterior {
 
         let pairs = pc_skeleton_pairs(self, data, variables, workspace, ctx)?;
         if pairs.is_empty() {
-            return Err(DiscoveryError::unsupported(
-                "CI screening produced empty skeleton",
-            ));
+            return Err(DiscoveryError::unsupported("CI screening produced empty skeleton"));
         }
 
         let soft_note = soft_weight_note(self.soft_weight, data, variables, &pairs, ctx)?;
@@ -155,9 +149,7 @@ impl CiScreenedPosterior {
         if let Some(note) = soft_note {
             post.diagnostics.notes.push(note);
         }
-        post.diagnostics
-            .notes
-            .push(Arc::from(format!("ci_screened_pairs={}", pair_arc.len())));
+        post.diagnostics.notes.push(Arc::from(format!("ci_screened_pairs={}", pair_arc.len())));
         Ok(post)
     }
 }
@@ -211,16 +203,11 @@ fn soft_weight_note(
     }
     let cols = crate::pc::collect_float_columns(data, variables)?;
     let n = cols[0].len();
-    let col_refs: Vec<&[f64]> = cols.iter().map(|c| c.as_ref()).collect();
+    let col_refs: Vec<&[f64]> = cols.iter().map(std::convert::AsRef::as_ref).collect();
     let mut ws = causal_stats::CiWorkspace::default();
     let mut scores = Vec::with_capacity(pairs.len());
     for &(lo, hi) in pairs {
-        let q = causal_stats::CiQuery {
-            x: lo as usize,
-            y: hi as usize,
-            z_start: 0,
-            z_len: 0,
-        };
+        let q = causal_stats::CiQuery { x: lo as usize, y: hi as usize, z_start: 0, z_len: 0 };
         let req = causal_stats::CiBatchRequest {
             columns: &col_refs,
             queries: &[q],
@@ -255,9 +242,7 @@ fn soft_weight_note(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use causal_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
+    use causal_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
     use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
 
     fn chain_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {
@@ -311,20 +296,9 @@ mod tests {
         let ctx = ExecutionContext::for_tests(5);
         let mut ws = DiscoveryWorkspace::default();
         let post = eng
-            .run(
-                &data,
-                &vars,
-                &GraphPrior::uniform(),
-                GraphScoreFamily::GaussianBic,
-                &mut ws,
-                &ctx,
-            )
+            .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap();
         assert!(post.n_graphs >= 1);
-        assert!(post
-            .diagnostics
-            .notes
-            .iter()
-            .any(|n| n.contains("ci_screened_pairs")));
+        assert!(post.diagnostics.notes.iter().any(|n| n.contains("ci_screened_pairs")));
     }
 }

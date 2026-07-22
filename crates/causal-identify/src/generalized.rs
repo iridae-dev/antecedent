@@ -20,16 +20,21 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
-    clippy::many_single_char_names
+    clippy::many_single_char_names,
+    clippy::too_many_arguments
 )]
 
 use std::sync::Arc;
 
 use causal_core::{AssumptionSet, AverageEffectQuery, CausalQuery, Value, VariableId};
 use causal_expr::CausalExprArena;
-use causal_graph::{Admg, BitSet, CompletionSampler, DSeparationWorkspace, DenseNodeId, Endpoint, Pag};
+use causal_graph::{
+    Admg, BitSet, CompletionSampler, DSeparationWorkspace, DenseNodeId, Endpoint, Pag,
+};
 
-use crate::envelope::{GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
+use crate::envelope::{
+    GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass,
+};
 use crate::error::IdentificationError;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
@@ -219,18 +224,12 @@ fn identify_on_mag_completion(
         ));
     };
 
-    let z_vars: Arc<[VariableId]> = z_dense
-        .iter()
-        .map(|&d| mag_dense_to_var(mag, d))
-        .collect::<Result<Vec<_>, _>>()?
-        .into();
+    let z_vars: Arc<[VariableId]> =
+        z_dense.iter().map(|&d| mag_dense_to_var(mag, d)).collect::<Result<Vec<_>, _>>()?.into();
     let mut arena = CausalExprArena::new();
     let functional = arena.backdoor_ate(t, y, &z_vars, active, control);
-    let label = if z_vars.is_empty() {
-        "generalized.adjustment.empty"
-    } else {
-        "generalized.adjustment"
-    };
+    let label =
+        if z_vars.is_empty() { "generalized.adjustment.empty" } else { "generalized.adjustment" };
     let estimand = IdentifiedEstimand::backdoor(label, Arc::clone(&z_vars), functional);
     Ok(IdentificationResult::identified(
         query,

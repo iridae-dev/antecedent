@@ -40,12 +40,7 @@ impl DesignColumn {
     /// Column with role only (no contrast / standardization / smooth link).
     #[must_use]
     pub const fn from_role(role: DesignColumnRole) -> Self {
-        Self {
-            role,
-            contrast_idx: None,
-            standardization_idx: None,
-            smooth_idx: None,
-        }
+        Self { role, contrast_idx: None, standardization_idx: None, smooth_idx: None }
     }
 }
 
@@ -476,15 +471,9 @@ mod tests {
             1.0, 1.0, 1.0, 1.0, // intercept
             0.0, 2.0, 4.0, 6.0, // to standardize
         ];
-        let rec = standardize_columns(
-            &mut matrix,
-            4,
-            2,
-            &[1],
-            1e-12,
-            &KernelPolicy::default_policy(),
-        )
-        .unwrap();
+        let rec =
+            standardize_columns(&mut matrix, 4, 2, &[1], 1e-12, &KernelPolicy::default_policy())
+                .unwrap();
         assert_eq!(rec.entries.len(), 1);
         assert!((rec.entries[0].mean - 3.0).abs() < 1e-12);
         let col: Vec<f64> = matrix[4..8].to_vec();

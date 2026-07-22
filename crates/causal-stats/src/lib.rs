@@ -26,22 +26,18 @@ pub mod twosls;
 pub use ci::{
     BayesFactorCi, CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery,
     CiResult, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod,
-    GSquared, Gpdc, KnnDependence, KnnDependenceWorkspace, MixedKnnDependence, MultivariatePartialCorrelation, OracleCi,
-    PairwiseMultivariateCi, PartialCorrelation, PosteriorDependenceCi, PosteriorPredictiveCi,
-    PreparedCiTest, RegressionCi, RobustPartialCorrelation, SignificanceMethod, SymbolicCmi,
-    WeightedPartialCorrelation, analytic_confidence_level, analytic_parcorr_ci,
-    calibrate_parcorr_like, ci_from_name, nonparametric_permutation_count,
-    pairwise_multivariate_test,
+    GSquared, Gpdc, KnnDependence, KnnDependenceWorkspace, MixedKnnDependence,
+    MultivariatePartialCorrelation, OracleCi, PairwiseMultivariateCi, PartialCorrelation,
+    PosteriorDependenceCi, PosteriorPredictiveCi, PreparedCiTest, RegressionCi,
+    RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
+    analytic_confidence_level, analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
+    nonparametric_permutation_count, pairwise_multivariate_test,
 };
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use design::{
     BasisKind, CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
     RecordedContrast, RecordedSmooth, StandardizationRecord, StandardizedColumn,
     standardize_columns,
-};
-pub use gam::{
-    GamFit, GamOptions, GamWorkspace, SmoothSpec, compile_additive_design, expand_bspline, fit_gam,
-    fitted_from_gam, predict_gam,
 };
 pub use divergence::{
     change_point_known_split, change_point_scan, change_point_two_sample, classifier_two_sample,
@@ -53,6 +49,10 @@ pub use faer_backend::FaerBackend;
 pub use fdr::{
     FdrAdjustment, MultipleTestingMethod, adjust_pvalues, benjamini_hochberg, benjamini_yekutieli,
     bonferroni, holm,
+};
+pub use gam::{
+    GamFit, GamOptions, GamWorkspace, SmoothSpec, compile_additive_design, expand_bspline, fit_gam,
+    fitted_from_gam, predict_gam,
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,

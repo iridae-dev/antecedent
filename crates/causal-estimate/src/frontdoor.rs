@@ -37,14 +37,12 @@ use causal_core::{
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
-use causal_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace,
-};
+use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::util::{bootstrap_se, BootstrapSeResult, stats_err};
+use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
 
 /// Stage-1 design column count: `[1, T]`.
 const STAGE1_NCOLS: usize = 2;
@@ -99,10 +97,14 @@ fn prepare_frontdoor_problem(
     }
     query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::unsupported("FrontDoorTwoStage does not support effect modifiers"));
+        return Err(EstimationError::unsupported(
+            "FrontDoorTwoStage does not support effect modifiers",
+        ));
     }
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::unsupported("FrontDoorTwoStage only supports TargetPopulation::AllObserved"));
+        return Err(EstimationError::unsupported(
+            "FrontDoorTwoStage only supports TargetPopulation::AllObserved",
+        ));
     }
     let treatment = query.treatment;
     let outcome = query.outcome;
@@ -110,7 +112,9 @@ fn prepare_frontdoor_problem(
     let control = intervention_f64(&query.control)?;
     let treatment_delta = active - control;
     if treatment_delta == 0.0 {
-        return Err(EstimationError::unsupported("active and control treatment levels must differ"));
+        return Err(EstimationError::unsupported(
+            "active and control treatment levels must differ",
+        ));
     }
 
     let mut ids = Vec::with_capacity(2 + estimand.mediators.len());
@@ -237,12 +241,8 @@ impl FrontDoorTwoStage {
             let b = stage1.coefficients[STAGE1_TREATMENT_COL];
             beta_tm.push((b, stage1.rss));
         }
-        let stage2 = self.fit_stage2(
-            &problem.treatment,
-            &problem.mediators,
-            &problem.outcome,
-            workspace,
-        )?;
+        let stage2 =
+            self.fit_stage2(&problem.treatment, &problem.mediators, &problem.outcome, workspace)?;
         for (j, &(b_tm, _)) in beta_tm.iter().enumerate() {
             let b_my = stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
             path_sum += b_tm * b_my;
@@ -302,9 +302,7 @@ impl FrontDoorTwoStage {
         let n = treatment.len();
         let ncols = 2 + mediators.len();
         let x = stage2_matrix(treatment, mediators);
-        self.backend
-            .least_squares(&x, n, ncols, outcome, &mut workspace.ols)
-            .map_err(stats_err)
+        self.backend.least_squares(&x, n, ncols, outcome, &mut workspace.ols).map_err(stats_err)
     }
 
     fn bootstrap_se(
@@ -374,8 +372,8 @@ mod tests {
     use std::sync::Arc;
 
     use causal_core::{
-        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
-        RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
+        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
+        SmallRoleSet, TargetPopulation, ValueType, VariableId,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,

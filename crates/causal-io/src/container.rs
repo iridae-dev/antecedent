@@ -44,6 +44,9 @@ pub const AUTO_COMPRESS_MAX_RATIO: f64 = 0.95;
 /// Scratch size when streaming-skipping unread sections on a pure [`Read`].
 const SKIP_SCRATCH: usize = 64 * 1024;
 
+const MAX_MANIFEST_BYTES: usize = 16 * 1024 * 1024;
+const MAX_SECTION_BYTES: usize = 512 * 1024 * 1024;
+
 /// Artifact manifest (canonical CBOR).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ArtifactManifest {
@@ -125,8 +128,7 @@ impl EncodedArtifact {
             });
         }
         // Precompute on-wire for compressed sections; uncompressed use logical borrow.
-        let mut compressed_bufs: Vec<Option<Vec<u8>>> =
-            Vec::with_capacity(self.sections.len());
+        let mut compressed_bufs: Vec<Option<Vec<u8>>> = Vec::with_capacity(self.sections.len());
         for (desc, sec) in self.manifest.sections.iter().zip(self.sections.iter()) {
             if desc.id != sec.id {
                 return Err(IoError::ManifestMismatch { message: "section id mismatch" });
@@ -134,11 +136,10 @@ impl EncodedArtifact {
             let expected_uncomp =
                 usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
             if sec.data.len() != expected_uncomp {
-                return Err(IoError::ManifestMismatch {
-                    message: "section logical size mismatch",
-                });
+                return Err(IoError::ManifestMismatch { message: "section logical size mismatch" });
             }
-            let on_wire_owned = encode_on_wire_owned(sec.data.as_ref(), desc.compression.as_deref())?;
+            let on_wire_owned =
+                encode_on_wire_owned(sec.data.as_ref(), desc.compression.as_deref())?;
             let on_wire: &[u8] = match &on_wire_owned {
                 Some(v) => v.as_slice(),
                 None => sec.data.as_ref(),
@@ -178,7 +179,7 @@ impl EncodedArtifact {
                 None => sec.data.as_ref(),
             };
             let len = u32::try_from(on_wire.len()).map_err(|_| IoError::TooLarge)?;
-            debug_assert_eq!(len as u64, desc.compressed_size);
+            debug_assert_eq!(u64::from(len), desc.compressed_size);
             w.write_all(&len.to_le_bytes())?;
             w.write_all(on_wire)?;
         }
@@ -243,14 +244,13 @@ pub(crate) fn read_header_and_manifest<R: Read>(
     r.read_exact(&mut ver_buf)?;
     let manifest_len =
         usize::try_from(u32::from_le_bytes(ver_buf)).map_err(|_| IoError::TooLarge)?;
-    const MAX_MANIFEST_BYTES: usize = 16 * 1024 * 1024;
     if manifest_len > MAX_MANIFEST_BYTES {
         return Err(IoError::TooLarge);
     }
     let mut manifest_buf = vec![0u8; manifest_len];
     r.read_exact(&mut manifest_buf)?;
-    let manifest: ArtifactManifest = ciborium::from_reader(manifest_buf.as_slice())
-        .map_err(|e| IoError::Cbor(e.to_string()))?;
+    let manifest: ArtifactManifest =
+        ciborium::from_reader(manifest_buf.as_slice()).map_err(|e| IoError::Cbor(e.to_string()))?;
     Ok((manifest, r))
 }
 
@@ -262,7 +262,6 @@ fn read_section_logical<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result<
     if len != expected_comp {
         return Err(IoError::ManifestMismatch { message: "section size mismatch" });
     }
-    const MAX_SECTION_BYTES: usize = 512 * 1024 * 1024;
     if len > MAX_SECTION_BYTES {
         return Err(IoError::TooLarge);
     }
@@ -295,13 +294,12 @@ fn skip_section_verified<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result
     if len != expected_comp {
         return Err(IoError::ManifestMismatch { message: "section size mismatch" });
     }
-    const MAX_SECTION_BYTES: usize = 512 * 1024 * 1024;
     if len > MAX_SECTION_BYTES {
         return Err(IoError::TooLarge);
     }
     let mut hasher = blake3::Hasher::new();
     let mut remaining = len;
-    let mut scratch = [0u8; SKIP_SCRATCH];
+    let mut scratch = vec![0u8; SKIP_SCRATCH];
     while remaining > 0 {
         let n = remaining.min(SKIP_SCRATCH);
         r.read_exact(&mut scratch[..n])?;
@@ -389,7 +387,7 @@ fn choose_on_wire(logical: &[u8], policy: CompressPolicy) -> (Option<String>, Op
             }
             match try_zstd(logical) {
                 Some(c)
-                    if (c.len() as f64) < (logical.len() as f64) * AUTO_COMPRESS_MAX_RATIO =>
+                    if (c.len() as u128) * 100 < (logical.len() as u128) * 95 =>
                 {
                     (Some(COMPRESSION_ZSTD.into()), Some(c))
                 }
@@ -424,10 +422,8 @@ pub(crate) fn decode_on_wire(
 ) -> Result<Vec<u8>, IoError> {
     match compression {
         None => Ok(on_wire.to_vec()),
-        Some(COMPRESSION_ZSTD) => zstd::decode_all(on_wire).map_err(|e| IoError::Decompress {
-            section: section.into(),
-            message: e.to_string(),
-        }),
+        Some(COMPRESSION_ZSTD) => zstd::decode_all(on_wire)
+            .map_err(|e| IoError::Decompress { section: section.into(), message: e.to_string() }),
         Some(other) => Err(IoError::UnsupportedCompression { algo: other.into() }),
     }
 }
@@ -480,8 +476,12 @@ mod tests {
     #[test]
     fn uncompressed_round_trip() {
         let payload = b"hello".to_vec();
-        let (desc, sec) =
-            pack_section("note", "application/octet-stream", payload.clone(), CompressPolicy::Never);
+        let (desc, sec) = pack_section(
+            "note",
+            "application/octet-stream",
+            payload.clone(),
+            CompressPolicy::Never,
+        );
         assert!(desc.compression.is_none());
         let art = tiny_artifact(vec![(desc, sec)]);
         let mut buf = Vec::new();
@@ -493,8 +493,12 @@ mod tests {
     #[test]
     fn zstd_round_trip_large_payload() {
         let payload = vec![0xABu8; 16 * 1024];
-        let (desc, sec) =
-            pack_section("blob", "application/octet-stream", payload.clone(), CompressPolicy::Always);
+        let (desc, sec) = pack_section(
+            "blob",
+            "application/octet-stream",
+            payload.clone(),
+            CompressPolicy::Always,
+        );
         assert_eq!(desc.compression.as_deref(), Some(COMPRESSION_ZSTD));
         assert!(desc.compressed_size < desc.uncompressed_size);
         let art = tiny_artifact(vec![(desc, sec)]);
@@ -502,25 +506,30 @@ mod tests {
         art.write_to(&mut buf).unwrap();
         let decoded = EncodedArtifact::read_from(buf.as_slice()).unwrap();
         assert_eq!(&*decoded.sections[0].data, payload.as_slice());
-        assert_eq!(
-            decoded.manifest.sections[0].compression.as_deref(),
-            Some(COMPRESSION_ZSTD)
-        );
+        assert_eq!(decoded.manifest.sections[0].compression.as_deref(), Some(COMPRESSION_ZSTD));
     }
 
     #[test]
     fn auto_keeps_tiny_uncompressed() {
         let payload = b"tiny".to_vec();
-        let desc =
-            section_descriptor_with_policy("t", "application/octet-stream", &payload, CompressPolicy::Auto);
+        let desc = section_descriptor_with_policy(
+            "t",
+            "application/octet-stream",
+            &payload,
+            CompressPolicy::Auto,
+        );
         assert!(desc.compression.is_none());
     }
 
     #[test]
     fn auto_compresses_highly_redundant() {
         let payload = vec![0u8; 16 * 1024];
-        let desc =
-            section_descriptor_with_policy("t", "application/octet-stream", &payload, CompressPolicy::Auto);
+        let desc = section_descriptor_with_policy(
+            "t",
+            "application/octet-stream",
+            &payload,
+            CompressPolicy::Auto,
+        );
         assert_eq!(desc.compression.as_deref(), Some(COMPRESSION_ZSTD));
     }
 

@@ -19,8 +19,8 @@
 pub mod assumptions;
 pub mod auto;
 pub mod backdoor;
-pub(crate) mod enum_masks;
 pub mod efficient;
+pub(crate) mod enum_masks;
 pub mod envelope;
 pub mod error;
 pub mod frontdoor;

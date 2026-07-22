@@ -2,7 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::similar_names
+)]
 
 use causal_core::ExecutionContext;
 use causal_kernels::standard_normal;
@@ -289,8 +294,9 @@ pub fn collect_null_pvalues_parcorr_like(
 mod tests {
     use super::*;
     use crate::ci::{
-        GSquared, Gpdc, KnnDependence, MixedKnnDependence, MultivariatePartialCorrelation, PartialCorrelation,
-        RegressionCi, RobustPartialCorrelation, SymbolicCmi, WeightedPartialCorrelation,
+        GSquared, Gpdc, KnnDependence, MixedKnnDependence, MultivariatePartialCorrelation,
+        PartialCorrelation, RegressionCi, RobustPartialCorrelation, SymbolicCmi,
+        WeightedPartialCorrelation,
     };
 
     #[test]
@@ -411,29 +417,21 @@ mod tests {
                 columns: &cols_null,
                 queries: &queries,
                 z_flat: &[],
-                significance: SignificanceMethod::BlockShuffle {
-                    replicates: 49,
-                    block_size: 1,
-                },
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
                 confidence: ConfidenceMethod::None,
             };
             let out = ci.test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
             if out.results[0].p_value < alpha {
                 null_rej += 1;
             }
-            let y_alt: Vec<f64> = x
-                .iter()
-                .map(|&xi| 0.85 * xi + 0.4 * standard_normal(&mut rng))
-                .collect();
+            let y_alt: Vec<f64> =
+                x.iter().map(|&xi| 0.85 * xi + 0.4 * standard_normal(&mut rng)).collect();
             let cols_alt: [&[f64]; 2] = [&x, &y_alt];
             let req_alt = CiBatchRequest {
                 columns: &cols_alt,
                 queries: &queries,
                 z_flat: &[],
-                significance: SignificanceMethod::BlockShuffle {
-                    replicates: 49,
-                    block_size: 1,
-                },
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
                 confidence: ConfidenceMethod::None,
             };
             let out_alt = ci.test_batch_adhoc(&req_alt, &mut ws, &ctx).unwrap();
@@ -451,7 +449,7 @@ mod tests {
         assert!(power > 0.35, "kNN-CMI power too low: {power}");
     }
 
-    /// ParCorr block-shuffle (block_size=1 ⇒ row permutation) p-values ≈ U[0,1] under null.
+    /// `ParCorr` block-shuffle (`block_size=1` ⇒ row permutation) p-values ≈ U[0,1] under null.
     #[test]
     #[ignore = "calibration: run via scripts/gate_calibration.sh"]
     fn parcorr_perm_pvalue_uniformity_gate() {
@@ -501,10 +499,7 @@ mod tests {
                 columns: &cols,
                 queries: &queries,
                 z_flat: &[],
-                significance: SignificanceMethod::BlockShuffle {
-                    replicates: 49,
-                    block_size: 1,
-                },
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
                 confidence: ConfidenceMethod::None,
             };
             let out = ci.test_batch_adhoc(&req, &mut ws, &ctx).unwrap();

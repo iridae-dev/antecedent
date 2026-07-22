@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop)]
+#![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::similar_names)]
 
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
@@ -86,11 +86,7 @@ pub fn fit_huber_m(
         for r in 0..nrows {
             let u = residuals[r] / scale;
             let au = u.abs();
-            weights[r] = if au <= options.c || au < 1e-15 {
-                1.0
-            } else {
-                options.c / au
-            };
+            weights[r] = if au <= options.c || au < 1e-15 { 1.0 } else { options.c / au };
         }
         let fit = fit_wls(x_colmajor, nrows, ncols, y, &weights, backend, workspace)?;
         let mut max_delta = 0.0_f64;
@@ -120,18 +116,12 @@ fn mad_scale(residuals: &[f64]) -> f64 {
     let mut sorted = residuals.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let mid = sorted.len() / 2;
-    let center = if sorted.len() % 2 == 0 {
-        0.5 * (sorted[mid - 1] + sorted[mid])
-    } else {
-        sorted[mid]
-    };
+    let center =
+        if sorted.len() % 2 == 0 { 0.5 * (sorted[mid - 1] + sorted[mid]) } else { sorted[mid] };
     let mut abs_dev: Vec<f64> = residuals.iter().map(|r| (r - center).abs()).collect();
     abs_dev.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let mad = if abs_dev.len() % 2 == 0 {
-        0.5 * (abs_dev[mid - 1] + abs_dev[mid])
-    } else {
-        abs_dev[mid]
-    };
+    let mad =
+        if abs_dev.len() % 2 == 0 { 0.5 * (abs_dev[mid - 1] + abs_dev[mid]) } else { abs_dev[mid] };
     // Consistency constant for Gaussian MAD → σ.
     1.4826 * mad
 }
@@ -154,8 +144,8 @@ mod tests {
         }
         let mut ws = LeastSquaresWorkspace::default();
         let ols = FaerBackend.least_squares(&x, n, 2, &y, &mut ws).unwrap();
-        let fit = fit_huber_m(&x, n, 2, &y, &MEstimateOptions::default(), &FaerBackend, &mut ws)
-            .unwrap();
+        let fit =
+            fit_huber_m(&x, n, 2, &y, &MEstimateOptions::default(), &FaerBackend, &mut ws).unwrap();
         assert!(fit.converged);
         assert!((fit.coefficients[1] - ols.coefficients[1]).abs() < 1e-6);
     }
@@ -174,8 +164,8 @@ mod tests {
         y[n - 1] = 100.0; // plant outlier
         let mut ws = LeastSquaresWorkspace::default();
         let ols = FaerBackend.least_squares(&x, n, 2, &y, &mut ws).unwrap();
-        let fit = fit_huber_m(&x, n, 2, &y, &MEstimateOptions::default(), &FaerBackend, &mut ws)
-            .unwrap();
+        let fit =
+            fit_huber_m(&x, n, 2, &y, &MEstimateOptions::default(), &FaerBackend, &mut ws).unwrap();
         assert!(fit.converged);
         // Huber slope should stay closer to 2 than OLS.
         assert!(

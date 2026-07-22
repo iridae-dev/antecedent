@@ -186,11 +186,7 @@ pub fn discriminating_implies_collider(c_in_sepset_ab: bool) -> bool {
 }
 
 fn mark_at(edge: &MarkedEdge, node: DenseNodeId) -> Endpoint {
-    if edge.a == node {
-        edge.at_a
-    } else {
-        edge.at_b
-    }
+    if edge.a == node { edge.at_a } else { edge.at_b }
 }
 
 fn arrow_into<G: PagOps>(pag: &G, into: DenseNodeId, from: DenseNodeId) -> bool {
@@ -209,7 +205,8 @@ fn is_collider_at<G: PagOps>(
 /// Definite directed parent: `parent → child` (tail at parent, arrow at child).
 fn is_definite_parent<G: PagOps>(pag: &G, parent: DenseNodeId, child: DenseNodeId) -> bool {
     pag.edge_between(parent, child).is_some_and(|e| {
-        matches!(mark_at(&e, parent), Endpoint::Tail) && matches!(mark_at(&e, child), Endpoint::Arrow)
+        matches!(mark_at(&e, parent), Endpoint::Tail)
+            && matches!(mark_at(&e, child), Endpoint::Arrow)
     })
 }
 
@@ -251,20 +248,14 @@ mod tests {
     fn finds_zhang_minimal_discriminating_path() {
         let (g, a, d, c, b) = zhang_minimal();
         let paths = find_discriminating_paths(&g, 16, 8);
-        assert!(
-            paths.iter().any(|p| p.nodes == [a, d, c, b]),
-            "paths={paths:?}"
-        );
+        assert!(paths.iter().any(|p| p.nodes == [a, d, c, b]), "paths={paths:?}");
     }
 
     #[test]
     fn finds_zhang_minimal_on_static_pag() {
         let (g, a, d, c, b) = zhang_minimal_static();
         let paths = find_discriminating_paths(&g, 16, 8);
-        assert!(
-            paths.iter().any(|p| p.nodes == [a, d, c, b]),
-            "paths={paths:?}"
-        );
+        assert!(paths.iter().any(|p| p.nodes == [a, d, c, b]), "paths={paths:?}");
     }
 
     #[test]

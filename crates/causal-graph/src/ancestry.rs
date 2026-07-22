@@ -169,31 +169,31 @@ mod tests {
     #[test]
     fn markov_blanket_includes_parents_children_spouses() {
         // A → T ← B, T → Y ← C  ⇒  MB(T) = {A, B, Y, C}
-        let mut g = Dag::with_variables(5);
-        let a = DenseNodeId::from_raw(0);
-        let b = DenseNodeId::from_raw(1);
-        let t = DenseNodeId::from_raw(2);
-        let y = DenseNodeId::from_raw(3);
-        let c = DenseNodeId::from_raw(4);
-        g.insert_directed(a, t).unwrap();
-        g.insert_directed(b, t).unwrap();
-        g.insert_directed(t, y).unwrap();
-        g.insert_directed(c, y).unwrap();
+        let mut graph = Dag::with_variables(5);
+        let parent_a = DenseNodeId::from_raw(0);
+        let parent_b = DenseNodeId::from_raw(1);
+        let treatment = DenseNodeId::from_raw(2);
+        let outcome = DenseNodeId::from_raw(3);
+        let spouse_c = DenseNodeId::from_raw(4);
+        graph.insert_directed(parent_a, treatment).unwrap();
+        graph.insert_directed(parent_b, treatment).unwrap();
+        graph.insert_directed(treatment, outcome).unwrap();
+        graph.insert_directed(spouse_c, outcome).unwrap();
 
-        let mb = g.markov_blanket_nodes(t).unwrap();
-        assert_eq!(mb, vec![a, b, y, c]);
-        assert!(!mb.contains(&t));
+        let mb = graph.markov_blanket_nodes(treatment).unwrap();
+        assert_eq!(mb, vec![parent_a, parent_b, outcome, spouse_c]);
+        assert!(!mb.contains(&treatment));
     }
 
     #[test]
     fn markov_blanket_of_root_includes_child_and_spouse() {
-        let mut g = Dag::with_variables(3);
-        let a = DenseNodeId::from_raw(0);
-        let b = DenseNodeId::from_raw(1);
-        let y = DenseNodeId::from_raw(2);
-        g.insert_directed(a, y).unwrap();
-        g.insert_directed(b, y).unwrap();
-        assert_eq!(g.markov_blanket_nodes(y).unwrap(), vec![a, b]);
-        assert_eq!(g.markov_blanket_nodes(a).unwrap(), vec![b, y]);
+        let mut graph = Dag::with_variables(3);
+        let parent_a = DenseNodeId::from_raw(0);
+        let parent_b = DenseNodeId::from_raw(1);
+        let outcome = DenseNodeId::from_raw(2);
+        graph.insert_directed(parent_a, outcome).unwrap();
+        graph.insert_directed(parent_b, outcome).unwrap();
+        assert_eq!(graph.markov_blanket_nodes(outcome).unwrap(), vec![parent_a, parent_b]);
+        assert_eq!(graph.markov_blanket_nodes(parent_a).unwrap(), vec![parent_b, outcome]);
     }
 }

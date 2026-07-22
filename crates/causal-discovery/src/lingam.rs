@@ -1,4 +1,4 @@
-//! DirectLiNGAM → static [`Dag`] (Shimizu et al. 2011).
+//! `DirectLiNGAM` → static [`Dag`] (Shimizu et al. 2011).
 //!
 //! Causal-order search by residual–predictor independence (distance correlation),
 //! then OLS coefficient pruning. Does not use ICA or the Meek/PC orientation stack.
@@ -8,6 +8,8 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::manual_let_else,
+    clippy::many_single_char_names,
     clippy::similar_names,
     clippy::too_many_lines
 )]
@@ -17,9 +19,7 @@ use std::sync::Arc;
 use causal_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
 use causal_data::TabularData;
 use causal_graph::{Dag, DagReview, DenseNodeId, NodeRef};
-use causal_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace,
-};
+use causal_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
@@ -30,10 +30,10 @@ use crate::result::{
     DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
 };
 
-/// Static DirectLiNGAM discovery result (`Dag` evidence + review).
+/// Static `DirectLiNGAM` discovery result (`Dag` evidence + review).
 pub type StaticDagDiscoveryResult = DiscoveryResult<Dag, DagReview>;
 
-/// DirectLiNGAM over tabular (non-temporal) continuous data.
+/// `DirectLiNGAM` over tabular (non-temporal) continuous data.
 #[derive(Clone, Debug)]
 pub struct DirectLingam {
     /// Constraints / max parents / forbidden edges.
@@ -49,7 +49,7 @@ impl Default for DirectLingam {
 }
 
 impl DirectLingam {
-    /// Default DirectLiNGAM (`prune_threshold = 0.05`).
+    /// Default `DirectLiNGAM` (`prune_threshold = 0.05`).
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -78,7 +78,7 @@ impl DirectLingam {
         self
     }
 
-    /// Run DirectLiNGAM.
+    /// Run `DirectLiNGAM`.
     ///
     /// # Errors
     ///
@@ -181,9 +181,7 @@ impl DirectLingam {
             let preds: Vec<usize> = order[..pos]
                 .iter()
                 .copied()
-                .filter(|&par| {
-                    !forbidden_edge(&self.constraints, variables, par, child)
-                })
+                .filter(|&par| !forbidden_edge(&self.constraints, variables, par, child))
                 .collect();
             if preds.is_empty() {
                 continue;
@@ -196,20 +194,17 @@ impl DirectLingam {
                     x[c * n + r] = orig[par][r];
                 }
             }
-            let fit = match backend.least_squares(&x, n, k, &orig[child], &mut ls_ws) {
-                Ok(f) => f,
-                Err(_) => {
-                    // Fall back to pairwise prune on rank failure.
-                    for &par in &preds {
-                        let beta = simple_regression_coef(&orig[child], &orig[par]);
-                        if beta.abs() >= self.prune_threshold
-                            && !forbidden_edge(&self.constraints, variables, par, child)
-                        {
-                            edge_coefs.push((par, child, beta));
-                        }
+            let fit = if let Ok(f) = backend.least_squares(&x, n, k, &orig[child], &mut ls_ws) { f } else {
+                // Fall back to pairwise prune on rank failure.
+                for &par in &preds {
+                    let beta = simple_regression_coef(&orig[child], &orig[par]);
+                    if beta.abs() >= self.prune_threshold
+                        && !forbidden_edge(&self.constraints, variables, par, child)
+                    {
+                        edge_coefs.push((par, child, beta));
                     }
-                    continue;
                 }
+                continue;
             };
             // Keep largest |β| up to max_parents.
             let mut ranked: Vec<(usize, f64)> = preds
@@ -218,7 +213,9 @@ impl DirectLingam {
                 .map(|(i, &par)| (par, fit.coefficients[i]))
                 .filter(|(_, b)| b.abs() >= self.prune_threshold)
                 .collect();
-            ranked.sort_by(|a, b| b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal));
+            ranked.sort_by(|a, b| {
+                b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal)
+            });
             for (par, beta) in ranked.into_iter().take(max_parents) {
                 edge_coefs.push((par, child, beta));
             }
@@ -297,9 +294,7 @@ impl DirectLingam {
             graph: dag,
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(links),
-            source: EvidenceSource::Discovery {
-                algorithm: Arc::from("direct_lingam"),
-            },
+            source: EvidenceSource::Discovery { algorithm: Arc::from("direct_lingam") },
         };
 
         Ok(DiscoveryResult {
@@ -371,11 +366,7 @@ fn simple_regression_coef(y: &[f64], x: &[f64]) -> f64 {
         sxx += xi * xi;
         sxy += xi * yi;
     }
-    if sxx <= 1e-15 {
-        0.0
-    } else {
-        sxy / sxx
-    }
+    if sxx <= 1e-15 { 0.0 } else { sxy / sxx }
 }
 
 /// Székely distance correlation (L1 pairwise distances).
@@ -531,7 +522,7 @@ mod tests {
 
     #[test]
     fn dcor_self_near_one() {
-        let x: Vec<f64> = (0..40).map(|i| (i as f64) * 0.1).collect();
+        let x: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.1).collect();
         let d = distance_correlation(&x, &x);
         assert!(d > 0.99, "dCor(x,x)={d}");
     }

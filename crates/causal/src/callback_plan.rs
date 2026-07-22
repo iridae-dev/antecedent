@@ -16,16 +16,11 @@ pub fn mark_python_callback_plan(
     region: &str,
 ) -> (PhysicalExecutionPlanRecord, Diagnostic) {
     record.worker_threads = 0;
-    record.task_schedule = Arc::from([ParallelTaskSpec {
-        dimension: Arc::from("serial"),
-        units: 1,
-    }]);
+    record.task_schedule =
+        Arc::from([ParallelTaskSpec { dimension: Arc::from("serial"), units: 1 }]);
     record.expected_python_crossings = record.expected_python_crossings.saturating_add(1);
     let mut kernels = record.kernels.as_ref().to_vec();
-    kernels.push((
-        Arc::from(format!("python.callback.{region}")),
-        KernelSelection::Scalar,
-    ));
+    kernels.push((Arc::from(format!("python.callback.{region}")), KernelSelection::Scalar));
     record.kernels = Arc::from(kernels);
     let diagnostic = Diagnostic::new(
         "exec.python_callback_serial",

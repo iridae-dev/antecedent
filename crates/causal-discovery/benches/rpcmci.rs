@@ -77,10 +77,7 @@ fn bench_rpcmci(c: &mut Criterion) {
         ..DiscoveryConstraints::default()
     });
     // Caller-supplied labels: no alternating collapse.
-    let alg = Rpcmci::new()
-        .with_min_regime_len(30)
-        .with_alternating_iters(0)
-        .with_pcmci_plus(plus);
+    let alg = Rpcmci::new().with_min_regime_len(30).with_alternating_iters(0).with_pcmci_plus(plus);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
 
     c.bench_function("rpcmci_sparse_120", |b| {

@@ -117,6 +117,11 @@ pub fn fill_resample_indexes(
 ///
 /// Shape / plan mismatches as in [`fill_resample_indexes`], plus missing or
 /// wrong-length cluster ids when required.
+///
+/// # Panics
+///
+/// Propagates panic from [`unbiased_index`] if a zero-length draw is requested
+/// after the `n > 0` guard (should be unreachable).
 pub fn fill_resample_indexes_grouped(
     plan: ResamplingPlan,
     n: usize,
@@ -165,7 +170,7 @@ pub fn fill_resample_indexes_grouped(
             fill_cluster_bootstrap(n, cluster_ids.unwrap(), rng, out)?;
         }
         ResamplingPlan::Permutation(PermutationScheme::Full) => {
-            out.extend((0..n as u32));
+            out.extend(0..n as u32);
             // Fisher–Yates
             for i in (1..n).rev() {
                 let j = unbiased_index(rng, i + 1);
@@ -173,7 +178,7 @@ pub fn fill_resample_indexes_grouped(
             }
         }
         ResamplingPlan::Permutation(PermutationScheme::WithinCluster) => {
-            fill_within_cluster_permutation(n, cluster_ids.unwrap(), rng, out)?;
+            fill_within_cluster_permutation(n, cluster_ids.unwrap(), rng, out);
         }
     }
     Ok(())
@@ -284,8 +289,8 @@ fn fill_within_cluster_permutation(
     cluster_ids: &[u32],
     rng: &mut CausalRng,
     out: &mut Vec<u32>,
-) -> Result<(), DataError> {
-    out.extend((0..n as u32));
+) {
+    out.extend(0..n as u32);
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by_key(|&i| cluster_ids[i]);
     let mut idx = 0usize;
@@ -307,7 +312,6 @@ fn fill_within_cluster_permutation(
             out[pos] = vals[k];
         }
     }
-    Ok(())
 }
 
 /// Fill `out` with length-`n` Bayesian-bootstrap weights (normalized Exp(1) draws).
@@ -421,7 +425,7 @@ pub fn fill_resample_index_batch(
                     if let Err(e) =
                         fill_resample_indexes_grouped(plan, n, cluster_ref, &mut rng, &mut scratch)
                     {
-                        let mut guard = err_slot.lock().unwrap_or_else(|p| p.into_inner());
+                        let mut guard = err_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                         if guard.is_none() {
                             *guard = Some(e);
                         }
@@ -433,7 +437,7 @@ pub fn fill_resample_index_batch(
             start = end;
         }
     });
-    if let Some(e) = err.into_inner().unwrap_or_else(|p| p.into_inner()) {
+    if let Some(e) = err.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner) {
         return Err(e);
     }
     Ok(())
@@ -495,7 +499,7 @@ pub fn fill_resample_weight_batch(
                 for (local, r) in (start..end).enumerate() {
                     let mut rng = rng_factory.stream(stream_base ^ r as u64);
                     if let Err(e) = fill_resample_weights(plan, n, &mut rng, &mut scratch) {
-                        let mut guard = err_slot.lock().unwrap_or_else(|p| p.into_inner());
+                        let mut guard = err_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                         if guard.is_none() {
                             *guard = Some(e);
                         }
@@ -507,7 +511,7 @@ pub fn fill_resample_weight_batch(
             start = end;
         }
     });
-    if let Some(e) = err.into_inner().unwrap_or_else(|p| p.into_inner()) {
+    if let Some(e) = err.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner) {
         return Err(e);
     }
     Ok(())

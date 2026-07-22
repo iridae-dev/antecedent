@@ -14,8 +14,8 @@ use causal_core::{
     VariableId,
 };
 use causal_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex, TimeSeriesData,
-    ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+    TimeSeriesData, ValidityBitmap,
 };
 use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
 use serde_json::Value as JsonValue;
@@ -86,8 +86,7 @@ fn load_series(expected: &JsonValue) -> (TimeSeriesData, Vec<VariableId>, Vec<St
         TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap();
-    let vars: Vec<VariableId> =
-        (0..names.len()).map(|i| VariableId::from_raw(i as u32)).collect();
+    let vars: Vec<VariableId> = (0..names.len()).map(|i| VariableId::from_raw(i as u32)).collect();
     (data, vars, names)
 }
 
@@ -134,10 +133,7 @@ fn discovery_pcmci_multivar_edges_and_matrices() {
             name_idx(&names, p["target"].as_str().unwrap()) as u32,
         ));
     }
-    assert_eq!(
-        recovered, tig_set,
-        "edge-set mismatch rust={recovered:?} discovery={tig_set:?}"
-    );
+    assert_eq!(recovered, tig_set, "edge-set mismatch rust={recovered:?} discovery={tig_set:?}");
 
     // True structural parents must be recovered.
     for p in expected["true_parents"].as_array().unwrap() {

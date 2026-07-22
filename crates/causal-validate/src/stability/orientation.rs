@@ -63,11 +63,7 @@ impl OrientationStability {
     /// Defaults: 20 replicates, block size 20, FDR off.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            pcmci_plus: PcmciPlus::new().with_fdr(false),
-            replicates: 20,
-            block_size: 20,
-        }
+        Self { pcmci_plus: PcmciPlus::new().with_fdr(false), replicates: 20, block_size: 20 }
     }
 
     /// Run orientation stability assessment.
@@ -243,13 +239,15 @@ mod tests {
     #[test]
     fn contemp_dependence_appears_in_orientation_report() {
         let (data, vars) = contemp_chain();
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.temporal = TemporalConstraints {
-            max_lag: Lag::from_raw(1),
-            min_lag: Lag::CONTEMPORANEOUS,
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            max_cond_size: 1,
+            alpha: 0.1,
+            ..Default::default()
         };
-        constraints.max_cond_size = 1;
-        constraints.alpha = 0.1;
         let stab = OrientationStability {
             pcmci_plus: PcmciPlus::new().with_fdr(false).with_constraints(constraints),
             replicates: 6,
@@ -261,6 +259,10 @@ mod tests {
         assert_eq!(report.replicates, 6);
         let any = report.directed.iter().any(|l| l.frequency > 0.0)
             || report.undirected.iter().any(|l| l.frequency > 0.0);
-        assert!(any, "expected contemp edge retention; directed={:?} undirected={:?}", report.directed, report.undirected);
+        assert!(
+            any,
+            "expected contemp edge retention; directed={:?} undirected={:?}",
+            report.directed, report.undirected
+        );
     }
 }

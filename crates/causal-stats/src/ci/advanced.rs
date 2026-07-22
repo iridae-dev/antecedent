@@ -11,7 +11,8 @@
     clippy::too_many_arguments,
     clippy::similar_names,
     clippy::many_single_char_names,
-    clippy::doc_markdown
+    clippy::doc_markdown,
+    clippy::trivially_copy_pass_by_ref
 )]
 
 use std::collections::HashMap;
@@ -21,7 +22,8 @@ use causal_core::{ExecutionContext, KernelPolicy};
 
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    KnnDependenceWorkspace, nonparametric_permutation_count, PreparedCiTest};
+    KnnDependenceWorkspace, PreparedCiTest, nonparametric_permutation_count,
+};
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
 

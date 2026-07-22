@@ -46,6 +46,8 @@ skip_dirs = {
     "node_modules",
     "__pycache__",
     ".cursor",
+    ".codeql-db",
+    ".codeql-results",
     "uv.lock",
 }
 

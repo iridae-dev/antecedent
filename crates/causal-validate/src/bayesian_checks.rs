@@ -18,7 +18,10 @@ use causal_estimate::{
 };
 use causal_identify::IdentificationStatus;
 use causal_kernels::{PosteriorReduceOp, reduce_posterior_draws, standard_normal};
-use causal_prob::{PriorSensitivitySummary, PriorSet};
+use causal_prob::{
+    BayesDesignRef, BayesFitOptions, BayesLikelihood, InferenceBackend, LaplaceGlmBackend,
+    LaplaceWorkspace, PriorSensitivitySummary, PriorSet,
+};
 use causal_stats::GlmFamily;
 
 use crate::common::RefutationReport;
@@ -528,8 +531,8 @@ impl McmcDiagnosticsCheck {
 
     /// Evaluate against a fitted posterior's diagnostics.
     ///
-    /// Returns `None` when the posterior is not MCMC (caller should emit NotApplicable).
-    pub fn check(&self, posterior: &CausalPosterior) -> Option<RefutationReport> {
+    /// Returns `None` when the posterior is not MCMC (caller should emit `NotApplicable`).
+    #[must_use] pub fn check(&self, posterior: &CausalPosterior) -> Option<RefutationReport> {
         use causal_prob::HessianFactorization;
         let d = &posterior.diagnostics;
         if d.factorization != HessianFactorization::Mcmc {
@@ -589,9 +592,9 @@ impl Default for SimulationBasedCalibration {
 /// SBC report.
 #[derive(Clone, Debug)]
 pub struct SbcReport {
-    /// Rank of the prior draw in each replicate (0..=n_draws).
+    /// Rank of the prior draw in each replicate (`0..=n_draws`).
     pub ranks: Arc<[u32]>,
-    /// Mean rank / n_draws (≈ 0.5 when calibrated).
+    /// Mean rank / `n_draws` (≈ 0.5 when calibrated).
     pub mean_rank_frac: f64,
     /// Chi² uniformity diagnostic on coarse bins (lower is better).
     pub uniformity_stat: f64,
@@ -650,15 +653,16 @@ impl SimulationBasedCalibration {
             design.outcome = Arc::from(y_rep);
             sim_problem.design = design;
             est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0x9E37));
-            let post = est.fit(&sim_problem, identification, workspace, ctx).map_err(|e| {
-                ValidationError::estimation_msg(format!("SBC refit failed: {e}"))
-            })?;
+            let post = est
+                .fit(&sim_problem, identification, workspace, ctx)
+                .map_err(|e| ValidationError::estimation_msg(format!("SBC refit failed: {e}")))?;
             let col = post
                 .effect_column()
                 .ok_or_else(|| ValidationError::estimation_msg("SBC: no effect column"))?;
-            let draws = post.draws.column(col).map_err(|e| {
-                ValidationError::estimation_msg(format!("SBC draws: {e}"))
-            })?;
+            let draws = post
+                .draws
+                .column(col)
+                .map_err(|e| ValidationError::estimation_msg(format!("SBC draws: {e}")))?;
             let mut rank = 0u32;
             for &d in draws {
                 if d < true_effect {
@@ -671,25 +675,25 @@ impl SimulationBasedCalibration {
         let n_d = self.n_draws.max(1) as f64;
         let fracs: Vec<f64> = ranks.iter().map(|&r| f64::from(r) / n_d).collect();
         let mean_rank_frac =
-            reduce_posterior_draws(&fracs, PosteriorReduceOp::Mean, &ctx.kernel_policy).unwrap_or(0.5);
+            reduce_posterior_draws(&fracs, PosteriorReduceOp::Mean, &ctx.kernel_policy)
+                .unwrap_or(0.5);
         let bins = 10usize;
         let mut counts = vec![0.0; bins];
+        let n_draws_u = u64::try_from(self.n_draws.max(1)).unwrap_or(1);
+        let bins_u = u64::try_from(bins).unwrap_or(1);
         for &r in &ranks {
-            let frac = f64::from(r) / n_d;
-            let b = ((frac * bins as f64).floor() as usize).min(bins - 1);
+            let b = usize::try_from(u64::from(r) * bins_u / n_draws_u)
+                .unwrap_or(0)
+                .min(bins - 1);
             counts[b] += 1.0;
         }
-        let expected = self.n_reps as f64 / bins as f64;
+        let expected = f64::from(self.n_reps) / bins as f64;
         let mut chi2 = 0.0;
         for c in counts {
             let d = c - expected;
             chi2 += d * d / expected.max(1.0);
         }
-        Ok(SbcReport {
-            ranks: Arc::from(ranks),
-            mean_rank_frac,
-            uniformity_stat: chi2,
-        })
+        Ok(SbcReport { ranks: Arc::from(ranks), mean_rank_frac, uniformity_stat: chi2 })
     }
 
     /// Convert to a refutation report (passes when mean rank fraction ∈ [0.35, 0.65]).
@@ -718,16 +722,12 @@ impl SimulationBasedCalibration {
 
 /// Likelihood-family comparison via leave-one-out log predictive density gap.
 #[derive(Clone, Copy, Debug)]
+#[derive(Default)]
 pub struct LikelihoodFamilyComparison {
     /// Reserved (API stability).
     pub n_placeholder: u8,
 }
 
-impl Default for LikelihoodFamilyComparison {
-    fn default() -> Self {
-        Self { n_placeholder: 0 }
-    }
-}
 
 impl LikelihoodFamilyComparison {
     /// Compare Gaussian vs Bernoulli logit Laplace fits using a LOO predictive
@@ -742,10 +742,6 @@ impl LikelihoodFamilyComparison {
         ctx: &ExecutionContext,
     ) -> Result<(Arc<str>, f64), ValidationError> {
         let _ = self;
-        use causal_prob::{
-            BayesDesignRef, BayesFitOptions, BayesLikelihood, InferenceBackend, LaplaceGlmBackend,
-            LaplaceWorkspace, PriorSet,
-        };
         let design = BayesDesignRef {
             x_colmajor: &problem.design.matrix,
             nrows: problem.design.nrows,
@@ -768,7 +764,9 @@ impl LikelihoodFamilyComparison {
             &problem.design.outcome,
         );
 
-        let binary = problem.design.outcome.iter().all(|&y| y == 0.0 || y == 1.0);
+        let binary = problem.design.outcome.iter().all(|&y| {
+            (y - 0.0).abs() < f64::EPSILON || (y - 1.0).abs() < f64::EPSILON
+        });
         if !binary {
             return Ok((Arc::from("gaussian_identity"), 0.0));
         }
@@ -822,11 +820,7 @@ fn loo_bernoulli_lpd(map: &[f64], x: &[f64], n: usize, p: usize, y: &[f64]) -> f
             eta += x[c * n + r] * map.get(c).copied().unwrap_or(0.0);
         }
         let prob = 1.0 / (1.0 + (-eta).exp());
-        lpd += if y[r] > 0.5 {
-            prob.max(1e-12).ln()
-        } else {
-            (1.0 - prob).max(1e-12).ln()
-        };
+        lpd += if y[r] > 0.5 { prob.max(1e-12).ln() } else { (1.0 - prob).max(1e-12).ln() };
     }
     lpd
 }
@@ -911,9 +905,9 @@ impl PosteriorCalibrationOnSyntheticScm {
             design.outcome = Arc::from(y);
             sim.design = design;
             est.seed = self.seed ^ (u64::from(rep).wrapping_mul(0xC2B2));
-            let post = est.fit(&sim, identification, workspace, ctx).map_err(|e| {
-                ValidationError::estimation_msg(format!("calibration refit: {e}"))
-            })?;
+            let post = est
+                .fit(&sim, identification, workspace, ctx)
+                .map_err(|e| ValidationError::estimation_msg(format!("calibration refit: {e}")))?;
             let col = post
                 .effect_column()
                 .ok_or_else(|| ValidationError::estimation_msg("calibration: no effect"))?;
@@ -921,8 +915,8 @@ impl PosteriorCalibrationOnSyntheticScm {
             draws.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             let lo = quantile_sorted(&draws, alpha);
             let hi = quantile_sorted(&draws, 1.0 - alpha);
-            let mean =
-                reduce_posterior_draws(&draws, PosteriorReduceOp::Mean, &ctx.kernel_policy).unwrap_or(0.0);
+            let mean = reduce_posterior_draws(&draws, PosteriorReduceOp::Mean, &ctx.kernel_policy)
+                .unwrap_or(0.0);
             abs_err += (mean - true_ate).abs();
             if true_ate >= lo && true_ate <= hi {
                 covered += 1;
@@ -940,7 +934,15 @@ fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
     if sorted.is_empty() {
         return 0.0;
     }
-    let q = q.clamp(0.0, 1.0);
-    let idx = ((sorted.len() - 1) as f64 * q).round() as usize;
-    sorted[idx.min(sorted.len() - 1)]
+    let max_idx = sorted.len() - 1;
+    let rank = (max_idx as f64 * q.clamp(0.0, 1.0)).round();
+    let idx = (0..=max_idx)
+        .min_by(|&a, &b| {
+            (a as f64 - rank)
+                .abs()
+                .partial_cmp(&(b as f64 - rank).abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .unwrap_or(0);
+    sorted[idx]
 }

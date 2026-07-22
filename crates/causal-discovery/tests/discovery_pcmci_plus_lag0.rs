@@ -14,8 +14,8 @@ use causal_core::{
     VariableId,
 };
 use causal_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex, TimeSeriesData,
-    ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+    TimeSeriesData, ValidityBitmap,
 };
 use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, PcmciPlus, TemporalConstraints};
 use serde_json::Value as JsonValue;
@@ -123,9 +123,7 @@ fn discovery_pcmci_plus_lag0_edge_equality() {
         .evidence
         .links
         .iter()
-        .map(|s| {
-            link_key(s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw())
-        })
+        .map(|s| link_key(s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw()))
         .collect();
 
     // Prefer graph_links (includes contemporaneous); fall back to recovered_parents.
@@ -164,10 +162,7 @@ fn discovery_pcmci_plus_lag0_edge_equality() {
         let slag = p["source_lag"].as_u64().unwrap() as u32;
         let tgt = name_to_id(p["target"].as_str().unwrap()).raw();
         let key = link_key(src, slag, tgt);
-        assert!(
-            recovered.contains(&key),
-            "missing true parent {key:?} in {recovered:?}"
-        );
+        assert!(recovered.contains(&key), "missing true parent {key:?} in {recovered:?}");
     }
     assert_eq!(result.algorithm.id.as_ref(), "pcmci_plus");
 }

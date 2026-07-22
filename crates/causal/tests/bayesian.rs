@@ -8,7 +8,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
+use causal::{
+    BayesianConfig, CausalAnalysis, InferenceMode, PredictiveCheckKind as FacadeKind,
+    RefuteSuite, decode_causal_posterior_bytes, encode_causal_posterior_bytes,
+};
 use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
@@ -19,6 +22,7 @@ use causal_estimate::{
     EstimationWorkspace, GraphEffectDraws, LinearAdjustmentAte, aggregate_effect_envelope,
     nonidentified_with_prior,
 };
+use causal_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
 use causal_expr::{ExprId, IdentifiedEstimand};
 use causal_identify::IdentificationStatus;
 use causal_prob::{
@@ -310,8 +314,6 @@ fn ppc() {
     assert!(post_rep.p_value.is_finite());
 
     // Facade attaches both prior and posterior PPC when refute ≠ none.
-    use causal::{BayesianConfig, CausalAnalysis, InferenceMode, PredictiveCheckKind as FacadeKind, RefuteSuite};
-    use causal_graph::{Dag, DenseNodeId};
     let mut dag = Dag::with_variables(3);
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
@@ -357,10 +359,8 @@ fn prior_sensitivity() {
     let prep = bayes.prepare(&data, &estimand, &query).unwrap();
     let mut ws = BayesianGCompWorkspace::default();
     let ctx = ExecutionContext::for_tests(1);
-    let sens = PriorSensitivity {
-        scales: Arc::from(scales.clone()),
-        ..PriorSensitivity::standard_grid()
-    };
+    let sens =
+        PriorSensitivity { scales: Arc::from(scales.clone()), ..PriorSensitivity::standard_grid() };
     let (summary, _) = sens
         .evaluate(&bayes, &prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
         .unwrap();
@@ -372,22 +372,19 @@ fn prior_sensitivity() {
 
 #[test]
 fn temporal_pulse() {
-    use causal::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
     use causal_core::{
-        CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet, TemporalEffectQuery,
-        TemporalPolicy, ValueType,
+        Lag, TemporalEffectQuery, TemporalPolicy,
     };
     use causal_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         TimeSeriesData, ValidityBitmap,
     };
-    use causal_graph::{TemporalDag, ensure_lagged};
 
     let expected = load_expected("temporal_pulse");
     let true_ate = expected["expected_ate"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
-    let n = expected["n"].as_u64().unwrap() as usize;
-    let n_draws = expected["n_draws"].as_u64().unwrap() as usize;
+    let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
+    let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("fixture n_draws");
 
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(

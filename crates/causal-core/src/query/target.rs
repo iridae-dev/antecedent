@@ -85,9 +85,12 @@ impl TargetPopulation {
     /// Empty predicate name or empty row set.
     pub fn validate(&self) -> Result<(), QueryError> {
         match self {
-            Self::AllObserved | Self::Treated | Self::Untreated | Self::Environment(_) => Ok(()),
             Self::Predicate(expr) => expr.validate(),
-            Self::CustomDistribution(_) => Ok(()),
+            Self::AllObserved
+            | Self::Treated
+            | Self::Untreated
+            | Self::Environment(_)
+            | Self::CustomDistribution(_) => Ok(()),
         }
     }
 }

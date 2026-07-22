@@ -69,6 +69,8 @@ pub struct TemporalIndexer {
     history: u32,
     /// Number of forward slices including offset 0.
     horizon: u32,
+    /// Cached `variable_count * (history + horizon)`.
+    dense_len: usize,
 }
 
 impl TemporalIndexer {
@@ -90,10 +92,12 @@ impl TemporalIndexer {
         let slices = history
             .checked_add(horizon)
             .ok_or(TemporalIndexError::Invalid { message: "history+horizon overflow" })?;
-        let _ = variable_count
+        let dense_u32 = variable_count
             .checked_mul(slices)
             .ok_or(TemporalIndexError::Invalid { message: "dense index space overflow" })?;
-        Ok(Self { variable_count, history, horizon })
+        let dense_len = usize::try_from(dense_u32)
+            .map_err(|_| TemporalIndexError::Invalid { message: "dense index space overflow" })?;
+        Ok(Self { variable_count, history, horizon, dense_len })
     }
 
     /// Variable count.
@@ -116,9 +120,8 @@ impl TemporalIndexer {
 
     /// Total dense nodes.
     #[must_use]
-    pub fn dense_len(&self) -> usize {
-        let slices = u64::from(self.history) + u64::from(self.horizon);
-        usize::try_from(slices * u64::from(self.variable_count)).expect("checked at construction")
+    pub const fn dense_len(&self) -> usize {
+        self.dense_len
     }
 
     /// Convert a stable key to a dense index.
@@ -137,8 +140,10 @@ impl TemporalIndexer {
                 message: "temporal offset outside unfolding window",
             });
         }
-        let dense = u64::try_from(slice).expect("non-negative") * u64::from(self.variable_count)
-            + u64::from(v);
+        let slice_u = u64::try_from(slice).map_err(|_| TemporalIndexError::Invalid {
+            message: "temporal offset outside unfolding window",
+        })?;
+        let dense = slice_u * u64::from(self.variable_count) + u64::from(v);
         u32::try_from(dense)
             .map_err(|_| TemporalIndexError::Invalid { message: "dense id exceeds u32" })
     }
@@ -149,7 +154,9 @@ impl TemporalIndexer {
     ///
     /// Out of range dense id.
     pub fn key_of(&self, dense: u32) -> Result<TemporalNodeKey, TemporalIndexError> {
-        if dense as usize >= self.dense_len() {
+        let dense_usize = usize::try_from(dense)
+            .map_err(|_| TemporalIndexError::Invalid { message: "dense id out of range" })?;
+        if dense_usize >= self.dense_len() {
             return Err(TemporalIndexError::Invalid { message: "dense id out of range" });
         }
         let vc = self.variable_count;

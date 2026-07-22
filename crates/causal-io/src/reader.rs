@@ -16,6 +16,8 @@ use crate::error::IoError;
 use crate::mmap_file::map_file_readonly;
 use crate::wire::SectionDescriptor;
 
+const MAX_SECTION_BYTES: usize = 512 * 1024 * 1024;
+
 /// Index entry for one section payload inside a seekable/mmap artifact.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SectionIndexEntry {
@@ -158,7 +160,6 @@ impl<R: Read + Seek> ArtifactReader<R> {
             .seek(SeekFrom::Start(entry.file_offset))
             .map_err(|e| IoError::Io(e.to_string()))?;
         let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
-        const MAX_SECTION_BYTES: usize = 512 * 1024 * 1024;
         if len > MAX_SECTION_BYTES {
             return Err(IoError::TooLarge);
         }
@@ -174,10 +175,7 @@ impl<R: Read + Seek> ArtifactReader<R> {
         if logical.len() != expected {
             return Err(IoError::Decompress {
                 section: desc.id.clone(),
-                message: format!(
-                    "logical size {} != uncompressed_size {expected}",
-                    logical.len()
-                ),
+                message: format!("logical size {} != uncompressed_size {expected}", logical.len()),
             });
         }
         self.note_loaded(entry.on_wire_len, decompressed);
@@ -189,10 +187,7 @@ impl<R: Read + Seek> ArtifactReader<R> {
     /// # Errors
     ///
     /// Propagates [`Self::load_section`] errors.
-    pub fn load_sections(
-        &mut self,
-        ids: &[&str],
-    ) -> Result<Vec<(String, SectionAccess)>, IoError> {
+    pub fn load_sections(&mut self, ids: &[&str]) -> Result<Vec<(String, SectionAccess)>, IoError> {
         let mut out = Vec::with_capacity(ids.len());
         for id in ids {
             let access = self.load_section(id)?;
@@ -305,7 +300,7 @@ impl MappedArtifactReader {
         }
         let start = usize::try_from(entry.file_offset).map_err(|_| IoError::TooLarge)?;
         let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
-        if start.checked_add(len).map(|end| end > self.mmap.len()).unwrap_or(true) {
+        if start.checked_add(len).is_none_or(|end| end > self.mmap.len()) {
             return Err(IoError::Io("mmap section range out of bounds".into()));
         }
         let on_wire = &self.mmap[start..start + len];
@@ -315,9 +310,7 @@ impl MappedArtifactReader {
         }
         let expected = usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
         if on_wire.len() != expected {
-            return Err(IoError::ManifestMismatch {
-                message: "uncompressed mmap size mismatch",
-            });
+            return Err(IoError::ManifestMismatch { message: "uncompressed mmap size mismatch" });
         }
         self.stats.mmap_views += 1;
         self.stats.sections_loaded += 1;
@@ -327,12 +320,7 @@ impl MappedArtifactReader {
             self.stats.bytes_skipped =
                 self.stats.bytes_skipped.saturating_sub(u64::from(entry.on_wire_len));
         }
-        Ok(MappedSection {
-            mmap: Arc::clone(&self.mmap),
-            start,
-            len,
-            id: id.into(),
-        })
+        Ok(MappedSection { mmap: Arc::clone(&self.mmap), start, len, id: id.into() })
     }
 
     /// Load logical bytes (decompress when needed). Copies on-wire into a heap buffer.
@@ -361,10 +349,7 @@ impl MappedArtifactReader {
         if logical.len() != expected {
             return Err(IoError::Decompress {
                 section: desc.id.clone(),
-                message: format!(
-                    "logical size {} != uncompressed_size {expected}",
-                    logical.len()
-                ),
+                message: format!("logical size {} != uncompressed_size {expected}", logical.len()),
             });
         }
         self.stats.sections_loaded += 1;
@@ -407,11 +392,7 @@ fn index_seekable<R: Read + Seek>(
         let file_offset = r.stream_position().map_err(|e| IoError::Io(e.to_string()))?;
         r.seek(SeekFrom::Current(i64::from(on_wire_len)))
             .map_err(|e| IoError::Io(e.to_string()))?;
-        index.push(SectionIndexEntry {
-            id: desc.id.clone(),
-            file_offset,
-            on_wire_len,
-        });
+        index.push(SectionIndexEntry { id: desc.id.clone(), file_offset, on_wire_len });
     }
     Ok((manifest, index, stats))
 }

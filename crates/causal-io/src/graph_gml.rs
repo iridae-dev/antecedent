@@ -72,7 +72,8 @@ pub fn dag_wire_from_gml(gml: &str) -> Result<DagWire, IoError> {
                     }
                 }
                 expect_char(&tokens, &mut i, ']')?;
-                let name = label.or(id).ok_or_else(|| IoError::Convert("node missing id".into()))?;
+                let name =
+                    label.or(id).ok_or_else(|| IoError::Convert("node missing id".into()))?;
                 intern(&name, &mut order, &mut index)?;
             }
             Tok::Ident(k) if k.eq_ignore_ascii_case("edge") => {
@@ -126,27 +127,22 @@ pub fn dag_wire_from_gml(gml: &str) -> Result<DagWire, IoError> {
 pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> String {
     let mut out = String::from("graph [\n  directed 1\n");
     for i in 0..wire.node_count {
-        let label = names
-            .and_then(|n| n.get(i as usize))
-            .cloned()
-            .unwrap_or_else(|| i.to_string());
-        out.push_str(&format!(
-            "  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n"
-        ));
+        let label = names.and_then(|n| n.get(i as usize)).cloned().unwrap_or_else(|| i.to_string());
+        out.push_str(&format!("  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n"));
     }
     for &(a, b) in &wire.edges {
         let sa = names.and_then(|n| n.get(a as usize)).cloned().unwrap_or_else(|| a.to_string());
         let sb = names.and_then(|n| n.get(b as usize)).cloned().unwrap_or_else(|| b.to_string());
-        out.push_str(&format!(
-            "  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n  ]\n"
-        ));
+        out.push_str(&format!("  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n  ]\n"));
     }
     out.push(']');
     out
 }
 
 fn remap_numeric_if_possible(order: &[String], edges: &[(u32, u32)]) -> DagWire {
-    let n = order.len() as u32;
+    let Ok(n) = u32::try_from(order.len()) else {
+        return DagWire { node_count: 0, edges: edges.to_vec() };
+    };
     let all_numeric = order.iter().all(|s| s.parse::<u32>().is_ok());
     if all_numeric {
         let mut vals: Vec<u32> = order.iter().map(|s| s.parse().unwrap()).collect();
@@ -154,7 +150,9 @@ fn remap_numeric_if_possible(order: &[String], edges: &[(u32, u32)]) -> DagWire 
         if vals.iter().copied().eq(0..n) {
             let mut map = HashMap::new();
             for (i, s) in order.iter().enumerate() {
-                map.insert(i as u32, s.parse::<u32>().unwrap());
+                if let Ok(i_u32) = u32::try_from(i) {
+                    map.insert(i_u32, s.parse::<u32>().unwrap());
+                }
             }
             let edges = edges
                 .iter()
@@ -166,7 +164,11 @@ fn remap_numeric_if_possible(order: &[String], edges: &[(u32, u32)]) -> DagWire 
     DagWire { node_count: n, edges: edges.to_vec() }
 }
 
-fn intern(name: &str, order: &mut Vec<String>, index: &mut HashMap<String, u32>) -> Result<u32, IoError> {
+fn intern(
+    name: &str,
+    order: &mut Vec<String>,
+    index: &mut HashMap<String, u32>,
+) -> Result<u32, IoError> {
     if let Some(&id) = index.get(name) {
         return Ok(id);
     }
@@ -233,9 +235,8 @@ pub(crate) fn tokenize(input: &str) -> Result<Vec<Tok>, IoError> {
                 i += 1;
             }
             let s = std::str::from_utf8(&bytes[start..i]).unwrap_or("");
-            let n: f64 = s
-                .parse()
-                .map_err(|_| IoError::Convert(format!("bad GML number `{s}`")))?;
+            let n: f64 =
+                s.parse().map_err(|_| IoError::Convert(format!("bad GML number `{s}`")))?;
             out.push(Tok::Number(n));
             continue;
         }
@@ -298,18 +299,14 @@ pub(crate) fn expect_number(tokens: &[Tok], i: &mut usize) -> Result<f64, IoErro
 
 pub(crate) fn expect_value(tokens: &[Tok], i: &mut usize) -> Result<String, IoError> {
     match tokens.get(*i) {
-        Some(Tok::String(s)) => {
-            *i += 1;
-            Ok(s.clone())
-        }
-        Some(Tok::Ident(s)) => {
+        Some(Tok::String(s) | Tok::Ident(s)) => {
             *i += 1;
             Ok(s.clone())
         }
         Some(Tok::Number(n)) => {
             *i += 1;
             if n.fract() == 0.0 && *n >= 0.0 {
-                Ok(format!("{}", *n as i64))
+                Ok(format!("{n:.0}"))
             } else {
                 Ok(n.to_string())
             }

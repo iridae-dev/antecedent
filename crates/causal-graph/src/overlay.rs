@@ -262,65 +262,75 @@ mod tests {
         let mut rng = CausalRng::from_seed(17);
         let mut ws = DSeparationWorkspace::default();
         for _ in 0..40 {
-            let n = 4 + (rng.next_u64() % 3) as u32; // 4..=6
-            let mut g = Dag::with_variables(n);
-            let mut order: Vec<u32> = (0..n).collect();
-            for i in (1..n as usize).rev() {
-                let j = (rng.next_u64() as usize) % (i + 1);
+            let node_count = 4 + u32::try_from(rng.next_u64() % 3).unwrap_or(0); // 4..=6
+            let mut graph = Dag::with_variables(node_count);
+            let mut order: Vec<u32> = (0..node_count).collect();
+            let n_usize = usize::try_from(node_count).unwrap_or(0);
+            for i in (1..n_usize).rev() {
+                let bound = u64::try_from(i + 1).unwrap_or(1);
+                let j = usize::try_from(rng.next_u64() % bound).unwrap_or(0);
                 order.swap(i, j);
             }
-            for i in 0..n as usize {
-                for j in (i + 1)..n as usize {
+            for i in 0..n_usize {
+                for j in (i + 1)..n_usize {
                     if rng.next_u64() % 3 == 0 {
-                        let _ = g.insert_directed(
+                        let _ = graph.insert_directed(
                             DenseNodeId::from_raw(order[i]),
                             DenseNodeId::from_raw(order[j]),
                         );
                     }
                 }
             }
-            let k = 1 + (rng.next_u64() as usize % (n as usize).min(3));
+            let treat_cap = n_usize.clamp(1, 3);
+            let treat_bound = u64::try_from(treat_cap).unwrap_or(1);
+            let n_treated = 1 + usize::try_from(rng.next_u64() % treat_bound).unwrap_or(0);
             let mut treated = Vec::new();
-            while treated.len() < k {
-                let t = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
-                if !treated.contains(&t) {
-                    treated.push(t);
+            while treated.len() < n_treated {
+                let raw = u32::try_from(rng.next_u64() % u64::from(node_count)).unwrap_or(0);
+                let treatment = DenseNodeId::from_raw(raw);
+                if !treated.contains(&treatment) {
+                    treated.push(treatment);
                 }
             }
-            let overlay = GraphOverlay::do_intervention(g.node_count(), &treated);
-            let view = g.view(&overlay);
-            let mutilated = g.mutilate(&treated).unwrap();
+            let overlay = GraphOverlay::do_intervention(graph.node_count(), &treated);
+            let view = graph.view(&overlay);
+            let mutilated = graph.mutilate(&treated).unwrap();
             // Structure agreement.
             let mat = view.materialize().unwrap();
-            for i in 0..n {
+            for i in 0..node_count {
                 let u = DenseNodeId::from_raw(i);
                 assert_eq!(mat.children(u), mutilated.children(u));
             }
             // d-sep agreement on random queries.
             for _ in 0..12 {
-                let x = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
-                let mut y = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
-                while y == x {
-                    y = DenseNodeId::from_raw(rng.next_u64() as u32 % n);
+                let x_raw = u32::try_from(rng.next_u64() % u64::from(node_count)).unwrap_or(0);
+                let source = DenseNodeId::from_raw(x_raw);
+                let mut y_raw = u32::try_from(rng.next_u64() % u64::from(node_count)).unwrap_or(0);
+                let mut target = DenseNodeId::from_raw(y_raw);
+                while target == source {
+                    y_raw = u32::try_from(rng.next_u64() % u64::from(node_count)).unwrap_or(0);
+                    target = DenseNodeId::from_raw(y_raw);
                 }
-                let mut z = Vec::new();
-                for i in 0..n {
-                    let v = DenseNodeId::from_raw(i);
-                    if v == x || v == y {
+                let mut conditioning = Vec::new();
+                for i in 0..node_count {
+                    let node = DenseNodeId::from_raw(i);
+                    if node == source || node == target {
                         continue;
                     }
                     if rng.next_u64() % 2 == 0 {
-                        z.push(v);
+                        conditioning.push(node);
                     }
                 }
-                let view_sep = view.is_d_separated(x, y, &z, &mut ws).unwrap();
-                let mut_sep = mutilated.is_d_separated(x, y, &z, &mut ws).unwrap();
+                let view_sep = view.is_d_separated(source, target, &conditioning, &mut ws).unwrap();
+                let mut_sep =
+                    mutilated.is_d_separated(source, target, &conditioning, &mut ws).unwrap();
                 assert_eq!(
-                    view_sep, mut_sep,
+                    view_sep,
+                    mut_sep,
                     "overlay≠mutilate d-sep x={} y={} z={:?} T={:?}",
-                    x.raw(),
-                    y.raw(),
-                    z.iter().map(|v| v.raw()).collect::<Vec<_>>(),
+                    source.raw(),
+                    target.raw(),
+                    conditioning.iter().map(|v| v.raw()).collect::<Vec<_>>(),
                     treated.iter().map(|v| v.raw()).collect::<Vec<_>>()
                 );
             }

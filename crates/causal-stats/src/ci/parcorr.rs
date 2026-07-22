@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_lossless)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_lossless,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::unused_self
+)]
 
 use causal_core::{ExecutionContext, KernelPolicy};
 use causal_kernels::{
@@ -13,10 +19,11 @@ use super::analytic::{analytic_parcorr_ci, analytic_parcorr_pvalue};
 use super::block_shuffle::block_shuffle_pvalue;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod, SignificanceMethod, PreparedCiTest};
+    ConfidenceMethod, PreparedCiTest, SignificanceMethod,
+};
 use crate::error::StatsError;
 
-/// Map [`KernelPolicy`] to the ParCorr batch mode (no arch-SIMD path).
+/// Map [`KernelPolicy`] to the `ParCorr` batch mode (no arch-SIMD path).
 #[must_use]
 pub(crate) fn parcorr_mode(policy: &KernelPolicy) -> ParCorrMode {
     match select_impl(policy) {

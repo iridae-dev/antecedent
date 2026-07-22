@@ -14,7 +14,7 @@ pub use false_positive::{FalsePositiveCheck, FalsePositiveCheckReport, NullTrans
 pub use null_calibration::{NullCalibrationReport, SyntheticNullCalibration};
 pub use orientation::{OrientationStability, OrientationStabilityReport, UndirectedLinkStability};
 pub use pcmci_grid::{
-    AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity, DiscoveryStabilityReport,
-    LagWindowSensitivity, LinkStability,
+    AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity,
+    DiscoveryStabilityReport, LagWindowSensitivity, LinkStability,
 };
 pub use regime::{RegimeStability, RegimeStabilityReport};

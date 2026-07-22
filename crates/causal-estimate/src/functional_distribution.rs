@@ -3,14 +3,21 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::manual_flatten,
+    clippy::needless_pass_by_value,
+    clippy::type_complexity,
+    clippy::zero_sized_map_values
+)]
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use causal_core::{
-    AssumptionSet, ExecutionContext, InterventionalDistributionQuery, Intervention, TargetPopulation,
-    Value, VariableId,
+    AssumptionSet, ExecutionContext, Intervention, InterventionalDistributionQuery,
+    TargetPopulation, Value, VariableId,
 };
 use causal_data::{ColumnView, TableView, TabularData};
 use causal_expr::{
@@ -22,7 +29,7 @@ use causal_expr::{
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::prepare::require_method;
-use crate::util::{bootstrap_se, BootstrapSeResult};
+use crate::util::{BootstrapSeResult, bootstrap_se};
 
 /// Hard cap on discrete levels per variable (fail-closed beyond this).
 const MAX_DISCRETE_LEVELS: usize = 64;
@@ -79,7 +86,7 @@ impl FunctionalDistributionWorkspace {
 /// Prepared discrete functional-distribution problem.
 #[derive(Clone, Debug)]
 pub struct PreparedFunctionalDistribution {
-    /// Identified estimand (GeneralId / IDC).
+    /// Identified estimand (`GeneralId` / IDC).
     pub estimand: IdentifiedEstimand,
     /// Expression arena owning the functional.
     pub arena: CausalExprArena,
@@ -123,13 +130,10 @@ impl FunctionalDistribution {
     /// Create with default overlap override (CPT positivity is data-driven).
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            overlap: OverlapPolicy::ExplicitOverride,
-            bootstrap_replicates: 0,
-        }
+        Self { overlap: OverlapPolicy::ExplicitOverride, bootstrap_replicates: 0 }
     }
 
-    /// Prepare from an identified GeneralId functional and tabular data.
+    /// Prepare from an identified `GeneralId` functional and tabular data.
     ///
     /// # Errors
     ///
@@ -256,8 +260,7 @@ impl FunctionalDistribution {
     ) -> Result<InterventionalDistributionEstimate, EstimationError> {
         workspace.clear();
 
-        let needed_z: Vec<VariableId> =
-            prepared.conditioning.iter().map(|a| a.variable).collect();
+        let needed_z: Vec<VariableId> = prepared.conditioning.iter().map(|a| a.variable).collect();
         let z_points: Vec<Vec<(VariableId, Value)>> = if needed_z.is_empty() {
             if !conditioning_values.is_empty() {
                 return Err(EstimationError::unsupported(
@@ -266,19 +269,11 @@ impl FunctionalDistribution {
             }
             vec![Vec::new()]
         } else if conditioning_values.is_empty() {
-            let support = prepared
-                .provider
-                .support(&needed_z, &EvalContext::default())
-                .map_err(eval_err)?;
+            let support =
+                prepared.provider.support(&needed_z, &EvalContext::default()).map_err(eval_err)?;
             support
                 .iter()
-                .map(|row| {
-                    needed_z
-                        .iter()
-                        .copied()
-                        .zip(row.iter().cloned())
-                        .collect::<Vec<_>>()
-                })
+                .map(|row| needed_z.iter().copied().zip(row.iter().cloned()).collect::<Vec<_>>())
                 .collect()
         } else {
             let provided: HashSet<VariableId> =
@@ -402,10 +397,7 @@ impl FunctionalEffect {
     /// Create with explicit overlap override.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            overlap: OverlapPolicy::ExplicitOverride,
-            bootstrap_replicates: 0,
-        }
+        Self { overlap: OverlapPolicy::ExplicitOverride, bootstrap_replicates: 0 }
     }
 
     /// Prepare CPT plug-in for a path-specific / general-ID contrast functional.
@@ -572,7 +564,7 @@ fn collect_observational_factors(
     out
 }
 
-/// Collect (variables, conditioned_on, intervention set, domain) for CPT duplication.
+/// Collect (variables, `conditioned_on`, intervention set, domain) for CPT duplication.
 fn collect_factor_signatures(
     arena: &CausalExprArena,
     root: ExprId,
@@ -590,10 +582,7 @@ fn collect_factor_signatures(
                 let key = (
                     vars.as_ref().to_vec(),
                     cond.as_ref().to_vec(),
-                    interv
-                        .iter()
-                        .map(|a| (a.variable.raw(), a.value.clone()))
-                        .collect::<Vec<_>>(),
+                    interv.iter().map(|a| (a.variable.raw(), a.value.clone())).collect::<Vec<_>>(),
                     *domain,
                 );
                 if seen.insert(key) {
@@ -626,7 +615,12 @@ fn build_empirical_provider(
     data: &TabularData,
     vars_needed: &HashSet<VariableId>,
     factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
-    signatures: &[(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)],
+    signatures: &[(
+        Arc<[VariableId]>,
+        Arc<[VariableId]>,
+        Arc<[InterventionAssignment]>,
+        DomainRef,
+    )],
 ) -> Result<(EmpiricalTableProvider, HashMap<VariableId, Vec<Option<Value>>>), EstimationError> {
     let mut columns: HashMap<VariableId, Vec<Option<Value>>> = HashMap::new();
     let n = data.row_count();
@@ -650,7 +644,8 @@ fn gather_columns(
     columns
         .iter()
         .map(|(&id, col)| {
-            let gathered: Vec<Option<Value>> = idx.iter().map(|&i| col.get(i).cloned().flatten()).collect();
+            let gathered: Vec<Option<Value>> =
+                idx.iter().map(|&i| col.get(i).cloned().flatten()).collect();
             (id, gathered)
         })
         .collect()
@@ -660,7 +655,12 @@ fn provider_from_columns(
     columns: &HashMap<VariableId, Vec<Option<Value>>>,
     n: usize,
     factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
-    signatures: &[(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)],
+    signatures: &[(
+        Arc<[VariableId]>,
+        Arc<[VariableId]>,
+        Arc<[InterventionAssignment]>,
+        DomainRef,
+    )],
 ) -> Result<EmpiricalTableProvider, EstimationError> {
     let mut domains: HashMap<VariableId, Vec<Value>> = HashMap::new();
     for (&id, col) in columns {
@@ -688,24 +688,14 @@ fn provider_from_columns(
         intervention: &[],
         domain: DomainRef::Observational,
     };
-    provider
-        .insert_probability(&empty_spec, &Assignment::from_pairs([]), 1.0)
-        .map_err(eval_err)?;
+    provider.insert_probability(&empty_spec, &Assignment::from_pairs([]), 1.0).map_err(eval_err)?;
 
     for (vars, cond) in factors {
         if vars.is_empty() && cond.is_empty() {
             continue;
         }
         // Observational CPT.
-        insert_cpt(
-            &mut provider,
-            columns,
-            n,
-            vars,
-            cond,
-            &[],
-            DomainRef::Observational,
-        )?;
+        insert_cpt(&mut provider, columns, n, vars, cond, &[], DomainRef::Observational)?;
         // Duplicate under every interventional signature with the same (vars, cond).
         for (s_vars, s_cond, interv, domain) in signatures {
             if s_vars.as_ref() != vars.as_ref() || s_cond.as_ref() != cond.as_ref() {
@@ -716,21 +706,10 @@ fn provider_from_columns(
             }
             // Intervened coordinates in `vars` are Dirac under do(.); other factors
             // reuse the observational CPT under the interventional FactorKey.
-            let intervened_in_vars: Vec<_> = interv
-                .iter()
-                .filter(|a| vars.iter().any(|&v| v == a.variable))
-                .cloned()
-                .collect();
+            let intervened_in_vars: Vec<_> =
+                interv.iter().filter(|a| vars.iter().any(|&v| v == a.variable)).cloned().collect();
             if intervened_in_vars.is_empty() {
-                insert_cpt(
-                    &mut provider,
-                    columns,
-                    n,
-                    vars,
-                    cond,
-                    interv.as_ref(),
-                    *domain,
-                )?;
+                insert_cpt(&mut provider, columns, n, vars, cond, interv.as_ref(), *domain)?;
             } else {
                 insert_dirac_intervened(
                     &mut provider,
@@ -780,18 +759,15 @@ fn insert_dirac_intervened(
             // Probability 1: intervened vars are fixed; free vars still need a
             // density — if there are free vars, fall back is wrong. For pure
             // Dirac on all vars, mass is 1 only for the intervened assignment.
-            let p = if free.is_empty() { 1.0 } else {
+            let p = if free.is_empty() {
+                1.0
+            } else {
                 // Should not happen for ID treatment factors; refuse.
                 return Err(EstimationError::unsupported(
                     "intervened factor with free variables is unsupported in functional.effect",
                 ));
             };
-            let spec = FactorSpec {
-                variables: vars,
-                conditioned_on: cond,
-                intervention,
-                domain,
-            };
+            let spec = FactorSpec { variables: vars, conditioned_on: cond, intervention, domain };
             provider.insert_probability(&spec, &assign, p).map_err(eval_err)?;
         }
     }
@@ -838,12 +814,9 @@ fn insert_cpt(
         let mut ok = true;
         let mut cond_vals = Vec::with_capacity(cond.len());
         for &v in cond {
-            match columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) {
-                Some(val) => cond_vals.push(val.clone()),
-                None => {
-                    ok = false;
-                    break;
-                }
+            if let Some(val) = columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) { cond_vals.push(val.clone()) } else {
+                ok = false;
+                break;
             }
         }
         if !ok {
@@ -851,12 +824,9 @@ fn insert_cpt(
         }
         let mut var_vals = Vec::with_capacity(vars.len());
         for &v in vars {
-            match columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) {
-                Some(val) => var_vals.push(val.clone()),
-                None => {
-                    ok = false;
-                    break;
-                }
+            if let Some(val) = columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) { var_vals.push(val.clone()) } else {
+                ok = false;
+                break;
             }
         }
         if !ok {
@@ -873,20 +843,12 @@ fn insert_cpt(
         if total == 0 {
             return Err(EstimationError::data_msg("no complete cases for CPT"));
         }
-        let var_rows = cartesian_domain(
-            &domains_for_insert(columns, vars)?,
-            vars,
-        )?;
+        let var_rows = cartesian_domain(&domains_for_insert(columns, vars)?, vars)?;
         for var_vals in &var_rows {
             let key = var_vals.clone();
             let count = joint.get(&key).copied().unwrap_or(0);
             let assign = Assignment::from_pairs(vars.iter().copied().zip(var_vals.iter().cloned()));
-            let spec = FactorSpec {
-                variables: vars,
-                conditioned_on: cond,
-                intervention,
-                domain,
-            };
+            let spec = FactorSpec { variables: vars, conditioned_on: cond, intervention, domain };
             provider
                 .insert_probability(&spec, &assign, count as f64 / total as f64)
                 .map_err(eval_err)?;
@@ -900,23 +862,15 @@ fn insert_cpt(
                 let mut key = var_vals.clone();
                 key.extend(cond_vals.iter().cloned());
                 let count = joint.get(&key).copied().unwrap_or(0);
-                let p = if cond_count == 0 {
-                    0.0
-                } else {
-                    count as f64 / cond_count as f64
-                };
+                let p = if cond_count == 0 { 0.0 } else { count as f64 / cond_count as f64 };
                 let assign = Assignment::from_pairs(
                     vars.iter()
                         .copied()
                         .zip(var_vals.iter().cloned())
                         .chain(cond.iter().copied().zip(cond_vals.iter().cloned())),
                 );
-                let spec = FactorSpec {
-                    variables: vars,
-                    conditioned_on: cond,
-                    intervention,
-                    domain,
-                };
+                let spec =
+                    FactorSpec { variables: vars, conditioned_on: cond, intervention, domain };
                 provider.insert_probability(&spec, &assign, p).map_err(eval_err)?;
             }
         }
@@ -1152,16 +1106,9 @@ mod tests {
             )
             .unwrap();
         let mut ews = FunctionalDistributionWorkspace::default();
-        let out = est
-            .estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(0))
-            .unwrap();
+        let out = est.estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(0)).unwrap();
         // E[Y|do(T=1)] = 0.7
-        assert!(
-            (out.mean - 0.7).abs() < 0.05,
-            "mean={} atoms={:?}",
-            out.mean,
-            out.atoms
-        );
+        assert!((out.mean - 0.7).abs() < 0.05, "mean={} atoms={:?}", out.mean, out.atoms);
         let mass: f64 = out.atoms.iter().map(|a| a.probability).sum();
         assert!((mass - 1.0).abs() < 1e-6, "mass={mass}");
     }
@@ -1187,10 +1134,8 @@ mod tests {
         let id_res = id.identify(&prep, &cq, &mut ws).unwrap();
 
         let data = binary_confounding_table();
-        let est = FunctionalDistribution {
-            bootstrap_replicates: 40,
-            ..FunctionalDistribution::new()
-        };
+        let est =
+            FunctionalDistribution { bootstrap_replicates: 40, ..FunctionalDistribution::new() };
         let prepared = est
             .prepare(
                 &data,
@@ -1201,9 +1146,7 @@ mod tests {
             )
             .unwrap();
         let mut ews = FunctionalDistributionWorkspace::default();
-        let out = est
-            .estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(7))
-            .unwrap();
+        let out = est.estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(7)).unwrap();
         let se = out.se_bootstrap.expect("bootstrap SE");
         assert!(se.is_finite() && se > 0.0, "se={se}");
     }

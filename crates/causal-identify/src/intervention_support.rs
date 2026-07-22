@@ -1,10 +1,17 @@
 //! Intervention normalization and hard-Set extraction for identifiers.
 //!
-//! Soft(constant), Soft(additive_shift), Shift, degenerate Stochastic, and
+//! Soft(constant), `Soft(additive_shift)`, Shift, degenerate Stochastic, and
 //! Sequence-of-Sets reduce to hard Sets (or Set levels) for nonparametric ID.
 //! Arbitrary Soft families and continuous Stochastic policies remain unsupported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::float_cmp
+)]
 
 use causal_core::{Intervention, InterventionSequence, StochasticPolicy, Value};
 
@@ -31,9 +38,7 @@ pub(crate) fn non_set_unsupported_message(kind: &'static str) -> &'static str {
             "supports hard Set (and Soft(constant)/Soft(additive_shift) reductions) only; \
              got Soft with an unsupported mechanism family"
         }
-        "Shift" => {
-            "supports hard Set / Shift levels only; got an unsupported Shift form"
-        }
+        "Shift" => "supports hard Set / Shift levels only; got an unsupported Shift form",
         "Stochastic" => {
             "supports hard Set and discrete Stochastic (Bernoulli / Categorical) only; \
              got an unsupported Stochastic policy (e.g. continuous Gaussian)"
@@ -60,7 +65,9 @@ pub(crate) fn non_set_unsupported_message(kind: &'static str) -> &'static str {
 /// # Errors
 ///
 /// Unsupported Soft family, continuous Stochastic, empty/mixed Sequence, etc.
-pub(crate) fn normalize_to_set(intervention: &Intervention) -> Result<Intervention, IdentificationError> {
+pub(crate) fn normalize_to_set(
+    intervention: &Intervention,
+) -> Result<Intervention, IdentificationError> {
     match intervention {
         Intervention::Set { .. } => Ok(intervention.clone()),
         Intervention::Soft { variable, mechanism } => {
@@ -76,7 +83,9 @@ pub(crate) fn normalize_to_set(intervention: &Intervention) -> Result<Interventi
                 ));
             }
             match family {
-                "constant" | "additive_shift" => Ok(Intervention::set(*variable, Value::f64(param))),
+                "constant" | "additive_shift" => {
+                    Ok(Intervention::set(*variable, Value::f64(param)))
+                }
                 _ => Err(IdentificationError::unsupported(non_set_unsupported_message("Soft"))),
             }
         }
@@ -119,12 +128,8 @@ pub(crate) fn normalize_to_set(intervention: &Intervention) -> Result<Interventi
                 }
             }
             StochasticPolicy::Categorical { probs } => {
-                let ones: Vec<usize> = probs
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, p)| **p == 1.0)
-                    .map(|(i, _)| i)
-                    .collect();
+                let ones: Vec<usize> =
+                    probs.iter().enumerate().filter(|(_, p)| **p == 1.0).map(|(i, _)| i).collect();
                 if ones.len() == 1 && probs.iter().all(|p| *p == 0.0 || *p == 1.0) {
                     Ok(Intervention::set(*variable, Value::f64(ones[0] as f64)))
                 } else {
@@ -133,12 +138,10 @@ pub(crate) fn normalize_to_set(intervention: &Intervention) -> Result<Interventi
                     ))
                 }
             }
-            StochasticPolicy::Gaussian { .. } => Err(IdentificationError::unsupported(
-                non_set_unsupported_message("Stochastic"),
-            )),
-            _ => Err(IdentificationError::unsupported(non_set_unsupported_message(
-                "Stochastic",
-            ))),
+            StochasticPolicy::Gaussian { .. } => {
+                Err(IdentificationError::unsupported(non_set_unsupported_message("Stochastic")))
+            }
+            _ => Err(IdentificationError::unsupported(non_set_unsupported_message("Stochastic"))),
         },
         Intervention::Sequence(seq) => normalize_sequence_to_set(seq),
         other => Err(IdentificationError::unsupported(non_set_unsupported_message(
@@ -173,9 +176,7 @@ fn normalize_sequence_to_set(
         ));
     }
     // Last assignment wins (temporal overwrite on the same variable).
-    Ok(normalized
-        .pop()
-        .expect("non-empty after check"))
+    Ok(normalized.pop().expect("non-empty after check"))
 }
 
 /// Normalize a list of interventions for Distribution queries (multi-do).
@@ -246,10 +247,8 @@ pub(crate) fn normalize_ate_pair(
     let a_bern = bernoulli_weight(active)?;
     let c_bern = bernoulli_weight(control)?;
     if a_bern.is_some() || c_bern.is_some() {
-        let va = active
-            .primary_variable()
-            .or_else(|| control.primary_variable())
-            .ok_or_else(|| {
+        let va =
+            active.primary_variable().or_else(|| control.primary_variable()).ok_or_else(|| {
                 IdentificationError::unsupported("Bernoulli ATE missing treatment variable")
             })?;
         let wa = match a_bern {
@@ -271,10 +270,7 @@ pub(crate) fn normalize_ate_pair(
 
 fn bernoulli_weight(intervention: &Intervention) -> Result<Option<f64>, IdentificationError> {
     match intervention {
-        Intervention::Stochastic {
-            policy: StochasticPolicy::Bernoulli { p },
-            ..
-        } => {
+        Intervention::Stochastic { policy: StochasticPolicy::Bernoulli { p }, .. } => {
             if !p.is_finite() || !(0.0..=1.0).contains(p) {
                 return Err(IdentificationError::unsupported(
                     "Bernoulli p must be finite and in [0, 1]",

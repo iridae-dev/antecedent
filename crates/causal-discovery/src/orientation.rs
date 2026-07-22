@@ -333,15 +333,18 @@ impl OrientationState {
     }
 
     /// Record an orientation conflict on `{a,b}` (cycle or opposite direction).
-    pub fn record_conflict(&mut self, delta: &mut RuleDelta, a: DenseNodeId, b: DenseNodeId, kind: &str) {
+    pub fn record_conflict(
+        &mut self,
+        delta: &mut RuleDelta,
+        a: DenseNodeId,
+        b: DenseNodeId,
+        kind: &str,
+    ) {
         let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
         self.conflict_edges.insert(key);
         self.conflicts = self.conflicts.saturating_add(1);
         delta.conflicts = delta.conflicts.saturating_add(1);
-        delta.premises.push(Arc::from(format!(
-            "conflict({kind}): {}—{}",
-            key.0, key.1
-        )));
+        delta.premises.push(Arc::from(format!("conflict({kind}): {}—{}", key.0, key.1)));
     }
 }
 
@@ -627,8 +630,7 @@ fn apply_meek_r3<G: CpdagOps>(
                 }
             }
             if orient {
-                let premise =
-                    format!("meek.r3: {}—{} via nonadjacent mediators", a.raw(), b.raw());
+                let premise = format!("meek.r3: {}—{} via nonadjacent mediators", a.raw(), b.raw());
                 if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
                     changed.push(*a);
                     changed.push(b);
@@ -709,8 +711,7 @@ fn apply_meek_r4<G: CpdagOps>(
                 }
             }
             if orient {
-                let premise =
-                    format!("meek.r4: {}—{} via discriminating path", a.raw(), b.raw());
+                let premise = format!("meek.r4: {}—{} via discriminating path", a.raw(), b.raw());
                 if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
                     changed.push(*a);
                     changed.push(b);
@@ -975,11 +976,8 @@ impl OrientationRule for ContempMeekR4 {
                     }
                 }
                 if orient {
-                    let premise = format!(
-                        "meek.r4.contemp: {}—{} via discriminating path",
-                        a.raw(),
-                        b.raw()
-                    );
+                    let premise =
+                        format!("meek.r4.contemp: {}—{} via discriminating path", a.raw(), b.raw());
                     if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
                         changed.push(*a);
                         changed.push(b);
@@ -1037,12 +1035,7 @@ fn apply_orient_collider<G: CpdagOps>(
                 for &(endpoint, kind) in &[(a, a_kind), (b, b_kind)] {
                     match kind {
                         LegKind::OutOfC => {
-                            state.record_conflict(
-                                &mut delta,
-                                endpoint,
-                                *c,
-                                "opposite_direction",
-                            );
+                            state.record_conflict(&mut delta, endpoint, *c, "opposite_direction");
                             if graph.mark_conflict(endpoint, *c).is_ok() {
                                 delta.edges_changed += 1;
                                 delta.fixed_point = false;
@@ -1207,7 +1200,6 @@ pub fn run_static_orientation_to_fixed_point(
     }
     Ok(total)
 }
-
 
 #[cfg(test)]
 #[path = "orientation_tests.rs"]

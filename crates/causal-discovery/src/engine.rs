@@ -6,10 +6,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
     clippy::similar_names,
-    clippy::too_many_lines
+    clippy::too_many_lines,
+    clippy::type_complexity
 )]
 
 use std::collections::HashMap;
@@ -20,7 +21,7 @@ use causal_data::{LaggedFrame, TimeSeriesData, VectorVariableGroups, column_bloc
 use causal_graph::TemporalGraphReview;
 use causal_stats::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
-    PairwiseMultivariateCi, PreparedCiTest, PartialCorrelation,
+    PairwiseMultivariateCi, PartialCorrelation, PreparedCiTest,
 };
 
 use crate::constraints::{CompiledConstraints, DiscoveryConstraints};
@@ -308,10 +309,7 @@ impl PcmciEngine {
         );
         workspace.others = cond;
         let (stat, p) = result?;
-        Ok((
-            ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None },
-            truncated,
-        ))
+        Ok((ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None }, truncated))
     }
 
     /// Run PC parents for all targets then MCI on the full constrained candidate family.
@@ -339,9 +337,8 @@ impl PcmciEngine {
         // Align with pinned baseline's default `cut_off='2xtau_max'`: both PC and MCI use a
         // frame materializing lags up to 2·max_lag (same effective sample count).
         let frame_depth = 2 * max_lag;
-        let frame =
-            LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
-                .map_err(DiscoveryError::from)?;
+        let frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
+            .map_err(DiscoveryError::from)?;
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
@@ -350,13 +347,14 @@ impl PcmciEngine {
             }
         }
 
-        let (ci, column_blocks, search_vars) =
-            resolve_vector_ci(&self.ci, &self.column_blocks, &self.constraints.vector_groups, &frame, variables)?;
-        let engine = PcmciEngine {
-            constraints: self.constraints.clone(),
-            ci,
-            column_blocks,
-        };
+        let (ci, column_blocks, search_vars) = resolve_vector_ci(
+            &self.ci,
+            &self.column_blocks,
+            &self.constraints.vector_groups,
+            &frame,
+            variables,
+        )?;
+        let engine = PcmciEngine { constraints: self.constraints.clone(), ci, column_blocks };
 
         let threads = ctx.parallelism.max_threads.get().max(1);
         let compiled = engine.constraints.compile(&search_vars)?;
@@ -473,10 +471,8 @@ impl PcmciEngine {
                 let engine = self;
                 let prepared_ci = prepared_ci.clone();
                 scope.spawn(move || {
-                    let mut local_ws = DiscoveryWorkspace {
-                        prepared_ci,
-                        ..DiscoveryWorkspace::default()
-                    };
+                    let mut local_ws =
+                        DiscoveryWorkspace { prepared_ci, ..DiscoveryWorkspace::default() };
                     for (i, &target) in chunk_vars.iter().enumerate() {
                         this[i] = Some(
                             engine
@@ -567,10 +563,8 @@ impl PcmciEngine {
                 let engine = self;
                 let prepared_ci = prepared_ci.clone();
                 handles.push(scope.spawn(move || {
-                    let mut local_ws = DiscoveryWorkspace {
-                        prepared_ci,
-                        ..DiscoveryWorkspace::default()
-                    };
+                    let mut local_ws =
+                        DiscoveryWorkspace { prepared_ci, ..DiscoveryWorkspace::default() };
                     let mut local_scored = Vec::new();
                     let mut tests = 0u64;
                     let mut truncated = 0u64;
@@ -687,7 +681,7 @@ impl PcmciEngine {
             significance: self.constraints.significance,
             confidence: ConfidenceMethod::default(),
         };
-        let prepared = workspace.prepared_ci.as_ref().ok_or_else(|| {
+        let prepared = workspace.prepared_ci.as_ref().ok_or({
             DiscoveryError::Unsupported { message: "CI test used before prepare()" }
         })?;
         let out = self
@@ -771,12 +765,7 @@ impl PcmciEngine {
         if frame.is_fully_valid() {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             self.ensure_prepared_ci(frame, workspace, ctx)?;
-            let queries = [CiQuery {
-                x: xi,
-                y: yi,
-                z_start: 0,
-                z_len: workspace.z_flat.len(),
-            }];
+            let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
             let req = CiBatchRequest {
                 columns: &cols,
                 queries: &queries,
@@ -784,7 +773,7 @@ impl PcmciEngine {
                 significance: self.constraints.significance,
                 confidence: ConfidenceMethod::default(),
             };
-            let prepared = workspace.prepared_ci.as_ref().ok_or_else(|| {
+            let prepared = workspace.prepared_ci.as_ref().ok_or({
                 DiscoveryError::Unsupported { message: "CI test used before prepare()" }
             })?;
             let out = self
@@ -875,15 +864,9 @@ impl PcmciEngine {
             workspace.prepared_ci =
                 Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
         }
-        let cols: Vec<&[f64]> = (0..ncols)
-            .map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep])
-            .collect();
-        let queries = [CiQuery {
-            x: xi,
-            y: yi,
-            z_start: 0,
-            z_len: workspace.z_flat.len(),
-        }];
+        let cols: Vec<&[f64]> =
+            (0..ncols).map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep]).collect();
+        let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
         let req = CiBatchRequest {
             columns: &cols,
             queries: &queries,
@@ -891,7 +874,7 @@ impl PcmciEngine {
             significance: self.constraints.significance,
             confidence: ConfidenceMethod::default(),
         };
-        let prepared = workspace.prepared_ci.as_ref().ok_or_else(|| {
+        let prepared = workspace.prepared_ci.as_ref().ok_or({
             DiscoveryError::Unsupported { message: "CI test used before prepare()" }
         })?;
         let out = self

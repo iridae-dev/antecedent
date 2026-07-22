@@ -7,11 +7,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use causal::{
-    CandidateDesign, CausalState, DataVersion, DesignCost, DesignEvaluationContext, DesignObjective,
-    DesignRankConfig, DesignRanker, GraphScoreCacheKey, GraphScoreData, GraphScoreFamily,
-    LgssmParams, LinearOlsSuffStats, LocalScoreCache, MeasurementPlan, ParentSetOp,
-    ParticleFilterState, RollingMechanismDiagnostics, SamplingPlan, StateEvent, apply_state_event,
-    full_graph_score, insert_mechanism_diag, new_causal_state, rank_designs,
+    CandidateDesign, CausalState, DataVersion, DesignCost, DesignEvaluationContext,
+    DesignObjective, DesignRankConfig, DesignRanker, GraphScoreCacheKey, GraphScoreData,
+    GraphScoreFamily, LgssmParams, LinearOlsSuffStats, LocalScoreCache, MeasurementPlan,
+    ParentSetOp, ParticleFilterState, RollingMechanismDiagnostics, SamplingPlan, StateEvent,
+    apply_state_event, full_graph_score, insert_mechanism_diag, new_causal_state, rank_designs,
 };
 use causal_core::{
     AverageEffectQuery, CacheBudget, CausalQuery, ExecutionContext, QueryId, VariableId,
@@ -25,6 +25,10 @@ fn fixture(name: &str) -> PathBuf {
         .join("../../conformance/design_state")
         .join(name)
         .join("expected.json")
+}
+
+fn idx_f64(i: usize) -> f64 {
+    f64::from(u32::try_from(i).expect("test index fits u32"))
 }
 
 #[test]
@@ -151,12 +155,12 @@ fn incremental_graph_score_match_conformance() {
         &fs::read_to_string(fixture("incremental_graph_score_match")).unwrap(),
     )
     .unwrap();
-    let n = expected["n_rows"].as_u64().unwrap() as usize;
+    let n = usize::try_from(expected["n_rows"].as_u64().unwrap()).expect("fixture n_rows");
     let mut cols = vec![0.0; 3 * n];
     for i in 0..n {
-        let x0 = (i as f64) * 0.1 - 2.0;
-        let x1 = 2.0 * x0 + 0.01 * ((i % 3) as f64 - 1.0);
-        let x2 = x1 + 0.01 * ((i as f64 * 0.3).sin());
+        let x0 = idx_f64(i) * 0.1 - 2.0;
+        let x1 = 2.0 * x0 + 0.01 * (f64::from(u32::try_from(i % 3).expect("mod 3")) - 1.0);
+        let x2 = x1 + 0.01 * ((idx_f64(i) * 0.3).sin());
         cols[i] = x0;
         cols[n + i] = x1;
         cols[2 * n + i] = x2;
@@ -169,16 +173,11 @@ fn incremental_graph_score_match_conformance() {
         penalty_fingerprint: n as u64,
     });
     for node in 0..3u32 {
-        cache
-            .delta_score(&data, ParentSetOp::SetParents { node, parents: Arc::from([]) })
-            .unwrap();
+        cache.delta_score(&data, ParentSetOp::SetParents { node, parents: Arc::from([]) }).unwrap();
     }
     let s0 = cache.score_graph(&data).unwrap();
     let (_delta, s1) = cache
-        .delta_score(
-            &data,
-            ParentSetOp::SetParents { node: 1, parents: Arc::from([0u32]) },
-        )
+        .delta_score(&data, ParentSetOp::SetParents { node: 1, parents: Arc::from([0u32]) })
         .unwrap();
     let mut parent_map = std::collections::HashMap::new();
     parent_map.insert(0, Arc::from([]));
@@ -196,8 +195,9 @@ fn incremental_particle_filter_match_conformance() {
         &fs::read_to_string(fixture("incremental_particle_filter_match")).unwrap(),
     )
     .unwrap();
-    let n = expected["n_obs"].as_u64().unwrap() as usize;
-    let n_particles = expected["n_particles"].as_u64().unwrap() as usize;
+    let n = usize::try_from(expected["n_obs"].as_u64().unwrap()).expect("fixture n_obs");
+    let n_particles =
+        usize::try_from(expected["n_particles"].as_u64().unwrap()).expect("fixture n_particles");
     let seed = expected["seed"].as_u64().unwrap();
     let params = LgssmParams {
         a: expected["a"].as_f64().unwrap(),
@@ -231,12 +231,11 @@ fn incremental_particle_filter_match_conformance() {
 
 #[test]
 fn rolling_mechanism_diag_match_conformance() {
-    let expected: Value = serde_json::from_str(
-        &fs::read_to_string(fixture("rolling_mechanism_diag_match")).unwrap(),
-    )
-    .unwrap();
-    let window = expected["window"].as_u64().unwrap() as usize;
-    let n_rows = expected["n_rows"].as_u64().unwrap() as usize;
+    let expected: Value =
+        serde_json::from_str(&fs::read_to_string(fixture("rolling_mechanism_diag_match")).unwrap())
+            .unwrap();
+    let window = usize::try_from(expected["window"].as_u64().unwrap()).expect("fixture window");
+    let n_rows = usize::try_from(expected["n_rows"].as_u64().unwrap()).expect("fixture n_rows");
     let tol = expected["stable_float_tol"].as_f64().unwrap();
     let mut state: CausalState = new_causal_state(CacheBudget::new(1024 * 1024));
     let key: Arc<str> = Arc::from("mech");
@@ -244,9 +243,9 @@ fn rolling_mechanism_diag_match_conformance() {
     let mut all_rows = Vec::new();
     let mut all_y = Vec::new();
     for i in 0..n_rows {
-        let row = [1.0, i as f64];
-        let y = expected["beta0"].as_f64().unwrap()
-            + expected["beta1"].as_f64().unwrap() * i as f64;
+        let row = [1.0, idx_f64(i)];
+        let y =
+            expected["beta0"].as_f64().unwrap() + expected["beta1"].as_f64().unwrap() * idx_f64(i);
         all_rows.extend_from_slice(&row);
         all_y.push(y);
         if i == n_rows / 2 {
@@ -289,9 +288,7 @@ fn rolling_mechanism_diag_match_conformance() {
 
     let start = n_rows - window;
     let mut batch = LinearOlsSuffStats::new(2);
-    batch
-        .append_batch(&all_rows[start * 2..], &all_y[start..])
-        .unwrap();
+    batch.append_batch(&all_rows[start * 2..], &all_y[start..]).unwrap();
     let beta = batch.solve_beta().unwrap();
     let slot = &state.suff_stats.mechanism_diags[&key];
     assert!((slot.beta[0] - beta[0]).abs() < tol);
@@ -299,11 +296,7 @@ fn rolling_mechanism_diag_match_conformance() {
     assert!((slot.beta[0] - expected["beta0"].as_f64().unwrap()).abs() < tol);
     assert!((slot.beta[1] - expected["beta1"].as_f64().unwrap()).abs() < tol);
 
-    apply_state_event(
-        &mut state,
-        StateEvent::ReplaceData(DataVersion::default().next()),
-    )
-    .unwrap();
+    apply_state_event(&mut state, StateEvent::ReplaceData(DataVersion::default().next())).unwrap();
     assert!(state.suff_stats.mechanism_diags.is_empty());
 }
 

@@ -21,8 +21,8 @@ use causal_model::{
 };
 use causal_stats::mean_var;
 
-use crate::change_common::{measure_value, run_change_allocation, total_change, ChangeOptions};
-use crate::distribution_change::{hybrid_mechanisms, DifferenceMeasure};
+use crate::change_common::{ChangeOptions, measure_value, run_change_allocation, total_change};
+use crate::distribution_change::{DifferenceMeasure, hybrid_mechanisms};
 use crate::error::AttributionError;
 use crate::prep::{
     require_structure_components, resolve_change_populations, resolve_outcome_dense,
@@ -79,12 +79,8 @@ pub fn structure_change(
     // Outcome must resolve in both layouts (already same VariableIds).
     let _ = resolve_outcome_dense(comparison_model, query.outcome)?;
 
-    let (players, unidentified) = structure_players(
-        baseline_model,
-        comparison_model,
-        outcome_dense,
-        query.max_components,
-    )?;
+    let (players, unidentified) =
+        structure_players(baseline_model, comparison_model, outcome_dense, query.max_components)?;
     if players.is_empty() {
         return Err(AttributionError::invalid_input(
             "no structure components to attribute (parent sets agree on outcome ancestors)",
@@ -241,11 +237,8 @@ pub(crate) fn hybrid_structure_dag(
             .iter()
             .enumerate()
             .any(|(pi, &p)| p == child && (mask & (1u64 << pi)) != 0);
-        let parents = if use_comparison {
-            comparison.parents(child)
-        } else {
-            baseline.parents(child)
-        };
+        let parents =
+            if use_comparison { comparison.parents(child) } else { baseline.parents(child) };
         for &p in parents {
             g.insert_directed(p, child).map_err(|e| match e {
                 causal_graph::GraphError::Cycle { .. } => AttributionError::unsupported(
@@ -323,24 +316,13 @@ impl StructureSwapPayoff<'_> {
         )?;
 
         let kinds = vec![crate::distribution_change::PlayerKind::Mechanism; self.players.len()];
-        let mixed: CompiledMechanismStore = hybrid_mechanisms(
-            &base_store,
-            &cmp_store,
-            &compiled,
-            &self.players,
-            &kinds,
-            mask,
-        );
+        let mixed: CompiledMechanismStore =
+            hybrid_mechanisms(&base_store, &cmp_store, &compiled, &self.players, &kinds, mask);
         let model = compiled.with_mechanisms(mixed);
 
         let mut rng = self.ctx.rng.stream(0x5C01_u64.wrapping_add(self.seed));
-        let batch = sample_observational(
-            &model,
-            self.n_samples.max(1),
-            &mut rng,
-            &mut self.ws,
-            self.ctx,
-        )?;
+        let batch =
+            sample_observational(&model, self.n_samples.max(1), &mut rng, &mut self.ws, self.ctx)?;
         let col = batch.column(self.outcome.as_usize())?;
         let (mu, var) = mean_var(col);
         Ok((mu, var.max(1e-12)))
@@ -362,11 +344,9 @@ mod tests {
     fn parent_swap_fixture() -> (CompiledCausalModel, CompiledCausalModel, TabularData) {
         let n = 80usize;
         let mut b = CausalSchemaBuilder::new();
-        for (name, role) in [
-            ("x", RoleHint::Context),
-            ("z", RoleHint::Context),
-            ("y", RoleHint::OutcomeCandidate),
-        ] {
+        for (name, role) in
+            [("x", RoleHint::Context), ("z", RoleHint::Context), ("y", RoleHint::OutcomeCandidate)]
+        {
             b.add_variable(
                 name,
                 ValueType::Continuous,
@@ -435,13 +415,8 @@ mod tests {
             n_samples: 600,
             seed: 5,
         };
-        let result =
-            structure_change(&baseline, &comparison, &data, &query, &opts, &ctx).unwrap();
-        assert!(
-            result.total_change.abs() > 2.0,
-            "total={}",
-            result.total_change
-        );
+        let result = structure_change(&baseline, &comparison, &data, &query, &opts, &ctx).unwrap();
+        assert!(result.total_change.abs() > 2.0, "total={}", result.total_change);
         let y = result
             .contributions
             .iter()
@@ -559,8 +534,7 @@ mod tests {
             n_samples: 400,
             seed: 1,
         };
-        let result =
-            structure_change(&baseline, &comparison, &data, &query, &opts, &ctx).unwrap();
+        let result = structure_change(&baseline, &comparison, &data, &query, &opts, &ctx).unwrap();
         assert!(
             result.unidentified.iter().any(|c| c.variable() == VariableId::from_raw(4)),
             "v should be unidentified: {:?}",

@@ -32,9 +32,9 @@ impl NodeRef {
     #[must_use]
     pub const fn variable(self) -> VariableId {
         match self {
-            Self::Static(v) | Self::Lagged { variable: v, .. } | Self::Context { variable: v, .. } => {
-                v
-            }
+            Self::Static(v)
+            | Self::Lagged { variable: v, .. }
+            | Self::Context { variable: v, .. } => v,
         }
     }
 

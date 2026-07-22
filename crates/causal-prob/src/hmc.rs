@@ -65,16 +65,12 @@ impl Default for HmcOptions {
 
 /// Native HMC Bayesian GLM backend.
 #[derive(Clone, Copy, Debug)]
+#[derive(Default)]
 pub struct HmcGlmBackend {
     /// Sampler options.
     pub options: HmcOptions,
 }
 
-impl Default for HmcGlmBackend {
-    fn default() -> Self {
-        Self { options: HmcOptions::default() }
-    }
-}
 
 impl HmcGlmBackend {
     /// Construct with defaults.
@@ -203,17 +199,21 @@ pub fn fit_hmc_glm(
                 }
             }
 
-            if t < hmc.n_warmup {
-                let accept_prob = if accepted { 1.0 } else { 0.0 };
-                let m = (t + 1) as f64;
-                let eta = 1.0 / (m + 10.0);
-                h_bar = (1.0 - eta) * h_bar + eta * (hmc.target_accept - accept_prob);
-                let log_eps = hmc.step_size.ln() - (m.sqrt() / 0.05) * h_bar;
-                step_size = log_eps.exp().clamp(1e-6, 2.0);
-                let kappa = m.powf(-0.75);
-                log_eps_bar = kappa * log_eps + (1.0 - kappa) * log_eps_bar;
-            } else if t == hmc.n_warmup {
-                step_size = log_eps_bar.exp().clamp(1e-6, 2.0);
+            match t.cmp(&hmc.n_warmup) {
+                std::cmp::Ordering::Less => {
+                    let accept_prob = if accepted { 1.0 } else { 0.0 };
+                    let m = (t + 1) as f64;
+                    let eta = 1.0 / (m + 10.0);
+                    h_bar = (1.0 - eta) * h_bar + eta * (hmc.target_accept - accept_prob);
+                    let log_eps = hmc.step_size.ln() - (m.sqrt() / 0.05) * h_bar;
+                    step_size = log_eps.exp().clamp(1e-6, 2.0);
+                    let kappa = m.powf(-0.75);
+                    log_eps_bar = kappa * log_eps + (1.0 - kappa) * log_eps_bar;
+                }
+                std::cmp::Ordering::Equal => {
+                    step_size = log_eps_bar.exp().clamp(1e-6, 2.0);
+                }
+                std::cmp::Ordering::Greater => {}
             }
 
             if t >= hmc.n_warmup {
@@ -367,11 +367,7 @@ fn hmc_step(
     let h_new = -lp_new + p_new_energy;
     let log_alpha = (h_old - h_new).min(0.0);
     let accept = rng.next_f64().ln() < log_alpha;
-    if accept {
-        Ok((true, false, q, lp_new))
-    } else {
-        Ok((false, false, beta.to_vec(), lp_old))
-    }
+    if accept { Ok((true, false, q, lp_new)) } else { Ok((false, false, beta.to_vec(), lp_old)) }
 }
 
 fn neg_log_posterior_grad(
@@ -445,15 +441,9 @@ mod tests {
             target_accept: 0.8,
             mass: 1.0,
         };
-        let fit = fit_hmc_glm(
-            BayesLikelihood::GaussianIdentity,
-            design,
-            &prior,
-            &fit_opts,
-            hmc,
-            &mut ws,
-        )
-        .unwrap();
+        let fit =
+            fit_hmc_glm(BayesLikelihood::GaussianIdentity, design, &prior, &fit_opts, hmc, &mut ws)
+                .unwrap();
         assert!(fit.diagnostics.allows_posterior());
         assert!(fit.diagnostics.rhat_max.unwrap() < 1.2);
         assert!((fit.map[1] - 1.5).abs() < 0.35, "map slope {}", fit.map[1]);

@@ -1,18 +1,24 @@
-//! discovery-parity CI statistic conformance (GPDC / CMIknn / G²).
+//! discovery-parity CI statistic conformance (GPDC / `CMIknn` / G²).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::similar_names
+)]
 
 use std::fs;
 use std::path::PathBuf;
 
 use causal_core::ExecutionContext;
 use causal_stats::{
-    CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, ConditionalIndependenceTest, GSquared,
+    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependenceTest, ConfidenceMethod, GSquared,
     Gpdc, KnnDependence, SignificanceMethod,
 };
 use serde_json::Value as JsonValue;
+
+type CiColumns = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
 
 fn fixture_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/discovery/ci_stats")
@@ -23,15 +29,15 @@ fn load_expected() -> JsonValue {
     serde_json::from_str(&raw).expect("parse")
 }
 
-fn load_cols() -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+fn load_cols() -> CiColumns {
     let csv = fs::read_to_string(fixture_dir().join("data.csv")).expect("data.csv");
     let mut x = Vec::new();
     let mut y_dep = Vec::new();
     let mut y_ind = Vec::new();
     let mut z = Vec::new();
-    let mut xd = Vec::new();
-    let mut yd_dep = Vec::new();
-    let mut yd_ind = Vec::new();
+    let mut x_disc = Vec::new();
+    let mut y_disc_dep = Vec::new();
+    let mut y_disc_ind = Vec::new();
     for (i, line) in csv.lines().enumerate() {
         if i == 0 {
             continue;
@@ -41,11 +47,11 @@ fn load_cols() -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, V
         y_dep.push(p[1]);
         y_ind.push(p[2]);
         z.push(p[3]);
-        xd.push(p[4]);
-        yd_dep.push(p[5]);
-        yd_ind.push(p[6]);
+        x_disc.push(p[4]);
+        y_disc_dep.push(p[5]);
+        y_disc_ind.push(p[6]);
     }
-    (x, y_dep, y_ind, z, xd, yd_dep, yd_ind)
+    (x, y_dep, y_ind, z, x_disc, y_disc_dep, y_disc_ind)
 }
 
 fn close(a: f64, b: f64, atol: f64, rtol: f64) -> bool {
@@ -79,7 +85,7 @@ fn discovery_ci_stats_gpdc_cmiknn_gsquared() {
     let outs = &tig["outputs"];
     assert_eq!(tig["available"].as_bool(), Some(true));
     let methods = &outs["methods"];
-    let (x, y_dep, y_ind, z, xd, yd_dep, yd_ind) = load_cols();
+    let (x, y_dep, y_ind, z, x_disc, y_disc_dep, y_disc_ind) = load_cols();
     assert_eq!(x.len(), expected["n"].as_u64().unwrap() as usize);
 
     let atol_s = expected["atol_stat"].as_f64().unwrap();
@@ -91,8 +97,8 @@ fn discovery_ci_stats_gpdc_cmiknn_gsquared() {
 
     // G² (analytic) — strongest parity claim.
     let g2 = GSquared::new();
-    let (s_dep, p_dep) = run_ci(&g2, &[&xd, &yd_dep], &[], 0, 1);
-    let (s_ind, p_ind) = run_ci(&g2, &[&xd, &yd_ind], &[], 0, 2);
+    let (s_dep, p_dep) = run_ci(&g2, &[&x_disc, &y_disc_dep], &[], 0, 1);
+    let (s_ind, p_ind) = run_ci(&g2, &[&x_disc, &y_disc_ind], &[], 0, 2);
     let ref_dep = &methods["gsquared_dep"];
     let ref_ind = &methods["gsquared_ind"];
     assert!(
@@ -100,10 +106,7 @@ fn discovery_ci_stats_gpdc_cmiknn_gsquared() {
         "G² dep stat {s_dep} vs {}",
         ref_dep["statistic"]
     );
-    assert!(
-        close(p_dep, ref_dep["p_value"].as_f64().unwrap(), atol_p, rtol_p),
-        "G² dep p {p_dep}"
-    );
+    assert!(close(p_dep, ref_dep["p_value"].as_f64().unwrap(), atol_p, rtol_p), "G² dep p {p_dep}");
     assert!(
         close(s_ind, ref_ind["statistic"].as_f64().unwrap(), atol_s, rtol_s),
         "G² ind stat {s_ind}"
@@ -115,15 +118,13 @@ fn discovery_ci_stats_gpdc_cmiknn_gsquared() {
     let z_flat = [2usize];
     let (s_dep, p_dep) = run_ci(&cmi, &[&x, &y_dep, &z], &z_flat, 1, 3);
     let (s_ind, p_ind) = run_ci(&cmi, &[&x, &y_ind, &z], &z_flat, 1, 4);
-    let _ = (methods["cmiknn_dep"]["statistic"].as_f64(), methods["cmiknn_ind"]["statistic"].as_f64());
+    let _ =
+        (methods["cmiknn_dep"]["statistic"].as_f64(), methods["cmiknn_ind"]["statistic"].as_f64());
     assert!(
         s_dep > s_ind,
         "CMIknn dep stat should exceed ind ({s_dep} vs {s_ind}); discovery pins recorded for reference"
     );
-    assert!(
-        p_dep <= p_ind + 1e-9,
-        "CMIknn dep p should be <= ind p ({p_dep} vs {p_ind})"
-    );
+    assert!(p_dep <= p_ind + 1e-9, "CMIknn dep p should be <= ind p ({p_dep} vs {p_ind})");
     assert!(p_dep < 0.15, "CMIknn dep should be significant, p={p_dep}");
 
     // GPDC — native backend vs discovery torch; check ordering + loose magnitude.

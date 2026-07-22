@@ -44,9 +44,9 @@ fn resolve_rows_n(n: usize, selector: &PopulationSelector) -> Result<Vec<usize>,
             }
             Ok((*start..*end).collect())
         }
-        PopulationSelector::Environment { .. } => Err(AttributionError::unsupported(
-            "environment selector requires MultiEnvironmentData",
-        )),
+        PopulationSelector::Environment { .. } => {
+            Err(AttributionError::unsupported("environment selector requires MultiEnvironmentData"))
+        }
         _ => Err(AttributionError::unsupported("unsupported population selector")),
     }
 }
@@ -77,9 +77,7 @@ pub fn resolve_multi_env_rows(
             let env = data.environment(0)?;
             Ok((0, resolve_rows_n(env.row_count(), selector)?))
         }
-        _ => Err(AttributionError::unsupported(
-            "cannot resolve selector against multi-env data",
-        )),
+        _ => Err(AttributionError::unsupported("cannot resolve selector against multi-env data")),
     }
 }
 
@@ -117,9 +115,7 @@ pub fn subset_table(data: &TabularData, rows: &[usize]) -> Result<TabularData, A
             values.push(src[r]);
         }
         let validity = ValidityBitmap::all_valid(n);
-        cols.push(OwnedColumn::Float64(
-            Float64Column::new(id, Arc::from(values), validity)?,
-        ));
+        cols.push(OwnedColumn::Float64(Float64Column::new(id, Arc::from(values), validity)?));
     }
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None)?;
     Ok(TabularData::new(storage))

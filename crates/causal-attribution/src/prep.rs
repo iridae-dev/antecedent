@@ -25,7 +25,7 @@ pub(crate) fn require_components(
     Err(AttributionError::unsupported(wrong_msg))
 }
 
-/// Accept Mechanisms or joint InputsAndMechanisms / All for change paths that
+/// Accept Mechanisms or joint `InputsAndMechanisms` / All for change paths that
 /// implement joint payoffs.
 pub(crate) fn require_mechanism_or_joint(
     components: AttributionComponents,

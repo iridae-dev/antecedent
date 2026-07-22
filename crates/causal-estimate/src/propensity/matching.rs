@@ -11,16 +11,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
+
+#![allow(
+    clippy::many_single_char_names,
+    clippy::too_many_lines,
+    clippy::type_complexity
+)]
 
 use causal_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
 };
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
-use causal_stats::{
-    FaerBackend, GlmOptions, MatchingDistance, fit_propensity,
-};
+use causal_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity};
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
@@ -31,8 +34,8 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{OverlapPolicy, OverlapReport};
-use crate::se::{AnalyticSeKind, cluster_influence_se, influence_se_kind};
-use crate::util::{bootstrap_se, sample_std, stats_err, BootstrapSeResult};
+use crate::se::{AnalyticSeKind, influence_se_kind};
+use crate::util::{BootstrapSeResult, bootstrap_se, sample_std, stats_err};
 
 /// Propensity-score nearest-neighbor matching (Absolute distance, optional caliper).
 ///
@@ -209,7 +212,7 @@ impl PropensityMatching {
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
-                let n = problem.nrows;
+        let n = problem.nrows;
         let ncols = problem.design_ncols;
         let mut x_boot = vec![0.0; n * ncols];
         let mut t_boot = vec![0.0; n];
@@ -349,9 +352,7 @@ pub(crate) fn matching_contrast(
 ) -> Result<MatchedEstimate, EstimationError> {
     if let Some(ids) = cluster_ids {
         if ids.len() != treatment.len() {
-            return Err(EstimationError::data_msg(
-                "matching cluster_ids length != treatment rows",
-            ));
+            return Err(EstimationError::data_msg("matching cluster_ids length != treatment rows"));
         }
     }
     let (treated_idx, control_idx) = split_by_treatment(treatment);
@@ -466,10 +467,7 @@ pub(crate) fn matching_contrast(
         AnalyticSeKind::Homoskedastic => {
             abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors)
         }
-        AnalyticSeKind::Hc0
-        | AnalyticSeKind::Hc1
-        | AnalyticSeKind::Hc2
-        | AnalyticSeKind::Hc3 => {
+        AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 | AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
             abadie_imbens_se_hetero(&per_unit_effects, &donor_usage, n_donors)
         }
         AnalyticSeKind::Cluster
@@ -487,14 +485,12 @@ pub(crate) fn matching_contrast(
                 let kd = k.get(d).copied().unwrap_or(0) as f64;
                 psi.push((per_unit_effects[i] - ate) * (1.0 + kd));
             }
-            let cluster_owned = cluster_ids.map(|c| c.to_vec());
-            let multiway_owned = multiway_ids.cloned();
             influence_se_kind(
                 se_kind,
                 &psi,
                 treatment.len(),
-                &cluster_owned,
-                &multiway_owned,
+                cluster_ids,
+                multiway_ids.map(Vec::as_slice),
                 Some(&effect_rows),
             )?
         }
@@ -518,8 +514,7 @@ fn abadie_imbens_se(effects: &[f64], donor_local: &[usize], n_donors: usize) -> 
         }
     }
     let mean = effects.iter().sum::<f64>() / n as f64;
-    let var_tau =
-        effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (n as f64 - 1.0);
+    let var_tau = effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (n as f64 - 1.0);
     let sigma2 = (var_tau * 0.5).max(0.0);
     let sum_k2: f64 = k.iter().map(|&kj| (kj as f64).powi(2)).sum();
     let var = sigma2 * (n as f64 + sum_k2) / (n as f64).powi(2);
@@ -635,21 +630,18 @@ mod tests {
 
     #[test]
     fn abadie_imbens_se_grows_with_donor_reuse() {
-        let effects = vec![1.0, 1.2, 0.8, 1.1];
+        let effects = [1.0, 1.2, 0.8, 1.1];
         // Four queries, two unique donors reused twice each.
         let donors_reuse = vec![0usize, 0, 1, 1];
         let donors_unique = vec![0usize, 1, 2, 3];
         let se_reuse = abadie_imbens_se(&effects, &donors_reuse, 2);
         let se_unique = abadie_imbens_se(&effects, &donors_unique, 4);
-        assert!(
-            se_reuse > se_unique,
-            "reuse={se_reuse} unique={se_unique}"
-        );
+        assert!(se_reuse > se_unique, "reuse={se_reuse} unique={se_unique}");
     }
 
     #[test]
     fn cluster_se_grows_with_donor_reuse() {
-        let effects = vec![1.0, 1.2, 0.8, 1.1];
+        let effects = [1.0, 1.2, 0.8, 1.1];
         let ate = effects.iter().sum::<f64>() / effects.len() as f64;
         let donors_reuse = vec![0usize, 0, 1, 1];
         let donors_unique = vec![0usize, 1, 2, 3];
@@ -673,9 +665,6 @@ mod tests {
         };
         let se_reuse = se(&donors_reuse, 2);
         let se_unique = se(&donors_unique, 4);
-        assert!(
-            se_reuse > se_unique,
-            "cluster reuse={se_reuse} unique={se_unique}"
-        );
+        assert!(se_reuse > se_unique, "cluster reuse={se_reuse} unique={se_unique}");
     }
 }

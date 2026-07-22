@@ -4,8 +4,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-mod average;
 mod attribution;
+mod average;
 mod counterfactual;
 mod distribution;
 mod error;
@@ -16,12 +16,12 @@ mod temporal;
 
 pub use crate::intervention::TemporalPolicy;
 
-pub use average::AverageEffectQuery;
 pub use attribution::{
     AllocationMethod, AnomalyAttributionQuery, AttributionComponents, ChangeAttributionQuery,
     MechanismChangeQuery, OrderedFloatBits, PopulationSelector, ShapleyConfig, ShapleyMode,
     UnitChangeQuery,
 };
+pub use average::AverageEffectQuery;
 pub use counterfactual::CounterfactualQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
@@ -29,7 +29,6 @@ pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use population::{PopulationRegistry, PopulationSelection};
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
-
 
 /// Top-level causal query enum.
 #[derive(Clone, Debug, PartialEq)]
@@ -189,8 +188,6 @@ impl CausalQuery {
         }
     }
 }
-
-/// Errors from query construction or validation.
 
 #[cfg(test)]
 #[path = "tests.rs"]

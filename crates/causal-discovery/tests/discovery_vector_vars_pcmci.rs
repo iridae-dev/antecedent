@@ -78,12 +78,8 @@ fn load_series(expected: &JsonValue) -> (TimeSeriesData, Vec<VariableId>, Vector
             .unwrap(),
         ),
         OwnedColumn::Float64(
-            Float64Column::new(
-                VariableId::from_raw(2),
-                Arc::from(y),
-                ValidityBitmap::all_valid(n),
-            )
-            .unwrap(),
+            Float64Column::new(VariableId::from_raw(2), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
         ),
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
@@ -97,11 +93,7 @@ fn load_series(expected: &JsonValue) -> (TimeSeriesData, Vec<VariableId>, Vector
         VariableId::from_raw(1),
     ])]))
     .unwrap();
-    (
-        data,
-        vec![VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)],
-        groups,
-    )
+    (data, vec![VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)], groups)
 }
 
 fn name_to_id(name: &str) -> VariableId {

@@ -82,10 +82,14 @@ impl BitSet {
     }
 
     /// Collect set bit indices as dense node ids (ascending).
+    #[must_use]
     pub fn to_dense_ids(&self) -> Vec<DenseNodeId> {
         let mut out = Vec::with_capacity(self.count_ones());
         for i in 0..self.len {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let Ok(raw) = u32::try_from(i) else {
+                break;
+            };
+            let id = DenseNodeId::from_raw(raw);
             if self.contains(id) {
                 out.push(id);
             }

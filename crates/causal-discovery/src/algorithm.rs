@@ -194,12 +194,9 @@ impl DiscoveryAlgorithm<TimeSeriesData> for Rpcmci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<Self::Output, DiscoveryError> {
-        let assignment = self
-            .assignment
-            .as_ref()
-            .ok_or(DiscoveryError::unsupported(
-                "Rpcmci::discover requires with_assignment(...) before discover",
-            ))?;
+        let assignment = self.assignment.as_ref().ok_or(DiscoveryError::unsupported(
+            "Rpcmci::discover requires with_assignment(...) before discover",
+        ))?;
         // Need clone of assignment for run if run takes &
         let assignment: RegimeAssignment = assignment.clone();
         self.run(data, variables, &assignment, workspace, ctx)

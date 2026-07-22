@@ -1,6 +1,8 @@
-//! Full CausalQuery and Intervention wire forms.
+//! Full `CausalQuery` and Intervention wire forms.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 
@@ -184,10 +186,9 @@ impl TemporalPolicyWire {
             TemporalPolicy::Sustained { from, until } => {
                 Self::Sustained { from: *from, until: *until }
             }
-            TemporalPolicy::Dynamic { rule, active_at } => Self::Dynamic {
-                rule: rule.raw(),
-                active_at: active_at.as_ref().to_vec(),
-            },
+            TemporalPolicy::Dynamic { rule, active_at } => {
+                Self::Dynamic { rule: rule.raw(), active_at: active_at.as_ref().to_vec() }
+            }
             other => {
                 return Err(IoError::Convert(format!("unsupported TemporalPolicy: {other:?}")));
             }
@@ -198,7 +199,9 @@ impl TemporalPolicyWire {
     fn to_domain(&self) -> TemporalPolicy {
         match self {
             Self::Pulse { at } => TemporalPolicy::Pulse { at: *at },
-            Self::Sustained { from, until } => TemporalPolicy::Sustained { from: *from, until: *until },
+            Self::Sustained { from, until } => {
+                TemporalPolicy::Sustained { from: *from, until: *until }
+            }
             Self::Dynamic { rule, active_at } => {
                 TemporalPolicy::dynamic(DynamicRuleId::from_raw(*rule), active_at.as_slice())
             }
@@ -322,14 +325,12 @@ impl InterventionWire {
     /// Unknown intervention variants.
     pub fn from_domain(iv: &Intervention) -> Result<Self, IoError> {
         Ok(match iv {
-            Intervention::Set { variable, value } => Self::Set {
-                variable: variable.raw(),
-                value: ValueWire::from_value(value),
-            },
-            Intervention::Shift { variable, delta } => Self::Shift {
-                variable: variable.raw(),
-                delta: ValueWire::from_value(delta),
-            },
+            Intervention::Set { variable, value } => {
+                Self::Set { variable: variable.raw(), value: ValueWire::from_value(value) }
+            }
+            Intervention::Shift { variable, delta } => {
+                Self::Shift { variable: variable.raw(), delta: ValueWire::from_value(delta) }
+            }
             Intervention::Stochastic { variable, policy } => Self::Stochastic {
                 variable: variable.raw(),
                 policy: StochasticPolicyWire::from_domain(policy)?,
@@ -369,10 +370,9 @@ impl InterventionWire {
             Self::Shift { variable, delta } => {
                 Intervention::shift(VariableId::from_raw(*variable), delta.to_value())
             }
-            Self::Stochastic { variable, policy } => Intervention::stochastic(
-                VariableId::from_raw(*variable),
-                policy.to_domain(),
-            ),
+            Self::Stochastic { variable, policy } => {
+                Intervention::stochastic(VariableId::from_raw(*variable), policy.to_domain())
+            }
             Self::Soft { variable, mechanism } => Intervention::soft(
                 VariableId::from_raw(*variable),
                 MechanismOverride {
@@ -665,14 +665,14 @@ fn components_from_str(s: &str) -> Result<AttributionComponents, IoError> {
     })
 }
 
-fn mediation_contrast_to_str(c: MediationContrast) -> Result<&'static str, IoError> {
-    Ok(match c {
+fn mediation_contrast_to_str(c: MediationContrast) -> &'static str {
+    match c {
         MediationContrast::Total => "total",
         MediationContrast::Direct => "direct",
         MediationContrast::Mediated => "mediated",
         MediationContrast::NaturalDirect => "natural_direct",
         MediationContrast::NaturalIndirect => "natural_indirect",
-    })
+    }
 }
 
 fn mediation_contrast_from_str(s: &str) -> Result<MediationContrast, IoError> {
@@ -688,9 +688,9 @@ fn mediation_contrast_from_str(s: &str) -> Result<MediationContrast, IoError> {
 
 fn allocation_to_wire(a: &AllocationMethod) -> Result<AllocationMethodWire, IoError> {
     Ok(match a {
-        AllocationMethod::Sequential { order } => AllocationMethodWire::Sequential {
-            order: order.iter().map(|c| c.raw()).collect(),
-        },
+        AllocationMethod::Sequential { order } => {
+            AllocationMethodWire::Sequential { order: order.iter().map(|c| c.raw()).collect() }
+        }
         AllocationMethod::PathBased => AllocationMethodWire::PathBased,
         AllocationMethod::Shapley { approximation } => {
             let (mode, n) = match approximation.mode {
@@ -839,7 +839,7 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
             treatment: q.treatment.raw(),
             outcome: q.outcome.raw(),
             mediators: vars_to_raw(&q.mediators),
-            contrast: mediation_contrast_to_str(q.contrast)?.into(),
+            contrast: mediation_contrast_to_str(q.contrast).into(),
             control: InterventionWire::from_domain(&q.control)?,
             active: InterventionWire::from_domain(&q.active)?,
             target_population: TargetPopulationWire::from_domain(&q.target_population)?,
@@ -899,7 +899,11 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
         CausalQueryWire::Counterfactual { outcomes, interventions, allow_nested } => {
             CausalQuery::Counterfactual(CounterfactualQuery {
                 outcomes: vars_from_raw(outcomes),
-                interventions: interventions.iter().map(InterventionWire::to_domain).collect::<Vec<_>>().into(),
+                interventions: interventions
+                    .iter()
+                    .map(InterventionWire::to_domain)
+                    .collect::<Vec<_>>()
+                    .into(),
                 allow_nested: *allow_nested,
             })
         }
@@ -943,30 +947,28 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             targets: vars_from_raw(targets),
             baseline: population_from_wire(baseline)?,
             comparison: population_from_wire(comparison)?,
-            significance_level: OrderedFloatBits::from_f64(f64::from_bits(*significance_level_bits)),
+            significance_level: OrderedFloatBits::from_f64(f64::from_bits(
+                *significance_level_bits,
+            )),
             max_targets: usize::try_from(*max_targets).map_err(|_| IoError::TooLarge)?,
         }),
-        CausalQueryWire::UnitChange {
-            outcome,
-            unit_rows,
-            components,
-            allocation,
-            max_units,
-        } => CausalQuery::UnitChange(UnitChangeQuery {
-            outcome: VariableId::from_raw(*outcome),
-            unit_rows: unit_rows
-                .as_ref()
-                .map(|rows| {
-                    rows.iter()
-                        .map(|&r| usize::try_from(r).map_err(|_| IoError::TooLarge))
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()?
-                .map(Arc::from),
-            components: components_from_str(components)?,
-            allocation: allocation_from_wire(allocation)?,
-            max_units: usize::try_from(*max_units).map_err(|_| IoError::TooLarge)?,
-        }),
+        CausalQueryWire::UnitChange { outcome, unit_rows, components, allocation, max_units } => {
+            CausalQuery::UnitChange(UnitChangeQuery {
+                outcome: VariableId::from_raw(*outcome),
+                unit_rows: unit_rows
+                    .as_ref()
+                    .map(|rows| {
+                        rows.iter()
+                            .map(|&r| usize::try_from(r).map_err(|_| IoError::TooLarge))
+                            .collect::<Result<Vec<_>, _>>()
+                    })
+                    .transpose()?
+                    .map(Arc::from),
+                components: components_from_str(components)?,
+                allocation: allocation_from_wire(allocation)?,
+                max_units: usize::try_from(*max_units).map_err(|_| IoError::TooLarge)?,
+            })
+        }
         CausalQueryWire::Mediation {
             treatment,
             outcome,
@@ -1029,7 +1031,12 @@ pub fn interventional_distribution_from_wire(
 ) -> Result<InterventionalDistributionQuery, IoError> {
     Ok(InterventionalDistributionQuery {
         outcomes: vars_from_raw(&w.outcomes),
-        interventions: w.interventions.iter().map(InterventionWire::to_domain).collect::<Vec<_>>().into(),
+        interventions: w
+            .interventions
+            .iter()
+            .map(InterventionWire::to_domain)
+            .collect::<Vec<_>>()
+            .into(),
         conditioning: vars_from_raw(&w.conditioning),
         target_population: w.target_population.to_domain()?,
     })
@@ -1191,20 +1198,17 @@ mod tests {
         let back = causal_query_from_wire(&causal_query_to_wire(&temporal).unwrap()).unwrap();
         match back {
             CausalQuery::TemporalEffect(q) => {
-                assert_eq!(
-                    q.policy,
-                    TemporalPolicy::dynamic(DynamicRuleId::from_raw(4), [0, 2])
-                );
+                assert_eq!(q.policy, TemporalPolicy::dynamic(DynamicRuleId::from_raw(4), [0, 2]));
             }
             other => panic!("expected TemporalEffect, got {other:?}"),
         }
     }
 
-    fn assert_rt(q: CausalQuery) {
-        let back = causal_query_from_wire(&causal_query_to_wire(&q).unwrap()).unwrap();
+    fn assert_rt(q: &CausalQuery) {
+        let back = causal_query_from_wire(&causal_query_to_wire(q).unwrap()).unwrap();
         let again = causal_query_from_wire(&causal_query_to_wire(&back).unwrap()).unwrap();
         // CBOR + domain round-trip is stable under a second encode.
-        let w1 = to_cbor(&causal_query_to_wire(&q).unwrap()).unwrap();
+        let w1 = to_cbor(&causal_query_to_wire(q).unwrap()).unwrap();
         let w2 = to_cbor(&causal_query_to_wire(&again).unwrap()).unwrap();
         assert_eq!(w1, w2, "wire bytes drifted for {q:?}");
     }
@@ -1243,9 +1247,9 @@ mod tests {
             let q = CausalQuery::Counterfactual(
                 CounterfactualQuery::new(y, [iv.clone()]).with_nested(true),
             );
-            assert_rt(q);
+            assert_rt(&q);
             let q = CausalQuery::Distribution(InterventionalDistributionQuery::new(y, [iv]));
-            assert_rt(q);
+            assert_rt(&q);
         }
     }
 
@@ -1266,7 +1270,7 @@ mod tests {
             TargetPopulation::Predicate(PredicateExpr::rows([0usize, 2, 5])),
             TargetPopulation::CustomDistribution(DistributionRef::from_raw(11)),
         ] {
-            assert_rt(ate(pop));
+            assert_rt(&ate(pop));
         }
     }
 
@@ -1311,7 +1315,7 @@ mod tests {
                             .with_allocation(allocation.clone())
                             .with_max_components(16),
                         );
-                        assert_rt(q);
+                        assert_rt(&q);
                     }
                 }
             }
@@ -1325,21 +1329,24 @@ mod tests {
         let m = VariableId::from_raw(2);
         let z = VariableId::from_raw(3);
 
-        assert_rt(CausalQuery::AnomalyAttribution(
+        assert_rt(&CausalQuery::AnomalyAttribution(
             AnomalyAttributionQuery::new([y, m], 64).with_unit_rows([0usize, 1, 2]),
         ));
-        assert_rt(CausalQuery::MechanismChange(MechanismChangeQuery::new(
+        assert_rt(&CausalQuery::MechanismChange(MechanismChangeQuery::new(
             [t, y],
             PopulationSelector::All,
             PopulationSelector::Environment { env_index: 1 },
             0.05,
             16,
         )));
-        assert_rt(CausalQuery::UnitChange(
-            UnitChangeQuery::new(y, 32).with_unit_rows([3usize, 4]),
-        ));
-        assert_rt(CausalQuery::Mediation(MediationQuery::binary(t, y, [m], MediationContrast::Direct)));
-        assert_rt(CausalQuery::Mediation(MediationQuery::binary(
+        assert_rt(&CausalQuery::UnitChange(UnitChangeQuery::new(y, 32).with_unit_rows([3usize, 4])));
+        assert_rt(&CausalQuery::Mediation(MediationQuery::binary(
+            t,
+            y,
+            [m],
+            MediationContrast::Direct,
+        )));
+        assert_rt(&CausalQuery::Mediation(MediationQuery::binary(
             t,
             y,
             [m],
@@ -1349,19 +1356,19 @@ mod tests {
             AverageEffectQuery::binary_ate(t, y).with_effect_modifiers([z]),
         )
         .unwrap();
-        assert_rt(CausalQuery::ConditionalEffect(conditional));
-        assert_rt(CausalQuery::PathSpecific(
+        assert_rt(&CausalQuery::ConditionalEffect(conditional));
+        assert_rt(&CausalQuery::PathSpecific(
             PathSpecificEffectQuery::binary(t, y)
                 .with_path_nodes([m])
                 .with_max_paths(8)
                 .with_max_len(4),
         ));
-        assert_rt(CausalQuery::TemporalEffect(
+        assert_rt(&CausalQuery::TemporalEffect(
             TemporalEffectQuery::pulse(t, y, 1.0)
                 .with_policy(TemporalPolicy::sustained(0, 5))
                 .with_horizon_steps(6),
         ));
-        assert_rt(CausalQuery::Counterfactual(
+        assert_rt(&CausalQuery::Counterfactual(
             CounterfactualQuery::new(
                 y,
                 [
@@ -1371,7 +1378,7 @@ mod tests {
             )
             .with_nested(false),
         ));
-        assert_rt(CausalQuery::Distribution(
+        assert_rt(&CausalQuery::Distribution(
             InterventionalDistributionQuery::new(
                 y,
                 [Intervention::stochastic(t, StochasticPolicy::gaussian(0.0, 2.0))],

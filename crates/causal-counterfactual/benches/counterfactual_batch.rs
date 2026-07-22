@@ -11,7 +11,7 @@ use causal_core::{
     Value, ValueType, VariableId,
 };
 use causal_counterfactual::{
-    CounterfactualEngine, CounterfactualWorld, AbductionMissingPolicy, streaming_matches_retained,
+    AbductionMissingPolicy, CounterfactualEngine, CounterfactualWorld, streaming_matches_retained,
 };
 use causal_data::column::{Float64Column, ValidityBitmap};
 use causal_data::{OwnedColumn, OwnedColumnarStorage, TabularData};

@@ -41,13 +41,7 @@ impl FitDiagnostics {
 
 impl Default for FitDiagnostics {
     fn default() -> Self {
-        Self {
-            rank: 0,
-            rcond: None,
-            backend: "unknown",
-            grow_count: 0,
-            row_selection_len: None,
-        }
+        Self { rank: 0, rcond: None, backend: "unknown", grow_count: 0, row_selection_len: None }
     }
 }
 

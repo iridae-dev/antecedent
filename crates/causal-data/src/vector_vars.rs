@@ -10,9 +10,7 @@ use std::collections::HashSet;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
-use causal_core::{
-    CausalSchemaBuilder, Lag, MeasurementSpec, ValueType, VariableId,
-};
+use causal_core::{CausalSchemaBuilder, Lag, MeasurementSpec, ValueType, VariableId};
 
 use crate::column::{Float64Column, OwnedColumn};
 use crate::dataset::TimeSeriesData;
@@ -162,7 +160,7 @@ pub fn expand_fixed_vector_columns(
     let mut groups: Vec<Arc<[VariableId]>> = Vec::new();
     let mut next_id = 0u32;
 
-    for old in storage.columns().iter() {
+    for old in storage.columns() {
         match old {
             OwnedColumn::FixedVector(fv) => {
                 let width = NonZeroU32::new(u32::try_from(fv.dim).map_err(|_| {
@@ -204,8 +202,8 @@ pub fn expand_fixed_vector_columns(
                     next_id += 1;
                     comp_ids.push(id);
                     let mut values = vec![0.0; n];
-                    for row in 0..n {
-                        values[row] = fv.values[row * fv.dim + k];
+                    for (row, slot) in values.iter_mut().enumerate() {
+                        *slot = fv.values[row * fv.dim + k];
                     }
                     new_cols.push(OwnedColumn::Float64(Float64Column::new(
                         id,
@@ -268,12 +266,10 @@ mod tests {
     #[test]
     fn column_blocks_per_lag() {
         let data = float_series(20, 3);
-        let vars = [
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-        ];
-        let frame = LaggedFrame::from_series(&data, &vars, 1, &causal_core::KernelPolicy::default_policy()).unwrap();
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let frame =
+            LaggedFrame::from_series(&data, &vars, 1, &causal_core::KernelPolicy::default_policy())
+                .unwrap();
         let groups = VectorVariableGroups::try_new(Arc::from([Arc::from([
             VariableId::from_raw(0),
             VariableId::from_raw(1),
@@ -309,10 +305,10 @@ mod tests {
 
     #[test]
     fn expand_fixed_vector_round_trip() {
+        use crate::temporal::{SamplingRegularity, TimeIndex};
         use causal_core::{
             CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
         };
-        use crate::temporal::{SamplingRegularity, TimeIndex};
 
         let n = 10usize;
         let dim = 2usize;

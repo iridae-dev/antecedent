@@ -98,9 +98,8 @@ fn phase_randomize_column(
 ) -> Result<Vec<f64>, DataError> {
     let mut indata = values.to_vec();
     let mut spectrum = r2c.make_output_vec();
-    r2c.process(&mut indata, &mut spectrum).map_err(|e| DataError::InvalidArgument {
-        message: format!("forward FFT failed: {e}"),
-    })?;
+    r2c.process(&mut indata, &mut spectrum)
+        .map_err(|e| DataError::InvalidArgument { message: format!("forward FFT failed: {e}") })?;
 
     // spectrum[0] = DC (real). spectrum[last] = Nyquist when n even (must stay real).
     let last = spectrum.len() - 1;
@@ -116,9 +115,8 @@ fn phase_randomize_column(
     }
 
     let mut out = c2r.make_output_vec();
-    c2r.process(&mut spectrum, &mut out).map_err(|e| DataError::InvalidArgument {
-        message: format!("inverse FFT failed: {e}"),
-    })?;
+    c2r.process(&mut spectrum, &mut out)
+        .map_err(|e| DataError::InvalidArgument { message: format!("inverse FFT failed: {e}") })?;
     let scale = 1.0 / n as f64;
     for v in &mut out {
         *v *= scale;
@@ -187,10 +185,7 @@ mod tests {
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
         TimeSeriesData::try_new(
             storage,
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: n,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap()
     }
@@ -261,10 +256,7 @@ mod tests {
                 .unwrap();
         let data = TimeSeriesData::try_new(
             storage,
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns: 1 },
-                length: 3,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: 3 },
         )
         .unwrap();
         let mut rng = CausalRng::from_seed(1);
