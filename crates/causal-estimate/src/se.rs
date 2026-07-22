@@ -59,10 +59,7 @@ pub use causal_stats::DEFAULT_RIDGE_ON_SEPARATION;
 /// # Errors
 ///
 /// Missing ids or length mismatch.
-pub(crate) fn require_clusters(
-    ids: Option<&[u32]>,
-    n: usize,
-) -> Result<&[u32], EstimationError> {
+pub(crate) fn require_clusters(ids: Option<&[u32]>, n: usize) -> Result<&[u32], EstimationError> {
     let Some(ids) = ids else {
         return Err(EstimationError::unsupported(
             "AnalyticSeKind::Cluster/PanelClusterHac requires estimator.cluster_ids",

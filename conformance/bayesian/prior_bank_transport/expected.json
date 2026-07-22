@@ -1,0 +1,22 @@
+{
+  "error_code": "transport_policy_required",
+  "source_population": "us",
+  "target_population": "eu",
+  "source_mean": 2.0,
+  "source_variance": 1.0,
+  "baseline_mean": 0.0,
+  "baseline_variance": 4.0,
+  "alpha": 0.8,
+  "with_policy": {
+    "policy": "invariant_conditional_outcome",
+    "required_assumption_ids": ["external_transport_prior", "external_composed_prior"],
+    "expect_alpha_unchanged": true
+  },
+  "propensity_missing_weights": {
+    "policy": "invariant_propensity",
+    "expect_alpha_applied": 0.0,
+    "required_assumption_ids": ["external_transport_prior"]
+  },
+  "tol": 1e-12,
+  "notes": "P4D TransportPolicy; unsupported shifts (environment / unidentified) not claimed"
+}

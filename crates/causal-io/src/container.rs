@@ -386,9 +386,7 @@ fn choose_on_wire(logical: &[u8], policy: CompressPolicy) -> (Option<String>, Op
                 return (None, None);
             }
             match try_zstd(logical) {
-                Some(c)
-                    if (c.len() as u128) * 100 < (logical.len() as u128) * 95 =>
-                {
+                Some(c) if (c.len() as u128) * 100 < (logical.len() as u128) * 95 => {
                     (Some(COMPRESSION_ZSTD.into()), Some(c))
                 }
                 _ => (None, None),

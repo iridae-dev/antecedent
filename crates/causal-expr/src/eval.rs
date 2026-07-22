@@ -202,10 +202,7 @@ impl CompiledEvaluator {
         let mut sum = 0.0;
         for row in rows.iter() {
             if row.len() != vars.len() {
-                return Err(EvalError::SupportShape {
-                    expected: vars.len(),
-                    actual: row.len(),
-                });
+                return Err(EvalError::SupportShape { expected: vars.len(), actual: row.len() });
             }
             let mut extended = env.clone();
             for (i, &v) in vars.iter().enumerate() {
@@ -251,10 +248,7 @@ impl CompiledEvaluator {
         let mut sum = 0.0;
         for row in rows.iter() {
             if row.len() != vars.len() {
-                return Err(EvalError::SupportShape {
-                    expected: vars.len(),
-                    actual: row.len(),
-                });
+                return Err(EvalError::SupportShape { expected: vars.len(), actual: row.len() });
             }
             let mut extended = env.clone();
             for (i, &v) in vars.iter().enumerate() {
@@ -276,8 +270,7 @@ impl CompiledEvaluator {
     ) -> Result<f64, EvalError> {
         // E[f | D] = Σ_{x ∈ support(free(D))} f(x) · dens(D, x)
         let free = free_vars_of_slot(self, arena, distribution);
-        let unbound: Vec<VariableId> =
-            free.into_iter().filter(|v| env.get(*v).is_none()).collect();
+        let unbound: Vec<VariableId> = free.into_iter().filter(|v| env.get(*v).is_none()).collect();
         let mut enum_vars = unbound;
         if !enum_vars.contains(&outcome_var) && env.get(outcome_var).is_none() {
             enum_vars.push(outcome_var);
@@ -572,8 +565,7 @@ mod tests {
                     intervention: &interv,
                     domain: DomainRef::Interventional,
                 };
-                p.insert_probability(&spec, &Assignment::from_pairs([(y, f(yval))]), prob)
-                    .unwrap();
+                p.insert_probability(&spec, &Assignment::from_pairs([(y, f(yval))]), prob).unwrap();
             }
         }
         assert_simplify_preserves(&mut arena, expr, &p, 0.5, "backdoor_empty_z");
@@ -633,8 +625,7 @@ mod tests {
                     intervention: &interv,
                     domain: DomainRef::Interventional,
                 };
-                p.insert_probability(&spec, &Assignment::from_pairs([(m, f(mval))]), prob)
-                    .unwrap();
+                p.insert_probability(&spec, &Assignment::from_pairs([(m, f(mval))]), prob).unwrap();
             }
         }
         for tlev in [0.0, 1.0] {
@@ -647,8 +638,7 @@ mod tests {
                         intervention: &[],
                         domain: DomainRef::Observational,
                     };
-                    let assign =
-                        Assignment::from_pairs([(y, f(yval)), (m, f(mlev)), (t, f(tlev))]);
+                    let assign = Assignment::from_pairs([(y, f(yval)), (m, f(mlev)), (t, f(tlev))]);
                     p.insert_probability(&spec, &assign, prob).unwrap();
                 }
             }

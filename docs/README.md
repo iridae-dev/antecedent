@@ -5,11 +5,12 @@
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
 | [Development](development.md) | Gates, tests, performance rules, features, versions |
 | [Artifacts](artifacts.md) | Wire format, migration, graph interchange |
+| [Prior bank](prior_bank.md) | External prior catalog, compose, conflict, transport |
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
 
-Open work beyond inventories lives in ADRs / parity notes when it reopens.
+Open composition work beyond inventories: [BACKLOG.md](../BACKLOG.md).
 Decisions: [adr/](../adr/README.md).
 
 Regenerate conformance docs:

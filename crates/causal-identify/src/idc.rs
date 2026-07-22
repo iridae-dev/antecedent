@@ -2,10 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::large_enum_variant,
-    clippy::too_many_arguments
-)]
+#![allow(clippy::large_enum_variant, clippy::too_many_arguments)]
 
 use std::sync::Arc;
 

@@ -73,6 +73,14 @@ class AteAnalysisResult:
     peak_memory_bytes: int | None
     worker_threads: int
     expected_python_crossings: int
+    prior_sensitivity_scales: list[float] | None
+    prior_sensitivity_alphas: list[float] | None
+    prior_sensitivity_means: list[float] | None
+    prior_sensitivity_sds: list[float] | None
+    conflict_source_ids: list[str] | None
+    conflict_alphas_requested: list[float] | None
+    conflict_alphas_applied: list[float] | None
+    posterior_unidentified_mass: float | None
 
 class PosteriorArtifact:
     n_draws: int

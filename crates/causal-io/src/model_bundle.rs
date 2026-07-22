@@ -152,10 +152,22 @@ fn push_model_bundle_optional_sections(
         push_bundle_cbor_section("query", "query.v1", to_cbor(q)?, descs, sections);
     }
     if let Some(t) = input.analysis_trace {
-        push_bundle_cbor_section("analysis.trace", "analysis.trace.v1", to_cbor(t)?, descs, sections);
+        push_bundle_cbor_section(
+            "analysis.trace",
+            "analysis.trace.v1",
+            to_cbor(t)?,
+            descs,
+            sections,
+        );
     }
     if let Some(i) = input.identification {
-        push_bundle_cbor_section("identification", "identification.v1", to_cbor(i)?, descs, sections);
+        push_bundle_cbor_section(
+            "identification",
+            "identification.v1",
+            to_cbor(i)?,
+            descs,
+            sections,
+        );
     }
     if let Some(e) = input.estimate {
         push_bundle_cbor_section("estimate", "estimate.v1", to_cbor(e)?, descs, sections);
@@ -191,43 +203,70 @@ fn push_model_bundle_optional_sections(
         push_bundle_cbor_section("provenance", "provenance.v1", to_cbor(p)?, descs, sections);
     }
     if let Some((meta, draws)) = input.posterior {
-        push_bundle_cbor_section(
-            "posterior.meta",
-            "posterior.meta.v1",
-            to_cbor(meta)?,
-            descs,
-            sections,
-        );
-        let mut draw_bytes = Vec::with_capacity(draws.len() * 8);
-        for &v in draws {
-            draw_bytes.extend_from_slice(&v.to_le_bytes());
-        }
-        let (desc, sec) = pack_section(
-            "posterior.draws",
-            "application/octet-stream",
-            draw_bytes,
-            CompressPolicy::Auto,
-        );
-        descs.push(desc);
-        sections.push(sec);
+        push_posterior_bundle_sections(meta, draws, descs, sections)?;
     }
     if let Some((h, g, e)) = input.discovery {
-        push_bundle_cbor_section(
-            "discovery.header",
-            "discovery.header.v1",
-            to_cbor(h)?,
-            descs,
-            sections,
-        );
-        push_bundle_cbor_section("discovery.graph", "discovery.graph.v1", to_cbor(g)?, descs, sections);
-        push_bundle_cbor_section(
-            "discovery.evidence",
-            "discovery.evidence.v1",
-            to_cbor(&e.to_vec())?,
-            descs,
-            sections,
-        );
+        push_discovery_bundle_sections(h, g, e, descs, sections)?;
     }
+    Ok(())
+}
+
+fn push_posterior_bundle_sections(
+    meta: &CausalPosteriorWire,
+    draws: &[f64],
+    descs: &mut Vec<crate::wire::SectionDescriptor>,
+    sections: &mut Vec<SectionBytes>,
+) -> Result<(), IoError> {
+    push_bundle_cbor_section(
+        "posterior.meta",
+        "posterior.meta.v1",
+        to_cbor(meta)?,
+        descs,
+        sections,
+    );
+    let mut draw_bytes = Vec::with_capacity(draws.len() * 8);
+    for &v in draws {
+        draw_bytes.extend_from_slice(&v.to_le_bytes());
+    }
+    let (desc, sec) = pack_section(
+        "posterior.draws",
+        "application/octet-stream",
+        draw_bytes,
+        CompressPolicy::Auto,
+    );
+    descs.push(desc);
+    sections.push(sec);
+    Ok(())
+}
+
+fn push_discovery_bundle_sections(
+    header: &DiscoveryHeaderWire,
+    graph: &TemporalGraphWire,
+    evidence: &[EdgeEvidenceWire],
+    descs: &mut Vec<crate::wire::SectionDescriptor>,
+    sections: &mut Vec<SectionBytes>,
+) -> Result<(), IoError> {
+    push_bundle_cbor_section(
+        "discovery.header",
+        "discovery.header.v1",
+        to_cbor(header)?,
+        descs,
+        sections,
+    );
+    push_bundle_cbor_section(
+        "discovery.graph",
+        "discovery.graph.v1",
+        to_cbor(graph)?,
+        descs,
+        sections,
+    );
+    push_bundle_cbor_section(
+        "discovery.evidence",
+        "discovery.evidence.v1",
+        to_cbor(&evidence.to_vec())?,
+        descs,
+        sections,
+    );
     Ok(())
 }
 
@@ -572,7 +611,14 @@ mod tests {
 
         // Full bundle round-trip with Distribution query section.
         let (schema, dag, mechanisms) = two_variable_bundle_fixtures();
-        let art = encode_query_bundle("bundle-dist", "dist-bundle", &dist_wire, &schema, &dag, &mechanisms);
+        let art = encode_query_bundle(
+            "bundle-dist",
+            "dist-bundle",
+            &dist_wire,
+            &schema,
+            &dag,
+            &mechanisms,
+        );
         let mut buf = Vec::new();
         art.write_to(&mut buf).unwrap();
         let decoded = EncodedArtifact::read_from(buf.as_slice()).unwrap();
@@ -581,8 +627,14 @@ mod tests {
         assert!(matches!(q, CausalQueryWire::Distribution(_)));
 
         // PathSpecific query section in a second bundle.
-        let art2 =
-            encode_query_bundle("bundle-path", "path-bundle", &path_wire, &schema, &dag, &mechanisms);
+        let art2 = encode_query_bundle(
+            "bundle-path",
+            "path-bundle",
+            &path_wire,
+            &schema,
+            &dag,
+            &mechanisms,
+        );
         let mut buf2 = Vec::new();
         art2.write_to(&mut buf2).unwrap();
         let decoded2 = EncodedArtifact::read_from(buf2.as_slice()).unwrap();

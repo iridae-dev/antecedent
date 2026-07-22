@@ -15,7 +15,6 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
-    
     clippy::float_cmp,
     clippy::manual_memcpy,
     clippy::needless_range_loop,
@@ -34,9 +33,7 @@ use causal_stats::{FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx, inver
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::se::{
-    AnalyticSeKind, residual_sandwich_coef_se,
-};
+use crate::se::{AnalyticSeKind, residual_sandwich_coef_se};
 use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by

@@ -24,9 +24,8 @@ use causal_data::TableView;
 use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, fit_once,
-    float64_full, linear_estimator_no_bootstrap, masked_sample_sd, refit_effect, sample_sd,
-    with_replaced_float,
+    RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, fit_once, float64_full,
+    linear_estimator_no_bootstrap, masked_sample_sd, refit_effect, sample_sd, with_replaced_float,
 };
 use crate::error::ValidationError;
 

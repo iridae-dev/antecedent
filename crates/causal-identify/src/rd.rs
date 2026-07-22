@@ -4,9 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::manual_let_else
-)]
+#![allow(clippy::manual_let_else)]
 
 use std::sync::Arc;
 

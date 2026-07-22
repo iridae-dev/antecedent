@@ -1339,7 +1339,9 @@ mod tests {
             0.05,
             16,
         )));
-        assert_rt(&CausalQuery::UnitChange(UnitChangeQuery::new(y, 32).with_unit_rows([3usize, 4])));
+        assert_rt(&CausalQuery::UnitChange(
+            UnitChangeQuery::new(y, 32).with_unit_rows([3usize, 4]),
+        ));
         assert_rt(&CausalQuery::Mediation(MediationQuery::binary(
             t,
             y,

@@ -311,7 +311,12 @@ pub fn pag_to_dot(pag: &Pag, names: Option<&[String]>) -> Result<String, IoError
     for (i, present) in seen.iter().enumerate() {
         if !*present {
             out.push(' ');
-            push_label(&mut out, u32::try_from(i).map_err(|_| IoError::TooLarge)?, names, use_names);
+            push_label(
+                &mut out,
+                u32::try_from(i).map_err(|_| IoError::TooLarge)?,
+                names,
+                use_names,
+            );
             out.push_str(";\n");
         }
     }

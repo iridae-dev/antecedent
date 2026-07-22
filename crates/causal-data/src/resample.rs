@@ -425,7 +425,8 @@ pub fn fill_resample_index_batch(
                     if let Err(e) =
                         fill_resample_indexes_grouped(plan, n, cluster_ref, &mut rng, &mut scratch)
                     {
-                        let mut guard = err_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                        let mut guard =
+                            err_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                         if guard.is_none() {
                             *guard = Some(e);
                         }
@@ -499,7 +500,8 @@ pub fn fill_resample_weight_batch(
                 for (local, r) in (start..end).enumerate() {
                     let mut rng = rng_factory.stream(stream_base ^ r as u64);
                     if let Err(e) = fill_resample_weights(plan, n, &mut rng, &mut scratch) {
-                        let mut guard = err_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                        let mut guard =
+                            err_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                         if guard.is_none() {
                             *guard = Some(e);
                         }

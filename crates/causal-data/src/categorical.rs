@@ -355,8 +355,10 @@ pub fn compile_contrast_matrix(
                             message: "polynomial row index exceeds u32".into(),
                         })? + 1,
                     )
-                    .powi(i32::try_from(d).map_err(|_| DataError::InvalidArgument {
-                        message: "polynomial degree does not fit i32".into(),
+                    .powi(i32::try_from(d).map_err(|_| {
+                        DataError::InvalidArgument {
+                            message: "polynomial degree does not fit i32".into(),
+                        }
                     })?);
                 }
             }

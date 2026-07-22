@@ -814,7 +814,9 @@ fn insert_cpt(
         let mut ok = true;
         let mut cond_vals = Vec::with_capacity(cond.len());
         for &v in cond {
-            if let Some(val) = columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) { cond_vals.push(val.clone()) } else {
+            if let Some(val) = columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) {
+                cond_vals.push(val.clone());
+            } else {
                 ok = false;
                 break;
             }
@@ -824,7 +826,9 @@ fn insert_cpt(
         }
         let mut var_vals = Vec::with_capacity(vars.len());
         for &v in vars {
-            if let Some(val) = columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) { var_vals.push(val.clone()) } else {
+            if let Some(val) = columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) {
+                var_vals.push(val.clone());
+            } else {
                 ok = false;
                 break;
             }

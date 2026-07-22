@@ -20,12 +20,15 @@ mod callbacks;
 mod design_api;
 mod gcm_api;
 mod graphs;
+mod prior_bank;
 mod stability;
 mod state_api;
 
 type MechanismWireEntry = (String, Option<f64>, Option<Vec<f64>>, Option<f64>);
 type ModelBundleSummary = (Vec<String>, Vec<(u32, u32)>, usize);
-type PriorSensitivityFields = (Option<Vec<f64>>, Option<Vec<f64>>, Option<Vec<f64>>);
+type PriorSensitivityFields =
+    (Option<Vec<f64>>, Option<Vec<f64>>, Option<Vec<f64>>, Option<Vec<f64>>);
+type ConflictSummaryFields = (Option<Vec<String>>, Option<Vec<f64>>, Option<Vec<f64>>);
 
 use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
@@ -73,7 +76,7 @@ use causal_core::{
 use causal_data::TimeDummyEncoding;
 use causal_data::{
     ArrowCColumn, DataError, EventData, MultiEnvironmentData, PanelData, PanelUnit,
-    SamplingRegularity, TabularData, TableView, TimeIndex, TimeSeriesData,
+    SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
     tabular_from_arrow_c_columns, tabular_from_record_batch,
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
@@ -382,9 +385,17 @@ struct AteAnalysisResult {
     #[pyo3(get)]
     prior_sensitivity_scales: Option<Vec<f64>>,
     #[pyo3(get)]
+    prior_sensitivity_alphas: Option<Vec<f64>>,
+    #[pyo3(get)]
     prior_sensitivity_means: Option<Vec<f64>>,
     #[pyo3(get)]
     prior_sensitivity_sds: Option<Vec<f64>>,
+    #[pyo3(get)]
+    conflict_source_ids: Option<Vec<String>>,
+    #[pyo3(get)]
+    conflict_alphas_requested: Option<Vec<f64>>,
+    #[pyo3(get)]
+    conflict_alphas_applied: Option<Vec<f64>>,
     #[pyo3(get)]
     posterior_unidentified_mass: Option<f64>,
 }
@@ -416,6 +427,55 @@ struct PosteriorArtifact {
     hessian_condition: f64,
     #[pyo3(get)]
     quantity_names: Vec<String>,
+}
+
+#[pymethods]
+impl PosteriorArtifact {
+    #[new]
+    #[pyo3(signature = (
+        n_draws,
+        mean,
+        sd,
+        q025,
+        q975,
+        draws,
+        backend_id,
+        identification,
+        quantity_names,
+        unidentified_mass=0.0,
+        converged=true,
+        hessian_condition=f64::NAN,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        n_draws: usize,
+        mean: Vec<f64>,
+        sd: Vec<f64>,
+        q025: Vec<f64>,
+        q975: Vec<f64>,
+        draws: Vec<f64>,
+        backend_id: String,
+        identification: String,
+        quantity_names: Vec<String>,
+        unidentified_mass: f64,
+        converged: bool,
+        hessian_condition: f64,
+    ) -> Self {
+        Self {
+            n_draws,
+            mean,
+            sd,
+            q025,
+            q975,
+            draws,
+            backend_id,
+            identification,
+            unidentified_mass,
+            converged,
+            hessian_condition,
+            quantity_names,
+        }
+    }
 }
 
 pub(crate) fn columns_to_batch(
@@ -530,10 +590,8 @@ fn take_arrow_c_array(
         .pointer_checked(Some(schema_name))?
         .as_ptr()
         .cast::<causal_data::FfiArrowSchema>();
-    let array_ptr = array_cap
-        .pointer_checked(Some(array_name))?
-        .as_ptr()
-        .cast::<causal_data::FfiArrowArray>();
+    let array_ptr =
+        array_cap.pointer_checked(Some(array_name))?.as_ptr().cast::<causal_data::FfiArrowArray>();
     if schema_ptr.is_null() || array_ptr.is_null() {
         return Err(CausalDataError::new_err("null Arrow C Data capsule pointer"));
     }
@@ -596,6 +654,15 @@ where
     Ok(Some((resolve_var(rv)?, cut, bw)))
 }
 
+fn parse_prior_mapping(
+    prior_mapping: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<causal_io::PriorMapping>> {
+    match prior_mapping {
+        None => Ok(None),
+        Some(d) => Ok(Some(crate::prior_bank::mapping_from_dict(d)?)),
+    }
+}
+
 fn run_static_ate_from_builder(
     names: &[String],
     mut builder: causal::CausalAnalysisBuilder,
@@ -603,6 +670,8 @@ fn run_static_ate_from_builder(
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
+    prior_mapping: Option<causal_io::PriorMapping>,
+    composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
     seed: u64,
     threads: u32,
 ) -> PyResult<AteAnalysisResult> {
@@ -630,9 +699,10 @@ fn run_static_ate_from_builder(
                 )));
             }
         };
-        if let Some(bytes) = prior_artifact {
-            let prior = causal::prior_set_from_posterior_bytes(bytes).map_err(py_err)?;
-            cfg = cfg.prior(prior);
+        if let Some(comp) = composed_prior {
+            cfg = crate::prior_bank::apply_owned_composed_prior(cfg, comp)?;
+        } else if let Some(bytes) = prior_artifact {
+            cfg = cfg.prior_from_artifact(bytes.to_vec(), prior_mapping);
         }
         builder = builder.inference(InferenceMode::Bayesian(cfg));
     }
@@ -722,15 +792,29 @@ fn posterior_summary_from_result(
     }
 }
 
-fn prior_sensitivity_from_result(
-    result: &causal::CausalAnalysisResult,
-) -> PriorSensitivityFields {
+fn prior_sensitivity_from_result(result: &causal::CausalAnalysisResult) -> PriorSensitivityFields {
     if let Some(post) = result.posterior.as_ref() {
         if let Some(sens) = post.prior_sensitivity.as_ref() {
+            let scales = sens.prior_scales.iter().copied().collect::<Vec<_>>();
+            let alphas = sens.alphas.iter().copied().collect::<Vec<_>>();
             return (
-                Some(sens.prior_scales.iter().copied().collect()),
+                if scales.is_empty() { None } else { Some(scales) },
+                if alphas.is_empty() { None } else { Some(alphas) },
                 Some(sens.effect_means.iter().copied().collect()),
                 Some(sens.effect_sds.iter().copied().collect()),
+            );
+        }
+    }
+    (None, None, None, None)
+}
+
+fn conflict_summary_from_result(result: &causal::CausalAnalysisResult) -> ConflictSummaryFields {
+    if let Some(post) = result.posterior.as_ref() {
+        if let Some(cs) = post.conflict_summary.as_ref() {
+            return (
+                Some(cs.source_ids.iter().map(|s| s.to_string()).collect()),
+                Some(cs.alphas_requested.iter().copied().collect()),
+                Some(cs.alphas_applied.iter().copied().collect()),
             );
         }
     }
@@ -896,6 +980,8 @@ fn parse_population_registry(
     n_draws=1000,
     prior_scale=10.0,
     prior_artifact=None,
+    prior_mapping=None,
+    composed_prior=None,
     refute=None,
     validators=None,
     running_variable=None,
@@ -923,6 +1009,8 @@ fn analyze_ate(
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
+    prior_mapping: Option<&Bound<'_, PyDict>>,
+    composed_prior: Option<&Bound<'_, PyDict>>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     running_variable: Option<String>,
@@ -944,6 +1032,11 @@ fn analyze_ate(
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let prior_mapping = parse_prior_mapping(prior_mapping)?;
+    let composed_prior = match composed_prior {
+        Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
+        None => None,
+    };
     // Drop NumPy borrows before releasing the GIL.
     drop(columns);
 
@@ -1011,6 +1104,8 @@ fn analyze_ate(
             n_draws,
             prior_scale,
             prior_artifact.as_deref(),
+            prior_mapping,
+            composed_prior,
             seed,
             threads,
         )
@@ -1128,6 +1223,8 @@ fn analyze_ate_arrow_c(
             n_draws,
             prior_scale,
             prior_artifact.as_deref(),
+            None,
+            None,
             seed,
             threads,
         )
@@ -1200,6 +1297,8 @@ fn run_ate_with_graph_input(
         n_draws,
         prior_scale,
         prior_artifact.as_deref(),
+        None,
+        None,
         seed,
         threads,
     )
@@ -1584,6 +1683,8 @@ fn analyze_ate_discover(
             n_draws,
             prior_scale,
             prior_artifact.as_deref(),
+            None,
+            None,
             seed,
             threads,
         )
@@ -1774,8 +1875,14 @@ fn ate_result_from_analysis(
         posterior_artifact,
     ) = posterior_summary_from_result(&result)?;
     let ppc = ppc_fields_from_checks(&result.predictive_checks);
-    let (prior_sensitivity_scales, prior_sensitivity_means, prior_sensitivity_sds) =
-        prior_sensitivity_from_result(&result);
+    let (
+        prior_sensitivity_scales,
+        prior_sensitivity_alphas,
+        prior_sensitivity_means,
+        prior_sensitivity_sds,
+    ) = prior_sensitivity_from_result(&result);
+    let (conflict_source_ids, conflict_alphas_requested, conflict_alphas_applied) =
+        conflict_summary_from_result(&result);
     let posterior_unidentified_mass = result.posterior.as_ref().map(|p| p.unidentified_mass);
 
     Ok(AteAnalysisResult {
@@ -1824,8 +1931,12 @@ fn ate_result_from_analysis(
         posterior_ppc_predictive_sd: ppc.posterior_ppc_predictive_sd,
         posterior_ppc_n_sims: ppc.posterior_ppc_n_sims,
         prior_sensitivity_scales,
+        prior_sensitivity_alphas,
         prior_sensitivity_means,
         prior_sensitivity_sds,
+        conflict_source_ids,
+        conflict_alphas_requested,
+        conflict_alphas_applied,
         posterior_unidentified_mass,
     })
 }
@@ -4353,10 +4464,7 @@ fn series_from_tabular(tabular: TabularData) -> PyResult<TimeSeriesData> {
     let n = tabular.row_count();
     TimeSeriesData::try_new(
         tabular.storage().clone(),
-        TimeIndex {
-            regularity: SamplingRegularity::Regular { interval_ns: 1 },
-            length: n,
-        },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .map_err(py_err)
 }
@@ -4421,14 +4529,8 @@ fn temporal_discover_jpcmci_plus(
         time_dummy_ci: time_mode,
         ..MultiDatasetConstraints::default()
     };
-    let q = temporal_query_from_policy(
-        policy,
-        t_id,
-        y_id,
-        treatment_lag,
-        horizon_steps,
-        active_level,
-    )?;
+    let q =
+        temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
     let analysis = CausalAnalysis::builder()
         .series_multi(multi)
         .temporal_query(q)
@@ -4473,20 +4575,13 @@ fn temporal_discover_rpcmci(
         )));
     }
     let series = series_from_tabular(tabular)?;
-    let assign = RegimeAssignment::try_new(
-        regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
-    )
-    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let assign =
+        RegimeAssignment::try_new(regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>())
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let t_id = series.schema().id_of(treatment).map_err(py_err)?;
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
-    let q = temporal_query_from_policy(
-        policy,
-        t_id,
-        y_id,
-        treatment_lag,
-        horizon_steps,
-        active_level,
-    )?;
+    let q =
+        temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
     let analysis = CausalAnalysis::builder()
         .series(series)
         .temporal_query(q)
@@ -4529,14 +4624,8 @@ fn temporal_discover_pcmci_family(
     let series = series_from_tabular(loaded.data)?;
     let t_id = series.schema().id_of(treatment).map_err(py_err)?;
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
-    let q = temporal_query_from_policy(
-        policy,
-        t_id,
-        y_id,
-        treatment_lag,
-        horizon_steps,
-        active_level,
-    )?;
+    let q =
+        temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
     let mut builder = CausalAnalysis::builder()
         .series(series)
         .temporal_query(q)
@@ -4583,14 +4672,8 @@ fn temporal_discover_dbn_posterior(
     let series = series_from_tabular(loaded.data)?;
     let t_id = series.schema().id_of(treatment).map_err(py_err)?;
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
-    let q = temporal_query_from_policy(
-        policy,
-        t_id,
-        y_id,
-        treatment_lag,
-        horizon_steps,
-        active_level,
-    )?;
+    let q =
+        temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
     let mut builder = CausalAnalysis::builder()
         .series(series)
         .temporal_query(q)
@@ -4668,9 +4751,7 @@ fn dispatch_temporal_jpcmci_plus(
         )
     })?;
     if envs.is_empty() {
-        return Err(PyValueError::new_err(
-            "jpcmci_plus needs ≥1 environment in env_columns",
-        ));
+        return Err(PyValueError::new_err("jpcmci_plus needs ≥1 environment in env_columns"));
     }
     let mut batches = Vec::with_capacity(envs.len());
     for cols in &envs {
@@ -4715,9 +4796,7 @@ fn dispatch_temporal_rpcmci(
     regimes: Option<Vec<u32>>,
 ) -> PyResult<AnalysisResult> {
     let regimes = regimes.ok_or_else(|| {
-        PyValueError::new_err(
-            "analyze_temporal_discover(algorithm='rpcmci') requires regimes=[…]",
-        )
+        PyValueError::new_err("analyze_temporal_discover(algorithm='rpcmci') requires regimes=[…]")
     })?;
     let batch = columns_to_batch(&ctx.names, &columns)?;
     drop(columns);
@@ -5063,8 +5142,8 @@ fn apply_temporal_inference(
         }
     };
     if let Some(bytes) = prior_artifact {
-        let prior = causal::prior_set_from_posterior_bytes(bytes).map_err(py_err)?;
-        cfg = cfg.prior(prior);
+        // Temporal path: identical-subspace default (mapping deferred hydrate).
+        cfg = cfg.prior_from_artifact(bytes.to_vec(), None);
     }
     Ok(builder.inference(InferenceMode::Bayesian(cfg)))
 }
@@ -5521,6 +5600,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     state_api::register(m)?;
     bayesian::register(m)?;
     stability::register(m)?;
+    prior_bank::register(m)?;
     m.add("__version__", causal_core::VERSION)?;
     Ok(())
 }

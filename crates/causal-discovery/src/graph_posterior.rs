@@ -489,7 +489,8 @@ pub fn normalize_log_weights(log_w: &[f64]) -> Result<Vec<f64>, DiscoveryError> 
 }
 
 /// Accumulate edge / orientation marginals from weighted adjacency masks.
-#[must_use] pub fn accumulate_marginals(n: usize, weights: &[f64], masks: &[u64]) -> (Vec<f64>, Vec<f64>) {
+#[must_use]
+pub fn accumulate_marginals(n: usize, weights: &[f64], masks: &[u64]) -> (Vec<f64>, Vec<f64>) {
     let cell = n * n;
     let mut edge = vec![0.0; cell];
     let mut orient = vec![0.0; cell];

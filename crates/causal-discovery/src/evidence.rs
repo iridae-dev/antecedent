@@ -2,11 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::needless_pass_by_value
-)]
+#![allow(clippy::cast_possible_truncation, clippy::float_cmp, clippy::needless_pass_by_value)]
 
 use std::collections::HashMap;
 use std::sync::Arc;

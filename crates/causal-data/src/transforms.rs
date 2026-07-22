@@ -76,9 +76,7 @@ pub fn ordinal_patterns(
             *slot = k;
         }
         idx.sort_by(|&a, &b| {
-            col[t + a * tau]
-                .partial_cmp(&col[t + b * tau])
-                .unwrap_or(std::cmp::Ordering::Equal)
+            col[t + a * tau].partial_cmp(&col[t + b * tau]).unwrap_or(std::cmp::Ordering::Equal)
         });
         // Lehmer code
         let mut code = 0usize;

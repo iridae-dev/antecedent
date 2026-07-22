@@ -131,6 +131,7 @@ pub fn aggregate_effect_envelope(
         summaries,
         identification,
         prior_sensitivity: None,
+        conflict_summary: None,
         diagnostics,
         assumptions: causal_core::AssumptionSet::new(),
         unidentified_mass: retained_unidentified,

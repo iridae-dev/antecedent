@@ -95,14 +95,38 @@ impl InferenceDiagnostics {
 }
 
 /// Optional prior-sensitivity summary attached to a causal posterior.
+///
+/// Mode-select: isotropic scale grid (`prior_scales` non-empty, `alphas` empty)
+/// or external power-prior α-multiplier grid (`alphas` non-empty, `prior_scales`
+/// empty). `effect_means` / `effect_sds` always align with the active grid.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PriorSensitivitySummary {
-    /// Prior scale grid evaluated.
+    /// Prior scale grid evaluated (isotropic mode).
     pub prior_scales: Arc<[f64]>,
-    /// Posterior mean of the primary effect at each scale.
+    /// External α multipliers applied to post-conflict `alphas_applied` (bank mode).
+    pub alphas: Arc<[f64]>,
+    /// Posterior mean of the primary effect at each grid point.
     pub effect_means: Arc<[f64]>,
-    /// Posterior SD of the primary effect at each scale.
+    /// Posterior SD of the primary effect at each grid point.
     pub effect_sds: Arc<[f64]>,
+}
+
+/// External-prior conflict shrink summary (attached beside prior sensitivity).
+///
+/// Records requested vs applied power-prior alphas after conflict policy shrink
+/// (orchestration lives in `causal-validate`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ConflictSummary {
+    /// Source artifact / catalog ids.
+    pub source_ids: Arc<[Arc<str>]>,
+    /// Caller-requested alphas.
+    pub alphas_requested: Arc<[f64]>,
+    /// Alphas after conflict shrink (`≤` requested).
+    pub alphas_applied: Arc<[f64]>,
+    /// Prior-PPC p-values used per source (`None` if unused).
+    pub p_values: Arc<[Option<f64>]>,
+    /// Gaussian KL (nats) used per source (`None` if unused).
+    pub kl_values: Arc<[Option<f64>]>,
 }
 
 #[cfg(test)]

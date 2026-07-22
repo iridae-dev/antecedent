@@ -19,8 +19,9 @@ use causal_estimate::{
 use causal_identify::IdentificationStatus;
 use causal_kernels::{PosteriorReduceOp, reduce_posterior_draws, standard_normal};
 use causal_prob::{
-    BayesDesignRef, BayesFitOptions, BayesLikelihood, InferenceBackend, LaplaceGlmBackend,
-    LaplaceWorkspace, PriorSensitivitySummary, PriorSet,
+    BayesDesignRef, BayesFitOptions, BayesLikelihood, ExternalPriorSource, InferenceBackend,
+    LaplaceGlmBackend, LaplaceWorkspace, PriorSensitivitySummary, PriorSet,
+    compose_external_priors_with_alphas,
 };
 use causal_stats::GlmFamily;
 
@@ -82,8 +83,8 @@ pub enum PredictiveCheckKind {
     Posterior,
 }
 
-/// Prior predictive check using coefficient draws from a weakly informative prior
-/// (no data update) vs observed outcome mean.
+/// Prior predictive check using coefficient draws from a prior (no data update)
+/// vs observed outcome mean.
 #[derive(Clone, Debug)]
 pub struct PriorPredictiveCheck {
     /// Simulations.
@@ -107,7 +108,9 @@ impl PriorPredictiveCheck {
         Self { n_sims: 200, seed: 0, family: GlmFamily::GaussianIdentity }
     }
 
-    /// Run against a prepared Bayesian design (uses prior draws only).
+    /// Run against a prepared Bayesian design with a weakly informative prior.
+    ///
+    /// Prefer [`Self::check_with_prior`] when an analysis / composed prior is known.
     ///
     /// # Errors
     ///
@@ -115,6 +118,22 @@ impl PriorPredictiveCheck {
     pub fn check(
         &self,
         problem: &PreparedBayesianProblem,
+        ctx: &ExecutionContext,
+    ) -> Result<PredictiveCheckReport, ValidationError> {
+        let p = problem.design.ncols;
+        let prior = PriorSet::weakly_informative(p);
+        self.check_with_prior(problem, &prior, ctx)
+    }
+
+    /// Run prior predictive check under an explicit coefficient prior.
+    ///
+    /// # Errors
+    ///
+    /// Empty design or missing Gaussian coefficient prior.
+    pub fn check_with_prior(
+        &self,
+        problem: &PreparedBayesianProblem,
+        prior: &PriorSet,
         _ctx: &ExecutionContext,
     ) -> Result<PredictiveCheckReport, ValidationError> {
         let n = problem.design.nrows;
@@ -124,10 +143,14 @@ impl PriorPredictiveCheck {
         }
         let observed = problem.design.outcome.iter().sum::<f64>() / n as f64;
         let mut rng = CausalRng::from_seed(self.seed);
-        let prior = PriorSet::weakly_informative(p);
         let coef_prior = prior.gaussian_coefficients().ok_or_else(|| {
-            ValidationError::estimation_msg("weakly informative prior missing coefficients")
+            ValidationError::estimation_msg("prior missing Gaussian coefficients for PPC")
         })?;
+        if coef_prior.len() != p {
+            return Err(ValidationError::estimation_msg(
+                "prior coefficient dimension mismatch for PPC",
+            ));
+        }
         let mut summaries = Vec::with_capacity(self.n_sims as usize);
         let mut beta = vec![0.0; p];
         for _ in 0..self.n_sims {
@@ -210,14 +233,25 @@ impl PosteriorPredictiveCheck {
 /// Default max relative range of effect means across the prior-sensitivity grid.
 pub const DEFAULT_MAX_RELATIVE_PRIOR_RANGE: f64 = 0.5;
 
-/// Prior sensitivity grid over isotropic coefficient prior scales.
+/// Prior sensitivity grid: isotropic scales **or** external α multipliers.
 #[derive(Clone, Debug)]
 pub struct PriorSensitivity {
-    /// Prior scales (σ of isotropic Gaussian coefficient prior).
+    /// Prior scales (σ of isotropic Gaussian coefficient prior). Empty in α mode.
     pub scales: Arc<[f64]>,
+    /// Multipliers on post-conflict applied alphas. Empty in isotropic scale mode.
+    pub alphas: Arc<[f64]>,
     /// Fail when `(max−min) / scale` exceeds this, where `scale` is
     /// `max(|means…|, |original_ate|, ε)`.
     pub max_relative_range: f64,
+}
+
+/// Inputs for external α-multiplier prior sensitivity.
+#[derive(Clone, Copy, Debug)]
+pub struct ExternalAlphaSensitivity<'a> {
+    /// Hydrated external sources (same order as composition).
+    pub sources: &'a [ExternalPriorSource],
+    /// Post-conflict applied alphas (length must match `sources`).
+    pub alphas_applied: &'a [f64],
 }
 
 impl Default for PriorSensitivity {
@@ -227,20 +261,37 @@ impl Default for PriorSensitivity {
 }
 
 impl PriorSensitivity {
-    /// Standard grid `{0.5, 1, 2, 5, 10, 20}` with [`DEFAULT_MAX_RELATIVE_PRIOR_RANGE`].
+    /// Standard isotropic grid `{0.5, 1, 2, 5, 10, 20}` with [`DEFAULT_MAX_RELATIVE_PRIOR_RANGE`].
     #[must_use]
     pub fn standard_grid() -> Self {
         Self {
             scales: Arc::from(vec![0.5, 1.0, 2.0, 5.0, 10.0, 20.0]),
+            alphas: Arc::from([]),
             max_relative_range: DEFAULT_MAX_RELATIVE_PRIOR_RANGE,
         }
+    }
+
+    /// Standard external-α multiplier grid `{0, 0.25, 0.5, 0.75, 1}`.
+    ///
+    /// Multiplier `0` is baseline-only; `1` uses full post-conflict applied alphas.
+    #[must_use]
+    pub fn standard_alpha_grid() -> Self {
+        Self {
+            scales: Arc::from([]),
+            alphas: Arc::from(vec![0.0, 0.25, 0.5, 0.75, 1.0]),
+            max_relative_range: DEFAULT_MAX_RELATIVE_PRIOR_RANGE,
+        }
+    }
+
+    fn grid_len(&self) -> usize {
+        if self.alphas.is_empty() { self.scales.len() } else { self.alphas.len() }
     }
 
     /// Refit Bayesian g-comp at each prior scale; return sensitivity summary.
     ///
     /// # Errors
     ///
-    /// Fit failures.
+    /// Fit failures or empty scale grid.
     pub fn evaluate(
         &self,
         estimator: &BayesianGComputationAte,
@@ -249,6 +300,11 @@ impl PriorSensitivity {
         workspace: &mut BayesianGCompWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(PriorSensitivitySummary, Vec<CausalPosterior>), ValidationError> {
+        if self.scales.is_empty() {
+            return Err(ValidationError::estimation_msg(
+                "prior sensitivity scale grid is empty (use evaluate_external_alpha for α mode)",
+            ));
+        }
         let mut means = Vec::with_capacity(self.scales.len());
         let mut sds = Vec::with_capacity(self.scales.len());
         let mut posts = Vec::with_capacity(self.scales.len());
@@ -275,6 +331,84 @@ impl PriorSensitivity {
         Ok((
             PriorSensitivitySummary {
                 prior_scales: Arc::clone(&self.scales),
+                alphas: Arc::from([]),
+                effect_means: Arc::from(means),
+                effect_sds: Arc::from(sds),
+            },
+            posts,
+        ))
+    }
+
+    /// Refit at each α-multiplier on post-conflict applied alphas (external prior bank).
+    ///
+    /// For multiplier `m`, composed alphas are `m * alphas_applied[k]` (clamped to `[0, 1]`).
+    ///
+    /// # Errors
+    ///
+    /// Empty α grid, length mismatch, compose failures, or fit failures.
+    pub fn evaluate_external_alpha(
+        &self,
+        estimator: &BayesianGComputationAte,
+        problem: &PreparedBayesianProblem,
+        identification: IdentificationStatus,
+        workspace: &mut BayesianGCompWorkspace,
+        ctx: &ExecutionContext,
+        external: ExternalAlphaSensitivity<'_>,
+    ) -> Result<(PriorSensitivitySummary, Vec<CausalPosterior>), ValidationError> {
+        if self.alphas.is_empty() {
+            return Err(ValidationError::estimation_msg("prior sensitivity alpha grid is empty"));
+        }
+        if external.sources.len() != external.alphas_applied.len() {
+            return Err(ValidationError::estimation_msg(
+                "evaluate_external_alpha: sources / alphas_applied length mismatch",
+            ));
+        }
+        let n_coef = problem.design.ncols;
+        let baseline = PriorSet::weakly_informative(n_coef);
+        let requested: Vec<f64> = external.sources.iter().map(|s| s.weight.alpha).collect();
+        let mut means = Vec::with_capacity(self.alphas.len());
+        let mut sds = Vec::with_capacity(self.alphas.len());
+        let mut posts = Vec::with_capacity(self.alphas.len());
+        for &mult in self.alphas.iter() {
+            if !mult.is_finite() || !(0.0..=1.0).contains(&mult) {
+                return Err(ValidationError::estimation_msg(
+                    "prior sensitivity alpha multiplier must be finite and in [0, 1]",
+                ));
+            }
+            let scaled: Vec<f64> =
+                external.alphas_applied.iter().map(|&a| (a * mult).clamp(0.0, 1.0)).collect();
+            let composed = compose_external_priors_with_alphas(
+                external.sources,
+                &requested,
+                &scaled,
+                &baseline,
+            )
+            .map_err(|e| {
+                ValidationError::estimation_msg(format!("prior sensitivity compose failed: {e}"))
+            })?;
+            let est = BayesianGComputationAte {
+                prior_scale: estimator.prior_scale,
+                n_draws: estimator.n_draws.min(200),
+                seed: estimator.seed,
+                backend: estimator.backend,
+                likelihood: estimator.likelihood,
+                overlap: estimator.overlap,
+                prior: Some(composed.prior),
+            };
+            let post = est.fit(problem, identification, workspace, ctx).map_err(|e| {
+                ValidationError::estimation_msg(format!("prior sensitivity α fit failed: {e}"))
+            })?;
+            let eq = post.effect_column().ok_or_else(|| {
+                ValidationError::estimation_msg("missing effect column in α sensitivity fit")
+            })?;
+            means.push(post.summaries.mean[eq]);
+            sds.push(post.summaries.sd[eq]);
+            posts.push(post);
+        }
+        Ok((
+            PriorSensitivitySummary {
+                prior_scales: Arc::from([]),
+                alphas: Arc::clone(&self.alphas),
                 effect_means: Arc::from(means),
                 effect_sds: Arc::from(sds),
             },
@@ -304,8 +438,10 @@ impl PriorSensitivity {
             .max(1e-8);
         let relative = range / denom;
         let passed = relative.is_finite() && relative <= self.max_relative_range;
+        let kind =
+            if summary.alphas.is_empty() { "prior_sensitivity" } else { "prior_sensitivity_alpha" };
         RefutationReport {
-            refuter: Arc::from("prior_sensitivity"),
+            refuter: Arc::from(kind),
             original_ate,
             refuted_ate: summary.effect_means.last().copied().unwrap_or(original_ate),
             comparison: relative,
@@ -319,7 +455,7 @@ impl PriorSensitivity {
                     self.max_relative_range
                 )))
             },
-            replicates: self.scales.len() as u32,
+            replicates: u32::try_from(self.grid_len()).unwrap_or(u32::MAX),
         }
     }
 }
@@ -483,6 +619,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let sens = PriorSensitivity {
             scales: Arc::from(vec![1.0, 10.0, 50.0]),
+            alphas: Arc::from([]),
             max_relative_range: DEFAULT_MAX_RELATIVE_PRIOR_RANGE,
         };
         let (summary, posts) = sens
@@ -495,10 +632,70 @@ mod tests {
             )
             .unwrap();
         assert_eq!(summary.prior_scales.len(), 3);
+        assert!(summary.alphas.is_empty());
         assert_eq!(posts.len(), 3);
         let rep =
             sens.to_report(&summary, posts[0].summaries.mean[posts[0].effect_column().unwrap()]);
         assert!(rep.passed);
+    }
+
+    #[test]
+    fn prior_sensitivity_external_alpha_pulls_toward_source() {
+        use causal_prob::{
+            ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSpec,
+        };
+
+        let (data, estimand, query) = toy();
+        // Data ATE ≈ 2; bank a tight prior with treatment coef mean = 8.
+        let bayes = BayesianGComputationAte {
+            backend: BayesianBackendKind::ConjugateGaussian,
+            n_draws: 120,
+            seed: 7,
+            ..BayesianGComputationAte::new()
+        };
+        let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+        let n = prep.design.ncols;
+        let t_col = prep.design.treatment_column().expect("treatment column");
+        let mut mean = vec![0.0; n];
+        mean[t_col] = 8.0;
+        let mut source_prior = PriorSet::new();
+        source_prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+            mean: Arc::from(mean),
+            variance: Arc::from(vec![0.05; n]),
+        }));
+        let sources = [ExternalPriorSource {
+            id: Arc::from("survey_a"),
+            prior: source_prior,
+            weight: ExternalPriorWeight::power(1.0).unwrap(),
+        }];
+        let alphas_applied = [1.0_f64];
+        let mut ws = BayesianGCompWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let sens = PriorSensitivity::standard_alpha_grid();
+        let (summary, _) = sens
+            .evaluate_external_alpha(
+                &bayes,
+                &prep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ctx,
+                ExternalAlphaSensitivity { sources: &sources, alphas_applied: &alphas_applied },
+            )
+            .unwrap();
+        assert_eq!(summary.alphas.len(), 5);
+        assert!(summary.prior_scales.is_empty());
+        assert!(summary.effect_means.iter().all(|m| m.is_finite()));
+        let m0 = summary.effect_means[0];
+        let m1 = *summary.effect_means.last().unwrap();
+        // Full trust (m=1) should sit closer to the banked treatment mean than baseline (m=0).
+        assert!(
+            (m1 - 8.0).abs() < (m0 - 8.0).abs(),
+            "m=1 mean {m1} should be closer to 8 than m=0 mean {m0}"
+        );
+        let rep = sens.to_report(&summary, m1);
+        assert_eq!(rep.refuter.as_ref(), "prior_sensitivity_alpha");
+        assert!(rep.informative);
+        assert!(rep.comparison.is_finite() && rep.comparison > 0.0);
     }
 }
 
@@ -532,7 +729,8 @@ impl McmcDiagnosticsCheck {
     /// Evaluate against a fitted posterior's diagnostics.
     ///
     /// Returns `None` when the posterior is not MCMC (caller should emit `NotApplicable`).
-    #[must_use] pub fn check(&self, posterior: &CausalPosterior) -> Option<RefutationReport> {
+    #[must_use]
+    pub fn check(&self, posterior: &CausalPosterior) -> Option<RefutationReport> {
         use causal_prob::HessianFactorization;
         let d = &posterior.diagnostics;
         if d.factorization != HessianFactorization::Mcmc {
@@ -682,9 +880,7 @@ impl SimulationBasedCalibration {
         let n_draws_u = u64::try_from(self.n_draws.max(1)).unwrap_or(1);
         let bins_u = u64::try_from(bins).unwrap_or(1);
         for &r in &ranks {
-            let b = usize::try_from(u64::from(r) * bins_u / n_draws_u)
-                .unwrap_or(0)
-                .min(bins - 1);
+            let b = usize::try_from(u64::from(r) * bins_u / n_draws_u).unwrap_or(0).min(bins - 1);
             counts[b] += 1.0;
         }
         let expected = f64::from(self.n_reps) / bins as f64;
@@ -721,13 +917,11 @@ impl SimulationBasedCalibration {
 }
 
 /// Likelihood-family comparison via leave-one-out log predictive density gap.
-#[derive(Clone, Copy, Debug)]
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct LikelihoodFamilyComparison {
     /// Reserved (API stability).
     pub n_placeholder: u8,
 }
-
 
 impl LikelihoodFamilyComparison {
     /// Compare Gaussian vs Bernoulli logit Laplace fits using a LOO predictive
@@ -764,9 +958,11 @@ impl LikelihoodFamilyComparison {
             &problem.design.outcome,
         );
 
-        let binary = problem.design.outcome.iter().all(|&y| {
-            (y - 0.0).abs() < f64::EPSILON || (y - 1.0).abs() < f64::EPSILON
-        });
+        let binary = problem
+            .design
+            .outcome
+            .iter()
+            .all(|&y| (y - 0.0).abs() < f64::EPSILON || (y - 1.0).abs() < f64::EPSILON);
         if !binary {
             return Ok((Arc::from("gaussian_identity"), 0.0));
         }

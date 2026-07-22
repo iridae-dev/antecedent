@@ -183,6 +183,58 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
 }
 
 #[test]
+fn manufacturing_dbn_envelope_composed_prior_conflict() {
+    use causal_prob::{
+        ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
+        compose_external_priors,
+    };
+    use causal_validate::ConflictPolicy;
+
+    let (series, _g, q) = white_noise_pulse_series(400, 42);
+    // Temporal pulse design is typically intercept + treatment (2 coefs).
+    let ncols = 2;
+    let mut mean = vec![0.0; ncols];
+    mean[1] = 0.9;
+    let mut source_prior = PriorSet::new();
+    source_prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+        mean: Arc::from(mean),
+        variance: Arc::from(vec![0.25; ncols]),
+    }));
+    let sources = Arc::<[ExternalPriorSource]>::from(vec![ExternalPriorSource {
+        id: Arc::from("dbn_bank"),
+        prior: source_prior,
+        weight: ExternalPriorWeight::power(1.0).unwrap(),
+    }]);
+    let baseline = PriorSet::weakly_informative(ncols);
+    let composed = compose_external_priors(&sources, &baseline).unwrap();
+    let policy = ConflictPolicy::try_new(0.05, 1.0).unwrap();
+
+    let analysis = CausalAnalysis::builder()
+        .series(series)
+        .discover_dbn_posterior(1, false, 2, 40, 60)
+        .temporal_query(q)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(48).prior_from_composed(
+                Arc::clone(&sources),
+                composed,
+                Some(policy),
+            ),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let result = analysis.run(&ExecutionContext::for_tests(11)).unwrap();
+    let post = result.posterior.expect("DBN mixture posterior");
+    assert!(post.summaries.mean[post.effect_column().unwrap()].is_finite());
+    assert!(
+        post.conflict_summary.is_some()
+            || result.diagnostics.iter().any(|d| d.code.as_ref() == "bayes.prior_bank.conflict"),
+        "envelope should surface conflict when policy is set"
+    );
+}
+
+#[test]
 fn supplied_complete_temporal_pag_estimates() {
     let (series, _g, q) = manufacturing_series(200);
     let mut pag = causal_graph::TemporalPag::empty();

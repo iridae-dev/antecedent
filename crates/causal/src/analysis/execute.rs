@@ -41,9 +41,9 @@ use causal_identify::{
 };
 use causal_prob::{GraphIdentFlag, InferenceDiagnostics, PriorSet, WeightedGraphSamples};
 use causal_validate::{
-    BayesianSuiteContext, PosteriorPredictiveCheck, PriorPredictiveCheck, PriorSensitivity,
-    TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular,
-    with_prior_sensitivity,
+    BayesianSuiteContext, ExternalAlphaSensitivity, PosteriorPredictiveCheck, PriorPredictiveCheck,
+    PriorSensitivity, TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular,
+    with_conflict_summary, with_prior_sensitivity,
 };
 
 use crate::callback_plan::mark_python_callback_plan;
@@ -57,7 +57,9 @@ use crate::gcm::{
     anomaly_attribution, attribute_distribution_change, attribute_unit_change, counterfactual_ite,
     fit_gcm, mechanism_change_detection,
 };
-use crate::inference::{BayesianConfig, InferenceMode};
+use crate::inference::{
+    BayesianConfig, InferenceMode, resolve_bayesian_prior, resolve_bayesian_prior_with_conflict,
+};
 use crate::planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
     StaticAteCompileInput, StaticDistributionCompileInput, StaticPagAteCompileInput,
@@ -87,9 +89,10 @@ use crate::strategy_table::{
 use super::builder::{CausalAnalysisBuilder, DataInput, RdConfig, RefuteSuite};
 use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic, provenance_pair,
-    resolve_analysis_ci, run_fci_review, run_ges_review, run_jpcmci_plus_review, run_lingam_review,
-    run_lpcmci_review, run_notears_review, run_pc_review, run_pcmci_plus_review, run_pcmci_review,
-    run_refuters, run_rfci_review, run_rpcmci_discovery,
+    push_conflict_diagnostics, resolve_analysis_ci, run_fci_review, run_ges_review,
+    run_jpcmci_plus_review, run_lingam_review, run_lpcmci_review, run_notears_review,
+    run_pc_review, run_pcmci_plus_review, run_pcmci_review, run_refuters, run_rfci_review,
+    run_rpcmci_discovery,
 };
 
 /// Prepared analysis (static or temporal).
@@ -1894,11 +1897,11 @@ impl CausalAnalysis {
         };
 
         let treatment =
-            query.interventions.first().and_then(Intervention::primary_variable).ok_or_else(|| {
-                AnalysisError::Compile {
+            query.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
+                || AnalysisError::Compile {
                     message: "distribution query missing intervention target".into(),
-                }
-            })?;
+                },
+            )?;
         let outcome = *query.outcomes.first().ok_or_else(|| AnalysisError::Compile {
             message: "distribution query missing outcome".into(),
         })?;
@@ -2076,23 +2079,32 @@ impl CausalAnalysis {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),
         };
-        let est = BayesianGComputationAte {
+        let mut est = BayesianGComputationAte {
             backend: cfg.backend,
             likelihood: cfg.likelihood,
             n_draws: cfg.n_draws,
             seed: ctx.rng.master_seed(),
             overlap: OverlapPolicy::ExplicitOverride,
             prior_scale: cfg.prior_scale,
-            prior: cfg.prior.clone(),
+            prior: None,
         };
         let prep = est.prepare(data, &estimand, query).map_err(AnalysisError::from)?;
+        let (resolved_prior, conflict_summary) =
+            resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
+        est.prior = resolved_prior;
         let mut ws = BayesianGCompWorkspace::default();
         let mut posterior =
             est.fit(&prep, identification.status, &mut ws, ctx).map_err(AnalysisError::from)?;
+        if let Some(summary) = conflict_summary {
+            posterior = with_conflict_summary(posterior, summary);
+        }
         let estimate = effect_from_posterior(&posterior)?;
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
+        if let Some(cs) = posterior.conflict_summary.as_ref() {
+            push_conflict_diagnostics(&mut diagnostics, cs);
+        }
 
         let mut refute_ws = EstimationWorkspace::default();
         let mut refutations = match self.refute {
@@ -2114,12 +2126,16 @@ impl CausalAnalysis {
         let mut predictive_checks = Vec::new();
         if !matches!(self.refute, RefuteSuite::None) {
             const PPC_ALPHA: f64 = 0.05;
+            let ppc_prior = est
+                .prior
+                .clone()
+                .unwrap_or_else(|| PriorSet::weakly_informative(prep.design.ncols));
             let prior_rep = PriorPredictiveCheck {
                 n_sims: 200,
                 seed: ctx.rng.master_seed(),
                 ..PriorPredictiveCheck::new()
             }
-            .check(&prep, ctx)
+            .check_with_prior(&prep, &ppc_prior, ctx)
             .map_err(AnalysisError::from)?;
             refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
             predictive_checks.push(prior_rep);
@@ -2131,11 +2147,36 @@ impl CausalAnalysis {
             predictive_checks.push(post_rep);
         }
         // Prior sensitivity / MCMC stay behind the full suite (Shared Bayesian UX).
+        // Mode-select: α-multiplier grid when an external composed prior is present;
+        // isotropic scale grid otherwise (avoids clearing banked priors).
         if matches!(self.refute, RefuteSuite::Full) {
-            let sens = PriorSensitivity::standard_grid();
-            let (summary, _) = sens
-                .evaluate(&est, &prep, identification.status, &mut ws, ctx)
-                .map_err(AnalysisError::from)?;
+            let (summary, sens) = if let Some(ext) = cfg.external_compose.as_ref() {
+                let alphas_applied: Arc<[f64]> = posterior.conflict_summary.as_ref().map_or_else(
+                    || Arc::clone(&ext.composed.alphas_applied),
+                    |cs| Arc::clone(&cs.alphas_applied),
+                );
+                let sens = PriorSensitivity::standard_alpha_grid();
+                let (summary, _) = sens
+                    .evaluate_external_alpha(
+                        &est,
+                        &prep,
+                        identification.status,
+                        &mut ws,
+                        ctx,
+                        ExternalAlphaSensitivity {
+                            sources: &ext.sources,
+                            alphas_applied: &alphas_applied,
+                        },
+                    )
+                    .map_err(AnalysisError::from)?;
+                (summary, sens)
+            } else {
+                let sens = PriorSensitivity::standard_grid();
+                let (summary, _) = sens
+                    .evaluate(&est, &prep, identification.status, &mut ws, ctx)
+                    .map_err(AnalysisError::from)?;
+                (summary, sens)
+            };
             refutations.push(sens.to_report(&summary, estimate.ate));
             posterior = with_prior_sensitivity(posterior, summary);
 
@@ -2274,8 +2315,7 @@ impl CausalAnalysis {
     ) -> Result<CompiledAnalysis, AnalysisError> {
         if matches!(self.inference, InferenceMode::Frequentist) {
             return Err(AnalysisError::Unsupported {
-                message:
-                    "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
+                message: "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
             });
         }
         let class = match &self.data {
@@ -2307,8 +2347,7 @@ impl CausalAnalysis {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(AnalysisError::Unsupported {
-                    message:
-                        "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
+                    message: "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
                 });
             }
         };
@@ -2342,9 +2381,9 @@ impl CausalAnalysis {
             seed: ctx.rng.master_seed(),
             overlap: OverlapPolicy::ExplicitOverride,
             prior_scale: cfg.prior_scale,
-            prior: cfg.prior.clone(),
+            prior: None,
         };
-        let bayes = BayesianTemporalGcomp { inner: est_inner };
+        let mut bayes = BayesianTemporalGcomp { inner: est_inner };
 
         let mut weights = Vec::with_capacity(gp.n_graphs);
         let mut flags = Vec::with_capacity(gp.n_graphs);
@@ -2352,6 +2391,8 @@ impl CausalAnalysis {
         let mut per_graph = Vec::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut primary_identification: Option<IdentificationResult> = None;
+        let mut envelope_prior: Option<PriorSet> = None;
+        let mut envelope_conflict: Option<causal_prob::ConflictSummary> = None;
 
         for i in 0..gp.n_graphs {
             let cmask = gp.adjacency[i];
@@ -2359,11 +2400,13 @@ impl CausalAnalysis {
             let key = gp.graph_keys[i];
             keys.push(key);
             weights.push(gp.weights[i]);
-            let Ok(tdag) = temporal_dag_from_dbn_masks(cmask, lmask, gp.n_vars, max_lag, &vars) else {
+            let Ok(tdag) = temporal_dag_from_dbn_masks(cmask, lmask, gp.n_vars, max_lag, &vars)
+            else {
                 flags.push(GraphIdentFlag::Unidentified);
                 continue;
             };
-            let Ok(id_res) = TemporalBackdoorIdentifier::new().identify_temporal(&tdag, query) else {
+            let Ok(id_res) = TemporalBackdoorIdentifier::new().identify_temporal(&tdag, query)
+            else {
                 flags.push(GraphIdentFlag::Unidentified);
                 continue;
             };
@@ -2403,6 +2446,13 @@ impl CausalAnalysis {
                 continue;
             };
             let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+            if envelope_prior.is_none() {
+                let (resolved, conflict) =
+                    resolve_bayesian_prior_with_conflict(&cfg, &bprep, Some(ctx))?;
+                envelope_prior = resolved;
+                envelope_conflict = conflict;
+            }
+            bayes.inner.prior = envelope_prior.clone();
             let mut ws = BayesianGCompWorkspace::default();
             let Ok(posterior) = bayes.fit(&bprep, identification.status, &mut ws, ctx) else {
                 if let Some(f) = flags.last_mut() {
@@ -2428,13 +2478,16 @@ impl CausalAnalysis {
 
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
-        let posterior = aggregate_effect_envelope(
+        let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
             InferenceDiagnostics::analytic("dbn_posterior_envelope"),
             EnvelopeOptions::default(),
         )
         .map_err(AnalysisError::from)?;
+        if let Some(summary) = envelope_conflict {
+            posterior = with_conflict_summary(posterior, summary);
+        }
         let estimate = effect_from_posterior(&posterior)?;
         let identification = primary_identification.ok_or_else(|| AnalysisError::Compile {
             message: "DBN posterior envelope: no identified graph atoms".into(),
@@ -2451,6 +2504,9 @@ impl CausalAnalysis {
             DiagnosticSeverity::Info,
             format!("unidentified_mass={}", posterior.unidentified_mass),
         ));
+        if let Some(cs) = posterior.conflict_summary.as_ref() {
+            push_conflict_diagnostics(&mut diagnostics, cs);
+        }
 
         let provenance = provenance_pair(
             ("discover.dbn_posterior", "dbn_posterior", &[], &identification.required_assumptions),
@@ -2518,7 +2574,7 @@ impl CausalAnalysis {
 
         let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                let bayes = BayesianTemporalGcomp {
+                let mut bayes = BayesianTemporalGcomp {
                     inner: BayesianGComputationAte {
                         backend: cfg.backend,
                         likelihood: cfg.likelihood,
@@ -2526,14 +2582,20 @@ impl CausalAnalysis {
                         seed: ctx.rng.master_seed(),
                         overlap: OverlapPolicy::ExplicitOverride,
                         prior_scale: cfg.prior_scale,
-                        prior: cfg.prior.clone(),
+                        prior: None,
                     },
                 };
                 let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let (resolved_prior, conflict_summary) =
+                    resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
+                bayes.inner.prior = resolved_prior;
                 let mut ws = BayesianGCompWorkspace::default();
-                let posterior = bayes
+                let mut posterior = bayes
                     .fit(&bprep, identification.status, &mut ws, ctx)
                     .map_err(AnalysisError::from)?;
+                if let Some(summary) = conflict_summary {
+                    posterior = with_conflict_summary(posterior, summary);
+                }
                 let estimate = effect_from_posterior(&posterior)?;
                 (
                     estimate,
@@ -2642,7 +2704,7 @@ impl CausalAnalysis {
                         InferenceMode::Bayesian(c) => c.clone(),
                         InferenceMode::Frequentist => unreachable!(),
                     };
-                    let est = BayesianTemporalGcomp {
+                    let mut est = BayesianTemporalGcomp {
                         inner: BayesianGComputationAte {
                             backend: cfg.backend,
                             likelihood: cfg.likelihood,
@@ -2650,18 +2712,48 @@ impl CausalAnalysis {
                             seed: ctx.rng.master_seed(),
                             overlap: OverlapPolicy::ExplicitOverride,
                             prior_scale: cfg.prior_scale,
-                            prior: cfg.prior.clone(),
+                            prior: None,
                         },
                     };
-                    let sens = PriorSensitivity::standard_grid();
                     let mut ws = BayesianGCompWorkspace::default();
-                    let (summary, _) = sens
-                        .evaluate(&est.inner, &bprep, identification.status, &mut ws, ctx)
-                        .map_err(AnalysisError::from)?;
+                    let (summary, sens) = if let Some(ext) = cfg.external_compose.as_ref() {
+                        let alphas_applied: Arc<[f64]> =
+                            post.conflict_summary.as_ref().map_or_else(
+                                || Arc::clone(&ext.composed.alphas_applied),
+                                |cs| Arc::clone(&cs.alphas_applied),
+                            );
+                        est.inner.prior = Some(ext.composed.prior.clone());
+                        let sens = PriorSensitivity::standard_alpha_grid();
+                        let (summary, _) = sens
+                            .evaluate_external_alpha(
+                                &est.inner,
+                                &bprep,
+                                identification.status,
+                                &mut ws,
+                                ctx,
+                                ExternalAlphaSensitivity {
+                                    sources: &ext.sources,
+                                    alphas_applied: &alphas_applied,
+                                },
+                            )
+                            .map_err(AnalysisError::from)?;
+                        (summary, sens)
+                    } else {
+                        est.inner.prior = resolve_bayesian_prior(&cfg, &bprep)?;
+                        let sens = PriorSensitivity::standard_grid();
+                        let (summary, _) = sens
+                            .evaluate(&est.inner, &bprep, identification.status, &mut ws, ctx)
+                            .map_err(AnalysisError::from)?;
+                        (summary, sens)
+                    };
                     refutations.push(sens.to_report(&summary, estimate.ate));
                     posterior = Some(with_prior_sensitivity(post.clone(), summary));
                 }
             }
+        }
+
+        if let Some(cs) = posterior.as_ref().and_then(|p| p.conflict_summary.as_ref()) {
+            push_conflict_diagnostics(&mut diagnostics, cs);
         }
 
         let physical_record =
@@ -2725,9 +2817,9 @@ impl CausalAnalysis {
             .map_err(AnalysisError::from)?;
         let max_lag = query.max_history_lag.unwrap_or(1).max(1) as usize;
 
-        let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
+        let (estimate, mut posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                let bayes = BayesianTemporalGcomp {
+                let mut bayes = BayesianTemporalGcomp {
                     inner: BayesianGComputationAte {
                         backend: cfg.backend,
                         likelihood: cfg.likelihood,
@@ -2735,14 +2827,20 @@ impl CausalAnalysis {
                         seed: ctx.rng.master_seed(),
                         overlap: OverlapPolicy::ExplicitOverride,
                         prior_scale: cfg.prior_scale,
-                        prior: cfg.prior.clone(),
+                        prior: None,
                     },
                 };
                 let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let (resolved_prior, conflict_summary) =
+                    resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
+                bayes.inner.prior = resolved_prior;
                 let mut ws = BayesianGCompWorkspace::default();
-                let posterior = bayes
+                let mut posterior = bayes
                     .fit(&bprep, identification.status, &mut ws, ctx)
                     .map_err(AnalysisError::from)?;
+                if let Some(summary) = conflict_summary {
+                    posterior = with_conflict_summary(posterior, summary);
+                }
                 let estimate = effect_from_posterior(&posterior)?;
                 (
                     estimate,
@@ -2794,7 +2892,7 @@ impl CausalAnalysis {
             time_index: None,
             panel: Some(panel),
         };
-        let refutations = run_refuters(
+        let mut refutations = run_refuters(
             &stacked,
             &estimand,
             &ate_q,
@@ -2810,6 +2908,60 @@ impl CausalAnalysis {
             &self.custom_validators,
             Some(temporal_ctx),
         )?;
+
+        // Panel Bayesian: α-grid under Full when external compose is present (mirror temporal).
+        if matches!(self.refute, RefuteSuite::Full) {
+            if let (InferenceMode::Bayesian(cfg), Some(post)) = (&self.inference, &posterior) {
+                let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+                let mut est = BayesianTemporalGcomp {
+                    inner: BayesianGComputationAte {
+                        backend: cfg.backend,
+                        likelihood: cfg.likelihood,
+                        n_draws: cfg.n_draws,
+                        seed: ctx.rng.master_seed(),
+                        overlap: OverlapPolicy::ExplicitOverride,
+                        prior_scale: cfg.prior_scale,
+                        prior: None,
+                    },
+                };
+                let mut ws = BayesianGCompWorkspace::default();
+                let (summary, sens) = if let Some(ext) = cfg.external_compose.as_ref() {
+                    let alphas_applied: Arc<[f64]> = post.conflict_summary.as_ref().map_or_else(
+                        || Arc::clone(&ext.composed.alphas_applied),
+                        |cs| Arc::clone(&cs.alphas_applied),
+                    );
+                    est.inner.prior = Some(ext.composed.prior.clone());
+                    let sens = PriorSensitivity::standard_alpha_grid();
+                    let (summary, _) = sens
+                        .evaluate_external_alpha(
+                            &est.inner,
+                            &bprep,
+                            identification.status,
+                            &mut ws,
+                            ctx,
+                            ExternalAlphaSensitivity {
+                                sources: &ext.sources,
+                                alphas_applied: &alphas_applied,
+                            },
+                        )
+                        .map_err(AnalysisError::from)?;
+                    (summary, sens)
+                } else {
+                    est.inner.prior = resolve_bayesian_prior(cfg, &bprep)?;
+                    let sens = PriorSensitivity::standard_grid();
+                    let (summary, _) = sens
+                        .evaluate(&est.inner, &bprep, identification.status, &mut ws, ctx)
+                        .map_err(AnalysisError::from)?;
+                    (summary, sens)
+                };
+                refutations.push(sens.to_report(&summary, estimate.ate));
+                posterior = Some(with_prior_sensitivity(post.clone(), summary));
+            }
+        }
+
+        if let Some(cs) = posterior.as_ref().and_then(|p| p.conflict_summary.as_ref()) {
+            push_conflict_diagnostics(&mut diagnostics, cs);
+        }
 
         let physical_record =
             self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
@@ -3312,20 +3464,19 @@ impl CausalAnalysis {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(AnalysisError::Unsupported {
-                    message:
-                        "graph-posterior discovery requires inference=Bayesian for effect mixture",
+                    message: "graph-posterior discovery requires inference=Bayesian for effect mixture",
                 });
             }
         };
         let gp = self.discover_graph_posterior_for_ate(data, ctx)?;
-        let est = BayesianGComputationAte {
+        let mut est = BayesianGComputationAte {
             backend: cfg.backend,
             likelihood: cfg.likelihood,
             n_draws: cfg.n_draws,
             seed: ctx.rng.master_seed(),
             overlap: OverlapPolicy::ExplicitOverride,
             prior_scale: cfg.prior_scale,
-            prior: cfg.prior.clone(),
+            prior: None,
         };
 
         let mut weights = Vec::with_capacity(gp.n_graphs);
@@ -3334,6 +3485,8 @@ impl CausalAnalysis {
         let mut per_graph = Vec::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut primary_identification: Option<IdentificationResult> = None;
+        let mut envelope_prior: Option<PriorSet> = None;
+        let mut envelope_conflict: Option<causal_prob::ConflictSummary> = None;
 
         for i in 0..gp.n_graphs {
             let mask = gp.adjacency[i];
@@ -3358,6 +3511,13 @@ impl CausalAnalysis {
                     primary_identification = Some(identification.clone());
                 }
                 let prep = est.prepare(data, &estimand, query).map_err(AnalysisError::from)?;
+                if envelope_prior.is_none() {
+                    let (resolved, conflict) =
+                        resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
+                    envelope_prior = resolved;
+                    envelope_conflict = conflict;
+                }
+                est.prior = envelope_prior.clone();
                 let mut ws = BayesianGCompWorkspace::default();
                 let posterior = est
                     .fit(&prep, identification.status, &mut ws, ctx)
@@ -3378,13 +3538,16 @@ impl CausalAnalysis {
 
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
-        let posterior = aggregate_effect_envelope(
+        let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
             InferenceDiagnostics::analytic("graph_posterior_envelope"),
             EnvelopeOptions::default(),
         )
         .map_err(AnalysisError::from)?;
+        if let Some(summary) = envelope_conflict {
+            posterior = with_conflict_summary(posterior, summary);
+        }
         let estimate = effect_from_posterior(&posterior)?;
         let identification = primary_identification.ok_or_else(|| AnalysisError::Compile {
             message: "graph-posterior envelope: no identified graph atoms".into(),
@@ -3401,6 +3564,9 @@ impl CausalAnalysis {
             DiagnosticSeverity::Info,
             format!("unidentified_mass={}", posterior.unidentified_mass),
         ));
+        if let Some(cs) = posterior.conflict_summary.as_ref() {
+            push_conflict_diagnostics(&mut diagnostics, cs);
+        }
 
         let mut refute_ws = EstimationWorkspace::default();
         let refutations = match self.refute {
@@ -3470,14 +3636,14 @@ impl CausalAnalysis {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),
         };
-        let est = BayesianGComputationAte {
+        let mut est = BayesianGComputationAte {
             backend: cfg.backend,
             likelihood: cfg.likelihood,
             n_draws: cfg.n_draws,
             seed: ctx.rng.master_seed(),
             overlap: OverlapPolicy::ExplicitOverride,
             prior_scale: cfg.prior_scale,
-            prior: cfg.prior.clone(),
+            prior: None,
         };
 
         let mut weights = Vec::new();
@@ -3485,6 +3651,8 @@ impl CausalAnalysis {
         let mut keys = Vec::new();
         let mut per_graph = Vec::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
+        let mut envelope_prior: Option<PriorSet> = None;
+        let mut envelope_conflict: Option<causal_prob::ConflictSummary> = None;
         for (i, case) in envelope.cases.iter().enumerate() {
             let key = i as u64 + 1;
             keys.push(key);
@@ -3501,6 +3669,13 @@ impl CausalAnalysis {
                     primary_estimand = Some(estimand.clone());
                 }
                 let prep = est.prepare(data, &estimand, query).map_err(AnalysisError::from)?;
+                if envelope_prior.is_none() {
+                    let (resolved, conflict) =
+                        resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
+                    envelope_prior = resolved;
+                    envelope_conflict = conflict;
+                }
+                est.prior = envelope_prior.clone();
                 let mut ws = BayesianGCompWorkspace::default();
                 let posterior = est
                     .fit(&prep, case.result.status, &mut ws, ctx)
@@ -3520,13 +3695,16 @@ impl CausalAnalysis {
         }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
-        let posterior = aggregate_effect_envelope(
+        let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
             InferenceDiagnostics::analytic("pag_envelope"),
             EnvelopeOptions::default(),
         )
         .map_err(AnalysisError::from)?;
+        if let Some(summary) = envelope_conflict {
+            posterior = with_conflict_summary(posterior, summary);
+        }
         let estimate = effect_from_posterior(&posterior)?;
         let estimand = primary_estimand.or(envelope.invariant.clone()).ok_or_else(|| {
             AnalysisError::Compile { message: "PAG Bayesian envelope missing estimand".into() }
@@ -3540,6 +3718,9 @@ impl CausalAnalysis {
             DiagnosticSeverity::Info,
             format!("unidentified_mass={}", posterior.unidentified_mass),
         ));
+        if let Some(cs) = posterior.conflict_summary.as_ref() {
+            push_conflict_diagnostics(&mut diagnostics, cs);
+        }
 
         let mut refute_ws = EstimationWorkspace::default();
         let refutations = match self.refute {

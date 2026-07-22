@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from .prior_bank import ComposedPrior, PriorMapping
 
 
 @dataclass(frozen=True)
@@ -23,17 +26,25 @@ class Bayesian:
         Posterior draw count.
     prior_scale:
         Isotropic Gaussian coefficient prior scale when ``prior_from`` is unset.
-        Ignored when ``prior_from`` is provided (sequential Bayes).
+        Ignored when ``prior_from`` is provided.
     prior_from:
-        Posterior artifact bytes from a previous ``result.posterior.artifact``.
-        Hydrates a Gaussian coefficient prior (same design / ``ncols`` only).
+        Posterior artifact bytes from a previous ``result.posterior.artifact``,
+        or a ``ComposedPrior`` from ``compose_external_priors``.
+        Artifact hydrate is deferred until the target design is prepared.
+    mapping:
+        How to map an artifact into the target prior. ``None`` auto-selects:
+        identical coefficient subspace when designs match (sequential Bayes),
+        or ``PriorMapping.effect_functional(...)`` when designs differ and the
+        artifact has an effect quantity. Never silent ``coef_i → coef_i`` across
+        heterogeneous designs. Ignored when ``prior_from`` is a ``ComposedPrior``.
     backend:
         Inference backend: ``laplace`` (default), ``conjugate``, or ``hmc``.
     """
 
     n_draws: int = 1000
     prior_scale: float = 10.0
-    prior_from: bytes | None = None
+    prior_from: bytes | ComposedPrior | None = None
+    mapping: PriorMapping | None = None
     backend: Literal["laplace", "conjugate", "hmc"] = "laplace"
     kind: Literal["bayesian"] = "bayesian"
 

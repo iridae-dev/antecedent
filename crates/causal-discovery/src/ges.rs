@@ -972,10 +972,12 @@ fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
                 let q = parents[j];
                 if !dag.has_edge(p, q) && !dag.has_edge(q, p) {
                     // p → z ← q
-                    if cpdag.edge_between(p, z).is_some_and(causal_graph::MarkedEdge::is_undirected) {
+                    if cpdag.edge_between(p, z).is_some_and(causal_graph::MarkedEdge::is_undirected)
+                    {
                         cpdag.orient_undirected(p, z)?;
                     }
-                    if cpdag.edge_between(q, z).is_some_and(causal_graph::MarkedEdge::is_undirected) {
+                    if cpdag.edge_between(q, z).is_some_and(causal_graph::MarkedEdge::is_undirected)
+                    {
                         cpdag.orient_undirected(q, z)?;
                     }
                 }

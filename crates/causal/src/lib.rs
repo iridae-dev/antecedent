@@ -65,7 +65,11 @@ pub use gcm::{
     counterfactual_ite, fit_gcm, mechanism_change_detection, rank_root_causes, sample_do,
     sample_interventional_distribution,
 };
-pub use inference::{BayesianConfig, InferenceMode};
+pub use inference::{
+    BayesianConfig, ExternalComposeSpec, InferenceMode, hydrate_mapping_from_io,
+    hydrate_prior_from_posterior_bytes, resolve_bayesian_prior,
+    resolve_bayesian_prior_with_conflict,
+};
 pub use options::{DiscoveryAccept, FdrControl};
 pub use planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
@@ -524,8 +528,9 @@ pub fn decode_causal_posterior_bytes(
 
 /// Hydrate a coefficient [`causal_prob::PriorSet`] from posterior artifact bytes.
 ///
-/// Uses per-coefficient posterior means/SDs (effect columns ignored). Fit-time
-/// validation still requires the prior dimension to match the design `ncols`.
+/// Uses per-coefficient posterior means and SDs (identical-subspace mapping).
+/// Effect columns are ignored. Prefer [`hydrate_prior_from_posterior_bytes`] when
+/// a heterogeneous mapping is required.
 ///
 /// # Errors
 ///

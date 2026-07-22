@@ -411,3 +411,38 @@ pub(crate) fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
         ),
     }
 }
+
+/// Surface applied external-prior alphas after conflict shrink.
+pub(crate) fn push_conflict_diagnostics(
+    diagnostics: &mut Vec<Diagnostic>,
+    summary: &causal_prob::ConflictSummary,
+) {
+    for (i, id) in summary.source_ids.iter().enumerate() {
+        let req = summary.alphas_requested.get(i).copied().unwrap_or(f64::NAN);
+        let app = summary.alphas_applied.get(i).copied().unwrap_or(f64::NAN);
+        let p = summary
+            .p_values
+            .get(i)
+            .and_then(|x| *x)
+            .map_or_else(|| "none".to_string(), |v| format!("{v}"));
+        let kl = summary
+            .kl_values
+            .get(i)
+            .and_then(|x| *x)
+            .map_or_else(|| "none".to_string(), |v| format!("{v}"));
+        let mut d = Diagnostic::new(
+            "bayes.prior_bank.conflict",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "external prior {id}: alpha_requested={req}, alpha_applied={app}, p={p}, kl={kl}"
+            ),
+        );
+        d.fields = Arc::from([
+            (Arc::from("source_id"), Arc::clone(id)),
+            (Arc::from("alpha_requested"), Arc::from(format!("{req}"))),
+            (Arc::from("alpha_applied"), Arc::from(format!("{app}"))),
+        ]);
+        diagnostics.push(d);
+    }
+}

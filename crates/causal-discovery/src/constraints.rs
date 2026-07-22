@@ -246,10 +246,7 @@ impl MultiDatasetConstraints {
     /// Kind of an observed context variable (defaults to space).
     #[must_use]
     pub fn context_kind(&self, v: VariableId) -> ContextKind {
-        self.context_kinds
-            .iter()
-            .find(|(id, _)| *id == v)
-            .map_or(ContextKind::Space, |(_, k)| *k)
+        self.context_kinds.iter().find(|(id, _)| *id == v).map_or(ContextKind::Space, |(_, k)| *k)
     }
 
     /// Resolve the J-PCMCI+ role of `v` (system if unmarked).

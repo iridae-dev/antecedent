@@ -30,6 +30,7 @@ def test_prior_sensitivity_on_refute_full():
     sens = result.validation.prior_sensitivity
     assert sens is not None
     assert len(sens.scales) >= 3
+    assert sens.alphas is None
     assert len(sens.effect_means) == len(sens.scales)
     assert len(sens.effect_sds) == len(sens.scales)
     assert all(np.isfinite(m) for m in sens.effect_means)

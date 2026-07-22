@@ -1,0 +1,8 @@
+{
+  "source_ate_true": 2.0,
+  "mapped_mean_tol": 0.35,
+  "mapped_closer_than_baseline": true,
+  "required_assumption_ids": ["external_effect_prior"],
+  "identical_mapping_errors": true,
+  "notes": "P4B effect-functional hydrate; identity-link treatment-coef bridge"
+}

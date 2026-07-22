@@ -46,6 +46,11 @@ EVIDENCE = {
     "bayes.backend.hierarchical_bvar_gp": "crates/causal-model/src/registry.rs",
     "bayes.validate.mcmc_diagnostics": "crates/causal-validate/src/bayesian_checks.rs",
     "bayes.ci.tests": "crates/causal-stats/src/ci/bayes.rs",
+    "bayes.prior_bank.catalog": "crates/causal-io/src/prior_bank.rs",
+    "bayes.prior_bank.effect_map": "crates/causal-estimate/src/bayesian.rs",
+    "bayes.prior_bank.power_mixture": "crates/causal-prob/src/external_prior.rs",
+    "bayes.prior_bank.conflict": "crates/causal-validate/src/conflict.rs",
+    "bayes.prior_bank.transport": "crates/causal-prob/src/transport.rs",
 }
 
 missing = []
@@ -70,6 +75,12 @@ for path in [
     "conformance/bayesian/laplace_glm/expected.json",
     "conformance/bayesian/dag_posterior/expected.json",
     "conformance/bayesian/temporal_pulse/expected.json",
+    "conformance/bayesian/prior_bank_catalog/expected.json",
+    "conformance/bayesian/prior_bank_effect_map/expected.json",
+    "conformance/bayesian/prior_bank_power_mixture/expected.json",
+    "conformance/bayesian/prior_bank_conflict_shrink/expected.json",
+    "conformance/bayesian/prior_bank_transport/expected.json",
+    "conformance/bayesian/prior_bank_alpha_sensitivity/expected.json",
     "crates/causal-prob/benches/laplace_glm.rs",
     "crates/causal-estimate/benches/posterior_functional.rs",
 ]:
@@ -97,6 +108,7 @@ cargo test -p causal-estimate --lib bayesian
 cargo test -p causal-estimate --lib envelope
 cargo test -p causal-validate --lib bayesian_checks
 cargo test -p causal-io --lib posterior
+cargo test -p causal-io --lib prior_bank
 cargo test -p causal-data --lib resample
 cargo test -p causal --test bayesian
 cargo test -p causal --test manufacturing_temporal
@@ -108,7 +120,8 @@ cargo bench -p causal-estimate --bench posterior_functional -- --test
 echo "== Python panel Bayesian facade smoke =="
 (
   cd python
-  uv run pytest tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py -q
+  unset CONDA_PREFIX || true
+  uv run pytest tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py -q
 )
 
 echo "Bayesian gate PASSED"

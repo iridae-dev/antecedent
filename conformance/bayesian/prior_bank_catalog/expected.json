@@ -1,0 +1,17 @@
+{
+  "accepted_ids": ["match"],
+  "partial_ids": ["unnamed"],
+  "rejected": [
+    {
+      "artifact_id": "wrong",
+      "reason_code": "estimand_mismatch"
+    }
+  ],
+  "partial_missing_contains": {
+    "unnamed": ["durable_coef_names"]
+  },
+  "partial_mappable_contains": {
+    "unnamed": ["ate"]
+  },
+  "notes": "P4A catalog compatibility only; hydrate / power-prior are later slices"
+}

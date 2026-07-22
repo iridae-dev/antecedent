@@ -1,0 +1,11 @@
+{
+  "n": 80,
+  "n_draws": 100,
+  "source_treatment_mean": 8.0,
+  "source_coef_variance": 0.05,
+  "alpha": 1.0,
+  "alpha_multipliers": [0.0, 0.25, 0.5, 0.75, 1.0],
+  "require_finite_effect_means": true,
+  "m1_closer_to_source_than_m0": true,
+  "notes": "P4E α-multiplier prior sensitivity under external composed prior + refute=Full"
+}

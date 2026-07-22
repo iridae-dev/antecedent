@@ -29,6 +29,7 @@ pub mod model_bundle;
 pub mod plan_wire;
 pub mod posterior;
 pub mod posterior_convert;
+pub mod prior_bank;
 pub mod provenance_wire;
 pub mod query_wire;
 pub mod reader;
@@ -96,6 +97,13 @@ pub use posterior::{
 };
 pub use posterior_convert::{
     decode_causal_posterior_bytes, encode_causal_posterior, encode_causal_posterior_bytes,
+};
+pub use prior_bank::{
+    CompatibilityRejectReason, CompatibilityReport, DesignVariableRole, DesignVariableSummary,
+    EstimandFingerprint, PRIOR_SOURCE_META_SECTION, PriorArtifactBody, PriorCatalog, PriorMapping,
+    PriorSourceMeta, PriorSourceRef, TargetDesign, attach_prior_source_meta,
+    decode_prior_source_meta, encode_prior_source_meta, extract_prior_source_meta,
+    posterior_has_named_effect,
 };
 pub use provenance_wire::{
     ProvenanceGraphWire, ProvenanceNodeWire, provenance_from_wire, provenance_to_wire,

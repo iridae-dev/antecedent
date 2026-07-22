@@ -210,9 +210,8 @@ fn weighted_residuals(
             }
         }
     }
-    let g_inv = invert_square(&g, q).ok_or(StatsError::Shape {
-        message: "singular Z design in multivariate ParCorr",
-    })?;
+    let g_inv = invert_square(&g, q)
+        .ok_or(StatsError::Shape { message: "singular Z design in multivariate ParCorr" })?;
     let mut beta = vec![0.0; q];
     for i in 0..q {
         for j in 0..q {
@@ -442,9 +441,8 @@ fn residualize_block(
             g[i * q + j] = s;
         }
     }
-    let g_inv = invert_square(&g, q).ok_or(StatsError::Shape {
-        message: "singular Z design in multivariate ParCorr",
-    })?;
+    let g_inv = invert_square(&g, q)
+        .ok_or(StatsError::Shape { message: "singular Z design in multivariate ParCorr" })?;
     let mut out = vec![0.0; n * p];
     for (k, &c) in idxs.iter().enumerate() {
         // beta = G^{-1} D' y
@@ -554,12 +552,10 @@ fn cca_leading(
     for i in 0..py {
         cyy[i * py + i] += 1e-8;
     }
-    let cxx_inv = invert_square(&cxx, px).ok_or(StatsError::Shape {
-        message: "singular Z design in multivariate ParCorr",
-    })?;
-    let cyy_inv = invert_square(&cyy, py).ok_or(StatsError::Shape {
-        message: "singular Z design in multivariate ParCorr",
-    })?;
+    let cxx_inv = invert_square(&cxx, px)
+        .ok_or(StatsError::Shape { message: "singular Z design in multivariate ParCorr" })?;
+    let cyy_inv = invert_square(&cyy, py)
+        .ok_or(StatsError::Shape { message: "singular Z design in multivariate ParCorr" })?;
 
     // M = Cxx^{-1} Cxy Cyy^{-1} Cyx (px × px)
     // temp = Cxy Cyy^{-1} (px × py)

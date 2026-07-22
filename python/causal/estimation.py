@@ -93,6 +93,15 @@ class EstimateView:
 
 
 @dataclass(frozen=True)
+class ConflictSummaryView:
+    """Applied external-prior alphas after conflict shrink."""
+
+    source_ids: list[str]
+    alphas_requested: list[float]
+    alphas_applied: list[float]
+
+
+@dataclass(frozen=True)
 class PosteriorView:
     effect_mean: float | None
     effect_sd: float | None
@@ -104,6 +113,7 @@ class PosteriorView:
     artifact: bytes | list[int] | None = None
     unidentified_mass: float | None = None
     envelope: EffectEnvelope | None = None
+    conflict: ConflictSummaryView | None = None
 
 
 @dataclass(frozen=True)
@@ -133,11 +143,16 @@ class PredictiveCheckReport:
 
 @dataclass(frozen=True)
 class PriorSensitivityReport:
-    """Isotropic prior-scale sensitivity grid (Bayesian + ``refute="full"``)."""
+    """Prior sensitivity grid (Bayesian + ``refute="full"``).
+
+    Isotropic mode fills ``scales``; external prior-bank mode fills ``alphas``
+    (multipliers on post-conflict applied α). Exactly one mode is active.
+    """
 
     scales: list[float]
     effect_means: list[float]
     effect_sds: list[float]
+    alphas: list[float] | None = None
 
 
 @dataclass(frozen=True)
@@ -177,6 +192,16 @@ class AnalysisResult:
 
 
 def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
+    def _conflict_from_raw(r: AteAnalysisResult) -> ConflictSummaryView | None:
+        ids = getattr(r, "conflict_source_ids", None)
+        if ids is None:
+            return None
+        return ConflictSummaryView(
+            source_ids=list(ids),
+            alphas_requested=list(r.conflict_alphas_requested),
+            alphas_applied=list(r.conflict_alphas_applied),
+        )
+
     posterior = None
     if raw.posterior_n_draws is not None:
         mass = getattr(raw, "posterior_unidentified_mass", None)
@@ -202,6 +227,7 @@ def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
             artifact=raw.posterior_artifact,
             unidentified_mass=None if mass is None else float(mass),
             envelope=envelope,
+            conflict=_conflict_from_raw(raw),
         )
     prior_predictive = None
     if getattr(raw, "prior_ppc_p_value", None) is not None:
@@ -224,12 +250,15 @@ def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
             n_sims=int(raw.posterior_ppc_n_sims),
         )
     prior_sensitivity = None
-    scales = getattr(raw, "prior_sensitivity_scales", None)
-    if scales is not None:
+    means = getattr(raw, "prior_sensitivity_means", None)
+    if means is not None:
+        alphas_raw = getattr(raw, "prior_sensitivity_alphas", None)
+        scales_raw = getattr(raw, "prior_sensitivity_scales", None)
         prior_sensitivity = PriorSensitivityReport(
-            scales=list(scales),
-            effect_means=list(raw.prior_sensitivity_means),
+            scales=list(scales_raw or ()),
+            effect_means=list(means),
             effect_sds=list(raw.prior_sensitivity_sds),
+            alphas=None if alphas_raw is None else list(alphas_raw),
         )
     return AnalysisResult(
         identification=IdentificationView(
@@ -484,8 +513,17 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
         "n_draws": inference.n_draws,
         "prior_scale": inference.prior_scale,
     }
-    if inference.prior_from is not None:
-        kw["prior_artifact"] = bytes(inference.prior_from)
+    prior_from = inference.prior_from
+    if prior_from is not None:
+        # Local import avoids circular import with prior_bank ↔ estimation.
+        from .prior_bank import ComposedPrior
+
+        if isinstance(prior_from, ComposedPrior):
+            kw["composed_prior"] = prior_from.to_native_dict()
+        else:
+            kw["prior_artifact"] = bytes(prior_from)
+    if inference.mapping is not None:
+        kw["prior_mapping"] = inference.mapping.to_dict()
     return kw
 
 
@@ -1341,6 +1379,7 @@ def analyze(
 __all__ = [
     "AnalysisResult",
     "AteAnalysisResult",
+    "ConflictSummaryView",
     "EstimateView",
     "MediationView",
     "IdentificationView",
@@ -1348,6 +1387,7 @@ __all__ = [
     "PerformanceView",
     "PosteriorView",
     "PredictiveCheckReport",
+    "PriorSensitivityReport",
     "TemporalAnalysisResult",
     "ValidationView",
     "analyze",

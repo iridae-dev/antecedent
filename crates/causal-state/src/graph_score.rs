@@ -2,10 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::implicit_hasher,
-    clippy::similar_names
-)]
+#![allow(clippy::implicit_hasher, clippy::similar_names)]
 
 use std::collections::HashMap;
 use std::sync::Arc;

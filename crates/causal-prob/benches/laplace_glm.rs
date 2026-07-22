@@ -27,6 +27,7 @@ fn bench_laplace(c: &mut Criterion) {
         specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(3, 10.0))],
         contrast: None,
         categorical: Vec::new(),
+        restrictions: Vec::new(),
     };
     let design =
         BayesDesignRef { x_colmajor: &x, nrows: n, ncols: 3, y: &y, weights: None, offsets: None };

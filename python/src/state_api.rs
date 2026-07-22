@@ -142,11 +142,7 @@ impl PyCausalState {
     }
 
     /// Fetch retained columns for `batch_id` as `(names, list[ndarray])`.
-    fn get_batch<'py>(
-        &self,
-        py: Python<'py>,
-        batch_id: &str,
-    ) -> PyResult<BatchColumnsPy<'py>> {
+    fn get_batch<'py>(&self, py: Python<'py>, batch_id: &str) -> PyResult<BatchColumnsPy<'py>> {
         let batch = self
             .retained
             .get(batch_id)

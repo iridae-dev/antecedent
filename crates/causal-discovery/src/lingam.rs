@@ -194,7 +194,9 @@ impl DirectLingam {
                     x[c * n + r] = orig[par][r];
                 }
             }
-            let fit = if let Ok(f) = backend.least_squares(&x, n, k, &orig[child], &mut ls_ws) { f } else {
+            let fit = if let Ok(f) = backend.least_squares(&x, n, k, &orig[child], &mut ls_ws) {
+                f
+            } else {
                 // Fall back to pairwise prune on rank failure.
                 for &par in &preds {
                     let beta = simple_regression_coef(&orig[child], &orig[par]);

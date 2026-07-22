@@ -88,5 +88,30 @@ id = "bayes.ci.tests"
 status = "done"
 notes = "Bayes-factor CI / posterior dependence / PPC-CI for conjugate Gaussian (§12)"
 
+[[capabilities]]
+id = "bayes.prior_bank.catalog"
+status = "done"
+notes = "PriorSourceMeta / PriorCatalog / CompatibilityReport; CBOR prior_source.meta; durable coef labels; python_facade=full (causal.PriorCatalog); conformance/bayesian/prior_bank_catalog"
+
+[[capabilities]]
+id = "bayes.prior_bank.effect_map"
+status = "done"
+notes = "EffectPrior + HydrateMapping hydrate_prior; BayesianConfig.prior_from_artifact; python_facade=full (Bayesian.mapping / PriorMapping); conformance/bayesian/prior_bank_effect_map"
+
+[[capabilities]]
+id = "bayes.prior_bank.power_mixture"
+status = "done"
+notes = "ExternalPriorWeight + compose_external_priors (power precision-add + mixture moment-match); python_facade=full (compose_external_priors / ComposedPrior); conformance/bayesian/prior_bank_power_mixture"
+
+[[capabilities]]
+id = "bayes.prior_bank.conflict"
+status = "done"
+notes = "ConflictPolicy α shrink via prior-PPC/KL; BayesianConfig.prior_from_composed; ConflictSummary on posterior + diagnostics; α-multiplier prior sensitivity under refute=Full (PriorSensitivity::standard_alpha_grid); python_facade=full (ConflictPolicy); conformance/bayesian/prior_bank_conflict_shrink + prior_bank_alpha_sensitivity"
+
+[[capabilities]]
+id = "bayes.prior_bank.transport"
+status = "done"
+notes = "TransportPolicy (InvariantConditionalOutcome / EffectModifiers / Propensity); population-tag mismatch requires policy (error_code=transport_policy_required); optional unit reweight; Propensity without weights → α=0; python_facade=full (TransportPolicy on compose_external_priors); unsupported environment/unidentified shifts not claimed; conformance/bayesian/prior_bank_transport"
+
 # External Stan/PyMC adapters are optional forever (native Laplace is canonical;
 # ). Not tracked as a required inventory row.

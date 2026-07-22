@@ -555,9 +555,10 @@ impl Fci {
             let zi = *var_index.get(&v).ok_or_else(|| DiscoveryError::data_msg("missing z"))?;
             workspace.z_flat.push(zi);
         }
-        let prepared = workspace.prepared_ci.as_ref().ok_or({
-            DiscoveryError::Unsupported { message: "CI test used before prepare()" }
-        })?;
+        let prepared = workspace
+            .prepared_ci
+            .as_ref()
+            .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
         let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
         let req = CiBatchRequest {
             columns: cols,

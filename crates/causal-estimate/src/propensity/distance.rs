@@ -2,15 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-
-use causal_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry,
-};
+use causal_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry};
 use causal_data::TabularData;
 use causal_expr::IdentifiedEstimand;
-use causal_stats::{
-    FaerBackend, GlmOptions, MatchingDistance, fit_propensity,
-};
+use causal_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity};
 
 use super::matching::matching_contrast;
 use super::prepare::{

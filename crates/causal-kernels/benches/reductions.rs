@@ -45,12 +45,8 @@ fn bench_reductions(criterion: &mut Criterion) {
         });
     });
 
-    let xc: Vec<u32> = (0..length)
-        .map(|idx| u32::try_from(idx % 8).unwrap_or(0))
-        .collect();
-    let yc: Vec<u32> = (0..length)
-        .map(|idx| u32::try_from(idx % 5).unwrap_or(0))
-        .collect();
+    let xc: Vec<u32> = (0..length).map(|idx| u32::try_from(idx % 8).unwrap_or(0)).collect();
+    let yc: Vec<u32> = (0..length).map(|idx| u32::try_from(idx % 5).unwrap_or(0)).collect();
     let mut table = vec![0.0; 8 * 5];
     criterion.bench_function("accumulate_contingency_n10k", |b| {
         b.iter(|| {

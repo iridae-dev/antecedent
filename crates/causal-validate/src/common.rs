@@ -342,18 +342,20 @@ pub fn stack_panel_tabular(panel: &PanelData) -> Result<TabularData, ValidationE
     let mut col_vals: Vec<Vec<f64>> = (0..n_cols).map(|_| Vec::with_capacity(total)).collect();
     for u in panel.units() {
         for (j, dest) in col_vals.iter_mut().enumerate() {
-            let id = VariableId::from_raw(u32::try_from(j).map_err(|_| {
-                ValidationError::data_msg("panel column index exceeds u32::MAX")
-            })?);
+            let id =
+                VariableId::from_raw(u32::try_from(j).map_err(|_| {
+                    ValidationError::data_msg("panel column index exceeds u32::MAX")
+                })?);
             let vals = u.series.float64_values(id).map_err(ValidationError::from)?;
             dest.extend_from_slice(&vals);
         }
     }
     let mut cols = Vec::with_capacity(n_cols);
     for (j, values) in col_vals.into_iter().enumerate() {
-        let id = VariableId::from_raw(u32::try_from(j).map_err(|_| {
-            ValidationError::data_msg("panel column index exceeds u32::MAX")
-        })?);
+        let id = VariableId::from_raw(
+            u32::try_from(j)
+                .map_err(|_| ValidationError::data_msg("panel column index exceeds u32::MAX"))?,
+        );
         cols.push(OwnedColumn::Float64(
             Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(total))
                 .map_err(ValidationError::from)?,

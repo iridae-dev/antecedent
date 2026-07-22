@@ -18,18 +18,19 @@ use std::sync::Arc;
 use causal_core::IdentificationStatus;
 use causal_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
+    AssumptionStatus, AverageEffectQuery, ExecutionContext, PriorAssumption, TargetPopulation,
+    VariableId,
 };
-use causal_data::TabularData;
+use causal_data::{TableView, TabularData};
 use causal_expr::IdentifiedEstimand;
 use causal_prob::{
-    BayesDesignRef, BayesFitOptions, BayesLikelihood, ConjugateGaussianBackend, EffectBatch,
-    GaussianCoefficientPrior, HmcGlmBackend, HmcOptions, InferenceBackend, InferenceDiagnostics,
-    LaplaceGlmBackend, LaplaceWorkspace, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace,
-    PosteriorQuantityKind, PosteriorSchema, PosteriorSummary, PriorSensitivitySummary, PriorSet,
-    PriorSpec,
+    BayesDesignRef, BayesFitOptions, BayesLikelihood, ConflictSummary, ConjugateGaussianBackend,
+    EffectBatch, EffectPrior, GaussianCoefficientPrior, HmcGlmBackend, HmcOptions,
+    InferenceBackend, InferenceDiagnostics, LaplaceGlmBackend, LaplaceWorkspace, PosteriorBatch,
+    PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind, PosteriorSchema,
+    PosteriorSummary, PriorSensitivitySummary, PriorSet, PriorSpec,
 };
-use causal_stats::{CompiledDesign, GlmFamily};
+use causal_stats::{CompiledDesign, DesignColumnRole, GlmFamily};
 
 use crate::adjustment::{PreparedEstimationProblem, intervention_f64};
 use crate::error::EstimationError;
@@ -47,6 +48,8 @@ pub struct CausalPosterior {
     pub identification: IdentificationStatus,
     /// Optional prior-sensitivity grid.
     pub prior_sensitivity: Option<PriorSensitivitySummary>,
+    /// Optional external-prior conflict shrink summary.
+    pub conflict_summary: Option<ConflictSummary>,
     /// Inference diagnostics.
     pub diagnostics: InferenceDiagnostics,
     /// Assumptions including prior restrictions.
@@ -151,6 +154,7 @@ pub fn hydrate_prior_from_quantity_summaries(
         specs: vec![PriorSpec::GaussianCoefficients(coef)],
         contrast: None,
         categorical: Vec::new(),
+        restrictions: Vec::new(),
     })
 }
 
@@ -169,6 +173,195 @@ pub fn hydrate_prior_from_posterior(
         &posterior.summaries.sd,
         expected_n_coef,
     )
+}
+
+/// Bridge from a banked posterior into a target design's coefficient prior.
+///
+/// Mirrors [`causal_io::PriorMapping`] without depending on `causal-io` (avoids a
+/// cycle). Convert at the facade.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum HydrateMapping {
+    /// Identical coefficient subspace (P1-C sequential Bayes).
+    IdenticalCoefficientSubspace,
+    /// Effect-functional transfer via a named source quantity (e.g. `"ate"`).
+    EffectFunctional {
+        /// Source effect / quantity name.
+        source_quantity: String,
+    },
+    /// Explicit source→target quantity name pairs.
+    NamedParameters {
+        /// `(source_name, target_name)` pairs.
+        pairs: Vec<(String, String)>,
+    },
+}
+
+/// Build a coefficient [`PriorSet`] under a declared [`HydrateMapping`].
+///
+/// - [`HydrateMapping::IdenticalCoefficientSubspace`]: full coef hydrate; hard-errors
+///   when source coef count ≠ baseline length.
+/// - [`HydrateMapping::EffectFunctional`]: maps source effect moments onto the
+///   treatment coefficient (identity-link ATE bridge); other dims keep `baseline`.
+/// - [`HydrateMapping::NamedParameters`]: maps named source moments onto named
+///   target coefficients; unmapped dims keep `baseline`.
+///
+/// Records `external_effect_prior` / `external_named_prior` on
+/// [`PriorSet::restrictions`].
+///
+/// # Errors
+///
+/// Dimension mismatch, missing effect column, unknown names, or invalid baseline.
+pub fn hydrate_prior(
+    mapping: &HydrateMapping,
+    quantities: &[PosteriorQuantityKind],
+    mean: &[f64],
+    sd: &[f64],
+    baseline: &PriorSet,
+    target_coef_names: &[Arc<str>],
+    treatment_col: Option<usize>,
+) -> Result<PriorSet, EstimationError> {
+    if mean.len() != quantities.len() || sd.len() != quantities.len() {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: mean/sd length must match quantities",
+        ));
+    }
+    let n_target = target_coef_names.len();
+    let base_coef = baseline.gaussian_coefficients().ok_or_else(|| {
+        EstimationError::stats_msg("hydrate_prior: baseline missing GaussianCoefficients")
+    })?;
+    if base_coef.len() != n_target {
+        return Err(EstimationError::stats_msg(format!(
+            "hydrate_prior: baseline n_coef {} != target_coef_names {}",
+            base_coef.len(),
+            n_target
+        )));
+    }
+
+    match mapping {
+        HydrateMapping::IdenticalCoefficientSubspace => {
+            let mut prior =
+                hydrate_prior_from_quantity_summaries(quantities, mean, sd, Some(n_target))?;
+            // Preserve residual specs from baseline when present.
+            merge_baseline_residuals(&mut prior, baseline);
+            Ok(prior)
+        }
+        HydrateMapping::EffectFunctional { source_quantity } => {
+            let t_col = treatment_col.ok_or_else(|| {
+                EstimationError::stats_msg("hydrate_prior: EffectFunctional requires treatment_col")
+            })?;
+            if t_col >= n_target {
+                return Err(EstimationError::stats_msg(format!(
+                    "hydrate_prior: treatment_col {t_col} out of range for {n_target} coefs"
+                )));
+            }
+            let (m, s) = quantity_moments(quantities, mean, sd, source_quantity.as_str())?;
+            let effect = EffectPrior::new(m, s.max(HYDRATE_VAR_FLOOR.sqrt()))
+                .map_err(EstimationError::from)?;
+            let mut means: Vec<f64> = base_coef.mean.to_vec();
+            let mut vars: Vec<f64> = base_coef.variance.to_vec();
+            means[t_col] = effect.mean;
+            vars[t_col] = (effect.sd * effect.sd).max(HYDRATE_VAR_FLOOR);
+            let coef =
+                GaussianCoefficientPrior { mean: Arc::from(means), variance: Arc::from(vars) };
+            coef.validate().map_err(EstimationError::from)?;
+            let mut prior = PriorSet {
+                specs: vec![PriorSpec::GaussianCoefficients(coef)],
+                contrast: baseline.contrast,
+                categorical: baseline.categorical.clone(),
+                restrictions: vec![PriorAssumption {
+                    id: Arc::from("external_effect_prior"),
+                    description: Arc::from(format!(
+                        "external effect-functional prior from quantity `{source_quantity}` onto treatment coefficient"
+                    )),
+                }],
+            };
+            merge_baseline_residuals(&mut prior, baseline);
+            Ok(prior)
+        }
+        HydrateMapping::NamedParameters { pairs } => {
+            if pairs.is_empty() {
+                return Err(EstimationError::stats_msg(
+                    "hydrate_prior: NamedParameters requires at least one pair",
+                ));
+            }
+            let mut means: Vec<f64> = base_coef.mean.to_vec();
+            let mut vars: Vec<f64> = base_coef.variance.to_vec();
+            let name_index: std::collections::HashMap<&str, usize> =
+                target_coef_names.iter().enumerate().map(|(i, n)| (n.as_ref(), i)).collect();
+            for (src, tgt) in pairs {
+                let (m, s) = quantity_moments(quantities, mean, sd, src)?;
+                let Some(&idx) = name_index.get(tgt.as_str()) else {
+                    return Err(EstimationError::stats_msg(format!(
+                        "hydrate_prior: unknown target coefficient name `{tgt}`"
+                    )));
+                };
+                means[idx] = m;
+                vars[idx] = (s * s).max(HYDRATE_VAR_FLOOR);
+            }
+            let coef =
+                GaussianCoefficientPrior { mean: Arc::from(means), variance: Arc::from(vars) };
+            coef.validate().map_err(EstimationError::from)?;
+            let pair_desc =
+                pairs.iter().map(|(a, b)| format!("{a}->{b}")).collect::<Vec<_>>().join(", ");
+            let mut prior = PriorSet {
+                specs: vec![PriorSpec::GaussianCoefficients(coef)],
+                contrast: baseline.contrast,
+                categorical: baseline.categorical.clone(),
+                restrictions: vec![PriorAssumption {
+                    id: Arc::from("external_named_prior"),
+                    description: Arc::from(format!("external named-parameter prior ({pair_desc})")),
+                }],
+            };
+            merge_baseline_residuals(&mut prior, baseline);
+            Ok(prior)
+        }
+    }
+}
+
+fn merge_baseline_residuals(prior: &mut PriorSet, baseline: &PriorSet) {
+    for spec in &baseline.specs {
+        match spec {
+            PriorSpec::ResidualInvGamma(_) | PriorSpec::KnownResidualVariance(_) => {
+                if !prior.specs.iter().any(|s| {
+                    matches!(
+                        s,
+                        PriorSpec::ResidualInvGamma(_) | PriorSpec::KnownResidualVariance(_)
+                    )
+                }) {
+                    prior.specs.push(spec.clone());
+                }
+            }
+            PriorSpec::GaussianCoefficients(_) => {}
+        }
+    }
+}
+
+fn quantity_moments(
+    quantities: &[PosteriorQuantityKind],
+    mean: &[f64],
+    sd: &[f64],
+    name: &str,
+) -> Result<(f64, f64), EstimationError> {
+    for (i, q) in quantities.iter().enumerate() {
+        let q_name = match q {
+            PosteriorQuantityKind::Effect { name: n }
+            | PosteriorQuantityKind::Scalar { name: n } => Some(n.as_ref()),
+            PosteriorQuantityKind::Coefficient { name: n, .. } => {
+                n.as_ref().map(std::convert::AsRef::as_ref)
+            }
+            PosteriorQuantityKind::ResidualVariance => Some("residual_variance"),
+        };
+        if q_name == Some(name) {
+            let m = mean[i];
+            let s = sd[i];
+            if !m.is_finite() || !s.is_finite() {
+                return Err(EstimationError::stats_msg(format!(
+                    "hydrate_prior: non-finite summary for quantity `{name}`"
+                )));
+            }
+            return Ok((m, s.max(HYDRATE_VAR_FLOOR.sqrt())));
+        }
+    }
+    Err(EstimationError::stats_msg(format!("hydrate_prior: missing quantity `{name}`")))
 }
 
 /// Bayesian linear / GLM mechanism fit (coefficient posterior).
@@ -318,6 +511,11 @@ impl BayesianGComputationAte {
             row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
         let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
             .map_err(EstimationError::from)?;
+        let schema = data.schema();
+        let treatment_name = schema.get(treatment).map(|v| v.name.as_ref()).unwrap_or("treatment");
+        let coef_names = coefficient_names_from_design(&design, treatment_name, |id| {
+            schema.get(id).ok().map(|v| Arc::clone(&v.name))
+        });
         Ok(PreparedBayesianProblem {
             design,
             method: Arc::clone(&estimand.method),
@@ -325,6 +523,7 @@ impl BayesianGComputationAte {
             active,
             control,
             overlap: self.overlap,
+            coef_names: Some(coef_names),
         })
     }
 
@@ -341,6 +540,7 @@ impl BayesianGComputationAte {
             active: prep.active,
             control: prep.control,
             overlap: prep.overlap,
+            coef_names: None,
         }
     }
 
@@ -384,6 +584,7 @@ impl BayesianGComputationAte {
                 )],
                 contrast: None,
                 categorical: Vec::new(),
+                restrictions: Vec::new(),
             }
         };
         let mut assumptions = AssumptionSet::new();
@@ -403,6 +604,14 @@ impl BayesianGComputationAte {
             assumptions.push(AssumptionRecord {
                 assumption: Assumption::PriorRestriction(pa),
                 source: source.clone(),
+                scope: AssumptionScope::Estimation,
+                status: AssumptionStatus::Untestable,
+            });
+        }
+        for pa in &prior.restrictions {
+            assumptions.push(AssumptionRecord {
+                assumption: Assumption::PriorRestriction(pa.clone()),
+                source: AssumptionSource::Artifact,
                 scope: AssumptionScope::Estimation,
                 status: AssumptionStatus::Untestable,
             });
@@ -511,6 +720,10 @@ impl BayesianGComputationAte {
         values[effect_idx * n_draws..(effect_idx + 1) * n_draws]
             .copy_from_slice(&effect_out.values[..n_draws]);
 
+        if let Some(names) = problem.coef_names.as_ref() {
+            apply_coefficient_names(&mut quantities, names);
+        }
+
         let draws = PosteriorDraws::from_column_major(
             PosteriorSchema { quantities: Arc::from(quantities) },
             n_draws,
@@ -525,6 +738,7 @@ impl BayesianGComputationAte {
             summaries,
             identification,
             prior_sensitivity: None,
+            conflict_summary: None,
             diagnostics: fit.diagnostics,
             assumptions,
             unidentified_mass: 0.0,
@@ -578,6 +792,41 @@ impl BayesianTemporalGcomp {
     }
 }
 
+/// Durable coefficient names from a design + schema name resolver.
+///
+/// Convention: `intercept`, `coef_{treatment}`, `coef_{covariate}`.
+#[must_use]
+pub fn coefficient_names_from_design(
+    design: &CompiledDesign,
+    treatment_name: &str,
+    covariate_name: impl Fn(VariableId) -> Option<Arc<str>>,
+) -> Arc<[Arc<str>]> {
+    let names: Vec<Arc<str>> = design
+        .columns
+        .iter()
+        .map(|col| match col.role {
+            DesignColumnRole::Intercept => Arc::from("intercept"),
+            DesignColumnRole::Treatment => Arc::from(format!("coef_{treatment_name}")),
+            DesignColumnRole::Covariate(id) => covariate_name(id).map_or_else(
+                || Arc::from(format!("coef_var_{}", id.raw())),
+                |n| Arc::from(format!("coef_{n}")),
+            ),
+        })
+        .collect();
+    Arc::from(names)
+}
+
+/// Apply durable names onto coefficient quantities (in place).
+fn apply_coefficient_names(quantities: &mut [PosteriorQuantityKind], names: &[Arc<str>]) {
+    for q in quantities {
+        if let PosteriorQuantityKind::Coefficient { index, name } = q {
+            if let Some(n) = names.get(*index) {
+                *name = Some(Arc::clone(n));
+            }
+        }
+    }
+}
+
 /// Prepared Bayesian g-comp problem.
 #[derive(Clone, Debug)]
 pub struct PreparedBayesianProblem {
@@ -593,6 +842,8 @@ pub struct PreparedBayesianProblem {
     pub control: f64,
     /// Overlap.
     pub overlap: OverlapPolicy,
+    /// Optional durable coefficient names aligned to design columns.
+    pub coef_names: Option<Arc<[Arc<str>]>>,
 }
 
 /// Workspace for Bayesian g-comp.
@@ -794,6 +1045,7 @@ pub fn nonidentified_with_prior(
         summaries,
         identification: IdentificationStatus::NotIdentified,
         prior_sensitivity: None,
+        conflict_summary: None,
         diagnostics,
         assumptions,
         unidentified_mass: 1.0,
@@ -914,6 +1166,18 @@ mod tests {
         assert!((freq_est.ate - 2.0).abs() < 1e-6, "frequentist ate={}", freq_est.ate);
         assert!((mean - freq_est.ate).abs() < 0.05, "bayes={mean} freq={}", freq_est.ate);
         assert_eq!(post.identification, IdentificationStatus::NonparametricallyIdentified);
+        let coef_names: Vec<_> = post
+            .draws
+            .schema
+            .quantities
+            .iter()
+            .filter_map(|q| match q {
+                PosteriorQuantityKind::Coefficient { name, .. } => name.as_ref().map(AsRef::as_ref),
+                _ => None,
+            })
+            .collect();
+        assert!(coef_names.contains(&"intercept"), "{coef_names:?}");
+        assert!(coef_names.iter().any(|n| n.starts_with("coef_")), "{coef_names:?}");
     }
 
     #[test]
@@ -1085,5 +1349,135 @@ mod tests {
         }));
         let eq = post2.effect_column().unwrap();
         assert!(post2.summaries.mean[eq].is_finite());
+    }
+
+    #[test]
+    fn hydrate_effect_functional_maps_treatment_coef() {
+        let quantities = vec![
+            PosteriorQuantityKind::Coefficient { index: 0, name: Some(Arc::from("intercept")) },
+            PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("coef_t")) },
+            PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+        ];
+        let mean = vec![0.1, 0.5, 2.0];
+        let sd = vec![1.0, 1.0, 0.4];
+        let names: Vec<Arc<str>> =
+            vec![Arc::from("intercept"), Arc::from("coef_t"), Arc::from("coef_z")];
+        let baseline = PriorSet::weakly_informative(3);
+        let prior = hydrate_prior(
+            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline,
+            &names,
+            Some(1),
+        )
+        .unwrap();
+        let coef = prior.gaussian_coefficients().unwrap();
+        assert!((coef.mean[1] - 2.0).abs() < 1e-12);
+        assert!((coef.variance[1] - 0.16).abs() < 1e-12);
+        // Unmapped dims keep baseline (isotropic scale 10 → var 100).
+        assert!((coef.mean[0] - 0.0).abs() < 1e-12);
+        assert!((coef.variance[0] - 100.0).abs() < 1e-12);
+        assert!((coef.variance[2] - 100.0).abs() < 1e-12);
+        assert!(prior.restrictions.iter().any(|r| r.id.as_ref() == "external_effect_prior"));
+    }
+
+    #[test]
+    fn hydrate_mapping_hard_errors() {
+        let quantities = vec![
+            PosteriorQuantityKind::Coefficient { index: 0, name: Some(Arc::from("intercept")) },
+            PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("coef_t")) },
+            PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+        ];
+        let mean = vec![0.0, 1.0, 2.0];
+        let sd = vec![1.0, 1.0, 0.5];
+        let names2: Vec<Arc<str>> = vec![Arc::from("intercept"), Arc::from("coef_t")];
+        let baseline2 = PriorSet::weakly_informative(2);
+        // Identical with wrong expected dim via target names of different length than source coefs.
+        let names3: Vec<Arc<str>> =
+            vec![Arc::from("intercept"), Arc::from("coef_t"), Arc::from("coef_w")];
+        let baseline3 = PriorSet::weakly_informative(3);
+        assert!(
+            hydrate_prior(
+                &HydrateMapping::IdenticalCoefficientSubspace,
+                &quantities,
+                &mean,
+                &sd,
+                &baseline3,
+                &names3,
+                None,
+            )
+            .is_err()
+        );
+
+        assert!(
+            hydrate_prior(
+                &HydrateMapping::EffectFunctional { source_quantity: "missing".into() },
+                &quantities,
+                &mean,
+                &sd,
+                &baseline2,
+                &names2,
+                Some(1),
+            )
+            .is_err()
+        );
+
+        assert!(
+            hydrate_prior(
+                &HydrateMapping::NamedParameters {
+                    pairs: vec![("ate".into(), "no_such_coef".into())],
+                },
+                &quantities,
+                &mean,
+                &sd,
+                &baseline2,
+                &names2,
+                None,
+            )
+            .is_err()
+        );
+
+        assert!(
+            hydrate_prior(
+                &HydrateMapping::NamedParameters {
+                    pairs: vec![("no_src".into(), "coef_t".into())],
+                },
+                &quantities,
+                &mean,
+                &sd,
+                &baseline2,
+                &names2,
+                None,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn hydrate_named_parameters_overwrites_target() {
+        let quantities = vec![
+            PosteriorQuantityKind::Coefficient { index: 0, name: Some(Arc::from("intercept")) },
+            PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("coef_t")) },
+            PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+        ];
+        let mean = vec![0.0, 0.0, 1.5];
+        let sd = vec![1.0, 1.0, 0.2];
+        let names: Vec<Arc<str>> = vec![Arc::from("intercept"), Arc::from("coef_t")];
+        let baseline = PriorSet::weakly_informative(2);
+        let prior = hydrate_prior(
+            &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "coef_t".into())] },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline,
+            &names,
+            None,
+        )
+        .unwrap();
+        let coef = prior.gaussian_coefficients().unwrap();
+        assert!((coef.mean[1] - 1.5).abs() < 1e-12);
+        assert!(prior.restrictions.iter().any(|r| r.id.as_ref() == "external_named_prior"));
     }
 }

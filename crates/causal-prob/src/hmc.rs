@@ -64,13 +64,11 @@ impl Default for HmcOptions {
 }
 
 /// Native HMC Bayesian GLM backend.
-#[derive(Clone, Copy, Debug)]
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct HmcGlmBackend {
     /// Sampler options.
     pub options: HmcOptions,
 }
-
 
 impl HmcGlmBackend {
     /// Construct with defaults.
@@ -422,6 +420,7 @@ mod tests {
             ))],
             contrast: None,
             categorical: Vec::new(),
+            restrictions: Vec::new(),
         };
         let mut ws = LaplaceWorkspace::default();
         let design = BayesDesignRef {

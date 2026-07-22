@@ -391,6 +391,7 @@ mod tests {
             ],
             contrast: None,
             categorical: Vec::new(),
+            restrictions: Vec::new(),
         };
         let mut ws = LaplaceWorkspace::default();
         let design = BayesDesignRef {

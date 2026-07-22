@@ -305,11 +305,7 @@ pub(crate) fn expect_value(tokens: &[Tok], i: &mut usize) -> Result<String, IoEr
         }
         Some(Tok::Number(n)) => {
             *i += 1;
-            if n.fract() == 0.0 && *n >= 0.0 {
-                Ok(format!("{n:.0}"))
-            } else {
-                Ok(n.to_string())
-            }
+            if n.fract() == 0.0 && *n >= 0.0 { Ok(format!("{n:.0}")) } else { Ok(n.to_string()) }
         }
         _ => Err(IoError::Convert("expected value".into())),
     }

@@ -68,6 +68,36 @@ impl PosteriorSchema {
             .collect();
         Self { quantities: Arc::from(q) }
     }
+
+    /// Coefficient schema with durable semantic names (e.g. `intercept`, `coef_t`).
+    #[must_use]
+    pub fn coefficients_named(names: impl IntoIterator<Item = impl Into<Arc<str>>>) -> Self {
+        let q: Vec<_> = names
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| PosteriorQuantityKind::Coefficient {
+                index: i,
+                name: Some(name.into()),
+            })
+            .collect();
+        Self { quantities: Arc::from(q) }
+    }
+
+    /// Attach names onto coefficient quantities by index (leaves non-coefs unchanged).
+    ///
+    /// Names shorter than the coefficient count leave remaining coefs unnamed.
+    #[must_use]
+    pub fn with_coefficient_names(&self, names: &[Arc<str>]) -> Self {
+        let mut quantities = self.quantities.to_vec();
+        for q in &mut quantities {
+            if let PosteriorQuantityKind::Coefficient { index, name } = q {
+                if let Some(n) = names.get(*index) {
+                    *name = Some(Arc::clone(n));
+                }
+            }
+        }
+        Self { quantities: Arc::from(quantities) }
+    }
 }
 
 /// Columnar posterior draws: `values` is column-major `[n_draws × n_quantities]`.

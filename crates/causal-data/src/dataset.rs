@@ -6,9 +6,9 @@ use std::sync::Arc;
 
 use causal_core::{CausalSchema, VariableId};
 
-use crate::column::{ColumnView, ValidityBitmap};
 #[cfg(test)]
 use crate::column::OwnedColumn;
+use crate::column::{ColumnView, ValidityBitmap};
 use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;

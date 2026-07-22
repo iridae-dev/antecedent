@@ -21,6 +21,7 @@ causal-core = { path = "../crates/causal-core" }
 causal-data = { path = "../crates/causal-data", features = ["arrow"] }
 causal = { path = "../crates/causal" }
 causal-io = { path = "../crates/causal-io" }
+causal-prob = { path = "../crates/causal-prob" }
 # Type conversion only (mediation estimand / graph construction for analyze*).
 causal-expr = { path = "../crates/causal-expr" }
 causal-graph = { path = "../crates/causal-graph" }
@@ -33,3 +34,4 @@ pyo3 = { workspace = true }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 numpy = { workspace = true }
+serde_json = { workspace = true }

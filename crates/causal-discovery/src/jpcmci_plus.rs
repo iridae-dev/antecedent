@@ -950,7 +950,12 @@ mod tests {
             vec![(sys, vec![(dummy, Lag::CONTEMPORANEOUS), (sys_parent, Lag::from_raw(1))])];
         // Dummy link rejected by MCI → empty survivors.
         let survivors = HashMap::new();
-        replace_exogenous_parents(&mut lagged_parents, &survivors, &constraints, super::super::constraints::JpcmciNodeRole::is_dummy);
+        replace_exogenous_parents(
+            &mut lagged_parents,
+            &survivors,
+            &constraints,
+            super::super::constraints::JpcmciNodeRole::is_dummy,
+        );
         let parents = &lagged_parents[0].1;
         assert!(
             !parents.iter().any(|&(s, _)| s == dummy),

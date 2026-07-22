@@ -11,6 +11,9 @@ use causal_core::{PriorAssumption, VariableId};
 
 use crate::error::ProbError;
 
+/// Floor applied when converting effect-draw SD into a prior scale.
+const EFFECT_PRIOR_SD_FLOOR: f64 = 1e-12;
+
 /// Contrast coding for categorical predictors (required for Bayesian GLMs).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ContrastCoding {
@@ -18,6 +21,83 @@ pub enum ContrastCoding {
     Treatment,
     /// Sum (deviation) coding.
     Sum,
+}
+
+/// Gaussian prior on a scalar effect functional (e.g. ATE).
+///
+/// Used for cross-design transfer: moments come from source effect draws or
+/// stored summaries, then map onto a target coefficient (identity-link bridge).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EffectPrior {
+    /// Prior mean of the effect functional.
+    pub mean: f64,
+    /// Prior SD of the effect functional (must be finite and > 0).
+    pub sd: f64,
+}
+
+impl EffectPrior {
+    /// Construct from mean / SD with validation.
+    ///
+    /// # Errors
+    ///
+    /// Non-finite mean or non-positive / non-finite SD.
+    pub fn new(mean: f64, sd: f64) -> Result<Self, ProbError> {
+        let p = Self { mean, sd };
+        p.validate()?;
+        Ok(p)
+    }
+
+    /// Sample mean / SD from effect draws (population SD with Bessel correction when `n > 1`).
+    ///
+    /// SD is floored at a tiny positive value so conjugate scale stays valid.
+    ///
+    /// # Errors
+    ///
+    /// Empty draws or non-finite moments.
+    pub fn from_effect_draws(draws: &[f64]) -> Result<Self, ProbError> {
+        if draws.is_empty() {
+            return Err(ProbError::InvalidPrior { message: "from_effect_draws: empty draws" });
+        }
+        let n = draws.len() as f64;
+        let mean = draws.iter().sum::<f64>() / n;
+        if !mean.is_finite() {
+            return Err(ProbError::InvalidPrior { message: "from_effect_draws: non-finite mean" });
+        }
+        let sd = if draws.len() == 1 {
+            EFFECT_PRIOR_SD_FLOOR
+        } else {
+            let var = draws
+                .iter()
+                .map(|&x| {
+                    let d = x - mean;
+                    d * d
+                })
+                .sum::<f64>()
+                / (n - 1.0);
+            var.sqrt().max(EFFECT_PRIOR_SD_FLOOR)
+        };
+        if !sd.is_finite() {
+            return Err(ProbError::InvalidPrior { message: "from_effect_draws: non-finite sd" });
+        }
+        Self::new(mean, sd)
+    }
+
+    /// Validate finite mean and positive finite SD.
+    ///
+    /// # Errors
+    ///
+    /// Invalid parameters.
+    pub fn validate(self) -> Result<(), ProbError> {
+        if !self.mean.is_finite() {
+            return Err(ProbError::InvalidPrior { message: "effect prior mean must be finite" });
+        }
+        if !(self.sd > 0.0) || !self.sd.is_finite() {
+            return Err(ProbError::InvalidPrior {
+                message: "effect prior sd must be finite and > 0",
+            });
+        }
+        Ok(())
+    }
 }
 
 /// Gaussian coefficient prior for conjugate / NIG linear models.
@@ -195,6 +275,8 @@ pub struct PriorSet {
     pub contrast: Option<ContrastCoding>,
     /// Variables that are categorical and require the declared contrast.
     pub categorical: Vec<VariableId>,
+    /// Extra prior-restriction assumptions (e.g. external bank mapping ids).
+    pub restrictions: Vec<PriorAssumption>,
 }
 
 impl PriorSet {
@@ -214,6 +296,7 @@ impl PriorSet {
             ],
             contrast: None,
             categorical: Vec::new(),
+            restrictions: Vec::new(),
         }
     }
 
@@ -294,5 +377,29 @@ mod tests {
         assert!(p.validate().is_err());
         p.contrast = Some(ContrastCoding::Treatment);
         p.validate().unwrap();
+    }
+
+    #[test]
+    fn effect_prior_from_draws_moments() {
+        let draws = [1.0, 3.0, 5.0];
+        let p = EffectPrior::from_effect_draws(&draws).unwrap();
+        assert!((p.mean - 3.0).abs() < 1e-12);
+        // sample sd of [1,3,5] = 2
+        assert!((p.sd - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn effect_prior_rejects_empty_and_nonfinite() {
+        assert!(EffectPrior::from_effect_draws(&[]).is_err());
+        assert!(EffectPrior::new(f64::NAN, 1.0).is_err());
+        assert!(EffectPrior::new(0.0, 0.0).is_err());
+        assert!(EffectPrior::new(0.0, -1.0).is_err());
+    }
+
+    #[test]
+    fn effect_prior_single_draw_floors_sd() {
+        let p = EffectPrior::from_effect_draws(&[2.5]).unwrap();
+        assert!((p.mean - 2.5).abs() < 1e-12);
+        assert!(p.sd > 0.0);
     }
 }

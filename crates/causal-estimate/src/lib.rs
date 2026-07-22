@@ -48,9 +48,10 @@ pub use adjustment::{
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
-    BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator,
-    PosteriorFunctionalEvaluator, PreparedBayesianProblem, hydrate_prior_from_posterior,
-    hydrate_prior_from_quantity_summaries, nonidentified_with_prior,
+    BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping,
+    PosteriorFunctionalEvaluator, PreparedBayesianProblem, coefficient_names_from_design,
+    hydrate_prior, hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
+    nonidentified_with_prior,
 };
 pub use causal_expr::EstimandMethod;
 pub use conditional::ConditionalLinearAdjustment;

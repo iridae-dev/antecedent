@@ -194,9 +194,7 @@ fn parse_objective(
     }
 }
 
-fn parse_unlock_vars(
-    raw: Option<Bound<'_, PyAny>>,
-) -> PyResult<Option<Vec<QueryVarUnlock>>> {
+fn parse_unlock_vars(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<Vec<QueryVarUnlock>>> {
     let Some(raw) = raw else {
         return Ok(None);
     };
@@ -214,9 +212,7 @@ fn parse_unlock_vars(
     Ok(Some(out))
 }
 
-fn parse_unlock_envs(
-    raw: Option<Bound<'_, PyAny>>,
-) -> PyResult<Option<Vec<QueryEnvUnlock>>> {
+fn parse_unlock_envs(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<Vec<QueryEnvUnlock>>> {
     let Some(raw) = raw else {
         return Ok(None);
     };

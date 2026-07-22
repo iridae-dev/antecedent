@@ -236,8 +236,7 @@ impl AutoIdentifier {
                         DiagnosticSeverity::Info,
                         "sharp RD skipped: no running-variable / cutoff / bandwidth config on AutoIdentifier",
                     ));
-                    derivation
-                        .push("auto.method", "rd.sharp: not applicable (missing RD config)");
+                    derivation.push("auto.method", "rd.sharp: not applicable (missing RD config)");
                 }
                 self.try_method(
                     "general.id",

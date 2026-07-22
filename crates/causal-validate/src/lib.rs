@@ -8,6 +8,7 @@
 pub mod bayesian_checks;
 pub mod bootstrap_refute;
 pub mod common;
+pub mod conflict;
 pub mod custom;
 pub mod data_subset;
 pub mod dummy_outcome;
@@ -26,13 +27,17 @@ pub mod unobserved_common_cause;
 pub mod validator;
 
 pub use bayesian_checks::{
-    DEFAULT_MAX_RELATIVE_PRIOR_RANGE, LikelihoodFamilyComparison, McmcDiagnosticsCheck,
-    PosteriorCalibrationOnSyntheticScm, PosteriorCalibrationReport, PosteriorPredictiveCheck,
-    PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck, PriorSensitivity, SbcReport,
-    SimulationBasedCalibration, with_prior_sensitivity,
+    DEFAULT_MAX_RELATIVE_PRIOR_RANGE, ExternalAlphaSensitivity, LikelihoodFamilyComparison,
+    McmcDiagnosticsCheck, PosteriorCalibrationOnSyntheticScm, PosteriorCalibrationReport,
+    PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
+    PriorSensitivity, SbcReport, SimulationBasedCalibration, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport, TemporalRefitContext, stack_panel_tabular};
+pub use conflict::{
+    ConflictPolicy, ConflictSignals, apply_conflict_and_compose, compose_with_conflict_policy,
+    estimate_conflict_signals, with_conflict_summary,
+};
 pub use custom::CustomEffectValidator;
 pub use data_subset::DataSubsetRefuter;
 pub use dummy_outcome::DummyOutcome;

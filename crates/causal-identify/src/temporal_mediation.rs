@@ -6,9 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::too_many_lines
-)]
+#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 
@@ -27,8 +25,7 @@ use crate::result::{
 use crate::temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
 
 /// Temporal linear mediation identifier.
-#[derive(Clone, Debug)]
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub struct TemporalMediationIdentifier {
     /// Reuses temporal unfolding / backdoor machinery for optional horizon checks.
     pub temporal: TemporalBackdoorIdentifier,
@@ -36,7 +33,6 @@ pub struct TemporalMediationIdentifier {
     /// are treated as their controlled counterparts (linear alias).
     pub allow_natural_controlled_alias: bool,
 }
-
 
 impl TemporalMediationIdentifier {
     /// Create with defaults.

@@ -393,10 +393,12 @@ dependencies = [
  "causal-graph",
  "causal-io",
  "causal-model",
+ "causal-prob",
  "causal-stats",
  "causal-validate",
  "numpy",
  "pyo3",
+ "serde_json",
 ]
 
 [[package]]

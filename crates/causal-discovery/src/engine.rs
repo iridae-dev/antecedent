@@ -681,9 +681,10 @@ impl PcmciEngine {
             significance: self.constraints.significance,
             confidence: ConfidenceMethod::default(),
         };
-        let prepared = workspace.prepared_ci.as_ref().ok_or({
-            DiscoveryError::Unsupported { message: "CI test used before prepare()" }
-        })?;
+        let prepared = workspace
+            .prepared_ci
+            .as_ref()
+            .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
         let out = self
             .ci
             .test_batch(prepared, &req, &mut workspace.ci, ctx)
@@ -773,9 +774,10 @@ impl PcmciEngine {
                 significance: self.constraints.significance,
                 confidence: ConfidenceMethod::default(),
             };
-            let prepared = workspace.prepared_ci.as_ref().ok_or({
-                DiscoveryError::Unsupported { message: "CI test used before prepare()" }
-            })?;
+            let prepared = workspace
+                .prepared_ci
+                .as_ref()
+                .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
             let out = self
                 .ci
                 .test_batch(prepared, &req, &mut workspace.ci, ctx)
@@ -874,9 +876,10 @@ impl PcmciEngine {
             significance: self.constraints.significance,
             confidence: ConfidenceMethod::default(),
         };
-        let prepared = workspace.prepared_ci.as_ref().ok_or({
-            DiscoveryError::Unsupported { message: "CI test used before prepare()" }
-        })?;
+        let prepared = workspace
+            .prepared_ci
+            .as_ref()
+            .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
         let out = self
             .ci
             .test_batch(prepared, &req, &mut workspace.ci, ctx)

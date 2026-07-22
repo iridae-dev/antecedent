@@ -543,6 +543,7 @@ mod tests {
             ))],
             contrast: None,
             categorical: Vec::new(),
+            restrictions: Vec::new(),
         };
         let mut ws = LaplaceWorkspace::default();
         let design = BayesDesignRef {
@@ -586,6 +587,7 @@ mod tests {
             ))],
             contrast: None,
             categorical: Vec::new(),
+            restrictions: Vec::new(),
         };
         let mut ws = LaplaceWorkspace::default();
         let opts = BayesFitOptions { n_draws: 400, seed: 9, max_iter: 50, grad_tol: 1e-8 };
