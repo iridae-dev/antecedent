@@ -254,6 +254,7 @@ fn fill_cluster_bootstrap(
     rng: &mut CausalRng,
     out: &mut Vec<u32>,
 ) -> Result<(), DataError> {
+    const MAX_RESTARTS: usize = 64;
     // Build cluster → row list.
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by_key(|&i| cluster_ids[i]);
@@ -274,7 +275,6 @@ fn fill_cluster_bootstrap(
     // Resample whole clusters only (never truncate mid-cluster). Reject draws
     // that would overflow the remaining budget; restart if the residual gap
     // cannot be filled exactly.
-    const MAX_RESTARTS: usize = 64;
     for _ in 0..MAX_RESTARTS {
         out.clear();
         let mut attempts = 0usize;

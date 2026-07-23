@@ -281,7 +281,7 @@ fn incomplete_temporal_pag_review_required_structured() {
         .run(&ExecutionContext::for_tests(7))
         .unwrap_err();
     match err {
-        causal::AnalysisError::ReviewRequired { kind, pending_edge_count, hint, .. } => {
+        causal::CausalError::ReviewRequired { kind, pending_edge_count, hint, .. } => {
             assert_eq!(kind, "temporal_pag");
             assert!(pending_edge_count >= 1);
             assert!(hint.contains("TemporalPag") || hint.contains("PAG"));

@@ -1811,7 +1811,7 @@ impl CausalAnalysis {
         clock.finish(super::stage::STAGE_IDENTIFY);
         super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            super::stage::AnalysisStageEvent::Identify {
+            &super::stage::AnalysisStageEvent::Identify {
                 identification: identification.clone(),
                 estimand: estimand.clone(),
             },
@@ -1843,7 +1843,7 @@ impl CausalAnalysis {
         clock.finish(super::stage::STAGE_ESTIMATE_POINT);
         super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            super::stage::AnalysisStageEvent::Point { estimate: point.clone() },
+            &super::stage::AnalysisStageEvent::Point { estimate: point.clone() },
         );
 
         // Uncertainty: bootstrap fills (real work when replicates > 0).
@@ -1856,7 +1856,7 @@ impl CausalAnalysis {
                 clock.finish(super::stage::STAGE_UNCERTAINTY);
                 super::stage::emit_stage(
                     self.stage_sink.as_ref(),
-                    super::stage::AnalysisStageEvent::Uncertainty { estimate: point.clone() },
+                    &super::stage::AnalysisStageEvent::Uncertainty { estimate: point.clone() },
                 );
                 point
             }
@@ -1888,7 +1888,7 @@ impl CausalAnalysis {
                 }
                 super::stage::emit_stage(
                     self.stage_sink.as_ref(),
-                    super::stage::AnalysisStageEvent::Uncertainty { estimate: filled.clone() },
+                    &super::stage::AnalysisStageEvent::Uncertainty { estimate: filled.clone() },
                 );
                 filled
             }
@@ -1923,7 +1923,7 @@ impl CausalAnalysis {
                 }
                 super::stage::emit_stage(
                     self.stage_sink.as_ref(),
-                    super::stage::AnalysisStageEvent::Uncertainty { estimate: filled.clone() },
+                    &super::stage::AnalysisStageEvent::Uncertainty { estimate: filled.clone() },
                 );
                 filled
             }
@@ -1961,7 +1961,7 @@ impl CausalAnalysis {
             clock.finish(super::stage::STAGE_VALIDATE);
             super::stage::emit_stage(
                 self.stage_sink.as_ref(),
-                super::stage::AnalysisStageEvent::Validate {
+                &super::stage::AnalysisStageEvent::Validate {
                     refutations: reports.clone(),
                     predictive_checks: Vec::new(),
                 },
@@ -2271,7 +2271,7 @@ impl CausalAnalysis {
         clock.finish(super::stage::STAGE_IDENTIFY);
         super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            super::stage::AnalysisStageEvent::Identify {
+            &super::stage::AnalysisStageEvent::Identify {
                 identification: identification.clone(),
                 estimand: estimand.clone(),
             },
@@ -2310,13 +2310,13 @@ impl CausalAnalysis {
         clock.finish(super::stage::STAGE_ESTIMATE_POINT);
         super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            super::stage::AnalysisStageEvent::Point { estimate: estimate.clone() },
+            &super::stage::AnalysisStageEvent::Point { estimate: estimate.clone() },
         );
         clock.begin(ctx, super::stage::STAGE_UNCERTAINTY, 0.55)?;
         clock.finish(super::stage::STAGE_UNCERTAINTY);
         super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            super::stage::AnalysisStageEvent::Uncertainty { estimate: estimate.clone() },
+            &super::stage::AnalysisStageEvent::Uncertainty { estimate: estimate.clone() },
         );
 
         let mut diagnostics = identification.diagnostics.clone();
@@ -2419,7 +2419,7 @@ impl CausalAnalysis {
         clock.finish(super::stage::STAGE_VALIDATE);
         super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            super::stage::AnalysisStageEvent::Validate {
+            &super::stage::AnalysisStageEvent::Validate {
                 refutations: refutations.clone(),
                 predictive_checks: predictive_checks.clone(),
             },

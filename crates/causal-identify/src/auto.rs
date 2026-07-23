@@ -521,8 +521,8 @@ fn rebuild_estimand(
                 q.treatment,
                 q.outcome,
                 e.instruments.as_ref(),
-                active.clone(),
-                control.clone(),
+                active,
+                control,
             );
             Some(IdentifiedEstimand::instrumental(
                 e.method.clone(),

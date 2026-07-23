@@ -395,8 +395,12 @@ fn effect_quantile_width_95(post: &causal_estimate::CausalPosterior) -> f64 {
     let mut vals = vals_src.to_vec();
     let n = vals.len();
     vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let lo = vals[((n as f64) * 0.025) as usize];
-    let hi = vals[(((n as f64) * 0.975) as usize).min(n - 1)];
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let lo_idx = ((n as f64) * 0.025) as usize;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let hi_idx = (((n as f64) * 0.975) as usize).min(n.saturating_sub(1));
+    let lo = vals[lo_idx];
+    let hi = vals[hi_idx];
     hi - lo
 }
 

@@ -159,7 +159,7 @@ fn conditional_effect_via_causal_analysis() {
     let analysis = CausalAnalysis::builder()
         .data(data)
         .graph(g)
-        .causal_query(CausalQuery::ConditionalEffect(cq))
+        .query(CausalQuery::ConditionalEffect(cq))
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
@@ -177,7 +177,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
     let analysis = CausalAnalysis::builder()
         .data(data.clone())
         .graph(g.clone())
-        .causal_query(CausalQuery::Counterfactual(cf))
+        .query(CausalQuery::Counterfactual(cf))
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
@@ -189,7 +189,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
     let analysis = CausalAnalysis::builder()
         .data(data)
         .graph(g)
-        .causal_query(CausalQuery::AnomalyAttribution(an))
+        .query(CausalQuery::AnomalyAttribution(an))
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
@@ -253,7 +253,7 @@ fn static_mediation_natural_rejected() {
     let err = CausalAnalysis::builder()
         .data(data)
         .graph(g)
-        .causal_query(CausalQuery::Mediation(q))
+        .query(CausalQuery::Mediation(q))
         .refute(RefuteSuite::None)
         .build()
         .unwrap()

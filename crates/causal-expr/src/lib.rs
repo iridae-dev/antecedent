@@ -580,24 +580,24 @@ impl CausalExprArena {
         treatment: VariableId,
         outcome: VariableId,
         instruments: &[VariableId],
-        active: Value,
-        control: Value,
+        active: &Value,
+        control: &Value,
     ) -> ExprId {
         let z = instruments.first().copied().unwrap_or(treatment);
         let z1 = Value::f64(1.0);
         let z0 = Value::f64(0.0);
-        let ey1 = self.observational_conditional_mean(outcome, z, z1.clone());
-        let ey0 = self.observational_conditional_mean(outcome, z, z0.clone());
-        let et1 = self.observational_conditional_mean(treatment, z, z1);
-        let et0 = self.observational_conditional_mean(treatment, z, z0);
+        let outcome_given_z1 = self.observational_conditional_mean(outcome, z, z1.clone());
+        let outcome_given_z0 = self.observational_conditional_mean(outcome, z, z0.clone());
+        let treatment_given_z1 = self.observational_conditional_mean(treatment, z, z1);
+        let treatment_given_z0 = self.observational_conditional_mean(treatment, z, z0);
         let num = self.intern(ExprNode::Contrast {
-            left: ey1,
-            right: ey0,
+            left: outcome_given_z1,
+            right: outcome_given_z0,
             op: ContrastOp::Difference,
         });
         let den = self.intern(ExprNode::Contrast {
-            left: et1,
-            right: et0,
+            left: treatment_given_z1,
+            right: treatment_given_z0,
             op: ContrastOp::Difference,
         });
         let ratio = self.intern(ExprNode::Ratio { numerator: num, denominator: den });
@@ -744,8 +744,8 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
             &[VariableId::from_raw(2)],
-            Value::f64(1.0),
-            Value::f64(0.0),
+            &Value::f64(1.0),
+            &Value::f64(0.0),
         );
         let meta = a.derivation(id).unwrap();
         assert_eq!(&*meta.rule, "iv.wald");

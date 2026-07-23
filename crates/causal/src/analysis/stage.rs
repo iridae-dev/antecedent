@@ -138,8 +138,8 @@ impl StageClock {
 }
 
 /// Emit a stage event when a sink is configured.
-pub(crate) fn emit_stage(sink: Option<&Arc<dyn StageResultSink>>, event: AnalysisStageEvent) {
+pub(crate) fn emit_stage(sink: Option<&Arc<dyn StageResultSink>>, event: &AnalysisStageEvent) {
     if let Some(s) = sink {
-        s.on_stage(&event);
+        s.on_stage(event);
     }
 }

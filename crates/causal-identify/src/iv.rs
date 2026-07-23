@@ -169,7 +169,7 @@ impl InstrumentalVariableIdentifier {
                     });
                 }
             };
-            let functional = arena.iv_wald(ate.treatment, ate.outcome, &[z_var], active, control);
+            let functional = arena.iv_wald(ate.treatment, ate.outcome, &[z_var], &active, &control);
             estimands.push(IdentifiedEstimand::instrumental("iv", Arc::from([z_var]), functional));
             derivation.push("iv.instrument", format!("Z={}", z_var.raw()));
         }

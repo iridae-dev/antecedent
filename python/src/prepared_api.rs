@@ -256,7 +256,7 @@ impl PyPreparedAnalysis {
     }
 
     /// Physical-plan highlights retained from prepare (no recompile).
-    fn plan_summary(&self) -> PyResult<std::collections::HashMap<String, String>> {
+    fn plan_summary(&self) -> std::collections::HashMap<String, String> {
         let rec = &self.inner.plan().record;
         let mut out = std::collections::HashMap::new();
         out.insert("plan_id".into(), rec.plan_id.to_string());
@@ -284,7 +284,7 @@ impl PyPreparedAnalysis {
             .map(|(name, k)| format!("{name}:{k:?}"))
             .collect();
         out.insert("kernels".into(), kernels.join(","));
-        Ok(out)
+        out
     }
 }
 

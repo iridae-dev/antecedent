@@ -5,6 +5,7 @@
 use causal::prelude::*;
 use causal::RefuteSuite;
 
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn main() -> Result<(), CausalError> {
     let n = 200usize;
     let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
