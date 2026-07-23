@@ -69,11 +69,11 @@ pub struct AipwWorkspace {
     psi: Vec<f64>,
 }
 
-/// Doubly robust (AIPW) ATE estimator.
+/// Doubly robust (AIPW) ATE / ATT / ATC estimator.
 ///
-// supports [`TargetPopulation::AllObserved`] only; ATT/ATC are rejected with a clear
-/// [`EstimationError::Unsupported`]. Positivity is mandatory: [`OverlapPolicy::ExplicitOverride`]
-/// is refused.
+/// Supports [`TargetPopulation::AllObserved`], [`TargetPopulation::Treated`] (ATT), and
+/// [`TargetPopulation::Untreated`] (ATC). Positivity is mandatory:
+/// [`OverlapPolicy::ExplicitOverride`] is refused.
 #[derive(Clone, Debug)]
 pub struct AipwAte {
     /// Dense linear-algebra backend used for the propensity IRLS fit and outcome OLS fits.
@@ -144,7 +144,7 @@ impl AipwAte {
     ///
     /// # Errors
     ///
-    /// Target population other than `AllObserved`, empty treated/control arm, or GLM/OLS
+    /// Target population other than ATE/ATT/ATC, empty treated/control arm, or GLM/OLS
     /// backend failure.
     pub fn fit(
         &self,
@@ -464,7 +464,7 @@ fn aipw_psi(
             for (((&t, &y), &e), (&m0, &m1)) in
                 treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
             {
-                let aug = (t / pi) * (m1 - m0) + (t / pi) * (y - m1) / e
+                let aug = (t / pi) * (m1 - m0) + (t / pi) * (y - m1)
                     - ((1.0 - t) / pi) * (e / (1.0 - e)) * (y - m0);
                 out.push(aug);
             }
@@ -642,6 +642,39 @@ mod tests {
         let mut ws = AipwWorkspace::default();
         let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((fit.ate - 2.0).abs() < 0.35, "att={}", fit.ate);
+    }
+
+    /// ATT IF remains unbiased when μ₁ is misspecified but propensity is correct.
+    /// The old formula divided the treated residual by `e`, breaking double robustness.
+    #[test]
+    fn att_if_doubly_robust_under_mu1_misspecification() {
+        let n = 4_000usize;
+        let mut rng = ExecutionContext::for_tests(42).rng.stream(0xA11u64);
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mut e = vec![0.0; n];
+        let mut mu0 = vec![0.0; n];
+        let mut mu1 = vec![0.0; n];
+        for i in 0..n {
+            let z = standard_normal(&mut rng);
+            let logit = -0.5 + z;
+            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
+            let noise = standard_normal(&mut rng) * 0.5;
+            t[i] = ti;
+            y[i] = 2.0 * ti + z + noise;
+            e[i] = pi_i;
+            // Correct μ₀; deliberately wrong μ₁ (constant 0 instead of 2+z).
+            mu0[i] = z;
+            mu1[i] = 0.0;
+        }
+        let mut psi = Vec::new();
+        aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Treated, &mut psi).unwrap();
+        let att = psi.iter().sum::<f64>() / psi.len() as f64;
+        assert!(
+            (att - 2.0).abs() < 0.15,
+            "ATT IF mean under μ₁ misspecification should stay near 2; got {att}"
+        );
     }
 
     #[test]

@@ -57,7 +57,7 @@ pub fn sample_std(values: &[f64]) -> f64 {
     var.sqrt()
 }
 
-/// Two-sample mean-difference statistic `|mean(a) − mean(b)|` with a pooled-SE
+/// Two-sample mean-difference statistic `|mean(a) − mean(b)|` with a Welch-SE
 /// z-test p-value approximation (normal).
 ///
 /// Returns `(statistic, p_value)`.
@@ -71,8 +71,12 @@ pub fn mean_diff_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsErr
             message: "mean_diff_two_sample requires non-empty samples",
         });
     }
-    let (ma, va) = mean_var(a);
-    let (mb, vb) = mean_var(b);
+    let (ma, _) = mean_var(a);
+    let (mb, _) = mean_var(b);
+    let sa = sample_std(a);
+    let sb = sample_std(b);
+    let va = if sa.is_finite() { sa * sa } else { 0.0 };
+    let vb = if sb.is_finite() { sb * sb } else { 0.0 };
     let se = (va / a.len() as f64 + vb / b.len() as f64).sqrt().max(1e-12);
     let z = (ma - mb).abs() / se;
     let p = causal_kernels::erfc(z / std::f64::consts::SQRT_2);
@@ -124,22 +128,37 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
     let auc = u_a / (na * nb);
     let stat = (auc - 0.5).abs();
     let mu = na * nb / 2.0;
-    let sigma = ((na * nb * (na + nb + 1.0)) / 12.0).sqrt().max(1e-12);
+    // Tie correction: Σ(t³ − t) over tied groups of size t.
+    let n = na + nb;
+    let mut tie_sum = 0.0;
+    let mut i = 0usize;
+    while i < all.len() {
+        let mut j = i + 1;
+        while j < all.len() && all[j].0.to_bits() == all[i].0.to_bits() {
+            j += 1;
+        }
+        let t = (j - i) as f64;
+        if t > 1.0 {
+            tie_sum += t * t * t - t;
+        }
+        i = j;
+    }
+    let var_u = (na * nb / 12.0) * ((n + 1.0) - tie_sum / (n * (n - 1.0).max(1.0)));
+    let sigma = var_u.max(0.0).sqrt().max(1e-12);
     let z = (u_a - mu).abs() / sigma;
     let p = causal_kernels::erfc(z / std::f64::consts::SQRT_2).clamp(0.0, 1.0);
     Ok((stat, p))
 }
 
-/// Likelihood-ratio style residual comparison via KL between residual Gaussians.
+/// Two-sample Gaussian likelihood-ratio test on residual segments.
 ///
-/// Statistic is the KL; the p-value is an asymptotic χ² survival
-/// `P(χ²_{df=2} > 2 n KL)` with `n = min(|r₀|, |r₁|)` — a Wilks-style
-/// approximation for a two-parameter (mean, variance) Gaussian residual model,
-/// not an exact LR test under misspecification.
+/// Statistic is `n ln v̂₀ − n₀ ln v̂₀_seg − n₁ ln v̂₁_seg` (MLE variances),
+/// asymptotically `χ²₂` under equal mean and variance (Wilks). Returns
+/// `(lr_statistic, p_value)`.
 ///
 /// # Errors
 ///
-/// Empty residuals or non-positive variance.
+/// Empty residuals.
 pub fn residual_likelihood_ratio(
     resid_baseline: &[f64],
     resid_comparison: &[f64],
@@ -149,16 +168,7 @@ pub fn residual_likelihood_ratio(
             message: "residual_likelihood_ratio requires non-empty residuals",
         });
     }
-    let (m0, v0) = mean_var(resid_baseline);
-    let (m1, v1) = mean_var(resid_comparison);
-    let v0 = v0.max(1e-12);
-    let v1 = v1.max(1e-12);
-    let kl = gaussian_kl(m0, v0, m1, v1)?;
-    let n = resid_baseline.len().min(resid_comparison.len()) as f64;
-    let lr = (2.0 * n * kl).max(0.0);
-    // χ²_2 survival via Q(1, lr/2); df=2 → a = df/2 = 1.
-    let p = crate::special::gamma_q(1.0, lr * 0.5).clamp(0.0, 1.0);
-    Ok((kl, p))
+    gaussian_segment_lr(resid_baseline, resid_comparison)
 }
 
 /// Biased MMD² with RBF kernel on 1-D samples (Gretton et al.).
@@ -328,10 +338,7 @@ fn rbf(x: f64, y: f64, gamma: f64) -> f64 {
 }
 
 fn fisher_yates_shuffle(xs: &mut [f64], rng: &mut CausalRng) {
-    for i in (1..xs.len()).rev() {
-        let j = usize::try_from(rng.next_u64() % u64::try_from(i + 1).unwrap_or(1)).unwrap_or(0);
-        xs.swap(i, j);
-    }
+    causal_kernels::shuffle(rng, xs);
 }
 
 fn gaussian_segment_lr(left: &[f64], right: &[f64]) -> Result<(f64, f64), StatsError> {
@@ -428,8 +435,8 @@ mod tests {
     #[test]
     fn residual_lr_identical_residuals_have_unit_p() {
         let r: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.01 - 0.2).collect();
-        let (kl, p) = residual_likelihood_ratio(&r, &r).unwrap();
-        assert!(kl.abs() < 1e-12, "kl={kl}");
+        let (stat, p) = residual_likelihood_ratio(&r, &r).unwrap();
+        assert!(stat.abs() < 1e-12, "stat={stat}");
         assert!((p - 1.0).abs() < 1e-9, "p={p}");
     }
 
@@ -437,8 +444,8 @@ mod tests {
     fn residual_lr_detects_scale_shift() {
         let a: Vec<f64> = (0..80).map(|i| f64::from(i) * 0.01).collect();
         let b: Vec<f64> = a.iter().map(|x| x * 3.0).collect();
-        let (kl, p) = residual_likelihood_ratio(&a, &b).unwrap();
-        assert!(kl > 0.1, "kl={kl}");
+        let (stat, p) = residual_likelihood_ratio(&a, &b).unwrap();
+        assert!(stat > 0.5, "stat={stat}");
         assert!(p < 0.01, "p={p}");
     }
 

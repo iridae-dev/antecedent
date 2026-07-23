@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 
 use causal_core::{CausalRng, ExecutionContext, KernelPolicy};
+use causal_kernels::{shuffle, unbiased_index};
 
 use super::parcorr::PartialCorrelation;
 use super::types::{
@@ -80,7 +81,7 @@ impl ConditionalIndependenceTest for GSquared {
                         } else {
                             for rows in &strata {
                                 for i in (1..rows.len()).rev() {
-                                    let j = (rng.next_u64() as usize) % (i + 1);
+                                    let j = unbiased_index(&mut rng, i + 1);
                                     y_perm.swap(rows[i], rows[j]);
                                 }
                             }
@@ -137,10 +138,7 @@ fn block_shuffle_y(y: &mut [f64], block_size: usize, rng: &mut CausalRng) {
     let bs = block_size.max(1).min(n);
     let n_blocks = n.div_ceil(bs);
     let mut order: Vec<usize> = (0..n_blocks).collect();
-    for i in (1..order.len()).rev() {
-        let j = (rng.next_u64() as usize) % (i + 1);
-        order.swap(i, j);
-    }
+    shuffle(rng, &mut order);
     let original = y.to_vec();
     let mut dest = 0;
     for &bi in &order {

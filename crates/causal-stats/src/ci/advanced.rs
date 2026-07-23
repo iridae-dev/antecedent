@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use causal_core::{ExecutionContext, KernelPolicy};
+use causal_kernels::{shuffle, unbiased_index};
 
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -136,7 +137,7 @@ impl ConditionalIndependenceTest for KnnDependence {
             for _ in 0..n_perm {
                 for rows in &strata {
                     for i in (1..rows.len()).rev() {
-                        let j = (rng.next_u64() as usize) % (i + 1);
+                        let j = unbiased_index(&mut rng, i + 1);
                         y_perm.swap(rows[i], rows[j]);
                     }
                 }
@@ -385,7 +386,7 @@ impl ConditionalIndependenceTest for SymbolicCmi {
             for _ in 0..n_perm {
                 for rows in &strata {
                     for i in (1..rows.len()).rev() {
-                        let j = (rng.next_u64() as usize) % (i + 1);
+                        let j = unbiased_index(&mut rng, i + 1);
                         y_perm.swap(rows[i], rows[j]);
                     }
                 }
@@ -517,10 +518,7 @@ impl ConditionalIndependenceTest for Gpdc {
             let mut rng = ctx.rng.stream(0x69DC_u64.wrapping_add(qi as u64));
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
-                for i in (1..n).rev() {
-                    let j = (rng.next_u64() as usize) % (i + 1);
-                    ry_perm.swap(i, j);
-                }
+                shuffle(&mut rng, &mut ry_perm);
                 if distance_correlation(policy, &rx, &ry_perm) >= dcor {
                     null_ge = null_ge.saturating_add(1);
                 }

@@ -621,11 +621,16 @@ mod tests {
             for (mval, prob) in [(1.0, pm1), (0.0, 1.0 - pm1)] {
                 let spec = FactorSpec {
                     variables: &[m],
-                    conditioned_on: &[],
+                    conditioned_on: &[t],
                     intervention: &interv,
-                    domain: DomainRef::Interventional,
+                    domain: DomainRef::Observational,
                 };
-                p.insert_probability(&spec, &Assignment::from_pairs([(m, f(mval))]), prob).unwrap();
+                p.insert_probability(
+                    &spec,
+                    &Assignment::from_pairs([(m, f(mval)), (t, f(tlev))]),
+                    prob,
+                )
+                .unwrap();
             }
         }
         for tlev in [0.0, 1.0] {
@@ -649,7 +654,7 @@ mod tests {
     #[test]
     fn shallow_frontdoor_evaluates() {
         // Minimal front-door: T→M→Y with no hidden confounding encoded in tables.
-        // P(M|do(T=t))=P(M|T=t); P(Y|M,T'); P(T').
+        // P(M|T=t); P(Y|M,T'); P(T').
         let mut arena = CausalExprArena::new();
         let t = v(0);
         let y = v(1);
@@ -672,18 +677,23 @@ mod tests {
             p.insert_probability(&spec, &Assignment::from_pairs([(t, f(tval))]), prob).unwrap();
         }
 
-        // P(M | do(T=t)): P(M=1|T=1)=0.7, P(M=1|T=0)=0.3
+        // P(M | T=t): P(M=1|T=1)=0.7, P(M=1|T=0)=0.3 (FD condition 2).
         for tlev in [0.0, 1.0] {
             let pm1 = if (tlev - 1.0_f64).abs() < f64::EPSILON { 0.7 } else { 0.3 };
             let interv = [InterventionAssignment { variable: t, value: f(tlev) }];
             for (mval, prob) in [(1.0, pm1), (0.0, 1.0 - pm1)] {
                 let spec = FactorSpec {
                     variables: &[m],
-                    conditioned_on: &[],
+                    conditioned_on: &[t],
                     intervention: &interv,
-                    domain: DomainRef::Interventional,
+                    domain: DomainRef::Observational,
                 };
-                p.insert_probability(&spec, &Assignment::from_pairs([(m, f(mval))]), prob).unwrap();
+                p.insert_probability(
+                    &spec,
+                    &Assignment::from_pairs([(m, f(mval)), (t, f(tlev))]),
+                    prob,
+                )
+                .unwrap();
             }
         }
 
@@ -705,7 +715,7 @@ mod tests {
             }
         }
 
-        // Front-door: E[Y|do(T=t)] = Σ_m P(m|do(t)) Σ_t' P(y|m,t') P(t')
+        // Front-door: E[Y|do(T=t)] = Σ_m P(m|t) Σ_t' P(y|m,t') P(t')
         // With P(Y|M) independent of T': E[Y|do(T=1)] = 0.7*0.9 + 0.3*0.1 = 0.66
         // E[Y|do(T=0)] = 0.3*0.9 + 0.7*0.1 = 0.34
         // ATE = 0.32

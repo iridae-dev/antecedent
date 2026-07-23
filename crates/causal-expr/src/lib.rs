@@ -465,7 +465,8 @@ impl CausalExprArena {
 
     /// Build the front-door functional for ATE:
     /// `E[Y | do(T=active)] − E[Y | do(T=control)]`, mediated through `M` via
-    /// `sum_m P(m | do(t)) * sum_t' P(y | m, t') P(t')`.
+    /// `sum_m P(m | t) * sum_t' P(y | m, t') P(t')` (FD condition 2 reduces
+    /// `P(m | do(t))` to the observational `P(m | t)`).
     pub fn frontdoor_ate(
         &mut self,
         treatment: VariableId,
@@ -531,12 +532,13 @@ impl CausalExprArena {
             value: level,
         }]);
 
-        // P(m | do(t)).
-        let m_given_do_t = self.intern(ExprNode::Distribution {
+        // P(m | t): observational under FD condition 2; treatment level bound so
+        // the evaluator treats it as fixed (not free).
+        let m_given_t = self.intern(ExprNode::Distribution {
             variables: m,
-            conditioned_on: empty,
+            conditioned_on: t,
             intervention: do_t,
-            domain: DomainRef::Interventional,
+            domain: DomainRef::Observational,
         });
         // P(y | m, t').
         let y_given_m_t = self.intern(ExprNode::Distribution {
@@ -558,7 +560,7 @@ impl CausalExprArena {
         };
         let inner_summed = self.intern(ExprNode::SumOut { variables: t, expr: inner_product });
         let outer_product = {
-            let list = self.intern_list([m_given_do_t, inner_summed]);
+            let list = self.intern_list([m_given_t, inner_summed]);
             self.intern(ExprNode::Product(list))
         };
         let outer_summed = self.intern(ExprNode::SumOut { variables: m, expr: outer_product });
@@ -568,9 +570,11 @@ impl CausalExprArena {
         })
     }
 
-    /// Build the Wald IV functional for ATE as a contrast of potential
-    /// outcomes with an empty adjustment set; the instrument set is recorded
-    /// only in derivation metadata .
+    /// Build the Wald IV functional for binary instrument `Z`:
+    /// `(E[Y|Z=1] − E[Y|Z=0]) / (E[T|Z=1] − E[T|Z=0])`.
+    ///
+    /// `active` / `control` are recorded in derivation metadata (treatment contrast
+    /// scaling); the ratio itself conditions on instrument levels 1 and 0.
     pub fn iv_wald(
         &mut self,
         treatment: VariableId,
@@ -579,20 +583,64 @@ impl CausalExprArena {
         active: Value,
         control: Value,
     ) -> ExprId {
-        let left = self.backdoor_potential_outcome(treatment, outcome, &[], active);
-        let right = self.backdoor_potential_outcome(treatment, outcome, &[], control);
-        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
+        let z = instruments.first().copied().unwrap_or(treatment);
+        let z1 = Value::f64(1.0);
+        let z0 = Value::f64(0.0);
+        let ey1 = self.observational_conditional_mean(outcome, z, z1.clone());
+        let ey0 = self.observational_conditional_mean(outcome, z, z0.clone());
+        let et1 = self.observational_conditional_mean(treatment, z, z1);
+        let et0 = self.observational_conditional_mean(treatment, z, z0);
+        let num = self.intern(ExprNode::Contrast {
+            left: ey1,
+            right: ey0,
+            op: ContrastOp::Difference,
+        });
+        let den = self.intern(ExprNode::Contrast {
+            left: et1,
+            right: et0,
+            op: ContrastOp::Difference,
+        });
+        let ratio = self.intern(ExprNode::Ratio { numerator: num, denominator: den });
         self.set_derivation(
-            contrast,
+            ratio,
             DerivationMeta {
                 rule: Arc::from("iv.wald"),
                 note: Some(Arc::from(format!(
-                    "Wald IV ratio using {} instrument(s)",
+                    "Wald IV ratio using {} instrument(s); treatment contrast [{active:?}, {control:?}]",
                     instruments.len()
                 ))),
             },
         );
-        contrast
+        ratio
+    }
+
+    /// Observational `E[outcome | conditioner = level]`.
+    ///
+    /// The conditioning level is bound via an intervention assignment so the
+    /// evaluator treats it as fixed (not free), while the factor remains
+    /// observational `P(outcome | conditioner)`.
+    fn observational_conditional_mean(
+        &mut self,
+        outcome: VariableId,
+        conditioner: VariableId,
+        level: Value,
+    ) -> ExprId {
+        let y = self.intern_var_set([outcome]);
+        let z = self.intern_var_set([conditioner]);
+        let bind = self.intern_intervention_assignments([InterventionAssignment {
+            variable: conditioner,
+            value: level,
+        }]);
+        let dist = self.intern(ExprNode::Distribution {
+            variables: y,
+            conditioned_on: z,
+            intervention: bind,
+            domain: DomainRef::Observational,
+        });
+        self.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(outcome),
+            distribution: dist,
+        })
     }
 
     /// Pretty-print an expression (diagnostics only; not an equality key).
@@ -690,7 +738,7 @@ mod tests {
     }
 
     #[test]
-    fn iv_wald_contrasts_distinct_levels() {
+    fn iv_wald_is_ratio_of_instrument_contrasts() {
         let mut a = CausalExprArena::new();
         let id = a.iv_wald(
             VariableId::from_raw(0),
@@ -701,9 +749,11 @@ mod tests {
         );
         let meta = a.derivation(id).unwrap();
         assert_eq!(&*meta.rule, "iv.wald");
-        let ExprNode::Contrast { left, right, .. } = a.node(id) else {
-            panic!("expected contrast");
+        let ExprNode::Ratio { numerator, denominator } = a.node(id) else {
+            panic!("expected Wald ratio");
         };
-        assert_ne!(left, right);
+        assert!(matches!(a.node(*numerator), ExprNode::Contrast { .. }));
+        assert!(matches!(a.node(*denominator), ExprNode::Contrast { .. }));
+        assert_ne!(*numerator, *denominator);
     }
 }

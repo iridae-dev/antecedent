@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use causal_core::CausalRng;
+use causal_kernels::shuffle;
 
 use crate::error::DataError;
 
@@ -554,18 +555,12 @@ fn validate_range(series_len: usize, range: TimeRange, label: &str) -> Result<()
 
 fn fisher_yates(idx: &mut [u32], seed: u64) {
     let mut rng = CausalRng::from_seed(seed);
-    for i in (1..idx.len()).rev() {
-        let j = (rng.next_u64() as usize) % (i + 1);
-        idx.swap(i, j);
-    }
+    shuffle(&mut rng, idx);
 }
 
 fn fisher_yates_usize(idx: &mut [usize], seed: u64) {
     let mut rng = CausalRng::from_seed(seed);
-    for i in (1..idx.len()).rev() {
-        let j = (rng.next_u64() as usize) % (i + 1);
-        idx.swap(i, j);
-    }
+    shuffle(&mut rng, idx);
 }
 
 type LabelSplitResult = (RowSplit, Arc<[i64]>, Arc<[i64]>);

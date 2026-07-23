@@ -271,17 +271,37 @@ fn fill_cluster_bootstrap(
     if clusters.is_empty() {
         return Err(DataError::InvalidArgument { message: "no clusters".into() });
     }
-    while out.len() < n {
-        let c = unbiased_index(rng, clusters.len());
-        for &row in &clusters[c] {
-            if out.len() >= n {
+    // Resample whole clusters only (never truncate mid-cluster). Reject draws
+    // that would overflow the remaining budget; restart if the residual gap
+    // cannot be filled exactly.
+    const MAX_RESTARTS: usize = 64;
+    for _ in 0..MAX_RESTARTS {
+        out.clear();
+        let mut attempts = 0usize;
+        while out.len() < n {
+            attempts += 1;
+            if attempts > n.saturating_mul(64).max(64) {
                 break;
             }
-            out.push(row);
+            let c = unbiased_index(rng, clusters.len());
+            let cluster = &clusters[c];
+            if cluster.len() > n {
+                return Err(DataError::InvalidArgument {
+                    message: "cluster bootstrap: a single cluster exceeds sample size n".into(),
+                });
+            }
+            if out.len() + cluster.len() > n {
+                continue;
+            }
+            out.extend_from_slice(cluster);
+        }
+        if out.len() == n {
+            return Ok(());
         }
     }
-    out.truncate(n);
-    Ok(())
+    Err(DataError::InvalidArgument {
+        message: "cluster bootstrap: could not assemble length-n sample from full clusters".into(),
+    })
 }
 
 fn fill_within_cluster_permutation(

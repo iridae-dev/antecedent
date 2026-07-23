@@ -199,8 +199,8 @@ impl TemporalMediationIdentifier {
         query: &MediationQuery,
     ) -> Result<(), IdentificationError> {
         let med: std::collections::HashSet<VariableId> = query.mediators.iter().copied().collect();
-        let mut has_path = false;
-        let mut has_direct = false;
+        let mut has_t_to_m = false;
+        let mut has_m_to_y = false;
         for e in template.edges() {
             let Some((from, to)) = e.parent_child() else {
                 continue;
@@ -212,27 +212,14 @@ impl TemporalMediationIdentifier {
             else {
                 continue;
             };
-            if *tgt == query.outcome && *src == query.treatment {
-                has_direct = true;
-                has_path = true;
-            }
             if *tgt == query.outcome && med.contains(src) {
-                has_path = true;
+                has_m_to_y = true;
             }
             if *src == query.treatment && med.contains(tgt) {
-                has_path = true;
+                has_t_to_m = true;
             }
         }
-        if matches!(
-            query.contrast,
-            MediationContrast::Mediated | MediationContrast::NaturalIndirect
-        ) && has_direct
-        {
-            return Err(IdentificationError::NotIdentified {
-                message: "mediated contrast requires no direct treatment→outcome edge",
-            });
-        }
-        if !has_path {
+        if !(has_t_to_m && has_m_to_y) {
             return Err(IdentificationError::NotIdentified {
                 message: "no treatment–mediator–outcome path found in temporal template",
             });
@@ -275,6 +262,43 @@ mod tests {
             id.arena.derivation(id.estimands[0].functional).map(|d| d.rule.as_ref()),
             Some("temporal_mediation")
         );
+    }
+
+    #[test]
+    fn identifies_mediated_with_direct_edge() {
+        let mut g = TemporalDag::empty();
+        let t1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let m0 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let y0 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(t1, m0).unwrap();
+        g.insert_directed(m0, y0).unwrap();
+        g.insert_directed(t1, y0).unwrap();
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let id = TemporalMediationIdentifier::new().identify(&g, &q).unwrap();
+        assert!(matches!(id.status, IdentificationStatus::IdentifiedUnderParametricRestrictions));
+    }
+
+    #[test]
+    fn incomplete_path_not_identified() {
+        let mut g = TemporalDag::empty();
+        let t1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let m0 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let _y0 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(t1, m0).unwrap();
+        // Missing M→Y.
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let err = TemporalMediationIdentifier::new().identify(&g, &q).unwrap_err();
+        assert!(matches!(err, IdentificationError::NotIdentified { .. }));
     }
 
     #[test]
