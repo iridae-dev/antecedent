@@ -1,4 +1,4 @@
-# Read the Docs — narrative site from docs/ via MkDocs.
+# Read the Docs — MkDocs narrative + pdoc Python API under /python/.
 # https://docs.readthedocs.io/en/stable/config-file/v2.html
 version: 2
 
@@ -6,6 +6,16 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.12"
+  jobs:
+    # Install published wheels so pdoc can import the extension module.
+    # Tracks the latest PyPI release (not necessarily tip-of-main stubs).
+    post_install:
+      - pip install "antecedent>=0.1.0" pdoc
+      - python -c "import antecedent; print(antecedent.__file__, getattr(antecedent, '__version__', '?'))"
+    post_build:
+      # Merge into the MkDocs HTML tree so /python/ is public (no download).
+      - mkdir -p "${READTHEDOCS_OUTPUT}/html/python"
+      - bash -lc 'cd "$(mktemp -d)" && pdoc antecedent -o "${READTHEDOCS_OUTPUT}/html/python"'
 
 mkdocs:
   configuration: mkdocs.yml

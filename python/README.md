@@ -1,6 +1,15 @@
-# Python package for Antecedent
+# Antecedent
 
-Requires CPython 3.11–3.14 and a Rust 1.85 toolchain. CI builds and smoke-tests
+Explicit causal inference for Python (and Rust): identification, estimation,
+and validation with an API that keeps assumptions in the open.
+
+Requires CPython 3.11–3.14. Install from PyPI:
+
+```bash
+pip install antecedent
+```
+
+For local development you need a Rust 1.85 toolchain. CI builds and smoke-tests
 wheels for that range on Linux x86_64/aarch64 (manylinux), macOS arm64,
 and Windows x86_64 (default `faer` path; no system BLAS). Tagged releases publish
 wheels to PyPI and GitHub Release assets (see

@@ -17,9 +17,12 @@ Decisions: [adr/](../adr/README.md).
 
 | Surface | Host | Builder |
 |---------|------|---------|
-| Narrative (`docs/`) | [Read the Docs](https://antecedent.readthedocs.io/) (when connected) | MkDocs — `mkdocs.yml`, `.readthedocs.yaml` |
+| Narrative (`docs/`) | [Read the Docs](https://antecedent.readthedocs.io/) | MkDocs — `mkdocs.yml`, `.readthedocs.yaml` |
+| Python API | [RTD `/python/`](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) | `pip install antecedent` + `pdoc` in RTD `post_build` |
 | Rust API | [docs.rs/antecedent](https://docs.rs/antecedent) | `cargo doc` on crates.io publish |
-| Python API | `docs.tar.gz` on GitHub Releases | wheel + `pdoc` in `docs.yml` / `publish-release.yml` |
+
+Release `docs.tar.gz` still bundles markdown + rustdoc + pdoc for offline use; the
+live Python API is on Read the Docs, not behind a download.
 
 Local narrative preview:
 

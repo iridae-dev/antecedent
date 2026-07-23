@@ -1,5 +1,6 @@
 # Narrative docs for Read the Docs / local `mkdocs serve`.
-# Rust API: docs.rs/antecedent (after crates.io). Python API: pdoc in release docs bundle.
+# Python API: pdoc HTML merged into the RTD site at /python/ (see .readthedocs.yaml).
+# Rust API: docs.rs/antecedent.
 site_name: Antecedent
 site_description: Explicit causal inference for Python and Rust
 site_url: https://antecedent.readthedocs.io/
@@ -29,6 +30,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Python API: python-api.md
   - Architecture: architecture.md
   - Development: development.md
   - API naming: api_naming.md
