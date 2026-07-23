@@ -8,11 +8,11 @@ from __future__ import annotations
 import pytest
 
 pytest.importorskip("pyarrow")
-pytest.importorskip("causal")
+pytest.importorskip("antecedent")
 
 import pyarrow as pa
 
-import causal
+import antecedent
 
 
 def test_arrow_c_zero_copy_acceptance():

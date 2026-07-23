@@ -1,4 +1,4 @@
-# Python package for causal-library
+# Python package for Antecedent
 
 Requires CPython 3.11–3.14 and a Rust 1.85 toolchain. CI builds and smoke-tests
 wheels for that range on Linux x86_64/aarch64 (manylinux), macOS x86_64/arm64,
@@ -19,29 +19,29 @@ pytest
 Primary entry point is the OO facade:
 
 ```python
-import causal
+import antecedent
 
-g = causal.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
-result = causal.analyze(
+g = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+result = antecedent.analyze(
     data,  # dict[str, array] or pandas DataFrame
     graph=g,  # or an edge list
-    query=causal.AverageEffect(treatment="t", outcome="y"),
-    inference=causal.Frequentist(),  # or causal.Bayesian(...)
+    query=antecedent.AverageEffect(treatment="t", outcome="y"),
+    inference=antecedent.Frequentist(),  # or antecedent.Bayesian(...)
 )
 print(result.identification, result.estimate, result.validation)
 
 # Identify without estimating:
-id_only = causal.identify(
+id_only = antecedent.identify(
     graph=g,
-    query=causal.AverageEffect(treatment="t", outcome="y"),
-    identifier=causal.Identifier.BACKDOOR_ADJUSTMENT,
+    query=antecedent.AverageEffect(treatment="t", outcome="y"),
+    identifier=antecedent.Identifier.BACKDOOR_ADJUSTMENT,
 )
 
-gcm = causal.fit_gcm(["z", "t", "y"], columns, list(g.edges()))
+gcm = antecedent.fit_gcm(["z", "t", "y"], columns, list(g.edges()))
 draws = gcm.sample_do({"t": 1.0}, n=200)
 
 # Or discover then fit (never invents orientations; refuses incomplete PAG/FCI):
-fitted, edges = causal.fit_gcm_discovered(data, discovery=causal.PC(alpha=0.05))
+fitted, edges = antecedent.fit_gcm_discovered(data, discovery=antecedent.PC(alpha=0.05))
 ```
 
 Also exposed:
@@ -69,5 +69,5 @@ Also exposed:
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.
 
 Typed exceptions (`CausalError` and subclasses) mirror Rust `CausalError` categories.
-The native module `causal._native` remains available for advanced FFI use
+The native module `antecedent._native` remains available for advanced FFI use
 (including the flat `AteAnalysisResult` DTO; prefer nested `AnalysisResult`).

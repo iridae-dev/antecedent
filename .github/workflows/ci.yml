@@ -181,7 +181,7 @@ jobs:
         working-directory: python
         run: |
           pip install dist/*.whl numpy pytest
-          python -c "import causal; print(causal.__version__)"
+          python -c "import antecedent; print(antecedent.__version__)"
           pytest -q \
             tests/test_arrow_copy_gate.py \
             tests/test_graph_interchange.py \

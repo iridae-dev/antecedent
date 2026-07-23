@@ -5,7 +5,7 @@ See ADR 0016: ranking is advisory — it does not auto-rerun analyses.
 
 from __future__ import annotations
 
-import causal
+import antecedent
 
 ranking = causal.rank_designs(
     [0.5, 0.3, 0.2],

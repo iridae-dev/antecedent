@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from causal import AverageEffect, Bayesian, analyze
+from antecedent import AverageEffect, Bayesian, analyze
 
 
 def _batch(n: int, seed: int) -> tuple[dict[str, np.ndarray], list[tuple[str, str]]]:

@@ -8,8 +8,8 @@ import random
 import numpy as np
 import pytest
 
-pytest.importorskip("causal")
-import causal
+pytest.importorskip("antecedent")
+import antecedent
 
 
 def _confounded_scm(n: int = 600, seed: int = 7):

@@ -35,7 +35,7 @@ Each `[[capabilities]]` row uses:
 
 **`python_facade`:** When a capability is Rust-done but the Python surface is
 incomplete or `_native`-only without a typed facade, set `python_facade =
-"thin"`. Use `"full"` when the public `causal` package exposes the capability
+"thin"`. Use `"full"` when the public `antecedent` package exposes the capability
 end-to-end (analyze kwargs, typed wrappers, or dedicated helpers). Older rows
 may still embed `python_facade=full` inside `notes`; prefer the dedicated key
 for new / updated rows.

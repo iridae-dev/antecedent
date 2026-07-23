@@ -1,5 +1,8 @@
 # Development
 
+Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
+workspace crates remain under the `causal` / `causal-*` names for now.
+
 ## Gates
 
 Feature gates own inventory honesty + conformance for a domain:
@@ -115,7 +118,7 @@ install from GitHub Packages, or bake a Release `.whl` into the container image.
 1. Create a **private** GitHub repository and push this tree.
 2. Enable Actions; allow GitHub Packages for the repo/org.
 3. Set `workspace.package.repository` in `Cargo.toml` to the real repo URL
-   (replace the `example/causal-library` placeholder).
+   (replace the `example/antecedent` placeholder).
 4. Tag `v0.1.0` (or bump first) to cut the first private release.
 5. In consuming projects, configure the GitHub Packages index + a
    `read:packages` PAT (see root README).

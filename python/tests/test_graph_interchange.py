@@ -1,6 +1,6 @@
 """DOT/JSON/NetworkX graph interchange smoke."""
 
-from causal.graph import (
+from antecedent.graph import (
     Admg,
     Cpdag,
     Pag,

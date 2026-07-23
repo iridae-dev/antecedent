@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-pytest.importorskip("causal")
-import causal
+pytest.importorskip("antecedent")
+import antecedent
 
 
 def test_unknown_ci_raises_compile_error():

@@ -70,10 +70,12 @@ otherwise compilation returns `ReviewRequired`.
 
 ## Python package
 
+The public product and PyPI name is **Antecedent** (`import antecedent`).
+
 ```text
 python/
-  src/lib.rs          # PyO3 → causal._native
-  causal/             # pure-Python wrappers + stubs
+  src/lib.rs             # PyO3 → antecedent._native
+  antecedent/            # pure-Python wrappers + stubs
 ```
 
 Algorithms stay in Rust. Bindings convert and release the GIL. Identification and

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import causal
+import antecedent
 
 rng = np.random.default_rng(1)
 # Bound retained result bytes; over-budget refresh refuses instead of silent drop.

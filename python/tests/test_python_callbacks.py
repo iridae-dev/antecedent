@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import causal
-from causal._native import (
+import antecedent
+from antecedent._native import (
     analyze_ate,
     discover_pcmci,
     sample_do,

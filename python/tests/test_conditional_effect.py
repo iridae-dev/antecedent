@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import causal
+import antecedent
 
 
 def test_conditional_effect_recovers_interaction():

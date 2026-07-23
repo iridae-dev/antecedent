@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import causal
+import antecedent
 
 
 def _ate_data(n: int = 200, seed: int = 0):

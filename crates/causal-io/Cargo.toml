@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Versioned artifact container and wire types for causal-library"
+description = "Versioned artifact container and wire types for Antecedent"
 readme = "README.md"
 
 [lints]

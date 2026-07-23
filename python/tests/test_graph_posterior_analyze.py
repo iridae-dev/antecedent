@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-pytest.importorskip("causal")
-import causal
+pytest.importorskip("antecedent")
+import antecedent
 
 
 def test_exact_dag_posterior_bayesian_ate_mixture():

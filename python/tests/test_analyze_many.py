@@ -8,8 +8,8 @@ import random
 import numpy as np
 import pytest
 
-pytest.importorskip("causal")
-import causal
+pytest.importorskip("antecedent")
+import antecedent
 
 
 def _two_treatment_scm(n: int = 500, seed: int = 9):

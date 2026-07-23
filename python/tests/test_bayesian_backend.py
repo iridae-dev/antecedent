@@ -5,9 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-pytest.importorskip("causal")
-import causal
-from causal.estimation import _bayesian_inference_kwargs
+pytest.importorskip("antecedent")
+import antecedent
+from antecedent.estimation import _bayesian_inference_kwargs
 
 
 def _confounded(n: int = 120, seed: int = 5):
