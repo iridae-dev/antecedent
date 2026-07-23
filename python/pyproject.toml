@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Antecedent — explicit causal inference for Python and Rust"
 requires-python = ">=3.11"
 license = { text = "MIT OR Apache-2.0" }
+dependencies = [
+  "numpy>=1.26",
+]
 classifiers = [
   "Programming Language :: Rust",
   "Programming Language :: Python :: Implementation :: CPython",

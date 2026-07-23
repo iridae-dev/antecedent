@@ -216,9 +216,12 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install wheel-in/*.whl pdoc
-          mkdir -p site/python
-          pdoc antecedent -o site/python
+          pip install "wheel-in/"*.whl pdoc
+          python -c "import antecedent; print('antecedent', antecedent.__version__, antecedent.__file__)"
+          OUT="${GITHUB_WORKSPACE}/site/python"
+          mkdir -p "$OUT"
+          cd "$(mktemp -d)"
+          pdoc antecedent -o "$OUT"
 
       - name: Pack docs.tar.gz
         run: |

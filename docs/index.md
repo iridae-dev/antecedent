@@ -1,4 +1,6 @@
-# Documentation
+# Antecedent
+
+Explicit causal inference for **Python** and **Rust**.
 
 | Doc | Contents |
 |-----|----------|
@@ -11,28 +13,15 @@
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
 
-Decisions: [adr/](../adr/README.md).
+## API reference
 
-## How docs are published
+- **Rust:** [docs.rs/antecedent](https://docs.rs/antecedent) (after crates.io publish); locally `cargo doc -p antecedent --open`
+- **Python:** HTML via `pdoc` in the release `docs.tar.gz` (install the wheel, then `pdoc antecedent`). On Read the Docs this site is the narrative docs; Python API embedding can be added once PyPI installs work in the RTD build.
 
-| Surface | Host | Builder |
-|---------|------|---------|
-| Narrative (`docs/`) | [Read the Docs](https://antecedent.readthedocs.io/) (when connected) | MkDocs — `mkdocs.yml`, `.readthedocs.yaml` |
-| Rust API | [docs.rs/antecedent](https://docs.rs/antecedent) | `cargo doc` on crates.io publish |
-| Python API | `docs.tar.gz` on GitHub Releases | wheel + `pdoc` in `docs.yml` / `publish-release.yml` |
+Decisions: see `adr/` in the repository.
 
-Local narrative preview:
-
-```bash
-pip install -r requirements-docs.txt
-mkdocs serve
-```
-
-Regenerate conformance docs:
+Regenerate conformance pages:
 
 ```bash
 python3 scripts/generate_conformance_docs.py
 ```
-
-Python stubs live next to the package (`python/antecedent/*.pyi`).
-Rust ↔ Python names: [api_naming.md](api_naming.md).

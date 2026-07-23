@@ -1,0 +1,2 @@
+# Docs site (MkDocs on Read the Docs / local preview).
+mkdocs-material>=9.5,<10

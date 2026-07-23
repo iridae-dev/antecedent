@@ -1,0 +1,44 @@
+# Narrative docs for Read the Docs / local `mkdocs serve`.
+# Rust API: docs.rs/antecedent (after crates.io). Python API: pdoc in release docs bundle.
+site_name: Antecedent
+site_description: Explicit causal inference for Python and Rust
+site_url: https://antecedent.readthedocs.io/
+repo_url: https://github.com/iridae-dev/antecedent
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: blue grey
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - scheme: slate
+      primary: blue grey
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Development: development.md
+  - API naming: api_naming.md
+  - Artifacts: artifacts.md
+  - Prior bank: prior_bank.md
+  - Hot paths: hot_paths.md
+  - Security review: security_review.md
+  - Conformance: conformance/README.md
+
+plugins:
+  - search
+
+docs_dir: docs
