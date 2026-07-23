@@ -37,16 +37,16 @@ allocation/memory contracts, and owning crates.
 Criterion smokes used by feature gates (`--test`):
 
 ```bash
-cargo bench -p antecedent-kernels --bench gather -- --test
-cargo bench -p antecedent-kernels --bench reductions -- --test
-cargo bench -p antecedent-graph --bench traversal -- --test
-cargo bench -p antecedent-graph --bench dseparation -- --test
-cargo bench -p antecedent-identify --bench adjustment -- --test
-cargo bench -p antecedent-kernels --bench partial_correlation -- --test
-cargo bench -p antecedent-discovery --bench pcmci -- --test
-cargo bench -p antecedent-attribution --bench shapley -- --test
-cargo bench -p antecedent-design --bench design_rank -- --test
-cargo bench -p antecedent-state --bench state_append -- --test
+cargo bench -p causal-kernels --bench gather -- --test
+cargo bench -p causal-kernels --bench reductions -- --test
+cargo bench -p causal-graph --bench traversal -- --test
+cargo bench -p causal-graph --bench dseparation -- --test
+cargo bench -p causal-identify --bench adjustment -- --test
+cargo bench -p causal-kernels --bench partial_correlation -- --test
+cargo bench -p causal-discovery --bench pcmci -- --test
+cargo bench -p causal-attribution --bench shapley -- --test
+cargo bench -p causal-design --bench design_rank -- --test
+cargo bench -p causal-state --bench state_append -- --test
 ```
 
 Absolute timings in baseline files are machine-class references (Apple M1).

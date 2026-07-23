@@ -18,5 +18,5 @@ Regression budget: 20%.
 Gate: mean ≤ **226.4 µs** (20% over 188.7 µs).
 
 ```bash
-cargo +1.85 bench -p antecedent-identify --bench adjustment
+cargo +1.85 bench -p causal-identify --bench adjustment
 ```

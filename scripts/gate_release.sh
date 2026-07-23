@@ -192,19 +192,19 @@ if ! git diff --exit-code -- docs/conformance >/dev/null; then
 fi
 
 echo "== cargo test release surfaces =="
-cargo test -p antecedent-io --lib
+cargo test -p causal-io --lib
 cargo test -p antecedent --test graph_interchange
 cargo test -p antecedent --test artifact_migrate
 
 echo "== criterion smoke (designated hot paths) =="
-cargo bench -p antecedent-kernels --bench gather -- --test
-cargo bench -p antecedent-kernels --bench reductions -- --test
-cargo bench -p antecedent-graph --bench traversal -- --test
-cargo bench -p antecedent-graph --bench dseparation -- --test
-cargo bench -p antecedent-identify --bench adjustment -- --test
-cargo bench -p antecedent-discovery --bench pcmci -- --test
-cargo bench -p antecedent-design --bench design_rank -- --test
-cargo bench -p antecedent-state --bench state_append -- --test
+cargo bench -p causal-kernels --bench gather -- --test
+cargo bench -p causal-kernels --bench reductions -- --test
+cargo bench -p causal-graph --bench traversal -- --test
+cargo bench -p causal-graph --bench dseparation -- --test
+cargo bench -p causal-identify --bench adjustment -- --test
+cargo bench -p causal-discovery --bench pcmci -- --test
+cargo bench -p causal-design --bench design_rank -- --test
+cargo bench -p causal-state --bench state_append -- --test
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="

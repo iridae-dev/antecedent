@@ -86,12 +86,12 @@ print("Design state inventory evidence map OK")
 PY
 
 echo "== cargo test design / state / facade design_state =="
-cargo test -p antecedent-design --lib
-cargo test -p antecedent-state --lib
+cargo test -p causal-design --lib
+cargo test -p causal-state --lib
 cargo test -p antecedent --test design_state
 
 echo "== criterion smoke (design + state) =="
-cargo bench -p antecedent-design --bench design_rank -- --test
-cargo bench -p antecedent-state --bench state_append -- --test
+cargo bench -p causal-design --bench design_rank -- --test
+cargo bench -p causal-state --bench state_append -- --test
 
 echo "Design state gate PASSED"

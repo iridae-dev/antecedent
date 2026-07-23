@@ -18,5 +18,5 @@ Regression budget: 20% wall-time on the same machine class.
 Gate: mean ≤ **31.51 µs** (20% over 26.26 µs).
 
 ```bash
-cargo +1.85 bench -p antecedent-graph --bench traversal
+cargo +1.85 bench -p causal-graph --bench traversal
 ```

@@ -105,10 +105,10 @@ print("Attribution inventory evidence map OK")
 PY
 
 echo "== cargo test attribution / facade attribution =="
-cargo test -p antecedent-attribution --lib
+cargo test -p causal-attribution --lib
 cargo test -p antecedent --test attribution
 
 echo "== criterion smoke (shapley) =="
-cargo bench -p antecedent-attribution --bench shapley -- --test
+cargo bench -p causal-attribution --bench shapley -- --test
 
 echo "Attribution gate PASSED"

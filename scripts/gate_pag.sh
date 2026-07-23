@@ -94,14 +94,14 @@ print("PAG inventory evidence map OK")
 PY
 
 echo "== cargo test graph / discovery LPCMCI / identify / facade pag =="
-cargo test -p antecedent-graph --lib
-cargo test -p antecedent-discovery --lib
-cargo test -p antecedent-identify --lib
+cargo test -p causal-graph --lib
+cargo test -p causal-discovery --lib
+cargo test -p causal-identify --lib
 cargo test -p antecedent --test pag
 cargo test -p antecedent --lib refuses_dag_only
 
 echo "== criterion smoke (m-sep + PAG orientation) =="
-cargo bench -p antecedent-graph --bench mseparation -- --test
-cargo bench -p antecedent-discovery --bench pag_orientation -- --test
+cargo bench -p causal-graph --bench mseparation -- --test
+cargo bench -p causal-discovery --bench pag_orientation -- --test
 
 echo "PAG gate PASSED"

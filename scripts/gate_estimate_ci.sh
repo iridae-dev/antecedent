@@ -90,8 +90,8 @@ PY
 
 echo "== conformance / calibration =="
 cargo test -p antecedent --test estimate_conformance --test estimate_linear_gaussian_ate
-cargo test -p antecedent-validate --test refuters
-cargo test -p antecedent-discovery --test discovery_pcmci_lag1 --test discovery_pcmci_plus_lag0 --test discovery_masked_mci_lag1 --test discovery_vector_vars_pcmci --test discovery_notears_chain
-cargo test -p antecedent-stats --lib ci::calibration
+cargo test -p causal-validate --test refuters
+cargo test -p causal-discovery --test discovery_pcmci_lag1 --test discovery_pcmci_plus_lag0 --test discovery_masked_mci_lag1 --test discovery_vector_vars_pcmci --test discovery_notears_chain
+cargo test -p causal-stats --lib ci::calibration
 bash scripts/gate_estimate_reuse.sh
 echo "estimate_ci parity gate: ok"

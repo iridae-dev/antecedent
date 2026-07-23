@@ -47,7 +47,7 @@ same machine class require an approved explanation and replacement baseline
 ## How to refresh
 
 ```bash
-cargo bench -p antecedent-kernels --bench reductions -- --sample-size 30
+cargo bench -p causal-kernels --bench reductions -- --sample-size 30
 ```
 
 Record mean times and commit an update to this file with hardware notes.
