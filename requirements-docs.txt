@@ -1,2 +1,5 @@
-# Docs site (MkDocs on Read the Docs / local preview).
+# Docs site (MkDocs on Read the Docs / local preview) + Python API (pdoc).
 mkdocs-material>=9.5,<10
+pdoc>=15,<16
+# Extension wheel from PyPI (manylinux); required so pdoc can import antecedent.
+antecedent>=0.1.0
