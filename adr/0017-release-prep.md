@@ -22,7 +22,7 @@ performance as a deferred rewrite (ADR 0011).
 - Ship **DOT + JSON + GML + NetworkX** DAG interchange in `causal-io` as the
   string-graph surface for `pinned baseline.model_graph.parsing`.
 - Ship full CPython 3.11–3.14 wheel CI (Linux x86_64/aarch64 manylinux, macOS
-  x86_64/arm64, Windows x86_64) with default `faer` and no system BLAS.
+  arm64, Windows x86_64) with default `faer` and no system BLAS.
 - Generate `docs/conformance/` from fixtures; index hot paths in
   `docs/hot_paths.md`; gate via `scripts/gate_release.sh`.
 - Retire `DESIGN.md` in favor of `docs/architecture.md` and
