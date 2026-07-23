@@ -1873,9 +1873,8 @@ impl CausalAnalysis {
                 let mut est = LinearAdjustmentAte::new();
                 est.bootstrap_replicates = self.bootstrap_replicates;
                 est.overlap = OverlapPolicy::ExplicitOverride;
-                let prep = est
-                    .prepare(&data_est, &estimand_est, &query_est)
-                    .map_err(CausalError::from)?;
+                let prep =
+                    est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?;
                 let filled = est
                     .attach_bootstrap(&prep, &mut estimate_ws.linear, ctx, point)
                     .map_err(CausalError::from)?;
