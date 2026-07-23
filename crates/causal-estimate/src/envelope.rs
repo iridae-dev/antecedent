@@ -221,10 +221,7 @@ mod tests {
         .unwrap();
         let per_full: Vec<GraphEffectDraws> = [1u64, 2, 3, 4]
             .into_iter()
-            .map(|k| GraphEffectDraws {
-                graph_key: k,
-                effect_draws: Arc::from(vec![k as f64; 4]),
-            })
+            .map(|k| GraphEffectDraws { graph_key: k, effect_draws: Arc::from(vec![k as f64; 4]) })
             .collect();
         let full = aggregate_effect_envelope(
             &graphs,

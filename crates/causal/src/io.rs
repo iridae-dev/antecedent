@@ -408,9 +408,7 @@ pub fn decode_causal_posterior_bytes(
 /// # Errors
 ///
 /// Decode failures or hydrate failures (no coefficients / non-finite summaries).
-pub fn prior_set_from_posterior_bytes(
-    bytes: &[u8],
-) -> Result<causal_prob::PriorSet, CausalError> {
+pub fn prior_set_from_posterior_bytes(bytes: &[u8]) -> Result<causal_prob::PriorSet, CausalError> {
     use std::sync::Arc;
 
     use causal_estimate::hydrate_prior_from_quantity_summaries;
@@ -440,4 +438,3 @@ pub fn prior_set_from_posterior_bytes(
     hydrate_prior_from_quantity_summaries(&quantities, &wire.mean, &wire.sd, None)
         .map_err(CausalError::from)
 }
-

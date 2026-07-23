@@ -8,19 +8,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal::{
-    BayesianConfig,
-    CausalAnalysis,
-    InferenceMode,
-    RefuteSuite,
-};
-use causal::io::{
-    decode_causal_posterior_bytes,
-    encode_causal_posterior_bytes,
-};
-use causal::validate::{
-    PredictiveCheckKind as FacadeKind,
-};
+use causal::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
+use causal::validate::PredictiveCheckKind as FacadeKind;
+use causal::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
 use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
@@ -618,19 +608,9 @@ fn prior_bank_catalog() {
 fn prior_bank_effect_map() {
     use std::sync::Arc;
 
-    use causal::{
-    BayesianConfig,
-    CausalAnalysis,
-    InferenceMode,
-    RefuteSuite,
-};
-use causal::inference::{
-    hydrate_mapping_from_io,
-    hydrate_prior_from_posterior_bytes,
-};
-use causal::io::{
-    encode_causal_posterior_bytes,
-};
+    use causal::inference::{hydrate_mapping_from_io, hydrate_prior_from_posterior_bytes};
+    use causal::io::encode_causal_posterior_bytes;
+    use causal::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
     use causal_core::{
         Assumption, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
         RoleHint, SmallRoleSet, ValueType, VariableId,

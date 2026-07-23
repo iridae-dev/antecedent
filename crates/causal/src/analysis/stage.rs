@@ -80,12 +80,7 @@ pub(crate) struct StageClock {
 impl StageClock {
     pub(crate) fn new() -> Self {
         let now = Instant::now();
-        Self {
-            started: now,
-            stage_started: now,
-            timings: Vec::with_capacity(4),
-            cancelled: false,
-        }
+        Self { started: now, stage_started: now, timings: Vec::with_capacity(4), cancelled: false }
     }
 
     /// Begin a stage: report progress and check cancellation.

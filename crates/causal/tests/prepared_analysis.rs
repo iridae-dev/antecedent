@@ -2,21 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
-    clippy::many_single_char_names
-)]
+#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::many_single_char_names)]
 
 use std::sync::Arc;
 use std::time::Instant;
 
-use causal::{
-    CausalAnalysis,
-    LatencyMode,
-    PreparedAnalysis,
-    RefuteSuite,
-};
+use causal::{CausalAnalysis, LatencyMode, PreparedAnalysis, RefuteSuite};
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -98,11 +89,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
     (TabularData::new(storage), dag, query)
 }
 
-fn build_analysis(
-    data: TabularData,
-    dag: Dag,
-    query: AverageEffectQuery,
-) -> CausalAnalysis {
+fn build_analysis(data: TabularData, dag: Dag, query: AverageEffectQuery) -> CausalAnalysis {
     CausalAnalysis::builder()
         .data(data)
         .graph(dag)
@@ -118,9 +105,7 @@ fn prepared_reestimate_matches_fresh_analyze() {
     let (data, dag, query) = confounded_scm(500, 19);
     let ctx = ExecutionContext::for_tests(1);
 
-    let fresh = build_analysis(data.clone(), dag.clone(), query.clone())
-        .run(&ctx)
-        .unwrap();
+    let fresh = build_analysis(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
 
     let prepared = build_analysis(data.clone(), dag, query).prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
@@ -226,10 +211,7 @@ fn prepared_second_shot_cheaper_than_full_run() {
 
 #[test]
 fn prepare_refuses_discovery_graph() {
-    use causal::{
-    DiscoveryAccept,
-    FdrControl,
-};
+    use causal::{DiscoveryAccept, FdrControl};
     let (data, _, query) = confounded_scm(100, 37);
     // Discovery under Interactive is refused at build; Standard one-shot still
     // reaches prepare, which refuses Discover* graphs.
@@ -243,10 +225,7 @@ fn prepare_refuses_discovery_graph() {
         .unwrap()
         .prepare(&ExecutionContext::for_tests(1))
         .unwrap_err();
-    assert!(
-        err.to_string().contains("supplied static"),
-        "unexpected: {err}"
-    );
+    assert!(err.to_string().contains("supplied static"), "unexpected: {err}");
 }
 
 #[test]

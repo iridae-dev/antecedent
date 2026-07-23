@@ -38,10 +38,6 @@ use std::sync::Arc;
 
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
-use causal::{
-    BayesianConfig, CausalAnalysis, CausalError as RustCausalError, DiscoveryAccept, EstimatorId,
-    FdrControl, GraphInput, IdentifierId, InferenceMode, RefuteSuite,
-};
 use causal::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
 use causal::discovery::{
     DiscoverParams, DiscoveryPerformanceRecord, MultiDatasetConstraints, RegimeAssignment,
@@ -65,8 +61,7 @@ use causal::gcm::{
     attribute_structure_change as facade_attribute_structure_change,
     attribute_unit_change as facade_attribute_unit_change,
     counterfactual_ite as facade_counterfactual_ite, fit_gcm,
-    mechanism_change_detection as facade_mechanism_change_detection,
-    sample_do as facade_sample_do,
+    mechanism_change_detection as facade_mechanism_change_detection, sample_do as facade_sample_do,
     sample_interventional_distribution as facade_sample_interventional_distribution,
 };
 use causal::io::{
@@ -76,7 +71,10 @@ use causal::io::{
     dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency, decode_causal_posterior_bytes,
     encode_causal_posterior_bytes,
 };
-use causal_stats::FdrAdjustment;
+use causal::{
+    BayesianConfig, CausalAnalysis, CausalError as RustCausalError, DiscoveryAccept, EstimatorId,
+    FdrControl, GraphInput, IdentifierId, InferenceMode, RefuteSuite,
+};
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalQuery,
     CausalRng, ChangeAttributionQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
@@ -100,6 +98,7 @@ use causal_io::{
     CausalPosteriorWire, IoError, PosteriorQuantityWire,
     encode_posterior_artifact as encode_posterior_wire,
 };
+use causal_stats::FdrAdjustment;
 use causal_stats::PartialCorrelation;
 use causal_validate::PredictiveCheckKind;
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
@@ -808,13 +807,8 @@ fn run_static_ate_from_builder(
         builder = builder.inference(InferenceMode::Bayesian(cfg));
     }
     let analysis = builder.build().map_err(py_err)?;
-    let ctx = py_execution_context_ext(
-        seed,
-        threads,
-        cancel,
-        progress,
-        Some(PY_DEFAULT_CACHE_MAX_BYTES),
-    );
+    let ctx =
+        py_execution_context_ext(seed, threads, cancel, progress, Some(PY_DEFAULT_CACHE_MAX_BYTES));
     let result = analysis.run(&ctx).map_err(py_err)?;
     ate_result_from_analysis(names, result, include_posterior_artifact)
 }
@@ -884,9 +878,7 @@ fn posterior_summary_from_result(
     if let Some(post) = result.posterior.as_ref() {
         let eq = post.effect_column().unwrap_or(0);
         let artifact = if include_artifact {
-            Some(
-                encode_causal_posterior_bytes(post, "ate-analysis").map_err(py_err)?,
-            )
+            Some(encode_causal_posterior_bytes(post, "ate-analysis").map_err(py_err)?)
         } else {
             None
         };
@@ -1166,13 +1158,9 @@ fn analyze_ate(
     let stage_sink = callbacks::stage_sink_from_py(on_stage.as_ref())?;
     let latency_mode = match latency.as_deref() {
         None => None,
-        Some(s) => Some(
-            causal::LatencyMode::parse(s).ok_or_else(|| {
-                PyValueError::new_err(format!(
-                    "unknown latency={s:?}; use interactive|standard|report"
-                ))
-            })?,
-        ),
+        Some(s) => Some(causal::LatencyMode::parse(s).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+        })?),
     };
     // Drop NumPy borrows before releasing the GIL.
     drop(columns);
@@ -1333,13 +1321,9 @@ fn analyze_ate_arrow_c(
     let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
     let latency_mode = match latency.as_deref() {
         None => None,
-        Some(s) => Some(
-            causal::LatencyMode::parse(s).ok_or_else(|| {
-                PyValueError::new_err(format!(
-                    "unknown latency={s:?}; use interactive|standard|report"
-                ))
-            })?,
-        ),
+        Some(s) => Some(causal::LatencyMode::parse(s).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+        })?),
     };
 
     detach_catch(py, move || {
@@ -1446,13 +1430,9 @@ fn analyze_ate_many(
     let suite = suite_from_refute(refute.as_ref())?;
     let latency_mode = match latency.as_deref() {
         None => None,
-        Some(s) => Some(
-            causal::LatencyMode::parse(s).ok_or_else(|| {
-                PyValueError::new_err(format!(
-                    "unknown latency={s:?}; use interactive|standard|report"
-                ))
-            })?,
-        ),
+        Some(s) => Some(causal::LatencyMode::parse(s).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+        })?),
     };
     drop(columns);
     detach_catch(py, move || {
@@ -1482,9 +1462,8 @@ fn analyze_ate_many(
             let y_id = data.schema().id_of(outcome).map_err(py_err)?;
             ate_queries.push(AverageEffectQuery::with_levels(t_id, y_id, *control, *active));
         }
-        let mut batch = causal::BatchAnalysis::new(data, dag)
-            .bootstrap_replicates(bootstrap)
-            .refute(suite);
+        let mut batch =
+            causal::BatchAnalysis::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
         if let Some(mode) = latency_mode {
             batch = batch.latency_mode(mode);
         }
@@ -1496,10 +1475,7 @@ fn analyze_ate_many(
         }
         let ctx = py_execution_context(seed, threads);
         let results = batch.estimate_many(&ate_queries, &ctx).map_err(py_err)?;
-        results
-            .into_iter()
-            .map(|r| ate_result_from_analysis(&names, r, false))
-            .collect()
+        results.into_iter().map(|r| ate_result_from_analysis(&names, r, false)).collect()
     })
 }
 
@@ -2238,7 +2214,11 @@ pub(crate) fn ate_result_from_analysis(
         conflict_alphas_requested,
         conflict_alphas_applied,
         posterior_unidentified_mass,
-        latency_mode: result.performance.latency_mode.as_ref().map(std::string::ToString::to_string),
+        latency_mode: result
+            .performance
+            .latency_mode
+            .as_ref()
+            .map(std::string::ToString::to_string),
         wall_time_ns: result.performance.wall_time_ns,
         bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
         bootstrap_replicates_ok: result
@@ -5959,11 +5939,7 @@ fn identify_ate(
         let analysis = builder.build().map_err(py_err)?;
         let id_res = analysis.identify_only().map_err(py_err)?;
         let status = format!("{:?}", id_res.status);
-        let method = id_res
-            .estimands
-            .first()
-            .map(|e| e.method.to_string())
-            .unwrap_or_default();
+        let method = id_res.estimands.first().map(|e| e.method.to_string()).unwrap_or_default();
         let adjustment: Vec<String> = id_res
             .estimands
             .first()

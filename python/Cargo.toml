@@ -10,7 +10,9 @@ description = "Antecedent Python extension (PyO3)"
 publish = false
 
 [lib]
-name = "antecedent"
+# Must match the last component of tool.maturin.module-name (antecedent._native).
+# Naming this "antecedent" collides with the pure-Python package and omits _native.
+name = "_native"
 crate-type = ["cdylib"]
 
 [lints]

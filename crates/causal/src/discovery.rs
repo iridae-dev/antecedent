@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use causal_core::{ExecutionContext, VariableId};
 use causal_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
-use causal_discovery::{DiscoveryWorkspace, Pcmci, PcmciPlus};
 pub use causal_discovery::{
     CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult, DagDiscoveryResult,
     DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, EXACT_ENUM_MAX_NODES,
@@ -22,6 +21,7 @@ pub use causal_discovery::{
     StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode,
     two_regime_half_split,
 };
+use causal_discovery::{DiscoveryWorkspace, Pcmci, PcmciPlus};
 use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
 use causal_state::GraphScoreFamily;
 use causal_stats::{ConditionalIndependence, FdrAdjustment};
@@ -490,4 +490,3 @@ pub fn pag_definite_directed_edge_count(pag: &TemporalPag) -> u64 {
     }
     directed
 }
-

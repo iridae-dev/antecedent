@@ -517,13 +517,8 @@ fn rebuild_estimand(
             ))
         }
         EstimandMethod::Iv => {
-            let functional = arena.iv_wald(
-                q.treatment,
-                q.outcome,
-                e.instruments.as_ref(),
-                active,
-                control,
-            );
+            let functional =
+                arena.iv_wald(q.treatment, q.outcome, e.instruments.as_ref(), active, control);
             Some(IdentifiedEstimand::instrumental(
                 e.method.clone(),
                 Arc::clone(&e.instruments),

@@ -12,15 +12,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal::discovery::{
-    JpcmciPlus,
-    Rpcmci,
-    two_regime_half_split,
-};
+use causal::discovery::{JpcmciPlus, Rpcmci, two_regime_half_split};
 use causal::estimate::{
-    ConditionalLinearAdjustment,
-    TemporalLinearPredictor,
-    TemporalMediationEstimator,
+    ConditionalLinearAdjustment, TemporalLinearPredictor, TemporalMediationEstimator,
 };
 use causal_core::{
     CausalSchemaBuilder, ConditionalEffectQuery, ExecutionContext, KernelPolicy, Lag,

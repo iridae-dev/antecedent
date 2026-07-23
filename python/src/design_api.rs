@@ -7,11 +7,11 @@ use std::sync::Arc;
 use causal::design::{
     CandidateDesign, DesignConstraints, DesignCost, DesignEvaluationContext, DesignObjective,
     DesignRankConfig, DesignRanker, EffectWidthContext, EnvironmentGramSpec, EnvironmentPlan,
-    ExperimentPlan, InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan,
-    ModelLoglikDraws, SamplingPlan, rank_designs as facade_rank_designs,
+    ExperimentPlan, InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws,
+    SamplingPlan, rank_designs as facade_rank_designs,
 };
-use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
 use causal_core::{EnvironmentId, ModelId, QueryId, VariableId};
+use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyList, PyModule};

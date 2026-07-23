@@ -544,10 +544,7 @@ impl causal::StageResultSink for PyStageResultSink {
                     let _ = d.set_item("se_bootstrap", estimate.se_bootstrap);
                     d
                 }
-                causal::AnalysisStageEvent::Validate {
-                    refutations,
-                    predictive_checks,
-                } => {
+                causal::AnalysisStageEvent::Validate { refutations, predictive_checks } => {
                     let d = PyDict::new(py);
                     let _ = d.set_item("n_refutations", refutations.len());
                     let _ = d.set_item("n_predictive_checks", predictive_checks.len());

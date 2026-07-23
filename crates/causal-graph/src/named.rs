@@ -15,14 +15,10 @@ pub(crate) fn resolve_named_edge(
 ) -> Result<(DenseNodeId, DenseNodeId), GraphError> {
     let from_id = schema
         .id_of(from_name)
-        .map_err(|_| GraphError::UnknownVariableName {
-            name: from_name.to_owned(),
-        })?;
+        .map_err(|_| GraphError::UnknownVariableName { name: from_name.to_owned() })?;
     let to_id = schema
         .id_of(to_name)
-        .map_err(|_| GraphError::UnknownVariableName {
-            name: to_name.to_owned(),
-        })?;
+        .map_err(|_| GraphError::UnknownVariableName { name: to_name.to_owned() })?;
     Ok((DenseNodeId::from_raw(from_id.raw()), DenseNodeId::from_raw(to_id.raw())))
 }
 

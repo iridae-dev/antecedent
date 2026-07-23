@@ -72,9 +72,9 @@ pub use analysis::{
     AnalysisStageEvent, BatchAnalysis, CausalAnalysis, CausalAnalysisBuilder, ComputeBudget,
     LatencyMode, PreparedAnalysis, RdConfig, RefuteSuite, StageResultSink,
 };
-pub use error::CausalError;
 #[allow(deprecated)]
 pub use error::AnalysisError;
+pub use error::CausalError;
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
 pub use graph::{Dag, DenseNodeId, TemporalDag};
 pub use inference::{BayesianConfig, InferenceMode};

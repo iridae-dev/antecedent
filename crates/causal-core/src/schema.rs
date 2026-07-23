@@ -355,9 +355,8 @@ impl CausalSchemaBuilder {
             return;
         }
         if self.pending.iter().any(|p| p.name == pending.name) {
-            self.deferred = Some(SchemaError::DuplicateVariableName {
-                name: pending.name.to_string(),
-            });
+            self.deferred =
+                Some(SchemaError::DuplicateVariableName { name: pending.name.to_string() });
             return;
         }
         if let Err(e) =

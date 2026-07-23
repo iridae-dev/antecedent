@@ -35,7 +35,7 @@ jobs:
         with:
           working-directory: python
           command: build
-          args: --release --out dist -i python
+          args: --release --out dist -i 3.12
           target: x86_64
           manylinux: auto
           sccache: "true"

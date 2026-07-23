@@ -2,18 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
-    clippy::many_single_char_names
-)]
+#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::many_single_char_names)]
 
 use std::sync::Arc;
 
-use causal::{
-    CausalAnalysis,
-    RefuteSuite,
-};
+use causal::{CausalAnalysis, RefuteSuite};
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -156,10 +149,7 @@ fn shared_workspace_placebo_parity_and_capacity() {
     let ctx = ExecutionContext::for_tests(11);
     let report_warm = placebo.refute(&problem, &mut warmed, &ctx).unwrap();
     let after_cap = warmed.ols.scratch.capacity() + warmed.ols.rhs.capacity();
-    assert!(
-        after_cap >= warmed_cap,
-        "refute must reuse (not shrink) warmed OLS capacity"
-    );
+    assert!(after_cap >= warmed_cap, "refute must reuse (not shrink) warmed OLS capacity");
     // Grow count must not reset; may stay equal if capacity already sufficient.
     assert!(warmed.ols.grow_count >= warmed_grows);
 
@@ -172,10 +162,7 @@ fn shared_workspace_placebo_parity_and_capacity() {
 #[test]
 fn propensity_workspace_reused_estimate_into_overlap() {
     use causal::strategy_table::{EstimatorId, StaticEstimateWorkspaces, estimate_static_effect};
-    use causal::{
-    CausalAnalysis,
-    RefuteSuite,
-};
+    use causal::{CausalAnalysis, RefuteSuite};
     use causal_estimate::OverlapPolicy;
     use causal_validate::OverlapRefuter;
 

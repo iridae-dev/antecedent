@@ -356,4 +356,3 @@ fn map_cf(e: CounterfactualError) -> CausalError {
 fn map_attr(e: AttributionError) -> CausalError {
     CausalError::from(e)
 }
-

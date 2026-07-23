@@ -11,7 +11,9 @@ use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap};
+use causal_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
+};
 use causal_graph::{Dag, DenseNodeId};
 use causal_kernels::standard_normal;
 
@@ -107,10 +109,7 @@ fn wide_table_projection_matches_full_column_ate() {
 
     assert!((result.estimate.ate - 2.0).abs() < 0.35, "ate={}", result.estimate.ate);
     assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "exec.project.columns"),
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"),
         "expected projection diagnostic on wide table"
     );
     // Projected to t, y, z only.
@@ -142,10 +141,5 @@ fn thin_table_skips_projection_diagnostic() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .all(|d| d.code.as_ref() != "exec.project.columns")
-    );
+    assert!(result.diagnostics.iter().all(|d| d.code.as_ref() != "exec.project.columns"));
 }

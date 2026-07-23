@@ -164,24 +164,28 @@ jobs:
         with:
           working-directory: python
           command: build
-          args: --release --out dist -i python
+          # manylinux images have no bare `python` on PATH; pass the version
+          # so maturin resolves /opt/python/cp3XY-*/bin/python inside the container.
+          args: --release --out dist -i ${{ matrix.python }}
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
           sccache: "true"
 
       - name: Install wheel and smoke tests
         shell: bash
-        working-directory: python
         run: |
-          pip install dist/*.whl numpy pytest
+          set -euo pipefail
+          pip install python/dist/*.whl numpy pytest
+          cd "$(mktemp -d)"
           python -c "import antecedent; print(antecedent.__version__)"
+          ROOT="${{ github.workspace }}"
           pytest -q \
-            tests/test_arrow_copy_gate.py \
-            tests/test_graph_interchange.py \
-            tests/test_analyze_ate_estimate.py \
-            tests/test_discover_pcmci.py \
-            tests/test_discover_pcmci_plus.py \
-            tests/test_gcm_rich_returns.py
+            "$ROOT/python/tests/test_arrow_copy_gate.py" \
+            "$ROOT/python/tests/test_graph_interchange.py" \
+            "$ROOT/python/tests/test_analyze_ate_estimate.py" \
+            "$ROOT/python/tests/test_discover_pcmci.py" \
+            "$ROOT/python/tests/test_discover_pcmci_plus.py" \
+            "$ROOT/python/tests/test_gcm_rich_returns.py"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4

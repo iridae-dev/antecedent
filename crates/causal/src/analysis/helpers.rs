@@ -20,7 +20,9 @@ use causal_core::{
     InterventionSequence, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph,
     ProvenanceNode, SequencedIntervention, VERSION, VariableId,
 };
-use causal_data::{IdRemap, MultiEnvironmentData, TableView, TabularData, TimeSeriesData, dedupe_variable_ids};
+use causal_data::{
+    IdRemap, MultiEnvironmentData, TableView, TabularData, TimeSeriesData, dedupe_variable_ids,
+};
 use causal_estimate::{CausalPosterior, EffectEstimate, EstimationWorkspace, OverlapPolicy};
 use causal_expr::{IdentifiedEstimand, RdDesignParams};
 use causal_graph::{CpdagReview, TemporalCpdagReview, TemporalGraphReview};
@@ -417,7 +419,7 @@ pub(crate) fn effect_from_posterior(
         bootstrap_replicates_ok: None,
         bootstrap_replicates_failed: None,
         bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
+        bootstrap_early_stopped: false,
         assumptions: posterior.assumptions.clone(),
         overlap: OverlapPolicy::ExplicitOverride,
         overlap_report: None,
@@ -537,14 +539,12 @@ fn remap_intervention(
         Intervention::Shift { variable, delta } => {
             Ok(Intervention::Shift { variable: remap.map(*variable)?, delta: delta.clone() })
         }
-        Intervention::Stochastic { variable, policy } => Ok(Intervention::Stochastic {
-            variable: remap.map(*variable)?,
-            policy: policy.clone(),
-        }),
-        Intervention::Soft { variable, mechanism } => Ok(Intervention::Soft {
-            variable: remap.map(*variable)?,
-            mechanism: mechanism.clone(),
-        }),
+        Intervention::Stochastic { variable, policy } => {
+            Ok(Intervention::Stochastic { variable: remap.map(*variable)?, policy: policy.clone() })
+        }
+        Intervention::Soft { variable, mechanism } => {
+            Ok(Intervention::Soft { variable: remap.map(*variable)?, mechanism: mechanism.clone() })
+        }
         Intervention::Sequence(seq) => {
             let steps: Result<Vec<_>, CausalError> = seq
                 .steps
@@ -601,10 +601,7 @@ fn remap_identified_estimand(
 }
 
 /// Diagnostic when a wide table was narrowed after identification.
-pub(crate) fn projection_diagnostic(
-    full_cols: usize,
-    projected_cols: usize,
-) -> Option<Diagnostic> {
+pub(crate) fn projection_diagnostic(full_cols: usize, projected_cols: usize) -> Option<Diagnostic> {
     if projected_cols >= full_cols {
         return None;
     }
