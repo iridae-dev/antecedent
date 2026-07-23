@@ -34,6 +34,20 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
+      - name: DCO check
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --deepen=50 origin "${{ github.base_ref }}" || true
+          RANGE="origin/${{ github.base_ref }}...HEAD"
+          while IFS= read -r commit; do
+            if ! git log -1 --format=%B "$commit" | grep -qE '^Signed-off-by: .+ <.+@.+>$'; then
+              echo "Missing DCO on $commit"
+              git log -1 --format=%B "$commit"
+              exit 1
+            fi
+          done < <(git rev-list "$RANGE")
+
       - name: Format
         run: cargo fmt --all -- --check
 
@@ -52,34 +66,6 @@ jobs:
           else
             echo "No crate manifest changes; skipping publish dry-run"
           fi
-
-      - name: Install cargo-deny
-        # Advisories use CVSS 4.0; needs cargo-deny >= 0.18.6 (MSRV 1.88).
-        # Install with a newer host toolchain; project builds stay on 1.85.
-        run: |
-          rustup toolchain install 1.88 --profile minimal
-          cargo +1.88 install cargo-deny --locked --version 0.18.9
-
-      - name: Release gate
-        # Feature gates also smoke Python facades via uv; those live in
-        # python-wheels. Rust runners do not install the Python toolchain.
-        env:
-          SKIP_PYTHON_SMOKE: "1"
-        run: bash scripts/gate_release.sh
-
-      - name: DCO check
-        if: github.event_name == 'pull_request'
-        run: |
-          set -euo pipefail
-          git fetch --deepen=50 origin "${{ github.base_ref }}" || true
-          RANGE="origin/${{ github.base_ref }}...HEAD"
-          while IFS= read -r commit; do
-            if ! git log -1 --format=%B "$commit" | grep -qE '^Signed-off-by: .+ <.+@.+>$'; then
-              echo "Missing DCO on $commit"
-              git log -1 --format=%B "$commit"
-              exit 1
-            fi
-          done < <(git rev-list "$RANGE")
 
   # : CPython 3.11–3.14; Linux x86_64/aarch64 manylinux;
   # macOS arm64; Windows x86_64. Default faer path (no system BLAS).

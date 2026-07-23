@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# Release gate: inventory honesty, docs, artifacts, security, benches.
+# Release gate (local / slow path — not run in CI).
+#
+# Inventory honesty, docs, artifacts, security, Criterion smokes, and prior
+# feature gates. CI only runs fmt + clippy + cargo test --workspace (+ DCO).
+# Run this when cutting a release or when a change might break a domain:
+#   bash scripts/gate_release.sh
+#
 # Invokes prior feature gates unless SKIP_PRIOR_GATES=1.
+# Optional: cargo deny check when cargo-deny is on PATH.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -210,7 +217,7 @@ if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="
   cargo deny check
 else
-  echo "WARN: cargo-deny not installed; CI installs it. Skipping local deny check."
+  echo "WARN: cargo-deny not installed; skipping deny check (optional local tool)."
 fi
 
 echo "Release gate PASSED"

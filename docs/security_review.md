@@ -8,7 +8,7 @@ ADR: [0017](../adr/0017-release-prep.md)
 
 | Crate | Policy | Notes |
 |-------|--------|-------|
-| Most semantic crates (`antecedent-*` except below / kernels) | `#![forbid(unsafe_code)]` | Verified by `scripts/gate_release.sh` |
+| Most semantic crates (`antecedent-*` except below / kernels) | `#![forbid(unsafe_code)]` | Verified locally by `scripts/gate_release.sh` |
 | `antecedent-data` | `#![deny(unsafe_code)]` + scoped `allow` | Foreign buffers (`buffer.rs`) and Arrow CDI (`arrow_ffi.rs`) |
 | `antecedent-io` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`) only |
 | `antecedent-kernels` | `#![allow(unsafe_code)]` | Only reviewed SIMD / aliasing kernels |
@@ -19,7 +19,8 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 ## Licensing
 
 - Project: `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APACHE`, ADR 0008).
-- Dependencies audited with **cargo-deny** (`deny.toml` license allow-list).
+- Dependencies audited with **cargo-deny** (`deny.toml` license allow-list); run
+  locally (`cargo deny check`) — not part of CI.
 - Default features must remain wheel-distributable without system BLAS (ADR 0001 / ).
 
 ## Dependency notes
@@ -33,7 +34,7 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 | `blake3` / `ciborium` / `serde` | Artifact container | CBOR + checksums per |
 | `thiserror` | Error types | No runtime concerns |
 
-Unmaintained / yanked crates: cargo-deny advisories job in CI (`yanked = "warn"`).
+Unmaintained / yanked crates: `cargo deny check` locally (`yanked = "warn"` in `deny.toml`).
 
 ## Wheel purity
 
@@ -58,10 +59,10 @@ Optional `blas` features (if added later) are non-default.
 ## Evidence commands
 
 ```bash
-# Unsafe forbid scan + inventory + benches (excerpt)
+# Local slow path: unsafe forbid scan + inventory + benches (+ optional deny)
 bash scripts/gate_release.sh
 
-# License / advisory / source policy
+# License / advisory / source policy (optional local)
 cargo deny check
 
 # CodeQL (0 findings)
