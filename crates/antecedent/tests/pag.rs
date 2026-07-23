@@ -12,16 +12,16 @@ use antecedent::GraphInput;
 use antecedent::discovery::Lpcmci;
 use antecedent::identify::GeneralizedAdjustmentIdentifier;
 use antecedent::planner::reject_dag_only_on_pag;
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{
+use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use causal_discovery::{DiscoveryConstraints, DiscoveryWorkspace, TemporalConstraints};
-use causal_graph::{
+use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, TemporalConstraints};
+use antecedent_graph::{
     CompletionSampler, Dag, DenseNodeId, Pag, latent_project, projection_preserves_msep_sample,
 };
 use serde_json::Value as JsonValue;

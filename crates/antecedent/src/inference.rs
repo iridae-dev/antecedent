@@ -4,17 +4,17 @@
 
 use std::sync::Arc;
 
-use causal_core::ExecutionContext;
-use causal_estimate::BayesianBackendKind;
-use causal_estimate::{HydrateMapping, PreparedBayesianProblem, hydrate_prior};
-use causal_io::PosteriorQuantityWire;
-use causal_io::PriorMapping;
-use causal_io::{decode_posterior_artifact, extract_prior_source_meta, read_and_migrate};
-use causal_prob::{
+use antecedent_core::ExecutionContext;
+use antecedent_estimate::BayesianBackendKind;
+use antecedent_estimate::{HydrateMapping, PreparedBayesianProblem, hydrate_prior};
+use antecedent_io::PosteriorQuantityWire;
+use antecedent_io::PriorMapping;
+use antecedent_io::{decode_posterior_artifact, extract_prior_source_meta, read_and_migrate};
+use antecedent_prob::{
     BayesLikelihood, ComposedPrior, ConflictSummary, ExternalPriorSource, PosteriorQuantityKind,
     PriorSet,
 };
-use causal_validate::{ConflictPolicy, PriorPredictiveCheck, compose_with_conflict_policy};
+use antecedent_validate::{ConflictPolicy, PriorPredictiveCheck, compose_with_conflict_policy};
 
 use crate::error::CausalError;
 use crate::io::decode_causal_posterior_bytes;

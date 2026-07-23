@@ -8,7 +8,7 @@
 Public core APIs expose stable library-owned data views (`TableView`,
 `ColumnView`, matrix views). Arrow is the preferred external and cross-language
 physical representation. Arrow crate types are **not** the public causal API.
-`causal-data` provides Arrow-backed implementations and adapters.
+`antecedent-data` provides Arrow-backed implementations and adapters.
 
 ## Consequences
 

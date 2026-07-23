@@ -7,9 +7,9 @@
 
 use std::sync::Arc;
 
-use causal_core::Lag;
-use causal_discovery::{DiscoveryConstraints, MultiDatasetConstraints, TemporalConstraints};
-use causal_stats::{ConditionalIndependence, WeightedPartialCorrelation, ci_from_name};
+use antecedent_core::Lag;
+use antecedent_discovery::{DiscoveryConstraints, MultiDatasetConstraints, TemporalConstraints};
+use antecedent_stats::{ConditionalIndependence, WeightedPartialCorrelation, ci_from_name};
 
 use crate::error::CausalError;
 

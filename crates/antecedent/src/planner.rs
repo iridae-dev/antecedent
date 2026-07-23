@@ -6,17 +6,17 @@
 
 use std::sync::Arc;
 
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, BufferMaterialization, CausalQuery, DataClassification, ExecutionContext,
     Intervention, KernelSelection, LogicalAnalysisPlanRecord, ParallelTaskSpec,
     PhysicalExecutionPlanRecord, TargetPopulation, TemporalEffectQuery,
 };
-use causal_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use causal_graph::{
+use antecedent_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
+use antecedent_graph::{
     Admg, Cpdag, CpdagReview, Dag, DagReview, Pag, PagReview, TemporalCpdag, TemporalCpdagReview,
     TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview,
 };
-use causal_stats::FdrAdjustment;
+use antecedent_stats::FdrAdjustment;
 
 use crate::error::CausalError;
 use crate::strategy_table::{
@@ -88,7 +88,7 @@ pub enum GraphInput {
         /// Auto-accept when no undirected marks remain.
         accept_discovered: bool,
         /// Multi-dataset / context / dummy settings.
-        multi_dataset: causal_discovery::MultiDatasetConstraints,
+        multi_dataset: antecedent_discovery::MultiDatasetConstraints,
     },
     /// Discover with RPCMCI (regime assignments + per-regime graphs).
     DiscoverRpcmci {
@@ -101,7 +101,7 @@ pub enum GraphInput {
         /// Auto-accept when a single fully-oriented regime exists.
         accept_discovered: bool,
         /// Caller-supplied regime label per time index (required; no silent half-split).
-        regime_assignment: causal_discovery::RegimeAssignment,
+        regime_assignment: antecedent_discovery::RegimeAssignment,
     },
     /// Discover with static PC (tabular CPDAG → DAG when fully oriented).
     DiscoverPc {
@@ -204,7 +204,7 @@ pub enum GraphInput {
         /// Max conditioning-set size for PC screen.
         max_cond_size: usize,
         /// Soft CI weight mode name (`none` | `bayes_factor` | `posterior_dependence`).
-        soft_weight: causal_discovery::CiSoftWeight,
+        soft_weight: antecedent_discovery::CiSoftWeight,
         /// MCMC chains.
         n_chains: u32,
         /// Warmup draws per chain.
@@ -662,7 +662,7 @@ pub struct StaticDistributionCompileInput<'a> {
     /// Graph.
     pub graph: &'a Dag,
     /// Distribution query.
-    pub query: &'a causal_core::InterventionalDistributionQuery,
+    pub query: &'a antecedent_core::InterventionalDistributionQuery,
     /// Validation suite id.
     pub validation_suite: Option<Arc<str>>,
     /// Identifier (`general.id` / `auto`).
@@ -734,7 +734,7 @@ pub struct StaticPathSpecificCompileInput<'a> {
     /// Graph.
     pub graph: &'a Dag,
     /// Path-specific query.
-    pub query: &'a causal_core::PathSpecificEffectQuery,
+    pub query: &'a antecedent_core::PathSpecificEffectQuery,
     /// Validation suite id.
     pub validation_suite: Option<Arc<str>>,
     /// Identifier.
@@ -789,13 +789,13 @@ pub fn compile_logical_path_specific(
 
 fn validate_query_vars_in_dag(
     dag: &Dag,
-    treatment: causal_core::VariableId,
-    outcome: causal_core::VariableId,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
     let mut has_t = false;
     let mut has_y = false;
     for node in dag.nodes() {
-        if let causal_graph::NodeRef::Static(v) = node {
+        if let antecedent_graph::NodeRef::Static(v) = node {
             if *v == treatment {
                 has_t = true;
             }
@@ -816,13 +816,13 @@ fn validate_query_vars_in_dag(
 
 fn validate_query_vars_in_pag(
     pag: &Pag,
-    treatment: causal_core::VariableId,
-    outcome: causal_core::VariableId,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
     let mut has_t = false;
     let mut has_y = false;
     for node in pag.nodes() {
-        if let causal_graph::NodeRef::Static(v) = node {
+        if let antecedent_graph::NodeRef::Static(v) = node {
             if *v == treatment {
                 has_t = true;
             }
@@ -910,10 +910,10 @@ pub fn compile_logical_temporal_effect_classified(
 
 #[cfg(test)]
 mod tests {
-    use causal_core::{
+    use antecedent_core::{
         AverageEffectQuery, ExecutionContext, MemoryBudget, TemporalEffectQuery, VariableId,
     };
-    use causal_graph::TemporalDag;
+    use antecedent_graph::TemporalDag;
 
     use super::*;
 
@@ -1011,11 +1011,11 @@ mod tests {
     }
 
     fn toy_static_input() -> (TabularData, Dag, AverageEffectQuery) {
-        use causal_core::{
+        use antecedent_core::{
             CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
         };
-        use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
-        use causal_graph::DenseNodeId;
+        use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
+        use antecedent_graph::DenseNodeId;
         use std::sync::Arc as StdArc;
 
         let n = 10usize;
@@ -1114,7 +1114,7 @@ mod tests {
 
     #[test]
     fn refuses_att_target_population_with_linear_adjustment() {
-        use causal_core::TargetPopulation;
+        use antecedent_core::TargetPopulation;
         let (data, graph, query) = toy_static_input();
         let att_query = query.with_target_population(TargetPopulation::Treated);
         let err = compile_logical_static_ate(StaticAteCompileInput {
@@ -1131,11 +1131,11 @@ mod tests {
 
     #[test]
     fn refuses_planned_target_population_on_temporal_effect() {
-        use causal_core::{
+        use antecedent_core::{
             CausalSchemaBuilder, MeasurementSpec, PredicateExpr, RoleHint, SmallRoleSet,
             TargetPopulation, ValueType,
         };
-        use causal_data::{
+        use antecedent_data::{
             Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
             ValidityBitmap,
         };
@@ -1229,7 +1229,7 @@ mod tests {
 
     #[test]
     fn refuses_dag_only_identifier_on_pag() {
-        use causal_graph::Pag;
+        use antecedent_graph::Pag;
         let pag = Pag::with_variables(2);
         let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), "backdoor.adjustment").unwrap_err();
         assert!(matches!(err, CausalError::Compile { .. }));

@@ -4,7 +4,7 @@ Established: 2026-07-21
 Machine class: Apple M1 (arm64), 64 GB
 Criterion: `--quick` sample (refresh with full Criterion for gate decisions)
 
-## CI batch (`causal-stats` bench `ci_phase5`)
+## CI batch (`antecedent-stats` bench `ci_phase5`)
 
 Workload: analytic CI batches on `n=400` (kNN `n=120`), conditioning sizes as
 noted, with full sample and 20% mask-based complete-case drop (`missing20`).
@@ -21,7 +21,7 @@ Groups: `ci_batch_parcorr`, `ci_batch_robust`, `ci_batch_gsquared`, `ci_batch_kn
 | knn z1_full | **~8 ms** |
 
 ```bash
-cargo +1.85 bench -p causal-stats --bench ci_phase5
+cargo +1.85 bench -p antecedent-stats --bench ci_phase5
 ```
 
 Acceptance: no unexplained >20% regression vs last accepted Criterion mean on
@@ -39,10 +39,10 @@ bench). Gate also covered by unit test
 | knn_dependence_reuse_batch8 | **2.18 ms** |
 
 ```bash
-cargo +1.85 bench -p causal-stats --bench ci_phase5 -- knn_dependence_reuse
+cargo +1.85 bench -p antecedent-stats --bench ci_phase5 -- knn_dependence_reuse
 ```
 
-## Orientation local-delta vs global rescan (`causal-discovery` bench `orientation`)
+## Orientation local-delta vs global rescan (`antecedent-discovery` bench `orientation`)
 
 Workload: chain CPDAG of size `n∈{16,64,128}`; rules =
 `OrientCollider + Meek R1–R4`. `local_delta_*` uses
@@ -61,10 +61,10 @@ the full node set every rule application.
 Local-delta remains clearly faster than global rescan at each size (~15–25% win).
 
 ```bash
-cargo +1.85 bench -p causal-discovery --bench orientation
+cargo +1.85 bench -p antecedent-discovery --bench orientation
 ```
 
 ## Calibration suite
 
 Unit gate: `calibrate_parcorr_like` Type I < 0.20 and power > 0.50 at α=0.05
-(`causal-stats` `ci::calibration` tests).
+(`antecedent-stats` `ci::calibration` tests).

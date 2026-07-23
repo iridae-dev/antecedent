@@ -1,8 +1,8 @@
 //! Fuzz Python-boundary Rust helpers (DOT parse + schema names).
 #![no_main]
 
-use causal_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
-use causal_io::dag_from_dot;
+use antecedent_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
+use antecedent_io::dag_from_dot;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

@@ -2,8 +2,8 @@
 
 Criterion benches (run with `--test` in `gate_context.sh`):
 
-- `causal-discovery` bench `rpcmci`: `rpcmci_sparse_120`, `rpcmci_stress_240`
-- `causal-estimate` bench `temporal_mediation`: `mediation_sparse_200`,
+- `antecedent-discovery` bench `rpcmci`: `rpcmci_sparse_120`, `rpcmci_stress_240`
+- `antecedent-estimate` bench `temporal_mediation`: `mediation_sparse_200`,
   `mediation_stress_800`
 
 **Budgets (local regression, Apple M1 class):**
@@ -16,6 +16,6 @@ Criterion benches (run with `--test` in `gate_context.sh`):
 | mediation_stress_800 | < 20 ms / iter typical |
 
 Memory: multi-env sample plans must not clone sibling environment series
-(see `causal-data` `MultiEnvSamplePlan` unit test; J-PCMCI+ emits
+(see `antecedent-data` `MultiEnvSamplePlan` unit test; J-PCMCI+ emits
 `jpcmci_plus.multi_env_plan` diagnostic). Soft latency budgets above are
 asserted on a single timed iteration when Criterion runs with `--test`.

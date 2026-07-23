@@ -1,0 +1,35 @@
+[package]
+name = "antecedent-stats"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Statistical kernels, regression, and linear algebra backends"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+antecedent-core = { version = "0.1.0", path = "../antecedent-core" }
+antecedent-kernels = { version = "0.1.0", path = "../antecedent-kernels" }
+faer = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+serde_json = { workspace = true }
+
+[[bench]]
+name = "matching"
+harness = false
+
+[[bench]]
+name = "ci_framework"
+harness = false

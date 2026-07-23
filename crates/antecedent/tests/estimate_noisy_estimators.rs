@@ -14,13 +14,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use antecedent::CausalAnalysis;
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, TargetPopulation, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_estimate::OverlapPolicy;
-use causal_graph::{Dag, DenseNodeId};
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_estimate::OverlapPolicy;
+use antecedent_graph::{Dag, DenseNodeId};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {

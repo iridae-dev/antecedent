@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_stats::{FdrAdjustment, MultipleTestingMethod};
+use antecedent_stats::{FdrAdjustment, MultipleTestingMethod};
 
 /// Whether / how FDR (or FWER) adjustment is applied after CI tests.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

@@ -5,10 +5,10 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use causal_core::ExecutionContext;
-use causal_estimate::EffectEstimate;
-use causal_identify::{IdentificationResult, IdentifiedEstimand};
-use causal_validate::{PredictiveCheckReport, RefutationReport};
+use antecedent_core::ExecutionContext;
+use antecedent_estimate::EffectEstimate;
+use antecedent_identify::{IdentificationResult, IdentifiedEstimand};
+use antecedent_validate::{PredictiveCheckReport, RefutationReport};
 
 use crate::error::CausalError;
 
@@ -62,7 +62,7 @@ impl AnalysisStageEvent {
     }
 }
 
-/// Optional sink for streamed intermediate stage payloads (parallel to [`causal_core::ProgressSink`]).
+/// Optional sink for streamed intermediate stage payloads (parallel to [`antecedent_core::ProgressSink`]).
 pub trait StageResultSink: Send + Sync {
     /// Called at each progressive stage boundary with a usable partial payload.
     fn on_stage(&self, event: &AnalysisStageEvent);

@@ -1,7 +1,7 @@
 //! Fuzz DAG insert / cycle rejection / ancestry queries.
 #![no_main]
 
-use causal_graph::{DSeparationWorkspace, Dag, DenseNodeId};
+use antecedent_graph::{DSeparationWorkspace, Dag, DenseNodeId};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

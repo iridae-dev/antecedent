@@ -12,6 +12,7 @@ First crates.io-oriented release of the Rust library graph.
 ### Added
 
 - Day-1 facade crate **`antecedent`** (`use antecedent::prelude::*`).
+- Supporting crates published as **`antecedent-*`** (`antecedent-core`, …).
 - Workspace publish metadata (repository, homepage, docs.rs, keywords, categories).
 - `scripts/publish_crates.sh` and tag-driven `.github/workflows/publish-crates.yml`.
 - `#[non_exhaustive]` on key public result / config types; sealed extension traits
@@ -21,10 +22,11 @@ First crates.io-oriented release of the Rust library graph.
 ### Notes
 
 - **`0.1.x` may still introduce breaking changes.** Treat the release as a preview.
-- Supporting libraries keep **`causal-*`** names on crates.io and are **public
-  dependencies** of `antecedent` (part of the semver surface).
-- The Python extension (`causal-py` / `antecedent` on GitHub Packages) is **not**
-  published to crates.io (`publish = false`).
+- Supporting libraries use **`antecedent-*`** names on crates.io and are **public
+  dependencies** of `antecedent` (part of the semver surface). Day-1 usage is
+  still only `cargo add antecedent`.
+- The Python extension (`antecedent-py` / wheel `antecedent` on GitHub Packages) is
+  **not** published to crates.io (`publish = false`).
 - `CustomEffectValidator` remains deliberately unsealed so host languages (PyO3)
   can implement the dyn-safe callback path.
 - Known 0.1 API debt: many result structs still expose public fields rather than

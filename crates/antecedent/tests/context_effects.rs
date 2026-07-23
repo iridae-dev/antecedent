@@ -16,20 +16,20 @@ use antecedent::discovery::{JpcmciPlus, Rpcmci, two_regime_half_split};
 use antecedent::estimate::{
     ConditionalLinearAdjustment, TemporalLinearPredictor, TemporalMediationEstimator,
 };
-use causal_core::{
+use antecedent_core::{
     CausalSchemaBuilder, ConditionalEffectQuery, ExecutionContext, KernelPolicy, Lag,
     MeasurementSpec, MediationContrast, MediationQuery, RoleHint, SmallRoleSet, Value, ValueType,
     VariableId,
 };
-use causal_data::{
+use antecedent_data::{
     Float64Column, LaggedColumn, MultiEnvironmentData, OwnedColumn, OwnedColumnarStorage,
     SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData, ValidityBitmap,
 };
-use causal_discovery::{
+use antecedent_discovery::{
     DiscoveryConstraints, DiscoveryWorkspace, MultiDatasetConstraints, PcmciPlus, SpaceDummyCiMode,
     TemporalConstraints,
 };
-use causal_expr::{CausalExprArena, IdentifiedEstimand};
+use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
@@ -367,7 +367,7 @@ fn conditional_effect_pin() {
     ];
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TabularData::new(storage);
-    let q = causal_core::AverageEffectQuery::binary_ate(
+    let q = antecedent_core::AverageEffectQuery::binary_ate(
         VariableId::from_raw(0),
         VariableId::from_raw(1),
     )
@@ -376,7 +376,7 @@ fn conditional_effect_pin() {
     let estimand = IdentifiedEstimand::backdoor(
         "backdoor.adjustment",
         Arc::from([]),
-        causal_expr::ExprId::from_raw(0),
+        antecedent_expr::ExprId::from_raw(0),
     );
     let est = ConditionalLinearAdjustment::new()
         .estimate(&data, &estimand, &cq, &ExecutionContext::for_tests(4))

@@ -7,14 +7,16 @@
 use std::sync::Arc;
 
 use antecedent::{CausalAnalysis, RefuteSuite};
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_estimate::{EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy};
-use causal_graph::{Dag, DenseNodeId};
-use causal_validate::{PlaceboTreatment, RefutationProblem};
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy};
+use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_validate::{PlaceboTreatment, RefutationProblem};
 
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
     let mut rng = CausalRng::from_seed(seed);
@@ -165,8 +167,8 @@ fn propensity_workspace_reused_estimate_into_overlap() {
         EstimatorId, StaticEstimateWorkspaces, estimate_static_effect,
     };
     use antecedent::{CausalAnalysis, RefuteSuite};
-    use causal_estimate::OverlapPolicy;
-    use causal_validate::OverlapRefuter;
+    use antecedent_estimate::OverlapPolicy;
+    use antecedent_validate::OverlapRefuter;
 
     let (data, dag, query) = confounded_scm(280, 7);
     let id_run = CausalAnalysis::builder()

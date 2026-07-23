@@ -9,9 +9,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use causal_core::{CausalQuery, CausalSchema, ExecutionContext};
-use causal_data::{TableView, TabularData};
-use causal_estimate::EstimationWorkspace;
+use antecedent_core::{CausalQuery, CausalSchema, ExecutionContext};
+use antecedent_data::{TableView, TabularData};
+use antecedent_estimate::EstimationWorkspace;
 
 use crate::error::CausalError;
 use crate::planner::{CompiledAnalysis, GraphInput, PhysicalExecutionPlan};
@@ -148,10 +148,10 @@ impl PreparedAnalysis {
             RefuteSuite::PlaceboAndRcc => Arc::from("placebo+rcc"),
             RefuteSuite::Full => Arc::from("validation.full"),
         };
-        out.diagnostics.push(causal_core::Diagnostic::new(
+        out.diagnostics.push(antecedent_core::Diagnostic::new(
             "exec.refute.second_click",
-            causal_core::DiagnosticKind::Execution,
-            causal_core::DiagnosticSeverity::Info,
+            antecedent_core::DiagnosticKind::Execution,
+            antecedent_core::DiagnosticSeverity::Info,
             format!("second-click refute suite={suite_label}"),
         ));
         let _ = clock.wall_time_ns();
@@ -233,7 +233,7 @@ fn is_supplied_static_graph(graph: &GraphInput) -> bool {
 mod tests {
     use super::is_supplied_static_graph;
     use crate::planner::GraphInput;
-    use causal_graph::{Admg, Cpdag, Dag, Pag};
+    use antecedent_graph::{Admg, Cpdag, Dag, Pag};
 
     #[test]
     fn supplied_static_graphs_only() {

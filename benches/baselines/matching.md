@@ -1,7 +1,7 @@
 # Matching index baselines
 
-Owner: `causal-stats` / `MatchingIndex::exact` and
-`causal-estimate` / `PropensityEstimationWorkspace`
+Owner: `antecedent-stats` / `MatchingIndex::exact` and
+`antecedent-estimate` / `PropensityEstimationWorkspace`
 
 ## Criteria
 

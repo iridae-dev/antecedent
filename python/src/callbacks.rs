@@ -6,14 +6,14 @@ use std::sync::Arc;
 
 use antecedent::design::Utility;
 use antecedent::gcm::{CompiledCausalModel, DynamicMechanism, MechanismSlot};
-use causal_core::{CausalRng, ExecutionContext};
-use causal_graph::DenseNodeId;
-use causal_model::{MechanismWorkspace, ModelError, ParentBatch};
-use causal_stats::{
+use antecedent_core::{CausalRng, ExecutionContext};
+use antecedent_graph::DenseNodeId;
+use antecedent_model::{MechanismWorkspace, ModelError, ParentBatch};
+use antecedent_stats::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
     ConditionalIndependenceTest, PreparedCiTest, StatsError,
 };
-use causal_validate::{
+use antecedent_validate::{
     CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError,
 };
 use numpy::{PyArray1, PyReadonlyArray1};
@@ -491,7 +491,7 @@ impl PyProgressSink {
     }
 }
 
-impl causal_core::ProgressSink for PyProgressSink {
+impl antecedent_core::ProgressSink for PyProgressSink {
     fn report(&self, fraction: f64, stage: &str) {
         Python::attach(|py| {
             let _ = self.callback.bind(py).call1((fraction, stage));
@@ -502,7 +502,7 @@ impl causal_core::ProgressSink for PyProgressSink {
 /// Build an optional [`ProgressSink`] from a Python callable.
 pub fn progress_sink_from_py(
     on_progress: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Option<std::sync::Arc<dyn causal_core::ProgressSink>>> {
+) -> PyResult<Option<std::sync::Arc<dyn antecedent_core::ProgressSink>>> {
     match on_progress {
         None => Ok(None),
         Some(cb) => {
@@ -510,7 +510,7 @@ pub fn progress_sink_from_py(
                 return Err(PyValueError::new_err("on_progress must be callable"));
             }
             Ok(Some(std::sync::Arc::new(PyProgressSink::new(cb.clone().unbind()))
-                as std::sync::Arc<dyn causal_core::ProgressSink>))
+                as std::sync::Arc<dyn antecedent_core::ProgressSink>))
         }
     }
 }

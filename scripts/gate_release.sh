@@ -59,9 +59,9 @@ for manifest in [
 
 EVIDENCE = {
     "release.parity_closure": "parity/README.md",
-    "release.graph_dot_json": "crates/causal-io/src/graph_gml.rs",
-    "release.artifact_schema": "crates/causal-io/src/migrate.rs",
-    "release.artifact_mmap_stream_skip": "crates/causal-io/src/reader.rs",
+    "release.graph_dot_json": "crates/antecedent-io/src/graph_gml.rs",
+    "release.artifact_schema": "crates/antecedent-io/src/migrate.rs",
+    "release.artifact_mmap_stream_skip": "crates/antecedent-io/src/reader.rs",
     "release.wheel_matrix": ".github/workflows/ci.yml",
     "release.conformance_docs": "docs/conformance/README.md",
     "release.hot_path_baselines": "docs/hot_paths.md",
@@ -90,39 +90,39 @@ for path in [
     "conformance/interchange/graph_dot_json/expected.json",
     "conformance/interchange/graph_gml_networkx/expected.json",
     "conformance/interchange/artifact_migrate/expected.json",
-    "crates/causal-io/src/graph_dot.rs",
-    "crates/causal-io/src/graph_gml.rs",
-    "crates/causal-io/src/graph_networkx.rs",
-    "crates/causal-io/src/graph_json.rs",
-    "crates/causal-io/src/migrate.rs",
-    "crates/causal-io/src/model_bundle.rs",
+    "crates/antecedent-io/src/graph_dot.rs",
+    "crates/antecedent-io/src/graph_gml.rs",
+    "crates/antecedent-io/src/graph_networkx.rs",
+    "crates/antecedent-io/src/graph_json.rs",
+    "crates/antecedent-io/src/migrate.rs",
+    "crates/antecedent-io/src/model_bundle.rs",
     "scripts/generate_conformance_docs.py",
 ]:
     if not (root / path).exists():
         missing.append(f"required exit artifact missing: {path}")
 
-# Semantic crates: forbid unsafe by default. causal-data / causal-io keep
+# Semantic crates: forbid unsafe by default. antecedent-data / antecedent-io keep
 # #![deny(unsafe_code)] with scoped allows (Arrow FFI / foreign buffers / mmap).
 forbid_crates = [
-    "crates/causal-core",
-    "crates/causal-graph",
-    "crates/causal-expr",
-    "crates/causal-identify",
-    "crates/causal-stats",
-    "crates/causal-prob",
-    "crates/causal-estimate",
-    "crates/causal-validate",
-    "crates/causal-model",
-    "crates/causal-counterfactual",
-    "crates/causal-attribution",
-    "crates/causal-design",
-    "crates/causal-state",
-    "crates/causal-discovery",
+    "crates/antecedent-core",
+    "crates/antecedent-graph",
+    "crates/antecedent-expr",
+    "crates/antecedent-identify",
+    "crates/antecedent-stats",
+    "crates/antecedent-prob",
+    "crates/antecedent-estimate",
+    "crates/antecedent-validate",
+    "crates/antecedent-model",
+    "crates/antecedent-counterfactual",
+    "crates/antecedent-attribution",
+    "crates/antecedent-design",
+    "crates/antecedent-state",
+    "crates/antecedent-discovery",
     "crates/antecedent",
 ]
 deny_escape_crates = {
-    "crates/causal-data": ("buffer.rs", "arrow_ffi.rs"),
-    "crates/causal-io": ("mmap_file.rs",),
+    "crates/antecedent-data": ("buffer.rs", "arrow_ffi.rs"),
+    "crates/antecedent-io": ("mmap_file.rs",),
 }
 for crate in forbid_crates:
     lib = root / crate / "src" / "lib.rs"
@@ -192,19 +192,19 @@ if ! git diff --exit-code -- docs/conformance >/dev/null; then
 fi
 
 echo "== cargo test release surfaces =="
-cargo test -p causal-io --lib
+cargo test -p antecedent-io --lib
 cargo test -p antecedent --test graph_interchange
 cargo test -p antecedent --test artifact_migrate
 
 echo "== criterion smoke (designated hot paths) =="
-cargo bench -p causal-kernels --bench gather -- --test
-cargo bench -p causal-kernels --bench reductions -- --test
-cargo bench -p causal-graph --bench traversal -- --test
-cargo bench -p causal-graph --bench dseparation -- --test
-cargo bench -p causal-identify --bench adjustment -- --test
-cargo bench -p causal-discovery --bench pcmci -- --test
-cargo bench -p causal-design --bench design_rank -- --test
-cargo bench -p causal-state --bench state_append -- --test
+cargo bench -p antecedent-kernels --bench gather -- --test
+cargo bench -p antecedent-kernels --bench reductions -- --test
+cargo bench -p antecedent-graph --bench traversal -- --test
+cargo bench -p antecedent-graph --bench dseparation -- --test
+cargo bench -p antecedent-identify --bench adjustment -- --test
+cargo bench -p antecedent-discovery --bench pcmci -- --test
+cargo bench -p antecedent-design --bench design_rank -- --test
+cargo bench -p antecedent-state --bench state_append -- --test
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="

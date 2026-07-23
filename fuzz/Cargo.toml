@@ -1,5 +1,5 @@
 [package]
-name = "causal-fuzz"
+name = "antecedent-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -12,12 +12,12 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-causal-core = { path = "../crates/causal-core" }
-causal-graph = { path = "../crates/causal-graph" }
-causal-kernels = { path = "../crates/causal-kernels" }
-causal-io = { path = "../crates/causal-io" }
-causal-expr = { path = "../crates/causal-expr" }
-causal-data = { path = "../crates/causal-data", features = ["arrow"] }
+antecedent-core = { path = "../crates/antecedent-core" }
+antecedent-graph = { path = "../crates/antecedent-graph" }
+antecedent-kernels = { path = "../crates/antecedent-kernels" }
+antecedent-io = { path = "../crates/antecedent-io" }
+antecedent-expr = { path = "../crates/antecedent-expr" }
+antecedent-data = { path = "../crates/antecedent-data", features = ["arrow"] }
 arrow-array = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }
 

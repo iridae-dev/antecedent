@@ -1,7 +1,7 @@
 //! Fuzz CausalSchemaBuilder name uniqueness and dense ID assignment.
 #![no_main]
 
-use causal_core::{
+use antecedent_core::{
     CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType,
 };
 use libfuzzer_sys::fuzz_target;

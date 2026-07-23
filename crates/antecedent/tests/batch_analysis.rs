@@ -7,13 +7,15 @@
 use std::sync::Arc;
 
 use antecedent::{BatchAnalysis, CausalAnalysis, RefuteSuite};
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_graph::{Dag, DenseNodeId};
-use causal_kernels::standard_normal;
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_kernels::standard_normal;
 
 fn two_treatment_scm(n: usize, seed: u64) -> (TabularData, Dag) {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xB07C_u64);

@@ -73,9 +73,7 @@ use antecedent::{
     BayesianConfig, CausalAnalysis, CausalError as RustCausalError, DiscoveryAccept, EstimatorId,
     FdrControl, GraphInput, IdentifierId, InferenceMode, RefuteSuite,
 };
-use arrow_array::{Float64Array, RecordBatch};
-use arrow_schema::{DataType, Field, Schema};
-use causal_core::{
+use antecedent_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalQuery,
     CausalRng, ChangeAttributionQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
     Intervention, InterventionalDistributionQuery, KernelPolicy, Lag, MechanismChangeQuery,
@@ -83,24 +81,26 @@ use causal_core::{
     PopulationSelector, PredicateExpr, RegimeId, SchemaError, ShapleyConfig, TargetPopulation,
     TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value, VariableId,
 };
-use causal_data::TimeDummyEncoding;
-use causal_data::{
+use antecedent_data::TimeDummyEncoding;
+use antecedent_data::{
     ArrowCColumn, DataError, EventData, MultiEnvironmentData, PanelData, PanelUnit,
     SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
     tabular_from_arrow_c_columns, tabular_from_record_batch,
 };
-use causal_expr::{CausalExprArena, IdentifiedEstimand};
-use causal_graph::{
+use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
+use antecedent_graph::{
     Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark, NodeRef, Pag,
     TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged,
 };
-use causal_io::{
+use antecedent_io::{
     CausalPosteriorWire, IoError, PosteriorQuantityWire,
     encode_posterior_artifact as encode_posterior_wire,
 };
-use causal_stats::FdrAdjustment;
-use causal_stats::PartialCorrelation;
-use causal_validate::PredictiveCheckKind;
+use antecedent_stats::FdrAdjustment;
+use antecedent_stats::PartialCorrelation;
+use antecedent_validate::PredictiveCheckKind;
+use arrow_array::{Float64Array, RecordBatch};
+use arrow_schema::{DataType, Field, Schema};
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
 use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyValueError};
@@ -154,11 +154,11 @@ pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Refu
 }
 
 trait IntoCausalPyErr {
-    fn into_causal_py_err(self) -> PyErr;
+    fn into_antecedent_py_err(self) -> PyErr;
 }
 
 pub(crate) fn py_err<E: IntoCausalPyErr>(e: E) -> PyErr {
-    e.into_causal_py_err()
+    e.into_antecedent_py_err()
 }
 
 /// Fallback for domain errors not re-exported at the binding crate boundary.
@@ -204,7 +204,7 @@ where
 }
 
 impl IntoCausalPyErr for RustCausalError {
-    fn into_causal_py_err(self) -> PyErr {
+    fn into_antecedent_py_err(self) -> PyErr {
         match self {
             Self::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
             Self::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
@@ -250,31 +250,31 @@ impl IntoCausalPyErr for RustCausalError {
 }
 
 impl IntoCausalPyErr for DataError {
-    fn into_causal_py_err(self) -> PyErr {
-        RustCausalError::from(self).into_causal_py_err()
+    fn into_antecedent_py_err(self) -> PyErr {
+        RustCausalError::from(self).into_antecedent_py_err()
     }
 }
 
 impl IntoCausalPyErr for GraphError {
-    fn into_causal_py_err(self) -> PyErr {
-        RustCausalError::from(self).into_causal_py_err()
+    fn into_antecedent_py_err(self) -> PyErr {
+        RustCausalError::from(self).into_antecedent_py_err()
     }
 }
 
 impl IntoCausalPyErr for IoError {
-    fn into_causal_py_err(self) -> PyErr {
-        RustCausalError::from(self).into_causal_py_err()
+    fn into_antecedent_py_err(self) -> PyErr {
+        RustCausalError::from(self).into_antecedent_py_err()
     }
 }
 
 impl IntoCausalPyErr for SchemaError {
-    fn into_causal_py_err(self) -> PyErr {
-        RustCausalError::from(self).into_causal_py_err()
+    fn into_antecedent_py_err(self) -> PyErr {
+        RustCausalError::from(self).into_antecedent_py_err()
     }
 }
 
 impl IntoCausalPyErr for arrow_schema::ArrowError {
-    fn into_causal_py_err(self) -> PyErr {
+    fn into_antecedent_py_err(self) -> PyErr {
         CausalDataError::new_err(self.to_string())
     }
 }
@@ -618,7 +618,7 @@ fn load_float64_arrow_c_columns(
 fn take_arrow_c_array(
     py: Python<'_>,
     obj: &Bound<'_, PyAny>,
-) -> PyResult<(causal_data::FfiArrowArray, causal_data::FfiArrowSchema)> {
+) -> PyResult<(antecedent_data::FfiArrowArray, antecedent_data::FfiArrowSchema)> {
     use pyo3::types::PyCapsule;
 
     let export = obj.call_method0("__arrow_c_array__")?;
@@ -637,9 +637,11 @@ fn take_arrow_c_array(
     let schema_ptr = schema_cap
         .pointer_checked(Some(schema_name))?
         .as_ptr()
-        .cast::<causal_data::FfiArrowSchema>();
-    let array_ptr =
-        array_cap.pointer_checked(Some(array_name))?.as_ptr().cast::<causal_data::FfiArrowArray>();
+        .cast::<antecedent_data::FfiArrowSchema>();
+    let array_ptr = array_cap
+        .pointer_checked(Some(array_name))?
+        .as_ptr()
+        .cast::<antecedent_data::FfiArrowArray>();
     if schema_ptr.is_null() || array_ptr.is_null() {
         return Err(CausalDataError::new_err("null Arrow C Data capsule pointer"));
     }
@@ -649,8 +651,8 @@ fn take_arrow_c_array(
     let schema = unsafe { std::ptr::read(schema_ptr) };
     let array = unsafe { std::ptr::read(array_ptr) };
     unsafe {
-        std::ptr::write(schema_ptr, causal_data::FfiArrowSchema::empty());
-        std::ptr::write(array_ptr, causal_data::FfiArrowArray::empty());
+        std::ptr::write(schema_ptr, antecedent_data::FfiArrowSchema::empty());
+        std::ptr::write(array_ptr, antecedent_data::FfiArrowArray::empty());
     }
     let _ = py;
     Ok((array, schema))
@@ -660,7 +662,7 @@ fn tabular_from_arrow_c_objs(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
-) -> PyResult<causal_data::TabularData> {
+) -> PyResult<antecedent_data::TabularData> {
     if names.len() != columns.len() {
         return Err(CausalDataError::new_err("names and columns length mismatch"));
     }
@@ -684,8 +686,8 @@ pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext 
 pub(crate) fn py_execution_context_ext(
     seed: u64,
     threads: u32,
-    cancel: Option<causal_core::CancellationToken>,
-    progress: Option<std::sync::Arc<dyn causal_core::ProgressSink>>,
+    cancel: Option<antecedent_core::CancellationToken>,
+    progress: Option<std::sync::Arc<dyn antecedent_core::ProgressSink>>,
     cache_max_bytes: Option<u64>,
 ) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(seed, threads);
@@ -701,14 +703,14 @@ pub(crate) fn py_execution_context_ext(
 #[pyclass(name = "CancellationToken", from_py_object)]
 #[derive(Clone)]
 pub struct PyCancellationToken {
-    pub(crate) inner: causal_core::CancellationToken,
+    pub(crate) inner: antecedent_core::CancellationToken,
 }
 
 #[pymethods]
 impl PyCancellationToken {
     #[new]
     fn new() -> Self {
-        Self { inner: causal_core::CancellationToken::new() }
+        Self { inner: antecedent_core::CancellationToken::new() }
     }
 
     fn cancel(&self) {
@@ -747,7 +749,7 @@ where
 
 fn parse_prior_mapping(
     prior_mapping: Option<&Bound<'_, PyDict>>,
-) -> PyResult<Option<causal_io::PriorMapping>> {
+) -> PyResult<Option<antecedent_io::PriorMapping>> {
     match prior_mapping {
         None => Ok(None),
         Some(d) => Ok(Some(crate::prior_bank::mapping_from_dict(d)?)),
@@ -761,12 +763,12 @@ fn run_static_ate_from_builder(
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
-    prior_mapping: Option<causal_io::PriorMapping>,
+    prior_mapping: Option<antecedent_io::PriorMapping>,
     composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
     seed: u64,
     threads: u32,
-    cancel: Option<causal_core::CancellationToken>,
-    progress: Option<std::sync::Arc<dyn causal_core::ProgressSink>>,
+    cancel: Option<antecedent_core::CancellationToken>,
+    progress: Option<std::sync::Arc<dyn antecedent_core::ProgressSink>>,
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     if let Some(mode) = inference {
@@ -826,7 +828,7 @@ struct PpcFields {
     posterior_ppc_n_sims: Option<u32>,
 }
 
-fn ppc_fields_from_checks(checks: &[causal_validate::PredictiveCheckReport]) -> PpcFields {
+fn ppc_fields_from_checks(checks: &[antecedent_validate::PredictiveCheckReport]) -> PpcFields {
     let mut fields = PpcFields {
         prior_ppc_p_value: None,
         prior_ppc_observed: None,
@@ -1498,7 +1500,7 @@ fn run_ate_with_graph_input(
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     suite: RefuteSuite,
-    custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
@@ -1951,7 +1953,10 @@ fn analyze_ate_discover(
     })
 }
 
-fn build_static_dag(data: &causal_data::TabularData, edges: &[(String, String)]) -> PyResult<Dag> {
+fn build_static_dag(
+    data: &antecedent_data::TabularData,
+    edges: &[(String, String)],
+) -> PyResult<Dag> {
     let n_vars = u32::try_from(data.schema().len())
         .map_err(|_| PyValueError::new_err("too many variables"))?;
     let mut dag = Dag::with_variables(n_vars);
@@ -2445,7 +2450,7 @@ pub(crate) fn series_from_batch(
 
 pub(crate) fn tabular_from_batch(
     batch: &RecordBatch,
-) -> PyResult<(causal_data::TabularData, Vec<VariableId>)> {
+) -> PyResult<(antecedent_data::TabularData, Vec<VariableId>)> {
     let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
     let tabular = loaded.data;
     let variables: Vec<VariableId> = tabular.schema().variables().iter().map(|v| v.id).collect();
@@ -3267,7 +3272,7 @@ fn predict_intervened_summary(
         let pred = TemporalLinearPredictor::fit(
             &series,
             y,
-            [causal_data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
+            [antecedent_data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
             &policy,
         )
         .map_err(py_estimate)?;
@@ -4565,7 +4570,7 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
 fn dag_from_dot(dot: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
         let dag = facade_dag_from_dot(dot).map_err(py_err)?;
-        let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
+        let wire = antecedent_io::dag_to_wire(&dag).map_err(py_err)?;
         Ok((wire.node_count as usize, wire.edges))
     })
 }
@@ -4574,8 +4579,8 @@ fn dag_from_dot(dot: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
 #[pyfunction]
 fn dag_to_dot(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
     catch_ffi(|| {
-        let wire = causal_io::DagWire { node_count, edges };
-        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        let wire = antecedent_io::DagWire { node_count, edges };
+        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
         facade_dag_to_dot(&dag, None).map_err(py_err)
     })
 }
@@ -4587,8 +4592,8 @@ type ParsedDagJson = (usize, Vec<(u32, u32)>, Option<Vec<String>>);
 #[pyfunction]
 fn dag_from_json(json: &str) -> PyResult<ParsedDagJson> {
     catch_ffi(|| {
-        let doc = causal_io::dag_json_from_str(json).map_err(py_err)?;
-        let dag = causal_io::dag_from_wire(&doc.to_wire()).map_err(py_err)?;
+        let doc = antecedent_io::dag_json_from_str(json).map_err(py_err)?;
+        let dag = antecedent_io::dag_from_wire(&doc.to_wire()).map_err(py_err)?;
         let _ = dag;
         Ok((doc.node_count as usize, doc.edges, doc.variable_names))
     })
@@ -4602,8 +4607,8 @@ fn dag_to_json(
     variable_names: Option<Vec<String>>,
 ) -> PyResult<String> {
     catch_ffi(|| {
-        let wire = causal_io::DagWire { node_count, edges };
-        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        let wire = antecedent_io::DagWire { node_count, edges };
+        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
         facade_dag_to_json(&dag, variable_names.as_deref()).map_err(py_err)
     })
 }
@@ -4613,7 +4618,7 @@ fn dag_to_json(
 fn dag_from_gml(gml: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
         let dag = antecedent::io::dag_from_gml(gml).map_err(py_err)?;
-        let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
+        let wire = antecedent_io::dag_to_wire(&dag).map_err(py_err)?;
         Ok((wire.node_count as usize, wire.edges))
     })
 }
@@ -4622,8 +4627,8 @@ fn dag_from_gml(gml: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
 #[pyfunction]
 fn dag_to_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
     catch_ffi(|| {
-        let wire = causal_io::DagWire { node_count, edges };
-        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        let wire = antecedent_io::DagWire { node_count, edges };
+        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
         antecedent::io::dag_to_gml(&dag, None).map_err(py_err)
     })
 }
@@ -4633,7 +4638,7 @@ fn dag_to_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
 fn dag_from_networkx_node_link(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
         let dag = antecedent::io::dag_from_networkx_node_link(json).map_err(py_err)?;
-        let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
+        let wire = antecedent_io::dag_to_wire(&dag).map_err(py_err)?;
         Ok((wire.node_count as usize, wire.edges))
     })
 }
@@ -4642,8 +4647,8 @@ fn dag_from_networkx_node_link(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)>
 #[pyfunction]
 fn dag_to_networkx_node_link(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
     catch_ffi(|| {
-        let wire = causal_io::DagWire { node_count, edges };
-        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        let wire = antecedent_io::DagWire { node_count, edges };
+        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
         antecedent::io::dag_to_networkx_node_link(&dag, None).map_err(py_err)
     })
 }
@@ -4660,8 +4665,8 @@ fn encode_model_bundle(
 ) -> PyResult<Vec<u8>> {
     catch_ffi(|| {
         use antecedent::gcm::{CompiledMechanismStore, MechanismSlot};
-        use causal_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
-        use causal_io::{
+        use antecedent_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
+        use antecedent_io::{
             ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire, encode_model_bundle as enc,
         };
         use std::sync::Arc;
@@ -4679,11 +4684,11 @@ fn encode_model_bundle(
             .map_err(|e| py_err(IoError::Convert(e.to_string())))?;
         }
         let schema = b.build().map_err(|e| py_err(IoError::Convert(e.to_string())))?;
-        let wire = causal_io::DagWire {
+        let wire = antecedent_io::DagWire {
             node_count: u32::try_from(variable_names.len()).unwrap_or(0),
             edges,
         };
-        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
         let slots: Vec<MechanismSlot> = mechanisms
             .into_iter()
             .map(|(kind, constant, coeffs, sigma)| match kind.as_str() {
@@ -4730,7 +4735,7 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<ModelBundleSummary> {
     catch_ffi(|| {
         let bundle = antecedent::io::decode_model_bundle_bytes(bytes).map_err(py_err)?;
         let names = bundle.schema.variables().iter().map(|v| v.name.to_string()).collect();
-        let wire = causal_io::dag_to_wire(&bundle.dag).map_err(py_err)?;
+        let wire = antecedent_io::dag_to_wire(&bundle.dag).map_err(py_err)?;
         Ok((names, wire.edges, bundle.mechanisms.slots.len()))
     })
 }
@@ -4810,9 +4815,9 @@ fn temporal_discover_jpcmci_plus(
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     suite: RefuteSuite,
-    custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
-    ci_impl: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     seed: u64,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
@@ -4869,9 +4874,9 @@ fn temporal_discover_rpcmci(
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     suite: RefuteSuite,
-    custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
-    ci_impl: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     seed: u64,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
@@ -4920,9 +4925,9 @@ fn temporal_discover_pcmci_family(
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     suite: RefuteSuite,
-    custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
-    ci_impl: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     inference: Option<&str>,
     n_draws: usize,
     prior_scale: f64,
@@ -4965,7 +4970,7 @@ fn temporal_discover_dbn_posterior(
     active_level: f64,
     max_lag: u32,
     suite: RefuteSuite,
-    custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
     force_mcmc: bool,
     n_chains: u32,
@@ -5009,9 +5014,9 @@ struct TemporalDiscoverContext {
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     suite: RefuteSuite,
-    custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
-    ci_impl: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     inference: Option<String>,
     n_draws: usize,
     prior_scale: f64,
@@ -5570,7 +5575,7 @@ fn attribute_unit_change(
         let query = UnitChangeQuery::new(y_id, max_u);
         let result =
             facade_attribute_unit_change(&fitted.model, &data, &query, &ctx).map_err(py_err)?;
-        let pairs: Vec<(causal_core::ComponentId, f64)> = result
+        let pairs: Vec<(antecedent_core::ComponentId, f64)> = result
             .components
             .iter()
             .zip(result.mean_contributions.iter())
@@ -5777,7 +5782,7 @@ fn mechanism_change_detection(
 fn dag_from_networkx_adjacency(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
         let dag = facade_dag_from_networkx_adjacency(json).map_err(py_err)?;
-        let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
+        let wire = antecedent_io::dag_to_wire(&dag).map_err(py_err)?;
         Ok((wire.node_count as usize, wire.edges))
     })
 }
@@ -5790,8 +5795,8 @@ fn dag_to_networkx_adjacency(
     variable_names: Option<Vec<String>>,
 ) -> PyResult<String> {
     catch_ffi(|| {
-        let wire = causal_io::DagWire { node_count, edges };
-        let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
+        let wire = antecedent_io::DagWire { node_count, edges };
+        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
         facade_dag_to_networkx_adjacency(&dag, variable_names.as_deref()).map_err(py_err)
     })
 }
@@ -5930,7 +5935,7 @@ fn identify_ate(
         let zeros = [0.0_f64, 1.0];
         let pairs: Vec<(&str, &[f64])> =
             names.iter().map(|n| (n.as_str(), zeros.as_slice())).collect();
-        let data = causal_data::TabularData::from_f64_columns(pairs).map_err(py_err)?;
+        let data = antecedent_data::TabularData::from_f64_columns(pairs).map_err(py_err)?;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let dag = build_static_dag(&data, &edges)?;
@@ -6042,7 +6047,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     bayesian::register(m)?;
     stability::register(m)?;
     prior_bank::register(m)?;
-    m.add("__version__", causal_core::VERSION)?;
+    m.add("__version__", antecedent_core::VERSION)?;
     Ok(())
 }
 

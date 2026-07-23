@@ -11,7 +11,7 @@ use antecedent::discovery::{
     discover_structure_mcmc as facade_discover_structure_mcmc,
 };
 use antecedent::discovery_defaults::resolve_ci;
-use causal_stats::{FdrAdjustment, PartialCorrelation};
+use antecedent_stats::{FdrAdjustment, PartialCorrelation};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -270,7 +270,7 @@ fn discover_ci_screened_posterior(
     let ci_name = ci.unwrap_or_else(|| "parcorr".to_string());
     let ci_impl = if ci_name.eq_ignore_ascii_case("parcorr") {
         std::sync::Arc::new(PartialCorrelation)
-            as std::sync::Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>
+            as std::sync::Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>
     } else {
         resolve_ci(&ci_name, None).map_err(py_err)?
     };

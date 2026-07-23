@@ -1,5 +1,5 @@
 feature_id = "data.bayesian_bootstrap"
-implementation_crate = "causal-data"
+implementation_crate = "antecedent-data"
 source_translation = false
 copied_code = false
 copied_comments = false
@@ -12,5 +12,5 @@ papers = [
 upstream_implementations_observed = []
 
 test_sources = [
- "unit tests in crates/causal-data/src/resample.rs",
+ "unit tests in crates/antecedent-data/src/resample.rs",
 ]

@@ -12,14 +12,16 @@ use std::sync::Arc;
 
 use antecedent::estimate::{identify_static_query, select_estimand};
 use antecedent::{CausalAnalysis, CompiledAnalysis, EstimatorId, IdentifierId, RefuteSuite};
-use causal_core::{
+use antecedent_core::{
     AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CausalSchemaBuilder,
     ConditionalEffectQuery, CounterfactualQuery, ExecutionContext, IdentificationStatus,
     Intervention, MeasurementSpec, MediationContrast, MediationQuery, RoleHint, SmallRoleSet,
     Value, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_graph::{Dag, DenseNodeId, Pag};
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_graph::{Dag, DenseNodeId, Pag};
 
 fn chain_table(n: usize) -> (TabularData, Dag) {
     let mut b = CausalSchemaBuilder::new();

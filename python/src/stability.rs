@@ -1,4 +1,4 @@
-//! Discovery stability validators bound from `causal-validate::stability`.
+//! Discovery stability validators bound from `antecedent-validate::stability`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -8,17 +8,17 @@ use std::sync::Arc;
 
 use antecedent::discovery::RegimeAssignment;
 use antecedent::discovery_defaults::{jpcmci_constraints, pcmci_constraints, resolve_ci};
-use arrow_array::RecordBatch;
-use causal_core::{Lag, RegimeId, VariableId};
-use causal_data::{EnvHoldoutSplit, MultiEnvironmentData, TableView};
-use causal_discovery::{
+use antecedent_core::{Lag, RegimeId, VariableId};
+use antecedent_data::{EnvHoldoutSplit, MultiEnvironmentData, TableView};
+use antecedent_discovery::{
     DiscoveryWorkspace, JpcmciPlus, MultiDatasetConstraints, Pcmci, PcmciPlus, Rpcmci,
 };
-use causal_validate::{
+use antecedent_validate::{
     AlphaThresholdSensitivity, BlockBootstrapStability, CiTestSensitivity, EnvironmentHoldout,
     FalsePositiveCheck, LagWindowSensitivity, NullTransform, OrientationStability, RegimeStability,
     SyntheticNullCalibration,
 };
+use arrow_array::RecordBatch;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -29,7 +29,7 @@ use crate::{
     series_from_batch,
 };
 
-fn py_validate(e: causal_validate::ValidationError) -> PyErr {
+fn py_validate(e: antecedent_validate::ValidationError) -> PyErr {
     CausalValidateError::new_err(e.to_string())
 }
 
@@ -51,7 +51,7 @@ fn pcmci_plus_from_params(max_lag: u32, alpha: f64, fdr: bool, ci: &str) -> PyRe
 fn link_dict(
     py: Python<'_>,
     names: &[String],
-    link: causal_discovery::LaggedLink,
+    link: antecedent_discovery::LaggedLink,
 ) -> PyResult<Py<PyDict>> {
     let d = PyDict::new(py);
     let src = names
@@ -72,7 +72,7 @@ fn link_dict(
 fn discovery_stability_dict(
     py: Python<'_>,
     names: &[String],
-    report: &causal_validate::DiscoveryStabilityReport,
+    report: &antecedent_validate::DiscoveryStabilityReport,
 ) -> PyResult<Py<PyDict>> {
     let d = PyDict::new(py);
     let mut freqs = Vec::with_capacity(report.frequencies.len());

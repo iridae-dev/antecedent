@@ -9,9 +9,9 @@
 
 use std::sync::Arc;
 
-use causal_core::{ExecutionContext, VariableId};
-use causal_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
-pub use causal_discovery::{
+use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
+pub use antecedent_discovery::{
     CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult, DagDiscoveryResult,
     DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, EXACT_ENUM_MAX_NODES,
     ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
@@ -21,10 +21,10 @@ pub use causal_discovery::{
     StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode,
     two_regime_half_split,
 };
-use causal_discovery::{DiscoveryWorkspace, Pcmci, PcmciPlus};
-use causal_graph::{DenseNodeId, Endpoint, TemporalPag};
-use causal_state::GraphScoreFamily;
-use causal_stats::{ConditionalIndependence, FdrAdjustment};
+use antecedent_discovery::{DiscoveryWorkspace, Pcmci, PcmciPlus};
+use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};
+use antecedent_state::GraphScoreFamily;
+use antecedent_stats::{ConditionalIndependence, FdrAdjustment};
 
 use crate::discovery_defaults::{
     DEFAULT_RPCMCI_MIN_REGIME_LEN, contemporaneous_constraints, jpcmci_constraints,
@@ -74,7 +74,7 @@ pub struct DiscoverParams {
     /// Significance level.
     pub alpha: f64,
     /// Multiple-testing adjustment (`None` = off).
-    pub fdr: Option<causal_stats::FdrAdjustment>,
+    pub fdr: Option<antecedent_stats::FdrAdjustment>,
     /// Conditional-independence test (resolved via [`crate::discovery_defaults::resolve_ci`]).
     pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
     /// Multi-dataset / context settings (J-PCMCI+); ignored by single-series algorithms.

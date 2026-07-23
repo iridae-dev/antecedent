@@ -128,7 +128,7 @@ def test_fitted_gcm_sample_do():
     assert out.draws.shape[1] == 50
 
 
-def test_causal_state_append_data():
+def test_antecedent_state_append_data():
     state = antecedent.CausalState(cache_bytes=1 << 20)
     v0 = state.version
     data = _ate_data(n=20)
@@ -175,7 +175,7 @@ def test_causal_state_append_data():
     assert state.stale_query_count() == 0
 
 
-def test_causal_state_ols_append_matches_full_recompute():
+def test_antecedent_state_ols_append_matches_full_recompute():
     """Python dual of Rust incremental_ols_match: append batches ≡ full XtX/XtY."""
     rng = np.random.default_rng(11)
     x = rng.normal(size=(30, 2))

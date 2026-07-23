@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use causal_core::{
+use antecedent_core::{
     Diagnostic, DiagnosticKind, DiagnosticSeverity, KernelSelection, ParallelTaskSpec,
     PhysicalExecutionPlanRecord,
 };

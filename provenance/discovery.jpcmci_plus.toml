@@ -1,5 +1,5 @@
 feature_id = "discovery.jpcmci_plus"
-implementation_crate = "causal-discovery"
+implementation_crate = "antecedent-discovery"
 source_translation = false
 copied_code = false
 copied_comments = false

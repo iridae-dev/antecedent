@@ -1,5 +1,5 @@
 feature_id = "attribution.basic"
-implementation_crate = "causal-attribution"
+implementation_crate = "antecedent-attribution"
 source_translation = false
 copied_code = false
 copied_comments = false

@@ -7,12 +7,14 @@
 use std::sync::Arc;
 
 use antecedent::prelude::*;
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_graph::{Admg, Cpdag, DenseNodeId};
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_graph::{Admg, Cpdag, DenseNodeId};
 
 fn tiny_backdoor_table() -> (TabularData, VariableId, VariableId) {
     let mut b = CausalSchemaBuilder::new();

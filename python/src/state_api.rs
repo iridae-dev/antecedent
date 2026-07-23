@@ -8,9 +8,9 @@ use std::sync::Arc;
 use antecedent::state::{
     CausalState, ConstraintId, DataBatchRef, GraphConstraintRecord, GraphEvidenceRecord,
     InterventionRecord, LgssmParams, LinearOlsSuffStats, ParticleFilterState, StateEvent,
-    StreamingCovariance, apply_state_event, new_causal_state,
+    StreamingCovariance, apply_state_event, new_antecedent_state,
 };
-use causal_core::{
+use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     AverageEffectQuery, CacheBudget, CausalQuery, QueryId, VariableId,
 };
@@ -75,7 +75,7 @@ impl PyCausalState {
     #[pyo3(signature = (cache_bytes=DEFAULT_CACHE_BYTES))]
     fn new(cache_bytes: u64) -> Self {
         Self {
-            inner: new_causal_state(CacheBudget::new(cache_bytes)),
+            inner: new_antecedent_state(CacheBudget::new(cache_bytes)),
             next_batch: 0,
             retained: HashMap::new(),
         }
@@ -406,7 +406,7 @@ impl PyCausalState {
 /// Smoke / test helper: append synthetic batches and report `(version, stale_count)`.
 #[pyfunction]
 #[pyo3(signature = (n_appends=2, cache_bytes=DEFAULT_CACHE_BYTES))]
-pub(crate) fn causal_state_append(n_appends: u64, cache_bytes: u64) -> PyResult<(u64, usize)> {
+pub(crate) fn antecedent_state_append(n_appends: u64, cache_bytes: u64) -> PyResult<(u64, usize)> {
     catch_ffi(|| {
         let mut state = PyCausalState::new(cache_bytes);
         let q = state.inner.queries.register(CausalQuery::AverageEffect(
@@ -431,6 +431,6 @@ pub(crate) fn causal_state_append(n_appends: u64, cache_bytes: u64) -> PyResult<
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCausalState>()?;
-    m.add_function(wrap_pyfunction!(causal_state_append, m)?)?;
+    m.add_function(wrap_pyfunction!(antecedent_state_append, m)?)?;
     Ok(())
 }

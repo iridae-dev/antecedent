@@ -9,7 +9,7 @@ group = "data"
 description = "PanelData + copy-avoiding multi-env SamplePlan"
 status = "done"
 owner = "context"
-notes = "crates/causal-data panel.rs / multi_env_plan.rs"
+notes = "crates/antecedent-data panel.rs / multi_env_plan.rs"
 
 [[capabilities]]
 id = "context.context_graph"

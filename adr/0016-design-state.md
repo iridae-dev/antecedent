@@ -11,8 +11,8 @@ identification probability, effect-width, decision utility) and an embeddable
 
 ## Decision
 
-- Add crates `causal-design` and `causal-state` (no mutual dependency); shared
-  registry IDs / `CacheBudget` / Monte Carlo reports live in `causal-core`.
+- Add crates `antecedent-design` and `antecedent-state` (no mutual dependency); shared
+  registry IDs / `CacheBudget` / Monte Carlo reports live in `antecedent-core`.
 - Design ranking is batched Monte Carlo with common-random-number draws,
   adaptive stop on rank uncertainty, and explicit constraint-violation records
   (never silent drops).

@@ -18,5 +18,5 @@ Regression budget: 20% wall-time on the same machine class.
 | `dsep_dense_n80` | **8.30 µs** | 8.28–8.31 µs | **9.96 µs** |
 
 ```bash
-cargo +1.85 bench -p causal-graph --bench dseparation
+cargo +1.85 bench -p antecedent-graph --bench dseparation
 ```

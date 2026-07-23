@@ -1,12 +1,12 @@
-//! incremental causal-state facade helpers.
+//! incremental antecedent-state facade helpers.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_core::CacheBudget;
+use antecedent_core::CacheBudget;
 
 use crate::error::CausalError;
 
-pub use causal_state::{
+pub use antecedent_state::{
     CachedResult, CausalState, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
     GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, GraphScoreCacheKey,
     GraphScoreData, GraphScoreFamily, InterventionRecord, InvalidationEntry, InvalidationLog,
@@ -19,7 +19,7 @@ pub use causal_state::{
 
 /// Construct a fresh [`CausalState`] with the given cache budget.
 #[must_use]
-pub fn new_causal_state(budget: CacheBudget) -> CausalState {
+pub fn new_antecedent_state(budget: CacheBudget) -> CausalState {
     CausalState::new(budget)
 }
 
@@ -31,6 +31,6 @@ pub fn new_causal_state(budget: CacheBudget) -> CausalState {
 pub fn apply_state_event(
     state: &mut CausalState,
     event: StateEvent,
-) -> Result<causal_core::StateVersion, CausalError> {
+) -> Result<antecedent_core::StateVersion, CausalError> {
     state.apply(event).map_err(CausalError::from)
 }

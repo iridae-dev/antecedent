@@ -1,0 +1,36 @@
+[package]
+name = "antecedent-graph"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Causal graph types, dense indexes, and traversal workspaces"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+antecedent-core = { version = "0.1.0", path = "../antecedent-core" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "traversal"
+harness = false
+
+[[bench]]
+name = "dseparation"
+harness = false
+
+[[bench]]
+name = "mseparation"
+harness = false

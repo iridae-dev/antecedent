@@ -1,8 +1,8 @@
 //! Fuzz scalar vs portable kernel agreement on random masks / strides / NaNs.
 #![no_main]
 
-use causal_core::ToleranceClass;
-use causal_kernels::{BitMaskView, F64VectorView, portable, scalar};
+use antecedent_core::ToleranceClass;
+use antecedent_kernels::{BitMaskView, F64VectorView, portable, scalar};
 use libfuzzer_sys::fuzz_target;
 
 fn floats_agree(a: f64, b: f64) -> bool {

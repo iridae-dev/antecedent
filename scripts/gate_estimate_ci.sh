@@ -48,19 +48,19 @@ EVIDENCE = {
     "estimate.refute.graph": "conformance/estimate/refuters",
     "estimate.refute.sensitivity": "conformance/estimate/refuters",
     # Discovery / CI inventory
-    "discovery.data.transforms": "crates/causal-data/src/transforms.rs",
-    "discovery.ci.multivariate_partial_corr": "crates/causal-stats/src/ci/calibration.rs",
-    "discovery.ci.weighted_partial_corr": "crates/causal-stats/src/ci/calibration.rs",
-    "discovery.ci.robust_partial_corr": "crates/causal-stats/src/ci/calibration.rs",
-    "discovery.ci.regression": "crates/causal-stats/src/ci/calibration.rs",
-    "discovery.ci.knn_dependence": "crates/causal-stats/src/ci/calibration.rs",
-    "discovery.ci.mixed_knn_dependence": "crates/causal-stats/src/ci/calibration.rs",
-    "discovery.ci.symbolic_cmi": "crates/causal-stats/src/ci/calibration.rs",
-    "discovery.ci.gpdc": "crates/causal-stats/src/ci/advanced.rs",
-    "discovery.ci.gsquared": "crates/causal-stats/src/ci/calibration.rs",
-    "discovery.ci.oracle": "crates/causal-discovery/src/engine_tests.rs",
+    "discovery.data.transforms": "crates/antecedent-data/src/transforms.rs",
+    "discovery.ci.multivariate_partial_corr": "crates/antecedent-stats/src/ci/calibration.rs",
+    "discovery.ci.weighted_partial_corr": "crates/antecedent-stats/src/ci/calibration.rs",
+    "discovery.ci.robust_partial_corr": "crates/antecedent-stats/src/ci/calibration.rs",
+    "discovery.ci.regression": "crates/antecedent-stats/src/ci/calibration.rs",
+    "discovery.ci.knn_dependence": "crates/antecedent-stats/src/ci/calibration.rs",
+    "discovery.ci.mixed_knn_dependence": "crates/antecedent-stats/src/ci/calibration.rs",
+    "discovery.ci.symbolic_cmi": "crates/antecedent-stats/src/ci/calibration.rs",
+    "discovery.ci.gpdc": "crates/antecedent-stats/src/ci/advanced.rs",
+    "discovery.ci.gsquared": "crates/antecedent-stats/src/ci/calibration.rs",
+    "discovery.ci.oracle": "crates/antecedent-discovery/src/engine_tests.rs",
     "discovery.pcmci_plus": "conformance/discovery/pcmci_plus_lag0",
-    "discovery.graphs.endpoints": "crates/causal-graph/src/cpdag.rs",
+    "discovery.graphs.endpoints": "crates/antecedent-graph/src/cpdag.rs",
     "discovery.data.masks": "conformance/discovery/masked_mci_lag1",
     "discovery.data.vector_variables": "conformance/discovery/vector_vars_pcmci",
 }
@@ -90,8 +90,8 @@ PY
 
 echo "== conformance / calibration =="
 cargo test -p antecedent --test estimate_conformance --test estimate_linear_gaussian_ate
-cargo test -p causal-validate --test refuters
-cargo test -p causal-discovery --test discovery_pcmci_lag1 --test discovery_pcmci_plus_lag0 --test discovery_masked_mci_lag1 --test discovery_vector_vars_pcmci --test discovery_notears_chain
-cargo test -p causal-stats --lib ci::calibration
+cargo test -p antecedent-validate --test refuters
+cargo test -p antecedent-discovery --test discovery_pcmci_lag1 --test discovery_pcmci_plus_lag0 --test discovery_masked_mci_lag1 --test discovery_vector_vars_pcmci --test discovery_notears_chain
+cargo test -p antecedent-stats --lib ci::calibration
 bash scripts/gate_estimate_reuse.sh
 echo "estimate_ci parity gate: ok"

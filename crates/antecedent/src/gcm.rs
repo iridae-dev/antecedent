@@ -1,6 +1,6 @@
 //! GCM workflow helpers (fit → sample → CF → anomaly).
 //!
-//! Thin facade over `causal-model` / `causal-counterfactual` / `causal-attribution`
+//! Thin facade over `antecedent-model` / `antecedent-counterfactual` / `antecedent-attribution`
 //! so planners and Python bind once at the library boundary.
 //!
 //! # Example
@@ -18,18 +18,18 @@
 
 use std::sync::Arc;
 
-use causal_core::{
+use antecedent_core::{
     AnomalyAttributionQuery, CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
     InterventionalDistributionQuery, MechanismChangeQuery, PathSpecificEffectQuery,
     TargetPopulation, UnitChangeQuery, Value, VariableId,
 };
-use causal_data::TabularData;
-use causal_graph::Dag;
-use causal_model::ValueBatch;
+use antecedent_data::TabularData;
+use antecedent_graph::Dag;
+use antecedent_model::ValueBatch;
 
 use crate::error::CausalError;
 
-pub use causal_attribution::{
+pub use antecedent_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
     MechanismChangeMethod, RobustChangeOptions, RootCauseRank, StructureChangeOptions,
@@ -37,13 +37,13 @@ pub use causal_attribution::{
     distribution_change_robust, feature_relevance, path_decompose, population_do_contrast,
     root_cause_rank, score_anomalies, structure_change, unit_change,
 };
-pub use causal_counterfactual::{
+pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
     CounterfactualResult, CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind,
     nested_counterfactual, nested_hard_counterfactual, simultaneous_hard_counterfactual,
     streaming_matches_retained,
 };
-pub use causal_model::{
+pub use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
     InvertibleStructuralCausalModel, KdeDoSampler, McmcDoSampler, MechanismAssignment,
     MechanismFamily, MechanismRegistry, MechanismSlot, MechanismWorkspace, ModelCollection,
@@ -213,7 +213,7 @@ pub fn mechanism_change_detection(
     query: &MechanismChangeQuery,
     method: MechanismChangeMethod,
     ctx: &ExecutionContext,
-) -> Result<Vec<causal_attribution::MechanismChangeDetection>, CausalError> {
+) -> Result<Vec<antecedent_attribution::MechanismChangeDetection>, CausalError> {
     detect_mechanism_changes(model, data, query, method, ctx).map_err(map_attr)
 }
 

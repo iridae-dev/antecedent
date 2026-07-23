@@ -29,18 +29,18 @@ def caps(text: str):
     return out
 
 EVIDENCE = {
-    "attribution.shapley": "crates/causal-attribution/src/shapley.rs",
-    "attribution.coalition_cache": "crates/causal-attribution/src/coalition.rs",
-    "attribution.distribution_change": "crates/causal-attribution/src/distribution_change.rs",
-    "attribution.distribution_change_robust": "crates/causal-attribution/src/robust.rs",
-    "attribution.mechanism_change_detection": "crates/causal-attribution/src/mechanism_change.rs",
-    "attribution.mechanism_change_kernel": "crates/causal-stats/src/divergence.rs",
-    "attribution.mechanism_change_change_point": "crates/causal-stats/src/divergence.rs",
-    "attribution.unit_change": "crates/causal-attribution/src/unit_change.rs",
-    "attribution.path_decompose": "crates/causal-attribution/src/path.rs",
-    "attribution.feature_relevance": "crates/causal-attribution/src/feature_relevance.rs",
-    "attribution.root_cause": "crates/causal-attribution/src/root_cause.rs",
-    "attribution.structure": "crates/causal-attribution/src/structure_change.rs",
+    "attribution.shapley": "crates/antecedent-attribution/src/shapley.rs",
+    "attribution.coalition_cache": "crates/antecedent-attribution/src/coalition.rs",
+    "attribution.distribution_change": "crates/antecedent-attribution/src/distribution_change.rs",
+    "attribution.distribution_change_robust": "crates/antecedent-attribution/src/robust.rs",
+    "attribution.mechanism_change_detection": "crates/antecedent-attribution/src/mechanism_change.rs",
+    "attribution.mechanism_change_kernel": "crates/antecedent-stats/src/divergence.rs",
+    "attribution.mechanism_change_change_point": "crates/antecedent-stats/src/divergence.rs",
+    "attribution.unit_change": "crates/antecedent-attribution/src/unit_change.rs",
+    "attribution.path_decompose": "crates/antecedent-attribution/src/path.rs",
+    "attribution.feature_relevance": "crates/antecedent-attribution/src/feature_relevance.rs",
+    "attribution.root_cause": "crates/antecedent-attribution/src/root_cause.rs",
+    "attribution.structure": "crates/antecedent-attribution/src/structure_change.rs",
     "attribution.facade": "crates/antecedent/tests/attribution.rs",
 }
 
@@ -64,7 +64,7 @@ for path in [
     "conformance/attribution/mechanism_change_detect/expected.json",
     "conformance/attribution/mechanism_change_kernel_shift/expected.json",
     "conformance/attribution/mechanism_change_change_point/expected.json",
-    "crates/causal-attribution/benches/shapley.rs",
+    "crates/antecedent-attribution/benches/shapley.rs",
     "benches/baselines/shapley.md",
     "parity/attribution.toml",
 ]:
@@ -105,10 +105,10 @@ print("Attribution inventory evidence map OK")
 PY
 
 echo "== cargo test attribution / facade attribution =="
-cargo test -p causal-attribution --lib
+cargo test -p antecedent-attribution --lib
 cargo test -p antecedent --test attribution
 
 echo "== criterion smoke (shapley) =="
-cargo bench -p causal-attribution --bench shapley -- --test
+cargo bench -p antecedent-attribution --bench shapley -- --test
 
 echo "Attribution gate PASSED"

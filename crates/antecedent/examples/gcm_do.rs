@@ -4,7 +4,7 @@
 
 use antecedent::gcm::{fit_gcm, sample_do};
 use antecedent::prelude::*;
-use causal_core::{Intervention, Value};
+use antecedent_core::{Intervention, Value};
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn main() -> Result<(), CausalError> {

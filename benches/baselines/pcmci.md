@@ -29,7 +29,7 @@ Steady-state candidate loop (after one warmup CI):
  grow capacity across repeated CI calls;
 - no per-CI `SamplePlan` / `Arc<[LaggedColumn]>` rebuild.
 
-Gate: `ci_hot_path_no_scratch_growth` in `causal-discovery`.
+Gate: `ci_hot_path_no_scratch_growth` in `antecedent-discovery`.
 
 ## Target-wise parallel scaling
 
@@ -46,11 +46,11 @@ workers; no global pool).
 Refresh after algorithm changes:
 
 ```bash
-cargo +1.85 bench -p causal-discovery --bench pcmci -- pcmci_target_parallel
+cargo +1.85 bench -p antecedent-discovery --bench pcmci -- pcmci_target_parallel
 ```
 
 ## How to refresh
 
 ```bash
-cargo +1.85 bench -p causal-discovery --bench pcmci
+cargo +1.85 bench -p antecedent-discovery --bench pcmci
 ```

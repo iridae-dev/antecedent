@@ -2,8 +2,8 @@
 
 Criterion smokes (gated with `--test`):
 
-- `causal-design` / `design_rank` — `design_rank_eig_8_candidates`
-- `causal-state` / `state_append` — `state_append_invalidate_ols`
+- `antecedent-design` / `design_rank` — `design_rank_eig_8_candidates`
+- `antecedent-state` / `state_append` — `state_append_invalidate_ols`
 
 **Budgets (local regression, Apple M1 class):**
 

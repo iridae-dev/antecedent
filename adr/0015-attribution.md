@@ -11,7 +11,7 @@ blocks, and graph-sensitive root-cause ranking with GCM parity.
 
 ## Decision
 
-- Expand `causal-attribution` (no new crate); keep anomaly APIs.
+- Expand `antecedent-attribution` (no new crate); keep anomaly APIs.
 - Shapley exact methods enforce `max_exact_components`; MC modes always report
   budget + stderr; coalition evaluations use a semantic cache under
   `ExecutionContext.cache_policy`.

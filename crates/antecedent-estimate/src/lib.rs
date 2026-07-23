@@ -1,0 +1,82 @@
+//! Estimators for identified causal functionals.
+//!
+//! Estimators consume an [`IdentifiedEstimand`](antecedent_expr::IdentifiedEstimand) —
+//! they never choose confounders or assert identifiability.
+//!
+//! ```
+//! use antecedent_estimate::LinearAdjustmentAte;
+//!
+//! let est = LinearAdjustmentAte::default();
+//! let _ = est;
+//! ```
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![forbid(unsafe_code)]
+#![deny(missing_docs)]
+
+pub mod adjustment;
+pub mod aipw;
+pub mod bayesian;
+pub mod conditional;
+pub mod design_compile;
+pub mod envelope;
+pub mod error;
+pub mod estimator;
+pub mod frontdoor;
+pub mod functional_distribution;
+pub mod gcomp;
+pub mod glm_adjustment;
+pub mod iv;
+pub mod overlap;
+pub mod prediction;
+pub mod prepare;
+pub mod propensity;
+pub mod rd;
+pub mod se;
+pub mod temporal_adjustment;
+pub mod temporal_mediation;
+pub mod util;
+
+#[cfg(test)]
+mod calibration_coverage;
+
+pub use adjustment::{
+    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind,
+    PreparedEstimationProblem,
+};
+pub use aipw::{AipwAte, AipwWorkspace};
+pub use antecedent_expr::EstimandMethod;
+pub use bayesian::{
+    BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
+    BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping,
+    PosteriorFunctionalEvaluator, PreparedBayesianProblem, coefficient_names_from_design,
+    hydrate_prior, hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
+    nonidentified_with_prior,
+};
+pub use conditional::ConditionalLinearAdjustment;
+pub use design_compile::{CovariateSpec, compile_adjustment_design};
+pub use envelope::{EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope};
+pub use error::EstimationError;
+pub use estimator::{Estimator, TabularAteEstimator};
+pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
+pub use functional_distribution::{
+    DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect,
+    InterventionalDistributionEstimate, PreparedFunctionalDistribution, PreparedFunctionalEffect,
+};
+pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
+pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
+pub use overlap::{ClipSensitivity, OverlapPolicy, OverlapReport, PropensityInterval};
+pub use prediction::TemporalLinearPredictor;
+pub use propensity::{
+    DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
+    PropensityModel, PropensityStratification, PropensityWeighting, default_propensity_overlap,
+};
+pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
+pub use se::DEFAULT_RIDGE_ON_SEPARATION;
+pub use se::{AnalyticSeKind, LinearSeKind};
+pub use temporal_adjustment::TemporalLinearAdjustment;
+pub use temporal_mediation::{
+    TemporalEffectSurface, TemporalMediationEstimate, TemporalMediationEstimator,
+};
+pub use util::BootstrapSeResult;

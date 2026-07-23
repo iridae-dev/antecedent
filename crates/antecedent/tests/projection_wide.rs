@@ -7,15 +7,15 @@
 use std::sync::Arc;
 
 use antecedent::CausalAnalysis;
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{
+use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
 };
-use causal_graph::{Dag, DenseNodeId};
-use causal_kernels::standard_normal;
+use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_kernels::standard_normal;
 
 fn wide_confounded_scm(
     n: usize,

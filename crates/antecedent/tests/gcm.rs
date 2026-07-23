@@ -17,12 +17,14 @@ use antecedent::gcm::{
     MechanismWorkspace, WeightingDoSampler, anomaly_attribution, arrow_strengths,
     counterfactual_ite, fit_gcm, sample_do, streaming_matches_retained,
 };
-use causal_core::{
+use antecedent_core::{
     CausalRng, CausalSchemaBuilder, ExecutionContext, Intervention, MeasurementSpec, RoleHint,
     SmallRoleSet, Value, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_graph::{Dag, DenseNodeId};
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_graph::{Dag, DenseNodeId};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
@@ -100,7 +102,7 @@ fn gcm_fit_intervene() {
 #[test]
 fn gcm_interventional_distribution_query() {
     use antecedent::gcm::sample_interventional_distribution;
-    use causal_core::InterventionalDistributionQuery;
+    use antecedent_core::InterventionalDistributionQuery;
 
     let expected = load_expected("gcm_fit_intervene");
     let true_mean = expected["true_interventional_mean_y"].as_f64().unwrap();
@@ -122,8 +124,8 @@ fn gcm_interventional_distribution_query() {
 #[test]
 fn gcm_path_specific_query() {
     use antecedent::gcm::attribute_path_specific;
-    use causal_core::PathSpecificEffectQuery;
-    use causal_model::{CompiledCausalModel, MechanismRegistry, SelectionPolicy};
+    use antecedent_core::PathSpecificEffectQuery;
+    use antecedent_model::{CompiledCausalModel, MechanismRegistry, SelectionPolicy};
 
     let n = 40usize;
     let mut b = CausalSchemaBuilder::new();

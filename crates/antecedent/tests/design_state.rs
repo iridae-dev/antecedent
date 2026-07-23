@@ -14,13 +14,13 @@ use antecedent::state::{
     CausalState, DataVersion, GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LgssmParams,
     LinearOlsSuffStats, LocalScoreCache, ParentSetOp, ParticleFilterState,
     RollingMechanismDiagnostics, StateEvent, apply_state_event, full_graph_score,
-    insert_mechanism_diag, new_causal_state,
+    insert_mechanism_diag, new_antecedent_state,
 };
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CacheBudget, CausalQuery, ExecutionContext, QueryId, VariableId,
 };
-use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
-use causal_state::DataBatchRef;
+use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
+use antecedent_state::DataBatchRef;
 use serde_json::Value;
 
 fn fixture(name: &str) -> PathBuf {
@@ -104,7 +104,7 @@ fn incremental_ols_match_conformance() {
     let expected: Value =
         serde_json::from_str(&fs::read_to_string(fixture("incremental_ols_match")).unwrap())
             .unwrap();
-    let mut state = new_causal_state(CacheBudget::unlimited());
+    let mut state = new_antecedent_state(CacheBudget::unlimited());
     let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
         VariableId::from_raw(0),
         VariableId::from_raw(1),
@@ -208,7 +208,7 @@ fn incremental_particle_filter_match_conformance() {
         obs_std: expected["obs_std"].as_f64().unwrap(),
     };
     // Deterministic synthetic observations (same generator as unit test).
-    let mut rng = causal_core::CausalRng::from_seed(expected["obs_seed"].as_u64().unwrap());
+    let mut rng = antecedent_core::CausalRng::from_seed(expected["obs_seed"].as_u64().unwrap());
     let mut x = 0.0;
     let mut ys = Vec::with_capacity(n);
     for _ in 0..n {
@@ -240,7 +240,7 @@ fn rolling_mechanism_diag_match_conformance() {
     let window = usize::try_from(expected["window"].as_u64().unwrap()).expect("fixture window");
     let n_rows = usize::try_from(expected["n_rows"].as_u64().unwrap()).expect("fixture n_rows");
     let tol = expected["stable_float_tol"].as_f64().unwrap();
-    let mut state: CausalState = new_causal_state(CacheBudget::new(1024 * 1024));
+    let mut state: CausalState = new_antecedent_state(CacheBudget::new(1024 * 1024));
     let key: Arc<str> = Arc::from("mech");
     let mut diag = RollingMechanismDiagnostics::new(2, window).unwrap();
     let mut all_rows = Vec::new();
@@ -305,7 +305,7 @@ fn rolling_mechanism_diag_match_conformance() {
 
 #[test]
 fn state_cache_budget_and_stale_queries() {
-    let mut state: CausalState = new_causal_state(CacheBudget::new(16));
+    let mut state: CausalState = new_antecedent_state(CacheBudget::new(16));
     let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
         VariableId::from_raw(0),
         VariableId::from_raw(1),

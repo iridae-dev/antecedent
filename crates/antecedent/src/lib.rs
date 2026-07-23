@@ -92,16 +92,16 @@ pub use result::CausalAnalysisResult;
 mod tests {
     use std::sync::Arc;
 
-    use causal_core::{
+    use antecedent_core::{
         AverageEffectQuery, CausalQuery, CausalSchemaBuilder, ExecutionContext, Intervention,
         InterventionalDistributionQuery, MeasurementSpec, PathSpecificEffectQuery, RoleHint,
         SmallRoleSet, Value, ValueType, VariableId,
     };
-    use causal_data::{
+    use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
-    use causal_graph::{Dag, DenseNodeId};
-    use causal_kernels::standard_normal;
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_kernels::standard_normal;
 
     use super::*;
     use crate::validate::PredictiveCheckKind;
@@ -203,8 +203,8 @@ mod tests {
         assert_eq!(&*trace.method, "backdoor.adjustment");
         assert!(!trace.assumptions.is_empty());
         assert!(!trace.derivation.is_empty());
-        let bytes = causal_io::to_cbor(&trace).unwrap();
-        let round: causal_io::AnalysisTraceWire = causal_io::from_cbor(&bytes).unwrap();
+        let bytes = antecedent_io::to_cbor(&trace).unwrap();
+        let round: antecedent_io::AnalysisTraceWire = antecedent_io::from_cbor(&bytes).unwrap();
         assert_eq!(round.method, trace.method);
     }
 
@@ -667,9 +667,9 @@ mod tests {
 
     #[test]
     fn end_to_end_temporal_effect() {
-        use causal_core::{Lag, TemporalEffectQuery, TemporalPolicy};
-        use causal_data::{SamplingRegularity, TimeIndex, TimeSeriesData};
-        use causal_graph::{TemporalDag, ensure_lagged};
+        use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy};
+        use antecedent_data::{SamplingRegularity, TimeIndex, TimeSeriesData};
+        use antecedent_graph::{TemporalDag, ensure_lagged};
 
         let n = 250usize;
         let mut b = CausalSchemaBuilder::new();

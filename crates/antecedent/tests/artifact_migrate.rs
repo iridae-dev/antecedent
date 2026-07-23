@@ -6,13 +6,13 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal_core::{
+use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, VERSION,
     ValueType,
 };
-use causal_graph::{Dag, DenseNodeId};
-use causal_io::{
+use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_io::{
     AnalysisTraceWire, ArtifactKind, ArtifactManifest, CausalPosteriorWire, DerivationStepWire,
     EncodedArtifact, FormatVersion, PosteriorQuantityWire, ProvenanceWire, STABLE_FORMAT,
     SchemaWire, SchemaWireV01, SectionBytes, SemanticVersion, assumptions_to_wire, dag_to_wire,

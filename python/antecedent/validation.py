@@ -1,6 +1,6 @@
 """Discovery stability validators.
 
-Thin wrappers over ``causal-validate`` stability checks (PCMCI block bootstrap,
+Thin wrappers over ``antecedent-validate`` stability checks (PCMCI block bootstrap,
 false-positive surrogates, parameter grids, orientation, null calibration,
 environment holdout, regime stability).
 """

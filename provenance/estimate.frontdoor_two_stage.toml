@@ -1,5 +1,5 @@
 feature_id = "estimate.frontdoor_two_stage"
-implementation_crate = "causal-estimate"
+implementation_crate = "antecedent-estimate"
 source_translation = false
 copied_code = false
 copied_comments = false
@@ -15,5 +15,5 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "independently generated synthetic SCM with U->T, U->Y unmeasured confounding and T->M->Y mediation (no direct T->Y edge), mirroring causal-identify's front-door criterion test fixture, with known structural effect through the mediator path",
+ "independently generated synthetic SCM with U->T, U->Y unmeasured confounding and T->M->Y mediation (no direct T->Y edge), mirroring antecedent-identify's front-door criterion test fixture, with known structural effect through the mediator path",
 ]

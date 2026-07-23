@@ -10,7 +10,7 @@ notes = "Shipped pinned baseline rows are done across inventories; no waiver voc
 [[capabilities]]
 id = "release.graph_dot_json"
 status = "done"
-notes = "DOT + JSON + GML + NetworkX DAG interchange in causal-io"
+notes = "DOT + JSON + GML + NetworkX DAG interchange in antecedent-io"
 
 [[capabilities]]
 id = "release.artifact_schema"

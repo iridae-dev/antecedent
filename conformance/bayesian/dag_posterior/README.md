@@ -6,7 +6,7 @@ SEMs. Facade composition: `discovery=ExactDagPosterior|OrderMcmc|StructureMcmc|C
 (Python `analyze`); temporal analog uses `discovery=DbnPosterior` with
 `PulseEffect`/`SustainedEffect`.
 
-Exercised by `causal-discovery` unit tests:
+Exercised by `antecedent-discovery` unit tests:
 `exact_enumeration`, `structure_mcmc`, `order_mcmc`, `ci_screened_posterior`,
 `dbn_posterior`; facade: `bayesian_exact_dag_posterior_effect_envelope`,
 `manufacturing_dbn_posterior_bayesian_envelope`, Python

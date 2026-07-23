@@ -49,7 +49,7 @@ def test_exceptions_subclass_causal_error():
     assert issubclass(antecedent.CausalStateError, antecedent.CausalError)
 
 
-def test_causal_state_append_smoke():
-    version, stale = antecedent.state.causal_state_append(n_appends=2)
+def test_antecedent_state_append_smoke():
+    version, stale = antecedent.state.antecedent_state_append(n_appends=2)
     assert version >= 1
     assert stale >= 0

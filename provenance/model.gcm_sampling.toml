@@ -1,5 +1,5 @@
 feature_id = "model.gcm_sampling"
-implementation_crate = "causal-model"
+implementation_crate = "antecedent-model"
 source_translation = false
 copied_code = false
 copied_comments = false
@@ -14,5 +14,5 @@ upstream_implementations_observed = ["DoWhy-GCM"]
 test_sources = [
  "conformance/gcm/gcm_fit_intervene",
  "conformance/gcm/do_sampling_weighting",
- "crates/causal-model/benches/sample_overlay.rs",
+ "crates/antecedent-model/benches/sample_overlay.rs",
 ]

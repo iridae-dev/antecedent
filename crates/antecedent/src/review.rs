@@ -4,9 +4,9 @@
 
 #![allow(clippy::cast_possible_truncation)]
 
-use causal_core::{ExecutionContext, TemporalEffectQuery};
-use causal_data::{DiscoveryEstimationSplit, TableView, TemporalNodeKey, TimeSeriesData};
-use causal_graph::{
+use antecedent_core::{ExecutionContext, TemporalEffectQuery};
+use antecedent_data::{DiscoveryEstimationSplit, TableView, TemporalNodeKey, TimeSeriesData};
+use antecedent_graph::{
     CpdagReview, DagReview, DenseNodeId, PagReview, TemporalCpdagReview, TemporalDag,
     TemporalGraphReview, TemporalPagReview,
 };
@@ -307,8 +307,8 @@ pub fn ensure_review_complete(plan: &LogicalAnalysisPlan) -> Result<(), CausalEr
 
 #[cfg(test)]
 mod tests {
-    use causal_core::{Lag, TemporalEffectQuery, VariableId};
-    use causal_graph::{TemporalCpdag, TemporalDag, TemporalGraphReview, ensure_lagged};
+    use antecedent_core::{Lag, TemporalEffectQuery, VariableId};
+    use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalGraphReview, ensure_lagged};
 
     use super::*;
 
@@ -324,9 +324,9 @@ mod tests {
     fn incomplete_review_blocks_estimation_flag() {
         assert!(matches!(
             ensure_review_complete(&LogicalAnalysisPlan {
-                record: causal_core::LogicalAnalysisPlanRecord {
+                record: antecedent_core::LogicalAnalysisPlanRecord {
                     plan_id: std::sync::Arc::from("t"),
-                    data_classification: causal_core::DataClassification::Temporal,
+                    data_classification: antecedent_core::DataClassification::Temporal,
                     discovery_algorithm: Some(std::sync::Arc::from("pcmci")),
                     graph_review_required: true,
                     identifier: None,
@@ -334,7 +334,7 @@ mod tests {
                     validation_suite: None,
                     query_variables: std::sync::Arc::from([]),
                 },
-                query: causal_core::CausalQuery::TemporalEffect(TemporalEffectQuery::pulse(
+                query: antecedent_core::CausalQuery::TemporalEffect(TemporalEffectQuery::pulse(
                     VariableId::from_raw(0),
                     VariableId::from_raw(1),
                     1.0,

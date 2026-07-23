@@ -30,8 +30,8 @@ use antecedent::io::{
     pag_to_json as facade_pag_to_json,
     pag_to_networkx_node_link as facade_pag_to_networkx_node_link,
 };
-use causal_core::{Lag, VariableId};
-use causal_graph::{
+use antecedent_core::{Lag, VariableId};
+use antecedent_graph::{
     Dag as RustDag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef,
     TemporalDag as RustTemporalDag, ensure_lagged,
 };
@@ -228,7 +228,7 @@ impl Dag {
     /// Whether ``x`` is d-separated from ``y`` given ``z``.
     #[pyo3(signature = (x, y, z=None))]
     fn d_separated(&self, x: &str, y: &str, z: Option<Vec<String>>) -> PyResult<bool> {
-        use causal_graph::DSeparationWorkspace;
+        use antecedent_graph::DSeparationWorkspace;
         let xid = self.name_index(x)?;
         let yid = self.name_index(y)?;
         let mut zids = Vec::new();
@@ -263,7 +263,7 @@ impl Dag {
 #[pyclass(name = "Cpdag", from_py_object)]
 #[derive(Clone)]
 pub struct Cpdag {
-    pub(crate) cpdag: causal_graph::Cpdag,
+    pub(crate) cpdag: antecedent_graph::Cpdag,
     pub(crate) names: Vec<String>,
 }
 
@@ -284,7 +284,7 @@ impl Cpdag {
         undirected: Option<Vec<(String, String)>>,
     ) -> PyResult<Self> {
         let n = u32::try_from(names.len()).map_err(|_| PyValueError::new_err("too many nodes"))?;
-        let mut g = causal_graph::Cpdag::with_variables(n);
+        let mut g = antecedent_graph::Cpdag::with_variables(n);
         for (from, to) in &directed {
             let f = resolve_name_index(&names, from)?;
             let t = resolve_name_index(&names, to)?;
@@ -307,7 +307,7 @@ impl Cpdag {
         edges: Vec<(String, String, String)>,
     ) -> PyResult<Self> {
         let n = u32::try_from(names.len()).map_err(|_| PyValueError::new_err("too many nodes"))?;
-        let mut g = causal_graph::Cpdag::with_variables(n);
+        let mut g = antecedent_graph::Cpdag::with_variables(n);
         for (from, to, kind) in &edges {
             let f = resolve_name_index(&names, from)?;
             let t = resolve_name_index(&names, to)?;
@@ -426,7 +426,7 @@ impl Cpdag {
 #[pyclass(name = "Pag", from_py_object)]
 #[derive(Clone)]
 pub struct Pag {
-    pub(crate) pag: causal_graph::Pag,
+    pub(crate) pag: antecedent_graph::Pag,
     pub(crate) names: Vec<String>,
 }
 
@@ -445,7 +445,7 @@ impl Pag {
         edges: Vec<(String, String, String, String)>,
     ) -> PyResult<Self> {
         let n = u32::try_from(names.len()).map_err(|_| PyValueError::new_err("too many nodes"))?;
-        let mut g = causal_graph::Pag::with_variables(n);
+        let mut g = antecedent_graph::Pag::with_variables(n);
         for (a, b, at_a, at_b) in &edges {
             let ia = resolve_name_index(&names, a)?;
             let ib = resolve_name_index(&names, b)?;
@@ -561,7 +561,7 @@ impl Pag {
 #[pyclass(name = "Admg", from_py_object)]
 #[derive(Clone)]
 pub struct Admg {
-    pub(crate) admg: causal_graph::Admg,
+    pub(crate) admg: antecedent_graph::Admg,
     pub(crate) names: Vec<String>,
 }
 
@@ -582,7 +582,7 @@ impl Admg {
         bidirected: Option<Vec<(String, String)>>,
     ) -> PyResult<Self> {
         let n = u32::try_from(names.len()).map_err(|_| PyValueError::new_err("too many nodes"))?;
-        let mut g = causal_graph::Admg::with_variables(n);
+        let mut g = antecedent_graph::Admg::with_variables(n);
         for (from, to) in &directed {
             let f = resolve_name_index(&names, from)?;
             let t = resolve_name_index(&names, to)?;
@@ -668,7 +668,7 @@ impl Admg {
     /// Whether ``x`` is m-separated from ``y`` given ``z``.
     #[pyo3(signature = (x, y, z=None))]
     fn m_separated(&self, x: &str, y: &str, z: Option<Vec<String>>) -> PyResult<bool> {
-        use causal_graph::DSeparationWorkspace;
+        use antecedent_graph::DSeparationWorkspace;
         let xid = self.name_index(x)?;
         let yid = self.name_index(y)?;
         let mut zids = Vec::new();
@@ -783,7 +783,7 @@ impl TemporalDag {
 #[pyclass(name = "TemporalCpdag", from_py_object)]
 #[derive(Clone)]
 pub struct TemporalCpdag {
-    pub(crate) cpdag: causal_graph::TemporalCpdag,
+    pub(crate) cpdag: antecedent_graph::TemporalCpdag,
     pub(crate) names: Vec<String>,
 }
 
@@ -796,7 +796,7 @@ impl TemporalCpdag {
         directed: Vec<(String, u32, String, u32)>,
         undirected: Option<Vec<(String, u32, String, u32)>>,
     ) -> PyResult<Self> {
-        let mut g = causal_graph::TemporalCpdag::empty();
+        let mut g = antecedent_graph::TemporalCpdag::empty();
         let var_of = |nm: &str| -> PyResult<VariableId> {
             names
                 .iter()
@@ -837,7 +837,7 @@ impl TemporalCpdag {
 #[pyclass(name = "TemporalPag", from_py_object)]
 #[derive(Clone)]
 pub struct TemporalPag {
-    pub(crate) pag: causal_graph::TemporalPag,
+    pub(crate) pag: antecedent_graph::TemporalPag,
     pub(crate) names: Vec<String>,
 }
 
@@ -849,7 +849,7 @@ impl TemporalPag {
         names: Vec<String>,
         edges: Vec<(String, u32, String, u32, String, String)>,
     ) -> PyResult<Self> {
-        let mut g = causal_graph::TemporalPag::empty();
+        let mut g = antecedent_graph::TemporalPag::empty();
         let var_of = |nm: &str| -> PyResult<VariableId> {
             names
                 .iter()
@@ -882,7 +882,7 @@ impl TemporalPag {
 }
 
 fn ensure_lagged_cpdag(
-    g: &mut causal_graph::TemporalCpdag,
+    g: &mut antecedent_graph::TemporalCpdag,
     variable: VariableId,
     lag: Lag,
 ) -> PyResult<DenseNodeId> {
@@ -898,7 +898,7 @@ fn ensure_lagged_cpdag(
 }
 
 fn ensure_lagged_pag(
-    g: &mut causal_graph::TemporalPag,
+    g: &mut antecedent_graph::TemporalPag,
     variable: VariableId,
     lag: Lag,
 ) -> PyResult<DenseNodeId> {

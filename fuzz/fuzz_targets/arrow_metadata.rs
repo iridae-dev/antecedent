@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use arrow_array::{ArrayRef, Float64Array, Int32Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
-use causal_data::tabular_from_record_batch;
+use antecedent_data::tabular_from_record_batch;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

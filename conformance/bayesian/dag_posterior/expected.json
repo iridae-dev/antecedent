@@ -27,7 +27,7 @@
   },
   "reference": {
     "project": "causal-library",
-    "command": "cargo test -p causal-discovery --lib exact_enumeration:: structure_mcmc:: order_mcmc:: ci_screened_posterior:: dbn_posterior::",
+    "command": "cargo test -p antecedent-discovery --lib exact_enumeration:: structure_mcmc:: order_mcmc:: ci_screened_posterior:: dbn_posterior::",
     "notes": "Native Gaussian-BIC graph posterior; no external oracle package"
   }
 }

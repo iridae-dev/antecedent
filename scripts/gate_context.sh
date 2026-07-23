@@ -29,15 +29,15 @@ def caps(text: str):
     return out
 
 EVIDENCE = {
-    "context.panel_data": "crates/causal-data/src/panel.rs",
-    "context.context_graph": "crates/causal-graph/src/cpdag.rs",
+    "context.panel_data": "crates/antecedent-data/src/panel.rs",
+    "context.context_graph": "crates/antecedent-graph/src/cpdag.rs",
     "context.jpcmci_plus": "crates/antecedent/tests/context_effects.rs",
     "context.rpcmci": "crates/antecedent/tests/context_effects.rs",
     "context.mediation": "crates/antecedent/tests/context_effects.rs",
-    "context.mediation.nonparametric": "crates/causal-identify/src/path_specific.rs",
+    "context.mediation.nonparametric": "crates/antecedent-identify/src/path_specific.rs",
     "context.conditional": "crates/antecedent/tests/context_effects.rs",
     "context.prediction": "crates/antecedent/tests/context_effects.rs",
-    "context.query_model_planned_variants": "crates/causal-io/src/query_wire.rs",
+    "context.query_model_planned_variants": "crates/antecedent-io/src/query_wire.rs",
 }
 
 missing = []
@@ -61,8 +61,8 @@ for path in [
     "conformance/context/temporal_mediation/expected.json",
     "conformance/context/conditional_effect/expected.json",
     "conformance/context/prediction_smoke/expected.json",
-    "crates/causal-discovery/benches/rpcmci.rs",
-    "crates/causal-estimate/benches/temporal_mediation.rs",
+    "crates/antecedent-discovery/benches/rpcmci.rs",
+    "crates/antecedent-estimate/benches/temporal_mediation.rs",
     "benches/baselines/regime_mediation.md",
     "parity/context.toml",
 ]:
@@ -102,15 +102,15 @@ print("Context inventory evidence map OK")
 PY
 
 echo "== cargo test data / discovery / estimate / identify / facade context =="
-cargo test -p causal-data --lib
-cargo test -p causal-discovery --lib
-cargo test -p causal-estimate --lib
-cargo test -p causal-identify --lib temporal_mediation::
+cargo test -p antecedent-data --lib
+cargo test -p antecedent-discovery --lib
+cargo test -p antecedent-estimate --lib
+cargo test -p antecedent-identify --lib temporal_mediation::
 cargo test -p antecedent --test context_effects
 
 echo "== criterion smoke (regime + mediation) =="
-cargo bench -p causal-discovery --bench rpcmci -- --test
-cargo bench -p causal-estimate --bench temporal_mediation -- --test
+cargo bench -p antecedent-discovery --bench rpcmci -- --test
+cargo bench -p antecedent-estimate --bench temporal_mediation -- --test
 
 echo "== Python EventFrame / panel pooled discovery facade smoke =="
 if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then

@@ -13,13 +13,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use antecedent::CausalAnalysis;
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_graph::{Dag, DenseNodeId};
-use causal_kernels::standard_normal;
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_kernels::standard_normal;
 use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
@@ -241,7 +243,7 @@ fn run_static(name: &str, data: TabularData, graph: Dag, query: AverageEffectQue
 #[test]
 fn estimate_propensity_matching_recovers_att() {
     let (data, graph, mut query) = propensity_ipw_scm(1500, 11);
-    query = query.with_target_population(causal_core::TargetPopulation::Treated);
+    query = query.with_target_population(antecedent_core::TargetPopulation::Treated);
     run_static("propensity_matching", data, graph, query, 12);
 }
 
@@ -254,7 +256,7 @@ fn estimate_propensity_stratification_recovers_ate() {
 #[test]
 fn estimate_distance_matching_recovers_att() {
     let (data, graph, mut query) = propensity_ipw_scm(1500, 15);
-    query = query.with_target_population(causal_core::TargetPopulation::Treated);
+    query = query.with_target_population(antecedent_core::TargetPopulation::Treated);
     run_static("distance_matching", data, graph, query, 16);
 }
 

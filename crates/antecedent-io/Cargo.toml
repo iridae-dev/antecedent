@@ -1,0 +1,38 @@
+[package]
+name = "antecedent-io"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Versioned artifact container and wire types for Antecedent"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+antecedent-core = { version = "0.1.0", path = "../antecedent-core" }
+antecedent-data = { version = "0.1.0", path = "../antecedent-data" }
+antecedent-discovery = { version = "0.1.0", path = "../antecedent-discovery" }
+antecedent-estimate = { version = "0.1.0", path = "../antecedent-estimate" }
+antecedent-expr = { version = "0.1.0", path = "../antecedent-expr" }
+antecedent-graph = { version = "0.1.0", path = "../antecedent-graph" }
+antecedent-identify = { version = "0.1.0", path = "../antecedent-identify" }
+antecedent-model = { version = "0.1.0", path = "../antecedent-model" }
+antecedent-prob = { version = "0.1.0", path = "../antecedent-prob" }
+antecedent-validate = { version = "0.1.0", path = "../antecedent-validate" }
+blake3 = { workspace = true }
+ciborium = { workspace = true }
+memmap2 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+zstd = { workspace = true }
+
+[dev-dependencies]
