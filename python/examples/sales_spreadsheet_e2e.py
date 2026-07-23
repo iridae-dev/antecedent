@@ -18,7 +18,7 @@ import math
 
 import numpy as np
 
-import causal
+import antecedent
 
 
 def _sales_static(n: int = 400, seed: int = 7):

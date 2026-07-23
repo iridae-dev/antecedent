@@ -5,14 +5,14 @@ Rust and Python expose the **same capabilities** with idiomatic shapes on each s
 
 | Capability | Rust | Python |
 |---|---|---|
-| Day-1 import | `use causal::prelude::*` | `import causal` |
-| Run analysis | `CausalAnalysis::builder()…run(&ctx)` | `causal.analyze(data, graph=…, query=…)` |
+| Day-1 import | `use causal::prelude::*` | `import antecedent` |
+| Run analysis | `CausalAnalysis::builder()…run(&ctx)` | `antecedent.analyze(data, graph=…, query=…)` |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |
 | Mediation (temporal) | `MediationQuery` + temporal data | `TemporalMediationEffect` |
 | Counterfactual ITE | `CausalQuery::Counterfactual` / `gcm::counterfactual_ite` | `Counterfactual` on `analyze` / `FittedGcm.counterfactual_ite` |
-| Identify only | `CausalAnalysis::identify_only` | `causal.identify(graph=…, query=…)` |
+| Identify only | `CausalAnalysis::identify_only` | `antecedent.identify(graph=…, query=…)` |
 | Identifier strategy | `IdentifierId::BackdoorAdjustment` | `Identifier.BACKDOOR_ADJUSTMENT` / `"backdoor.adjustment"` |
 | Estimator strategy | `EstimatorId::LinearAdjustmentAte` | `Estimator.LINEAR_ADJUSTMENT_ATE` / `"linear.adjustment.ate"` |
 | Inference | `InferenceMode::Bayesian(BayesianConfig::…)` | `Bayesian(...)` / `Frequentist()` |
@@ -25,7 +25,7 @@ Rust and Python expose the **same capabilities** with idiomatic shapes on each s
 | Latency tier | `LatencyMode::Interactive` | `Latency.INTERACTIVE` / `"interactive"` |
 | Refute suite | `RefuteSuite::…` | `Refute.FULL` / `bool` / `"placebo"` |
 | Plan inspection | `result.logical_plan()` / `PreparedAnalysis::plan()` | `result.plan` / `PreparedAnalysis.plan` |
-| Stage modules | `causal::discovery`, `causal::gcm`, `causal::io` | `causal.discovery`, `causal.gcm`, `causal.graph` |
+| Stage modules | `causal::discovery`, `causal::gcm`, `causal::io` | `antecedent.discovery`, `antecedent.gcm`, `antecedent.graph` |
 
 Prefer package / module paths for stage depth; keep day-1 at the crate / package root.
 Rust stage APIs are **not** re-exported at the crate root — use `causal::io::…`, `causal::discovery::…`, `causal::gcm::…`, etc.

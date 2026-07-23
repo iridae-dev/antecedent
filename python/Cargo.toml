@@ -6,11 +6,11 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Python extension for causal-library (PyO3)"
+description = "Antecedent Python extension (PyO3)"
 publish = false
 
 [lib]
-name = "causal"
+name = "antecedent"
 crate-type = ["cdylib"]
 
 [lints]

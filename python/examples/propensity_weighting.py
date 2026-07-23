@@ -16,7 +16,7 @@ import random
 
 import numpy as np
 
-from causal import AverageEffect, analyze
+from antecedent import AverageEffect, analyze
 
 
 def main() -> None:

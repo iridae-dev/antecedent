@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import causal
+import antecedent
 
 
 def test_rd_sharp_via_analyze():

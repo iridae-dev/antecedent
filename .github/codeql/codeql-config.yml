@@ -1,6 +1,6 @@
-# CodeQL advanced-setup config for causal-library.
+# CodeQL advanced-setup config for antecedent.
 # Query suites are selected by the workflow / gate (security-and-quality).
-name: causal-library CodeQL
+name: antecedent CodeQL
 
 paths-ignore:
   - "**/target/**"

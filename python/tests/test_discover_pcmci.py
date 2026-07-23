@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-pytest.importorskip("causal")
-import causal
+pytest.importorskip("antecedent")
+import antecedent
 
 SCHEMA_FIELDS = {
     "links",

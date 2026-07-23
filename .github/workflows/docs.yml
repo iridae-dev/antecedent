@@ -52,7 +52,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install python/dist/*.whl pdoc
           mkdir -p site/python
-          pdoc causal -o site/python
+          pdoc antecedent -o site/python
 
       - name: Pack docs.tar.gz
         run: |

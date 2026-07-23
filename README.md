@@ -1,14 +1,14 @@
-# Causal
+# Antecedent
 
 **Fast, explicit causal inference for Python and Rust.**
 
 Discovery, identification, estimation, counterfactuals, attribution, and validation in one API—across tabular, temporal, panel, multi-environment, and event data.
 
 ```python
-result = causal.analyze(
+result = antecedent.analyze(
     data,
     graph=graph,
-    query=causal.AverageEffect(
+    query=antecedent.AverageEffect(
         treatment="price",
         outcome="demand",
     ),
@@ -26,7 +26,8 @@ Identify first. Estimate second. Estimators never silently choose confounders or
 **Python** (CPython 3.11–3.14; wheels for Linux, macOS, Windows).
 
 Private builds publish to **GitHub Packages** and as assets on each GitHub
-Release (`vX.Y.Z`). Public PyPI is not used yet.
+Release (`vX.Y.Z`). Public PyPI is not used yet; the distribution name is
+`antecedent`.
 
 GitHub Packages (replace `OWNER` / use a PAT with `read:packages`):
 
@@ -34,52 +35,54 @@ GitHub Packages (replace `OWNER` / use a PAT with `read:packages`):
 # uv
 export UV_INDEX_GITHUB_USERNAME=TOKEN
 export UV_INDEX_GITHUB_PASSWORD=ghp_...   # or fine-scoped token
-uv add causal --index https://pypi.pkg.github.com/OWNER/causal-library/simple/
+uv add antecedent --index https://pypi.pkg.github.com/OWNER/antecedent/simple/
 ```
 
 ```toml
 # pyproject.toml (uv)
 [[tool.uv.index]]
 name = "github"
-url = "https://pypi.pkg.github.com/OWNER/causal-library/simple/"
+url = "https://pypi.pkg.github.com/OWNER/antecedent/simple/"
 authenticate = "always"
 
 [tool.uv.sources]
-causal = { index = "github" }
+antecedent = { index = "github" }
 ```
 
 ```bash
 # pip
-pip install causal \
-  --index-url https://OWNER:ghp_...@pypi.pkg.github.com/OWNER/causal-library/simple/
+pip install antecedent \
+  --index-url https://OWNER:ghp_...@pypi.pkg.github.com/OWNER/antecedent/simple/
 ```
 
 Or download the platform wheel from the Release assets and
-`pip install ./causal-*.whl`.
+`pip install ./antecedent-*.whl`.
 
 **Rust** (1.85+, edition 2024): path or git dependency while crates stay private
 (`publish = false` on the Python extension crate; library crates are not on
-crates.io yet):
+crates.io yet). The facade crate is still named `causal` in this workspace;
+the public product name is **Antecedent**.
 
 ```toml
-causal = { git = "ssh://git@github.com/OWNER/causal-library.git" }
+causal = { git = "ssh://git@github.com/OWNER/antecedent.git" }
 ```
 
 See [docs/development.md](docs/development.md) for tagging releases and the
 repo-create checklist.
+
 ## Python quick start
 
 ```python
-import causal
+import antecedent
 
-result = causal.analyze(
+result = antecedent.analyze(
     data,  # prefer PyArrow / Arrow CDI for interactive; pandas remains correct
     graph=[("z", "campaign"), ("z", "revenue"), ("campaign", "revenue")],
-    query=causal.AverageEffect(
+    query=antecedent.AverageEffect(
         treatment="campaign",
         outcome="revenue",
     ),
-    inference=causal.Frequentist(),
+    inference=antecedent.Frequentist(),
     latency="interactive",  # optional: analytic/cheap path; pass Arrow for zero-copy
 )
 
@@ -91,13 +94,13 @@ Stages are available separately: `identification`, `estimate`, `posterior`, `val
 Temporal discovery then estimation:
 
 ```python
-discovered = causal.discover_pcmci(
+discovered = antecedent.discover_pcmci(
     names, columns, max_lag=12, alpha=0.05, seed=1
 )
-result = causal.analyze(
+result = antecedent.analyze(
     {"pressure": pressure, "defect": defect},
     graph=[("pressure", 1, "defect", 0)],
-    query=causal.PulseEffect(
+    query=antecedent.PulseEffect(
         treatment="pressure",
         outcome="defect",
         active_level=-0.03,

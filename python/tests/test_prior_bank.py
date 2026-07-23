@@ -7,8 +7,8 @@ import math
 import numpy as np
 import pytest
 
-pytest.importorskip("causal")
-import causal
+pytest.importorskip("antecedent")
+import antecedent
 
 
 def _confounded(n: int = 120, seed: int = 7):

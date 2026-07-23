@@ -15,7 +15,7 @@ import random
 
 import numpy as np
 
-import causal
+import antecedent
 
 
 def _confounded_scm(n: int = 500, seed: int = 7):

@@ -12,11 +12,11 @@ import numpy as np
 import pytest
 
 pytest.importorskip("pyarrow")
-pytest.importorskip("causal")
+pytest.importorskip("antecedent")
 
 import pyarrow as pa
 
-import causal
+import antecedent
 
 
 def _confounded_scm(n: int = 600, seed: int = 7):

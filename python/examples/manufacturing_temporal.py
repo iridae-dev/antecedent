@@ -10,7 +10,7 @@ import math
 
 import numpy as np
 
-from causal import PulseEffect, analyze
+from antecedent import PulseEffect, analyze
 
 
 def main() -> None:
