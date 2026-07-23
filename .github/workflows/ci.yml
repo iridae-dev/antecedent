@@ -69,7 +69,7 @@ jobs:
           done < <(git rev-list "$RANGE")
 
   # : CPython 3.11–3.14; Linux x86_64/aarch64 manylinux;
-  # macOS x86_64/arm64; Windows x86_64. Default faer path (no system BLAS).
+  # macOS arm64; Windows x86_64. Default faer path (no system BLAS).
   python-wheels:
     name: Wheel ${{ matrix.os }} py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
@@ -111,22 +111,6 @@ jobs:
             python: "3.14"
             target: aarch64
             manylinux: auto
-          - os: macos-13
-            python: "3.11"
-            target: x86_64
-            manylinux: ""
-          - os: macos-13
-            python: "3.12"
-            target: x86_64
-            manylinux: ""
-          - os: macos-13
-            python: "3.13"
-            target: x86_64
-            manylinux: ""
-          - os: macos-13
-            python: "3.14"
-            target: x86_64
-            manylinux: ""
           - os: macos-14
             python: "3.11"
             target: aarch64
