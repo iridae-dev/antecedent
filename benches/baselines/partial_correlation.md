@@ -25,5 +25,5 @@ the same machine class require an approved explanation and replacement baseline
 ## How to refresh
 
 ```bash
-cargo +1.85 bench -p causal-kernels --bench partial_correlation
+cargo +1.85 bench -p antecedent-kernels --bench partial_correlation
 ```

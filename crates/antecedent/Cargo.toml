@@ -1,0 +1,40 @@
+[package]
+name = "antecedent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Antecedent — explicit causal inference facade (identify → estimate → refute)"
+readme = "README.md"
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+causal-core = { version = "0.1.0", path = "../causal-core" }
+causal-data = { version = "0.1.0", path = "../causal-data" }
+causal-discovery = { version = "0.1.0", path = "../causal-discovery" }
+causal-estimate = { version = "0.1.0", path = "../causal-estimate" }
+causal-expr = { version = "0.1.0", path = "../causal-expr" }
+causal-graph = { version = "0.1.0", path = "../causal-graph" }
+causal-identify = { version = "0.1.0", path = "../causal-identify" }
+causal-io = { version = "0.1.0", path = "../causal-io" }
+causal-prob = { version = "0.1.0", path = "../causal-prob" }
+causal-stats = { version = "0.1.0", path = "../causal-stats" }
+causal-validate = { version = "0.1.0", path = "../causal-validate" }
+causal-model = { version = "0.1.0", path = "../causal-model" }
+causal-counterfactual = { version = "0.1.0", path = "../causal-counterfactual" }
+causal-attribution = { version = "0.1.0", path = "../causal-attribution" }
+causal-design = { version = "0.1.0", path = "../causal-design" }
+causal-state = { version = "0.1.0", path = "../causal-state" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+causal-kernels = { version = "0.1.0", path = "../causal-kernels" }
+serde_json = { workspace = true }

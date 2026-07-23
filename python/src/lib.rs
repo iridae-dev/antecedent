@@ -36,10 +36,8 @@ use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 
-use arrow_array::{Float64Array, RecordBatch};
-use arrow_schema::{DataType, Field, Schema};
-use causal::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
-use causal::discovery::{
+use antecedent::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
+use antecedent::discovery::{
     DiscoverParams, DiscoveryPerformanceRecord, MultiDatasetConstraints, RegimeAssignment,
     ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
     discover_fci as facade_discover_fci, discover_ges as facade_discover_ges,
@@ -50,8 +48,8 @@ use causal::discovery::{
     discover_rpcmci as facade_discover_rpcmci, pag_definite_directed_edge_count,
     two_regime_half_split,
 };
-use causal::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
-use causal::gcm::{
+use antecedent::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
+use antecedent::gcm::{
     CompiledCausalModel, DifferenceMeasure, DistributionChangeOptions, StructureChangeOptions,
     anomaly_attribution as facade_anomaly_attribution,
     attribute_distribution_change as facade_attribute_distribution_change,
@@ -64,17 +62,19 @@ use causal::gcm::{
     mechanism_change_detection as facade_mechanism_change_detection, sample_do as facade_sample_do,
     sample_interventional_distribution as facade_sample_interventional_distribution,
 };
-use causal::io::{
+use antecedent::io::{
     dag_from_dot as facade_dag_from_dot,
     dag_from_networkx_adjacency as facade_dag_from_networkx_adjacency,
     dag_to_dot as facade_dag_to_dot, dag_to_json as facade_dag_to_json,
     dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency, decode_causal_posterior_bytes,
     encode_causal_posterior_bytes,
 };
-use causal::{
+use antecedent::{
     BayesianConfig, CausalAnalysis, CausalError as RustCausalError, DiscoveryAccept, EstimatorId,
     FdrControl, GraphInput, IdentifierId, InferenceMode, RefuteSuite,
 };
+use arrow_array::{Float64Array, RecordBatch};
+use arrow_schema::{DataType, Field, Schema};
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalQuery,
     CausalRng, ChangeAttributionQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
@@ -218,7 +218,7 @@ impl IntoCausalPyErr for RustCausalError {
             Self::Graph(e) => CausalGraphError::new_err(e.to_string()),
             Self::Design(e) => CausalDesignError::new_err(e.to_string()),
             Self::State(e) => match &e {
-                causal::state::StateError::CacheBudget { .. } => {
+                antecedent::state::StateError::CacheBudget { .. } => {
                     CausalResourceError::new_err(e.to_string())
                 }
                 _ => CausalStateError::new_err(e.to_string()),
@@ -756,7 +756,7 @@ fn parse_prior_mapping(
 
 fn run_static_ate_from_builder(
     names: &[String],
-    mut builder: causal::CausalAnalysisBuilder,
+    mut builder: antecedent::CausalAnalysisBuilder,
     inference: Option<&str>,
     n_draws: usize,
     prior_scale: f64,
@@ -872,7 +872,7 @@ type PosteriorSummary = (
 );
 
 fn posterior_summary_from_result(
-    result: &causal::CausalAnalysisResult,
+    result: &antecedent::CausalAnalysisResult,
     include_artifact: bool,
 ) -> PyResult<PosteriorSummary> {
     if let Some(post) = result.posterior.as_ref() {
@@ -898,7 +898,9 @@ fn posterior_summary_from_result(
     }
 }
 
-fn prior_sensitivity_from_result(result: &causal::CausalAnalysisResult) -> PriorSensitivityFields {
+fn prior_sensitivity_from_result(
+    result: &antecedent::CausalAnalysisResult,
+) -> PriorSensitivityFields {
     if let Some(post) = result.posterior.as_ref() {
         if let Some(sens) = post.prior_sensitivity.as_ref() {
             let scales = sens.prior_scales.iter().copied().collect::<Vec<_>>();
@@ -914,7 +916,9 @@ fn prior_sensitivity_from_result(result: &causal::CausalAnalysisResult) -> Prior
     (None, None, None, None)
 }
 
-fn conflict_summary_from_result(result: &causal::CausalAnalysisResult) -> ConflictSummaryFields {
+fn conflict_summary_from_result(
+    result: &antecedent::CausalAnalysisResult,
+) -> ConflictSummaryFields {
     if let Some(post) = result.posterior.as_ref() {
         if let Some(cs) = post.conflict_summary.as_ref() {
             return (
@@ -969,14 +973,14 @@ fn panel_multi_dataset_constraints(
 }
 
 fn panel_discovery_builder(
-    builder: causal::CausalAnalysisBuilder,
+    builder: antecedent::CausalAnalysisBuilder,
     algo: &str,
     max_lag: u32,
     alpha: f64,
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     multi_dataset: MultiDatasetConstraints,
-) -> PyResult<causal::CausalAnalysisBuilder> {
+) -> PyResult<antecedent::CausalAnalysisBuilder> {
     match algo {
         "jpcmci_plus" | "jpcmci+" => {
             Ok(builder.discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset))
@@ -1065,8 +1069,8 @@ fn parse_population_registry(
 
 /// `identifier`/`estimator` select the identification strategy and estimator; leaving both
 /// `None` preserves the default (`backdoor.adjustment` + `linear.adjustment.ate`).
-/// See [`causal::CausalAnalysisBuilder::identifier`] and
-/// [`causal::CausalAnalysisBuilder::estimator`] for the supported ids.
+/// See [`antecedent::CausalAnalysisBuilder::identifier`] and
+/// [`antecedent::CausalAnalysisBuilder::estimator`] for the supported ids.
 ///
 /// Crosses the Python boundary once: NumPy columns + edge list in, structured
 /// summary out. No per-row callbacks. Releases the GIL during native work.
@@ -1158,7 +1162,7 @@ fn analyze_ate(
     let stage_sink = callbacks::stage_sink_from_py(on_stage.as_ref())?;
     let latency_mode = match latency.as_deref() {
         None => None,
-        Some(s) => Some(causal::LatencyMode::parse(s).ok_or_else(|| {
+        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
             PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?),
     };
@@ -1321,7 +1325,7 @@ fn analyze_ate_arrow_c(
     let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
     let latency_mode = match latency.as_deref() {
         None => None,
-        Some(s) => Some(causal::LatencyMode::parse(s).ok_or_else(|| {
+        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
             PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?),
     };
@@ -1430,7 +1434,7 @@ fn analyze_ate_many(
     let suite = suite_from_refute(refute.as_ref())?;
     let latency_mode = match latency.as_deref() {
         None => None,
-        Some(s) => Some(causal::LatencyMode::parse(s).ok_or_else(|| {
+        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
             PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?),
     };
@@ -1463,7 +1467,7 @@ fn analyze_ate_many(
             ate_queries.push(AverageEffectQuery::with_levels(t_id, y_id, *control, *active));
         }
         let mut batch =
-            causal::BatchAnalysis::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
+            antecedent::BatchAnalysis::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
         if let Some(mode) = latency_mode {
             batch = batch.latency_mode(mode);
         }
@@ -1866,9 +1870,11 @@ fn analyze_ate_discover(
         )?;
         let mut builder = CausalAnalysis::builder().data(data);
         let soft = match soft_weight.as_str() {
-            "none" | "" => causal::discovery::CiSoftWeight::None,
-            "bayes_factor" | "bf" => causal::discovery::CiSoftWeight::BayesFactor,
-            "posterior_dependence" | "pd" => causal::discovery::CiSoftWeight::PosteriorDependence,
+            "none" | "" => antecedent::discovery::CiSoftWeight::None,
+            "bayes_factor" | "bf" => antecedent::discovery::CiSoftWeight::BayesFactor,
+            "posterior_dependence" | "pd" => {
+                antecedent::discovery::CiSoftWeight::PosteriorDependence
+            }
             other => {
                 return Err(PyValueError::new_err(format!(
                     "unknown soft_weight {other:?}; use none|bayes_factor|posterior_dependence"
@@ -2098,7 +2104,7 @@ fn analyze_path_specific(
 
 pub(crate) fn ate_result_from_analysis(
     names: &[String],
-    result: causal::CausalAnalysisResult,
+    result: antecedent::CausalAnalysisResult,
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let adjustment_set: Vec<String> = result
@@ -4606,7 +4612,7 @@ fn dag_to_json(
 #[pyfunction]
 fn dag_from_gml(gml: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
-        let dag = causal::io::dag_from_gml(gml).map_err(py_err)?;
+        let dag = antecedent::io::dag_from_gml(gml).map_err(py_err)?;
         let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
         Ok((wire.node_count as usize, wire.edges))
     })
@@ -4618,7 +4624,7 @@ fn dag_to_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
     catch_ffi(|| {
         let wire = causal_io::DagWire { node_count, edges };
         let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
-        causal::io::dag_to_gml(&dag, None).map_err(py_err)
+        antecedent::io::dag_to_gml(&dag, None).map_err(py_err)
     })
 }
 
@@ -4626,7 +4632,7 @@ fn dag_to_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
 #[pyfunction]
 fn dag_from_networkx_node_link(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
-        let dag = causal::io::dag_from_networkx_node_link(json).map_err(py_err)?;
+        let dag = antecedent::io::dag_from_networkx_node_link(json).map_err(py_err)?;
         let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
         Ok((wire.node_count as usize, wire.edges))
     })
@@ -4638,7 +4644,7 @@ fn dag_to_networkx_node_link(node_count: u32, edges: Vec<(u32, u32)>) -> PyResul
     catch_ffi(|| {
         let wire = causal_io::DagWire { node_count, edges };
         let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
-        causal::io::dag_to_networkx_node_link(&dag, None).map_err(py_err)
+        antecedent::io::dag_to_networkx_node_link(&dag, None).map_err(py_err)
     })
 }
 
@@ -4653,7 +4659,7 @@ fn encode_model_bundle(
     mechanisms: Vec<MechanismWireEntry>,
 ) -> PyResult<Vec<u8>> {
     catch_ffi(|| {
-        use causal::gcm::{CompiledMechanismStore, MechanismSlot};
+        use antecedent::gcm::{CompiledMechanismStore, MechanismSlot};
         use causal_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
         use causal_io::{
             ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire, encode_model_bundle as enc,
@@ -4722,7 +4728,7 @@ fn encode_model_bundle(
 #[pyfunction]
 fn decode_model_bundle(bytes: &[u8]) -> PyResult<ModelBundleSummary> {
     catch_ffi(|| {
-        let bundle = causal::io::decode_model_bundle_bytes(bytes).map_err(py_err)?;
+        let bundle = antecedent::io::decode_model_bundle_bytes(bytes).map_err(py_err)?;
         let names = bundle.schema.variables().iter().map(|v| v.name.to_string()).collect();
         let wire = causal_io::dag_to_wire(&bundle.dag).map_err(py_err)?;
         Ok((names, wire.edges, bundle.mechanisms.slots.len()))
@@ -4775,7 +4781,7 @@ fn series_from_tabular(tabular: TabularData) -> PyResult<TimeSeriesData> {
 
 fn run_temporal_analysis(
     names: &[String],
-    analysis: causal::CausalAnalysis,
+    analysis: antecedent::CausalAnalysis,
     seed: u64,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
@@ -5340,7 +5346,7 @@ fn analyze_temporal_discover(
 
 fn analysis_result_from_run(
     names: &[String],
-    result: causal::CausalAnalysisResult,
+    result: antecedent::CausalAnalysisResult,
 ) -> PyResult<AnalysisResult> {
     let adjustment_set: Vec<String> = result
         .estimand
@@ -5440,12 +5446,12 @@ fn analysis_result_from_run(
 }
 
 fn apply_temporal_inference(
-    builder: causal::CausalAnalysisBuilder,
+    builder: antecedent::CausalAnalysisBuilder,
     inference: Option<&str>,
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
-) -> PyResult<causal::CausalAnalysisBuilder> {
+) -> PyResult<antecedent::CausalAnalysisBuilder> {
     let Some(mode) = inference else {
         return Ok(builder);
     };
@@ -5687,7 +5693,7 @@ fn attribute_distribution_change_robust(
             },
             max_components: 64,
         };
-        let opts = causal::gcm::RobustChangeOptions::default();
+        let opts = antecedent::gcm::RobustChangeOptions::default();
         let ctx = py_execution_context(seed, threads);
         let result =
             facade_attribute_distribution_change_robust(&fitted.model, &data, &query, &opts, &ctx)
@@ -5744,7 +5750,7 @@ fn mechanism_change_detection(
             &fitted.model,
             &data,
             &query,
-            causal::gcm::MechanismChangeMethod::MeanDiff,
+            antecedent::gcm::MechanismChangeMethod::MeanDiff,
             &ctx,
         )
         .map_err(py_err)?;

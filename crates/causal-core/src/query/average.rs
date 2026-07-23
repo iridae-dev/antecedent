@@ -13,6 +13,7 @@ use super::error::QueryError;
 
 /// Average treatment effect (ATE / ATT-style) query.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub struct AverageEffectQuery {
     /// Treatment variable.
     pub treatment: VariableId,
@@ -29,6 +30,26 @@ pub struct AverageEffectQuery {
 }
 
 impl AverageEffectQuery {
+    /// Full constructor (required outside this crate because the type is `#[non_exhaustive]`).
+    #[must_use]
+    pub fn new(
+        treatment: VariableId,
+        outcome: VariableId,
+        effect_modifiers: impl Into<Arc<[VariableId]>>,
+        control: Intervention,
+        active: Intervention,
+        target_population: TargetPopulation,
+    ) -> Self {
+        Self {
+            treatment,
+            outcome,
+            effect_modifiers: effect_modifiers.into(),
+            control,
+            active,
+            target_population,
+        }
+    }
+
     /// ATE for binary treatment coded as 0/1 on `treatment`.
     ///
     /// # Examples
@@ -41,14 +62,14 @@ impl AverageEffectQuery {
     /// ```
     #[must_use]
     pub fn binary_ate(treatment: VariableId, outcome: VariableId) -> Self {
-        Self {
+        Self::new(
             treatment,
             outcome,
-            effect_modifiers: Arc::from([]),
-            control: Intervention::set(treatment, Value::f64(0.0)),
-            active: Intervention::set(treatment, Value::f64(1.0)),
-            target_population: TargetPopulation::AllObserved,
-        }
+            Arc::from([]),
+            Intervention::set(treatment, Value::f64(0.0)),
+            Intervention::set(treatment, Value::f64(1.0)),
+            TargetPopulation::AllObserved,
+        )
     }
 
     /// ATE with explicit control/active float levels.

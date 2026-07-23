@@ -1,6 +1,6 @@
 # IV / two-stage-least-squares conformance fixture
 
-Generated inline by `crates/causal/tests/estimate_conformance.rs` — no
+Generated inline by `crates/antecedent/tests/estimate_conformance.rs` — no
 CSV, no pinned baseline install. Clean-room synthetic SCM, deterministic from a fixed
 `ExecutionContext` seed.
 

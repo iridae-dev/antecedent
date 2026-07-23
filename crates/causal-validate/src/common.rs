@@ -51,6 +51,7 @@ impl TemporalRefitContext<'_> {
 
 /// Comparison of original vs refuted estimates.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct RefutationReport {
     /// Refuter id.
     pub refuter: Arc<str>,
@@ -70,6 +71,33 @@ pub struct RefutationReport {
     pub failure_condition: Option<Arc<str>>,
     /// Number of replicate estimates.
     pub replicates: u32,
+}
+
+impl RefutationReport {
+    /// Construct a refutation report.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        refuter: impl Into<Arc<str>>,
+        original_ate: f64,
+        refuted_ate: f64,
+        comparison: f64,
+        informative: bool,
+        passed: bool,
+        failure_condition: Option<Arc<str>>,
+        replicates: u32,
+    ) -> Self {
+        Self {
+            refuter: refuter.into(),
+            original_ate,
+            refuted_ate,
+            comparison,
+            informative,
+            passed,
+            failure_condition,
+            replicates,
+        }
+    }
 }
 
 /// Inputs shared by effect refuters.

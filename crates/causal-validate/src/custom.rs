@@ -10,6 +10,9 @@ use crate::error::ValidationError;
 /// Slow-path custom effect validator (Python / user callbacks).
 ///
 /// Distinct from [`crate::Validator`] which uses associated types and is not dyn-safe.
+///
+/// Deliberately **not** sealed: object-safe extension for host languages (`PyO3`)
+/// and app-level hooks. Prefer [`crate::Validator`] for in-crate refuters.
 pub trait CustomEffectValidator: Send + Sync {
     /// Stable name written into [`RefutationReport::refuter`].
     fn name(&self) -> &str;

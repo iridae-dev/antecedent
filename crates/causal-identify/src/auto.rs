@@ -148,14 +148,14 @@ impl AutoIdentifier {
                     );
                 }
                 // Rebuild query with normalized Sets so sub-identifiers see hard interventions.
-                let q_norm = AverageEffectQuery {
-                    treatment: q.treatment,
-                    outcome: q.outcome,
-                    active: active_do,
-                    control: control_do,
-                    effect_modifiers: Arc::clone(&q.effect_modifiers),
-                    target_population: q.target_population.clone(),
-                };
+                let q_norm = AverageEffectQuery::new(
+                    q.treatment,
+                    q.outcome,
+                    Arc::clone(&q.effect_modifiers),
+                    control_do,
+                    active_do,
+                    q.target_population.clone(),
+                );
                 let query_norm = CausalQuery::AverageEffect(q_norm.clone());
                 let q = &q_norm;
                 self.try_method(
@@ -530,17 +530,15 @@ fn rebuild_estimand(
                 arena.backdoor_ate(q.treatment, q.outcome, &[], active.clone(), control.clone());
             Some(IdentifiedEstimand::rd_sharp(
                 functional,
-                e.rd_design.unwrap_or(causal_expr::RdDesignParams {
-                    running_variable: q.treatment,
-                    cutoff: 0.0,
-                    bandwidth: 1.0,
-                }),
+                e.rd_design.unwrap_or(causal_expr::RdDesignParams::new(q.treatment, 0.0, 1.0)),
             ))
         }
         EstimandMethod::GeneralId => None,
         _ => None,
     }
 }
+
+impl crate::identifier::sealed::Sealed for AutoIdentifier {}
 
 impl Identifier<Dag> for AutoIdentifier {
     type Prepared = PreparedAutoGraph;
@@ -623,14 +621,14 @@ mod tests {
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let auto = AutoIdentifier::new();
         let prep = auto.prepare(&dag).unwrap();
-        let q = CausalQuery::AverageEffect(AverageEffectQuery {
-            treatment: VariableId::from_raw(0),
-            outcome: VariableId::from_raw(1),
-            active: Intervention::soft(VariableId::from_raw(0), MechanismOverride::constant(1.0)),
-            control: Intervention::set(VariableId::from_raw(0), Value::f64(0.0)),
-            effect_modifiers: Arc::from([]),
-            target_population: causal_core::TargetPopulation::AllObserved,
-        });
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::new(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            Arc::from([]),
+            Intervention::set(VariableId::from_raw(0), Value::f64(0.0)),
+            Intervention::soft(VariableId::from_raw(0), MechanismOverride::constant(1.0)),
+            causal_core::TargetPopulation::AllObserved,
+        ));
         let mut ws = IdentificationWorkspace::default();
         let res = auto.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
@@ -643,17 +641,17 @@ mod tests {
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let auto = AutoIdentifier::new();
         let prep = auto.prepare(&dag).unwrap();
-        let q = CausalQuery::AverageEffect(AverageEffectQuery {
-            treatment: VariableId::from_raw(0),
-            outcome: VariableId::from_raw(1),
-            active: Intervention::soft(
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::new(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            Arc::from([]),
+            Intervention::set(VariableId::from_raw(0), Value::f64(0.0)),
+            Intervention::soft(
                 VariableId::from_raw(0),
                 MechanismOverride::named("linear_gaussian", vec![1.0, 0.5]),
             ),
-            control: Intervention::set(VariableId::from_raw(0), Value::f64(0.0)),
-            effect_modifiers: Arc::from([]),
-            target_population: causal_core::TargetPopulation::AllObserved,
-        });
+            causal_core::TargetPopulation::AllObserved,
+        ));
         let mut ws = IdentificationWorkspace::default();
         let err = auto.identify(&prep, &q, &mut ws).unwrap_err();
         match err {

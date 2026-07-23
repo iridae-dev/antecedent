@@ -24,7 +24,7 @@ the same machine class require an approved explanation and replacement baseline
 ## How to refresh
 
 ```bash
-cargo +1.85 bench -p causal-kernels --bench gather
+cargo +1.85 bench -p antecedent-kernels --bench gather
 ```
 
 Record mean time and commit an update to this file with hardware notes.

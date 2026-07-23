@@ -20,7 +20,7 @@ python3 scripts/generate_conformance_docs.py
 ```
 
 API reference (private repo): download `docs.tar.gz` from a GitHub Release, or
-build locally with `cargo doc -p causal --open`. Python API HTML is generated
+build locally with `cargo doc -p antecedent --open`. Python API HTML is generated
 with pdoc in CI (`docs.yml` / release workflow). docs.rs is not used while
 crates stay unpublished.
 Rust ↔ Python names: [api_naming.md](api_naming.md).

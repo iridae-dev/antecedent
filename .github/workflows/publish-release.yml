@@ -207,7 +207,7 @@ jobs:
           path: wheel-in
 
       - name: Rustdoc
-        run: cargo doc -p causal --no-deps
+        run: cargo doc -p antecedent --no-deps
 
       - name: Conformance docs
         run: python3 scripts/generate_conformance_docs.py

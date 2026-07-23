@@ -19,6 +19,7 @@ use crate::result::{DerivationTrace, IdentificationPerformanceRecord, Identifica
 
 /// Configuration for sharp RD identification.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct SharpRdConfig {
     /// Running variable.
     pub running_variable: VariableId,
@@ -26,6 +27,14 @@ pub struct SharpRdConfig {
     pub cutoff: f64,
     /// Bandwidth around the cutoff.
     pub bandwidth: f64,
+}
+
+impl SharpRdConfig {
+    /// Construct an RD identification config.
+    #[must_use]
+    pub const fn new(running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
+        Self { running_variable, cutoff, bandwidth }
+    }
 }
 
 /// Identifier for sharp regression discontinuity designs.
@@ -90,11 +99,11 @@ impl SharpRdIdentifier {
         let functional = arena.backdoor_ate(ate.treatment, ate.outcome, &[], active, control);
         let estimand = IdentifiedEstimand::rd_sharp(
             functional,
-            causal_expr::RdDesignParams {
-                running_variable: self.config.running_variable,
-                cutoff: self.config.cutoff,
-                bandwidth: self.config.bandwidth,
-            },
+            causal_expr::RdDesignParams::new(
+                self.config.running_variable,
+                self.config.cutoff,
+                self.config.bandwidth,
+            ),
         );
 
         let mut assumptions = AssumptionSet::new();

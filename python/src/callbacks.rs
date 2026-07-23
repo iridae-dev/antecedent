@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use causal::design::Utility;
-use causal::gcm::{CompiledCausalModel, DynamicMechanism, MechanismSlot};
+use antecedent::design::Utility;
+use antecedent::gcm::{CompiledCausalModel, DynamicMechanism, MechanismSlot};
 use causal_core::{CausalRng, ExecutionContext};
 use causal_graph::DenseNodeId;
 use causal_model::{MechanismWorkspace, ModelError, ParentBatch};
@@ -393,16 +393,16 @@ impl CustomEffectValidator for PyCustomValidator {
                 .map(|v| v.extract())
                 .transpose()
                 .map_err(py_err)?;
-            Ok(RefutationReport {
-                refuter: Arc::from(self.name.as_str()),
-                original_ate: problem.original.ate,
+            Ok(RefutationReport::new(
+                Arc::from(self.name.as_str()),
+                problem.original.ate,
                 refuted_ate,
                 comparison,
                 informative,
                 passed,
-                failure_condition: failure_condition.map(Arc::from),
-                replicates: 0,
-            })
+                failure_condition.map(Arc::from),
+                0,
+            ))
         })
     }
 }
@@ -416,12 +416,12 @@ pub fn resolve_ci_arg(
     weights: Option<Vec<f64>>,
 ) -> PyResult<(Arc<dyn ConditionalIndependence + Send + Sync>, String, bool)> {
     let Some(ci) = ci else {
-        let impl_ = causal::discovery_defaults::resolve_ci("parcorr", weights)
+        let impl_ = antecedent::discovery_defaults::resolve_ci("parcorr", weights)
             .map_err(|e| crate::CausalCompileError::new_err(e.to_string()))?;
         return Ok((impl_, "parcorr".into(), false));
     };
     if let Ok(name) = ci.extract::<&str>() {
-        let impl_ = causal::discovery_defaults::resolve_ci(name, weights)
+        let impl_ = antecedent::discovery_defaults::resolve_ci(name, weights)
             .map_err(|e| crate::CausalCompileError::new_err(e.to_string()))?;
         return Ok((impl_, name.to_string(), false));
     }
@@ -526,25 +526,25 @@ impl PyStageResultSink {
     }
 }
 
-impl causal::StageResultSink for PyStageResultSink {
-    fn on_stage(&self, event: &causal::AnalysisStageEvent) {
+impl antecedent::StageResultSink for PyStageResultSink {
+    fn on_stage(&self, event: &antecedent::AnalysisStageEvent) {
         Python::attach(|py| {
             let payload = match event {
-                causal::AnalysisStageEvent::Identify { identification, estimand } => {
+                antecedent::AnalysisStageEvent::Identify { identification, estimand } => {
                     let d = PyDict::new(py);
                     let _ = d.set_item("status", format!("{:?}", identification.status));
                     let _ = d.set_item("method", estimand.method.as_ref());
                     d
                 }
-                causal::AnalysisStageEvent::Point { estimate }
-                | causal::AnalysisStageEvent::Uncertainty { estimate } => {
+                antecedent::AnalysisStageEvent::Point { estimate }
+                | antecedent::AnalysisStageEvent::Uncertainty { estimate } => {
                     let d = PyDict::new(py);
                     let _ = d.set_item("ate", estimate.ate);
                     let _ = d.set_item("se_analytic", estimate.se_analytic);
                     let _ = d.set_item("se_bootstrap", estimate.se_bootstrap);
                     d
                 }
-                causal::AnalysisStageEvent::Validate { refutations, predictive_checks } => {
+                antecedent::AnalysisStageEvent::Validate { refutations, predictive_checks } => {
                     let d = PyDict::new(py);
                     let _ = d.set_item("n_refutations", refutations.len());
                     let _ = d.set_item("n_predictive_checks", predictive_checks.len());
@@ -556,10 +556,10 @@ impl causal::StageResultSink for PyStageResultSink {
     }
 }
 
-/// Build an optional [`causal::StageResultSink`] from a Python callable.
+/// Build an optional [`antecedent::StageResultSink`] from a Python callable.
 pub fn stage_sink_from_py(
     on_stage: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Option<std::sync::Arc<dyn causal::StageResultSink>>> {
+) -> PyResult<Option<std::sync::Arc<dyn antecedent::StageResultSink>>> {
     match on_stage {
         None => Ok(None),
         Some(cb) => {
@@ -567,7 +567,7 @@ pub fn stage_sink_from_py(
                 return Err(PyValueError::new_err("on_stage must be callable"));
             }
             Ok(Some(std::sync::Arc::new(PyStageResultSink::new(cb.clone().unbind()))
-                as std::sync::Arc<dyn causal::StageResultSink>))
+                as std::sync::Arc<dyn antecedent::StageResultSink>))
         }
     }
 }

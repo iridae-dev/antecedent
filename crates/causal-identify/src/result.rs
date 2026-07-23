@@ -46,6 +46,7 @@ pub struct IdentificationPerformanceRecord {
 
 /// Full identification result.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct IdentificationResult {
     /// Status.
     pub status: IdentificationStatus,
@@ -141,6 +142,33 @@ impl IdentificationResult {
             diagnostics,
             performance,
             hedge: Some(hedge),
+        }
+    }
+
+    /// Full constructor (required outside this crate because the type is `#[non_exhaustive]`).
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        status: IdentificationStatus,
+        query: CausalQuery,
+        estimands: Vec<IdentifiedEstimand>,
+        arena: CausalExprArena,
+        derivation: DerivationTrace,
+        required_assumptions: AssumptionSet,
+        diagnostics: Vec<Diagnostic>,
+        performance: IdentificationPerformanceRecord,
+        hedge: Option<HedgeCertificate>,
+    ) -> Self {
+        Self {
+            status,
+            query,
+            estimands,
+            arena,
+            derivation,
+            required_assumptions,
+            diagnostics,
+            performance,
+            hedge,
         }
     }
 }

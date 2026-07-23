@@ -20,13 +20,31 @@ use crate::result::{CpdagDiscoveryResult, DagDiscoveryResult, PagDiscoveryResult
 use crate::rfci::Rfci;
 use crate::rpcmci::{RegimeAssignment, Rpcmci, RpcmciDiscoveryResult};
 
+mod sealed {
+    pub trait Sealed {}
+}
+
+impl sealed::Sealed for Pcmci {}
+impl sealed::Sealed for PcmciPlus {}
+impl sealed::Sealed for Lpcmci {}
+impl sealed::Sealed for JpcmciPlus {}
+impl sealed::Sealed for Pc {}
+impl sealed::Sealed for Fci {}
+impl sealed::Sealed for Rfci {}
+impl sealed::Sealed for Ges {}
+impl sealed::Sealed for DirectLingam {}
+impl sealed::Sealed for Notears {}
+impl sealed::Sealed for Rpcmci {}
+
 /// Algorithm that accepts a concrete dataset type `D`.
 ///
 /// `variables` and `workspace` are part of the discovery contract in this crate:
 /// PCMCI-family engines need an explicit variable subset and reusable buffers.
 /// Callers that only have `data` + `ctx` should store those on the algorithm and
 /// forward through [`Self::discover`].
-pub trait DiscoveryAlgorithm<D> {
+///
+/// This trait is sealed: only types in this crate may implement it.
+pub trait DiscoveryAlgorithm<D>: sealed::Sealed {
     /// Typed discovery output (DAG / CPDAG / PAG result, …).
     type Output;
 

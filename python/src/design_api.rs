@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use causal::design::{
+use antecedent::design::{
     CandidateDesign, DesignConstraints, DesignCost, DesignEvaluationContext, DesignObjective,
     DesignRankConfig, DesignRanker, EffectWidthContext, EnvironmentGramSpec, EnvironmentPlan,
     ExperimentPlan, InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws,
@@ -131,7 +131,7 @@ fn parse_objective(
                     PyValueError::new_err("reduce_decision_regret requires decision_id")
                 })?;
                 Ok(DesignObjective::ReduceDecisionRegret {
-                    decision: causal::design::DecisionProblemId::from_raw(d),
+                    decision: antecedent::design::DecisionProblemId::from_raw(d),
                 })
             }
             "distinguish_models" => {
@@ -178,7 +178,7 @@ fn parse_objective(
                 PyValueError::new_err("reduce_decision_regret requires decision_id")
             })?;
             Ok(DesignObjective::ReduceDecisionRegret {
-                decision: causal::design::DecisionProblemId::from_raw(d),
+                decision: antecedent::design::DecisionProblemId::from_raw(d),
             })
         }
         "distinguish_models" => {

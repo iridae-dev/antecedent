@@ -58,17 +58,32 @@ pip install antecedent \
 Or download the platform wheel from the Release assets and
 `pip install ./antecedent-*.whl`.
 
-**Rust** (1.85+, edition 2024): path or git dependency while crates stay private
-(`publish = false` on the Python extension crate; library crates are not on
-crates.io yet). The facade crate is still named `causal` in this workspace;
-the public product name is **Antecedent**.
+**Rust** (1.85+, edition 2024) — facade on crates.io:
+
+```bash
+cargo add antecedent
+```
 
 ```toml
-causal = { git = "ssh://git@github.com/OWNER/antecedent.git" }
+antecedent = "0.1"
+```
+
+```rust
+use antecedent::prelude::*;
+```
+
+Supporting crates (`causal-core`, `causal-graph`, …) publish alongside the facade
+and are public dependencies of `antecedent`. The Python extension crate
+(`causal-py`) is not on crates.io.
+
+For a private checkout before crates.io mirrors catch up:
+
+```toml
+antecedent = { git = "ssh://git@github.com/iridae-dev/antecedent.git" }
 ```
 
 See [docs/development.md](docs/development.md) for tagging releases and the
-repo-create checklist.
+crates.io publish checklist.
 
 ## Python quick start
 
@@ -113,8 +128,8 @@ result = antecedent.analyze(
 ## Rust quick start
 
 ```rust
-use causal::prelude::*;
-use causal::RefuteSuite;
+use antecedent::prelude::*;
+use antecedent::RefuteSuite;
 
 fn main() -> Result<(), CausalError> {
     let schema = CausalSchemaBuilder::new()
@@ -155,7 +170,7 @@ fn main() -> Result<(), CausalError> {
 }
 ```
 
-`use causal::prelude::*` for day-1 imports. Prefer modules (`causal::discovery`, `causal::gcm`, `causal::io`, …) for stage depth — those are no longer re-exported at the crate root (0.1.x breaking). Examples: `cargo run -p causal --example ate_quickstart`.
+`use antecedent::prelude::*` for day-1 imports. Prefer modules (`antecedent::discovery`, `antecedent::gcm`, `antecedent::io`, …) for stage depth — those are no longer re-exported at the crate root (0.1.x breaking). Examples: `cargo run -p antecedent --example ate_quickstart`.
 
 ## What it covers
 
@@ -184,8 +199,8 @@ Hot paths run in Rust (batched APIs, reusable workspaces, optimized kernels). Re
 
 * [Architecture](docs/architecture.md) · [Development](docs/development.md) · [Artifacts](docs/artifacts.md)
 * [API naming (Rust ↔ Python)](docs/api_naming.md) · [Hot paths](docs/hot_paths.md) · [Conformance](docs/conformance/README.md) · [ADRs](adr/README.md)
-* API docs: `docs.tar.gz` on each Release (markdown + rustdoc + Python pdoc); locally `cargo doc -p causal --open`
-* [Examples](crates/causal/examples/) · [Python examples](python/examples/)
+* API docs: `docs.tar.gz` on each Release (markdown + rustdoc + Python pdoc); locally `cargo doc -p antecedent --open`
+* [Examples](crates/antecedent/examples/) · [Python examples](python/examples/)
 
 ## Contributing
 

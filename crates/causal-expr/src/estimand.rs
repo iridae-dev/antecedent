@@ -113,6 +113,7 @@ impl From<EstimandMethod> for Arc<str> {
 /// [`Self::instruments`]; front-door estimands populate [`Self::mediators`].
 /// Sharp RD estimands populate [`Self::rd_design`]. Unused role slices are empty.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct IdentifiedEstimand {
     /// Method tag (wire string; parse with [`Self::method_kind`]).
     pub method: Arc<str>,
@@ -130,6 +131,7 @@ pub struct IdentifiedEstimand {
 
 /// Design parameters carried on a sharp-RD estimand.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct RdDesignParams {
     /// Running (assignment) variable.
     pub running_variable: VariableId,
@@ -139,7 +141,35 @@ pub struct RdDesignParams {
     pub bandwidth: f64,
 }
 
+impl RdDesignParams {
+    /// Construct RD design parameters.
+    #[must_use]
+    pub const fn new(running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
+        Self { running_variable, cutoff, bandwidth }
+    }
+}
+
 impl IdentifiedEstimand {
+    /// Full constructor (required outside this crate because the type is `#[non_exhaustive]`).
+    #[must_use]
+    pub fn new(
+        method: impl Into<Arc<str>>,
+        adjustment_set: Arc<[VariableId]>,
+        instruments: Arc<[VariableId]>,
+        mediators: Arc<[VariableId]>,
+        functional: ExprId,
+        rd_design: Option<RdDesignParams>,
+    ) -> Self {
+        Self {
+            method: method.into(),
+            adjustment_set,
+            instruments,
+            mediators,
+            functional,
+            rd_design,
+        }
+    }
+
     /// Parse the method tag into a typed [`EstimandMethod`].
     ///
     /// # Errors
@@ -156,14 +186,7 @@ impl IdentifiedEstimand {
         adjustment_set: Arc<[VariableId]>,
         functional: ExprId,
     ) -> Self {
-        Self {
-            method: method.into(),
-            adjustment_set,
-            instruments: Arc::from([]),
-            mediators: Arc::from([]),
-            functional,
-            rd_design: None,
-        }
+        Self::new(method, adjustment_set, Arc::from([]), Arc::from([]), functional, None)
     }
 
     /// IV estimand with instruments and empty adjustment/mediators.
@@ -173,14 +196,7 @@ impl IdentifiedEstimand {
         instruments: Arc<[VariableId]>,
         functional: ExprId,
     ) -> Self {
-        Self {
-            method: method.into(),
-            adjustment_set: Arc::from([]),
-            instruments,
-            mediators: Arc::from([]),
-            functional,
-            rd_design: None,
-        }
+        Self::new(method, Arc::from([]), instruments, Arc::from([]), functional, None)
     }
 
     /// Front-door estimand with mediators and empty adjustment/instruments.
@@ -190,27 +206,20 @@ impl IdentifiedEstimand {
         mediators: Arc<[VariableId]>,
         functional: ExprId,
     ) -> Self {
-        Self {
-            method: method.into(),
-            adjustment_set: Arc::from([]),
-            instruments: Arc::from([]),
-            mediators,
-            functional,
-            rd_design: None,
-        }
+        Self::new(method, Arc::from([]), Arc::from([]), mediators, functional, None)
     }
 
     /// Sharp regression-discontinuity estimand (not backdoor-shaped).
     #[must_use]
     pub fn rd_sharp(functional: ExprId, design: RdDesignParams) -> Self {
-        Self {
-            method: Arc::from(EstimandMethod::RdSharp.as_str()),
-            adjustment_set: Arc::from([]),
-            instruments: Arc::from([]),
-            mediators: Arc::from([]),
+        Self::new(
+            Arc::from(EstimandMethod::RdSharp.as_str()),
+            Arc::from([]),
+            Arc::from([]),
+            Arc::from([]),
             functional,
-            rd_design: Some(design),
-        }
+            Some(design),
+        )
     }
 
     /// Temporal mediation estimand (mediators + `temporal_mediation.*` method tag).

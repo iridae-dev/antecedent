@@ -6,6 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
 description = "Experiment/measurement design, EIG ranking, and decision utilities"
 readme = "README.md"
 
@@ -13,10 +17,10 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-causal-core = { path = "../causal-core" }
-causal-kernels = { path = "../causal-kernels" }
-causal-prob = { path = "../causal-prob" }
-causal-stats = { path = "../causal-stats" }
+causal-core = { version = "0.1.0", path = "../causal-core" }
+causal-kernels = { version = "0.1.0", path = "../causal-kernels" }
+causal-prob = { version = "0.1.0", path = "../causal-prob" }
+causal-stats = { version = "0.1.0", path = "../causal-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

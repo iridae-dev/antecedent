@@ -230,14 +230,14 @@ impl IdIdentifier {
             op: ContrastOp::Difference,
         });
         let functional = arena.simplify(contrast);
-        let estimand = IdentifiedEstimand {
-            method: Arc::from(EstimandMethod::GeneralId.as_str()),
-            adjustment_set: Arc::from([]),
-            instruments: Arc::from([]),
-            mediators: Arc::from([]),
+        let estimand = IdentifiedEstimand::new(
+            Arc::from(EstimandMethod::GeneralId.as_str()),
+            Arc::from([]),
+            Arc::from([]),
+            Arc::from([]),
             functional,
-            rd_design: None,
-        };
+            None,
+        );
         Ok(IdentificationResult::identified(
             CausalQuery::AverageEffect(query.clone()),
             vec![estimand],
@@ -276,14 +276,14 @@ impl IdIdentifier {
             None,
         )? {
             IdOutcome::Expr(functional) => {
-                let estimand = IdentifiedEstimand {
-                    method: Arc::from(EstimandMethod::GeneralId.as_str()),
-                    adjustment_set: Arc::from([]),
-                    instruments: Arc::from([]),
-                    mediators: Arc::from([]),
+                let estimand = IdentifiedEstimand::new(
+                    Arc::from(EstimandMethod::GeneralId.as_str()),
+                    Arc::from([]),
+                    Arc::from([]),
+                    Arc::from([]),
                     functional,
-                    rd_design: None,
-                };
+                    None,
+                );
                 Ok(IdentificationResult::identified(
                     query,
                     vec![estimand],
@@ -764,25 +764,25 @@ mod tests {
         let prep = id.prepare_dag(&chain_dag()).unwrap();
         let mut ws = IdentificationWorkspace::default();
 
-        let soft = CausalQuery::AverageEffect(AverageEffectQuery {
-            treatment: VariableId::from_raw(1),
-            outcome: VariableId::from_raw(2),
-            effect_modifiers: Arc::from([]),
-            control: Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
-            active: Intervention::soft(VariableId::from_raw(1), MechanismOverride::constant(1.0)),
-            target_population: TargetPopulation::AllObserved,
-        });
+        let soft = CausalQuery::AverageEffect(AverageEffectQuery::new(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            Arc::from([]),
+            Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
+            Intervention::soft(VariableId::from_raw(1), MechanismOverride::constant(1.0)),
+            TargetPopulation::AllObserved,
+        ));
         let res = id.identify(&prep, &soft, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
 
-        let shift = CausalQuery::AverageEffect(AverageEffectQuery {
-            treatment: VariableId::from_raw(1),
-            outcome: VariableId::from_raw(2),
-            effect_modifiers: Arc::from([]),
-            control: Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
-            active: Intervention::shift(VariableId::from_raw(1), Value::f64(1.0)),
-            target_population: TargetPopulation::AllObserved,
-        });
+        let shift = CausalQuery::AverageEffect(AverageEffectQuery::new(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            Arc::from([]),
+            Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
+            Intervention::shift(VariableId::from_raw(1), Value::f64(1.0)),
+            TargetPopulation::AllObserved,
+        ));
         let res = id.identify(&prep, &shift, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
     }
@@ -792,17 +792,17 @@ mod tests {
         let id = IdIdentifier::new();
         let prep = id.prepare_dag(&chain_dag()).unwrap();
         let mut ws = IdentificationWorkspace::default();
-        let soft = CausalQuery::AverageEffect(AverageEffectQuery {
-            treatment: VariableId::from_raw(1),
-            outcome: VariableId::from_raw(2),
-            effect_modifiers: Arc::from([]),
-            control: Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
-            active: Intervention::soft(
+        let soft = CausalQuery::AverageEffect(AverageEffectQuery::new(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            Arc::from([]),
+            Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
+            Intervention::soft(
                 VariableId::from_raw(1),
                 MechanismOverride::named("linear_gaussian", vec![1.0, 0.0]),
             ),
-            target_population: TargetPopulation::AllObserved,
-        });
+            TargetPopulation::AllObserved,
+        ));
         let err = id.identify(&prep, &soft, &mut ws).unwrap_err();
         assert!(
             matches!(err, IdentificationError::UnsupportedQuery { message } if message.contains("Soft")),

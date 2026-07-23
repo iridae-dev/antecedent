@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal::discovery::{
+use antecedent::discovery::{
     BayesianDiscoverParams, CiSoftWeight, GraphMcmcSchedule, GraphPosterior as RustGraphPosterior,
     StaticDiscoverParams, discover_ci_screened_posterior as facade_discover_ci_screened,
     discover_dbn_posterior as facade_discover_dbn,
@@ -10,7 +10,7 @@ use causal::discovery::{
     discover_order_mcmc as facade_discover_order_mcmc,
     discover_structure_mcmc as facade_discover_structure_mcmc,
 };
-use causal::discovery_defaults::resolve_ci;
+use antecedent::discovery_defaults::resolve_ci;
 use causal_stats::{FdrAdjustment, PartialCorrelation};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;

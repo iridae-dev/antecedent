@@ -112,12 +112,12 @@ impl RandomCommonCause {
 fn extend_adjustment(base: &IdentifiedEstimand, extra: VariableId) -> IdentifiedEstimand {
     let mut zs: Vec<VariableId> = base.adjustment_set.to_vec();
     zs.push(extra);
-    IdentifiedEstimand {
-        method: Arc::clone(&base.method),
-        adjustment_set: Arc::from(zs),
-        instruments: Arc::clone(&base.instruments),
-        mediators: Arc::clone(&base.mediators),
-        functional: base.functional,
-        rd_design: base.rd_design,
-    }
+    IdentifiedEstimand::new(
+        Arc::clone(&base.method),
+        Arc::from(zs),
+        Arc::clone(&base.instruments),
+        Arc::clone(&base.mediators),
+        base.functional,
+        base.rd_design,
+    )
 }

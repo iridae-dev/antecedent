@@ -33,10 +33,10 @@ EVIDENCE = {
     "gcm.model.mechanisms": "crates/causal-model/src/mechanism.rs",
     "gcm.model.registry_fit": "crates/causal-model/src/registry.rs",
     "gcm.model.sampling": "crates/causal-model/src/sample.rs",
-    "gcm.do_sampling": "crates/causal/tests/gcm.rs",
+    "gcm.do_sampling": "crates/antecedent/tests/gcm.rs",
     "gcm.model.falsification": "crates/causal-model/src/evaluate.rs",
-    "gcm.counterfactual.aap": "crates/causal/tests/gcm.rs",
-    "gcm.attribution.basic": "crates/causal/tests/gcm.rs",
+    "gcm.counterfactual.aap": "crates/antecedent/tests/gcm.rs",
+    "gcm.attribution.basic": "crates/antecedent/tests/gcm.rs",
 }
 
 missing = []
@@ -103,14 +103,14 @@ print("GCM inventory evidence map OK")
 PY
 
 echo "== cargo test causal-model / counterfactual / attribution / facade GCM =="
-cargo test -p causal-model --lib
-cargo test -p causal-counterfactual --lib
-cargo test -p causal-attribution --lib
-cargo test -p causal --test gcm
-cargo test -p causal --lib
+cargo test -p antecedent-model --lib
+cargo test -p antecedent-counterfactual --lib
+cargo test -p antecedent-attribution --lib
+cargo test -p antecedent --test gcm
+cargo test -p antecedent --lib
 
 echo "== criterion smoke (overlay + CF batch) =="
-cargo bench -p causal-model --bench sample_overlay -- --test
-cargo bench -p causal-counterfactual --bench counterfactual_batch -- --test
+cargo bench -p antecedent-model --bench sample_overlay -- --test
+cargo bench -p antecedent-counterfactual --bench counterfactual_batch -- --test
 
 echo "GCM gate PASSED"

@@ -1,7 +1,8 @@
 # Development
 
 Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
-workspace crates remain under the `causal` / `causal-*` names for now.
+day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates remain
+`causal-*` on crates.io.
 
 ## Gates
 
@@ -113,12 +114,36 @@ Consumers need a PAT with `read:packages` (see Installation in the root README).
 Azure / non-GitHub deploys: store that PAT in Key Vault or app settings and
 install from GitHub Packages, or bake a Release `.whl` into the container image.
 
+## crates.io (Rust)
+
+Publish the library graph (facade `antecedent` + `causal-*` deps). **Do not**
+publish `causal-py` (`publish = false`).
+
+```bash
+# Local dry-run (default)
+bash scripts/publish_crates.sh
+
+# Real upload (CARGO_REGISTRY_TOKEN or CRATES_IO_TOKEN)
+bash scripts/publish_crates.sh --execute
+```
+
+Tag workflow [`.github/workflows/publish-crates.yml`](../.github/workflows/publish-crates.yml)
+runs on `v*` tags (and `workflow_dispatch`) separately from the Python
+`publish-release.yml` wheel pipeline. Set repository secret `CRATES_IO_TOKEN`.
+
+Checklist before the first public crate release:
+
+1. `cargo test --workspace` and `bash scripts/gate_release.sh` green.
+2. `bash scripts/publish_crates.sh --dry-run` succeeds.
+3. Root `CHANGELOG.md` has notes for the version.
+4. Tag `vX.Y.Z` (or dispatch the workflow) with `CRATES_IO_TOKEN` configured.
+5. Confirm `cargo add antecedent` resolves on crates.io / docs.rs.
+
 ## Repo create checklist
 
-1. Create a **private** GitHub repository and push this tree.
-2. Enable Actions; allow GitHub Packages for the repo/org.
-3. Set `workspace.package.repository` in `Cargo.toml` to the real repo URL
-   (replace the `example/antecedent` placeholder).
-4. Tag `v0.1.0` (or bump first) to cut the first private release.
-5. In consuming projects, configure the GitHub Packages index + a
+1. Create a GitHub repository and push this tree.
+2. Enable Actions; allow GitHub Packages for the repo/org (Python wheels).
+3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
+4. Tag `v0.1.0` (or bump first) to cut wheels + (with token) crates.io.
+5. For private Python consumers, configure the GitHub Packages index + a
    `read:packages` PAT (see root README).

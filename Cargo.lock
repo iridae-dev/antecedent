@@ -47,6 +47,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 
 [[package]]
+name = "antecedent"
+version = "0.1.0"
+dependencies = [
+ "causal-attribution",
+ "causal-core",
+ "causal-counterfactual",
+ "causal-data",
+ "causal-design",
+ "causal-discovery",
+ "causal-estimate",
+ "causal-expr",
+ "causal-graph",
+ "causal-identify",
+ "causal-io",
+ "causal-kernels",
+ "causal-model",
+ "causal-prob",
+ "causal-state",
+ "causal-stats",
+ "causal-validate",
+ "serde_json",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -175,31 +200,6 @@ name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
-
-[[package]]
-name = "causal"
-version = "0.1.0"
-dependencies = [
- "causal-attribution",
- "causal-core",
- "causal-counterfactual",
- "causal-data",
- "causal-design",
- "causal-discovery",
- "causal-estimate",
- "causal-expr",
- "causal-graph",
- "causal-identify",
- "causal-io",
- "causal-kernels",
- "causal-model",
- "causal-prob",
- "causal-state",
- "causal-stats",
- "causal-validate",
- "serde_json",
- "thiserror 2.0.19",
-]
 
 [[package]]
 name = "causal-attribution"
@@ -382,9 +382,9 @@ dependencies = [
 name = "causal-py"
 version = "0.1.0"
 dependencies = [
+ "antecedent",
  "arrow-array",
  "arrow-schema",
- "causal",
  "causal-attribution",
  "causal-core",
  "causal-data",
