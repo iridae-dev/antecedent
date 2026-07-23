@@ -124,7 +124,75 @@ impl CausalQuery {
     pub fn path_specific(query: PathSpecificEffectQuery) -> Self {
         Self::PathSpecific(query)
     }
+}
 
+impl From<AverageEffectQuery> for CausalQuery {
+    fn from(query: AverageEffectQuery) -> Self {
+        Self::AverageEffect(query)
+    }
+}
+
+impl From<TemporalEffectQuery> for CausalQuery {
+    fn from(query: TemporalEffectQuery) -> Self {
+        Self::TemporalEffect(query)
+    }
+}
+
+impl From<CounterfactualQuery> for CausalQuery {
+    fn from(query: CounterfactualQuery) -> Self {
+        Self::Counterfactual(query)
+    }
+}
+
+impl From<MediationQuery> for CausalQuery {
+    fn from(query: MediationQuery) -> Self {
+        Self::Mediation(query)
+    }
+}
+
+impl From<ConditionalEffectQuery> for CausalQuery {
+    fn from(query: ConditionalEffectQuery) -> Self {
+        Self::ConditionalEffect(query)
+    }
+}
+
+impl From<InterventionalDistributionQuery> for CausalQuery {
+    fn from(query: InterventionalDistributionQuery) -> Self {
+        Self::Distribution(query)
+    }
+}
+
+impl From<PathSpecificEffectQuery> for CausalQuery {
+    fn from(query: PathSpecificEffectQuery) -> Self {
+        Self::PathSpecific(query)
+    }
+}
+
+impl From<AnomalyAttributionQuery> for CausalQuery {
+    fn from(query: AnomalyAttributionQuery) -> Self {
+        Self::AnomalyAttribution(query)
+    }
+}
+
+impl From<ChangeAttributionQuery> for CausalQuery {
+    fn from(query: ChangeAttributionQuery) -> Self {
+        Self::ChangeAttribution(query)
+    }
+}
+
+impl From<MechanismChangeQuery> for CausalQuery {
+    fn from(query: MechanismChangeQuery) -> Self {
+        Self::MechanismChange(query)
+    }
+}
+
+impl From<UnitChangeQuery> for CausalQuery {
+    fn from(query: UnitChangeQuery) -> Self {
+        Self::UnitChange(query)
+    }
+}
+
+impl CausalQuery {
     /// Whether this query is the static ATE path.
     #[must_use]
     pub const fn is_static_ate(&self) -> bool {

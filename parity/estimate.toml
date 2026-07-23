@@ -62,6 +62,8 @@ group = "identification"
 description = "Backdoor"
 status = "done"
 owner = "estimate"
+python_facade = "full"
+notes = "Python causal.identify + analyze(AverageEffect, identifier=Identifier.BACKDOOR_ADJUSTMENT)"
 
 [[capabilities]]
 id = "estimate.identify.efficient_backdoor"
@@ -84,6 +86,8 @@ group = "identification"
 description = "Identified-estimand representation"
 status = "done"
 owner = "estimate"
+python_facade = "full"
+notes = "Rust IdentifiedEstimand + CausalAnalysis::identify_only; Python causal.identify → IdentifyResult"
 
 [[capabilities]]
 id = "estimate.linear_regression"

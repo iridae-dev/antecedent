@@ -28,7 +28,7 @@ use causal_identify::{
     IdentificationResult, IdentificationWorkspace, InstrumentalVariableIdentifier,
 };
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 
 /// Closed set of identification strategies (plus [`IdentifierId::Other`] escape).
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -327,7 +327,7 @@ pub const DEFAULT_DISTRIBUTION_ESTIMATOR_ID: EstimatorId = EstimatorId::Function
 pub fn validate_static_pair(
     identifier: impl Into<IdentifierId>,
     estimator: impl Into<EstimatorId>,
-) -> Result<(), AnalysisError> {
+) -> Result<(), CausalError> {
     let identifier = identifier.into();
     let estimator = estimator.into();
     let backdoor_estimators = matches!(
@@ -375,7 +375,7 @@ pub fn validate_static_pair(
         _ => false,
     };
     if !supported {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "identifier {:?} is not compatible with estimator {:?}",
                 identifier.as_str(),
@@ -449,12 +449,12 @@ pub fn identification_status_acceptable(status: IdentificationStatus) -> bool {
 /// # Errors
 ///
 /// Effect not identified or no estimand returned.
-pub fn require_identified(result: &IdentificationResult) -> Result<(), AnalysisError> {
+pub fn require_identified(result: &IdentificationResult) -> Result<(), CausalError> {
     if result.status == IdentificationStatus::NotIdentified || result.estimands.is_empty() {
-        return Err(AnalysisError::Compile { message: "effect not identified".into() });
+        return Err(CausalError::Compile { message: "effect not identified".into() });
     }
     if !identification_status_acceptable(result.status) {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!("effect not identified (status {:?})", result.status),
         });
     }
@@ -499,11 +499,11 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
 pub fn select_estimand(
     identification: &IdentificationResult,
     estimator: impl Into<EstimatorId>,
-) -> Result<IdentifiedEstimand, AnalysisError> {
+) -> Result<IdentifiedEstimand, CausalError> {
     let estimator = estimator.into();
     let estimands = &identification.estimands;
     if estimands.is_empty() {
-        return Err(AnalysisError::Compile { message: "no estimand returned".into() });
+        return Err(CausalError::Compile { message: "no estimand returned".into() });
     }
     if estimands.len() == 1 {
         return Ok(estimands[0].clone());
@@ -519,7 +519,7 @@ pub fn select_estimand(
     if matches.len() == 1 {
         return Ok(matches[0].clone());
     }
-    Err(AnalysisError::Compile {
+    Err(CausalError::Compile {
         message: format!(
             "identifier returned {} estimands; select an explicit identifier or an estimator \
              that uniquely matches one method (got estimator {:?})",
@@ -537,7 +537,7 @@ pub fn select_estimand(
 pub fn validate_distribution_pair(
     identifier: impl Into<IdentifierId>,
     estimator: impl Into<EstimatorId>,
-) -> Result<(), AnalysisError> {
+) -> Result<(), CausalError> {
     let identifier = identifier.into();
     let estimator = estimator.into();
     let supported = matches!(
@@ -545,7 +545,7 @@ pub fn validate_distribution_pair(
         (IdentifierId::GeneralId | IdentifierId::Auto, EstimatorId::FunctionalDistribution)
     );
     if !supported {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "Distribution requires identifier general.id|auto with estimator \
                  functional.distribution (got {:?} / {:?})",
@@ -565,7 +565,7 @@ pub fn validate_distribution_pair(
 pub fn validate_path_specific_pair(
     identifier: impl Into<IdentifierId>,
     estimator: impl Into<EstimatorId>,
-) -> Result<(), AnalysisError> {
+) -> Result<(), CausalError> {
     let identifier = identifier.into();
     let estimator = estimator.into();
     let supported = matches!(
@@ -573,7 +573,7 @@ pub fn validate_path_specific_pair(
         (IdentifierId::PathSpecificNatural | IdentifierId::Auto, EstimatorId::FunctionalEffect)
     );
     if !supported {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "PathSpecific requires identifier path_specific.natural|auto with estimator \
                  functional.effect (got {:?} / {:?})",
@@ -594,7 +594,7 @@ pub fn identify_static(
     identifier: impl Into<IdentifierId>,
     graph: &Dag,
     query: &AverageEffectQuery,
-) -> Result<IdentificationResult, AnalysisError> {
+) -> Result<IdentificationResult, CausalError> {
     identify_static_query(identifier, graph, &CausalQuery::AverageEffect(query.clone()))
 }
 
@@ -607,7 +607,7 @@ pub fn identify_static_query(
     identifier: impl Into<IdentifierId>,
     graph: &Dag,
     query: &CausalQuery,
-) -> Result<IdentificationResult, AnalysisError> {
+) -> Result<IdentificationResult, CausalError> {
     identify_static_query_with_rd(identifier, graph, query, None)
 }
 
@@ -621,7 +621,7 @@ pub fn identify_static_query_with_rd(
     graph: &Dag,
     query: &CausalQuery,
     rd: Option<causal_identify::SharpRdConfig>,
-) -> Result<IdentificationResult, AnalysisError> {
+) -> Result<IdentificationResult, CausalError> {
     let identifier = identifier.into();
     let mut id_ws = IdentificationWorkspace::default();
     let result = match identifier {
@@ -669,25 +669,25 @@ pub fn identify_static_query_with_rd(
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
         IdentifierId::GeneralizedAdjustment => {
-            return Err(AnalysisError::Unsupported {
+            return Err(CausalError::Unsupported {
                 message: "identifier \"generalized.adjustment\" requires a PAG \
                      (use GraphInput::Pag / FCI / RFCI, not a static DAG)",
             });
         }
         IdentifierId::RdSharp => {
-            return Err(AnalysisError::Unsupported {
+            return Err(CausalError::Unsupported {
                 message: "identifier \"rd.sharp\" is not a graph-based static identifier; \
                      select estimator \"rd.sharp\" with builder.rd_config(...)",
             });
         }
         IdentifierId::TemporalBackdoorUnfolded => {
-            return Err(AnalysisError::Unsupported {
+            return Err(CausalError::Unsupported {
                 message: "identifier \"temporal.backdoor.unfolded\" requires a temporal graph \
                      and TemporalEffect query",
             });
         }
         IdentifierId::Other(_) => {
-            return Err(AnalysisError::Unsupported { message: "unknown static identifier" });
+            return Err(CausalError::Unsupported { message: "unknown static identifier" });
         }
     };
     require_identified(&result)?;
@@ -703,20 +703,20 @@ pub fn identify_pag(
     identifier: impl Into<IdentifierId>,
     pag: &Pag,
     query: &AverageEffectQuery,
-) -> Result<IdentificationEnvelope<Pag>, AnalysisError> {
+) -> Result<IdentificationEnvelope<Pag>, CausalError> {
     let identifier = identifier.into();
     match identifier {
         IdentifierId::GeneralizedAdjustment => {
             let id = GeneralizedAdjustmentIdentifier::new();
             id.identify_pag_envelope(pag, query).map_err(identify_err)
         }
-        other if other.is_dag_only() => Err(AnalysisError::Compile {
+        other if other.is_dag_only() => Err(CausalError::Compile {
             message: format!(
                 "DAG-only identification {:?} cannot accept a PAG; use generalized.adjustment",
                 other.as_str()
             ),
         }),
-        _ => Err(AnalysisError::Unsupported { message: "unsupported PAG identifier" }),
+        _ => Err(CausalError::Unsupported { message: "unsupported PAG identifier" }),
     }
 }
 
@@ -729,7 +729,7 @@ pub fn identify_admg(
     identifier: impl Into<IdentifierId>,
     admg: &causal_graph::Admg,
     query: &AverageEffectQuery,
-) -> Result<IdentificationResult, AnalysisError> {
+) -> Result<IdentificationResult, CausalError> {
     let identifier = identifier.into();
     match identifier {
         IdentifierId::GeneralId => {
@@ -742,7 +742,7 @@ pub fn identify_admg(
             require_identified(&result)?;
             Ok(result)
         }
-        other => Err(AnalysisError::Compile {
+        other => Err(CausalError::Compile {
             message: format!(
                 "ADMG ATE requires identifier \"general.id\"; got {:?}",
                 other.as_str()
@@ -834,7 +834,7 @@ pub fn estimate_static_effect(
     population_registry: Option<&PopulationRegistry>,
     ctx: &ExecutionContext,
     workspaces: &mut StaticEstimateWorkspaces,
-) -> Result<EffectEstimate, AnalysisError> {
+) -> Result<EffectEstimate, CausalError> {
     match estimator.into() {
         EstimatorId::LinearAdjustmentAte => {
             let mut est = LinearAdjustmentAte::new();
@@ -920,7 +920,7 @@ pub fn estimate_static_effect(
             let mut ws = TwoStageLeastSquaresWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        _ => Err(AnalysisError::Unsupported { message: "unknown static estimator" }),
+        _ => Err(CausalError::Unsupported { message: "unknown static estimator" }),
     }
 }
 
@@ -935,10 +935,10 @@ pub struct StaticEstimateWorkspaces {
     pub aipw: AipwWorkspace,
 }
 
-fn est_err(e: EstimationError) -> AnalysisError {
-    AnalysisError::from(e)
+fn est_err(e: EstimationError) -> CausalError {
+    CausalError::from(e)
 }
 
-fn identify_err(e: IdentificationError) -> AnalysisError {
-    AnalysisError::from(e)
+fn identify_err(e: IdentificationError) -> CausalError {
+    CausalError::from(e)
 }

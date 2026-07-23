@@ -22,12 +22,14 @@ from ._native import (
     analyze_conditional as _analyze_conditional,
     analyze_distribution as _analyze_distribution,
     analyze_events as _analyze_events,
+    analyze_mediation as _analyze_mediation,
     analyze_panel as _analyze_panel,
     analyze_panel_discover as _analyze_panel_discover,
     analyze_path_specific as _analyze_path_specific,
     analyze_temporal_discover as _analyze_temporal_discover,
     analyze_temporal_mediation as _analyze_temporal_mediation,
     analyze_temporal_pag as _analyze_temporal_pag,
+    identify_ate as _identify_ate,
 )
 from .data import EventFrame, MultiEnvFrame, PanelFrame
 from .discovery import (
@@ -56,12 +58,15 @@ from .inference import Bayesian, Frequentist
 from .query import (
     AverageEffect,
     ConditionalEffect,
+    Counterfactual,
     InterventionalDistribution,
+    MediationEffect,
     PathSpecificEffect,
     PulseEffect,
     SustainedEffect,
     TemporalMediationEffect,
 )
+from .ids import Estimator, Identifier
 
 # Preferred name for the native temporal DTO.
 NativeAnalysisResult = TemporalAnalysisResult
@@ -867,6 +872,47 @@ def analyze_many(
     return [_wrap_ate(r) for r in raws]
 
 
+@dataclass(frozen=True)
+class IdentifyResult:
+    """Identify-only result (no estimate)."""
+
+    status: str
+    method: str
+    adjustment_set: list[str]
+
+
+def identify(
+    *,
+    graph: Dag | Sequence[tuple[str, str]],
+    query: AverageEffect,
+    names: Sequence[str] | None = None,
+    identifier: str | Identifier | None = None,
+) -> IdentifyResult:
+    """Identify without estimating.
+
+    Pass ``names`` when ``graph`` is an edge list (variable order). With a
+    ``Dag``, names are taken from ``graph.nodes()``.
+    """
+    if isinstance(identifier, Identifier):
+        identifier = str(identifier)
+    if isinstance(graph, Dag):
+        node_names = list(graph.nodes())
+        edges = list(graph.edges())
+    else:
+        if names is None:
+            raise ValueError("identify(edge_list) requires names=")
+        node_names = list(names)
+        edges = list(graph)
+    status, method, adjustment = _identify_ate(
+        node_names,
+        edges,
+        query.treatment,
+        query.outcome,
+        identifier=identifier,
+    )
+    return IdentifyResult(status=status, method=method, adjustment_set=list(adjustment))
+
+
 def analyze(
     data: Mapping[str, Any] | Any | Sequence[Mapping[str, Any] | Any],
     *,
@@ -877,6 +923,8 @@ def analyze(
         | InterventionalDistribution
         | PathSpecificEffect
         | ConditionalEffect
+        | MediationEffect
+        | Counterfactual
         | TemporalMediationEffect
     ),
     graph: (
@@ -893,8 +941,8 @@ def analyze(
     ) = None,
     discovery: Any | None = None,
     inference: Frequentist | Bayesian | None = None,
-    identifier: str | None = None,
-    estimator: str | None = None,
+    identifier: str | Identifier | None = None,
+    estimator: str | Estimator | None = None,
     refute: bool | Literal["full", "placebo", "none", "cheap"] = True,
     validators: Sequence[Any] | None = None,
     accept_discovered: bool = True,
@@ -924,7 +972,8 @@ def analyze(
         or a ``MultiEnvFrame``.
     query:
         ``AverageEffect``, ``PulseEffect`` / ``SustainedEffect``,
-        ``InterventionalDistribution``, or ``PathSpecificEffect``.
+        ``InterventionalDistribution``, ``PathSpecificEffect``,
+        ``MediationEffect``, ``Counterfactual``, or ``TemporalMediationEffect``.
     graph:
         ``Dag`` / ``Cpdag`` / ``Pag`` / ``Admg`` / ``TemporalDag`` /
         ``TemporalCpdag`` / ``TemporalPag``, or an edge list. Lagged edges
@@ -958,6 +1007,10 @@ def analyze(
         bytes on ``result.posterior.artifact`` (for download / sequential-prior
         hydrate). Default ``False``: UI summaries only.
     """
+    if isinstance(identifier, Identifier):
+        identifier = str(identifier)
+    if isinstance(estimator, Estimator):
+        estimator = str(estimator)
     inference = inference or Frequentist()
     bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
 
@@ -1014,6 +1067,73 @@ def analyze(
             threads=threads,
         )
         return _wrap_temporal(raw)
+
+    if isinstance(query, MediationEffect):
+        if discovery is not None:
+            raise ValueError("MediationEffect does not support discovery=")
+        edges = _static_edges(graph)  # type: ignore[arg-type]
+        names, columns = as_columns(data)  # type: ignore[arg-type]
+        raw = _analyze_mediation(
+            names,
+            columns,
+            edges,
+            query.treatment,
+            query.outcome,
+            list(query.mediators),
+            contrast=query.contrast,
+            control_level=query.control_level,
+            active_level=query.active_level,
+            refute=refute,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+        )
+        return _wrap_ate(raw)
+
+    if isinstance(query, Counterfactual):
+        from ._native import counterfactual_ite
+
+        if discovery is not None:
+            raise ValueError("Counterfactual does not support discovery=")
+        edges = _static_edges(graph)  # type: ignore[arg-type]
+        names, columns = as_columns(data)  # type: ignore[arg-type]
+        ite = counterfactual_ite(
+            names,
+            columns,
+            edges,
+            query.treatment,
+            query.outcome,
+            query.active_level,
+            query.control_level,
+            seed=seed,
+            threads=threads,
+        )
+        return AnalysisResult(
+            identification=IdentificationView(
+                status="gcm.parametric",
+                method="counterfactual.ite",
+                adjustment_set=[],
+                assumption_count=0,
+                derivation_step_count=0,
+            ),
+            estimate=EstimateView(
+                ate=float(ite.mean_ite),
+                se_analytic=float("nan"),
+                se_bootstrap=None,
+                estimator_id="gcm.ite",
+                method="counterfactual.ite",
+            ),
+            posterior=None,
+            validation=ValidationView(passed=False, ran=False, count=0),
+            performance=PerformanceView(
+                plan_id="counterfactual.ite",
+                modality="static",
+                peak_memory_bytes=0,
+            ),
+            diagnostics=[],
+            provenance={"noise_inference": getattr(ite, "noise_inference", None)},
+            _raw=ite,
+        )
 
     if isinstance(query, InterventionalDistribution):
         if discovery is not None:
@@ -1677,11 +1797,11 @@ class PreparedAnalysis:
 
 __all__ = [
     "AnalysisResult",
-    "AteAnalysisResult",
     "ConflictSummaryView",
     "EstimateView",
     "MediationView",
     "IdentificationView",
+    "IdentifyResult",
     "NativeAnalysisResult",
     "PerformanceView",
     "PosteriorView",
@@ -1692,4 +1812,5 @@ __all__ = [
     "ValidationView",
     "analyze",
     "analyze_many",
+    "identify",
 ]

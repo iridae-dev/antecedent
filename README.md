@@ -79,29 +79,48 @@ result = causal.analyze(
 
 ```rust
 use causal::prelude::*;
+use causal::RefuteSuite;
 
 fn main() -> Result<(), CausalError> {
-    let ctx = ExecutionContext::for_tests(1);
+    let schema = CausalSchemaBuilder::new()
+        .continuous("campaign")
+        .treatment()
+        .continuous("revenue")
+        .outcome()
+        .continuous("z")
+        .context()
+        .build()?;
+    let data = TabularData::from_f64_columns([
+        ("campaign", campaign.as_slice()),
+        ("revenue", revenue.as_slice()),
+        ("z", z.as_slice()),
+    ])?;
+    let dag = Dag::from_named_edges(
+        &schema,
+        &[("z", "campaign"), ("z", "revenue"), ("campaign", "revenue")],
+    )?;
     let t = schema.id_of("campaign")?;
     let y = schema.id_of("revenue")?;
+    let ctx = ExecutionContext::for_tests(1);
 
     let result = CausalAnalysis::builder()
-        .data(tabular)
+        .data(data)
         .graph(dag)
         .query(AverageEffectQuery::binary_ate(t, y))
         .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(1000)))
+        .refute(RefuteSuite::None)
         .build()?
         .run(&ctx)?;
 
     if let Some(posterior) = &result.posterior {
         println!("P(effect < 0) = {}", posterior.probability_below(0.0)?);
     }
-    println!("ATE point = {}", result.estimate.ate);
+    println!("ATE point = {}", result.effect());
     Ok(())
 }
 ```
 
-`use causal::prelude::*` for the facade. Lower crates expose graph, discovery, identification, estimation, model, and validation components.
+`use causal::prelude::*` for day-1 imports. Prefer modules (`causal::discovery`, `causal::gcm`, `causal::io`, …) for stage depth. Examples: `cargo run -p causal --example ate_quickstart`.
 
 ## What it covers
 
@@ -129,8 +148,8 @@ Hot paths run in Rust (batched APIs, reusable workspaces, optimized kernels). Re
 ## Documentation
 
 * [Architecture](docs/architecture.md) · [Development](docs/development.md) · [Artifacts](docs/artifacts.md)
-* [Hot paths](docs/hot_paths.md) · [Conformance](docs/conformance/README.md) · [ADRs](adr/README.md)
-* [Rust API](https://docs.rs/causal) · [Examples](examples/)
+* [API naming (Rust ↔ Python)](docs/api_naming.md) · [Hot paths](docs/hot_paths.md) · [Conformance](docs/conformance/README.md) · [ADRs](adr/README.md)
+* [Rust API](https://docs.rs/causal) · [Examples](crates/causal/examples/) · [Python examples](python/examples/)
 
 ## Contributing
 

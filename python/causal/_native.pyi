@@ -298,6 +298,7 @@ class DecisionEvaluation:
 class FittedGcm:
     names: list[str]
     n_assignments: int
+    def mechanism_kinds(self) -> list[tuple[str, str]]: ...
     def sample_do(
         self,
         interventions: dict[str, float],
@@ -668,6 +669,32 @@ def analyze_conditional(
     bootstrap: int = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
+
+def analyze_mediation(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    mediators: list[str],
+    *,
+    contrast: str = "mediated",
+    control_level: float = 0.0,
+    active_level: float = 1.0,
+    refute: bool | str | None = None,
+    seed: int = 1,
+    bootstrap: int = 0,
+    threads: int = 1,
+) -> AteAnalysisResult: ...
+
+def identify_ate(
+    names: list[str],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    *,
+    identifier: str | None = None,
+) -> tuple[str, str, list[str]]: ...
 
 def analyze_temporal_mediation(
     names: list[str],
@@ -1188,6 +1215,22 @@ class Dag:
     def children(self, name: str) -> list[str]: ...
     def node_count(self) -> int: ...
     def to_dot(self) -> str: ...
+    @classmethod
+    def from_json(cls, json: str) -> Dag: ...
+    def to_json(self) -> str: ...
+    @classmethod
+    def from_gml(cls, gml: str) -> Dag: ...
+    def to_gml(self) -> str: ...
+    @classmethod
+    def from_networkx_node_link(cls, json: str) -> Dag: ...
+    def to_networkx_node_link(self) -> str: ...
+    @classmethod
+    def from_networkx_adjacency(cls, json: str) -> Dag: ...
+    def to_networkx_adjacency(self) -> str: ...
+    def d_separated(
+        self, x: str, y: str, z: list[str] | None = None
+    ) -> bool: ...
+    def latent_project(self, observed: list[str]) -> Admg: ...
 
 class Cpdag:
     @classmethod
@@ -1246,6 +1289,15 @@ class Pag:
     @classmethod
     def from_networkx_node_link(cls, json: str) -> Pag: ...
     def to_networkx_node_link(self) -> str: ...
+    def m_separated(
+        self,
+        x: str,
+        y: str,
+        z: list[str] | None = None,
+        *,
+        max_paths: int = 32,
+        max_len: int = 6,
+    ) -> bool: ...
 
 class Admg:
     @classmethod
@@ -1272,6 +1324,9 @@ class Admg:
     @classmethod
     def from_networkx_node_link(cls, json: str) -> Admg: ...
     def to_networkx_node_link(self) -> str: ...
+    def m_separated(
+        self, x: str, y: str, z: list[str] | None = None
+    ) -> bool: ...
 
 class TemporalDag:
     @classmethod

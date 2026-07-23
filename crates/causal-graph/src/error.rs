@@ -14,6 +14,11 @@ pub enum GraphError {
         /// Dense id.
         id: u32,
     },
+    /// Unknown variable name at an API boundary.
+    UnknownVariableName {
+        /// Requested name.
+        name: String,
+    },
     /// Edge would introduce a directed cycle.
     Cycle {
         /// Source dense id.
@@ -62,6 +67,7 @@ impl fmt::Display for GraphError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnknownNode { id } => write!(f, "unknown dense node {id}"),
+            Self::UnknownVariableName { name } => write!(f, "unknown variable name '{name}'"),
             Self::Cycle { from, to } => write!(f, "edge {from}->{to} would create a cycle"),
             Self::InvalidEndpoints { message } => write!(f, "invalid endpoints: {message}"),
             Self::ContemporaneousSelfEdge { variable } => {

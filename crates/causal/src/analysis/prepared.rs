@@ -13,7 +13,7 @@ use causal_core::{CausalQuery, CausalSchema, ExecutionContext};
 use causal_data::{TableView, TabularData};
 use causal_estimate::EstimationWorkspace;
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 use crate::planner::{CompiledAnalysis, GraphInput, PhysicalExecutionPlan};
 use crate::result::CausalAnalysisResult;
 use crate::strategy_table::DEFAULT_ESTIMATOR;
@@ -59,7 +59,7 @@ impl PreparedAnalysis {
         &self,
         data: &TabularData,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, AnalysisError> {
+    ) -> Result<CausalAnalysisResult, CausalError> {
         self.ensure_schema_compatible(data)?;
         let mut analysis = self.analysis.clone();
         analysis.data = DataInput::Tabular(data.clone());
@@ -75,7 +75,7 @@ impl PreparedAnalysis {
         &mut self,
         data: TabularData,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, AnalysisError> {
+    ) -> Result<CausalAnalysisResult, CausalError> {
         self.ensure_schema_compatible(&data)?;
         self.analysis.data = DataInput::Tabular(data);
         self.analysis.execute(&CompiledAnalysis::Ready(self.plan.clone()), ctx)
@@ -96,15 +96,15 @@ impl PreparedAnalysis {
         data: &TabularData,
         suite: RefuteSuite,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, AnalysisError> {
+    ) -> Result<CausalAnalysisResult, CausalError> {
         self.ensure_schema_compatible(data)?;
         let CausalQuery::AverageEffect(query) = &self.analysis.query else {
-            return Err(AnalysisError::Unsupported {
+            return Err(CausalError::Unsupported {
                 message: "PreparedAnalysis::refute requires AverageEffect",
             });
         };
         if prior.treatment != query.treatment || prior.outcome != query.outcome {
-            return Err(AnalysisError::Compile {
+            return Err(CausalError::Compile {
                 message: "refute prior result treatment/outcome does not match prepared query"
                     .into(),
             });
@@ -121,7 +121,7 @@ impl PreparedAnalysis {
         let mut clock = StageClock::new();
         clock.begin(ctx, STAGE_VALIDATE, 0.8)?;
         if ctx.cancellation.is_cancelled() {
-            return Err(AnalysisError::Cancelled { stage: STAGE_VALIDATE });
+            return Err(CausalError::Cancelled { stage: STAGE_VALIDATE });
         }
         let mut workspace = EstimationWorkspace::default();
         let started = Instant::now();
@@ -163,9 +163,9 @@ impl PreparedAnalysis {
         Ok(out)
     }
 
-    fn ensure_schema_compatible(&self, data: &TabularData) -> Result<(), AnalysisError> {
+    fn ensure_schema_compatible(&self, data: &TabularData) -> Result<(), CausalError> {
         if data.schema() != &self.schema {
-            return Err(AnalysisError::Compile {
+            return Err(CausalError::Compile {
                 message: "prepared analysis refresh requires the same schema \
                     (variable names, types, and order) as prepare-time data"
                     .into(),
@@ -188,11 +188,11 @@ impl CausalAnalysis {
     pub fn prepare(
         &self,
         ctx: &ExecutionContext,
-    ) -> Result<PreparedAnalysis, AnalysisError> {
+    ) -> Result<PreparedAnalysis, CausalError> {
         ensure_prepared_supported(self)?;
         let compiled = self.compile(ctx)?;
         let CompiledAnalysis::Ready(plan) = compiled else {
-            return Err(AnalysisError::Compile {
+            return Err(CausalError::Compile {
                 message: "prepare requires a Ready plan; complete graph review first \
                     (discovery / incomplete CPDAG/PAG are not session-refreshable)"
                     .into(),
@@ -201,7 +201,7 @@ impl CausalAnalysis {
         let schema = match &self.data {
             DataInput::Tabular(data) => data.schema().clone(),
             _ => {
-                return Err(AnalysisError::Unsupported {
+                return Err(CausalError::Unsupported {
                     message: "PreparedAnalysis requires tabular data",
                 });
             }
@@ -210,19 +210,19 @@ impl CausalAnalysis {
     }
 }
 
-fn ensure_prepared_supported(analysis: &CausalAnalysis) -> Result<(), AnalysisError> {
+fn ensure_prepared_supported(analysis: &CausalAnalysis) -> Result<(), CausalError> {
     let DataInput::Tabular(_) = &analysis.data else {
-        return Err(AnalysisError::Unsupported {
+        return Err(CausalError::Unsupported {
             message: "PreparedAnalysis requires tabular data and AverageEffect",
         });
     };
     if !matches!(analysis.query, CausalQuery::AverageEffect(_)) {
-        return Err(AnalysisError::Unsupported {
+        return Err(CausalError::Unsupported {
             message: "PreparedAnalysis currently supports AverageEffect only",
         });
     }
     if !is_supplied_static_graph(&analysis.graph) {
-        return Err(AnalysisError::Unsupported {
+        return Err(CausalError::Unsupported {
             message: "PreparedAnalysis requires a supplied static Dag/Cpdag/Pag/Admg \
                 (discovery graphs stay on one-shot analyze / review)",
         });

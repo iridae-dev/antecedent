@@ -10,31 +10,15 @@
 //! [`VariableId`] values resolved from that schema — never raw strings.
 //!
 //! ```
-//! use causal_core::{
-//!     AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet,
-//!     ValueType, VariableId,
-//! };
+//! use causal_core::{AverageEffectQuery, CausalSchemaBuilder, VariableId};
 //!
-//! let mut b = CausalSchemaBuilder::new();
-//! b.add_variable(
-//!     "treatment",
-//!     ValueType::Continuous,
-//!     SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
-//!     None,
-//!     None,
-//!     MeasurementSpec::default(),
-//! )
-//! .unwrap();
-//! b.add_variable(
-//!     "outcome",
-//!     ValueType::Continuous,
-//!     SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
-//!     None,
-//!     None,
-//!     MeasurementSpec::default(),
-//! )
-//! .unwrap();
-//! let schema = b.build().unwrap();
+//! let schema = CausalSchemaBuilder::new()
+//!     .continuous("treatment")
+//!     .treatment()
+//!     .continuous("outcome")
+//!     .outcome()
+//!     .build()
+//!     .unwrap();
 //! let t = schema.id_of("treatment").unwrap();
 //! let y = schema.id_of("outcome").unwrap();
 //! let query = AverageEffectQuery::binary_ate(t, y);
@@ -101,7 +85,7 @@ pub use query::{
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
-    ValueType, VariableSchema,
+    ValueType, VariableInProgress, VariableSchema,
 };
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 pub use tolerance::ToleranceClass;

@@ -4,14 +4,18 @@
 //! preserve edge semantics — they are not interchangeable aliases.
 //!
 //! ```
-//! use causal_graph::{Dag, DenseNodeId};
+//! use causal_core::CausalSchemaBuilder;
+//! use causal_graph::Dag;
 //!
-//! let mut dag = Dag::empty();
-//! let a = DenseNodeId::from_raw(0);
-//! let b = DenseNodeId::from_raw(1);
-//! // Prefer schema-aligned constructors in real code; empty DAGs are for scaffolding.
-//! assert_eq!(dag.node_count(), 0);
-//! let _ = (a, b, dag);
+//! let schema = CausalSchemaBuilder::new()
+//!     .continuous("a")
+//!     .finish()
+//!     .continuous("b")
+//!     .finish()
+//!     .build()
+//!     .unwrap();
+//! let dag = Dag::from_named_edges(&schema, &[("a", "b")]).unwrap();
+//! assert_eq!(dag.node_count(), 2);
 //! ```
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -28,8 +32,9 @@ pub mod cpdag_completion;
 pub mod dag;
 pub mod dsep;
 pub mod error;
-pub(crate) mod marked_storage;
+pub mod marked_storage;
 pub mod msep;
+pub mod named;
 pub mod overlay;
 pub mod pag;
 pub mod projection;

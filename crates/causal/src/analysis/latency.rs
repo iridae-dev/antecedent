@@ -7,7 +7,7 @@
 
 use causal_estimate::BayesianBackendKind;
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::GraphInput;
 
@@ -153,11 +153,11 @@ impl ResolvedLatencyBudget {
 ///
 /// # Errors
 ///
-/// [`AnalysisError::Unsupported`] when a non-Report mode pairs with HMC.
+/// [`CausalError::Unsupported`] when a non-Report mode pairs with HMC.
 pub fn refuse_non_report_hmc(
     mode: LatencyMode,
     inference: &InferenceMode,
-) -> Result<(), AnalysisError> {
+) -> Result<(), CausalError> {
     if mode == LatencyMode::Report {
         return Ok(());
     }
@@ -165,7 +165,7 @@ pub fn refuse_non_report_hmc(
         return Ok(());
     };
     if matches!(cfg.backend, BayesianBackendKind::Hmc) {
-        return Err(AnalysisError::Unsupported {
+        return Err(CausalError::Unsupported {
             message: "HMC requires LatencyMode::Report; use Laplace/conjugate for Interactive/Standard",
         });
     }
@@ -180,13 +180,13 @@ pub fn refuse_non_report_hmc(
 ///
 /// # Errors
 ///
-/// [`AnalysisError::Unsupported`] when Interactive pairs with any `Discover*` graph.
+/// [`CausalError::Unsupported`] when Interactive pairs with any `Discover*` graph.
 pub fn refuse_discovery_under_interactive(
     mode: LatencyMode,
     graph: &GraphInput,
-) -> Result<(), AnalysisError> {
+) -> Result<(), CausalError> {
     if mode == LatencyMode::Interactive && graph.is_discovery() {
-        return Err(AnalysisError::Unsupported {
+        return Err(CausalError::Unsupported {
             message: "discovery graphs are not on the Interactive estimate path; \
                 discover once, accept the graph, then supply GraphInput::Static/Cpdag/Pag \
                 (or prepare) under LatencyMode::Interactive",
@@ -232,13 +232,13 @@ mod tests {
             &InferenceMode::Bayesian(cfg.clone()),
         )
         .unwrap_err();
-        assert!(matches!(err, AnalysisError::Unsupported { .. }));
+        assert!(matches!(err, CausalError::Unsupported { .. }));
         let err_std = refuse_non_report_hmc(
             LatencyMode::Standard,
             &InferenceMode::Bayesian(cfg),
         )
         .unwrap_err();
-        assert!(matches!(err_std, AnalysisError::Unsupported { .. }));
+        assert!(matches!(err_std, CausalError::Unsupported { .. }));
         assert!(refuse_non_report_hmc(
             LatencyMode::Interactive,
             &InferenceMode::Bayesian(BayesianConfig::laplace()),
@@ -261,7 +261,7 @@ mod tests {
         };
         let err = refuse_discovery_under_interactive(LatencyMode::Interactive, &discover)
             .unwrap_err();
-        assert!(matches!(err, AnalysisError::Unsupported { message } if message.contains("Interactive")));
+        assert!(matches!(err, CausalError::Unsupported { message } if message.contains("Interactive")));
         assert!(refuse_discovery_under_interactive(LatencyMode::Standard, &discover).is_ok());
         assert!(refuse_discovery_under_interactive(LatencyMode::Report, &discover).is_ok());
         let supplied = GraphInput::Static(causal_graph::Dag::with_variables(1));

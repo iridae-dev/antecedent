@@ -17,9 +17,9 @@ use causal_state::StateError;
 use causal_validate::ValidationError;
 use thiserror::Error;
 
-/// Analysis pipeline failures — structured sum over domain errors.
+/// Pipeline and facade failures — structured sum over domain errors.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
-pub enum AnalysisError {
+pub enum CausalError {
     /// Identification failed.
     #[error(transparent)]
     Identify(#[from] IdentificationError),
@@ -105,7 +105,7 @@ pub enum AnalysisError {
     },
 }
 
-impl AnalysisError {
+impl CausalError {
     /// Build a structured review-required error.
     #[must_use]
     pub fn review_required(
@@ -138,5 +138,6 @@ impl AnalysisError {
     }
 }
 
-/// Public alias for [`AnalysisError`].
-pub type CausalError = AnalysisError;
+/// Deprecated alias for [`CausalError`].
+#[deprecated(note = "renamed to CausalError")]
+pub type AnalysisError = CausalError;

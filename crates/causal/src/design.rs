@@ -3,11 +3,17 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use causal_core::ExecutionContext;
-use causal_design::{
-    CandidateDesign, DesignEvaluationContext, DesignObjective, DesignRanker, DesignRanking,
-};
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
+
+pub use causal_design::{
+    CandidateDesign, ConstraintViolation, DecisionConstraint, DecisionEvaluation, DecisionProblem,
+    DecisionProblemId, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
+    DesignObjective, DesignRankConfig, DesignRanker, DesignRanking, EffectWidthContext,
+    EnvironmentGramSpec, EnvironmentPlan, ExperimentPlan, InterventionDesignEffect,
+    MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, RankedCandidate, SamplingPlan, Utility,
+    evaluate_decision,
+};
 
 /// Rank candidate designs under an objective.
 ///
@@ -20,10 +26,10 @@ pub fn rank_designs<A, O>(
     candidates: &[CandidateDesign],
     eval: &DesignEvaluationContext<'_, A, O>,
     ctx: &ExecutionContext,
-) -> Result<DesignRanking, AnalysisError>
+) -> Result<DesignRanking, CausalError>
 where
     A: Clone,
     O: Clone,
 {
-    ranker.rank(objective, candidates, eval, ctx).map_err(AnalysisError::from)
+    ranker.rank(objective, candidates, eval, ctx).map_err(CausalError::from)
 }

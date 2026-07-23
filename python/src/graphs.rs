@@ -15,7 +15,14 @@ use causal::{
     cpdag_to_dot as facade_cpdag_to_dot, cpdag_to_gml as facade_cpdag_to_gml,
     cpdag_to_json as facade_cpdag_to_json,
     cpdag_to_networkx_node_link as facade_cpdag_to_networkx_node_link,
-    dag_from_dot as facade_dag_from_dot, dag_to_dot as facade_dag_to_dot,
+    dag_from_dot as facade_dag_from_dot, dag_from_gml as facade_dag_from_gml,
+    dag_from_json as facade_dag_from_json,
+    dag_from_networkx_adjacency as facade_dag_from_networkx_adjacency,
+    dag_from_networkx_node_link as facade_dag_from_networkx_node_link,
+    dag_to_dot as facade_dag_to_dot, dag_to_gml as facade_dag_to_gml,
+    dag_to_json as facade_dag_to_json,
+    dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency,
+    dag_to_networkx_node_link as facade_dag_to_networkx_node_link,
     pag_from_dot as facade_pag_from_dot, pag_from_gml as facade_pag_from_gml,
     pag_from_json as facade_pag_from_json,
     pag_from_networkx_node_link as facade_pag_from_networkx_node_link,
@@ -172,6 +179,79 @@ impl Dag {
 
     fn to_dot(&self) -> PyResult<String> {
         facade_dag_to_dot(&self.dag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        let dag = facade_dag_from_json(json).map_err(py_err)?;
+        let names = default_names(dag.node_count());
+        Ok(Self { dag, names })
+    }
+
+    fn to_json(&self) -> PyResult<String> {
+        facade_dag_to_json(&self.dag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_gml(_cls: &Bound<'_, PyType>, gml: &str) -> PyResult<Self> {
+        let dag = facade_dag_from_gml(gml).map_err(py_err)?;
+        let names = default_names(dag.node_count());
+        Ok(Self { dag, names })
+    }
+
+    fn to_gml(&self) -> PyResult<String> {
+        facade_dag_to_gml(&self.dag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_networkx_node_link(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        let dag = facade_dag_from_networkx_node_link(json).map_err(py_err)?;
+        let names = default_names(dag.node_count());
+        Ok(Self { dag, names })
+    }
+
+    fn to_networkx_node_link(&self) -> PyResult<String> {
+        facade_dag_to_networkx_node_link(&self.dag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    #[classmethod]
+    fn from_networkx_adjacency(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        let dag = facade_dag_from_networkx_adjacency(json).map_err(py_err)?;
+        let names = default_names(dag.node_count());
+        Ok(Self { dag, names })
+    }
+
+    fn to_networkx_adjacency(&self) -> PyResult<String> {
+        facade_dag_to_networkx_adjacency(&self.dag, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    /// Whether ``x`` is d-separated from ``y`` given ``z``.
+    #[pyo3(signature = (x, y, z=None))]
+    fn d_separated(&self, x: &str, y: &str, z: Option<Vec<String>>) -> PyResult<bool> {
+        use causal_graph::DSeparationWorkspace;
+        let xid = self.name_index(x)?;
+        let yid = self.name_index(y)?;
+        let mut zids = Vec::new();
+        if let Some(names) = z {
+            for n in names {
+                zids.push(self.name_index(&n)?);
+            }
+        }
+        let mut ws = DSeparationWorkspace::default();
+        self.dag.is_d_separated(xid, yid, &zids, &mut ws).map_err(py_err)
+    }
+
+    /// Latent-project onto ``observed`` variable names; returns an ``Admg``.
+    fn latent_project(&self, observed: Vec<String>) -> PyResult<Admg> {
+        use causal::latent_project;
+        let mut obs = Vec::with_capacity(observed.len());
+        let mut obs_names = Vec::with_capacity(observed.len());
+        for n in &observed {
+            obs.push(self.name_index(n)?);
+            obs_names.push(n.clone());
+        }
+        let admg = latent_project(&self.dag, &obs).map_err(py_err)?;
+        Ok(Admg { admg, names: obs_names })
     }
 
     fn __repr__(&self) -> String {
@@ -451,6 +531,27 @@ impl Pag {
         facade_pag_to_networkx_node_link(&self.pag, Some(self.names.as_slice())).map_err(py_err)
     }
 
+    /// Definite-status m-separation of ``x`` and ``y`` given ``z``.
+    #[pyo3(signature = (x, y, z=None, *, max_paths=32, max_len=6))]
+    fn m_separated(
+        &self,
+        x: &str,
+        y: &str,
+        z: Option<Vec<String>>,
+        max_paths: usize,
+        max_len: usize,
+    ) -> PyResult<bool> {
+        let xid = self.name_index(x)?;
+        let yid = self.name_index(y)?;
+        let mut zids = Vec::new();
+        if let Some(names) = z {
+            for n in names {
+                zids.push(self.name_index(&n)?);
+            }
+        }
+        self.pag.is_m_separated(xid, yid, &zids, max_paths, max_len).map_err(py_err)
+    }
+
     fn __repr__(&self) -> String {
         format!("Pag(nodes={})", self.pag.node_count())
     }
@@ -562,6 +663,22 @@ impl Admg {
 
     fn to_networkx_node_link(&self) -> PyResult<String> {
         facade_admg_to_networkx_node_link(&self.admg, Some(self.names.as_slice())).map_err(py_err)
+    }
+
+    /// Whether ``x`` is m-separated from ``y`` given ``z``.
+    #[pyo3(signature = (x, y, z=None))]
+    fn m_separated(&self, x: &str, y: &str, z: Option<Vec<String>>) -> PyResult<bool> {
+        use causal_graph::DSeparationWorkspace;
+        let xid = self.name_index(x)?;
+        let yid = self.name_index(y)?;
+        let mut zids = Vec::new();
+        if let Some(names) = z {
+            for n in names {
+                zids.push(self.name_index(&n)?);
+            }
+        }
+        let mut ws = DSeparationWorkspace::default();
+        self.admg.is_m_separated(xid, yid, &zids, &mut ws).map_err(py_err)
     }
 
     fn __repr__(&self) -> String {

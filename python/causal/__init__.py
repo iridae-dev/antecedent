@@ -1,6 +1,6 @@
 """causal — Python bindings for the causal-library Rust workspace.
 
-Primary entry point::
+Day-1 surface::
 
     result = causal.analyze(
         data,
@@ -8,8 +8,15 @@ Primary entry point::
         query=causal.AverageEffect(treatment="t", outcome="y"),
     )
 
-Stage modules (``causal.discovery``, ``causal.estimation``, …) hold related
-helpers. The native extension ``causal._native`` is an advanced FFI surface.
+Stage modules hold depth: ``causal.discovery``, ``causal.estimation``,
+``causal.gcm``, ``causal.graph``, ``causal.attribution``, ``causal.validation``.
+Prefer ``Dag.from_dot`` / ``.to_dot`` (and peers); free ``dag_from_*`` helpers
+remain thin aliases under ``causal`` and ``causal.graph``.
+
+Public analysis results are nested ``AnalysisResult`` views. The native DTO
+``AteAnalysisResult`` lives on ``causal._native`` only.
+
+The native extension ``causal._native`` is an advanced FFI surface.
 """
 
 from __future__ import annotations
@@ -37,7 +44,6 @@ from ._native import (
     Admg,
     AnomalyScores,
     ArrowLoadInfo,
-    AteAnalysisResult,
     CausalAttributionError,
     CausalCompileError,
     CausalCounterfactualError,
@@ -172,11 +178,14 @@ from .estimation import (
     PredictiveCheckReport,
     PreparedAnalysis,
     PriorSensitivityReport,
+    IdentifyResult,
     analyze,
     analyze_many,
+    identify,
 )
 from .accepted_graph import AcceptedGraph
 from .inference import Bayesian, Frequentist
+from .ids import Estimator, Identifier
 from .prior_bank import (
     CompatibilityReport,
     ComposedPrior,
@@ -197,7 +206,9 @@ from .prior_bank import (
 from .query import (
     AverageEffect,
     ConditionalEffect,
+    Counterfactual,
     InterventionalDistribution,
+    MediationEffect,
     PathSpecificEffect,
     PulseEffect,
     SustainedEffect,
@@ -216,14 +227,35 @@ from .validation import (
 )
 
 __all__ = [
+    # Day-1
     "AcceptedGraph",
     "Admg",
     "AnalysisResult",
-    "AnomalyScores",
-    "ArrowLoadInfo",
-    "AteAnalysisResult",
     "AverageEffect",
     "Bayesian",
+    "ConditionalEffect",
+    "Counterfactual",
+    "Cpdag",
+    "Dag",
+    "Estimator",
+    "Frequentist",
+    "Identifier",
+    "IdentifyResult",
+    "InterventionalDistribution",
+    "MediationEffect",
+    "Pag",
+    "PathSpecificEffect",
+    "PreparedAnalysis",
+    "PulseEffect",
+    "SustainedEffect",
+    "TemporalDag",
+    "TemporalMediationEffect",
+    "analyze",
+    "analyze_many",
+    "identify",
+    "fit_gcm",
+    "FittedGcm",
+    # Errors
     "CausalAttributionError",
     "CausalCompileError",
     "CausalCounterfactualError",
@@ -238,19 +270,18 @@ __all__ = [
     "CausalResourceError",
     "CausalReviewError",
     "CausalSerializationError",
-    "CausalState",
     "CausalStateError",
     "CausalUnsupportedError",
     "CausalCancelledError",
     "CancellationToken",
     "CausalValidateError",
+    # Stage re-exports (prefer causal.discovery / .gcm / .graph / …)
+    "AnomalyScores",
+    "ArrowLoadInfo",
     "ChangeAttributionResult",
     "CompatibilityReport",
-    "ConditionalEffect",
     "CiScreenedPosterior",
     "Contribution",
-    "Cpdag",
-    "Dag",
     "DbnPosterior",
     "DecisionEvaluation",
     "DesignRanking",
@@ -260,14 +291,11 @@ __all__ = [
     "EstimandFingerprint",
     "FCI",
     "FeatureRelevance",
-    "FittedGcm",
-    "Frequentist",
     "GES",
     "GcmIteResult",
     "GcmSampleResult",
     "GraphEdge",
     "GraphPosterior",
-    "InterventionalDistribution",
     "JPCMCIPlus",
     "LPCMCI",
     "LiNGAM",
@@ -278,9 +306,6 @@ __all__ = [
     "PC",
     "PCMCI",
     "PCMCIPlus",
-    "Pag",
-    "PreparedAnalysis",
-    "PathSpecificEffect",
     "PcmciDiscoveryResult",
     "PopulationRegistry",
     "PosteriorArtifact",
@@ -301,18 +326,13 @@ __all__ = [
     "POPULATION_TAG_KEY",
     "compose_external_priors",
     "populations_from_prior_sources",
-    "PulseEffect",
     "RFCI",
     "RPCMCI",
     "RpcmciDiscoverySummary",
     "StructureMcmc",
-    "SustainedEffect",
     "TemporalCpdag",
-    "TemporalDag",
-    "TemporalMediationEffect",
     "TemporalPag",
-    "analyze",
-    "analyze_many",
+    "CausalState",
     "anomaly_attribution",
     "attribute_distribution_change",
     "attribute_distribution_change_robust",
@@ -363,7 +383,6 @@ __all__ = [
     "event",
     "EventFrame",
     "extensibility",
-    "fit_gcm",
     "fit_gcm_discovered",
     "gcm",
     "graph",

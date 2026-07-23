@@ -27,7 +27,7 @@ use causal_graph::{Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPa
 use causal_stats::ConditionalIndependence;
 use causal_validate::CustomEffectValidator;
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::GraphInput;
 use crate::strategy_table::{EstimatorId, IdentifierId};
@@ -578,29 +578,38 @@ impl CausalAnalysisBuilder {
         self
     }
 
-    /// Average-effect query (static).
+    /// Average-effect query (static). Prefer [`Self::query`] with any [`CausalQuery`]-convertible type.
     #[must_use]
-    pub fn query(mut self, query: AverageEffectQuery) -> Self {
-        self.query = Some(CausalQuery::AverageEffect(query));
-        self
+    pub fn average_effect(self, query: AverageEffectQuery) -> Self {
+        self.query(query)
     }
 
-    /// Generic causal query (static or temporal).
+    /// Set the causal query. Accepts [`CausalQuery`] or types that convert into it
+    /// (e.g. [`AverageEffectQuery`], [`TemporalEffectQuery`]).
     #[must_use]
-    pub fn causal_query(mut self, query: CausalQuery) -> Self {
-        self.query = Some(query);
-        self
-    }
-
-    /// Temporal effect query.
-    #[must_use]
-    pub fn temporal_query(mut self, query: TemporalEffectQuery) -> Self {
-        self.query = Some(CausalQuery::TemporalEffect(query));
-        // Bayesian inference must not force the static BayesianGcomp estimator on temporal.
-        if matches!(self.estimator, Some(EstimatorId::BayesianGcomp)) {
-            self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
+    pub fn query(mut self, query: impl Into<CausalQuery>) -> Self {
+        let q = query.into();
+        if matches!(q, CausalQuery::TemporalEffect(_)) {
+            // Bayesian inference must not force the static BayesianGcomp estimator on temporal.
+            if matches!(self.estimator, Some(EstimatorId::BayesianGcomp)) {
+                self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
+            }
         }
+        self.query = Some(q);
         self
+    }
+
+    /// Generic causal query (alias of [`Self::query`]).
+    #[deprecated(note = "use query(...) instead")]
+    #[must_use]
+    pub fn causal_query(self, query: CausalQuery) -> Self {
+        self.query(query)
+    }
+
+    /// Temporal effect query (alias of [`Self::query`]).
+    #[must_use]
+    pub fn temporal_query(self, query: TemporalEffectQuery) -> Self {
+        self.query(query)
     }
 
     /// Discovery / estimation temporal-gap split.
@@ -734,17 +743,17 @@ impl CausalAnalysisBuilder {
     ///
     /// Missing required fields, event alignment failure, Interactive+HMC, or
     /// Interactive+discovery graph.
-    pub fn build(self) -> Result<CausalAnalysis, AnalysisError> {
+    pub fn build(self) -> Result<CausalAnalysis, CausalError> {
         let data = if let Some((event, interval_ns)) = self.event_pending {
-            let aligned = event.align_to_grid(interval_ns).map_err(|e| AnalysisError::Compile {
+            let aligned = event.align_to_grid(interval_ns).map_err(|e| CausalError::Compile {
                 message: format!("event align_to_grid: {e}"),
             })?;
             DataInput::Event(aligned)
         } else {
-            self.data.ok_or(AnalysisError::Missing { field: "data" })?
+            self.data.ok_or(CausalError::Missing { field: "data" })?
         };
 
-        let graph = self.graph.ok_or(AnalysisError::Missing { field: "graph" })?;
+        let graph = self.graph.ok_or(CausalError::Missing { field: "graph" })?;
         let mut refute = self.refute;
         let mut bootstrap_replicates = self.bootstrap_replicates;
         let mut inference = self.inference;
@@ -796,7 +805,7 @@ impl CausalAnalysisBuilder {
         Ok(CausalAnalysis {
             data,
             graph,
-            query: self.query.ok_or(AnalysisError::Missing { field: "query" })?,
+            query: self.query.ok_or(CausalError::Missing { field: "query" })?,
             refute,
             bootstrap_replicates,
             split: self.split,

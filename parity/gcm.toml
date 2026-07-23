@@ -6,14 +6,14 @@ library = "causal"
 [[capabilities]]
 id = "gcm.model.compiled_plans"
 status = "done"
-python_facade = "thin"
-notes = "CompiledCausalModel topo + ParentGatherPlan (Rust); Python via fit_gcm opaque handle"
+python_facade = "full"
+notes = "CompiledCausalModel topo + ParentGatherPlan (Rust); Python FittedGcm + mechanism_kinds()"
 
 [[capabilities]]
 id = "gcm.model.mechanisms"
 status = "done"
-python_facade = "thin"
-notes = "Linear Gaussian, discrete, constant batch kernels"
+python_facade = "full"
+notes = "Linear Gaussian, discrete, constant batch kernels; Python mechanism_kinds summarizes selected families"
 
 [[capabilities]]
 id = "gcm.model.registry_fit"
@@ -23,12 +23,14 @@ notes = "MechanismRegistry auto-assignment; no silent default"
 [[capabilities]]
 id = "gcm.model.sampling"
 status = "done"
-notes = "Observational/interventional overlays; soft/stochastic/sequence"
+python_facade = "full"
+notes = "Observational/interventional overlays; soft/stochastic/sequence; Python sample_do / FittedGcm"
 
 [[capabilities]]
 id = "gcm.do_sampling"
 status = "done"
-notes = "Weighting, KDE, MCMC do-samplers"
+python_facade = "full"
+notes = "Weighting, KDE, MCMC do-samplers; Python sample_do / sample_interventional_distribution"
 
 [[capabilities]]
 id = "gcm.model.falsification"
@@ -38,7 +40,8 @@ notes = "Residual CI, local Markov, predictive checks"
 [[capabilities]]
 id = "gcm.counterfactual.aap"
 status = "done"
-notes = "Abduction-action-prediction; visible noise inference"
+python_facade = "full"
+notes = "Abduction-action-prediction; Python Counterfactual query + FittedGcm.counterfactual_ite"
 
 [[capabilities]]
 id = "gcm.attribution.basic"

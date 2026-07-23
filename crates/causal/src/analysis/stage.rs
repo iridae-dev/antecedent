@@ -10,7 +10,7 @@ use causal_estimate::EffectEstimate;
 use causal_identify::{IdentificationResult, IdentifiedEstimand};
 use causal_validate::{PredictiveCheckReport, RefutationReport};
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 
 /// Canonical progressive-execute stage ids (stable ProgressSink contract).
 pub const STAGE_IDENTIFY: &str = "identify";
@@ -92,16 +92,16 @@ impl StageClock {
     ///
     /// # Errors
     ///
-    /// [`AnalysisError::Cancelled`] when cancellation is already requested.
+    /// [`CausalError::Cancelled`] when cancellation is already requested.
     pub(crate) fn begin(
         &mut self,
         ctx: &ExecutionContext,
         stage: &'static str,
         fraction: f64,
-    ) -> Result<(), AnalysisError> {
+    ) -> Result<(), CausalError> {
         if ctx.cancellation.is_cancelled() {
             self.cancelled = true;
-            return Err(AnalysisError::Cancelled { stage });
+            return Err(CausalError::Cancelled { stage });
         }
         if let Some(p) = &ctx.progress {
             p.report(fraction, stage);

@@ -11,7 +11,7 @@ use causal_graph::{
     TemporalGraphReview, TemporalPagReview,
 };
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 use crate::planner::{CompiledAnalysis, LogicalAnalysisPlan, compile_logical_temporal_effect};
 
 /// Pending review session that must complete before estimation (DAG discovery).
@@ -55,7 +55,7 @@ impl PendingGraphReview {
         self,
         from: TemporalNodeKey,
         to: TemporalNodeKey,
-    ) -> Result<Self, AnalysisError> {
+    ) -> Result<Self, CausalError> {
         let pending = self.review.pending_edges.iter().any(|e| *e == (from, to));
         if pending {
             return Ok(self.accept_edge(from, to));
@@ -63,7 +63,7 @@ impl PendingGraphReview {
         if edge_in_graph(&self.review.graph, from, to) {
             return Ok(self);
         }
-        Err(AnalysisError::review_required_msg(format!(
+        Err(CausalError::review_required_msg(format!(
             "required edge {from:?} -> {to:?} not in proposed graph"
         )))
     }
@@ -84,9 +84,9 @@ impl PendingGraphReview {
         self,
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
-    ) -> Result<CompiledAnalysis, AnalysisError> {
+    ) -> Result<CompiledAnalysis, CausalError> {
         if data.row_count() != self.series_len {
-            return Err(AnalysisError::Compile {
+            return Err(CausalError::Compile {
                 message: format!(
                     "review series_len={} does not match data row_count={}",
                     self.series_len,
@@ -95,7 +95,7 @@ impl PendingGraphReview {
             });
         }
         if !self.review.is_complete() {
-            return Err(AnalysisError::review_required_msg(format!(
+            return Err(CausalError::review_required_msg(format!(
                 "{} pending edges remain; accept or require them before estimation",
                 self.review.pending_edges.len()
             )));
@@ -162,11 +162,11 @@ impl PendingCpdagReview {
         mut self,
         from: TemporalNodeKey,
         to: TemporalNodeKey,
-    ) -> Result<Self, AnalysisError> {
+    ) -> Result<Self, CausalError> {
         self.review = self
             .review
             .orient_edge(from, to)
-            .map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
+            .map_err(|e| CausalError::review_required_msg(e.to_string()))?;
         Ok(self)
     }
 
@@ -188,9 +188,9 @@ impl PendingCpdagReview {
         self,
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
-    ) -> Result<CompiledAnalysis, AnalysisError> {
+    ) -> Result<CompiledAnalysis, CausalError> {
         if data.row_count() != self.series_len {
-            return Err(AnalysisError::Compile {
+            return Err(CausalError::Compile {
                 message: format!(
                     "review series_len={} does not match data row_count={}",
                     self.series_len,
@@ -199,13 +199,13 @@ impl PendingCpdagReview {
             });
         }
         if !self.review.pending_undirected.is_empty() {
-            return Err(AnalysisError::review_required_msg(format!(
+            return Err(CausalError::review_required_msg(format!(
                 "{} undirected CPDAG edges remain; orient them explicitly before estimation (no silent coercion)",
                 self.review.pending_undirected.len()
             )));
         }
         if !self.review.is_complete() {
-            return Err(AnalysisError::review_required_msg(format!(
+            return Err(CausalError::review_required_msg(format!(
                 "{} pending directed edges remain; accept them before estimation",
                 self.review.pending_edges.len()
             )));
@@ -213,7 +213,7 @@ impl PendingCpdagReview {
         let dag = self
             .review
             .try_into_temporal_dag()
-            .map_err(|e| AnalysisError::review_required_msg(e.to_string()))?;
+            .map_err(|e| CausalError::review_required_msg(e.to_string()))?;
         let logical = compile_logical_temporal_effect(data, &dag, &self.query, self.split, false)?;
         let physical = logical.compile_physical_with_graph(ctx, Some(dag))?;
         Ok(CompiledAnalysis::Ready(physical))
@@ -251,7 +251,7 @@ pub fn compile_temporal_with_graph(
     query: &TemporalEffectQuery,
     split: Option<DiscoveryEstimationSplit>,
     ctx: &ExecutionContext,
-) -> Result<CompiledAnalysis, AnalysisError> {
+) -> Result<CompiledAnalysis, CausalError> {
     let logical = compile_logical_temporal_effect(data, graph, query, split, false)?;
     let physical = logical.compile_physical_with_graph(ctx, Some(graph.clone()))?;
     Ok(CompiledAnalysis::Ready(physical))
@@ -297,10 +297,10 @@ pub fn compile_review_required_pag(review: TemporalPagReview) -> CompiledAnalysi
 ///
 /// # Errors
 ///
-/// [`AnalysisError::ReviewRequired`] when the flag is set.
-pub fn ensure_review_complete(plan: &LogicalAnalysisPlan) -> Result<(), AnalysisError> {
+/// [`CausalError::ReviewRequired`] when the flag is set.
+pub fn ensure_review_complete(plan: &LogicalAnalysisPlan) -> Result<(), CausalError> {
     if plan.record.graph_review_required {
-        return Err(AnalysisError::review_required_msg("graph review required before estimation"));
+        return Err(CausalError::review_required_msg("graph review required before estimation"));
     }
     Ok(())
 }
@@ -342,7 +342,7 @@ mod tests {
                 split: None,
                 row_count_hint: 100,
             }),
-            Err(AnalysisError::ReviewRequired { .. })
+            Err(CausalError::ReviewRequired { .. })
         ));
     }
 

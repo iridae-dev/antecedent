@@ -1,4 +1,10 @@
-"""Package type stub for ``causal``."""
+"""Package type stub for ``causal``.
+
+Day-1: ``analyze``, queries, ``Dag``/graphs, ``identify``, ``fit_gcm``,
+``Identifier``/``Estimator``, inference modes, ``AnalysisResult``.
+Stage depth: ``causal.discovery``, ``causal.gcm``, ``causal.graph``, etc.
+``AteAnalysisResult`` is private to ``causal._native``.
+"""
 
 from __future__ import annotations
 
@@ -10,9 +16,11 @@ from . import (
     discovery,
     estimation,
     extensibility,
+    gcm,
     graph,
     inference,
     model,
+    population,
     query,
     state,
     validation,
@@ -21,7 +29,6 @@ from ._native import (
     Admg,
     AnomalyScores,
     ArrowLoadInfo,
-    AteAnalysisResult,
     CausalAttributionError,
     CausalCompileError,
     CausalCounterfactualError,
@@ -39,6 +46,8 @@ from ._native import (
     CausalState,
     CausalStateError,
     CausalUnsupportedError,
+    CausalCancelledError,
+    CancellationToken,
     CausalValidateError,
     ChangeAttributionResult,
     Contribution,
@@ -97,7 +106,23 @@ from ._native import (
     sample_do,
     sample_interventional_distribution,
 )
+from .data import EventFrame, MultiEnvFrame, PanelFrame, event, multi_env, panel
 from .design import evaluate_decision
+from .gcm import (
+    anomaly_attribution_discovered,
+    attribute_distribution_change_discovered,
+    attribute_paths_discovered,
+    fit_gcm_discovered,
+)
+from .population import (
+    PopulationRegistry,
+    target_all,
+    target_custom_distribution,
+    target_named,
+    target_rows,
+    target_treated,
+    target_untreated,
+)
 from .discovery import (
     CiScreenedPosterior,
     DbnPosterior,
@@ -135,17 +160,42 @@ from .discovery import (
 )
 from .estimation import (
     AnalysisResult,
+    ConflictSummaryView,
+    EffectEnvelope,
+    IdentifyResult,
     PredictiveCheckReport,
     PreparedAnalysis,
+    PriorSensitivityReport,
     analyze,
     analyze_many,
+    identify,
 )
 from .accepted_graph import AcceptedGraph
 from .inference import Bayesian, Frequentist
+from .ids import Estimator, Identifier
+from .prior_bank import (
+    CompatibilityReport,
+    ComposedPrior,
+    ConflictPolicy,
+    DesignVariable,
+    EstimandFingerprint,
+    ExternalPriorSourceSpec,
+    ExternalPriorWeight,
+    POPULATION_TAG_KEY,
+    PriorCatalog,
+    PriorMapping,
+    PriorSource,
+    PriorSourceMeta,
+    TransportPolicy,
+    compose_external_priors,
+    populations_from_prior_sources,
+)
 from .query import (
     AverageEffect,
     ConditionalEffect,
+    Counterfactual,
     InterventionalDistribution,
+    MediationEffect,
     PathSpecificEffect,
     PulseEffect,
     SustainedEffect,

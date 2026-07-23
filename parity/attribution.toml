@@ -17,17 +17,20 @@ notes = "Semantic coalition cache keyed by mask + tag under CachePolicy (Executi
 [[capabilities]]
 id = "attribution.distribution_change"
 status = "done"
-notes = "pinned baseline-GCM distribution_change via mechanism-swap Shapley"
+python_facade = "full"
+notes = "pinned baseline-GCM distribution_change via mechanism-swap Shapley; causal.attribute_distribution_change"
 
 [[capabilities]]
 id = "attribution.distribution_change_robust"
 status = "done"
-notes = "Regression-hybrid robust variant"
+python_facade = "full"
+notes = "Regression-hybrid robust variant; causal.attribute_distribution_change_robust"
 
 [[capabilities]]
 id = "attribution.mechanism_change_detection"
 status = "done"
-notes = "Detection separate from attribution (LR / mean-diff / classifier proxy)"
+python_facade = "full"
+notes = "Detection separate from attribution (LR / mean-diff / classifier proxy); causal.mechanism_change_detection"
 
 [[capabilities]]
 id = "attribution.mechanism_change_kernel"
@@ -42,29 +45,35 @@ notes = "Known-split Gaussian change-point on concatenated residuals"
 [[capabilities]]
 id = "attribution.unit_change"
 status = "done"
-notes = "Per-unit input Shapley vs reference parents"
+python_facade = "full"
+notes = "Per-unit input Shapley vs reference parents; causal.attribute_unit_change"
 
 [[capabilities]]
 id = "attribution.path_decompose"
 status = "done"
-notes = "Directed-path product decomposition on DAG"
+python_facade = "full"
+notes = "Directed-path product decomposition on DAG; causal.attribute_paths / attribute_path_specific"
 
 [[capabilities]]
 id = "attribution.feature_relevance"
 status = "done"
-notes = "Interventional do-contrast relevance scores"
+python_facade = "full"
+notes = "Interventional do-contrast relevance scores; causal.attribute_feature_relevance"
 
 [[capabilities]]
 id = "attribution.root_cause"
 status = "done"
-notes = "Ranking + optional graph/posterior contribution blocks"
+python_facade = "full"
+notes = "Ranking + optional graph/posterior contribution blocks; causal.rank_root_causes / anomaly_attribution"
 
 [[capabilities]]
 id = "attribution.structure"
 status = "done"
-notes = "Dual-graph parent-set Shapley structure_change; non-ancestor diffs in unidentified"
+python_facade = "full"
+notes = "Dual-graph parent-set Shapley structure_change; causal.attribute_structure_change"
 
 [[capabilities]]
 id = "attribution.facade"
 status = "done"
-notes = "Facade + conformance tests under crates/causal/tests/attribution.rs"
+python_facade = "full"
+notes = "Facade + conformance tests under crates/causal/tests/attribution.rs; Python causal.attribution + package helpers"

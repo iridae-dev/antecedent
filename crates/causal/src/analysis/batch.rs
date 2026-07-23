@@ -6,7 +6,7 @@ use causal_core::{AverageEffectQuery, ExecutionContext};
 use causal_data::TabularData;
 use causal_graph::Dag;
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 use crate::result::CausalAnalysisResult;
 
 use super::builder::{CausalAnalysisBuilder, RefuteSuite};
@@ -87,9 +87,9 @@ impl BatchAnalysis {
         &self,
         queries: &[AverageEffectQuery],
         ctx: &ExecutionContext,
-    ) -> Result<Vec<CausalAnalysisResult>, AnalysisError> {
+    ) -> Result<Vec<CausalAnalysisResult>, CausalError> {
         if queries.is_empty() {
-            return Err(AnalysisError::Compile {
+            return Err(CausalError::Compile {
                 message: "batch estimate_many requires at least one query".into(),
             });
         }

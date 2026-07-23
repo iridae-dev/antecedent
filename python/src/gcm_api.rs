@@ -386,6 +386,22 @@ impl PyFittedGcm {
         self.inner.assignments.len()
     }
 
+    /// Selected mechanism family id per variable name.
+    fn mechanism_kinds(&self) -> Vec<(String, String)> {
+        self.inner
+            .assignments
+            .iter()
+            .map(|a| {
+                let name = self
+                    .names
+                    .get(a.variable.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("v{}", a.variable.raw()));
+                (name, a.selected.id().to_string())
+            })
+            .collect()
+    }
+
     /// Interventional ancestral sample under hard `do` values.
     #[pyo3(signature = (interventions, n, *, seed=0, threads=1))]
     fn sample_do(

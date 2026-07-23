@@ -39,7 +39,8 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
-    AnalysisError, BayesianConfig, CausalAnalysis, CompiledCausalModel, DecisionProblem,
+    BayesianConfig, CausalAnalysis, CausalError as RustCausalError, CompiledCausalModel,
+    DecisionProblem,
     DifferenceMeasure, DiscoverParams, DiscoveryAccept, DiscoveryPerformanceRecord,
     DistributionChangeOptions, EstimatorId, FdrAdjustment, FdrControl, GraphInput, IdentifierId,
     InferenceMode, MultiDatasetConstraints, RefuteSuite, RegimeAssignment, ScoredLink,
@@ -194,7 +195,7 @@ where
     py.detach(|| catch_ffi(f))
 }
 
-impl IntoCausalPyErr for AnalysisError {
+impl IntoCausalPyErr for RustCausalError {
     fn into_causal_py_err(self) -> PyErr {
         match self {
             Self::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
@@ -242,25 +243,25 @@ impl IntoCausalPyErr for AnalysisError {
 
 impl IntoCausalPyErr for DataError {
     fn into_causal_py_err(self) -> PyErr {
-        AnalysisError::from(self).into_causal_py_err()
+        RustCausalError::from(self).into_causal_py_err()
     }
 }
 
 impl IntoCausalPyErr for GraphError {
     fn into_causal_py_err(self) -> PyErr {
-        AnalysisError::from(self).into_causal_py_err()
+        RustCausalError::from(self).into_causal_py_err()
     }
 }
 
 impl IntoCausalPyErr for IoError {
     fn into_causal_py_err(self) -> PyErr {
-        AnalysisError::from(self).into_causal_py_err()
+        RustCausalError::from(self).into_causal_py_err()
     }
 }
 
 impl IntoCausalPyErr for SchemaError {
     fn into_causal_py_err(self) -> PyErr {
-        AnalysisError::from(self).into_causal_py_err()
+        RustCausalError::from(self).into_causal_py_err()
     }
 }
 
@@ -2014,7 +2015,7 @@ fn analyze_distribution(
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
-            .causal_query(CausalQuery::Distribution(query))
+            .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
             .estimator(EstimatorId::FunctionalDistribution)
             .build()
@@ -2083,7 +2084,7 @@ fn analyze_path_specific(
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
-            .causal_query(CausalQuery::PathSpecific(query))
+            .query(CausalQuery::PathSpecific(query))
             .identifier(IdentifierId::PathSpecificNatural)
             .estimator(EstimatorId::FunctionalEffect)
             .bootstrap_replicates(bootstrap)
@@ -5776,7 +5777,7 @@ fn analyze_conditional(
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
-            .causal_query(CausalQuery::ConditionalEffect(cq))
+            .query(CausalQuery::ConditionalEffect(cq))
             .refute(suite)
             .custom_validators(custom_validators)
             .bootstrap_replicates(bootstrap)
@@ -5785,6 +5786,119 @@ fn analyze_conditional(
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
         ate_result_from_analysis(&names, result, false)
+    })
+}
+
+/// Static mediation (treatment → mediator(s) → outcome) via the facade.
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, edges, treatment, outcome, mediators, *,
+    contrast="mediated", control_level=0.0, active_level=1.0,
+    refute=None, seed=1, bootstrap=0, threads=1
+))]
+fn analyze_mediation(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    mediators: Vec<String>,
+    contrast: &str,
+    control_level: f64,
+    active_level: f64,
+    refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+) -> PyResult<AteAnalysisResult> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let contrast = contrast.to_string();
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let mut med_ids = Vec::with_capacity(mediators.len());
+        for m in &mediators {
+            med_ids.push(data.schema().id_of(m).map_err(py_err)?);
+        }
+        let contrast = match contrast.to_ascii_lowercase().as_str() {
+            "total" => MediationContrast::Total,
+            "direct" => MediationContrast::Direct,
+            "mediated" | "indirect" => MediationContrast::Mediated,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown mediation contrast {other:?}; use total|direct|mediated"
+                )));
+            }
+        };
+        let mut q = MediationQuery::binary(t_id, y_id, med_ids, contrast);
+        q.control = Intervention::set(t_id, Value::f64(control_level));
+        q.active = Intervention::set(t_id, Value::f64(active_level));
+        let dag = build_static_dag(&data, &edges)?;
+        let analysis = CausalAnalysis::builder()
+            .data(data)
+            .graph(dag)
+            .query(CausalQuery::Mediation(q))
+            .refute(suite)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .map_err(py_err)?;
+        let ctx = py_execution_context(seed, threads);
+        let result = analysis.run(&ctx).map_err(py_err)?;
+        ate_result_from_analysis(&names, result, false)
+    })
+}
+
+/// Identify-only on a static DAG (no estimation).
+#[pyfunction]
+#[pyo3(signature = (names, edges, treatment, outcome, *, identifier=None))]
+fn identify_ate(
+    py: Python<'_>,
+    names: Vec<String>,
+    edges: Vec<(String, String)>,
+    treatment: String,
+    outcome: String,
+    identifier: Option<String>,
+) -> PyResult<(String, String, Vec<String>)> {
+    detach_catch(py, move || {
+        let zeros = [0.0_f64, 1.0];
+        let pairs: Vec<(&str, &[f64])> =
+            names.iter().map(|n| (n.as_str(), zeros.as_slice())).collect();
+        let data = causal_data::TabularData::from_f64_columns(pairs).map_err(py_err)?;
+        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+        let dag = build_static_dag(&data, &edges)?;
+        let mut builder = CausalAnalysis::builder()
+            .data(data)
+            .graph(dag)
+            .query(AverageEffectQuery::binary_ate(t_id, y_id))
+            .refute(RefuteSuite::None);
+        if let Some(id) = identifier {
+            builder = builder.identifier(id.as_str());
+        }
+        let analysis = builder.build().map_err(py_err)?;
+        let id_res = analysis.identify_only().map_err(py_err)?;
+        let status = format!("{:?}", id_res.status);
+        let method = id_res
+            .estimands
+            .first()
+            .map(|e| e.method.to_string())
+            .unwrap_or_default();
+        let adjustment: Vec<String> = id_res
+            .estimands
+            .first()
+            .map(|e| {
+                e.adjustment_set
+                    .iter()
+                    .filter_map(|vid| names.get(vid.as_usize()).cloned())
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok((status, method, adjustment))
     })
 }
 
@@ -5848,7 +5962,7 @@ fn analyze_temporal_mediation(
         let analysis = CausalAnalysis::builder()
             .series(series)
             .temporal_graph(g)
-            .causal_query(CausalQuery::Mediation(q))
+            .query(CausalQuery::Mediation(q))
             .refute(RefuteSuite::None)
             .bootstrap_replicates(bootstrap)
             .build()
@@ -5909,6 +6023,8 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_path_specific, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_conditional, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_mediation, m)?)?;
+    m.add_function(wrap_pyfunction!(identify_ate, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_mediation, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_pag, m)?)?;

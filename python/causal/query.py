@@ -79,6 +79,30 @@ class ConditionalEffect:
 
 
 @dataclass(frozen=True)
+class MediationEffect:
+    """Static mediation (treatment → mediator(s) → outcome)."""
+
+    treatment: str
+    outcome: str
+    mediators: Sequence[str]
+    contrast: Literal["total", "direct", "mediated"] = "mediated"
+    control_level: float = 0.0
+    active_level: float = 1.0
+    kind: Literal["mediation"] = "mediation"
+
+
+@dataclass(frozen=True)
+class Counterfactual:
+    """Unit-level ITE via GCM abduction–action–prediction."""
+
+    treatment: str
+    outcome: str
+    control_level: float = 0.0
+    active_level: float = 1.0
+    kind: Literal["counterfactual"] = "counterfactual"
+
+
+@dataclass(frozen=True)
 class TemporalMediationEffect:
     """Temporal linear mediation (treatment → mediator → outcome)."""
 
@@ -94,7 +118,9 @@ class TemporalMediationEffect:
 __all__ = [
     "AverageEffect",
     "ConditionalEffect",
+    "Counterfactual",
     "InterventionalDistribution",
+    "MediationEffect",
     "PathSpecificEffect",
     "PulseEffect",
     "SustainedEffect",

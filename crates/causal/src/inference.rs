@@ -17,7 +17,7 @@ use causal_prob::{
 use causal_validate::{ConflictPolicy, PriorPredictiveCheck, compose_with_conflict_policy};
 
 use crate::decode_causal_posterior_bytes;
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 
 /// Frequentist vs Bayesian inference mode.
 #[derive(Clone, Debug, PartialEq)]
@@ -249,7 +249,7 @@ fn designs_compatible(
 fn default_hydrate_mapping(
     bytes: &[u8],
     prep: &PreparedBayesianProblem,
-) -> Result<HydrateMapping, AnalysisError> {
+) -> Result<HydrateMapping, CausalError> {
     let artifact = read_and_migrate(bytes)?;
     if let Some(meta) = extract_prior_source_meta(&artifact)? {
         if let Some(mapping) = &meta.declared_mapping {
@@ -275,7 +275,7 @@ fn default_hydrate_mapping(
     });
     match source_quantity {
         Some(source_quantity) => Ok(HydrateMapping::EffectFunctional { source_quantity }),
-        None => Err(AnalysisError::Compile {
+        None => Err(CausalError::Compile {
             message: "prior artifact mapping required: designs differ and no Effect \
                       quantity is available for EffectFunctional default"
                 .into(),
@@ -299,7 +299,7 @@ fn default_hydrate_mapping(
 pub fn resolve_bayesian_prior(
     cfg: &BayesianConfig,
     prep: &PreparedBayesianProblem,
-) -> Result<Option<PriorSet>, AnalysisError> {
+) -> Result<Option<PriorSet>, CausalError> {
     let (prior, _) = resolve_bayesian_prior_with_conflict(cfg, prep, None)?;
     Ok(prior)
 }
@@ -314,7 +314,7 @@ pub fn resolve_bayesian_prior_with_conflict(
     cfg: &BayesianConfig,
     prep: &PreparedBayesianProblem,
     ctx: Option<&ExecutionContext>,
-) -> Result<(Option<PriorSet>, Option<ConflictSummary>), AnalysisError> {
+) -> Result<(Option<PriorSet>, Option<ConflictSummary>), CausalError> {
     if let Some(ext) = &cfg.external_compose {
         if let (Some(policy), Some(ctx)) = (&ext.conflict_policy, ctx) {
             let baseline = PriorSet::weakly_informative(prep.design.ncols);
@@ -325,7 +325,7 @@ pub fn resolve_bayesian_prior_with_conflict(
             };
             let (composed, summary) =
                 compose_with_conflict_policy(&ext.sources, &baseline, policy, prep, ctx, &ppc)
-                    .map_err(AnalysisError::from)?;
+                    .map_err(CausalError::from)?;
             return Ok((Some(composed.prior), Some(summary)));
         }
         return Ok((Some(ext.composed.prior.clone()), None));
@@ -366,7 +366,7 @@ pub fn hydrate_prior_from_posterior_bytes(
     baseline: &PriorSet,
     target_coef_names: &[Arc<str>],
     treatment_col: Option<usize>,
-) -> Result<PriorSet, AnalysisError> {
+) -> Result<PriorSet, CausalError> {
     let (wire, _) = decode_causal_posterior_bytes(bytes)?;
     let quantities = wire_quantities_to_kinds(&wire.quantities);
     hydrate_prior(
@@ -378,5 +378,5 @@ pub fn hydrate_prior_from_posterior_bytes(
         target_coef_names,
         treatment_col,
     )
-    .map_err(AnalysisError::from)
+    .map_err(CausalError::from)
 }

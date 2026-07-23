@@ -6,32 +6,11 @@
 //! # Building tabular data
 //!
 //! ```
-//! use std::sync::Arc;
+//! use causal_data::{TableView, TabularData};
 //!
-//! use causal_core::{
-//!     CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
-//! };
-//! use causal_data::{
-//!     Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
-//! };
-//!
-//! let mut b = CausalSchemaBuilder::new();
-//! b.add_variable(
-//!     "x",
-//!     ValueType::Continuous,
-//!     SmallRoleSet::from_hint(RoleHint::Context),
-//!     None,
-//!     None,
-//!     MeasurementSpec::default(),
-//! )
-//! .unwrap();
-//! let schema = b.build().unwrap();
-//! let id = VariableId::from_raw(0);
-//! let col = Float64Column::new(id, Arc::from([1.0_f64, 2.0, 3.0]), ValidityBitmap::all_valid(3))
-//!     .unwrap();
-//! let storage =
-//!     OwnedColumnarStorage::try_new(schema, vec![OwnedColumn::Float64(col)], None, None).unwrap();
-//! let data = TabularData::new(storage);
+//! let data = TabularData::from_f64_columns([
+//!     ("x", &[1.0_f64, 2.0, 3.0][..]),
+//! ]).unwrap();
 //! assert_eq!(data.row_count(), 3);
 //! ```
 //!

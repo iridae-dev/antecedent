@@ -11,7 +11,7 @@ use causal_core::Lag;
 use causal_discovery::{DiscoveryConstraints, MultiDatasetConstraints, TemporalConstraints};
 use causal_stats::{ConditionalIndependence, WeightedPartialCorrelation, ci_from_name};
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 
 /// Default max conditioning-set size for PCMCI-family runs in the facade / Python path.
 pub const DEFAULT_MAX_COND_SIZE: usize = 2;
@@ -84,20 +84,20 @@ pub fn jpcmci_constraints(
 pub fn resolve_ci(
     name: &str,
     weights: Option<Vec<f64>>,
-) -> Result<Arc<dyn ConditionalIndependence + Send + Sync>, AnalysisError> {
+) -> Result<Arc<dyn ConditionalIndependence + Send + Sync>, CausalError> {
     let key = name.trim().to_ascii_lowercase();
     if matches!(key.as_str(), "weighted_parcorr" | "weighted_partial_corr") {
         let Some(w) = weights else {
-            return Err(AnalysisError::Compile {
+            return Err(CausalError::Compile {
                 message: "weights required when ci='weighted_parcorr'".into(),
             });
         };
         return Ok(Arc::new(WeightedPartialCorrelation::new(w)));
     }
     if weights.is_some() {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: "observation weights are only supported when ci='weighted_parcorr'".into(),
         });
     }
-    ci_from_name(name).map_err(|e| AnalysisError::Compile { message: e.to_string() })
+    ci_from_name(name).map_err(|e| CausalError::Compile { message: e.to_string() })
 }

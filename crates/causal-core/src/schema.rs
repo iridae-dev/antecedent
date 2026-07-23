@@ -260,6 +260,8 @@ impl CausalSchema {
 #[derive(Debug, Default)]
 pub struct CausalSchemaBuilder {
     pending: Vec<PendingVariable>,
+    /// Deferred error from fluent commits (surfaced at [`Self::build`]).
+    deferred: Option<SchemaError>,
 }
 
 #[derive(Debug)]
@@ -277,6 +279,43 @@ impl CausalSchemaBuilder {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Start a continuous variable; finish with a role method (e.g. [`VariableInProgress::treatment`]).
+    #[must_use]
+    pub fn continuous(self, name: impl Into<Arc<str>>) -> VariableInProgress {
+        self.begin(name, ValueType::Continuous, None)
+    }
+
+    /// Start a binary variable; finish with a role method.
+    #[must_use]
+    pub fn binary(self, name: impl Into<Arc<str>>) -> VariableInProgress {
+        self.begin(name, ValueType::Binary, None)
+    }
+
+    /// Start a count variable; finish with a role method.
+    #[must_use]
+    pub fn count(self, name: impl Into<Arc<str>>) -> VariableInProgress {
+        self.begin(name, ValueType::Count, None)
+    }
+
+    fn begin(
+        self,
+        name: impl Into<Arc<str>>,
+        value_type: ValueType,
+        category_domain: Option<CategoryDomainId>,
+    ) -> VariableInProgress {
+        VariableInProgress {
+            builder: self,
+            pending: PendingVariable {
+                name: name.into(),
+                value_type,
+                role_hints: SmallRoleSet::empty(),
+                unit: None,
+                category_domain,
+                measurement: MeasurementSpec::default(),
+            },
+        }
     }
 
     /// Add a variable declaration.
@@ -311,12 +350,35 @@ impl CausalSchemaBuilder {
         Ok(())
     }
 
+    fn push_pending(&mut self, pending: PendingVariable) {
+        if self.deferred.is_some() {
+            return;
+        }
+        if self.pending.iter().any(|p| p.name == pending.name) {
+            self.deferred = Some(SchemaError::DuplicateVariableName {
+                name: pending.name.to_string(),
+            });
+            return;
+        }
+        if let Err(e) =
+            validate_domain_consistency(&pending.name, &pending.value_type, pending.category_domain)
+        {
+            self.deferred = Some(e);
+            return;
+        }
+        self.pending.push(pending);
+    }
+
     /// Consume the builder and produce an immutable schema with dense IDs.
     ///
     /// # Errors
     ///
-    /// Returns [`SchemaError::TooManyVariables`] if the count exceeds `u32::MAX`.
+    /// Returns [`SchemaError::TooManyVariables`] if the count exceeds `u32::MAX`,
+    /// or a deferred fluent-construction error.
     pub fn build(self) -> Result<CausalSchema, SchemaError> {
+        if let Some(err) = self.deferred {
+            return Err(err);
+        }
         let n_u32 = u32::try_from(self.pending.len()).map_err(|_| SchemaError::TooManyVariables)?;
         let variables: Arc<[VariableSchema]> = self
             .pending
@@ -333,6 +395,69 @@ impl CausalSchemaBuilder {
             })
             .collect();
         Ok(CausalSchema { variables })
+    }
+}
+
+/// Fluent handle for one variable being added to a [`CausalSchemaBuilder`].
+///
+/// Call a role method (or [`Self::finish`]) to commit the variable and continue building.
+#[derive(Debug)]
+pub struct VariableInProgress {
+    builder: CausalSchemaBuilder,
+    pending: PendingVariable,
+}
+
+impl VariableInProgress {
+    /// Mark as a treatment candidate and commit.
+    #[must_use]
+    pub fn treatment(mut self) -> CausalSchemaBuilder {
+        self.pending.role_hints.insert(RoleHint::TreatmentCandidate);
+        self.finish()
+    }
+
+    /// Mark as an outcome candidate and commit.
+    #[must_use]
+    pub fn outcome(mut self) -> CausalSchemaBuilder {
+        self.pending.role_hints.insert(RoleHint::OutcomeCandidate);
+        self.finish()
+    }
+
+    /// Mark as a context / covariate and commit.
+    #[must_use]
+    pub fn context(mut self) -> CausalSchemaBuilder {
+        self.pending.role_hints.insert(RoleHint::Context);
+        self.finish()
+    }
+
+    /// Mark as an instrument candidate and commit.
+    #[must_use]
+    pub fn instrument(mut self) -> CausalSchemaBuilder {
+        self.pending.role_hints.insert(RoleHint::InstrumentCandidate);
+        self.finish()
+    }
+
+    /// Optional physical unit label.
+    #[must_use]
+    pub fn unit(mut self, unit: impl Into<Arc<str>>) -> Self {
+        self.pending.unit = Some(unit.into());
+        self
+    }
+
+    /// Commit with no additional role hints.
+    #[must_use]
+    pub fn finish(self) -> CausalSchemaBuilder {
+        let mut builder = self.builder;
+        builder.push_pending(self.pending);
+        builder
+    }
+
+    /// Commit and build the schema.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`CausalSchemaBuilder::build`] errors.
+    pub fn build(self) -> Result<CausalSchema, SchemaError> {
+        self.finish().build()
     }
 }
 
@@ -459,5 +584,22 @@ mod tests {
             Err(SchemaError::UnknownVariableId { .. })
         ));
         assert!(matches!(schema.id_of("missing"), Err(SchemaError::UnknownVariableName { .. })));
+    }
+
+    #[test]
+    fn fluent_schema_roles() {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("t")
+            .treatment()
+            .continuous("y")
+            .outcome()
+            .continuous("z")
+            .context()
+            .build()
+            .unwrap();
+        assert_eq!(schema.len(), 3);
+        assert!(schema.variables()[0].role_hints.contains(RoleHint::TreatmentCandidate));
+        assert!(schema.variables()[1].role_hints.contains(RoleHint::OutcomeCandidate));
+        assert!(schema.variables()[2].role_hints.contains(RoleHint::Context));
     }
 }

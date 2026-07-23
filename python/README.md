@@ -28,6 +28,13 @@ result = causal.analyze(
 )
 print(result.identification, result.estimate, result.validation)
 
+# Identify without estimating:
+id_only = causal.identify(
+    graph=g,
+    query=causal.AverageEffect(treatment="t", outcome="y"),
+    identifier=causal.Identifier.BACKDOOR_ADJUSTMENT,
+)
+
 gcm = causal.fit_gcm(["z", "t", "y"], columns, list(g.edges()))
 draws = gcm.sample_do({"t": 1.0}, n=200)
 
@@ -38,23 +45,27 @@ fitted, edges = causal.fit_gcm_discovered(data, discovery=causal.PC(alpha=0.05))
 Also exposed:
 
 - Typed graphs: `Dag` / `Cpdag` / `Pag` / `Admg` / `TemporalDag`
+  (`d_separated` / `latent_project` on `Dag`; `m_separated` on `Admg` / `Pag`)
+- `Identifier` / `Estimator` enums (wire ids) plus string kwargs
+- `identify(graph=…, query=AverageEffect(…))` — identify without estimating
+- Queries: `AverageEffect`, `MediationEffect`, `Counterfactual`, `PulseEffect`, `SustainedEffect`,
+  `InterventionalDistribution`, `PathSpecificEffect`, `ConditionalEffect`,
+  `TemporalMediationEffect`
 - `discover_*` (PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors)
 - `validate_pcmci_*` / discovery stability validators (block bootstrap, FPR, grids, …)
-- `FittedGcm` / `counterfactual_ite` / `sample_do` — GCM counterfactuals
+- `FittedGcm` / `counterfactual_ite` / `sample_do` / `mechanism_kinds` — GCM counterfactuals
 - `PopulationRegistry` / `target_*` helpers for named predicates and custom-distribution IPW
 - `fit_gcm_discovered` / `attribute_*_discovered` — discover-then-attribute composition
 - `CausalState` — incremental state with retained batches, events, suff-stats, and particle filter
-- Queries: `AverageEffect`, `PulseEffect`, `SustainedEffect`,
-  `InterventionalDistribution`, `PathSpecificEffect`, `ConditionalEffect`,
-  `TemporalMediationEffect`
 - `refute=True|"full"|"placebo"|False` on static and temporal `analyze`
 - RD: `estimator="rd.sharp"` with `running_variable` / `cutoff` / `bandwidth`
-- `dag_from_*` / `dag_to_*` — graph interchange
+- `dag_from_*` / `dag_to_*` — graph interchange (also `Dag.from_dot` / `.to_dot`)
 - Design / state examples: [`examples/rank_designs.py`](examples/rank_designs.py),
   [`examples/causal_state_workflow.py`](examples/causal_state_workflow.py)
   (see ADR 0016 — no auto-rerun)
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.
 
-Typed exceptions (`CausalError` and subclasses) mirror Rust `AnalysisError` categories.
-The native module `causal._native` remains available for advanced FFI use.
+Typed exceptions (`CausalError` and subclasses) mirror Rust `CausalError` categories.
+The native module `causal._native` remains available for advanced FFI use
+(including the flat `AteAnalysisResult` DTO; prefer nested `AnalysisResult`).

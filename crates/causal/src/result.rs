@@ -67,6 +67,36 @@ pub struct CausalAnalysisResult {
 }
 
 impl CausalAnalysisResult {
+    /// Primary scalar effect for display and tests.
+    ///
+    /// Prefer this over reading [`EffectEstimate::ate`] directly when the query may be a
+    /// distribution or mediation: returns the interventional mean or mediation total when
+    /// present, otherwise the estimate's `ate` field.
+    #[must_use]
+    pub fn effect(&self) -> f64 {
+        if let Some(dist) = &self.distribution {
+            return dist.mean;
+        }
+        if let Some(med) = &self.mediation {
+            if let Some(total) = med.total {
+                return total;
+            }
+        }
+        self.estimate.ate
+    }
+
+    /// Borrow the logical plan record (semantics).
+    #[must_use]
+    pub fn logical_plan(&self) -> &LogicalAnalysisPlanRecord {
+        &self.logical_plan
+    }
+
+    /// Borrow the physical plan record (layouts / kernels / batching).
+    #[must_use]
+    pub fn physical_plan(&self) -> &PhysicalExecutionPlanRecord {
+        &self.physical_plan
+    }
+
     /// Build a durable analysis-trace wire payload (assumptions + derivation).
     #[must_use]
     pub fn analysis_trace_wire(&self) -> AnalysisTraceWire {

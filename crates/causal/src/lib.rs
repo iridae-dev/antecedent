@@ -2,19 +2,38 @@
 //!
 //! # Quick start
 //!
-//! ```rust,ignore
+//! ```
 //! use causal::prelude::*;
+//! use causal::RefuteSuite;
 //!
+//! let schema = CausalSchemaBuilder::new()
+//!     .continuous("t")
+//!     .treatment()
+//!     .continuous("y")
+//!     .outcome()
+//!     .continuous("z")
+//!     .context()
+//!     .build()
+//!     .unwrap();
+//! let data = TabularData::from_f64_columns([
+//!     ("t", &[0.0_f64, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0][..]),
+//!     ("y", &[1.0_f64, 3.1, 1.2, 2.9, 0.9, 3.0, 1.1, 3.2][..]),
+//!     ("z", &[0.0_f64, 1.0, 0.2, 0.8, 0.1, 0.9, 0.3, 0.7][..]),
+//! ])
+//! .unwrap();
+//! let dag = Dag::from_named_edges(&schema, &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+//! let q = AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
 //! let result = CausalAnalysis::builder()
-//!     .data(tabular)
+//!     .data(data)
 //!     .graph(dag)
-//!     .query(AverageEffectQuery::binary_ate(treatment, outcome))
-//!     .identifier(IdentifierId::BackdoorAdjustment)
-//!     .estimator(EstimatorId::LinearAdjustmentAte)
-//!     .build()?
-//!     .run(&ctx)?;
-//!
-//! println!("ATE = {}", result.estimate.ate);
+//!     .query(q)
+//!     .refute(RefuteSuite::None)
+//!     .bootstrap_replicates(0)
+//!     .build()
+//!     .unwrap()
+//!     .run(&ExecutionContext::for_tests(1))
+//!     .unwrap();
+//! assert!(result.effect().is_finite());
 //! ```
 //!
 //! Prefer [`prelude`] for day-1 imports. Component crates remain available for stage-specific work.
@@ -41,12 +60,19 @@ pub mod review;
 pub mod state;
 pub mod strategy_table;
 
+pub mod estimate;
+pub mod graph;
+pub mod identify;
+pub mod io;
+pub mod query;
+pub mod validate;
+
+// --- Day-1 / common crate-root surface ---
 pub use analysis::{
     AnalysisStageEvent, BatchAnalysis, CausalAnalysis, CausalAnalysisBuilder, ComputeBudget,
     LatencyMode, PreparedAnalysis, RdConfig, RefuteSuite, StageResultSink,
 };
 pub use callback_plan::mark_python_callback_plan;
-pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use design::rank_designs;
 pub use discovery::{
     BayesianDiscoverParams, DiscoverParams, GraphMcmcSchedule, StaticDiscoverParams,
@@ -60,7 +86,10 @@ pub use discovery_defaults::{
     contemporaneous_constraints, jpcmci_constraints, pcmci_constraints, resolve_ci,
     static_pc_constraints,
 };
-pub use error::{AnalysisError, CausalError};
+pub use error::CausalError;
+#[allow(deprecated)]
+pub use error::AnalysisError;
+pub use estimate::{EstimatorId, IdentifierId};
 pub use gcm::{
     FittedGcm, IteResult, anomaly_attribution, attribute_distribution_change,
     attribute_distribution_change_robust, attribute_feature_relevance, attribute_path_specific,
@@ -68,11 +97,21 @@ pub use gcm::{
     counterfactual_ite, fit_gcm, mechanism_change_detection, rank_root_causes, sample_do,
     sample_interventional_distribution,
 };
+pub use graph::{
+    Admg, CompletionSampler, Cpdag, CpdagCompletion, CpdagCompletionSampler, CpdagReview, Dag,
+    DagReview, DenseNodeId, Pag, PagCompletion, PagReview, TemporalCpdag, TemporalDag,
+    TemporalPag, TemporalPagReview, is_mec_member, latent_project,
+};
+pub use identify::{
+    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
+    IdentificationEnvelope, ProbabilityMass, TemporalMediationIdentifier,
+};
 pub use inference::{
     BayesianConfig, ExternalComposeSpec, InferenceMode, hydrate_mapping_from_io,
     hydrate_prior_from_posterior_bytes, resolve_bayesian_prior,
     resolve_bayesian_prior_with_conflict,
 };
+pub use io::*;
 pub use options::{DiscoveryAccept, FdrControl};
 pub use planner::{
     CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
@@ -81,26 +120,22 @@ pub use planner::{
     compile_logical_static_ate, compile_logical_static_pag_ate, compile_logical_temporal_effect,
     is_dag_only_identifier, reject_dag_only_on_pag,
 };
-pub use strategy_table::{
-    DEFAULT_ADMG_ESTIMATOR, DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER,
-    DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR, DEFAULT_CONDITIONAL_ESTIMATOR_ID,
-    DEFAULT_CONDITIONAL_IDENTIFIER, DEFAULT_CONDITIONAL_IDENTIFIER_ID,
-    DEFAULT_DISTRIBUTION_ESTIMATOR, DEFAULT_DISTRIBUTION_ESTIMATOR_ID,
-    DEFAULT_DISTRIBUTION_IDENTIFIER, DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR,
-    DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, DEFAULT_MEDIATION_ESTIMATOR,
-    DEFAULT_MEDIATION_ESTIMATOR_ID, DEFAULT_MEDIATION_IDENTIFIER, DEFAULT_MEDIATION_IDENTIFIER_ID,
-    DEFAULT_PAG_ESTIMATOR, DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER,
-    DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID,
-    DEFAULT_PATH_IDENTIFIER, DEFAULT_PATH_IDENTIFIER_ID, EstimatorId, IdentifierId,
-    StaticEstimateWorkspaces, estimand_compatible_with_estimator, estimate_provenance_step,
-    estimate_static_effect, identification_status_acceptable, identify_admg, identify_pag,
-    identify_provenance_step, identify_static, identify_static_query, identify_static_query_with_rd,
-    require_identified, select_estimand, validate_distribution_pair, validate_path_specific_pair,
-    validate_static_pair,
+pub use query::*;
+pub use result::CausalAnalysisResult;
+pub use review::{
+    PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
+    compile_review_required_pag, compile_review_required_static_cpdag,
+    compile_review_required_static_dag, compile_review_required_static_pag,
+    compile_temporal_with_graph, ensure_review_complete,
 };
+pub use state::{apply_state_event, new_causal_state};
+pub use validate::{
+    PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
+};
+pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 
-// PAG / LPCMCI / Bayesian graph-posterior surfaces.
-pub use causal_discovery::{
+// Discovery algorithm types (also under `causal::discovery`).
+pub use discovery::{
     CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult, DagDiscoveryResult,
     DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, EXACT_ENUM_MAX_NODES,
     ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
@@ -110,493 +145,30 @@ pub use causal_discovery::{
     StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode,
     two_regime_half_split,
 };
-pub use causal_estimate::{
-    ConditionalLinearAdjustment, OverlapPolicy, TemporalEffectSurface, TemporalLinearPredictor,
-    TemporalMediationEstimator,
+
+// Stage / peer surfaces kept at root for binding convenience; prefer module paths.
+pub use estimate::{
+    CausalPosterior, ConditionalLinearAdjustment, EffectEstimate, OverlapPolicy,
+    TemporalEffectSurface, TemporalLinearPredictor, TemporalMediationEstimator,
 };
-pub use causal_graph::{
-    Admg, CompletionSampler, Cpdag, CpdagCompletion, CpdagCompletionSampler, CpdagReview, Dag,
-    DagReview, Pag, PagCompletion, PagReview, TemporalCpdag, TemporalPag, TemporalPagReview,
-    is_mec_member, latent_project,
-};
-pub use causal_identify::{
-    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
-    IdentificationEnvelope, ProbabilityMass, TemporalMediationIdentifier,
-};
-pub use causal_validate::{
-    PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
-};
-pub use result::CausalAnalysisResult;
-pub use review::{
-    PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
-    compile_review_required_pag, compile_review_required_static_cpdag,
-    compile_review_required_static_dag, compile_review_required_static_pag,
-    compile_temporal_with_graph, ensure_review_complete,
-};
-pub use state::{apply_state_event, new_causal_state};
-
-/// Parse a DOT digraph into a [`causal_graph::Dag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed DOT or invalid DAG structure.
-pub fn dag_from_dot(dot: &str) -> Result<causal_graph::Dag, AnalysisError> {
-    causal_io::dag_from_dot(dot).map_err(AnalysisError::from)
-}
-
-/// Serialize a DAG to DOT.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn dag_to_dot(
-    dag: &causal_graph::Dag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::dag_to_dot(dag, names).map_err(AnalysisError::from)
-}
-
-/// Parse a JSON DAG document into a [`causal_graph::Dag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed JSON or invalid DAG structure.
-pub fn dag_from_json(json: &str) -> Result<causal_graph::Dag, AnalysisError> {
-    causal_io::dag_from_json(json).map_err(AnalysisError::from)
-}
-
-/// Serialize a DAG to JSON.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn dag_to_json(
-    dag: &causal_graph::Dag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::dag_to_json(dag, names).map_err(AnalysisError::from)
-}
-
-/// Parse a GML digraph into a [`causal_graph::Dag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed GML or invalid DAG structure.
-pub fn dag_from_gml(gml: &str) -> Result<causal_graph::Dag, AnalysisError> {
-    causal_io::dag_from_gml(gml).map_err(AnalysisError::from)
-}
-
-/// Serialize a DAG to GML.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn dag_to_gml(
-    dag: &causal_graph::Dag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::dag_to_gml(dag, names).map_err(AnalysisError::from)
-}
-
-/// Parse `NetworkX` `node_link_data` JSON into a [`causal_graph::Dag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed JSON or invalid DAG structure.
-pub fn dag_from_networkx_node_link(json: &str) -> Result<causal_graph::Dag, AnalysisError> {
-    causal_io::dag_from_networkx_node_link(json).map_err(AnalysisError::from)
-}
-
-/// Serialize a DAG to `NetworkX` `node_link_data` JSON.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn dag_to_networkx_node_link(
-    dag: &causal_graph::Dag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::dag_to_networkx_node_link(dag, names).map_err(AnalysisError::from)
-}
-
-/// Parse `NetworkX` `adjacency_data` JSON into a [`causal_graph::Dag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed JSON or invalid DAG structure.
-pub fn dag_from_networkx_adjacency(json: &str) -> Result<causal_graph::Dag, AnalysisError> {
-    causal_io::dag_from_networkx_adjacency(json).map_err(AnalysisError::from)
-}
-
-/// Serialize a DAG to `NetworkX` `adjacency_data` JSON.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn dag_to_networkx_adjacency(
-    dag: &causal_graph::Dag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::dag_to_networkx_adjacency(dag, names).map_err(AnalysisError::from)
-}
-
-/// Parse DOT into a [`causal_graph::Pag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn pag_from_dot(dot: &str) -> Result<causal_graph::Pag, AnalysisError> {
-    causal_io::pag_from_dot(dot).map_err(AnalysisError::from)
-}
-/// Serialize a PAG to DOT.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn pag_to_dot(
-    pag: &causal_graph::Pag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::pag_to_dot(pag, names).map_err(AnalysisError::from)
-}
-/// Parse JSON into a [`causal_graph::Pag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn pag_from_json(json: &str) -> Result<causal_graph::Pag, AnalysisError> {
-    causal_io::pag_from_json(json).map_err(AnalysisError::from)
-}
-/// Serialize a PAG to JSON.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn pag_to_json(
-    pag: &causal_graph::Pag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::pag_to_json(pag, names).map_err(AnalysisError::from)
-}
-/// Parse GML into a [`causal_graph::Pag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn pag_from_gml(gml: &str) -> Result<causal_graph::Pag, AnalysisError> {
-    causal_io::pag_from_gml(gml).map_err(AnalysisError::from)
-}
-/// Serialize a PAG to GML.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn pag_to_gml(
-    pag: &causal_graph::Pag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::pag_to_gml(pag, names).map_err(AnalysisError::from)
-}
-/// Parse `NetworkX` node-link JSON into a [`causal_graph::Pag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn pag_from_networkx_node_link(json: &str) -> Result<causal_graph::Pag, AnalysisError> {
-    causal_io::pag_from_networkx_node_link(json).map_err(AnalysisError::from)
-}
-/// Serialize a PAG to `NetworkX` node-link JSON.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn pag_to_networkx_node_link(
-    pag: &causal_graph::Pag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::pag_to_networkx_node_link(pag, names).map_err(AnalysisError::from)
-}
-
-/// Parse DOT into a [`causal_graph::Cpdag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn cpdag_from_dot(dot: &str) -> Result<causal_graph::Cpdag, AnalysisError> {
-    causal_io::cpdag_from_dot(dot).map_err(AnalysisError::from)
-}
-/// Serialize a CPDAG to DOT.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn cpdag_to_dot(
-    cpdag: &causal_graph::Cpdag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::cpdag_to_dot(cpdag, names).map_err(AnalysisError::from)
-}
-/// Parse JSON into a [`causal_graph::Cpdag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn cpdag_from_json(json: &str) -> Result<causal_graph::Cpdag, AnalysisError> {
-    causal_io::cpdag_from_json(json).map_err(AnalysisError::from)
-}
-/// Serialize a CPDAG to JSON.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn cpdag_to_json(
-    cpdag: &causal_graph::Cpdag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::cpdag_to_json(cpdag, names).map_err(AnalysisError::from)
-}
-/// Parse GML into a [`causal_graph::Cpdag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn cpdag_from_gml(gml: &str) -> Result<causal_graph::Cpdag, AnalysisError> {
-    causal_io::cpdag_from_gml(gml).map_err(AnalysisError::from)
-}
-/// Serialize a CPDAG to GML.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn cpdag_to_gml(
-    cpdag: &causal_graph::Cpdag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::cpdag_to_gml(cpdag, names).map_err(AnalysisError::from)
-}
-/// Parse `NetworkX` node-link JSON into a [`causal_graph::Cpdag`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn cpdag_from_networkx_node_link(json: &str) -> Result<causal_graph::Cpdag, AnalysisError> {
-    causal_io::cpdag_from_networkx_node_link(json).map_err(AnalysisError::from)
-}
-/// Serialize a CPDAG to `NetworkX` node-link JSON.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn cpdag_to_networkx_node_link(
-    cpdag: &causal_graph::Cpdag,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::cpdag_to_networkx_node_link(cpdag, names).map_err(AnalysisError::from)
-}
-
-/// Parse DOT into a [`causal_graph::Admg`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn admg_from_dot(dot: &str) -> Result<causal_graph::Admg, AnalysisError> {
-    causal_io::admg_from_dot(dot).map_err(AnalysisError::from)
-}
-/// Serialize an ADMG to DOT.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn admg_to_dot(
-    admg: &causal_graph::Admg,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::admg_to_dot(admg, names).map_err(AnalysisError::from)
-}
-/// Parse JSON into a [`causal_graph::Admg`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn admg_from_json(json: &str) -> Result<causal_graph::Admg, AnalysisError> {
-    causal_io::admg_from_json(json).map_err(AnalysisError::from)
-}
-/// Serialize an ADMG to JSON.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn admg_to_json(
-    admg: &causal_graph::Admg,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::admg_to_json(admg, names).map_err(AnalysisError::from)
-}
-/// Parse GML into a [`causal_graph::Admg`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn admg_from_gml(gml: &str) -> Result<causal_graph::Admg, AnalysisError> {
-    causal_io::admg_from_gml(gml).map_err(AnalysisError::from)
-}
-/// Serialize an ADMG to GML.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn admg_to_gml(
-    admg: &causal_graph::Admg,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::admg_to_gml(admg, names).map_err(AnalysisError::from)
-}
-/// Parse `NetworkX` node-link JSON into a [`causal_graph::Admg`].
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on malformed input.
-pub fn admg_from_networkx_node_link(json: &str) -> Result<causal_graph::Admg, AnalysisError> {
-    causal_io::admg_from_networkx_node_link(json).map_err(AnalysisError::from)
-}
-/// Serialize an ADMG to `NetworkX` node-link JSON.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on conversion failure.
-pub fn admg_to_networkx_node_link(
-    admg: &causal_graph::Admg,
-    names: Option<&[String]>,
-) -> Result<String, AnalysisError> {
-    causal_io::admg_to_networkx_node_link(admg, names).map_err(AnalysisError::from)
-}
-
-/// Encode a model bundle to durable bytes.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on IO failures.
-pub fn encode_model_bundle_bytes(
-    input: &causal_io::ModelBundleEncode<'_>,
-) -> Result<Vec<u8>, AnalysisError> {
-    let art = causal_io::encode_model_bundle(input).map_err(AnalysisError::from)?;
-    let mut buf = Vec::new();
-    art.write_to(&mut buf).map_err(AnalysisError::from)?;
-    Ok(buf)
-}
-
-/// Decode a model bundle from durable bytes (migrates format if needed).
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on IO failures.
-pub fn decode_model_bundle_bytes(bytes: &[u8]) -> Result<causal_io::ModelBundle, AnalysisError> {
-    let art = causal_io::read_and_migrate(bytes).map_err(AnalysisError::from)?;
-    causal_io::decode_model_bundle(&art).map_err(AnalysisError::from)
-}
-
-/// Encode a [`causal_estimate::CausalPosterior`] to durable bytes.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on IO failures.
-pub fn encode_causal_posterior_bytes(
-    posterior: &causal_estimate::CausalPosterior,
-    artifact_id: &str,
-) -> Result<Vec<u8>, AnalysisError> {
-    causal_io::encode_causal_posterior_bytes(posterior, artifact_id).map_err(AnalysisError::from)
-}
-
-/// Encode a [`causal_estimate::CausalPosterior`] to a durable artifact.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on IO failures.
-pub fn encode_causal_posterior(
-    posterior: &causal_estimate::CausalPosterior,
-    artifact_id: &str,
-) -> Result<causal_io::EncodedArtifact, AnalysisError> {
-    causal_io::encode_causal_posterior(posterior, artifact_id).map_err(AnalysisError::from)
-}
-
-/// Decode posterior wire metadata + draws.
-///
-/// # Errors
-///
-/// [`AnalysisError::Serialization`] on IO failures.
-pub fn decode_causal_posterior_bytes(
-    bytes: &[u8],
-) -> Result<(causal_io::CausalPosteriorWire, Vec<f64>), AnalysisError> {
-    causal_io::decode_causal_posterior_bytes(bytes).map_err(AnalysisError::from)
-}
-
-/// Hydrate a coefficient [`causal_prob::PriorSet`] from posterior artifact bytes.
-///
-/// Uses per-coefficient posterior means and SDs (identical-subspace mapping).
-/// Effect columns are ignored. Prefer [`hydrate_prior_from_posterior_bytes`] when
-/// a heterogeneous mapping is required.
-///
-/// # Errors
-///
-/// Decode failures or hydrate failures (no coefficients / non-finite summaries).
-pub fn prior_set_from_posterior_bytes(
-    bytes: &[u8],
-) -> Result<causal_prob::PriorSet, AnalysisError> {
-    use std::sync::Arc;
-
-    use causal_estimate::hydrate_prior_from_quantity_summaries;
-    use causal_io::PosteriorQuantityWire;
-    use causal_prob::PosteriorQuantityKind;
-
-    let (wire, _) = decode_causal_posterior_bytes(bytes)?;
-    let quantities: Vec<PosteriorQuantityKind> = wire
-        .quantities
-        .iter()
-        .map(|q| match q {
-            PosteriorQuantityWire::Coefficient { index, name } => {
-                PosteriorQuantityKind::Coefficient {
-                    index: *index as usize,
-                    name: name.as_ref().map(|s| Arc::<str>::from(s.as_str())),
-                }
-            }
-            PosteriorQuantityWire::ResidualVariance => PosteriorQuantityKind::ResidualVariance,
-            PosteriorQuantityWire::Effect { name } => {
-                PosteriorQuantityKind::Effect { name: Arc::from(name.as_str()) }
-            }
-            PosteriorQuantityWire::Scalar { name } => {
-                PosteriorQuantityKind::Scalar { name: Arc::from(name.as_str()) }
-            }
-        })
-        .collect();
-    hydrate_prior_from_quantity_summaries(&quantities, &wire.mean, &wire.sd, None)
-        .map_err(AnalysisError::from)
-}
-
-// GCM / counterfactual / attribution surfaces.
-pub use causal_attribution::{
+pub use gcm::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
     MechanismChangeMethod, RobustChangeOptions, RootCauseRank, StructureChangeOptions,
     UnitChangeResult, arrow_strengths, detect_mechanism_changes, distribution_change,
     distribution_change_robust, feature_relevance, path_decompose, population_do_contrast,
     root_cause_rank, score_anomalies, structure_change, unit_change,
-};
-pub use causal_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
     CounterfactualResult, CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind,
     nested_counterfactual, nested_hard_counterfactual, simultaneous_hard_counterfactual,
     streaming_matches_retained,
-};
-pub use causal_model::{
     CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
     InvertibleStructuralCausalModel, KdeDoSampler, McmcDoSampler, MechanismAssignment,
     MechanismFamily, MechanismRegistry, MechanismSlot, MechanismWorkspace, ModelCollection,
     ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy, StructuralCausalModel,
     WeightingDoSampler, interventional_mean, sample_interventional, sample_observational,
 };
-
-// design / incremental state surfaces.
-pub use causal_design::{
+pub use design::{
     CandidateDesign, ConstraintViolation, DecisionConstraint, DecisionEvaluation, DecisionProblem,
     DecisionProblemId, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
     DesignObjective, DesignRankConfig, DesignRanker, DesignRanking, EffectWidthContext,
@@ -605,7 +177,7 @@ pub use causal_design::{
     evaluate_decision,
 };
 pub use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
-pub use causal_state::{
+pub use state::{
     CachedResult, CausalState, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
     GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, GraphScoreCacheKey,
     GraphScoreData, GraphScoreFamily, InterventionRecord, InvalidationEntry, InvalidationLog,
@@ -614,6 +186,15 @@ pub use causal_state::{
     QueryStore, ResultStore, RetentionPolicy, RollingMechanismDiagnostics, StateError, StateEvent,
     StreamingCovariance, SuffStatStore, evict_mechanism_diag, full_graph_score,
     insert_mechanism_diag,
+};
+
+// Strategy helpers live under `estimate` (not crate-root DEFAULT_* soup).
+pub use estimate::{
+    StaticEstimateWorkspaces, estimand_compatible_with_estimator, estimate_provenance_step,
+    estimate_static_effect, identification_status_acceptable, identify_admg, identify_pag,
+    identify_provenance_step, identify_static, identify_static_query, identify_static_query_with_rd,
+    require_identified, select_estimand, validate_distribution_pair, validate_path_specific_pair,
+    validate_static_pair,
 };
 
 #[cfg(test)]

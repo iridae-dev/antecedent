@@ -15,6 +15,8 @@ and [docs/development.md](../docs/development.md).
 - [design_state.toml](design_state.toml) — Design / incremental-state
 - [release.toml](release.toml) — Release-prep / parity-closure
 
+Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
+
 **Baseline pins** (oracle metadata only — not inventories):
 
 - [baselines/dowhy.toml](baselines/dowhy.toml)

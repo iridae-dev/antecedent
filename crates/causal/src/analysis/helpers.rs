@@ -32,7 +32,7 @@ use crate::discovery::{
     discover_pcmci_plus, discover_rfci, discover_rpcmci,
 };
 use crate::discovery_defaults::resolve_ci;
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 use crate::result::CausalAnalysisResult;
 use causal_discovery::{MultiDatasetConstraints, RegimeAssignment};
 
@@ -144,7 +144,7 @@ pub(crate) fn run_pcmci_review(
     fdr: Option<causal_stats::FdrAdjustment>,
     ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<TemporalGraphReview, AnalysisError> {
+) -> Result<TemporalGraphReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = DiscoverParams {
         max_lag,
@@ -164,7 +164,7 @@ pub(crate) fn run_pcmci_plus_review(
     fdr: Option<causal_stats::FdrAdjustment>,
     ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<TemporalCpdagReview, AnalysisError> {
+) -> Result<TemporalCpdagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = DiscoverParams {
         max_lag,
@@ -185,12 +185,12 @@ pub(crate) fn run_jpcmci_plus_review(
     multi_dataset: &MultiDatasetConstraints,
     ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<TemporalCpdagReview, AnalysisError> {
+) -> Result<TemporalCpdagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let system: Vec<VariableId> =
         vars.into_iter().filter(|v| !multi_dataset.is_context(*v)).collect();
     if system.is_empty() {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: "jpcmci+ needs ≥1 system variable after excluding context_variables".into(),
         });
     }
@@ -207,7 +207,7 @@ pub(crate) fn run_rpcmci_discovery(
     assignment: &RegimeAssignment,
     ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<causal_discovery::RpcmciDiscoveryResult, AnalysisError> {
+) -> Result<causal_discovery::RpcmciDiscoveryResult, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = DiscoverParams {
         max_lag,
@@ -217,7 +217,7 @@ pub(crate) fn run_rpcmci_discovery(
         multi_dataset: MultiDatasetConstraints::default(),
     };
     if assignment.len() != data.row_count() {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "RPCMCI regime_assignment length {} != series length {}",
                 assignment.len(),
@@ -235,7 +235,7 @@ pub(crate) fn run_lpcmci_review(
     fdr: Option<causal_stats::FdrAdjustment>,
     ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::TemporalPagReview, AnalysisError> {
+) -> Result<causal_graph::TemporalPagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = DiscoverParams {
         max_lag,
@@ -255,7 +255,7 @@ pub(crate) fn run_pc_review(
     fdr: Option<causal_stats::FdrAdjustment>,
     ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<CpdagReview, AnalysisError> {
+) -> Result<CpdagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params =
         StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
@@ -270,7 +270,7 @@ pub(crate) fn run_ges_review(
     fdr: Option<causal_stats::FdrAdjustment>,
     ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<CpdagReview, AnalysisError> {
+) -> Result<CpdagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params =
         StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
@@ -283,7 +283,7 @@ pub(crate) fn run_lingam_review(
     max_cond_size: usize,
     prune_threshold: f64,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::DagReview, AnalysisError> {
+) -> Result<causal_graph::DagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = StaticDiscoverParams {
         alpha: 0.05,
@@ -304,7 +304,7 @@ pub(crate) fn run_notears_review(
     threshold: f64,
     standardize: bool,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::DagReview, AnalysisError> {
+) -> Result<causal_graph::DagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = StaticDiscoverParams {
         alpha: 0.05,
@@ -325,7 +325,7 @@ pub(crate) fn run_fci_review(
     fdr: Option<causal_stats::FdrAdjustment>,
     ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::PagReview, AnalysisError> {
+) -> Result<causal_graph::PagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params =
         StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
@@ -340,7 +340,7 @@ pub(crate) fn run_rfci_review(
     fdr: Option<causal_stats::FdrAdjustment>,
     ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::PagReview, AnalysisError> {
+) -> Result<causal_graph::PagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params =
         StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
@@ -360,7 +360,7 @@ pub(crate) fn run_refuters(
     estimator: &str,
     custom: &[Arc<dyn causal_validate::CustomEffectValidator>],
     temporal: Option<causal_validate::TemporalRefitContext<'_>>,
-) -> Result<Vec<RefutationReport>, AnalysisError> {
+) -> Result<Vec<RefutationReport>, CausalError> {
     let problem = RefutationProblem {
         data,
         estimand,
@@ -386,15 +386,15 @@ pub(crate) fn run_refuters(
     let outcomes = match propensity {
         Some(pws) => validation
             .run_with_propensity(&problem, workspace, pws, ctx)
-            .map_err(AnalysisError::from)?,
-        None => validation.run(&problem, workspace, ctx).map_err(AnalysisError::from)?,
+            .map_err(CausalError::from)?,
+        None => validation.run(&problem, workspace, ctx).map_err(CausalError::from)?,
     };
     Ok(ValidationSuite::reports_only(&outcomes))
 }
 
 pub(crate) fn resolve_analysis_ci(
     discovery_ci: Option<&Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>>,
-) -> Result<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>, AnalysisError> {
+) -> Result<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>, CausalError> {
     match discovery_ci {
         Some(ci) => Ok(Arc::clone(ci)),
         None => resolve_ci("parcorr", None),
@@ -403,8 +403,8 @@ pub(crate) fn resolve_analysis_ci(
 
 pub(crate) fn effect_from_posterior(
     posterior: &CausalPosterior,
-) -> Result<EffectEstimate, AnalysisError> {
-    let eq = posterior.effect_column().ok_or_else(|| AnalysisError::Compile {
+) -> Result<EffectEstimate, CausalError> {
+    let eq = posterior.effect_column().ok_or_else(|| CausalError::Compile {
         message: "Bayesian posterior missing effect column".into(),
     })?;
     let ate = posterior.summaries.mean[eq];
@@ -506,7 +506,7 @@ pub(crate) fn project_for_ate_estimate(
     data: &TabularData,
     query: &AverageEffectQuery,
     estimand: &IdentifiedEstimand,
-) -> Result<(TabularData, AverageEffectQuery, IdentifiedEstimand), AnalysisError> {
+) -> Result<(TabularData, AverageEffectQuery, IdentifiedEstimand), CausalError> {
     let ids = columns_for_ate_estimand(query, estimand);
     // Already thin — skip rebuild when every column is required.
     if ids.len() == data.schema().len() {
@@ -521,7 +521,7 @@ pub(crate) fn project_for_ate_estimate(
 fn remap_variable_slice(
     ids: &[VariableId],
     remap: &IdRemap,
-) -> Result<Arc<[VariableId]>, AnalysisError> {
+) -> Result<Arc<[VariableId]>, CausalError> {
     let mapped: Result<Vec<_>, _> = ids.iter().map(|id| remap.map(*id)).collect();
     Ok(Arc::from(mapped?))
 }
@@ -529,7 +529,7 @@ fn remap_variable_slice(
 fn remap_intervention(
     intervention: &Intervention,
     remap: &IdRemap,
-) -> Result<Intervention, AnalysisError> {
+) -> Result<Intervention, CausalError> {
     match intervention {
         Intervention::Set { variable, value } => {
             Ok(Intervention::Set { variable: remap.map(*variable)?, value: value.clone() })
@@ -546,7 +546,7 @@ fn remap_intervention(
             mechanism: mechanism.clone(),
         }),
         Intervention::Sequence(seq) => {
-            let steps: Result<Vec<_>, AnalysisError> = seq
+            let steps: Result<Vec<_>, CausalError> = seq
                 .steps
                 .iter()
                 .map(|s| {
@@ -558,7 +558,7 @@ fn remap_intervention(
                 .collect();
             Ok(Intervention::Sequence(InterventionSequence::new(steps?)))
         }
-        other => Err(AnalysisError::Compile {
+        other => Err(CausalError::Compile {
             message: format!("cannot remap unsupported intervention variant: {other:?}"),
         }),
     }
@@ -567,7 +567,7 @@ fn remap_intervention(
 fn remap_average_effect_query(
     query: &AverageEffectQuery,
     remap: &IdRemap,
-) -> Result<AverageEffectQuery, AnalysisError> {
+) -> Result<AverageEffectQuery, CausalError> {
     Ok(AverageEffectQuery {
         treatment: remap.map(query.treatment)?,
         outcome: remap.map(query.outcome)?,
@@ -581,7 +581,7 @@ fn remap_average_effect_query(
 fn remap_identified_estimand(
     estimand: &IdentifiedEstimand,
     remap: &IdRemap,
-) -> Result<IdentifiedEstimand, AnalysisError> {
+) -> Result<IdentifiedEstimand, CausalError> {
     let rd_design = match &estimand.rd_design {
         None => None,
         Some(rd) => Some(RdDesignParams {

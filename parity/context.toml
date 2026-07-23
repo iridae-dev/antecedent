@@ -40,7 +40,7 @@ group = "identify_estimate"
 description = "MediationQuery + temporal mediation ID/estimate"
 status = "done"
 owner = "context"
-notes = "conformance/context/temporal_mediation; python_facade=full via TemporalMediationEffect"
+notes = "conformance/context/temporal_mediation; python_facade=full via TemporalMediationEffect + MediationEffect (static)"
 
 [[capabilities]]
 id = "context.conditional"

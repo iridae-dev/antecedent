@@ -4,15 +4,15 @@
 
 use std::sync::Arc;
 
-use causal_core::{CausalSchema, VariableId};
+use causal_core::{
+    CausalSchema, CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType, VariableId,
+};
 
-#[cfg(test)]
-use crate::column::OwnedColumn;
-use crate::column::{ColumnView, ValidityBitmap};
+use crate::column::{ColumnView, Float64Column, OwnedColumn, ValidityBitmap};
 use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
-use crate::temporal::TimeIndex;
+use crate::temporal::{SamplingRegularity, TimeIndex};
 
 /// Tabular IID dataset.
 #[derive(Clone, Debug)]
@@ -25,6 +25,107 @@ impl TabularData {
     #[must_use]
     pub fn new(storage: OwnedColumnarStorage) -> Self {
         Self { storage }
+    }
+
+    /// Build continuous `f64` columns from named slices (equal length).
+    ///
+    /// Schema variables are continuous with empty role hints, in iterator order.
+    /// Dense [`VariableId`]s align with column order (`0..n`).
+    ///
+    /// # Errors
+    ///
+    /// Empty input, length mismatch across columns, or schema construction failure.
+    pub fn from_f64_columns<'a, S>(
+        columns: impl IntoIterator<Item = (S, &'a [f64])>,
+    ) -> Result<Self, DataError>
+    where
+        S: Into<Arc<str>>,
+    {
+        let collected: Vec<(Arc<str>, &'a [f64])> =
+            columns.into_iter().map(|(n, v)| (n.into(), v)).collect();
+        if collected.is_empty() {
+            return Err(DataError::InvalidArgument {
+                message: "from_f64_columns requires at least one column".into(),
+            });
+        }
+        let n = collected[0].1.len();
+        let mut b = CausalSchemaBuilder::new();
+        for (name, values) in &collected {
+            if values.len() != n {
+                return Err(DataError::LengthMismatch {
+                    expected: n,
+                    actual: values.len(),
+                    context: "from_f64_columns",
+                });
+            }
+            b.add_variable(
+                Arc::clone(name),
+                ValueType::Continuous,
+                SmallRoleSet::empty(),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .map_err(|e| DataError::Schema(e.to_string()))?;
+        }
+        let schema = b.build().map_err(|e| DataError::Schema(e.to_string()))?;
+        Self::try_from_schema_f64(
+            schema,
+            collected.iter().map(|(name, values)| (name.as_ref(), *values)),
+        )
+    }
+
+    /// Bind named `f64` slices to an existing schema (names must match; order may differ).
+    ///
+    /// # Errors
+    ///
+    /// Missing/extra names, length mismatch, or storage construction failure.
+    pub fn try_from_schema_f64<'a>(
+        schema: CausalSchema,
+        columns: impl IntoIterator<Item = (&'a str, &'a [f64])>,
+    ) -> Result<Self, DataError> {
+        let n_vars = schema.len();
+        let mut by_name: std::collections::HashMap<&str, &[f64]> = columns.into_iter().collect();
+        if by_name.len() != n_vars {
+            return Err(DataError::InvalidArgument {
+                message: format!(
+                    "expected {} columns for schema, got {}",
+                    n_vars,
+                    by_name.len()
+                ),
+            });
+        }
+        let mut row_count = None;
+        let mut owned = Vec::with_capacity(n_vars);
+        for var in schema.variables() {
+            let Some(values) = by_name.remove(var.name.as_ref()) else {
+                return Err(DataError::InvalidArgument {
+                    message: format!("missing column for schema variable '{}'", var.name),
+                });
+            };
+            let n = *row_count.get_or_insert(values.len());
+            if values.len() != n {
+                return Err(DataError::LengthMismatch {
+                    expected: n,
+                    actual: values.len(),
+                    context: "try_from_schema_f64",
+                });
+            }
+            let col = Float64Column::new(
+                var.id,
+                Arc::<[f64]>::from(values.to_vec()),
+                ValidityBitmap::all_valid(n),
+            )?;
+            owned.push(OwnedColumn::Float64(col));
+        }
+        if !by_name.is_empty() {
+            let extra: Vec<_> = by_name.keys().copied().collect();
+            return Err(DataError::InvalidArgument {
+                message: format!("columns not in schema: {extra:?}"),
+            });
+        }
+        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None)?;
+        Ok(Self::new(storage))
     }
 
     /// Borrow underlying storage.
@@ -73,6 +174,29 @@ impl TimeSeriesData {
             });
         }
         Ok(Self { storage, time_index })
+    }
+
+    /// Build a regularly sampled series from named `f64` columns.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`TabularData::from_f64_columns`] errors.
+    pub fn from_f64_columns<'a, S>(
+        columns: impl IntoIterator<Item = (S, &'a [f64])>,
+        interval_ns: u64,
+    ) -> Result<Self, DataError>
+    where
+        S: Into<Arc<str>>,
+    {
+        let tabular = TabularData::from_f64_columns(columns)?;
+        let length = tabular.row_count();
+        Self::try_new(
+            tabular.storage().clone(),
+            TimeIndex {
+                regularity: SamplingRegularity::Regular { interval_ns },
+                length,
+            },
+        )
     }
 
     /// Time index metadata.

@@ -1,4 +1,9 @@
-"""Graph interchange helpers and typed graph objects."""
+"""Graph types and interchange helpers.
+
+Prefer class methods (``Dag.from_dot``, ``Dag.to_json``, …). Free
+``dag_from_*`` / ``dag_to_*`` functions remain thin aliases that return
+``(node_count, edges[, names])`` for low-level codecs.
+"""
 
 from __future__ import annotations
 

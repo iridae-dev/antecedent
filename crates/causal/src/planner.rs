@@ -18,7 +18,7 @@ use causal_graph::{
 };
 use causal_stats::FdrAdjustment;
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
 use crate::strategy_table::{
     EstimatorId, IdentifierId, validate_distribution_pair, validate_path_specific_pair,
     validate_static_pair,
@@ -277,10 +277,10 @@ impl LogicalAnalysisPlan {
     /// # Errors
     ///
     /// Invalid combinations.
-    pub fn validate(&self) -> Result<(), AnalysisError> {
+    pub fn validate(&self) -> Result<(), CausalError> {
         match (&self.query, self.record.data_classification) {
             (CausalQuery::TemporalEffect(_), DataClassification::Tabular) => {
-                return Err(AnalysisError::Compile {
+                return Err(CausalError::Compile {
                     message: "temporal effect query requires temporal data".into(),
                 });
             }
@@ -301,18 +301,18 @@ impl LogicalAnalysisPlan {
                 | DataClassification::Panel
                 | DataClassification::MultiEnvironment
         ) {
-            return Err(AnalysisError::Compile {
+            return Err(CausalError::Compile {
                 message: "PCMCI-family discovery requires temporal data metadata".into(),
             });
         }
         if matches!(self.record.discovery_algorithm.as_deref(), Some("pc"))
             && self.record.data_classification != DataClassification::Tabular
         {
-            return Err(AnalysisError::Compile {
+            return Err(CausalError::Compile {
                 message: "static PC discovery requires tabular data metadata".into(),
             });
         }
-        self.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+        self.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
         Ok(())
     }
 
@@ -324,7 +324,7 @@ impl LogicalAnalysisPlan {
     pub fn compile_physical(
         &self,
         ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, AnalysisError> {
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.compile_physical_with_graph(ctx, None)
     }
 
@@ -337,7 +337,7 @@ impl LogicalAnalysisPlan {
         &self,
         ctx: &ExecutionContext,
         resolved_temporal_graph: Option<TemporalDag>,
-    ) -> Result<PhysicalExecutionPlan, AnalysisError> {
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.compile_physical_with_graphs(ctx, resolved_temporal_graph, None)
     }
 
@@ -351,7 +351,7 @@ impl LogicalAnalysisPlan {
         ctx: &ExecutionContext,
         resolved_temporal_graph: Option<TemporalDag>,
         resolved_static_graph: Option<Dag>,
-    ) -> Result<PhysicalExecutionPlan, AnalysisError> {
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.compile_physical_with_all_graphs(
             ctx,
             resolved_temporal_graph,
@@ -371,7 +371,7 @@ impl LogicalAnalysisPlan {
         resolved_temporal_graph: Option<TemporalDag>,
         resolved_static_graph: Option<Dag>,
         resolved_static_pag: Option<Pag>,
-    ) -> Result<PhysicalExecutionPlan, AnalysisError> {
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.validate()?;
         let n_rows = self.row_count_hint.max(1);
         // Rough dense design: rows × ~8 f64 columns.
@@ -382,7 +382,7 @@ impl LogicalAnalysisPlan {
 
         if let Some(limit) = ctx.memory.soft_limit_bytes {
             if peak > limit {
-                return Err(AnalysisError::Resource {
+                return Err(CausalError::Resource {
                     message: format!(
                         "estimated peak memory {peak} exceeds soft limit {limit}; no chunked path"
                     ),
@@ -508,11 +508,11 @@ pub fn is_dag_only_identifier(identifier: impl Into<IdentifierId>) -> bool {
 ///
 /// # Errors
 ///
-/// [`AnalysisError::Compile`] when a DAG-only identifier is paired with PAG graph input.
+/// [`CausalError::Compile`] when a DAG-only identifier is paired with PAG graph input.
 pub fn reject_dag_only_on_pag(
     graph: &GraphInput,
     identifier: impl Into<IdentifierId>,
-) -> Result<(), AnalysisError> {
+) -> Result<(), CausalError> {
     let identifier = identifier.into();
     let is_pag = matches!(
         graph,
@@ -523,7 +523,7 @@ pub fn reject_dag_only_on_pag(
             | GraphInput::DiscoverRfci { .. }
     );
     if is_pag && identifier.is_dag_only() {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "DAG-only identification {:?} cannot accept a PAG without a completion \
                  or class-aware identifier (use generalized.adjustment)",
@@ -559,8 +559,8 @@ pub struct StaticAteCompileInput<'a> {
 /// (see [`crate::strategy_table::validate_static_pair`]).
 pub fn compile_logical_static_ate(
     input: StaticAteCompileInput<'_>,
-) -> Result<LogicalAnalysisPlan, AnalysisError> {
-    input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
     let identifier = IdentifierId::parse(&input.identifier);
     let estimator = EstimatorId::parse(&input.estimator);
@@ -568,7 +568,7 @@ pub fn compile_logical_static_ate(
     if matches!(estimator, EstimatorId::LinearAdjustmentAte)
         && input.query.target_population != TargetPopulation::AllObserved
     {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "estimator \"linear.adjustment.ate\" only supports TargetPopulation::AllObserved \
                  (got {:?}); use a propensity or AIPW estimator for ATT/ATC/Predicate",
@@ -620,13 +620,13 @@ pub struct StaticPagAteCompileInput<'a> {
 /// Query validation or incompatible identifier/estimator.
 pub fn compile_logical_static_pag_ate(
     input: StaticPagAteCompileInput<'_>,
-) -> Result<LogicalAnalysisPlan, AnalysisError> {
-    input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     validate_query_vars_in_pag(input.pag, input.query.treatment, input.query.outcome)?;
     let identifier = IdentifierId::parse(&input.identifier);
     let estimator = EstimatorId::parse(&input.estimator);
     if !matches!(identifier, IdentifierId::GeneralizedAdjustment) {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "PAG ATE requires identifier \"generalized.adjustment\"; got {:?}",
                 identifier.as_str()
@@ -678,22 +678,22 @@ pub struct StaticDistributionCompileInput<'a> {
 /// Query validation or incompatible identifier/estimator.
 pub fn compile_logical_distribution(
     input: StaticDistributionCompileInput<'_>,
-) -> Result<LogicalAnalysisPlan, AnalysisError> {
-    input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     if input.query.target_population != TargetPopulation::AllObserved {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: "functional.distribution only supports TargetPopulation::AllObserved".into(),
         });
     }
     let treatment =
         input.query.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
-            || AnalysisError::Compile {
+            || CausalError::Compile {
                 message:
                     "distribution query requires at least one intervention with a primary variable"
                         .into(),
             },
         )?;
-    let outcome = *input.query.outcomes.first().ok_or_else(|| AnalysisError::Compile {
+    let outcome = *input.query.outcomes.first().ok_or_else(|| CausalError::Compile {
         message: "distribution query requires at least one outcome".into(),
     })?;
     validate_query_vars_in_dag(input.graph, treatment, outcome)?;
@@ -750,10 +750,10 @@ pub struct StaticPathSpecificCompileInput<'a> {
 /// Query validation or incompatible identifier/estimator.
 pub fn compile_logical_path_specific(
     input: StaticPathSpecificCompileInput<'_>,
-) -> Result<LogicalAnalysisPlan, AnalysisError> {
-    input.query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     if input.query.target_population != TargetPopulation::AllObserved {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: "functional.effect only supports TargetPopulation::AllObserved".into(),
         });
     }
@@ -791,7 +791,7 @@ fn validate_query_vars_in_dag(
     dag: &Dag,
     treatment: causal_core::VariableId,
     outcome: causal_core::VariableId,
-) -> Result<(), AnalysisError> {
+) -> Result<(), CausalError> {
     let mut has_t = false;
     let mut has_y = false;
     for node in dag.nodes() {
@@ -805,7 +805,7 @@ fn validate_query_vars_in_dag(
         }
     }
     if !has_t || !has_y {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "query variables not in DAG (treatment present={has_t}, outcome present={has_y})"
             ),
@@ -818,7 +818,7 @@ fn validate_query_vars_in_pag(
     pag: &Pag,
     treatment: causal_core::VariableId,
     outcome: causal_core::VariableId,
-) -> Result<(), AnalysisError> {
+) -> Result<(), CausalError> {
     let mut has_t = false;
     let mut has_y = false;
     for node in pag.nodes() {
@@ -832,7 +832,7 @@ fn validate_query_vars_in_pag(
         }
     }
     if !has_t || !has_y {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "query variables not in PAG (treatment present={has_t}, outcome present={has_y})"
             ),
@@ -852,7 +852,7 @@ pub fn compile_logical_temporal_effect(
     query: &TemporalEffectQuery,
     split: Option<DiscoveryEstimationSplit>,
     review_required: bool,
-) -> Result<LogicalAnalysisPlan, AnalysisError> {
+) -> Result<LogicalAnalysisPlan, CausalError> {
     compile_logical_temporal_effect_classified(
         data,
         graph,
@@ -875,10 +875,10 @@ pub fn compile_logical_temporal_effect_classified(
     split: Option<DiscoveryEstimationSplit>,
     review_required: bool,
     data_classification: DataClassification,
-) -> Result<LogicalAnalysisPlan, AnalysisError> {
-    query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(AnalysisError::Compile {
+        return Err(CausalError::Compile {
             message: format!(
                 "temporal linear adjustment only supports TargetPopulation::AllObserved \
                  (got {:?})",
@@ -968,7 +968,7 @@ mod tests {
             split: None,
             row_count_hint: 10,
         };
-        assert!(matches!(plan.validate(), Err(AnalysisError::Compile { .. })));
+        assert!(matches!(plan.validate(), Err(CausalError::Compile { .. })));
     }
 
     #[test]
@@ -989,7 +989,7 @@ mod tests {
             split: None,
             row_count_hint: 10,
         };
-        assert!(matches!(plan.validate(), Err(AnalysisError::Compile { .. })));
+        assert!(matches!(plan.validate(), Err(CausalError::Compile { .. })));
     }
 
     #[test]
@@ -997,7 +997,7 @@ mod tests {
         let plan = tabular_plan(10_000);
         let mut ctx = ExecutionContext::for_tests(1);
         ctx.memory = MemoryBudget { soft_limit_bytes: Some(64), hard_limit_bytes: None };
-        assert!(matches!(plan.compile_physical(&ctx), Err(AnalysisError::Resource { .. })));
+        assert!(matches!(plan.compile_physical(&ctx), Err(CausalError::Resource { .. })));
     }
 
     #[test]
@@ -1079,7 +1079,7 @@ mod tests {
             estimator: Arc::from("iv.2sls"),
         })
         .unwrap_err();
-        assert!(matches!(err, AnalysisError::Compile { .. }));
+        assert!(matches!(err, CausalError::Compile { .. }));
     }
 
     #[test]
@@ -1094,7 +1094,7 @@ mod tests {
             estimator: Arc::from("propensity.weighting"),
         })
         .unwrap_err();
-        assert!(matches!(err, AnalysisError::Compile { .. }));
+        assert!(matches!(err, CausalError::Compile { .. }));
     }
 
     #[test]
@@ -1109,7 +1109,7 @@ mod tests {
             estimator: Arc::from("not.a.real.estimator"),
         })
         .unwrap_err();
-        assert!(matches!(err, AnalysisError::Compile { .. }));
+        assert!(matches!(err, CausalError::Compile { .. }));
     }
 
     #[test]
@@ -1126,7 +1126,7 @@ mod tests {
             estimator: Arc::from("linear.adjustment.ate"),
         })
         .unwrap_err();
-        assert!(matches!(err, AnalysisError::Compile { .. }));
+        assert!(matches!(err, CausalError::Compile { .. }));
     }
 
     #[test]
@@ -1193,7 +1193,7 @@ mod tests {
                     "cohort_a",
                 )));
         let err = compile_logical_temporal_effect(&data, &graph, &query, None, false).unwrap_err();
-        assert!(matches!(err, AnalysisError::Compile { .. }));
+        assert!(matches!(err, CausalError::Compile { .. }));
     }
 
     #[test]
@@ -1232,7 +1232,7 @@ mod tests {
         use causal_graph::Pag;
         let pag = Pag::with_variables(2);
         let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), "backdoor.adjustment").unwrap_err();
-        assert!(matches!(err, AnalysisError::Compile { .. }));
+        assert!(matches!(err, CausalError::Compile { .. }));
         // Class-aware identifier is allowed through this gate.
         let pag = Pag::with_variables(2);
         reject_dag_only_on_pag(&GraphInput::Pag(pag), "generalized.adjustment").unwrap();

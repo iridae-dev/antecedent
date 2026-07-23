@@ -37,6 +37,24 @@ impl Pag {
         g
     }
 
+    /// Schema-aligned PAG with named directed edges (`VariableId` raw == dense id).
+    ///
+    /// # Errors
+    ///
+    /// Unknown names or invalid inserts.
+    pub fn from_named_edges(
+        schema: &causal_core::CausalSchema,
+        edges: &[(&str, &str)],
+    ) -> Result<Self, GraphError> {
+        let n = crate::named::schema_node_count(schema)?;
+        let mut g = Self::with_variables(n);
+        for &(from_name, to_name) in edges {
+            let (from, to) = crate::named::resolve_named_edge(schema, from_name, to_name)?;
+            g.insert_directed(from, to)?;
+        }
+        Ok(g)
+    }
+
     /// Node count.
     #[must_use]
     pub fn node_count(&self) -> usize {

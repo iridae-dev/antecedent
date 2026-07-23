@@ -18,30 +18,38 @@
 
 use std::sync::Arc;
 
-use causal_attribution::{
-    AnomalyScores, AttributionError, ChangeAttribution, ChangeAttributionResult,
-    DistributionChangeOptions, FeatureRelevance, MechanismChangeMethod, RobustChangeOptions,
-    RootCauseRank, StructureChangeOptions, UnitChangeResult, detect_mechanism_changes,
-    distribution_change, distribution_change_robust, feature_relevance, path_decompose,
-    root_cause_rank, score_anomalies, structure_change, unit_change,
-};
 use causal_core::{
     AnomalyAttributionQuery, CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
     InterventionalDistributionQuery, MechanismChangeQuery, PathSpecificEffectQuery,
     TargetPopulation, UnitChangeQuery, Value, VariableId,
 };
-use causal_counterfactual::{
-    AbductionMissingPolicy, CounterfactualEngine, CounterfactualError, ExogenousPosterior,
-    NoiseInferenceKind,
-};
 use causal_data::TabularData;
 use causal_graph::Dag;
-use causal_model::{
-    CompiledCausalModel, MechanismAssignment, MechanismRegistry, MechanismWorkspace, ModelError,
-    SelectionPolicy, ValueBatch, sample_interventional,
-};
+use causal_model::ValueBatch;
 
-use crate::error::AnalysisError;
+use crate::error::CausalError;
+
+pub use causal_attribution::{
+    AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
+    DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
+    MechanismChangeMethod, RobustChangeOptions, RootCauseRank, StructureChangeOptions,
+    UnitChangeResult, arrow_strengths, detect_mechanism_changes, distribution_change,
+    distribution_change_robust, feature_relevance, path_decompose, population_do_contrast,
+    root_cause_rank, score_anomalies, structure_change, unit_change,
+};
+pub use causal_counterfactual::{
+    AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
+    CounterfactualResult, CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind,
+    nested_counterfactual, nested_hard_counterfactual, simultaneous_hard_counterfactual,
+    streaming_matches_retained,
+};
+pub use causal_model::{
+    CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
+    InvertibleStructuralCausalModel, KdeDoSampler, McmcDoSampler, MechanismAssignment,
+    MechanismFamily, MechanismRegistry, MechanismSlot, MechanismWorkspace, ModelCollection,
+    ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy, StructuralCausalModel,
+    WeightingDoSampler, interventional_mean, sample_interventional, sample_observational,
+};
 
 /// Fitted GCM plus per-node assignment records.
 #[derive(Clone, Debug)]
@@ -57,7 +65,7 @@ pub struct FittedGcm {
 /// # Errors
 ///
 /// Propagates model fit / assignment failures.
-pub fn fit_gcm(graph: Dag, data: &TabularData) -> Result<FittedGcm, AnalysisError> {
+pub fn fit_gcm(graph: Dag, data: &TabularData) -> Result<FittedGcm, CausalError> {
     let compiled = CompiledCausalModel::compile(graph).map_err(map_model)?;
     let (store, assignments) = MechanismRegistry::standard()
         .assign_and_fit(&compiled, data, SelectionPolicy::BestScore)
@@ -76,7 +84,7 @@ pub fn sample_do(
     n: usize,
     rng: &mut CausalRng,
     ctx: &ExecutionContext,
-) -> Result<ValueBatch, AnalysisError> {
+) -> Result<ValueBatch, CausalError> {
     let mut ws = MechanismWorkspace::default();
     sample_interventional(model, interventions, n, rng, &mut ws, ctx).map_err(map_model)
 }
@@ -94,7 +102,7 @@ pub fn counterfactual_ite(
     active: f64,
     control: f64,
     ctx: &ExecutionContext,
-) -> Result<IteResult, AnalysisError> {
+) -> Result<IteResult, CausalError> {
     let engine = CounterfactualEngine::new(model);
     let exo = engine.abduct(data, AbductionMissingPolicy::Error).map_err(map_cf)?;
     let mut ws = MechanismWorkspace::default();
@@ -136,7 +144,7 @@ pub fn anomaly_attribution(
     data: &TabularData,
     outcomes: impl IntoIterator<Item = VariableId>,
     max_units: usize,
-) -> Result<Vec<AnomalyScores>, AnalysisError> {
+) -> Result<Vec<AnomalyScores>, CausalError> {
     let targets: Arc<[VariableId]> = outcomes.into_iter().collect::<Vec<_>>().into();
     let q = AnomalyAttributionQuery::new(targets, max_units);
     score_anomalies(model, data, &q).map_err(map_attr)
@@ -153,7 +161,7 @@ pub fn attribute_distribution_change(
     query: &ChangeAttributionQuery,
     options: &DistributionChangeOptions,
     ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, AnalysisError> {
+) -> Result<ChangeAttributionResult, CausalError> {
     distribution_change(model, data, query, options, ctx).map_err(map_attr)
 }
 
@@ -168,7 +176,7 @@ pub fn attribute_distribution_change_robust(
     query: &ChangeAttributionQuery,
     options: &RobustChangeOptions,
     ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, AnalysisError> {
+) -> Result<ChangeAttributionResult, CausalError> {
     distribution_change_robust(model, data, query, options, ctx).map_err(map_attr)
 }
 
@@ -184,7 +192,7 @@ pub fn attribute_structure_change(
     query: &ChangeAttributionQuery,
     options: &StructureChangeOptions,
     ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, AnalysisError> {
+) -> Result<ChangeAttributionResult, CausalError> {
     structure_change(baseline_model, comparison_model, data, query, options, ctx).map_err(map_attr)
 }
 
@@ -205,7 +213,7 @@ pub fn mechanism_change_detection(
     query: &MechanismChangeQuery,
     method: MechanismChangeMethod,
     ctx: &ExecutionContext,
-) -> Result<Vec<causal_attribution::MechanismChangeDetection>, AnalysisError> {
+) -> Result<Vec<causal_attribution::MechanismChangeDetection>, CausalError> {
     detect_mechanism_changes(model, data, query, method, ctx).map_err(map_attr)
 }
 
@@ -219,7 +227,7 @@ pub fn attribute_unit_change(
     data: &TabularData,
     query: &UnitChangeQuery,
     ctx: &ExecutionContext,
-) -> Result<UnitChangeResult, AnalysisError> {
+) -> Result<UnitChangeResult, CausalError> {
     unit_change(model, data, query, ctx).map_err(map_attr)
 }
 
@@ -236,10 +244,10 @@ pub fn sample_interventional_distribution(
     n: usize,
     rng: &mut CausalRng,
     ctx: &ExecutionContext,
-) -> Result<ValueBatch, AnalysisError> {
-    query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+) -> Result<ValueBatch, CausalError> {
+    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(AnalysisError::Unsupported {
+        return Err(CausalError::Unsupported {
             message: "sample_interventional_distribution only supports TargetPopulation::AllObserved",
         });
     }
@@ -258,10 +266,10 @@ pub fn attribute_path_specific(
     model: &CompiledCausalModel,
     query: &PathSpecificEffectQuery,
     ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, AnalysisError> {
-    query.validate().map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+) -> Result<ChangeAttributionResult, CausalError> {
+    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(AnalysisError::Unsupported {
+        return Err(CausalError::Unsupported {
             message: "attribute_path_specific only supports TargetPopulation::AllObserved",
         });
     }
@@ -299,7 +307,7 @@ pub fn attribute_paths(
     max_paths: usize,
     max_len: usize,
     ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, AnalysisError> {
+) -> Result<ChangeAttributionResult, CausalError> {
     path_decompose(model, sources, outcome, max_paths, max_len, ctx).map_err(map_attr)
 }
 
@@ -317,7 +325,7 @@ pub fn attribute_feature_relevance(
     n_samples: usize,
     max_features: usize,
     ctx: &ExecutionContext,
-) -> Result<Vec<FeatureRelevance>, AnalysisError> {
+) -> Result<Vec<FeatureRelevance>, CausalError> {
     feature_relevance(model, data, outcome, features, delta, n_samples, max_features, ctx)
         .map_err(map_attr)
 }
@@ -330,21 +338,22 @@ pub fn attribute_feature_relevance(
 pub fn rank_root_causes(
     attribution: &ChangeAttributionResult,
     ctx: &ExecutionContext,
-) -> Result<Vec<RootCauseRank>, AnalysisError> {
+) -> Result<Vec<RootCauseRank>, CausalError> {
     root_cause_rank(attribution, None, None, ctx).map_err(map_attr)
 }
 
 #[allow(clippy::needless_pass_by_value)] // map_err adapters
-fn map_model(e: ModelError) -> AnalysisError {
-    AnalysisError::from(e)
+fn map_model(e: ModelError) -> CausalError {
+    CausalError::from(e)
 }
 
 #[allow(clippy::needless_pass_by_value)] // map_err adapters
-fn map_cf(e: CounterfactualError) -> AnalysisError {
-    AnalysisError::from(e)
+fn map_cf(e: CounterfactualError) -> CausalError {
+    CausalError::from(e)
 }
 
 #[allow(clippy::needless_pass_by_value)] // map_err adapters
-fn map_attr(e: AttributionError) -> AnalysisError {
-    AnalysisError::from(e)
+fn map_attr(e: AttributionError) -> CausalError {
+    CausalError::from(e)
 }
+
