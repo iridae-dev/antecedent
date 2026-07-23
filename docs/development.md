@@ -4,9 +4,17 @@ Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
 day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 `antecedent-*` on crates.io.
 
-## Gates
+## CI vs local gates
 
-Feature gates own inventory honesty + conformance for a domain:
+GitHub Actions Rust CI (`ci.yml`) runs **fmt**, **clippy**, **`cargo test --workspace`**,
+and **DCO** (plus an optional crates.io publish dry-run when manifests change).
+It does **not** run feature gates, `gate_release.sh`, Criterion smokes, or
+`cargo deny`.
+
+## Gates (local / slow path)
+
+Feature gates own inventory honesty + conformance for a domain. Run them locally
+before a release, or when a change might break something unintended:
 
 ```bash
 bash scripts/gate_estimate_ci.sh
@@ -17,8 +25,8 @@ bash scripts/gate_context.sh
 bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
-bash scripts/gate_calibration.sh   # SE coverage / CI Type I — release / weekly, not every PR
-bash scripts/gate_release.sh
+bash scripts/gate_calibration.sh   # SE coverage / CI Type I — weekly / pre-release
+bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
 ```
 
 Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
@@ -35,7 +43,7 @@ Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 | Conformance | Frozen fixtures vs expected outputs (`conformance/`) |
 | Calibration | Coverage / Type I / null FPR (`gate_calibration.sh`) |
 | Cross-language | Python bindings exercise the same semantics |
-| Criterion benches | Designated hot paths; regressions beyond budget block merge |
+| Criterion benches | Designated hot paths; local `gate_release` / bench smokes |
 | Fuzz | Parsers / graph / artifact surfaces under `fuzz/` |
 
 Tolerance classes live in `antecedent-core` (ADR 0010). Do not tighten or loosen a
@@ -133,7 +141,7 @@ runs on `v*` tags (and `workflow_dispatch`) separately from the Python
 
 Checklist before the first public crate release:
 
-1. `cargo test --workspace` and `bash scripts/gate_release.sh` green.
+1. `cargo test --workspace` green; run `bash scripts/gate_release.sh` locally before the cut.
 2. `bash scripts/publish_crates.sh --dry-run` succeeds.
 3. Root `CHANGELOG.md` has notes for the version.
 4. Tag `vX.Y.Z` (or dispatch the workflow) with `CRATES_IO_TOKEN` configured.
