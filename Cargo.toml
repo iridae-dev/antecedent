@@ -47,7 +47,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/example/causal-library"
+repository = "https://github.com/example/causal-library" # replace OWNER/repo when creating the GitHub remote
 authors = ["Causal Library Contributors"]
 
 [workspace.dependencies]

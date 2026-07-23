@@ -75,3 +75,47 @@ Packages stay at **0.1.0** until an explicit 1.0 decision (ADR 0017). Artifact
 format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
+
+Keep `[workspace.package].version` in `Cargo.toml` and `version` in
+`python/pyproject.toml` in sync:
+
+```bash
+bash scripts/set_version.sh X.Y.Z
+```
+
+## Private releases
+
+Tagged releases drive private wheel + docs publishing (GitHub Packages and
+GitHub Release assets). The tag `vX.Y.Z` is the source of truth for the release
+build; CI runs `scripts/set_version.sh` before maturin.
+
+```bash
+# Optional: bump and commit on main first
+bash scripts/set_version.sh 0.1.0
+git add Cargo.toml python/pyproject.toml
+git commit -m "chore: bump version to 0.1.0"
+
+# Tag current (or just-bumped) version and push
+bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 0.1.0
+git push origin v0.1.0
+```
+
+Workflow [`.github/workflows/publish-release.yml`](../.github/workflows/publish-release.yml)
+builds the full wheel matrix, attaches wheels + `docs.tar.gz` to the GitHub
+Release, and uploads wheels to the GitHub Packages PyPI registry. No extra
+secrets beyond `GITHUB_TOKEN` (needs `contents: write` and `packages: write`).
+
+Consumers need a PAT with `read:packages` (see Installation in the root README).
+
+Azure / non-GitHub deploys: store that PAT in Key Vault or app settings and
+install from GitHub Packages, or bake a Release `.whl` into the container image.
+
+## Repo create checklist
+
+1. Create a **private** GitHub repository and push this tree.
+2. Enable Actions; allow GitHub Packages for the repo/org.
+3. Set `workspace.package.repository` in `Cargo.toml` to the real repo URL
+   (replace the `example/causal-library` placeholder).
+4. Tag `v0.1.0` (or bump first) to cut the first private release.
+5. In consuming projects, configure the GitHub Packages index + a
+   `read:packages` PAT (see root README).

@@ -1,0 +1,314 @@
+# Tag-driven private release: wheels → GitHub Release + GitHub Packages.
+name: publish-release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver without leading v (e.g. 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  prepare:
+    name: Prepare version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version from tag or input
+        id: ver
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+          else
+            REF="${GITHUB_REF_NAME}"
+            if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "tag must be vX.Y.Z[...], got: $REF" >&2
+              exit 1
+            fi
+            VERSION="${REF#v}"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "invalid semver: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version=$VERSION tag=v$VERSION"
+
+  wheels:
+    name: Wheel ${{ matrix.os }} py${{ matrix.python }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.11"
+            target: x86_64
+            manylinux: auto
+          - os: ubuntu-latest
+            python: "3.12"
+            target: x86_64
+            manylinux: auto
+          - os: ubuntu-latest
+            python: "3.13"
+            target: x86_64
+            manylinux: auto
+          - os: ubuntu-latest
+            python: "3.14"
+            target: x86_64
+            manylinux: auto
+          - os: ubuntu-24.04-arm
+            python: "3.11"
+            target: aarch64
+            manylinux: auto
+          - os: ubuntu-24.04-arm
+            python: "3.12"
+            target: aarch64
+            manylinux: auto
+          - os: ubuntu-24.04-arm
+            python: "3.13"
+            target: aarch64
+            manylinux: auto
+          - os: ubuntu-24.04-arm
+            python: "3.14"
+            target: aarch64
+            manylinux: auto
+          - os: macos-13
+            python: "3.11"
+            target: x86_64
+            manylinux: ""
+          - os: macos-13
+            python: "3.12"
+            target: x86_64
+            manylinux: ""
+          - os: macos-13
+            python: "3.13"
+            target: x86_64
+            manylinux: ""
+          - os: macos-13
+            python: "3.14"
+            target: x86_64
+            manylinux: ""
+          - os: macos-14
+            python: "3.11"
+            target: aarch64
+            manylinux: ""
+          - os: macos-14
+            python: "3.12"
+            target: aarch64
+            manylinux: ""
+          - os: macos-14
+            python: "3.13"
+            target: aarch64
+            manylinux: ""
+          - os: macos-14
+            python: "3.14"
+            target: aarch64
+            manylinux: ""
+          - os: windows-latest
+            python: "3.11"
+            target: x64
+            manylinux: ""
+          - os: windows-latest
+            python: "3.12"
+            target: x64
+            manylinux: ""
+          - os: windows-latest
+            python: "3.13"
+            target: x64
+            manylinux: ""
+          - os: windows-latest
+            python: "3.14"
+            target: x64
+            manylinux: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync version from tag
+        run: bash scripts/set_version.sh "${{ needs.prepare.outputs.version }}"
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
+        with:
+          toolchain: "1.85"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
+        with:
+          working-directory: python
+          command: build
+          args: --release --out dist -i python
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          sccache: "true"
+
+      - name: Install wheel and smoke tests
+        shell: bash
+        working-directory: python
+        run: |
+          pip install dist/*.whl numpy pytest
+          python -c "import causal; print(causal.__version__)"
+          pytest -q \
+            tests/test_arrow_copy_gate.py \
+            tests/test_graph_interchange.py \
+            tests/test_analyze_ate_estimate.py \
+            tests/test_discover_pcmci.py \
+            tests/test_discover_pcmci_plus.py \
+            tests/test_gcm_rich_returns.py
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-wheel-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.target }}
+          path: python/dist/*.whl
+          if-no-files-found: error
+          retention-days: 30
+
+  docs:
+    name: Build docs bundle
+    needs: [prepare, wheels]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync version from tag
+        run: bash scripts/set_version.sh "${{ needs.prepare.outputs.version }}"
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
+        with:
+          toolchain: "1.85"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download manylinux x86_64 py3.12 wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: release-wheel-ubuntu-latest-py3.12-x86_64
+          path: wheel-in
+
+      - name: Rustdoc
+        run: cargo doc -p causal --no-deps
+
+      - name: Conformance docs
+        run: python3 scripts/generate_conformance_docs.py
+
+      - name: Python API docs (pdoc)
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install wheel-in/*.whl pdoc
+          mkdir -p site/python
+          pdoc causal -o site/python
+
+      - name: Pack docs.tar.gz
+        run: |
+          set -euo pipefail
+          mkdir -p dist-docs
+          # Narrative markdown + generated conformance
+          tar -czf dist-docs/markdown.tar.gz docs adr README.md CONTRIBUTING.md
+          # rustdoc HTML
+          tar -czf dist-docs/rustdoc.tar.gz -C target doc
+          # pdoc HTML
+          tar -czf dist-docs/python-api.tar.gz -C site python
+          tar -czf docs.tar.gz -C dist-docs markdown.tar.gz rustdoc.tar.gz python-api.tar.gz
+          ls -la docs.tar.gz
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-bundle
+          path: docs.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish Release + Packages
+    needs: [prepare, wheels, docs]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-wheel-*
+          path: wheels
+          merge-multiple: true
+
+      - name: Download docs bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-bundle
+          path: .
+
+      - name: List release assets
+        run: |
+          set -euo pipefail
+          find wheels -name '*.whl' | sort
+          ls -la docs.tar.gz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            wheels/*.whl
+            docs.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Publish wheels to GitHub Packages
+        env:
+          UV_PUBLISH_USERNAME: ${{ github.actor }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=(wheels/*.whl)
+          if [[ ${#wheels[@]} -eq 0 ]]; then
+            echo "no wheels found" >&2
+            exit 1
+          fi
+          uv publish \
+            --publish-url "https://upload.pypi.pkg.github.com/${{ github.repository_owner }}/" \
+            "${wheels[@]}"

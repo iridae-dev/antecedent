@@ -1,0 +1,73 @@
+# Build private docs bundle (markdown + rustdoc + Python API via pdoc).
+# On tags, prefer publish-release.yml which attaches docs.tar.gz to the Release.
+name: docs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  docs:
+    name: Build docs bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
+        with:
+          toolchain: "1.85"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build manylinux wheel for pdoc
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
+        with:
+          working-directory: python
+          command: build
+          args: --release --out dist -i python
+          target: x86_64
+          manylinux: auto
+          sccache: "true"
+
+      - name: Rustdoc
+        run: cargo doc -p causal --no-deps
+
+      - name: Conformance docs
+        run: python3 scripts/generate_conformance_docs.py
+
+      - name: Python API docs (pdoc)
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install python/dist/*.whl pdoc
+          mkdir -p site/python
+          pdoc causal -o site/python
+
+      - name: Pack docs.tar.gz
+        run: |
+          set -euo pipefail
+          mkdir -p dist-docs
+          tar -czf dist-docs/markdown.tar.gz docs adr README.md CONTRIBUTING.md
+          tar -czf dist-docs/rustdoc.tar.gz -C target doc
+          tar -czf dist-docs/python-api.tar.gz -C site python
+          tar -czf docs.tar.gz -C dist-docs markdown.tar.gz rustdoc.tar.gz python-api.tar.gz
+          ls -la docs.tar.gz
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-bundle
+          path: docs.tar.gz
+          if-no-files-found: error
+          retention-days: 30

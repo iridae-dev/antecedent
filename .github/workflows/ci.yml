@@ -189,3 +189,11 @@ jobs:
             tests/test_discover_pcmci.py \
             tests/test_discover_pcmci_plus.py \
             tests/test_gcm_rich_returns.py
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.target }}
+          path: python/dist/*.whl
+          if-no-files-found: error
+          retention-days: 14

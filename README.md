@@ -23,18 +23,50 @@ Identify first. Estimate second. Estimators never silently choose confounders or
 
 ## Installation
 
-**Python** (CPython 3.11–3.14; wheels for Linux, macOS, Windows):
+**Python** (CPython 3.11–3.14; wheels for Linux, macOS, Windows).
+
+Private builds publish to **GitHub Packages** and as assets on each GitHub
+Release (`vX.Y.Z`). Public PyPI is not used yet.
+
+GitHub Packages (replace `OWNER` / use a PAT with `read:packages`):
 
 ```bash
-pip install causal
+# uv
+export UV_INDEX_GITHUB_USERNAME=TOKEN
+export UV_INDEX_GITHUB_PASSWORD=ghp_...   # or fine-scoped token
+uv add causal --index https://pypi.pkg.github.com/OWNER/causal-library/simple/
 ```
 
-**Rust** (1.85+, edition 2024):
+```toml
+# pyproject.toml (uv)
+[[tool.uv.index]]
+name = "github"
+url = "https://pypi.pkg.github.com/OWNER/causal-library/simple/"
+authenticate = "always"
+
+[tool.uv.sources]
+causal = { index = "github" }
+```
 
 ```bash
-cargo add causal
+# pip
+pip install causal \
+  --index-url https://OWNER:ghp_...@pypi.pkg.github.com/OWNER/causal-library/simple/
 ```
 
+Or download the platform wheel from the Release assets and
+`pip install ./causal-*.whl`.
+
+**Rust** (1.85+, edition 2024): path or git dependency while crates stay private
+(`publish = false` on the Python extension crate; library crates are not on
+crates.io yet):
+
+```toml
+causal = { git = "ssh://git@github.com/OWNER/causal-library.git" }
+```
+
+See [docs/development.md](docs/development.md) for tagging releases and the
+repo-create checklist.
 ## Python quick start
 
 ```python
@@ -149,7 +181,8 @@ Hot paths run in Rust (batched APIs, reusable workspaces, optimized kernels). Re
 
 * [Architecture](docs/architecture.md) · [Development](docs/development.md) · [Artifacts](docs/artifacts.md)
 * [API naming (Rust ↔ Python)](docs/api_naming.md) · [Hot paths](docs/hot_paths.md) · [Conformance](docs/conformance/README.md) · [ADRs](adr/README.md)
-* [Rust API](https://docs.rs/causal) · [Examples](crates/causal/examples/) · [Python examples](python/examples/)
+* API docs: `docs.tar.gz` on each Release (markdown + rustdoc + Python pdoc); locally `cargo doc -p causal --open`
+* [Examples](crates/causal/examples/) · [Python examples](python/examples/)
 
 ## Contributing
 
