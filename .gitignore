@@ -38,13 +38,9 @@ fuzz/corpus/
 .env.*
 fuzz/target/
 
-# CodeQL local databases / SARIF
-.codeql-db/
-.codeql-results/
-
-# CodeQL local databases / SARIF
-.codeql-db/
-.codeql-results/
+# Docs
+/site/
+.cache/
 
 # CodeQL local databases / SARIF
 .codeql-db/

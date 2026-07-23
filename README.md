@@ -199,7 +199,7 @@ Hot paths run in Rust (batched APIs, reusable workspaces, optimized kernels). Re
 
 * [Architecture](docs/architecture.md) · [Development](docs/development.md) · [Artifacts](docs/artifacts.md)
 * [API naming (Rust ↔ Python)](docs/api_naming.md) · [Hot paths](docs/hot_paths.md) · [Conformance](docs/conformance/README.md) · [ADRs](adr/README.md)
-* API docs: `docs.tar.gz` on each Release (markdown + rustdoc + Python pdoc); locally `cargo doc -p antecedent --open`
+* API docs: narrative on Read the Docs (MkDocs); Rust on [docs.rs/antecedent](https://docs.rs/antecedent); Python pdoc in Release `docs.tar.gz`. Locally: `mkdocs serve`, `cargo doc -p antecedent --open`
 * [Examples](crates/antecedent/examples/) · [Python examples](python/examples/)
 
 ## Contributing

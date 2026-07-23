@@ -1,4 +1,5 @@
-# Build private docs bundle (markdown + rustdoc + Python API via pdoc).
+# Build docs bundle (markdown + rustdoc + Python API via pdoc).
+# Narrative site for Read the Docs: mkdocs.yml + .readthedocs.yaml.
 # On tags, prefer publish-release.yml which attaches docs.tar.gz to the Release.
 name: docs
 
@@ -50,9 +51,14 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install python/dist/*.whl pdoc
-          mkdir -p site/python
-          pdoc antecedent -o site/python
+          # numpy is a runtime dep of antecedent; install wheel away from
+          # python/ so the source tree cannot shadow antecedent._native.
+          pip install "python/dist/"*.whl pdoc
+          python -c "import antecedent; print('antecedent', antecedent.__version__, antecedent.__file__)"
+          OUT="${GITHUB_WORKSPACE}/site/python"
+          mkdir -p "$OUT"
+          cd "$(mktemp -d)"
+          pdoc antecedent -o "$OUT"
 
       - name: Pack docs.tar.gz
         run: |
