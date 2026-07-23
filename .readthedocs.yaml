@@ -10,11 +10,17 @@ build:
     post_build:
       # Run away from the checkout so `python/antecedent` cannot shadow the
       # installed wheel (missing _native → ImportError).
-      - mkdir -p "${READTHEDOCS_OUTPUT}/html/python"
-      - >
-        bash -lc 'cd "$(mktemp -d)"
-        && python -c "import antecedent; print(antecedent.__file__, getattr(antecedent, \"__version__\", \"?\"))"
-        && python -m pdoc antecedent -o "${READTHEDOCS_OUTPUT}/html/python"'
+      # Do not single-quote the script: READTHEDOCS_OUTPUT must expand.
+      - |
+        set -euo pipefail
+        OUT="${READTHEDOCS_OUTPUT}/html/python"
+        mkdir -p "${OUT}"
+        WORK="$(mktemp -d)"
+        cd "${WORK}"
+        python -c 'import antecedent; print(antecedent.__file__, getattr(antecedent, "__version__", "?"))'
+        python -m pdoc antecedent -o "${OUT}"
+        ls -la "${OUT}" | head -n 30
+        test -f "${OUT}/antecedent.html"
 
 mkdocs:
   configuration: mkdocs.yml
