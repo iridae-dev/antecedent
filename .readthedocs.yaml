@@ -7,15 +7,14 @@ build:
   tools:
     python: "3.12"
   jobs:
-    # Install published wheels so pdoc can import the extension module.
-    # Tracks the latest PyPI release (not necessarily tip-of-main stubs).
-    post_install:
-      - pip install "antecedent>=0.1.0" pdoc
-      - python -c "import antecedent; print(antecedent.__file__, getattr(antecedent, '__version__', '?'))"
     post_build:
-      # Merge into the MkDocs HTML tree so /python/ is public (no download).
+      # Run away from the checkout so `python/antecedent` cannot shadow the
+      # installed wheel (missing _native → ImportError).
       - mkdir -p "${READTHEDOCS_OUTPUT}/html/python"
-      - bash -lc 'cd "$(mktemp -d)" && pdoc antecedent -o "${READTHEDOCS_OUTPUT}/html/python"'
+      - >
+        bash -lc 'cd "$(mktemp -d)"
+        && python -c "import antecedent; print(antecedent.__file__, getattr(antecedent, \"__version__\", \"?\"))"
+        && python -m pdoc antecedent -o "${READTHEDOCS_OUTPUT}/html/python"'
 
 mkdocs:
   configuration: mkdocs.yml
