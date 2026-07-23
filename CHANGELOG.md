@@ -25,7 +25,7 @@ First crates.io-oriented release of the Rust library graph.
 - Supporting libraries use **`antecedent-*`** names on crates.io and are **public
   dependencies** of `antecedent` (part of the semver surface). Day-1 usage is
   still only `cargo add antecedent`.
-- The Python extension (`antecedent-py` / wheel `antecedent` on GitHub Packages) is
+- The Python extension (`antecedent-py` / wheel `antecedent` on PyPI) is
   **not** published to crates.io (`publish = false`).
 - `CustomEffectValidator` remains deliberately unsealed so host languages (PyO3)
   can implement the dyn-safe callback path.

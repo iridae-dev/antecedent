@@ -54,7 +54,7 @@ Optional `blas` features (if added later) are non-default.
 | Surface | Destination | Notes |
 |---------|-------------|--------|
 | Rust facade `antecedent` + `antecedent-*` library crates | crates.io | Tag workflow `publish-crates.yml`; see `scripts/publish_crates.sh` |
-| Python package `antecedent` (PyO3 crate `antecedent-py`) | GitHub Packages / Release assets | **Not** on crates.io (`publish = false`); not public PyPI yet |
+| Python package `antecedent` (PyO3 crate `antecedent-py`) | PyPI / GitHub Release assets | **Not** on crates.io (`publish = false`) |
 
 ## Evidence commands
 

@@ -15,7 +15,7 @@ jobs:
   publish:
     name: Publish crates.io
     runs-on: ubuntu-latest
-    # Separate from Python GitHub Packages / Release wheels.
+    # Separate from Python PyPI / Release wheels.
     steps:
       - uses: actions/checkout@v4
 

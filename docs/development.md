@@ -95,11 +95,11 @@ Keep `[workspace.package].version` in `Cargo.toml` and `version` in
 bash scripts/set_version.sh X.Y.Z
 ```
 
-## Private releases
+## Releases
 
-Tagged releases drive private wheel + docs publishing (GitHub Packages and
-GitHub Release assets). The tag `vX.Y.Z` is the source of truth for the release
-build; CI runs `scripts/set_version.sh` before maturin.
+Tagged releases drive wheel + docs publishing (GitHub Release assets and public
+PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
+`scripts/set_version.sh` before maturin.
 
 ```bash
 # Optional: bump and commit on main first
@@ -114,16 +114,17 @@ git push origin v0.1.0
 
 Workflow [`.github/workflows/publish-release.yml`](../.github/workflows/publish-release.yml)
 builds the full wheel matrix, attaches wheels + `docs.tar.gz` to the GitHub
-Release, uploads to GitHub Packages, and publishes to public PyPI via trusted
-publishing (`id-token: write`). Configure a pending/trusted publisher on
-[pypi.org](https://pypi.org) for this repo and workflow file
-`publish-release.yml` (Environment blank unless the job sets `environment:`).
+Release, and publishes to public PyPI via trusted publishing (`id-token: write`).
+Configure a pending/trusted publisher on [pypi.org](https://pypi.org) for this
+repo and workflow file `publish-release.yml` (Environment blank unless the job
+sets `environment:`).
 
-GitHub Packages still needs `packages: write` on `GITHUB_TOKEN`. Public
-installers can use `pip install antecedent` once the project exists on PyPI.
+Install with `pip install antecedent`, or download a wheel from the GitHub
+Release. (GitHub Packages has no supported Python registry; do not use
+`upload.pypi.pkg.github.com`.)
 
-Azure / non-GitHub deploys: store that PAT in Key Vault or app settings and
-install from GitHub Packages, or bake a Release `.whl` into the container image.
+Azure / non-GitHub deploys: bake a Release `.whl` into the image, or install
+from PyPI.
 
 ## crates.io (Rust)
 
@@ -153,8 +154,7 @@ Checklist before the first public crate release:
 ## Repo create checklist
 
 1. Create a GitHub repository and push this tree.
-2. Enable Actions; allow GitHub Packages for the repo/org (Python wheels).
+2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
-4. Tag `v0.1.0` (or bump first) to cut wheels + (with token) crates.io.
-5. For private Python consumers, configure the GitHub Packages index + a
-   `read:packages` PAT (see root README).
+4. Configure PyPI trusted publisher for `publish-release.yml`.
+5. Tag `v0.1.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
