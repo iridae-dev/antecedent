@@ -1026,7 +1026,7 @@ def analyze(
     data:
         Mapping of column name → 1-d float array, a pandas ``DataFrame``,
         Arrow CDI exporters (PyArrow columns / table), or a
-        ``causal.data`` frame (``EventFrame`` / ``PanelFrame`` / ``MultiEnvFrame``).
+        ``antecedent.data`` frame (``EventFrame`` / ``PanelFrame`` / ``MultiEnvFrame``).
         For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
         or a ``MultiEnvFrame``.
     query:
@@ -1045,7 +1045,7 @@ def analyze(
         Temporal: ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``.
         One-shot script convenience — discovery runs at compile time. For
         interactive / spreadsheet estimate clicks, discover once into
-        :class:`causal.AcceptedGraph` (or hold a reviewed graph) and pass
+        :class:`antecedent.AcceptedGraph` (or hold a reviewed graph) and pass
         ``graph=`` with ``latency="interactive"`` instead. Combining
         ``discovery=`` with ``latency="interactive"`` raises
         :class:`CausalUnsupportedError`.
@@ -1055,7 +1055,7 @@ def analyze(
         ``bootstrap=`` / ``refute=`` always win. Interactive refuses inline
         ``discovery=`` (artifact-first UX).
     cancel:
-        Optional ``CancellationToken`` from ``causal._native``.
+        Optional ``CancellationToken`` from ``antecedent._native``.
     on_progress:
         Optional ``(fraction: float, stage: str) -> None`` callback.
     on_stage:
@@ -1756,7 +1756,7 @@ class PreparedAnalysis:
     Use for interactive sessions: prepare with a fixed graph/query/estimator,
     then call :meth:`estimate` or :meth:`refresh` when the table changes
     (same schema). Prefer this over fresh :func:`analyze` on every click.
-    For streaming append + incremental OLS, use :class:`causal.CausalState`.
+    For streaming append + incremental OLS, use :class:`antecedent.CausalState`.
     """
 
     def __init__(self, native: Any) -> None:

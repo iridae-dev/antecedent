@@ -78,7 +78,7 @@ def test_evaluate_decision_utility_callback():
         o = np.asarray(outcomes, dtype=np.float64)
         return np.outer(a, o).ravel()
 
-    eu = causal.evaluate_decision([0.0, 1.0], [2.0, 4.0], util)
+    eu = antecedent.evaluate_decision([0.0, 1.0], [2.0, 4.0], util)
     assert eu.chosen_action == 1
     assert eu.expected_utility == pytest.approx(3.0)  # 1 * mean([2,4])
     assert eu.posterior_regret == pytest.approx(0.0)

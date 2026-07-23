@@ -20,20 +20,20 @@ def _confounded(n: int = 120, seed: int = 5):
 
 def test_bayesian_conjugate_vs_laplace_backend():
     data, edges = _confounded()
-    query = causal.AverageEffect(treatment="t", outcome="y")
-    laplace = causal.analyze(
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+    laplace = antecedent.analyze(
         data,
         graph=edges,
         query=query,
-        inference=causal.Bayesian(n_draws=64, backend="laplace"),
+        inference=antecedent.Bayesian(n_draws=64, backend="laplace"),
         refute=False,
         seed=1,
     )
-    conjugate = causal.analyze(
+    conjugate = antecedent.analyze(
         data,
         graph=edges,
         query=query,
-        inference=causal.Bayesian(n_draws=64, backend="conjugate"),
+        inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
         refute=False,
         seed=1,
     )
@@ -47,12 +47,12 @@ def test_bayesian_conjugate_vs_laplace_backend():
 
 def test_bayesian_hmc_smoke():
     data, edges = _confounded(n=100, seed=9)
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         # Enough draws for ESS/R-hat gates on the native HMC backend.
-        inference=causal.Bayesian(n_draws=120, backend="hmc"),
+        inference=antecedent.Bayesian(n_draws=120, backend="hmc"),
         refute=False,
         seed=2,
     )

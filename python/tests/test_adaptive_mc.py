@@ -32,10 +32,10 @@ def test_adaptive_bootstrap_records_early_stop():
     """Production context enables adaptive bootstrap; effort fields are honest."""
     data, edges = _confounded_scm()
     max_reps = 80
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         bootstrap=max_reps,
         refute=False,
         seed=5,
@@ -56,11 +56,11 @@ def test_adaptive_bayesian_draws_records_early_stop():
     """Production context enables adaptive Laplace draws; effort fields are honest."""
     data, edges = _confounded_scm()
     max_draws = 256
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(backend="laplace", n_draws=max_draws),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(backend="laplace", n_draws=max_draws),
         refute=False,
         seed=9,
     )

@@ -39,10 +39,10 @@ def _confounded_scm(n: int = 800, seed: int = 5):
 
 def test_analyze_default_pair_schema_and_fields():
     data, edges = _confounded_scm()
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         bootstrap=10,
         seed=1,
     )
@@ -55,10 +55,10 @@ def test_analyze_default_pair_schema_and_fields():
 def test_analyze_propensity_weighting_recovers_ate_and_overlap():
     # Shared dual band with Rust IPW ATE≈2 (see module docstring).
     data, edges = _confounded_scm(n=800, seed=5)
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         identifier="backdoor.adjustment",
         estimator="propensity.weighting",
         bootstrap=10,
@@ -82,10 +82,10 @@ def test_analyze_propensity_weighting_recovers_ate_and_overlap():
 )
 def test_analyze_estimate_estimators_smoke(estimator):
     data, edges = _confounded_scm(n=1000, seed=9)
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         estimator=estimator,
         bootstrap=5,
         seed=1,
@@ -103,10 +103,10 @@ def test_analyze_iv_2sls_smoke():
         np.float64
     )
     y = 1.5 * t + u + np.array([rng.gauss(0, 0.3) for _ in range(n)], dtype=np.float64)
-    result = causal.analyze(
+    result = antecedent.analyze(
         {"t": t, "y": y, "z": z},
         graph=[("z", "t"), ("t", "y")],
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         identifier="iv",
         estimator="iv.2sls",
         bootstrap=5,
@@ -122,10 +122,10 @@ def test_analyze_frontdoor_smoke():
     t = np.array([1.0 if rng.random() < 0.5 else 0.0 for _ in range(n)], dtype=np.float64)
     m = t + np.array([rng.gauss(0, 0.4) for _ in range(n)], dtype=np.float64)
     y = m + np.array([rng.gauss(0, 0.4) for _ in range(n)], dtype=np.float64)
-    result = causal.analyze(
+    result = antecedent.analyze(
         {"t": t, "m": m, "y": y},
         graph=[("t", "m"), ("m", "y")],
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         identifier="frontdoor",
         estimator="frontdoor.two_stage",
         bootstrap=5,

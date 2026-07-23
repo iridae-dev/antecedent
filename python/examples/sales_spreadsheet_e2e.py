@@ -50,27 +50,27 @@ def main() -> None:
     # --- Static spreadsheet block ---
     data = _sales_static()
     discovery_calls = {"n": 0}
-    real_pc = causal.discover_pc
+    real_pc = antecedent.discover_pc
 
     def spy_pc(*args, **kwargs):
         discovery_calls["n"] += 1
         return real_pc(*args, **kwargs)
 
     # Spy via accepted_graph path used by rediscover; estimate clicks must not call it.
-    causal.discover_pc = spy_pc  # type: ignore[assignment]
+    antecedent.discover_pc = spy_pc  # type: ignore[assignment]
 
     # Hand-accepted DAG (discover-once already reviewed in product UX).
-    dag = causal.Dag.from_edges(
+    dag = antecedent.Dag.from_edges(
         ["z", "t", "m", "y"],
         [("z", "t"), ("z", "m"), ("z", "y"), ("t", "m"), ("t", "y"), ("m", "y")],
     )
-    accepted = causal.AcceptedGraph.from_graph(dag, algorithm_id="reviewed")
-    q = causal.AverageEffect(treatment="t", outcome="y")
+    accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="reviewed")
+    q = antecedent.AverageEffect(treatment="t", outcome="y")
 
     bayes = accepted.analyze(
         data,
         query=q,
-        inference=causal.Bayesian(backend="laplace", n_draws=128),
+        inference=antecedent.Bayesian(backend="laplace", n_draws=128),
         refute=False,
         seed=3,
         bootstrap=0,
@@ -83,7 +83,7 @@ def main() -> None:
     names = ["z", "t", "m", "y"]
     cols = [data["z"], data["t"], data["m"], data["y"]]
     edges = [("z", "t"), ("z", "m"), ("z", "y"), ("t", "m"), ("t", "y"), ("m", "y")]
-    path = causal.attribute_path_specific(
+    path = antecedent.attribute_path_specific(
         names,
         cols,
         edges,
@@ -95,7 +95,7 @@ def main() -> None:
     assert math.isfinite(path.total_change)
     print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")
 
-    ite = causal.counterfactual_ite(
+    ite = antecedent.counterfactual_ite(
         names, cols, edges, "t", "y", 1.0, 0.0, seed=7
     )
     assert ite.n_units == len(cols[0])
@@ -104,27 +104,27 @@ def main() -> None:
 
     # Second estimate click — still no discovery.
     _ = accepted.analyze(
-        data, query=q, inference=causal.Bayesian(n_draws=64), refute=False, seed=4
+        data, query=q, inference=antecedent.Bayesian(n_draws=64), refute=False, seed=4
     )
     assert discovery_calls["n"] == 0, "static estimate clicks must not discover"
     assert accepted.version == 1
 
     # --- Temporal pulse Bayesian block ---
     series = _sales_temporal()
-    tdag = causal.TemporalDag.from_lagged_edges(
+    tdag = antecedent.TemporalDag.from_lagged_edges(
         ["promo", "returns"], [("promo", 1, "returns", 0)]
     )
-    temporal = causal.AcceptedGraph.from_graph(tdag, algorithm_id="pcmci")
+    temporal = antecedent.AcceptedGraph.from_graph(tdag, algorithm_id="pcmci")
     pulse = temporal.analyze(
         series,
-        query=causal.PulseEffect(
+        query=antecedent.PulseEffect(
             treatment="promo",
             outcome="returns",
             treatment_lag=1,
             horizon_steps=1,
             active_level=1.0,
         ),
-        inference=causal.Bayesian(backend="laplace", n_draws=96),
+        inference=antecedent.Bayesian(backend="laplace", n_draws=96),
         refute=False,
         seed=13,
         bootstrap=0,

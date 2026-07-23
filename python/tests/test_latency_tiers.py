@@ -30,10 +30,10 @@ def _confounded_scm(n: int = 600, seed: int = 7):
 
 def test_interactive_vs_standard_effort():
     data, edges = _confounded_scm()
-    interactive = causal.analyze(
+    interactive = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         latency="interactive",
         seed=1,
     )
@@ -43,10 +43,10 @@ def test_interactive_vs_standard_effort():
     assert interactive.performance.bootstrap_replicates_requested == 0
     assert interactive.identification.status
 
-    standard = causal.analyze(
+    standard = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         latency="standard",
         refute=False,
         seed=1,
@@ -61,10 +61,10 @@ def test_interactive_vs_standard_effort():
 def test_cancel_mid_bootstrap_partial():
     data, edges = _confounded_scm(n=400, seed=11)
     requested = 80
-    full = causal.analyze(
+    full = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         bootstrap=requested,
         refute=False,
         seed=3,
@@ -78,7 +78,7 @@ def test_cancel_mid_bootstrap_partial():
     else:
         assert full_ok == requested
 
-    token = causal.CancellationToken()
+    token = antecedent.CancellationToken()
     seen = {"bootstrap": False}
 
     def on_progress(fraction: float, stage: str) -> None:
@@ -86,10 +86,10 @@ def test_cancel_mid_bootstrap_partial():
             seen["bootstrap"] = True
             token.cancel()
 
-    partial = causal.analyze(
+    partial = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         bootstrap=requested,
         refute=False,
         seed=3,
@@ -116,10 +116,10 @@ def test_progressive_stages_callback_order():
         if stage == "uncertainty":
             assert payload.get("se_bootstrap") is not None
 
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         bootstrap=40,
         refute=False,
         seed=11,

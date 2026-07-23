@@ -20,13 +20,13 @@ def _confounded(n: int = 160, seed: int = 3):
 def test_sequential_prior_from_artifact():
     data_a, edges = _confounded(seed=1)
     data_b, _ = _confounded(seed=2)
-    query = causal.AverageEffect(treatment="t", outcome="y")
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
 
-    a = causal.analyze(
+    a = antecedent.analyze(
         data_a,
         graph=edges,
         query=query,
-        inference=causal.Bayesian(n_draws=64),
+        inference=antecedent.Bayesian(n_draws=64),
         refute=False,
         seed=1,
         return_posterior_artifact=True,
@@ -34,11 +34,11 @@ def test_sequential_prior_from_artifact():
     assert a.posterior is not None
     artifact = bytes(a.posterior.artifact)
 
-    b = causal.analyze(
+    b = antecedent.analyze(
         data_b,
         graph=edges,
         query=query,
-        inference=causal.Bayesian(n_draws=64, prior_from=artifact),
+        inference=antecedent.Bayesian(n_draws=64, prior_from=artifact),
         refute=False,
         seed=2,
     )
@@ -50,26 +50,26 @@ def test_sequential_prior_from_artifact():
 def test_sequential_prior_named_subset_when_design_shrinks():
     """Named coefficient priors apply to the overlapping subspace when Z is dropped."""
     data, edges = _confounded()
-    a = causal.analyze(
+    a = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(n_draws=48),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=48),
         refute=False,
         seed=3,
         return_posterior_artifact=True,
     )
     assert a.posterior is not None
     artifact = bytes(a.posterior.artifact)
-    names = list(causal.decode_posterior_artifact(artifact).quantity_names)
+    names = list(antecedent.decode_posterior_artifact(artifact).quantity_names)
     assert "coef_z" in names
 
     data2 = {"t": data["t"], "y": data["y"]}
-    b = causal.analyze(
+    b = antecedent.analyze(
         data2,
         graph=[("t", "y")],
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(n_draws=48, prior_from=artifact),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=48, prior_from=artifact),
         refute=False,
         seed=4,
     )
@@ -80,11 +80,11 @@ def test_sequential_prior_named_subset_when_design_shrinks():
 def test_sequential_prior_rejects_corrupt_artifact():
     data, edges = _confounded()
     with pytest.raises(Exception, match="(?i)artifact|posterior|cbor|format|magic"):
-        causal.analyze(
+        antecedent.analyze(
             data,
             graph=edges,
-            query=causal.AverageEffect(treatment="t", outcome="y"),
-            inference=causal.Bayesian(n_draws=48, prior_from=b"not-a-posterior"),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=48, prior_from=b"not-a-posterior"),
             refute=False,
             seed=4,
         )

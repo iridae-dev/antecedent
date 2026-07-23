@@ -15,10 +15,10 @@ def test_rd_sharp_via_analyze():
     y = 1.0 + 2.0 * t + 0.3 * r + rng.normal(scale=0.2, size=n)
     data = {"t": t, "y": y, "r": r}
     # Empty DAG — RD does not use backdoor ID.
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=[],
-        query=causal.AverageEffect("t", "y"),
+        query=antecedent.AverageEffect("t", "y"),
         estimator="rd.sharp",
         identifier="rd.sharp",
         running_variable="r",

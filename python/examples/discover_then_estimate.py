@@ -37,31 +37,31 @@ def _confounded_scm(n: int = 500, seed: int = 7):
 def main() -> None:
     data = _confounded_scm()
     discovery_calls = {"n": 0}
-    real_discover = causal.discover_pc
+    real_discover = antecedent.discover_pc
 
     def counted_discover(*args, **kwargs):
         discovery_calls["n"] += 1
         return real_discover(*args, **kwargs)
 
     # Structure-ready click (once).
-    causal.discover_pc = counted_discover  # type: ignore[method-assign]
-    result = causal.discover_pc(
+    antecedent.discover_pc = counted_discover  # type: ignore[method-assign]
+    result = antecedent.discover_pc(
         data, alpha=0.5, fdr=False, max_cond_size=0, seed=1
     )
-    evidence = causal.AcceptedGraph.from_discovery(result, algorithm_id="pc")
+    evidence = antecedent.AcceptedGraph.from_discovery(result, algorithm_id="pc")
     assert discovery_calls["n"] == 1
-    assert isinstance(evidence.graph, (causal.Dag, causal.Cpdag))
+    assert isinstance(evidence.graph, (antecedent.Dag, antecedent.Cpdag))
 
     # Spreadsheet review: accept a fully oriented DAG for estimate clicks.
     # (Incomplete CPDAG marks stay on the evidence handle until explicit rediscover.)
-    accepted = causal.AcceptedGraph.from_graph(
+    accepted = antecedent.AcceptedGraph.from_graph(
         [("z", "t"), ("z", "y"), ("t", "y")],
         algorithm_id=evidence.algorithm_id,
         version=evidence.version,
     )
     structure_version = accepted.version
 
-    query = causal.AverageEffect(treatment="t", outcome="y")
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
 
     # Effect-ready clicks (many) — must not re-enter discovery.
     first = accepted.analyze(data, query=query, seed=1)
@@ -77,7 +77,7 @@ def main() -> None:
     assert math.isfinite(second.ate) and math.isfinite(third.ate)
 
     # Durable hold for the next session.
-    restored = causal.AcceptedGraph.from_json(accepted.to_json())
+    restored = antecedent.AcceptedGraph.from_json(accepted.to_json())
     assert restored.version == accepted.version
 
     print(

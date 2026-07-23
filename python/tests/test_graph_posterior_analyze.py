@@ -15,11 +15,11 @@ def test_exact_dag_posterior_bayesian_ate_mixture():
     t = (z > 0.5).astype(np.float64)
     y = 1.0 + 2.0 * t + 3.0 * z
 
-    result = causal.analyze(
+    result = antecedent.analyze(
         {"t": t, "y": y, "z": z},
-        discovery=causal.ExactDagPosterior(),
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(n_draws=80, prior_scale=100.0, backend="conjugate"),
+        discovery=antecedent.ExactDagPosterior(),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=80, prior_scale=100.0, backend="conjugate"),
         refute=False,
         bootstrap=0,
         seed=7,
@@ -41,11 +41,11 @@ def test_exact_dag_posterior_rejects_frequentist():
     t = (z > 0.5).astype(np.float64)
     y = 1.0 + 2.0 * t + 3.0 * z
     with pytest.raises(TypeError, match="Bayesian"):
-        causal.analyze(
+        antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=causal.ExactDagPosterior(),
-            query=causal.AverageEffect(treatment="t", outcome="y"),
-            inference=causal.Frequentist(),
+            discovery=antecedent.ExactDagPosterior(),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(),
             refute=False,
             bootstrap=0,
             seed=1,
@@ -62,17 +62,17 @@ def test_dbn_posterior_bayesian_pulse_mixture():
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1]
 
-    result = causal.analyze(
+    result = antecedent.analyze(
         {"pressure": pressure, "defect": defect},
-        discovery=causal.DbnPosterior(max_lag=1),
-        query=causal.PulseEffect(
+        discovery=antecedent.DbnPosterior(max_lag=1),
+        query=antecedent.PulseEffect(
             treatment="pressure",
             outcome="defect",
             treatment_lag=1,
             horizon_steps=1,
             active_level=1.0,
         ),
-        inference=causal.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate"),
+        inference=antecedent.Bayesian(n_draws=64, prior_scale=100.0, backend="conjugate"),
         refute=False,
         bootstrap=0,
         seed=11,

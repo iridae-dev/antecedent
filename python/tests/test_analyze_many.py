@@ -35,9 +35,9 @@ def _two_treatment_scm(n: int = 500, seed: int = 9):
 
 def test_analyze_many_matches_solo():
     data, edges = _two_treatment_scm()
-    q1 = causal.AverageEffect(treatment="t1", outcome="y")
-    q2 = causal.AverageEffect(treatment="t2", outcome="y")
-    batch = causal.analyze_many(
+    q1 = antecedent.AverageEffect(treatment="t1", outcome="y")
+    q2 = antecedent.AverageEffect(treatment="t2", outcome="y")
+    batch = antecedent.analyze_many(
         data,
         graph=edges,
         queries=[q1, q2],
@@ -46,10 +46,10 @@ def test_analyze_many_matches_solo():
         seed=3,
     )
     assert len(batch) == 2
-    solo1 = causal.analyze(
+    solo1 = antecedent.analyze(
         data, graph=edges, query=q1, refute=False, bootstrap=0, seed=3
     )
-    solo2 = causal.analyze(
+    solo2 = antecedent.analyze(
         data, graph=edges, query=q2, refute=False, bootstrap=0, seed=3
     )
     assert abs(batch[0].ate - solo1.ate) < 1e-12

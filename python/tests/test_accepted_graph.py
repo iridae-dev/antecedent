@@ -31,34 +31,34 @@ def _confounded_scm(n: int = 500, seed: int = 19):
 def test_from_discovery_estimates_without_rediscover(monkeypatch):
     data = _confounded_scm()
     calls = {"n": 0}
-    real = causal.discover_pc
+    real = antecedent.discover_pc
 
     def spy(*args, **kwargs):
         calls["n"] += 1
         return real(*args, **kwargs)
 
     monkeypatch.setattr(causal, "discover_pc", spy)
-    monkeypatch.setattr("causal.accepted_graph.discover_pc", spy)
-    monkeypatch.setattr("causal.discovery.discover_pc", spy)
+    monkeypatch.setattr("antecedent.accepted_graph.discover_pc", spy)
+    monkeypatch.setattr("antecedent.discovery.discover_pc", spy)
 
-    result = causal.discover_pc(
+    result = antecedent.discover_pc(
         data, alpha=0.5, fdr=False, max_cond_size=0, seed=1
     )
     assert calls["n"] == 1
-    accepted = causal.AcceptedGraph.from_discovery(result, algorithm_id="pc")
+    accepted = antecedent.AcceptedGraph.from_discovery(result, algorithm_id="pc")
     assert accepted.version == 1
     assert accepted.algorithm_id == "pc"
     # PC may leave undirected marks — hold as Cpdag, or Dag when fully oriented.
-    assert isinstance(accepted.graph, (causal.Dag, causal.Cpdag))
+    assert isinstance(accepted.graph, (antecedent.Dag, antecedent.Cpdag))
 
     # Estimate clicks use a reviewed/accepted DAG (spreadsheet: accept then click).
     # Spy still proves rediscovery does not run when knobs change.
-    estimate_handle = causal.AcceptedGraph.from_graph(
+    estimate_handle = antecedent.AcceptedGraph.from_graph(
         [("z", "t"), ("z", "y"), ("t", "y")],
         algorithm_id=accepted.algorithm_id,
         version=accepted.version,
     )
-    q = causal.AverageEffect(treatment="t", outcome="y")
+    q = antecedent.AverageEffect(treatment="t", outcome="y")
     first = estimate_handle.analyze(data, query=q, seed=1)
     second = estimate_handle.analyze(data, query=q, seed=1, bootstrap=0)
     assert calls["n"] == 1, "estimate clicks must not re-enter discover_pc"
@@ -71,20 +71,20 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
 
 def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
     data = _confounded_scm(seed=23)
-    dag = causal.Dag.from_edges(
+    dag = antecedent.Dag.from_edges(
         ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]
     )
-    accepted = causal.AcceptedGraph.from_graph(dag, algorithm_id=None)
+    accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id=None)
     calls = {"n": 0}
 
     def boom(*_a, **_k):
         calls["n"] += 1
         raise AssertionError("discovery must not run on estimate knobs")
 
-    monkeypatch.setattr("causal.accepted_graph.discover_pc", boom)
+    monkeypatch.setattr("antecedent.accepted_graph.discover_pc", boom)
     monkeypatch.setattr(causal, "discover_pc", boom)
 
-    q = causal.AverageEffect(treatment="t", outcome="y")
+    q = antecedent.AverageEffect(treatment="t", outcome="y")
     a = accepted.analyze(data, query=q, seed=1, bootstrap=0)
     b = accepted.analyze(data, query=q, seed=1, bootstrap=10, refute=False)
     assert calls["n"] == 0
@@ -94,47 +94,47 @@ def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
 
 def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):
     data = _confounded_scm(seed=29)
-    dag = causal.Dag.from_edges(
+    dag = antecedent.Dag.from_edges(
         ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]
     )
-    accepted = causal.AcceptedGraph.from_graph(dag, algorithm_id="hand")
+    accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
     calls = {"n": 0}
-    real = causal.discover_pc
+    real = antecedent.discover_pc
 
     def spy(*args, **kwargs):
         calls["n"] += 1
         return real(*args, **kwargs)
 
-    monkeypatch.setattr("causal.accepted_graph.discover_pc", spy)
+    monkeypatch.setattr("antecedent.accepted_graph.discover_pc", spy)
 
     refreshed = accepted.rediscover(
-        data, causal.PC(alpha=0.5, fdr=False, max_cond_size=0), seed=1
+        data, antecedent.PC(alpha=0.5, fdr=False, max_cond_size=0), seed=1
     )
     assert calls["n"] == 1
     assert refreshed.version == accepted.version + 1
     assert refreshed.algorithm_id == "pc"
     assert accepted.version == 1  # original handle unchanged
-    assert isinstance(refreshed.graph, (causal.Dag, causal.Cpdag))
+    assert isinstance(refreshed.graph, (antecedent.Dag, antecedent.Cpdag))
 
 def test_analyze_rejects_discovery_kwarg():
     data = _confounded_scm(n=200, seed=3)
-    accepted = causal.AcceptedGraph.from_graph(
+    accepted = antecedent.AcceptedGraph.from_graph(
         [("z", "t"), ("z", "y"), ("t", "y")], algorithm_id=None
     )
-    with pytest.raises(causal.CausalUnsupportedError, match="rejects discovery="):
+    with pytest.raises(antecedent.CausalUnsupportedError, match="rejects discovery="):
         accepted.analyze(
             data,
-            query=causal.AverageEffect(treatment="t", outcome="y"),
-            discovery=causal.PC(),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            discovery=antecedent.PC(),
         )
 
 
 def test_json_roundtrip_preserves_version_and_edges():
-    dag = causal.Dag.from_edges(
+    dag = antecedent.Dag.from_edges(
         ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]
     )
-    accepted = causal.AcceptedGraph.from_graph(dag, algorithm_id="pc", version=3)
-    restored = causal.AcceptedGraph.from_json(accepted.to_json())
+    accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="pc", version=3)
+    restored = antecedent.AcceptedGraph.from_json(accepted.to_json())
     assert restored.version == 3
     assert restored.algorithm_id == "pc"
     assert set(restored.graph.edges()) == set(dag.edges())  # type: ignore[union-attr]
@@ -142,11 +142,11 @@ def test_json_roundtrip_preserves_version_and_edges():
 
 def test_prepare_on_accepted_graph():
     data = _confounded_scm(n=300, seed=41)
-    accepted = causal.AcceptedGraph.from_graph(
+    accepted = antecedent.AcceptedGraph.from_graph(
         [("z", "t"), ("z", "y"), ("t", "y")], algorithm_id="supplied"
     )
     prepared = accepted.prepare(
-        data, query=causal.AverageEffect(treatment="t", outcome="y"), seed=1
+        data, query=antecedent.AverageEffect(treatment="t", outcome="y"), seed=1
     )
     assert prepared is not None
     first = prepared.estimate(data, seed=1)
@@ -168,32 +168,32 @@ def _lag1_series(n: int = 300, seed: int = 9):
 def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
     data = _lag1_series()
     calls = {"n": 0}
-    real = causal.discover_pcmci
+    real = antecedent.discover_pcmci
 
     def spy(*args, **kwargs):
         calls["n"] += 1
         return real(*args, **kwargs)
 
     monkeypatch.setattr(causal, "discover_pcmci", spy)
-    monkeypatch.setattr("causal.accepted_graph.discover_pcmci", spy)
-    monkeypatch.setattr("causal.discovery.discover_pcmci", spy)
+    monkeypatch.setattr("antecedent.accepted_graph.discover_pcmci", spy)
+    monkeypatch.setattr("antecedent.discovery.discover_pcmci", spy)
 
-    result = causal.discover_pcmci(data=data, max_lag=2, alpha=0.05, fdr=False, seed=9)
+    result = antecedent.discover_pcmci(data=data, max_lag=2, alpha=0.05, fdr=False, seed=9)
     assert calls["n"] == 1
-    accepted = causal.AcceptedGraph.from_discovery(result, algorithm_id="pcmci")
+    accepted = antecedent.AcceptedGraph.from_discovery(result, algorithm_id="pcmci")
     assert accepted.version == 1
     assert accepted.algorithm_id == "pcmci"
-    assert isinstance(accepted.graph, causal.TemporalDag)
+    assert isinstance(accepted.graph, antecedent.TemporalDag)
 
     # Estimate clicks on a known TemporalDag; spy proves rediscovery does not run.
-    estimate_handle = causal.AcceptedGraph.from_graph(
-        causal.TemporalDag.from_lagged_edges(
+    estimate_handle = antecedent.AcceptedGraph.from_graph(
+        antecedent.TemporalDag.from_lagged_edges(
             ["x", "y"], [("x", 1, "y", 0)]
         ),
         algorithm_id=accepted.algorithm_id,
         version=accepted.version,
     )
-    q = causal.PulseEffect(
+    q = antecedent.PulseEffect(
         treatment="x", outcome="y", treatment_lag=1, horizon_steps=1
     )
     first = estimate_handle.analyze(data, query=q, seed=1, bootstrap=0, refute=False)
@@ -206,31 +206,31 @@ def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
 
 def test_temporal_rediscover_bumps_version(monkeypatch):
     data = _lag1_series(seed=11)
-    tdag = causal.TemporalDag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)])
-    accepted = causal.AcceptedGraph.from_graph(tdag, algorithm_id="hand")
+    tdag = antecedent.TemporalDag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)])
+    accepted = antecedent.AcceptedGraph.from_graph(tdag, algorithm_id="hand")
     calls = {"n": 0}
-    real = causal.discover_pcmci
+    real = antecedent.discover_pcmci
 
     def spy(*args, **kwargs):
         calls["n"] += 1
         return real(*args, **kwargs)
 
-    monkeypatch.setattr("causal.accepted_graph.discover_pcmci", spy)
+    monkeypatch.setattr("antecedent.accepted_graph.discover_pcmci", spy)
 
-    refreshed = accepted.rediscover(data, causal.PCMCI(max_lag=2, alpha=0.05, fdr=False), seed=1)
+    refreshed = accepted.rediscover(data, antecedent.PCMCI(max_lag=2, alpha=0.05, fdr=False), seed=1)
     assert calls["n"] == 1
     assert refreshed.version == accepted.version + 1
     assert refreshed.algorithm_id == "pcmci"
-    assert isinstance(refreshed.graph, causal.TemporalDag)
+    assert isinstance(refreshed.graph, antecedent.TemporalDag)
 
 
 def test_temporal_json_roundtrip():
-    tdag = causal.TemporalDag.from_lagged_edges(
+    tdag = antecedent.TemporalDag.from_lagged_edges(
         ["pressure", "defect"], [("pressure", 1, "defect", 0)]
     )
-    accepted = causal.AcceptedGraph.from_graph(tdag, algorithm_id="pcmci", version=2)
-    restored = causal.AcceptedGraph.from_json(accepted.to_json())
+    accepted = antecedent.AcceptedGraph.from_graph(tdag, algorithm_id="pcmci", version=2)
+    restored = antecedent.AcceptedGraph.from_json(accepted.to_json())
     assert restored.version == 2
     assert restored.algorithm_id == "pcmci"
-    assert isinstance(restored.graph, causal.TemporalDag)
+    assert isinstance(restored.graph, antecedent.TemporalDag)
     assert set(restored.graph.edges()) == set(tdag.edges())

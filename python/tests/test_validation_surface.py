@@ -19,10 +19,10 @@ def _confounded(n: int = 400, seed: int = 11):
 
 def test_analyze_refute_full_runs():
     data, edges = _confounded()
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         refute="full",
         bootstrap=5,
         seed=1,
@@ -40,7 +40,7 @@ def test_validate_pcmci_block_bootstrap_smoke():
     y[0] = rng.normal()
     for t in range(1, n):
         y[t] = 0.5 * x[t - 1] + 0.2 * rng.normal()
-    report = causal.validate_pcmci_block_bootstrap(
+    report = antecedent.validate_pcmci_block_bootstrap(
         {"x": x, "y": y},
         max_lag=1,
         alpha=0.2,
@@ -55,7 +55,7 @@ def test_validate_pcmci_block_bootstrap_smoke():
 
 
 def test_validate_synthetic_null_calibration_smoke():
-    report = causal.validate_synthetic_null_calibration(
+    report = antecedent.validate_synthetic_null_calibration(
         max_lag=1,
         alpha=0.2,
         fdr=False,

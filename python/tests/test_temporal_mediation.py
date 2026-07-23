@@ -23,10 +23,10 @@ def test_temporal_mediation_decomposition():
         ("t", 1, "m", 0),
         ("m", 0, "y", 0),
     ]
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
+        query=antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
         refute=False,
         bootstrap=0,
         seed=1,

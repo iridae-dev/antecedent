@@ -18,17 +18,17 @@ def test_manufacturing_bayesian_pulse_recovers_effect():
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1]
 
-    result = causal.analyze(
+    result = antecedent.analyze(
         {"pressure": pressure, "defect": defect},
         graph=[("pressure", 1, "defect", 0)],
-        query=causal.PulseEffect(
+        query=antecedent.PulseEffect(
             treatment="pressure",
             outcome="defect",
             treatment_lag=1,
             horizon_steps=1,
             active_level=1.0,
         ),
-        inference=causal.Bayesian(n_draws=256),
+        inference=antecedent.Bayesian(n_draws=256),
         refute=False,
         bootstrap=0,
         seed=42,

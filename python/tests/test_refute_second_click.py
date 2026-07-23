@@ -30,10 +30,10 @@ def _confounded(n: int = 400, seed: int = 11):
 
 def test_prepared_refute_second_click():
     data, edges = _confounded()
-    prepared = causal.PreparedAnalysis.prepare(
+    prepared = antecedent.PreparedAnalysis.prepare(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         latency="interactive",
         refute=False,
         bootstrap=0,
