@@ -437,7 +437,7 @@ The documentation covers:
 * Rust API;
 * Python API.
 
-Narrative docs: [docs/](docs/index.md) (MkDocs / Read the Docs). Rust API: [docs.rs/antecedent](https://docs.rs/antecedent). Python API HTML ships in Release `docs.tar.gz` via pdoc. Locally: `mkdocs serve`, `cargo doc -p antecedent --open`.
+Docs: [Read the Docs](https://antecedent.readthedocs.io/) (narrative + [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html)). Rust: [docs.rs/antecedent](https://docs.rs/antecedent). Locally: `mkdocs serve`, `cargo doc -p antecedent --open`.
 
 Also: [Architecture](docs/architecture.md) · [Development](docs/development.md) · [API naming](docs/api_naming.md) · [ADRs](adr/README.md) · [Examples](crates/antecedent/examples/) · [Python examples](python/examples/).
 

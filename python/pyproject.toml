@@ -6,6 +6,7 @@ build-backend = "maturin"
 name = "antecedent"
 version = "0.1.0"
 description = "Antecedent — explicit causal inference for Python and Rust"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT OR Apache-2.0" }
 dependencies = [
@@ -20,6 +21,12 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
+
+[project.urls]
+Homepage = "https://github.com/iridae-dev/antecedent"
+Repository = "https://github.com/iridae-dev/antecedent"
+Documentation = "https://github.com/iridae-dev/antecedent#readme"
+"Release notes" = "https://github.com/iridae-dev/antecedent/blob/main/CHANGELOG.md"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]

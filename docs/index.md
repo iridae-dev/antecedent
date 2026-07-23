@@ -15,8 +15,8 @@ Explicit causal inference for **Python** and **Rust**.
 
 ## API reference
 
-- **Rust:** [docs.rs/antecedent](https://docs.rs/antecedent) (after crates.io publish); locally `cargo doc -p antecedent --open`
-- **Python:** HTML via `pdoc` in the release `docs.tar.gz` (install the wheel, then `pdoc antecedent`). On Read the Docs this site is the narrative docs; Python API embedding can be added once PyPI installs work in the RTD build.
+- **Python:** [Python API](python-api.md) on this site (`/python/` via pdoc; no download)
+- **Rust:** [docs.rs/antecedent](https://docs.rs/antecedent); locally `cargo doc -p antecedent --open`
 
 Decisions: see `adr/` in the repository.
 
