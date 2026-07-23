@@ -1,5 +1,5 @@
 feature_id = "graph.markov_blanket"
-implementation_crate = "causal-graph"
+implementation_crate = "antecedent-graph"
 source_translation = false
 copied_code = false
 copied_comments = false

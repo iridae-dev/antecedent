@@ -17,24 +17,24 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-causal-core = { version = "0.1.0", path = "../causal-core" }
-causal-data = { version = "0.1.0", path = "../causal-data" }
-causal-discovery = { version = "0.1.0", path = "../causal-discovery" }
-causal-estimate = { version = "0.1.0", path = "../causal-estimate" }
-causal-expr = { version = "0.1.0", path = "../causal-expr" }
-causal-graph = { version = "0.1.0", path = "../causal-graph" }
-causal-identify = { version = "0.1.0", path = "../causal-identify" }
-causal-io = { version = "0.1.0", path = "../causal-io" }
-causal-prob = { version = "0.1.0", path = "../causal-prob" }
-causal-stats = { version = "0.1.0", path = "../causal-stats" }
-causal-validate = { version = "0.1.0", path = "../causal-validate" }
-causal-model = { version = "0.1.0", path = "../causal-model" }
-causal-counterfactual = { version = "0.1.0", path = "../causal-counterfactual" }
-causal-attribution = { version = "0.1.0", path = "../causal-attribution" }
-causal-design = { version = "0.1.0", path = "../causal-design" }
-causal-state = { version = "0.1.0", path = "../causal-state" }
+antecedent-core = { version = "0.1.0", path = "../antecedent-core" }
+antecedent-data = { version = "0.1.0", path = "../antecedent-data" }
+antecedent-discovery = { version = "0.1.0", path = "../antecedent-discovery" }
+antecedent-estimate = { version = "0.1.0", path = "../antecedent-estimate" }
+antecedent-expr = { version = "0.1.0", path = "../antecedent-expr" }
+antecedent-graph = { version = "0.1.0", path = "../antecedent-graph" }
+antecedent-identify = { version = "0.1.0", path = "../antecedent-identify" }
+antecedent-io = { version = "0.1.0", path = "../antecedent-io" }
+antecedent-prob = { version = "0.1.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "0.1.0", path = "../antecedent-stats" }
+antecedent-validate = { version = "0.1.0", path = "../antecedent-validate" }
+antecedent-model = { version = "0.1.0", path = "../antecedent-model" }
+antecedent-counterfactual = { version = "0.1.0", path = "../antecedent-counterfactual" }
+antecedent-attribution = { version = "0.1.0", path = "../antecedent-attribution" }
+antecedent-design = { version = "0.1.0", path = "../antecedent-design" }
+antecedent-state = { version = "0.1.0", path = "../antecedent-state" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-causal-kernels = { version = "0.1.0", path = "../causal-kernels" }
+antecedent-kernels = { version = "0.1.0", path = "../antecedent-kernels" }
 serde_json = { workspace = true }

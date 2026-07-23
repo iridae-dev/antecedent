@@ -7,12 +7,14 @@
 use std::sync::{Arc, Mutex};
 
 use antecedent::{AnalysisStageEvent, CausalAnalysis, LatencyMode, RefuteSuite, StageResultSink};
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     ProgressSink, RoleHint, SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_graph::{Dag, DenseNodeId};
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_graph::{Dag, DenseNodeId};
 
 /// Confounded linear SCM with structural ATE = 2.
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
@@ -138,7 +140,7 @@ fn interactive_vs_standard_records_mode_and_effort() {
 }
 
 struct CancelOnBootstrap {
-    token: causal_core::CancellationToken,
+    token: antecedent_core::CancellationToken,
 }
 
 impl ProgressSink for CancelOnBootstrap {
@@ -230,7 +232,7 @@ fn interactive_refuses_inline_discovery() {
 
 #[test]
 fn adaptive_bootstrap_pin_stable_count_and_se() {
-    use causal_core::AdaptiveBootstrapBudget;
+    use antecedent_core::AdaptiveBootstrapBudget;
 
     let (data, dag, query) = confounded_scm(500, 19);
     let max_reps = 80u32;
@@ -290,7 +292,7 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
 #[test]
 fn adaptive_draws_pin_stable_count_and_width() {
     use antecedent::inference::{BayesianConfig, InferenceMode};
-    use causal_core::AdaptiveDrawBudget;
+    use antecedent_core::AdaptiveDrawBudget;
 
     let (data, dag, query) = confounded_scm(400, 23);
     let max_draws = 256usize;
@@ -353,7 +355,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
     assert!(rel < 0.35, "adaptive width={adapt_width} vs full={full_width} rel={rel}");
 }
 
-fn effect_quantile_width_95(post: &causal_estimate::CausalPosterior) -> f64 {
+fn effect_quantile_width_95(post: &antecedent_estimate::CausalPosterior) -> f64 {
     let col = post.effect_column().expect("effect column");
     let vals_src = post.draws.column(col).expect("effect draws");
     let mut vals = vals_src.to_vec();

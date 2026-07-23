@@ -14,18 +14,18 @@
 
 use std::sync::Arc;
 
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalQuery, PopulationRegistry, TemporalEffectQuery, VariableId,
 };
-use causal_data::{
+use antecedent_data::{
     DiscoveryEstimationSplit, EventData, MultiEnvironmentData, PanelData, TabularData,
     TimeSeriesData,
 };
-use causal_discovery::{MultiDatasetConstraints, RegimeAssignment};
-use causal_estimate::OverlapPolicy;
-use causal_graph::{Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag};
-use causal_stats::ConditionalIndependence;
-use causal_validate::CustomEffectValidator;
+use antecedent_discovery::{MultiDatasetConstraints, RegimeAssignment};
+use antecedent_estimate::OverlapPolicy;
+use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag};
+use antecedent_stats::ConditionalIndependence;
+use antecedent_validate::CustomEffectValidator;
 
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -499,7 +499,7 @@ impl CausalAnalysisBuilder {
         alpha: f64,
         max_cond_size: usize,
         fdr: crate::options::FdrControl,
-        soft_weight: causal_discovery::CiSoftWeight,
+        soft_weight: antecedent_discovery::CiSoftWeight,
         n_chains: u32,
         n_warmup: u32,
         n_draws: u32,

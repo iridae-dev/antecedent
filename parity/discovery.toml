@@ -55,7 +55,7 @@ group = "data_processing"
 description = "Bootstrap generation"
 status = "done"
 owner = "discovery"
-notes = "ResamplingPlan (IID / moving-block / circular-block) in causal-data; validate stability consumes it."
+notes = "ResamplingPlan (IID / moving-block / circular-block) in antecedent-data; validate stability consumes it."
 
 [[capabilities]]
 id = "discovery.ci.partial_corr"
@@ -190,7 +190,7 @@ group = "discovery"
 description = "LPCMCI"
 status = "done"
 owner = "pag"
-notes = "causal-discovery Lpcmci → TemporalPag; conformance/pag/lpcmci_chain; facade temporal estimate via PAG completion→DAG when fully oriented"
+notes = "antecedent-discovery Lpcmci → TemporalPag; conformance/pag/lpcmci_chain; facade temporal estimate via PAG completion→DAG when fully oriented"
 
 [[capabilities]]
 id = "discovery.jpcmci_plus"
@@ -214,7 +214,7 @@ group = "discovery_validation"
 description = "Block-bootstrap link-frequency stability (PCMCI)"
 status = "done"
 owner = "discovery"
-notes = "causal-validate BlockBootstrapStability; DiscoveryStabilityReport"
+notes = "antecedent-validate BlockBootstrapStability; DiscoveryStabilityReport"
 
 [[capabilities]]
 id = "discovery.validate.alpha_threshold_sensitivity"
@@ -222,7 +222,7 @@ group = "discovery_validation"
 description = "Alpha-threshold sensitivity (re-run PCMCI across alpha grid)"
 status = "done"
 owner = "discovery"
-notes = "causal-validate AlphaThresholdSensitivity; DiscoveryStabilityReport"
+notes = "antecedent-validate AlphaThresholdSensitivity; DiscoveryStabilityReport"
 
 [[capabilities]]
 id = "discovery.validate.lag_window_sensitivity"
@@ -230,7 +230,7 @@ group = "discovery_validation"
 description = "Lag-window sensitivity (re-run PCMCI across max_lag grid)"
 status = "done"
 owner = "discovery"
-notes = "causal-validate LagWindowSensitivity; DiscoveryStabilityReport"
+notes = "antecedent-validate LagWindowSensitivity; DiscoveryStabilityReport"
 
 [[capabilities]]
 id = "discovery.validate.ci_test_sensitivity"
@@ -238,7 +238,7 @@ group = "discovery_validation"
 description = "CI-test sensitivity (re-run PCMCI across CI names)"
 status = "done"
 owner = "discovery"
-notes = "causal-validate CiTestSensitivity; DiscoveryStabilityReport"
+notes = "antecedent-validate CiTestSensitivity; DiscoveryStabilityReport"
 
 [[capabilities]]
 id = "discovery.validate.orientation_stability"
@@ -246,7 +246,7 @@ group = "discovery_validation"
 description = "Orientation stability (PCMCI+ contemporaneous directed/undirected frequencies)"
 status = "done"
 owner = "discovery"
-notes = "causal-validate OrientationStability; OrientationStabilityReport"
+notes = "antecedent-validate OrientationStability; OrientationStabilityReport"
 
 [[capabilities]]
 id = "discovery.validate.regime_stability"
@@ -254,7 +254,7 @@ group = "discovery_validation"
 description = "Regime stability (RPCMCI with fixed caller labels + block bootstrap)"
 status = "done"
 owner = "discovery"
-notes = "causal-validate RegimeStability; RegimeStabilityReport"
+notes = "antecedent-validate RegimeStability; RegimeStabilityReport"
 
 [[capabilities]]
 id = "discovery.validate.environment_holdout"
@@ -262,7 +262,7 @@ group = "discovery_validation"
 description = "Environment holdout (J-PCMCI+ train vs holdout link Jaccard)"
 status = "done"
 owner = "discovery"
-notes = "causal-validate EnvironmentHoldout; EnvHoldoutSplit"
+notes = "antecedent-validate EnvironmentHoldout; EnvHoldoutSplit"
 
 [[capabilities]]
 id = "discovery.validate.synthetic_null_calibration"
@@ -270,7 +270,7 @@ group = "discovery_validation"
 description = "Synthetic-null FPR calibration under independent noise"
 status = "done"
 owner = "discovery"
-notes = "causal-validate SyntheticNullCalibration; scheduled gate via gate_calibration.sh"
+notes = "antecedent-validate SyntheticNullCalibration; scheduled gate via gate_calibration.sh"
 
 [[capabilities]]
 id = "discovery.validate.false_positive_permute_phase"
@@ -278,7 +278,7 @@ group = "discovery_validation"
 description = "False-positive checks via column-permute / phase-randomize surrogates"
 status = "done"
 owner = "discovery"
-notes = "causal-data surrogate_* + causal-validate FalsePositiveCheck"
+notes = "antecedent-data surrogate_* + antecedent-validate FalsePositiveCheck"
 
 [[capabilities]]
 id = "discovery.fdr"
@@ -325,7 +325,7 @@ group = "simulation_and_presentation"
 description = "Structural process generators and toy models"
 status = "done"
 owner = "discovery"
-notes = "LaggedLinearPair process generator in causal-data::sim for fixtures/toys; full SCM registry is in gcm / bayesian inventory."
+notes = "LaggedLinearPair process generator in antecedent-data::sim for fixtures/toys; full SCM registry is in gcm / bayesian inventory."
 
 [[capabilities]]
 id = "discovery.ux.artifact_first"

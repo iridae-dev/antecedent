@@ -2,11 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_core::ExecutionContext;
+use antecedent_core::ExecutionContext;
 
 use crate::error::CausalError;
 
-pub use causal_design::{
+pub use antecedent_design::{
     CandidateDesign, ConstraintViolation, DecisionConstraint, DecisionEvaluation, DecisionProblem,
     DecisionProblemId, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
     DesignObjective, DesignRankConfig, DesignRanker, DesignRanking, EffectWidthContext,

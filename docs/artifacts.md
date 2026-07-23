@@ -1,7 +1,7 @@
 # Artifact format
 
 Library package version remains **0.1.0**. Durable artifact format is frozen at
-**`FormatVersion { major: 0, minor: 2 }`** (`causal_io::STABLE_FORMAT`).
+**`FormatVersion { major: 0, minor: 2 }`** (`antecedent_io::STABLE_FORMAT`).
 
 ## Container
 
@@ -51,7 +51,7 @@ use `load_section` to decompress into owned bytes.
 
 ## Migration
 
-`causal_io::migrate_artifact` / `read_and_migrate` / `migrate_from_seek` accept
+`antecedent_io::migrate_artifact` / `read_and_migrate` / `migrate_from_seek` accept
 source formats `0.1` and `0.2`. Format `0.1` skinny `SchemaWireV01 { variable_names }`
 is rewritten to full `SchemaWire` with Continuous defaults. Unknown format
 versions fail with `IoError::UnsupportedFormat`. Breaking changes require

@@ -1,8 +1,8 @@
-//! Typed causal queries (re-exported from `causal-core`).
+//! Typed causal queries (re-exported from `antecedent-core`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-pub use causal_core::{
+pub use antecedent_core::{
     AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, ChangeAttributionQuery,
     ConditionalEffectQuery, CounterfactualQuery, InterventionalDistributionQuery,
     MechanismChangeQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery,

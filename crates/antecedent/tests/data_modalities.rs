@@ -7,15 +7,15 @@
 use std::sync::Arc;
 
 use antecedent::CausalAnalysis;
-use causal_core::{
+use antecedent_core::{
     CausalSchemaBuilder, DataClassification, ExecutionContext, Lag, MeasurementSpec, RoleHint,
     SmallRoleSet, TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
 };
-use causal_data::{
+use antecedent_data::{
     EventData, Float64Column, OwnedColumn, OwnedColumnarStorage, PanelData, PanelUnit,
     SamplingRegularity, TableView, TimeIndex, TimeSeriesData, ValidityBitmap,
 };
-use causal_graph::{TemporalDag, ensure_lagged};
+use antecedent_graph::{TemporalDag, ensure_lagged};
 
 fn xy_series(n: usize, seed: f64) -> TimeSeriesData {
     let mut b = CausalSchemaBuilder::new();

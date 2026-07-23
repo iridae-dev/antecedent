@@ -29,19 +29,19 @@ def caps(text: str):
     return out
 
 EVIDENCE = {
-    "design_state.candidate_types": "crates/causal-design/src/candidate.rs",
-    "design_state.eig": "crates/causal-design/src/ranker.rs",
-    "design_state.id_probability": "crates/causal-design/src/ranker.rs",
-    "design_state.effect_width": "crates/causal-design/src/ranker.rs",
-    "design_state.decision_utility": "crates/causal-design/src/decision.rs",
-    "design_state.design_ranker": "crates/causal-design/src/ranker.rs",
-    "design_state.causal_state": "crates/causal-state/src/state.rs",
-    "design_state.incremental_ols": "crates/causal-state/src/suff_stats.rs",
-    "design_state.streaming_cov": "crates/causal-state/src/suff_stats.rs",
-    "design_state.cache_budget": "crates/causal-state/src/store.rs",
+    "design_state.candidate_types": "crates/antecedent-design/src/candidate.rs",
+    "design_state.eig": "crates/antecedent-design/src/ranker.rs",
+    "design_state.id_probability": "crates/antecedent-design/src/ranker.rs",
+    "design_state.effect_width": "crates/antecedent-design/src/ranker.rs",
+    "design_state.decision_utility": "crates/antecedent-design/src/decision.rs",
+    "design_state.design_ranker": "crates/antecedent-design/src/ranker.rs",
+    "design_state.antecedent_state": "crates/antecedent-state/src/state.rs",
+    "design_state.incremental_ols": "crates/antecedent-state/src/suff_stats.rs",
+    "design_state.streaming_cov": "crates/antecedent-state/src/suff_stats.rs",
+    "design_state.cache_budget": "crates/antecedent-state/src/store.rs",
     "design_state.facade": "crates/antecedent/tests/design_state.rs",
-    "design_state.incremental.particle_graph_score": "crates/causal-state/src/graph_score.rs",
-    "design_state.rolling_mechanism_diagnostics": "crates/causal-state/src/mechanism_diag.rs",
+    "design_state.incremental.particle_graph_score": "crates/antecedent-state/src/graph_score.rs",
+    "design_state.rolling_mechanism_diagnostics": "crates/antecedent-state/src/mechanism_diag.rs",
 }
 
 missing = []
@@ -64,8 +64,8 @@ for path in [
     "conformance/design_state/incremental_graph_score_match/expected.json",
     "conformance/design_state/incremental_particle_filter_match/expected.json",
     "conformance/design_state/rolling_mechanism_diag_match/expected.json",
-    "crates/causal-design/benches/design_rank.rs",
-    "crates/causal-state/benches/state_append.rs",
+    "crates/antecedent-design/benches/design_rank.rs",
+    "crates/antecedent-state/benches/state_append.rs",
     "benches/baselines/design_state.md",
     "parity/design_state.toml",
     "adr/0016-design-state.md",
@@ -86,12 +86,12 @@ print("Design state inventory evidence map OK")
 PY
 
 echo "== cargo test design / state / facade design_state =="
-cargo test -p causal-design --lib
-cargo test -p causal-state --lib
+cargo test -p antecedent-design --lib
+cargo test -p antecedent-state --lib
 cargo test -p antecedent --test design_state
 
 echo "== criterion smoke (design + state) =="
-cargo bench -p causal-design --bench design_rank -- --test
-cargo bench -p causal-state --bench state_append -- --test
+cargo bench -p antecedent-design --bench design_rank -- --test
+cargo bench -p antecedent-state --bench state_append -- --test
 
 echo "Design state gate PASSED"

@@ -17,14 +17,14 @@ pub use crate::planner::{CompiledAnalysis, GraphInput};
 pub use crate::result::CausalAnalysisResult;
 pub use crate::strategy_table::{EstimatorId, IdentifierId};
 
-pub use causal_core::{
+pub use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalSchema, CausalSchemaBuilder, ExecutionContext,
     Intervention, TemporalEffectQuery, Value, VariableId,
 };
-pub use causal_data::{
+pub use antecedent_data::{
     EventData, MultiEnvironmentData, PanelData, PanelUnit, TabularData, TimeSeriesData,
 };
-pub use causal_estimate::{CausalPosterior, EffectEstimate};
-pub use causal_expr::IdentifiedEstimand;
-pub use causal_graph::{Dag, DenseNodeId, TemporalDag};
-pub use causal_identify::IdentificationResult;
+pub use antecedent_estimate::{CausalPosterior, EffectEstimate};
+pub use antecedent_expr::IdentifiedEstimand;
+pub use antecedent_graph::{Dag, DenseNodeId, TemporalDag};
+pub use antecedent_identify::IdentificationResult;

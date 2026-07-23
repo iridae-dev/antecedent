@@ -10,15 +10,15 @@ use std::sync::Arc;
 
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
-use causal_core::{
+use antecedent_core::{
     CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
     TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
 };
-use causal_data::{
+use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use causal_graph::{TemporalDag, ensure_lagged};
+use antecedent_graph::{TemporalDag, ensure_lagged};
 
 fn manufacturing_series(n: usize) -> (TimeSeriesData, TemporalDag, TemporalEffectQuery) {
     let mut b = CausalSchemaBuilder::new();
@@ -182,11 +182,11 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
 
 #[test]
 fn manufacturing_dbn_envelope_composed_prior_conflict() {
-    use causal_prob::{
+    use antecedent_prob::{
         ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
         compose_external_priors,
     };
-    use causal_validate::ConflictPolicy;
+    use antecedent_validate::ConflictPolicy;
 
     let (series, _g, q) = white_noise_pulse_series(400, 42);
     // Temporal pulse design is typically intercept + treatment (2 coefs).
@@ -235,7 +235,7 @@ fn manufacturing_dbn_envelope_composed_prior_conflict() {
 #[test]
 fn supplied_complete_temporal_pag_estimates() {
     let (series, _g, q) = manufacturing_series(200);
-    let mut pag = causal_graph::TemporalPag::empty();
+    let mut pag = antecedent_graph::TemporalPag::empty();
     let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_directed(p1, d0).unwrap();
@@ -258,7 +258,7 @@ fn supplied_complete_temporal_pag_estimates() {
 #[test]
 fn incomplete_temporal_pag_review_required_structured() {
     let (series, _g, q) = manufacturing_series(80);
-    let mut pag = causal_graph::TemporalPag::empty();
+    let mut pag = antecedent_graph::TemporalPag::empty();
     let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_circle_arrow(p1, d0).unwrap();

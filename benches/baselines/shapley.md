@@ -1,6 +1,6 @@
 # Shapley attribution baselines
 
-Criterion bench `causal-attribution` / `shapley` (gated with `--test`):
+Criterion bench `antecedent-attribution` / `shapley` (gated with `--test`):
 
 - `shapley_mc_8p_200_cached`
 - `shapley_mc_8p_200_uncached`

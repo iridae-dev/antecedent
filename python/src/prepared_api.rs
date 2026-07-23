@@ -3,9 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{BayesianConfig, CausalAnalysis, Dag, InferenceMode, PreparedAnalysis};
-use causal_core::AverageEffectQuery;
-use causal_data::{TableView, tabular_from_record_batch};
-use causal_graph::DenseNodeId;
+use antecedent_core::AverageEffectQuery;
+use antecedent_data::{TableView, tabular_from_record_batch};
+use antecedent_graph::DenseNodeId;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;

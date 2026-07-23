@@ -1,8 +1,8 @@
 # Development
 
 Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
-day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates remain
-`causal-*` on crates.io.
+day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
+`antecedent-*` on crates.io.
 
 ## Gates
 
@@ -38,7 +38,7 @@ Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 | Criterion benches | Designated hot paths; regressions beyond budget block merge |
 | Fuzz | Parsers / graph / artifact surfaces under `fuzz/` |
 
-Tolerance classes live in `causal-core` (ADR 0010). Do not tighten or loosen a
+Tolerance classes live in `antecedent-core` (ADR 0010). Do not tighten or loosen a
 conformance band without an ADR-level reason.
 
 ## Performance rules (merge blockers)
@@ -63,13 +63,13 @@ on the default path.”
 Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
 rejected).
 
-Present today (examples): `causal-data/arrow`, `causal-model/gaussian-process`,
-`causal-prob/hmc`. Reserved / unfinished: `smc`, `simd-runtime`. Optional ingest
+Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
+`antecedent-prob/hmc`. Reserved / unfinished: `smc`, `simd-runtime`. Optional ingest
 and exchange adapters may land later without reshaping core types.
 
 ## Unsafe / deps
 
-Reviewed `unsafe` is concentrated in `causal-kernels` (SIMD) and thin IO mmap.
+Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD) and thin IO mmap.
 New `unsafe` needs justification in review. Dependency and license policy:
 [security_review.md](security_review.md), ADR 0008.
 
@@ -116,8 +116,8 @@ install from GitHub Packages, or bake a Release `.whl` into the container image.
 
 ## crates.io (Rust)
 
-Publish the library graph (facade `antecedent` + `causal-*` deps). **Do not**
-publish `causal-py` (`publish = false`).
+Publish the library graph (facade `antecedent` + `antecedent-*` deps). **Do not**
+publish `antecedent-py` (`publish = false`).
 
 ```bash
 # Local dry-run (default)

@@ -11,25 +11,27 @@ use std::sync::Arc;
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::validate::PredictiveCheckKind as FacadeKind;
 use antecedent::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_estimate::{
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_estimate::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, EnvelopeOptions,
     EstimationWorkspace, GraphEffectDraws, LinearAdjustmentAte, aggregate_effect_envelope,
     nonidentified_with_prior,
 };
-use causal_expr::{ExprId, IdentifiedEstimand};
-use causal_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
-use causal_identify::IdentificationStatus;
-use causal_prob::{
+use antecedent_expr::{ExprId, IdentifiedEstimand};
+use antecedent_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
+use antecedent_identify::IdentificationStatus;
+use antecedent_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, ConjugateGaussianBackend,
     GaussianCoefficientPrior, GraphIdentFlag, InferenceBackend, InferenceDiagnostics,
     LaplaceGlmBackend, LaplaceWorkspace, PriorSet, PriorSpec, WeightedGraphSamples,
 };
-use causal_validate::{
+use antecedent_validate::{
     PosteriorPredictiveCheck, PredictiveCheckKind, PriorPredictiveCheck, PriorSensitivity,
 };
 use serde_json::Value as JsonValue;
@@ -115,7 +117,7 @@ fn shared_functional_ate() {
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
     let freq_est = freq
-        .fit(&prep, &mut ws, &ExecutionContext::for_tests(1), causal_core::AssumptionSet::new())
+        .fit(&prep, &mut ws, &ExecutionContext::for_tests(1), antecedent_core::AssumptionSet::new())
         .unwrap();
 
     let bayes = BayesianGComputationAte {
@@ -372,8 +374,8 @@ fn prior_sensitivity() {
 
 #[test]
 fn temporal_pulse() {
-    use causal_core::{Lag, TemporalEffectQuery, TemporalPolicy};
-    use causal_data::{
+    use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy};
+    use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         TimeSeriesData, ValidityBitmap,
     };
@@ -473,7 +475,7 @@ fn temporal_pulse() {
 
 #[test]
 fn prior_bank_catalog() {
-    use causal_io::{
+    use antecedent_io::{
         CausalPosteriorWire, CompatibilityRejectReason, CompatibilityReport, DesignVariableRole,
         DesignVariableSummary, EstimandFingerprint, PosteriorQuantityWire, PriorCatalog,
         PriorSourceMeta, PriorSourceRef, TargetDesign, encode_posterior_artifact,
@@ -611,16 +613,16 @@ fn prior_bank_effect_map() {
     use antecedent::inference::{hydrate_mapping_from_io, hydrate_prior_from_posterior_bytes};
     use antecedent::io::encode_causal_posterior_bytes;
     use antecedent::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
-    use causal_core::{
+    use antecedent_core::{
         Assumption, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
         RoleHint, SmallRoleSet, ValueType, VariableId,
     };
-    use causal_data::{
+    use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
-    use causal_graph::{Dag, DenseNodeId};
-    use causal_io::PriorMapping;
-    use causal_prob::PriorSet;
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_io::PriorMapping;
+    use antecedent_prob::PriorSet;
 
     let expected = load_expected("prior_bank_effect_map");
     let tol = expected["mapped_mean_tol"].as_f64().unwrap();
@@ -802,7 +804,7 @@ fn prior_bank_effect_map() {
 fn prior_bank_power_mixture() {
     use std::sync::Arc;
 
-    use causal_prob::{
+    use antecedent_prob::{
         ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
         compose_external_priors,
     };
@@ -850,10 +852,10 @@ fn prior_bank_power_mixture() {
 fn prior_bank_conflict_shrink() {
     use std::sync::Arc;
 
-    use causal_prob::{
+    use antecedent_prob::{
         ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
     };
-    use causal_validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
+    use antecedent_validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
 
     let expected = load_expected("prior_bank_conflict_shrink");
     let alpha = expected["alpha"].as_f64().unwrap();
@@ -918,7 +920,7 @@ fn prior_bank_conflict_shrink() {
 fn prior_bank_transport() {
     use std::sync::Arc;
 
-    use causal_prob::{
+    use antecedent_prob::{
         ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
         TransportContext, TransportError, TransportPolicy, apply_transport, compose_with_transport,
     };
@@ -1015,8 +1017,10 @@ fn prior_bank_transport() {
 fn prior_bank_alpha_sensitivity() {
     use std::sync::Arc;
 
-    use causal_core::{Assumption, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet};
-    use causal_prob::{
+    use antecedent_core::{
+        Assumption, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet,
+    };
+    use antecedent_prob::{
         ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
         compose_external_priors,
     };
@@ -1155,18 +1159,18 @@ fn prior_bank_alpha_sensitivity() {
 
 #[test]
 fn temporal_composed_prior_conflict_and_alpha_grid() {
-    use causal_core::{Lag, TemporalEffectQuery, TemporalPolicy};
-    use causal_data::{
+    use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy};
+    use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         TimeSeriesData, ValidityBitmap,
     };
-    use causal_estimate::{BayesianTemporalGcomp, TemporalLinearAdjustment};
-    use causal_identify::TemporalBackdoorIdentifier;
-    use causal_prob::{
+    use antecedent_estimate::{BayesianTemporalGcomp, TemporalLinearAdjustment};
+    use antecedent_identify::TemporalBackdoorIdentifier;
+    use antecedent_prob::{
         ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
         compose_external_priors,
     };
-    use causal_validate::{ConflictPolicy, ExternalAlphaSensitivity, PriorSensitivity};
+    use antecedent_validate::{ConflictPolicy, ExternalAlphaSensitivity, PriorSensitivity};
 
     let n = 80;
     let n_draws = 64;
@@ -1236,7 +1240,7 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
     let estimand = id_res.result.estimands[0].clone();
     let mut temporal_est = TemporalLinearAdjustment::new();
-    temporal_est.inner.overlap = causal_estimate::OverlapPolicy::ExplicitOverride;
+    temporal_est.inner.overlap = antecedent_estimate::OverlapPolicy::ExplicitOverride;
     let ctx = ExecutionContext::for_tests(42);
     let prep = temporal_est
         .prepare(&series, &estimand, &q, &id_res.indexer, None, &ctx.kernel_policy)

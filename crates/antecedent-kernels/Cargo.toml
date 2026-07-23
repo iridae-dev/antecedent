@@ -1,0 +1,35 @@
+[package]
+name = "antecedent-kernels"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Low-level borrowed views and scalar/optimized numerical kernels"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+antecedent-core = { version = "0.1.0", path = "../antecedent-core" }
+
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "gather"
+harness = false
+
+[[bench]]
+name = "partial_correlation"
+harness = false
+
+[[bench]]
+name = "reductions"
+harness = false

@@ -1,5 +1,5 @@
 feature_id = "stats.gam"
-implementation_crate = "causal-stats"
+implementation_crate = "antecedent-stats"
 source_translation = false
 copied_code = false
 copied_comments = false

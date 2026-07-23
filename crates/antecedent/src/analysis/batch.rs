@@ -2,9 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_core::{AverageEffectQuery, ExecutionContext};
-use causal_data::TabularData;
-use causal_graph::Dag;
+use antecedent_core::{AverageEffectQuery, ExecutionContext};
+use antecedent_data::TabularData;
+use antecedent_graph::Dag;
 
 use crate::error::CausalError;
 use crate::result::CausalAnalysisResult;

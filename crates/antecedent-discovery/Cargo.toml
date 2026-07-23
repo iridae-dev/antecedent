@@ -1,0 +1,46 @@
+[package]
+name = "antecedent-discovery"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Causal discovery algorithms (PCMCI family, static PC/GES/LiNGAM/NOTEARS, Bayesian graph posterior)"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+antecedent-core = { version = "0.1.0", path = "../antecedent-core" }
+antecedent-data = { version = "0.1.0", path = "../antecedent-data" }
+antecedent-graph = { version = "0.1.0", path = "../antecedent-graph" }
+antecedent-prob = { version = "0.1.0", path = "../antecedent-prob" }
+antecedent-state = { version = "0.1.0", path = "../antecedent-state" }
+antecedent-stats = { version = "0.1.0", path = "../antecedent-stats" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+serde_json = { workspace = true }
+
+[[bench]]
+name = "pcmci"
+harness = false
+
+[[bench]]
+name = "orientation"
+harness = false
+
+[[bench]]
+name = "pag_orientation"
+harness = false
+
+[[bench]]
+name = "rpcmci"
+harness = false

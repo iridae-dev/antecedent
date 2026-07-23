@@ -18,15 +18,15 @@ use antecedent::gcm::{
     attribute_distribution_change, attribute_structure_change, mechanism_change_detection,
     rank_root_causes,
 };
-use causal_core::{
+use antecedent_core::{
     AllocationMethod, AttributionComponents, CachePolicy, CausalSchemaBuilder,
     ChangeAttributionQuery, ExecutionContext, MeasurementSpec, MechanismChangeQuery,
     PopulationSelector, RoleHint, ShapleyConfig, SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::column::{Float64Column, ValidityBitmap};
-use causal_data::{OwnedColumn, OwnedColumnarStorage, TabularData};
-use causal_graph::{Dag, DenseNodeId};
-use causal_model::CompiledCausalModel;
+use antecedent_data::column::{Float64Column, ValidityBitmap};
+use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TabularData};
+use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_model::CompiledCausalModel;
 use serde_json::Value;
 
 fn fixture(name: &str) -> PathBuf {

@@ -2,19 +2,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_attribution::AttributionError;
-use causal_core::SchemaError;
-use causal_counterfactual::CounterfactualError;
-use causal_data::DataError;
-use causal_design::DesignError;
-use causal_discovery::DiscoveryError;
-use causal_estimate::EstimationError;
-use causal_graph::GraphError;
-use causal_identify::IdentificationError;
-use causal_io::IoError;
-use causal_model::ModelError;
-use causal_state::StateError;
-use causal_validate::ValidationError;
+use antecedent_attribution::AttributionError;
+use antecedent_core::SchemaError;
+use antecedent_counterfactual::CounterfactualError;
+use antecedent_data::DataError;
+use antecedent_design::DesignError;
+use antecedent_discovery::DiscoveryError;
+use antecedent_estimate::EstimationError;
+use antecedent_graph::GraphError;
+use antecedent_identify::IdentificationError;
+use antecedent_io::IoError;
+use antecedent_model::ModelError;
+use antecedent_state::StateError;
+use antecedent_validate::ValidationError;
 use thiserror::Error;
 
 /// Pipeline and facade failures — structured sum over domain errors.
@@ -53,7 +53,7 @@ pub enum CausalError {
     /// Experiment / measurement design evaluation.
     #[error(transparent)]
     Design(#[from] DesignError),
-    /// Incremental causal-state update.
+    /// Incremental antecedent-state update.
     #[error(transparent)]
     State(#[from] StateError),
     /// Schema construction or name lookup at an API boundary.

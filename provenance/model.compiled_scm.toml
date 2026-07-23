@@ -1,5 +1,5 @@
 feature_id = "model.compiled_scm"
-implementation_crate = "causal-model"
+implementation_crate = "antecedent-model"
 source_translation = false
 copied_code = false
 copied_comments = false

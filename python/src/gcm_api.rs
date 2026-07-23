@@ -20,15 +20,15 @@ use antecedent::gcm::{
     mechanism_change_detection as facade_mechanism_change_detection,
     rank_root_causes as facade_rank_root_causes, sample_do as facade_sample_do,
 };
-use causal_attribution::{CacheStats, ComponentContribution, ComputeBudget};
-use causal_core::{
+use antecedent_attribution::{CacheStats, ComponentContribution, ComputeBudget};
+use antecedent_core::{
     AllocationMethod, AttributionComponents, CausalRng, ChangeAttributionQuery, ComponentId,
     ExecutionContext, Intervention, MechanismChangeQuery, PathSpecificEffectQuery,
     PopulationSelector, ShapleyConfig, UnitChangeQuery, Value, VariableId,
 };
-use causal_data::{TableView, TabularData, tabular_from_record_batch};
-use causal_graph::{Dag, DenseNodeId};
-use causal_model::{CompiledCausalModel, ValueBatch};
+use antecedent_data::{TableView, TabularData, tabular_from_record_batch};
+use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_model::{CompiledCausalModel, ValueBatch};
 use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;

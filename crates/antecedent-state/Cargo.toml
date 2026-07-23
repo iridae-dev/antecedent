@@ -1,0 +1,29 @@
+[package]
+name = "antecedent-state"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Incremental causal state, invalidation, and sufficient statistics"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+antecedent-core = { version = "0.1.0", path = "../antecedent-core" }
+antecedent-stats = { version = "0.1.0", path = "../antecedent-stats" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "state_append"
+harness = false

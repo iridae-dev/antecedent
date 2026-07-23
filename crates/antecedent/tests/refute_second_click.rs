@@ -7,12 +7,14 @@
 use std::sync::Arc;
 
 use antecedent::{CausalAnalysis, LatencyMode, RefuteSuite};
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
 };
-use causal_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
-use causal_graph::{Dag, DenseNodeId};
+use antecedent_data::{
+    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_graph::{Dag, DenseNodeId};
 
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
     let mut rng = CausalRng::from_seed(seed);

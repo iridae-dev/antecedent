@@ -50,23 +50,263 @@ checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 name = "antecedent"
 version = "0.1.0"
 dependencies = [
- "causal-attribution",
- "causal-core",
- "causal-counterfactual",
- "causal-data",
- "causal-design",
- "causal-discovery",
- "causal-estimate",
- "causal-expr",
- "causal-graph",
- "causal-identify",
- "causal-io",
- "causal-kernels",
- "causal-model",
- "causal-prob",
- "causal-state",
- "causal-stats",
- "causal-validate",
+ "antecedent-attribution",
+ "antecedent-core",
+ "antecedent-counterfactual",
+ "antecedent-data",
+ "antecedent-design",
+ "antecedent-discovery",
+ "antecedent-estimate",
+ "antecedent-expr",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-io",
+ "antecedent-kernels",
+ "antecedent-model",
+ "antecedent-prob",
+ "antecedent-state",
+ "antecedent-stats",
+ "antecedent-validate",
+ "serde_json",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-attribution"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-counterfactual",
+ "antecedent-data",
+ "antecedent-graph",
+ "antecedent-kernels",
+ "antecedent-model",
+ "antecedent-prob",
+ "antecedent-stats",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-core"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-counterfactual"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-graph",
+ "antecedent-model",
+ "antecedent-prob",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-data"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-kernels",
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-data",
+ "arrow-schema",
+ "realfft",
+ "serde_json",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-design"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-kernels",
+ "antecedent-prob",
+ "antecedent-stats",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-discovery"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-graph",
+ "antecedent-prob",
+ "antecedent-state",
+ "antecedent-stats",
+ "criterion",
+ "serde_json",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-estimate"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-expr",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-kernels",
+ "antecedent-prob",
+ "antecedent-stats",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-expr"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+]
+
+[[package]]
+name = "antecedent-graph"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-identify"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-expr",
+ "antecedent-graph",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-io"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-discovery",
+ "antecedent-estimate",
+ "antecedent-expr",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-model",
+ "antecedent-prob",
+ "antecedent-validate",
+ "blake3",
+ "ciborium",
+ "memmap2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "zstd",
+]
+
+[[package]]
+name = "antecedent-kernels"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "criterion",
+]
+
+[[package]]
+name = "antecedent-model"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-graph",
+ "antecedent-kernels",
+ "antecedent-prob",
+ "antecedent-stats",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-prob"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-kernels",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-py"
+version = "0.1.0"
+dependencies = [
+ "antecedent",
+ "antecedent-attribution",
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-discovery",
+ "antecedent-expr",
+ "antecedent-graph",
+ "antecedent-io",
+ "antecedent-model",
+ "antecedent-prob",
+ "antecedent-stats",
+ "antecedent-validate",
+ "arrow-array",
+ "arrow-schema",
+ "numpy",
+ "pyo3",
+ "serde_json",
+]
+
+[[package]]
+name = "antecedent-state"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-stats",
+ "criterion",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-stats"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-kernels",
+ "criterion",
+ "faer",
+ "serde_json",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "antecedent-validate"
+version = "0.1.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-discovery",
+ "antecedent-estimate",
+ "antecedent-expr",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-kernels",
+ "antecedent-prob",
+ "antecedent-stats",
  "serde_json",
  "thiserror 2.0.19",
 ]
@@ -200,246 +440,6 @@ name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
-
-[[package]]
-name = "causal-attribution"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-counterfactual",
- "causal-data",
- "causal-graph",
- "causal-kernels",
- "causal-model",
- "causal-prob",
- "causal-stats",
- "criterion",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-core"
-version = "0.1.0"
-dependencies = [
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-counterfactual"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-data",
- "causal-graph",
- "causal-model",
- "causal-prob",
- "criterion",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-data"
-version = "0.1.0"
-dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-data",
- "arrow-schema",
- "causal-core",
- "causal-kernels",
- "realfft",
- "serde_json",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-design"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-kernels",
- "causal-prob",
- "causal-stats",
- "criterion",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-discovery"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-data",
- "causal-graph",
- "causal-prob",
- "causal-state",
- "causal-stats",
- "criterion",
- "serde_json",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-estimate"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-data",
- "causal-expr",
- "causal-graph",
- "causal-identify",
- "causal-kernels",
- "causal-prob",
- "causal-stats",
- "criterion",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-expr"
-version = "0.1.0"
-dependencies = [
- "causal-core",
-]
-
-[[package]]
-name = "causal-graph"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "criterion",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-identify"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-data",
- "causal-expr",
- "causal-graph",
- "criterion",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-io"
-version = "0.1.0"
-dependencies = [
- "blake3",
- "causal-core",
- "causal-data",
- "causal-discovery",
- "causal-estimate",
- "causal-expr",
- "causal-graph",
- "causal-identify",
- "causal-model",
- "causal-prob",
- "causal-validate",
- "ciborium",
- "memmap2",
- "serde",
- "serde_json",
- "thiserror 2.0.19",
- "zstd",
-]
-
-[[package]]
-name = "causal-kernels"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "criterion",
-]
-
-[[package]]
-name = "causal-model"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-data",
- "causal-graph",
- "causal-kernels",
- "causal-prob",
- "causal-stats",
- "criterion",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-prob"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-kernels",
- "criterion",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-py"
-version = "0.1.0"
-dependencies = [
- "antecedent",
- "arrow-array",
- "arrow-schema",
- "causal-attribution",
- "causal-core",
- "causal-data",
- "causal-discovery",
- "causal-expr",
- "causal-graph",
- "causal-io",
- "causal-model",
- "causal-prob",
- "causal-stats",
- "causal-validate",
- "numpy",
- "pyo3",
- "serde_json",
-]
-
-[[package]]
-name = "causal-state"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-stats",
- "criterion",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-stats"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-kernels",
- "criterion",
- "faer",
- "serde_json",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "causal-validate"
-version = "0.1.0"
-dependencies = [
- "causal-core",
- "causal-data",
- "causal-discovery",
- "causal-estimate",
- "causal-expr",
- "causal-graph",
- "causal-identify",
- "causal-kernels",
- "causal-prob",
- "causal-stats",
- "serde_json",
- "thiserror 2.0.19",
-]
 
 [[package]]
 name = "cc"

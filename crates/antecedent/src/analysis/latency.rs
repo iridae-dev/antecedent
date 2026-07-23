@@ -5,7 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_estimate::BayesianBackendKind;
+use antecedent_estimate::BayesianBackendKind;
 
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -266,7 +266,7 @@ mod tests {
         );
         assert!(refuse_discovery_under_interactive(LatencyMode::Standard, &discover).is_ok());
         assert!(refuse_discovery_under_interactive(LatencyMode::Report, &discover).is_ok());
-        let supplied = GraphInput::Static(causal_graph::Dag::with_variables(1));
+        let supplied = GraphInput::Static(antecedent_graph::Dag::with_variables(1));
         assert!(refuse_discovery_under_interactive(LatencyMode::Interactive, &supplied).is_ok());
     }
 }

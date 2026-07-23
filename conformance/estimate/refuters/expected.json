@@ -17,7 +17,7 @@
     "reisz_sensitivity",
     "validation_suite"
   ],
-  "notes": "Pinned validator id set exercised by crates/causal-validate/tests/refuters.rs; outcomes are informative smoke (not StableFloat point estimates).",
+  "notes": "Pinned validator id set exercised by crates/antecedent-validate/tests/refuters.rs; outcomes are informative smoke (not StableFloat point estimates).",
   "generation": {
     "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
     "baseline_pin": "parity/baselines/dowhy.toml",

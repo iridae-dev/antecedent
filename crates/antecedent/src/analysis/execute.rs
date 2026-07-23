@@ -16,14 +16,16 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
-use causal_core::{
+use antecedent_core::{
     AverageEffectQuery, CausalQuery, DataClassification, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, ExecutionContext, Intervention, MediationContrast, PopulationRegistry,
     ProvenanceGraph, TemporalEffectQuery, VariableId,
 };
-use causal_data::{DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData};
-use causal_discovery::{dag_from_adjacency_mask, temporal_dag_from_dbn_masks};
-use causal_estimate::{
+use antecedent_data::{
+    DiscoveryEstimationSplit, PanelData, TableView, TabularData, TimeSeriesData,
+};
+use antecedent_discovery::{dag_from_adjacency_mask, temporal_dag_from_dbn_masks};
+use antecedent_estimate::{
     AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
     ConditionalLinearAdjustment, EffectEstimate, EnvelopeOptions, EstimationWorkspace,
     FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect, GraphEffectDraws,
@@ -31,17 +33,17 @@ use causal_estimate::{
     TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
     aggregate_effect_envelope, nonidentified_with_prior,
 };
-use causal_expr::{CausalExprArena, IdentifiedEstimand};
-use causal_graph::{
+use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
+use antecedent_graph::{
     Admg, Dag, DenseNodeId, Pag, PagReview, TemporalCpdagReview, TemporalDag, TemporalGraphReview,
 };
-use causal_identify::{
+use antecedent_identify::{
     DerivationTrace, IdentificationEnvelope, IdentificationPerformanceRecord, IdentificationResult,
     IdentificationStatus, SharpRdConfig, SharpRdIdentifier, TemporalBackdoorIdentifier,
     TemporalMediationIdentifier,
 };
-use causal_prob::{GraphIdentFlag, InferenceDiagnostics, PriorSet, WeightedGraphSamples};
-use causal_validate::{
+use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics, PriorSet, WeightedGraphSamples};
+use antecedent_validate::{
     BayesianSuiteContext, ExternalAlphaSensitivity, PosteriorPredictiveCheck, PriorPredictiveCheck,
     PriorSensitivity, TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular,
     with_conflict_summary, with_prior_sensitivity,
@@ -111,8 +113,9 @@ pub struct CausalAnalysis {
     pub(crate) inference: InferenceMode,
     pub(crate) overlap_policy: Option<OverlapPolicy>,
     pub(crate) population_registry: Option<PopulationRegistry>,
-    pub(crate) discovery_ci: Option<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>>,
-    pub(crate) custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    pub(crate) discovery_ci:
+        Option<Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>>,
+    pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
     pub(crate) stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
 }
@@ -159,9 +162,9 @@ impl CausalAnalysis {
     /// Mark physical plan when discovery CI override or custom validators are present.
     fn apply_callback_plan_marks(
         &self,
-        mut record: causal_core::PhysicalExecutionPlanRecord,
-        diagnostics: &mut Vec<causal_core::Diagnostic>,
-    ) -> causal_core::PhysicalExecutionPlanRecord {
+        mut record: antecedent_core::PhysicalExecutionPlanRecord,
+        diagnostics: &mut Vec<antecedent_core::Diagnostic>,
+    ) -> antecedent_core::PhysicalExecutionPlanRecord {
         if self.discovery_ci.is_some() {
             let (r, d) = mark_python_callback_plan(record, "ci");
             record = r;
@@ -388,9 +391,9 @@ impl CausalAnalysis {
                     .validate()
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 Ok(LogicalAnalysisPlan {
-                    record: causal_core::LogicalAnalysisPlanRecord {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("gcm_query"),
-                        data_classification: causal_core::DataClassification::Tabular,
+                        data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("gcm.parametric")),
@@ -715,8 +718,8 @@ impl CausalAnalysis {
                 let n = pooled.row_count();
                 let series = TimeSeriesData::try_new(
                     pooled.storage().clone(),
-                    causal_data::TimeIndex {
-                        regularity: causal_data::SamplingRegularity::Regular { interval_ns: 1 },
+                    antecedent_data::TimeIndex {
+                        regularity: antecedent_data::SamplingRegularity::Regular { interval_ns: 1 },
                         length: n,
                     },
                 )
@@ -746,8 +749,8 @@ impl CausalAnalysis {
                 let n = pooled.row_count();
                 let series = TimeSeriesData::try_new(
                     pooled.storage().clone(),
-                    causal_data::TimeIndex {
-                        regularity: causal_data::SamplingRegularity::Regular { interval_ns: 1 },
+                    antecedent_data::TimeIndex {
+                        regularity: antecedent_data::SamplingRegularity::Regular { interval_ns: 1 },
                         length: n,
                     },
                 )
@@ -777,8 +780,8 @@ impl CausalAnalysis {
                 let n = pooled.row_count();
                 let series = TimeSeriesData::try_new(
                     pooled.storage().clone(),
-                    causal_data::TimeIndex {
-                        regularity: causal_data::SamplingRegularity::Regular { interval_ns: 1 },
+                    antecedent_data::TimeIndex {
+                        regularity: antecedent_data::SamplingRegularity::Regular { interval_ns: 1 },
                         length: n,
                     },
                 )
@@ -860,8 +863,10 @@ impl CausalAnalysis {
                 CausalQuery::TemporalEffect(q),
                 GraphInput::TemporalPag(pag),
             ) => {
-                let review =
-                    causal_graph::TemporalPagReview::from_pag(pag.clone(), "supplied.temporal_pag");
+                let review = antecedent_graph::TemporalPagReview::from_pag(
+                    pag.clone(),
+                    "supplied.temporal_pag",
+                );
                 if review.is_complete() {
                     match review.graph.try_into_temporal_dag() {
                         Ok(dag) => {
@@ -890,7 +895,7 @@ impl CausalAnalysis {
                     Ok(CompiledAnalysis::Ready(physical))
                 }
                 Err(_) => Ok(compile_review_required_cpdag(
-                    causal_graph::TemporalCpdagReview::from_cpdag(
+                    antecedent_graph::TemporalCpdagReview::from_cpdag(
                         cpdag.clone(),
                         "supplied.temporal_cpdag",
                     ),
@@ -1129,7 +1134,7 @@ impl CausalAnalysis {
                         Ok(CompiledAnalysis::Ready(physical))
                     }
                     Err(_) => Ok(compile_review_required_static_cpdag(
-                        causal_graph::CpdagReview::from_cpdag(cpdag.clone(), "supplied.cpdag"),
+                        antecedent_graph::CpdagReview::from_cpdag(cpdag.clone(), "supplied.cpdag"),
                     )),
                 }
             }
@@ -1141,9 +1146,9 @@ impl CausalAnalysis {
                         EstimatorId::parse(&estimator),
                     )?;
                     q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                    let record = causal_core::LogicalAnalysisPlanRecord {
+                    let record = antecedent_core::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("static_admg_ate"),
-                        data_classification: causal_core::DataClassification::Tabular,
+                        data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(identifier),
@@ -2009,7 +2014,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         graph: &Dag,
-        query: &causal_core::InterventionalDistributionQuery,
+        query: &antecedent_core::InterventionalDistributionQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -2150,7 +2155,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         graph: &Dag,
-        query: &causal_core::PathSpecificEffectQuery,
+        query: &antecedent_core::PathSpecificEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -2634,7 +2639,7 @@ impl CausalAnalysis {
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut primary_identification: Option<IdentificationResult> = None;
         let mut envelope_prior: Option<PriorSet> = None;
-        let mut envelope_conflict: Option<causal_prob::ConflictSummary> = None;
+        let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
 
         for i in 0..gp.n_graphs {
             if ctx.cancellation.is_cancelled() {
@@ -3446,7 +3451,7 @@ impl CausalAnalysis {
         let mut weighted_se2 = 0.0;
         let mut total_w = 0.0;
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
-        let mut assumptions = causal_core::AssumptionSet::default();
+        let mut assumptions = antecedent_core::AssumptionSet::default();
         for (i, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
                 || case.result.estimands.is_empty()
@@ -3569,10 +3574,10 @@ impl CausalAnalysis {
         let scale = cfg.prior_scale.max(1e-6);
         let mut prior = PriorSet::weakly_informative(1);
         if let Some(g) = prior.specs.iter_mut().find_map(|s| match s {
-            causal_prob::PriorSpec::GaussianCoefficients(p) => Some(p),
+            antecedent_prob::PriorSpec::GaussianCoefficients(p) => Some(p),
             _ => None,
         }) {
-            *g = causal_prob::GaussianCoefficientPrior::isotropic(1, scale);
+            *g = antecedent_prob::GaussianCoefficientPrior::isotropic(1, scale);
         }
         let posterior = nonidentified_with_prior(
             &prior,
@@ -3586,7 +3591,7 @@ impl CausalAnalysis {
             IdentifiedEstimand::backdoor(
                 "pag.nonidentified",
                 Arc::from([]),
-                causal_expr::ExprId::from_raw(0),
+                antecedent_expr::ExprId::from_raw(0),
             )
         });
         let mut diagnostics = identification.diagnostics.clone();
@@ -3686,7 +3691,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         ctx: &ExecutionContext,
-    ) -> Result<causal_discovery::GraphPosterior, CausalError> {
+    ) -> Result<antecedent_discovery::GraphPosterior, CausalError> {
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
         let params = BayesianDiscoverParams::default();
         match &self.graph {
@@ -3792,7 +3797,7 @@ impl CausalAnalysis {
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut primary_identification: Option<IdentificationResult> = None;
         let mut envelope_prior: Option<PriorSet> = None;
-        let mut envelope_conflict: Option<causal_prob::ConflictSummary> = None;
+        let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
 
         for i in 0..gp.n_graphs {
             if ctx.cancellation.is_cancelled() {
@@ -3987,7 +3992,7 @@ impl CausalAnalysis {
         let mut per_graph = Vec::new();
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut envelope_prior: Option<PriorSet> = None;
-        let mut envelope_conflict: Option<causal_prob::ConflictSummary> = None;
+        let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
         for (i, case) in envelope.cases.iter().enumerate() {
             let key = i as u64 + 1;
             keys.push(key);
@@ -4142,7 +4147,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         graph: &Dag,
-        query: &causal_core::ConditionalEffectQuery,
+        query: &antecedent_core::ConditionalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -4214,7 +4219,7 @@ impl CausalAnalysis {
         &self,
         data: &TimeSeriesData,
         graph: &TemporalDag,
-        query: &causal_core::MediationQuery,
+        query: &antecedent_core::MediationQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -4283,7 +4288,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         graph: &Dag,
-        query: &causal_core::MediationQuery,
+        query: &antecedent_core::MediationQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -4382,7 +4387,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         graph: &Dag,
-        query: &causal_core::CounterfactualQuery,
+        query: &antecedent_core::CounterfactualQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -4397,7 +4402,7 @@ impl CausalAnalysis {
         let estimate = EffectEstimate::new(
             ite.mean_ite,
             f64::NAN,
-            causal_core::AssumptionSet::default(),
+            antecedent_core::AssumptionSet::default(),
             OverlapPolicy::ExplicitOverride,
         );
         let (identification, estimand) = parametric_scm_identification(
@@ -4447,7 +4452,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         graph: &Dag,
-        query: &causal_core::AnomalyAttributionQuery,
+        query: &antecedent_core::AnomalyAttributionQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -4506,7 +4511,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         graph: &Dag,
-        query: &causal_core::ChangeAttributionQuery,
+        query: &antecedent_core::ChangeAttributionQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -4517,7 +4522,7 @@ impl CausalAnalysis {
             &fitted.model,
             data,
             query,
-            &causal_attribution::DistributionChangeOptions::default(),
+            &antecedent_attribution::DistributionChangeOptions::default(),
             ctx,
         )?;
         let outcome = query.outcome;
@@ -4525,7 +4530,7 @@ impl CausalAnalysis {
         let estimate = EffectEstimate::new(
             result.total_change,
             f64::NAN,
-            causal_core::AssumptionSet::default(),
+            antecedent_core::AssumptionSet::default(),
             OverlapPolicy::ExplicitOverride,
         );
         let (identification, estimand) = parametric_scm_identification(
@@ -4570,7 +4575,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         graph: &Dag,
-        query: &causal_core::MechanismChangeQuery,
+        query: &antecedent_core::MechanismChangeQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -4581,7 +4586,7 @@ impl CausalAnalysis {
             &fitted.model,
             data,
             query,
-            causal_attribution::MechanismChangeMethod::LikelihoodRatio,
+            antecedent_attribution::MechanismChangeMethod::LikelihoodRatio,
             ctx,
         )?;
         let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
@@ -4629,7 +4634,7 @@ impl CausalAnalysis {
         &self,
         data: &TabularData,
         graph: &Dag,
-        query: &causal_core::UnitChangeQuery,
+        query: &antecedent_core::UnitChangeQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, CausalError> {
@@ -4742,7 +4747,7 @@ fn nan_effect() -> EffectEstimate {
     EffectEstimate::new(
         f64::NAN,
         f64::NAN,
-        causal_core::AssumptionSet::default(),
+        antecedent_core::AssumptionSet::default(),
         OverlapPolicy::ExplicitOverride,
     )
 }
@@ -4796,7 +4801,7 @@ fn parametric_scm_identification(
     let estimand = IdentifiedEstimand::backdoor(
         "gcm.parametric",
         Arc::from([]),
-        causal_expr::ExprId::from_raw(0),
+        antecedent_expr::ExprId::from_raw(0),
     );
     let identification = IdentificationResult::from_parts(
         IdentificationStatus::IdentifiedUnderParametricRestrictions,
@@ -4804,7 +4809,7 @@ fn parametric_scm_identification(
         vec![estimand.clone()],
         CausalExprArena::new(),
         DerivationTrace::default(),
-        causal_core::AssumptionSet::default(),
+        antecedent_core::AssumptionSet::default(),
         Vec::new(),
         IdentificationPerformanceRecord::default(),
         None,
@@ -4813,7 +4818,7 @@ fn parametric_scm_identification(
 }
 
 fn binary_cf_interventions(
-    query: &causal_core::CounterfactualQuery,
+    query: &antecedent_core::CounterfactualQuery,
 ) -> Result<(VariableId, f64, f64), CausalError> {
     if query.interventions.len() != 1 {
         return Err(CausalError::Unsupported {
@@ -4847,7 +4852,7 @@ fn envelope_to_identification_result(
     query: &AverageEffectQuery,
 ) -> IdentificationResult {
     let mut estimands = Vec::new();
-    let mut assumptions = causal_core::AssumptionSet::default();
+    let mut assumptions = antecedent_core::AssumptionSet::default();
     let mut diagnostics = Vec::new();
     for case in &envelope.cases {
         if identification_status_ok_for_case(case.result.status) {

@@ -8,21 +8,21 @@
 
 use std::sync::Arc;
 
-use causal_core::{
+use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext, IdentificationStatus,
     PopulationRegistry,
 };
-use causal_data::TabularData;
-use causal_estimate::{
+use antecedent_data::TabularData;
+use antecedent_estimate::{
     AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace,
     FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
     LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching,
     PropensityStratification, PropensityWeighting, TwoStageLeastSquares,
     TwoStageLeastSquaresWorkspace, WaldIv,
 };
-use causal_expr::{EstimandMethod, IdentifiedEstimand};
-use causal_graph::{Dag, Pag};
-use causal_identify::{
+use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
+use antecedent_graph::{Dag, Pag};
+use antecedent_identify::{
     AutoIdentifier, BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier,
     GeneralizedAdjustmentIdentifier, IdIdentifier, IdentificationEnvelope, IdentificationError,
     IdentificationResult, IdentificationWorkspace, InstrumentalVariableIdentifier,
@@ -648,7 +648,7 @@ pub fn identify_static_query_with_rd(
     identifier: impl Into<IdentifierId>,
     graph: &Dag,
     query: &CausalQuery,
-    rd: Option<causal_identify::SharpRdConfig>,
+    rd: Option<antecedent_identify::SharpRdConfig>,
 ) -> Result<IdentificationResult, CausalError> {
     let identifier = identifier.into();
     let mut id_ws = IdentificationWorkspace::default();
@@ -677,14 +677,14 @@ pub fn identify_static_query_with_rd(
             let id = IdIdentifier::new();
             let prepared = id.prepare_dag(graph).map_err(identify_err)?;
             if matches!(query, CausalQuery::Distribution(q) if !q.conditioning.is_empty()) {
-                let idc = causal_identify::IdcIdentifier::new();
+                let idc = antecedent_identify::IdcIdentifier::new();
                 idc.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
             } else {
                 id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
             }
         }
         IdentifierId::PathSpecificNatural => {
-            let id = causal_identify::PathSpecificIdentifier::new();
+            let id = antecedent_identify::PathSpecificIdentifier::new();
             let prepared = id.prepare_dag(graph).map_err(identify_err)?;
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
@@ -755,7 +755,7 @@ pub fn identify_pag(
 /// Unsupported identifier or identification failure.
 pub fn identify_admg(
     identifier: impl Into<IdentifierId>,
-    admg: &causal_graph::Admg,
+    admg: &antecedent_graph::Admg,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, CausalError> {
     let identifier = identifier.into();

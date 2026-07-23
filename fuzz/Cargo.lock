@@ -156,105 +156,105 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
-name = "causal-core"
+name = "antecedent-core"
 version = "0.1.0"
 dependencies = [
  "thiserror 2.0.19",
 ]
 
 [[package]]
-name = "causal-data"
+name = "antecedent-data"
 version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
  "arrow-data",
  "arrow-schema",
- "causal-core",
- "causal-kernels",
+ "antecedent-core",
+ "antecedent-kernels",
  "thiserror 2.0.19",
 ]
 
 [[package]]
-name = "causal-discovery"
+name = "antecedent-discovery"
 version = "0.1.0"
 dependencies = [
- "causal-core",
- "causal-data",
- "causal-graph",
- "causal-stats",
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-graph",
+ "antecedent-stats",
  "thiserror 2.0.19",
 ]
 
 [[package]]
-name = "causal-estimate"
+name = "antecedent-estimate"
 version = "0.1.0"
 dependencies = [
- "causal-core",
- "causal-data",
- "causal-expr",
- "causal-kernels",
- "causal-prob",
- "causal-stats",
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-expr",
+ "antecedent-kernels",
+ "antecedent-prob",
+ "antecedent-stats",
  "thiserror 2.0.19",
 ]
 
 [[package]]
-name = "causal-expr"
+name = "antecedent-expr"
 version = "0.1.0"
 dependencies = [
- "causal-core",
+ "antecedent-core",
 ]
 
 [[package]]
-name = "causal-fuzz"
+name = "antecedent-fuzz"
 version = "0.0.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
- "causal-core",
- "causal-data",
- "causal-expr",
- "causal-graph",
- "causal-io",
- "causal-kernels",
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-expr",
+ "antecedent-graph",
+ "antecedent-io",
+ "antecedent-kernels",
  "libfuzzer-sys",
 ]
 
 [[package]]
-name = "causal-graph"
+name = "antecedent-graph"
 version = "0.1.0"
 dependencies = [
- "causal-core",
+ "antecedent-core",
  "thiserror 2.0.19",
 ]
 
 [[package]]
-name = "causal-identify"
+name = "antecedent-identify"
 version = "0.1.0"
 dependencies = [
- "causal-core",
- "causal-data",
- "causal-expr",
- "causal-graph",
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-expr",
+ "antecedent-graph",
  "thiserror 2.0.19",
 ]
 
 [[package]]
-name = "causal-io"
+name = "antecedent-io"
 version = "0.1.0"
 dependencies = [
  "blake3",
- "causal-core",
- "causal-data",
- "causal-discovery",
- "causal-estimate",
- "causal-expr",
- "causal-graph",
- "causal-identify",
- "causal-model",
- "causal-prob",
- "causal-validate",
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-discovery",
+ "antecedent-estimate",
+ "antecedent-expr",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-model",
+ "antecedent-prob",
+ "antecedent-validate",
  "ciborium",
  "serde",
  "serde_json",
@@ -263,57 +263,57 @@ dependencies = [
 ]
 
 [[package]]
-name = "causal-kernels"
+name = "antecedent-kernels"
 version = "0.1.0"
 dependencies = [
- "causal-core",
+ "antecedent-core",
 ]
 
 [[package]]
-name = "causal-model"
+name = "antecedent-model"
 version = "0.1.0"
 dependencies = [
- "causal-core",
- "causal-data",
- "causal-graph",
- "causal-kernels",
- "causal-prob",
- "causal-stats",
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-graph",
+ "antecedent-kernels",
+ "antecedent-prob",
+ "antecedent-stats",
  "thiserror 2.0.19",
 ]
 
 [[package]]
-name = "causal-prob"
+name = "antecedent-prob"
 version = "0.1.0"
 dependencies = [
- "causal-core",
- "causal-kernels",
+ "antecedent-core",
+ "antecedent-kernels",
  "thiserror 2.0.19",
 ]
 
 [[package]]
-name = "causal-stats"
+name = "antecedent-stats"
 version = "0.1.0"
 dependencies = [
- "causal-core",
- "causal-kernels",
+ "antecedent-core",
+ "antecedent-kernels",
  "faer",
  "thiserror 2.0.19",
 ]
 
 [[package]]
-name = "causal-validate"
+name = "antecedent-validate"
 version = "0.1.0"
 dependencies = [
- "causal-core",
- "causal-data",
- "causal-discovery",
- "causal-estimate",
- "causal-expr",
- "causal-identify",
- "causal-kernels",
- "causal-prob",
- "causal-stats",
+ "antecedent-core",
+ "antecedent-data",
+ "antecedent-discovery",
+ "antecedent-estimate",
+ "antecedent-expr",
+ "antecedent-identify",
+ "antecedent-kernels",
+ "antecedent-prob",
+ "antecedent-stats",
  "thiserror 2.0.19",
 ]
 

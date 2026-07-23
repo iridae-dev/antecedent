@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish the Antecedent Rust library graph to crates.io (not causal-py).
+# Publish the Antecedent Rust library graph to crates.io (not antecedent-py).
 #
 # Usage:
 #   bash scripts/publish_crates.sh              # dry-run (default)
@@ -10,7 +10,7 @@
 #
 # First-time note: versioned path deps resolve against crates.io when packaging.
 # Dry-run therefore packages every crate whose deps are already on the index
-# (always includes causal-core) and `cargo check`s the rest. `--execute`
+# (always includes antecedent-core) and `cargo check`s the rest. `--execute`
 # publishes in topological order so later crates see earlier ones on the index.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -31,25 +31,25 @@ case "${1:-}" in
 esac
 
 # Topological order of workspace library crates (leaves first). Keep in sync with
-# `cargo metadata` dep graph among `crates/*` (excludes python / causal-py).
+# `cargo metadata` dep graph among `crates/*` (excludes python / antecedent-py).
 CRATES=(
-  causal-core
-  causal-expr
-  causal-graph
-  causal-kernels
-  causal-stats
-  causal-state
-  causal-prob
-  causal-design
-  causal-data
-  causal-model
-  causal-counterfactual
-  causal-attribution
-  causal-identify
-  causal-estimate
-  causal-discovery
-  causal-validate
-  causal-io
+  antecedent-core
+  antecedent-expr
+  antecedent-graph
+  antecedent-kernels
+  antecedent-stats
+  antecedent-state
+  antecedent-prob
+  antecedent-design
+  antecedent-data
+  antecedent-model
+  antecedent-counterfactual
+  antecedent-attribution
+  antecedent-identify
+  antecedent-estimate
+  antecedent-discovery
+  antecedent-validate
+  antecedent-io
   antecedent
 )
 

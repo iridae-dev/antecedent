@@ -1,0 +1,33 @@
+[package]
+name = "antecedent-validate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Effect refuters and validation diagnostics"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+antecedent-core = { version = "0.1.0", path = "../antecedent-core" }
+antecedent-data = { version = "0.1.0", path = "../antecedent-data" }
+antecedent-estimate = { version = "0.1.0", path = "../antecedent-estimate" }
+antecedent-expr = { version = "0.1.0", path = "../antecedent-expr" }
+antecedent-identify = { version = "0.1.0", path = "../antecedent-identify" }
+antecedent-discovery = { version = "0.1.0", path = "../antecedent-discovery" }
+antecedent-graph = { version = "0.1.0", path = "../antecedent-graph" }
+antecedent-prob = { version = "0.1.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "0.1.0", path = "../antecedent-stats" }
+antecedent-kernels = { version = "0.1.0", path = "../antecedent-kernels" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

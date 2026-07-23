@@ -19,28 +19,28 @@ attribution, and validation. Rust owns computation; Python is a thin binding lay
 ## Crates
 
 ```text
-causal-core          ids, schemas, queries, interventions, provenance, plans, errors
-causal-kernels       borrowed views + scalar/portable/arch kernels (no causal semantics)
-causal-data          tabular / temporal / panel / multi-env views, sample planning, Arrow
-causal-graph         DAG/ADMG/CPDAG/PAG, separation, overlays, temporal unfold
-causal-expr          arena-backed causal-functional IR
-causal-stats         regression, covariance, resampling, CI tests, faer LA backend
-causal-prob          posteriors, priors, graph samples, inference backends
-causal-discovery     PC/FCI/GES/LiNGAM/NOTEARS, PCMCI family, Bayesian DAG engines
-causal-identify      adjustment, IV, front-door, mediation, ID/IDC, envelopes
-causal-estimate      frequentist + Bayesian estimators for identified functionals
-causal-model         SCMs, mechanisms, intervention overlays, sampling
-causal-counterfactual  abduction–action–prediction
-causal-attribution   anomaly / distribution / mechanism / path / Shapley
-causal-validate      refuters, sensitivity, discovery stability, Bayesian checks
-causal-design        EIG / VoI / experiment ranking (computation only)
-causal-state         incremental caches, invalidation, sufficient statistics
-causal-io            CBOR+Arrow artifacts, graph interchange, migration
+antecedent-core          ids, schemas, queries, interventions, provenance, plans, errors
+antecedent-kernels       borrowed views + scalar/portable/arch kernels (no causal semantics)
+antecedent-data          tabular / temporal / panel / multi-env views, sample planning, Arrow
+antecedent-graph         DAG/ADMG/CPDAG/PAG, separation, overlays, temporal unfold
+antecedent-expr          arena-backed causal-functional IR
+antecedent-stats         regression, covariance, resampling, CI tests, faer LA backend
+antecedent-prob          posteriors, priors, graph samples, inference backends
+antecedent-discovery     PC/FCI/GES/LiNGAM/NOTEARS, PCMCI family, Bayesian DAG engines
+antecedent-identify      adjustment, IV, front-door, mediation, ID/IDC, envelopes
+antecedent-estimate      frequentist + Bayesian estimators for identified functionals
+antecedent-model         SCMs, mechanisms, intervention overlays, sampling
+antecedent-counterfactual  abduction–action–prediction
+antecedent-attribution   anomaly / distribution / mechanism / path / Shapley
+antecedent-validate      refuters, sensitivity, discovery stability, Bayesian checks
+antecedent-design        EIG / VoI / experiment ranking (computation only)
+antecedent-state         incremental caches, invalidation, sufficient statistics
+antecedent-io            CBOR+Arrow artifacts, graph interchange, migration
 causal               facade: CausalAnalysis planner + re-exports
 ```
 
 Dependency edges point downward (no cycles). Facade (`causal`) sits on top.
-Bayesian discovery may use `causal-prob` without pulling `causal-model`.
+Bayesian discovery may use `antecedent-prob` without pulling `antecedent-model`.
 
 ## Analysis pipeline
 

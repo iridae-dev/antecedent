@@ -6,7 +6,7 @@ library = "causal"
 [[capabilities]]
 id = "bayes.prob.columnar_posteriors"
 status = "done"
-notes = "causal-prob PosteriorDraws SoA; no object-per-draw"
+notes = "antecedent-prob PosteriorDraws SoA; no object-per-draw"
 
 [[capabilities]]
 id = "bayes.prob.priors"
@@ -66,12 +66,12 @@ notes = "InferenceMode::Bayesian + Python posterior_* summaries"
 [[capabilities]]
 id = "bayes.model.pcm_scm_registry"
 status = "done"
-notes = "causal-model MechanismRegistry + CompiledCausalModel"
+notes = "antecedent-model MechanismRegistry + CompiledCausalModel"
 
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
 status = "done"
-notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in causal-discovery (§13.7); GraphPosterior → WeightedGraphSamples; facade compose via analyze + Bayesian mixture (python_facade=full); gate evidence: unit harness + conformance/bayesian/dag_posterior"
+notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in antecedent-discovery (§13.7); GraphPosterior → WeightedGraphSamples; facade compose via analyze + Bayesian mixture (python_facade=full); gate evidence: unit harness + conformance/bayesian/dag_posterior"
 
 [[capabilities]]
 id = "bayes.backend.hierarchical_bvar_gp"

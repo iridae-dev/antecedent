@@ -19,7 +19,7 @@ performance as a deferred rewrite (ADR 0011).
 - Inventories use only `pending` / `in_progress` / `done`. Permanent product
   contracts are marked `done` with an inline note (no `intentional_deviation` /
   `*_deviations.md`). Required 1.0 chapters are closed in inventories.
-- Ship **DOT + JSON + GML + NetworkX** DAG interchange in `causal-io` as the
+- Ship **DOT + JSON + GML + NetworkX** DAG interchange in `antecedent-io` as the
   string-graph surface for `pinned baseline.model_graph.parsing`.
 - Ship full CPython 3.11–3.14 wheel CI (Linux x86_64/aarch64 manylinux, macOS
   arm64, Windows x86_64) with default `faer` and no system BLAS.

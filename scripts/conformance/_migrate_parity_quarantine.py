@@ -324,32 +324,32 @@ def rename_tests() -> None:
             "crates/causal/tests/estimate_noisy_estimators.rs",
         ),
         (
-            "crates/causal-discovery/tests/tigramite_pcmci_lag1.rs",
-            "crates/causal-discovery/tests/discovery_pcmci_lag1.rs",
+            "crates/antecedent-discovery/tests/tigramite_pcmci_lag1.rs",
+            "crates/antecedent-discovery/tests/discovery_pcmci_lag1.rs",
         ),
         (
-            "crates/causal-discovery/tests/tigramite_pcmci_plus_lag0.rs",
-            "crates/causal-discovery/tests/discovery_pcmci_plus_lag0.rs",
+            "crates/antecedent-discovery/tests/tigramite_pcmci_plus_lag0.rs",
+            "crates/antecedent-discovery/tests/discovery_pcmci_plus_lag0.rs",
         ),
         (
-            "crates/causal-discovery/tests/tigramite_pcmci_multivar.rs",
-            "crates/causal-discovery/tests/discovery_pcmci_multivar.rs",
+            "crates/antecedent-discovery/tests/tigramite_pcmci_multivar.rs",
+            "crates/antecedent-discovery/tests/discovery_pcmci_multivar.rs",
         ),
         (
-            "crates/causal-discovery/tests/tigramite_masked_mci_lag1.rs",
-            "crates/causal-discovery/tests/discovery_masked_mci_lag1.rs",
+            "crates/antecedent-discovery/tests/tigramite_masked_mci_lag1.rs",
+            "crates/antecedent-discovery/tests/discovery_masked_mci_lag1.rs",
         ),
         (
-            "crates/causal-discovery/tests/tigramite_vector_vars_pcmci.rs",
-            "crates/causal-discovery/tests/discovery_vector_vars_pcmci.rs",
+            "crates/antecedent-discovery/tests/tigramite_vector_vars_pcmci.rs",
+            "crates/antecedent-discovery/tests/discovery_vector_vars_pcmci.rs",
         ),
         (
-            "crates/causal-discovery/tests/tigramite_jpcmci_plus_two_env_edges.rs",
-            "crates/causal-discovery/tests/discovery_jpcmci_plus_two_env_edges.rs",
+            "crates/antecedent-discovery/tests/tigramite_jpcmci_plus_two_env_edges.rs",
+            "crates/antecedent-discovery/tests/discovery_jpcmci_plus_two_env_edges.rs",
         ),
         (
-            "crates/causal-stats/tests/tigramite_ci_stats.rs",
-            "crates/causal-stats/tests/discovery_ci_stats.rs",
+            "crates/antecedent-stats/tests/tigramite_ci_stats.rs",
+            "crates/antecedent-stats/tests/discovery_ci_stats.rs",
         ),
     ]
     for src_s, dst_s in renames:

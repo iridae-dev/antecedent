@@ -63,7 +63,7 @@ Also exposed:
 - RD: `estimator="rd.sharp"` with `running_variable` / `cutoff` / `bandwidth`
 - `dag_from_*` / `dag_to_*` — graph interchange (also `Dag.from_dot` / `.to_dot`)
 - Design / state examples: [`examples/rank_designs.py`](examples/rank_designs.py),
-  [`examples/causal_state_workflow.py`](examples/causal_state_workflow.py)
+  [`examples/antecedent_state_workflow.py`](examples/antecedent_state_workflow.py)
   (see ADR 0016 — no auto-rerun)
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.

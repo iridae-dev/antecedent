@@ -14,19 +14,19 @@
 
 use std::sync::Arc;
 
-use causal_core::{
+use antecedent_core::{
     AssumptionSet, AverageEffectQuery, BufferMaterialization, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord, Intervention,
     InterventionSequence, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph,
     ProvenanceNode, SequencedIntervention, VERSION, VariableId,
 };
-use causal_data::{
+use antecedent_data::{
     IdRemap, MultiEnvironmentData, TableView, TabularData, TimeSeriesData, dedupe_variable_ids,
 };
-use causal_estimate::{CausalPosterior, EffectEstimate, EstimationWorkspace, OverlapPolicy};
-use causal_expr::{IdentifiedEstimand, RdDesignParams};
-use causal_graph::{CpdagReview, TemporalCpdagReview, TemporalGraphReview};
-use causal_validate::{RefutationProblem, RefutationReport, ValidationSuite};
+use antecedent_estimate::{CausalPosterior, EffectEstimate, EstimationWorkspace, OverlapPolicy};
+use antecedent_expr::{IdentifiedEstimand, RdDesignParams};
+use antecedent_graph::{CpdagReview, TemporalCpdagReview, TemporalGraphReview};
+use antecedent_validate::{RefutationProblem, RefutationReport, ValidationSuite};
 
 use crate::discovery::{
     DiscoverParams, StaticDiscoverParams, discover_fci, discover_ges, discover_jpcmci_plus,
@@ -36,24 +36,24 @@ use crate::discovery::{
 use crate::discovery_defaults::resolve_ci;
 use crate::error::CausalError;
 use crate::result::CausalAnalysisResult;
-use causal_discovery::{MultiDatasetConstraints, RegimeAssignment};
+use antecedent_discovery::{MultiDatasetConstraints, RegimeAssignment};
 
 use super::builder::RefuteSuite;
 
 pub(crate) struct AssembleArgs<'a> {
     pub(crate) logical: &'a LogicalAnalysisPlanRecord,
     pub(crate) physical: &'a PhysicalExecutionPlanRecord,
-    pub(crate) identification: causal_identify::IdentificationResult,
+    pub(crate) identification: antecedent_identify::IdentificationResult,
     pub(crate) estimand: IdentifiedEstimand,
     pub(crate) estimate: EffectEstimate,
-    pub(crate) distribution: Option<causal_estimate::InterventionalDistributionEstimate>,
-    pub(crate) posterior: Option<causal_estimate::CausalPosterior>,
-    pub(crate) mediation: Option<causal_estimate::TemporalMediationEstimate>,
+    pub(crate) distribution: Option<antecedent_estimate::InterventionalDistributionEstimate>,
+    pub(crate) posterior: Option<antecedent_estimate::CausalPosterior>,
+    pub(crate) mediation: Option<antecedent_estimate::TemporalMediationEstimate>,
     pub(crate) counterfactual: Option<crate::gcm::IteResult>,
-    pub(crate) anomaly: Option<Vec<causal_attribution::AnomalyScores>>,
-    pub(crate) change_attribution: Option<causal_attribution::ChangeAttributionResult>,
-    pub(crate) mechanism_change: Option<Vec<causal_attribution::MechanismChangeDetection>>,
-    pub(crate) unit_change: Option<causal_attribution::UnitChangeResult>,
+    pub(crate) anomaly: Option<Vec<antecedent_attribution::AnomalyScores>>,
+    pub(crate) change_attribution: Option<antecedent_attribution::ChangeAttributionResult>,
+    pub(crate) mechanism_change: Option<Vec<antecedent_attribution::MechanismChangeDetection>>,
+    pub(crate) unit_change: Option<antecedent_attribution::UnitChangeResult>,
     pub(crate) refutations: Vec<RefutationReport>,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) provenance: ProvenanceGraph,
@@ -143,8 +143,8 @@ pub(crate) fn run_pcmci_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    fdr: Option<antecedent_stats::FdrAdjustment>,
+    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalGraphReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -163,8 +163,8 @@ pub(crate) fn run_pcmci_plus_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    fdr: Option<antecedent_stats::FdrAdjustment>,
+    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -183,9 +183,9 @@ pub(crate) fn run_jpcmci_plus_review(
     data: &MultiEnvironmentData,
     max_lag: u32,
     alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
+    fdr: Option<antecedent_stats::FdrAdjustment>,
     multi_dataset: &MultiDatasetConstraints,
-    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalCpdagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -205,11 +205,11 @@ pub(crate) fn run_rpcmci_discovery(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
+    fdr: Option<antecedent_stats::FdrAdjustment>,
     assignment: &RegimeAssignment,
-    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<causal_discovery::RpcmciDiscoveryResult, CausalError> {
+) -> Result<antecedent_discovery::RpcmciDiscoveryResult, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = DiscoverParams {
         max_lag,
@@ -234,10 +234,10 @@ pub(crate) fn run_lpcmci_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    fdr: Option<antecedent_stats::FdrAdjustment>,
+    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::TemporalPagReview, CausalError> {
+) -> Result<antecedent_graph::TemporalPagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = DiscoverParams {
         max_lag,
@@ -254,8 +254,8 @@ pub(crate) fn run_pc_review(
     data: &TabularData,
     alpha: f64,
     max_cond_size: usize,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    fdr: Option<antecedent_stats::FdrAdjustment>,
+    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<CpdagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -269,8 +269,8 @@ pub(crate) fn run_ges_review(
     data: &TabularData,
     alpha: f64,
     max_cond_size: usize,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    fdr: Option<antecedent_stats::FdrAdjustment>,
+    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
 ) -> Result<CpdagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -285,7 +285,7 @@ pub(crate) fn run_lingam_review(
     max_cond_size: usize,
     prune_threshold: f64,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::DagReview, CausalError> {
+) -> Result<antecedent_graph::DagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = StaticDiscoverParams {
         alpha: 0.05,
@@ -306,7 +306,7 @@ pub(crate) fn run_notears_review(
     threshold: f64,
     standardize: bool,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::DagReview, CausalError> {
+) -> Result<antecedent_graph::DagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params = StaticDiscoverParams {
         alpha: 0.05,
@@ -324,10 +324,10 @@ pub(crate) fn run_fci_review(
     data: &TabularData,
     alpha: f64,
     max_cond_size: usize,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    fdr: Option<antecedent_stats::FdrAdjustment>,
+    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::PagReview, CausalError> {
+) -> Result<antecedent_graph::PagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params =
         StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
@@ -339,10 +339,10 @@ pub(crate) fn run_rfci_review(
     data: &TabularData,
     alpha: f64,
     max_cond_size: usize,
-    fdr: Option<causal_stats::FdrAdjustment>,
-    ci: Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>,
+    fdr: Option<antecedent_stats::FdrAdjustment>,
+    ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
-) -> Result<causal_graph::PagReview, CausalError> {
+) -> Result<antecedent_graph::PagReview, CausalError> {
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let params =
         StaticDiscoverParams { alpha, max_cond_size, fdr, ci, screen_pc: false, max_subset: None };
@@ -356,12 +356,12 @@ pub(crate) fn run_refuters(
     query: &AverageEffectQuery,
     estimate: &EffectEstimate,
     workspace: &mut EstimationWorkspace,
-    propensity: Option<&mut causal_stats::PropensityWorkspace>,
+    propensity: Option<&mut antecedent_stats::PropensityWorkspace>,
     ctx: &ExecutionContext,
     suite: RefuteSuite,
     estimator: &str,
-    custom: &[Arc<dyn causal_validate::CustomEffectValidator>],
-    temporal: Option<causal_validate::TemporalRefitContext<'_>>,
+    custom: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
+    temporal: Option<antecedent_validate::TemporalRefitContext<'_>>,
 ) -> Result<Vec<RefutationReport>, CausalError> {
     let problem = RefutationProblem {
         data,
@@ -395,8 +395,8 @@ pub(crate) fn run_refuters(
 }
 
 pub(crate) fn resolve_analysis_ci(
-    discovery_ci: Option<&Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>>,
-) -> Result<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>, CausalError> {
+    discovery_ci: Option<&Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>>,
+) -> Result<Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>, CausalError> {
     match discovery_ci {
         Some(ci) => Ok(Arc::clone(ci)),
         None => resolve_ci("parcorr", None),
@@ -436,7 +436,7 @@ pub(crate) fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
 /// Surface applied external-prior alphas after conflict shrink.
 pub(crate) fn push_conflict_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
-    summary: &causal_prob::ConflictSummary,
+    summary: &antecedent_prob::ConflictSummary,
 ) {
     for (i, id) in summary.source_ids.iter().enumerate() {
         let req = summary.alphas_requested.get(i).copied().unwrap_or(f64::NAN);

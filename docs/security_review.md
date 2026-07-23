@@ -8,11 +8,11 @@ ADR: [0017](../adr/0017-release-prep.md)
 
 | Crate | Policy | Notes |
 |-------|--------|-------|
-| Most semantic crates (`causal-*` except below / kernels) | `#![forbid(unsafe_code)]` | Verified by `scripts/gate_release.sh` |
-| `causal-data` | `#![deny(unsafe_code)]` + scoped `allow` | Foreign buffers (`buffer.rs`) and Arrow CDI (`arrow_ffi.rs`) |
-| `causal-io` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`) only |
-| `causal-kernels` | `#![allow(unsafe_code)]` | Only reviewed SIMD / aliasing kernels |
-| `python` / `causal-py` | `#![allow(unsafe_code)]` | Required by PyO3 |
+| Most semantic crates (`antecedent-*` except below / kernels) | `#![forbid(unsafe_code)]` | Verified by `scripts/gate_release.sh` |
+| `antecedent-data` | `#![deny(unsafe_code)]` + scoped `allow` | Foreign buffers (`buffer.rs`) and Arrow CDI (`arrow_ffi.rs`) |
+| `antecedent-io` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`) only |
+| `antecedent-kernels` | `#![allow(unsafe_code)]` | Only reviewed SIMD / aliasing kernels |
+| `python` / `antecedent-py` | `#![allow(unsafe_code)]` | Required by PyO3 |
 
 Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `deny` / their scoped escape modules.
 
@@ -52,8 +52,8 @@ Optional `blas` features (if added later) are non-default.
 
 | Surface | Destination | Notes |
 |---------|-------------|--------|
-| Rust facade `antecedent` + `causal-*` library crates | crates.io | Tag workflow `publish-crates.yml`; see `scripts/publish_crates.sh` |
-| Python package `antecedent` (PyO3 crate `causal-py`) | GitHub Packages / Release assets | **Not** on crates.io (`publish = false`); not public PyPI yet |
+| Rust facade `antecedent` + `antecedent-*` library crates | crates.io | Tag workflow `publish-crates.yml`; see `scripts/publish_crates.sh` |
+| Python package `antecedent` (PyO3 crate `antecedent-py`) | GitHub Packages / Release assets | **Not** on crates.io (`publish = false`); not public PyPI yet |
 
 ## Evidence commands
 

@@ -1,5 +1,5 @@
 feature_id = "validate.ppc_prior_sensitivity"
-implementation_crate = "causal-validate"
+implementation_crate = "antecedent-validate"
 source_translation = false
 copied_code = false
 copied_comments = false
@@ -12,7 +12,7 @@ papers = [
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/causal-validate/src/bayesian_checks.rs unit tests",
+ "crates/antecedent-validate/src/bayesian_checks.rs unit tests",
  "conformance/bayesian/ppc",
  "conformance/bayesian/prior_sensitivity",
 ]

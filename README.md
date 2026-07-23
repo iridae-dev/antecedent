@@ -72,9 +72,9 @@ antecedent = "0.1"
 use antecedent::prelude::*;
 ```
 
-Supporting crates (`causal-core`, `causal-graph`, …) publish alongside the facade
+Supporting crates (`antecedent-core`, `antecedent-graph`, …) publish alongside the facade
 and are public dependencies of `antecedent`. The Python extension crate
-(`causal-py`) is not on crates.io.
+(`antecedent-py`) is not on crates.io.
 
 For a private checkout before crates.io mirrors catch up:
 

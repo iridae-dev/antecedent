@@ -2,19 +2,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal_attribution::{
+use antecedent_attribution::{
     AnomalyScores, ChangeAttributionResult, MechanismChangeDetection, UnitChangeResult,
 };
-use causal_core::{
+use antecedent_core::{
     Diagnostic, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord,
     ProvenanceGraph, VariableId,
 };
-use causal_estimate::{
+use antecedent_estimate::{
     CausalPosterior, EffectEstimate, InterventionalDistributionEstimate, TemporalMediationEstimate,
 };
-use causal_identify::{IdentificationResult, IdentifiedEstimand};
-use causal_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
-use causal_validate::{PredictiveCheckReport, RefutationReport};
+use antecedent_identify::{IdentificationResult, IdentifiedEstimand};
+use antecedent_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
+use antecedent_validate::{PredictiveCheckReport, RefutationReport};
 
 use crate::gcm::IteResult;
 
@@ -32,7 +32,7 @@ pub struct CausalAnalysisResult {
     pub estimand: IdentifiedEstimand,
     /// Point estimate + uncertainty (frequentist, or Bayesian posterior mean summary).
     ///
-    /// For [`CausalQuery::Distribution`](causal_core::CausalQuery::Distribution) this holds the
+    /// For [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution) this holds the
     /// interventional mean of the first numeric outcome when defined (`ate` field), else NaN.
     pub estimate: EffectEstimate,
     /// Full interventional distribution when the query was [`CausalQuery::Distribution`].

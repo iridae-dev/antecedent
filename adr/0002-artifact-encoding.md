@@ -17,5 +17,5 @@ Internal Rust structs are not serialized directly; versioned wire types mediate.
 
 ## Consequences
 
-- `causal-io` owns the container format and wire types.
+- `antecedent-io` owns the container format and wire types.
 - Schema migrations are explicit and versioned.

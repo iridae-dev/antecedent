@@ -16,7 +16,7 @@ group = "model_and_graph_workflow"
 description = "Explicit treatment/outcome/effect modifiers"
 status = "done"
 owner = "estimate"
-notes = "AverageEffectQuery + RoleHint + effect_modifiers in causal-core"
+notes = "AverageEffectQuery + RoleHint + effect_modifiers in antecedent-core"
 
 [[capabilities]]
 id = "estimate.model.parsing"
@@ -24,7 +24,7 @@ group = "model_and_graph_workflow"
 description = "Graph parsing and validation"
 status = "done"
 owner = "release"
-notes = "DOT+JSON+GML+NetworkX via causal-io; programmatic DAG + CBOR"
+notes = "DOT+JSON+GML+NetworkX via antecedent-io; programmatic DAG + CBOR"
 
 [[capabilities]]
 id = "estimate.model.assumptions"
@@ -229,7 +229,7 @@ group = "do_sampling"
 description = "Do-sampling (weighting, KDE, MCMC)"
 status = "done"
 owner = "gcm"
-notes = "causal-model WeightingDoSampler / KdeDoSampler / McmcDoSampler"
+notes = "antecedent-model WeightingDoSampler / KdeDoSampler / McmcDoSampler"
 
 [[capabilities]]
 id = "gcm.surface"

@@ -3,8 +3,8 @@
 
 use std::str::FromStr;
 
-use causal_core::VariableId;
-use causal_expr::{CausalExprArena, DomainRef, EstimandMethod, ExprNode};
+use antecedent_core::VariableId;
+use antecedent_expr::{CausalExprArena, DomainRef, EstimandMethod, ExprNode};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

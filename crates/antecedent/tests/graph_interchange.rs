@@ -9,7 +9,7 @@ use antecedent::io::{
     dag_from_dot, dag_from_gml, dag_from_json, dag_from_networkx_node_link, dag_to_dot, dag_to_gml,
     dag_to_json, dag_to_networkx_node_link,
 };
-use causal_graph::DenseNodeId;
+use antecedent_graph::DenseNodeId;
 use serde_json::Value;
 
 fn fixture_dir() -> PathBuf {

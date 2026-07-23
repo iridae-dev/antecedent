@@ -1,5 +1,5 @@
 feature_id = "design.eig"
-implementation_crate = "causal-design"
+implementation_crate = "antecedent-design"
 source_translation = false
 copied_code = false
 copied_comments = false

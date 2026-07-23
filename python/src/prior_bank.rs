@@ -4,15 +4,15 @@
 
 use std::collections::BTreeMap;
 
-use causal_io::{
+use antecedent_io::{
     CompatibilityReport, DesignVariableRole, DesignVariableSummary, EstimandFingerprint,
     PriorCatalog, PriorMapping, PriorSourceMeta, PriorSourceRef, TargetDesign,
 };
-use causal_prob::{
+use antecedent_prob::{
     ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
     compose_external_priors, compose_external_priors_with_alphas,
 };
-use causal_validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
+use antecedent_validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
@@ -262,7 +262,7 @@ fn prior_catalog_rank<'py>(
             },
             "rejected" => CompatibilityReport::Rejected {
                 artifact_id,
-                reason: causal_io::CompatibilityRejectReason::ArtifactUnreadable {
+                reason: antecedent_io::CompatibilityRejectReason::ArtifactUnreadable {
                     message: "rank ignores rejected detail".into(),
                 },
             },
@@ -287,13 +287,13 @@ fn prior_catalog_rank<'py>(
 #[pyfunction]
 fn encode_prior_source_meta(meta: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
     let m = meta_from_dict(meta)?;
-    causal_io::encode_prior_source_meta(&m).map_err(py_err)
+    antecedent_io::encode_prior_source_meta(&m).map_err(py_err)
 }
 
 /// Decode prior-source meta CBOR → dict.
 #[pyfunction]
 fn decode_prior_source_meta(py: Python<'_>, bytes: Vec<u8>) -> PyResult<Bound<'_, PyDict>> {
-    let meta = causal_io::decode_prior_source_meta(&bytes).map_err(py_err)?;
+    let meta = antecedent_io::decode_prior_source_meta(&bytes).map_err(py_err)?;
     let d = PyDict::new(py);
     d.set_item("artifact_id", meta.artifact_id)?;
     let est = PyDict::new(py);
@@ -409,7 +409,7 @@ pub(crate) fn conflict_policy_from_dict(
 
 fn composed_to_dict<'py>(
     py: Python<'py>,
-    composed: &causal_prob::ComposedPrior,
+    composed: &antecedent_prob::ComposedPrior,
 ) -> PyResult<Bound<'py, PyDict>> {
     let coef = composed
         .prior
@@ -432,8 +432,8 @@ fn composed_to_dict<'py>(
     Ok(d)
 }
 
-fn transport_policy_from_str(s: &str) -> PyResult<causal_prob::TransportPolicy> {
-    causal_prob::TransportPolicy::parse(s).map_err(|e| PyValueError::new_err(e.to_string()))
+fn transport_policy_from_str(s: &str) -> PyResult<antecedent_prob::TransportPolicy> {
+    antecedent_prob::TransportPolicy::parse(s).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 fn conflict_signals_from_list(
@@ -484,7 +484,7 @@ fn sources_to_py_list<'py>(
 
 fn with_conflict_fields(
     d: &Bound<'_, PyDict>,
-    summary: &causal_prob::ConflictSummary,
+    summary: &antecedent_prob::ConflictSummary,
 ) -> PyResult<()> {
     d.set_item("alphas_applied", summary.alphas_applied.as_ref())?;
     d.set_item(
@@ -511,7 +511,7 @@ fn compose_transport_path<'py>(
     transport_weights: Option<Vec<f64>>,
     coef_index: Option<usize>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    use causal_prob::{
+    use antecedent_prob::{
         TransportAdjustment, TransportContext, TransportPolicy, compose_with_transport,
     };
 
@@ -549,7 +549,7 @@ fn compose_transport_path<'py>(
     };
     let (composed, _) = compose_with_transport(srcs, baseline, &ctx)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let (prepared, _) = causal_prob::apply_transport(srcs, &ctx)
+    let (prepared, _) = antecedent_prob::apply_transport(srcs, &ctx)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let prepared: Vec<ExternalPriorSource> = prepared
         .into_iter()
@@ -716,7 +716,7 @@ pub(crate) fn apply_owned_composed_prior(
     cfg: antecedent::BayesianConfig,
     owned: OwnedComposedPrior,
 ) -> PyResult<antecedent::BayesianConfig> {
-    use causal_core::PriorAssumption;
+    use antecedent_core::PriorAssumption;
     use std::sync::Arc;
 
     let baseline_n = owned

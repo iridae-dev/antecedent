@@ -10,8 +10,8 @@ use antecedent::design::{
     ExperimentPlan, InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws,
     SamplingPlan, rank_designs as facade_rank_designs,
 };
-use causal_core::{EnvironmentId, ModelId, QueryId, VariableId};
-use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
+use antecedent_core::{EnvironmentId, ModelId, QueryId, VariableId};
+use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyList, PyModule};
