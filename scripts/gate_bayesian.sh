@@ -97,25 +97,25 @@ print("Bayesian inventory evidence map OK")
 PY
 
 echo "== cargo test causal-prob / estimate bayesian / io posterior / bayesian conformance =="
-cargo test -p antecedent-prob --lib
-cargo test -p antecedent-discovery --lib graph_posterior::
-cargo test -p antecedent-discovery --lib exact_enumeration::
-cargo test -p antecedent-discovery --lib structure_mcmc::
-cargo test -p antecedent-discovery --lib order_mcmc::
-cargo test -p antecedent-discovery --lib ci_screened_posterior::
-cargo test -p antecedent-discovery --lib dbn_posterior::
-cargo test -p antecedent-estimate --lib bayesian
-cargo test -p antecedent-estimate --lib envelope
-cargo test -p antecedent-validate --lib bayesian_checks
-cargo test -p antecedent-io --lib posterior
-cargo test -p antecedent-io --lib prior_bank
-cargo test -p antecedent-data --lib resample
+cargo test -p causal-prob --lib
+cargo test -p causal-discovery --lib graph_posterior::
+cargo test -p causal-discovery --lib exact_enumeration::
+cargo test -p causal-discovery --lib structure_mcmc::
+cargo test -p causal-discovery --lib order_mcmc::
+cargo test -p causal-discovery --lib ci_screened_posterior::
+cargo test -p causal-discovery --lib dbn_posterior::
+cargo test -p causal-estimate --lib bayesian
+cargo test -p causal-estimate --lib envelope
+cargo test -p causal-validate --lib bayesian_checks
+cargo test -p causal-io --lib posterior
+cargo test -p causal-io --lib prior_bank
+cargo test -p causal-data --lib resample
 cargo test -p antecedent --test bayesian
 cargo test -p antecedent --test manufacturing_temporal
 
 echo "== criterion smoke (reuse gates) =="
-cargo bench -p antecedent-prob --bench laplace_glm -- --test
-cargo bench -p antecedent-estimate --bench posterior_functional -- --test
+cargo bench -p causal-prob --bench laplace_glm -- --test
+cargo bench -p causal-estimate --bench posterior_functional -- --test
 
 echo "== Python panel Bayesian facade smoke =="
 if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
