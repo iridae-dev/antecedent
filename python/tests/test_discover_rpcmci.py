@@ -22,16 +22,16 @@ def _lag1_series(n: int = 80, seed: int = 9):
 def test_discover_rpcmci_requires_regimes():
     data = _lag1_series()
     with pytest.raises(TypeError):
-        causal.discover_rpcmci(data=data, max_lag=1, alpha=0.2, fdr=False)
+        antecedent.discover_rpcmci(data=data, max_lag=1, alpha=0.2, fdr=False)
 
 
 def test_discover_rpcmci_with_half_split_helper():
     data = _lag1_series(n=160)
     n = len(data["x"])
-    regimes = causal.two_regime_half_split(n)
+    regimes = antecedent.two_regime_half_split(n)
     assert len(regimes) == n
     assert set(regimes) == {0, 1}
-    summary = causal.discover_rpcmci(
+    summary = antecedent.discover_rpcmci(
         data=data,
         regimes=regimes,
         max_lag=1,

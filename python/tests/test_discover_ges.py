@@ -15,7 +15,7 @@ def test_discover_ges_screen_pc_smoke():
     z = rng.normal(size=n)
     t = z + rng.normal(size=n) * 0.4
     y = 1.2 * t + z + rng.normal(size=n) * 0.4
-    result = causal.discover_ges(
+    result = antecedent.discover_ges(
         data={"t": t, "y": y, "z": z},
         alpha=0.2,
         fdr=False,

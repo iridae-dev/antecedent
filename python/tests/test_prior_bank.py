@@ -24,21 +24,21 @@ def _meta(
     *,
     outcome: str = "y",
     identification: str = "NonparametricallyIdentified",
-) -> causal.PriorSourceMeta:
-    return causal.PriorSourceMeta(
+) -> antecedent.PriorSourceMeta:
+    return antecedent.PriorSourceMeta(
         artifact_id=artifact_id,
-        estimand=causal.EstimandFingerprint(query_kind="ate", treatment="t", outcome=outcome),
+        estimand=antecedent.EstimandFingerprint(query_kind="ate", treatment="t", outcome=outcome),
         identification=identification,
         design=(
-            causal.DesignVariable(name="t", role="treatment"),
-            causal.DesignVariable(name="y", role="outcome"),
-            causal.DesignVariable(name="z", role="covariate"),
+            antecedent.DesignVariable(name="t", role="treatment"),
+            antecedent.DesignVariable(name="y", role="outcome"),
+            antecedent.DesignVariable(name="z", role="covariate"),
         ),
     )
 
 
 def _unnamed_artifact_bytes() -> bytes:
-    art = causal.PosteriorArtifact(
+    art = antecedent.PosteriorArtifact(
         n_draws=2,
         mean=[0.0, 1.0, 2.0],
         sd=[1.0, 1.0, 0.1],
@@ -49,23 +49,23 @@ def _unnamed_artifact_bytes() -> bytes:
         identification="NonparametricallyIdentified",
         quantity_names=["coef_0", "coef_1", "ate"],
     )
-    return bytes(causal.encode_posterior_artifact(art))
+    return bytes(antecedent.encode_posterior_artifact(art))
 
 
 def test_catalog_filter_accept_reject_partial():
     data, edges = _confounded()
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(n_draws=48),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=48),
         refute=False,
         seed=11,
         return_posterior_artifact=True,
     )
     assert result.posterior is not None
     artifact = bytes(result.posterior.artifact)
-    names = list(causal.decode_posterior_artifact(artifact).quantity_names)
+    names = list(antecedent.decode_posterior_artifact(artifact).quantity_names)
     assert any(n == "intercept" or n.startswith("coef_") for n in names)
     assert "ate" in names
     # Fitting path should emit durable names, not only coef_{i}.
@@ -73,13 +73,13 @@ def test_catalog_filter_accept_reject_partial():
         n.startswith("coef_") and not n[5:].isdigit() for n in names
     )
 
-    matching = causal.PriorSource(meta=_meta("match"), artifact=artifact)
-    wrong = causal.PriorSource(meta=_meta("wrong", outcome="other_y"))
-    unnamed = causal.PriorSource(meta=_meta("unnamed"), artifact=_unnamed_artifact_bytes())
+    matching = antecedent.PriorSource(meta=_meta("match"), artifact=artifact)
+    wrong = antecedent.PriorSource(meta=_meta("wrong", outcome="other_y"))
+    unnamed = antecedent.PriorSource(meta=_meta("unnamed"), artifact=_unnamed_artifact_bytes())
 
-    catalog = causal.PriorCatalog.from_sources([matching, wrong, unnamed])
+    catalog = antecedent.PriorCatalog.from_sources([matching, wrong, unnamed])
     reports = catalog.compatible_with(
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         variables=["t", "y", "z"],
     )
     by_id = {r.artifact_id: r for r in reports}
@@ -94,7 +94,7 @@ def test_catalog_filter_accept_reject_partial():
 
 def test_meta_cbor_round_trip():
     meta = _meta("rt")
-    back = causal.PriorSourceMeta.from_cbor(meta.to_cbor())
+    back = antecedent.PriorSourceMeta.from_cbor(meta.to_cbor())
     assert back.artifact_id == "rt"
     assert back.estimand.treatment == "t"
     assert len(back.design) == 3
@@ -102,20 +102,20 @@ def test_meta_cbor_round_trip():
 
 def test_rank_orders_usable():
     reports = [
-        causal.CompatibilityReport(status="compatible", artifact_id="a"),
-        causal.CompatibilityReport(
+        antecedent.CompatibilityReport(status="compatible", artifact_id="a"),
+        antecedent.CompatibilityReport(
             status="partial",
             artifact_id="b",
             missing=("durable_coef_names",),
             mappable=("ate",),
         ),
-        causal.CompatibilityReport(
+        antecedent.CompatibilityReport(
             status="rejected",
             artifact_id="c",
             reason={"code": "estimand_mismatch"},
         ),
     ]
-    catalog = causal.PriorCatalog()
+    catalog = antecedent.PriorCatalog()
     ranked = catalog.rank(reports, {"b": 0.9, "a": 0.1})
     assert [r.artifact_id for r in ranked] == ["b", "a"]
 
@@ -130,11 +130,11 @@ def test_effect_prior_transfer_shrinks_toward_source():
     data_a = {"z": z, "t": t, "y": y}
     edges_a = [("z", "t"), ("z", "y"), ("t", "y")]
 
-    source = causal.analyze(
+    source = antecedent.analyze(
         data_a,
         graph=edges_a,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
         refute=False,
         seed=3,
     
@@ -152,11 +152,11 @@ def test_effect_prior_transfer_shrinks_toward_source():
     data_b = {"z": z, "w": w, "t": t_b, "y": y_b}
     edges_b = [("z", "t"), ("z", "y"), ("w", "t"), ("w", "y"), ("t", "y")]
 
-    baseline = causal.analyze(
+    baseline = antecedent.analyze(
         data_b,
         graph=edges_b,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
         refute=False,
         seed=5,
     
@@ -165,15 +165,15 @@ def test_effect_prior_transfer_shrinks_toward_source():
     assert baseline.posterior is not None
     baseline_mean = float(baseline.posterior.effect_mean)
 
-    mapped = causal.analyze(
+    mapped = antecedent.analyze(
         data_b,
         graph=edges_b,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(
             n_draws=64,
             backend="conjugate",
             prior_from=artifact,
-            mapping=causal.PriorMapping.effect_functional("ate"),
+            mapping=antecedent.PriorMapping.effect_functional("ate"),
         ),
         refute=False,
         seed=5,
@@ -187,11 +187,11 @@ def test_effect_prior_transfer_shrinks_toward_source():
     assert abs(mapped_mean - source_mean) < abs(baseline_mean - source_mean)
 
     # Unset mapping must auto-pick EffectFunctional (not silent coef_i→coef_i).
-    auto = causal.analyze(
+    auto = antecedent.analyze(
         data_b,
         graph=edges_b,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(
             n_draws=64,
             backend="conjugate",
             prior_from=artifact,
@@ -206,15 +206,15 @@ def test_effect_prior_transfer_shrinks_toward_source():
     assert abs(auto_mean - source_mean) < abs(baseline_mean - source_mean)
 
     with pytest.raises(Exception):
-        causal.analyze(
+        antecedent.analyze(
             data_b,
             graph=edges_b,
-            query=causal.AverageEffect(treatment="t", outcome="y"),
-            inference=causal.Bayesian(
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
                 n_draws=32,
                 backend="conjugate",
                 prior_from=artifact,
-                mapping=causal.PriorMapping.identical(),
+                mapping=antecedent.PriorMapping.identical(),
             ),
             refute=False,
             seed=5,
@@ -225,20 +225,20 @@ def test_effect_prior_transfer_shrinks_toward_source():
 
 def test_compose_weight_and_conflict():
     """Two sources with mixture weights; conflict shrinks the far source's α."""
-    agree = causal.ExternalPriorSourceSpec(
+    agree = antecedent.ExternalPriorSourceSpec(
         id="agree",
         mean=(0.5,),
         variance=(1.0,),
-        weight=causal.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.ExternalPriorWeight(alpha=1.0),
     )
-    conflict_src = causal.ExternalPriorSourceSpec(
+    conflict_src = antecedent.ExternalPriorSourceSpec(
         id="conflict",
         mean=(50.0,),
         variance=(0.25,),
-        weight=causal.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.ExternalPriorWeight(alpha=1.0),
     )
-    policy = causal.ConflictPolicy(p_min=0.05, kl_scale=1.0)
-    composed = causal.compose_external_priors(
+    policy = antecedent.ConflictPolicy(p_min=0.05, kl_scale=1.0)
+    composed = antecedent.compose_external_priors(
         [agree, conflict_src],
         weights=(0.7, 0.3),
         baseline=([0.0], [4.0]),
@@ -260,19 +260,19 @@ def test_compose_weight_and_conflict():
     t = rng.normal(size=n)
     y = 0.5 * t + 0.2 * rng.normal(size=n)
     # No covariates → design is intercept + treatment (2 coefs).
-    agree2 = causal.ExternalPriorSourceSpec(
+    agree2 = antecedent.ExternalPriorSourceSpec(
         id="agree",
         mean=(0.0, 0.5),
         variance=(100.0, 1.0),
-        weight=causal.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.ExternalPriorWeight(alpha=1.0),
     )
-    conflict2 = causal.ExternalPriorSourceSpec(
+    conflict2 = antecedent.ExternalPriorSourceSpec(
         id="conflict",
         mean=(0.0, 50.0),
         variance=(100.0, 0.25),
-        weight=causal.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.ExternalPriorWeight(alpha=1.0),
     )
-    composed2 = causal.compose_external_priors(
+    composed2 = antecedent.compose_external_priors(
         [agree2, conflict2],
         weights=(0.7, 0.3),
         baseline=([0.0, 0.0], [100.0, 100.0]),
@@ -283,7 +283,7 @@ def test_compose_weight_and_conflict():
         ],
     )
     # Use shrunk alphas without data-bound re-eval (policy already applied).
-    prior_for_fit = causal.ComposedPrior(
+    prior_for_fit = antecedent.ComposedPrior(
         mean=composed2.mean,
         variance=composed2.variance,
         source_ids=composed2.source_ids,
@@ -293,11 +293,11 @@ def test_compose_weight_and_conflict():
         sources=composed2.sources,
         conflict=None,
     )
-    result = causal.analyze(
+    result = antecedent.analyze(
         {"t": t, "y": y},
         graph=[("t", "y")],
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(
             n_draws=64,
             backend="conjugate",
             prior_from=prior_for_fit,
@@ -318,14 +318,14 @@ def test_compose_weight_and_conflict():
 
 
 def test_transport_required_when_populations_differ():
-    src = causal.ExternalPriorSourceSpec(
+    src = antecedent.ExternalPriorSourceSpec(
         id="us_study",
         mean=(1.0,),
         variance=(1.0,),
-        weight=causal.ExternalPriorWeight(alpha=0.8),
+        weight=antecedent.ExternalPriorWeight(alpha=0.8),
     )
     with pytest.raises(ValueError, match="transport_policy_required"):
-        causal.compose_external_priors(
+        antecedent.compose_external_priors(
             [src],
             baseline=([0.0], [4.0]),
             source_populations=["us"],
@@ -335,32 +335,32 @@ def test_transport_required_when_populations_differ():
 
 def test_transport_from_prior_source_tags():
     """Catalog meta tags auto-fill source_populations (no manual threading)."""
-    src = causal.ExternalPriorSourceSpec(
+    src = antecedent.ExternalPriorSourceSpec(
         id="us_study",
         mean=(1.0,),
         variance=(1.0,),
-        weight=causal.ExternalPriorWeight(alpha=0.8),
+        weight=antecedent.ExternalPriorWeight(alpha=0.8),
     )
-    prior_src = causal.PriorSource(
-        meta=causal.PriorSourceMeta(
+    prior_src = antecedent.PriorSource(
+        meta=antecedent.PriorSourceMeta(
             artifact_id="us_study",
-            estimand=causal.EstimandFingerprint(
+            estimand=antecedent.EstimandFingerprint(
                 query_kind="ate", treatment="t", outcome="y"
             ),
             identification="NonparametricallyIdentified",
             tags={"population": "us"},
         ),
     )
-    assert causal.populations_from_prior_sources([prior_src]) == ["us"]
+    assert antecedent.populations_from_prior_sources([prior_src]) == ["us"]
     with pytest.raises(ValueError, match="transport_policy_required"):
-        causal.compose_external_priors(
+        antecedent.compose_external_priors(
             [src],
             baseline=([0.0], [4.0]),
             prior_sources=[prior_src],
             target_population="eu",
         )
     # Matching populations → no transport policy required.
-    composed = causal.compose_external_priors(
+    composed = antecedent.compose_external_priors(
         [src],
         baseline=([0.0], [4.0]),
         prior_sources=[prior_src],
@@ -369,7 +369,7 @@ def test_transport_from_prior_source_tags():
     assert composed.alphas_applied == (0.8,)
     # Explicit source_populations wins over prior_sources tags.
     with pytest.raises(ValueError, match="transport_policy_required"):
-        causal.compose_external_priors(
+        antecedent.compose_external_priors(
             [src],
             baseline=([0.0], [4.0]),
             prior_sources=[prior_src],
@@ -379,18 +379,18 @@ def test_transport_from_prior_source_tags():
 
 
 def test_transport_with_policy_records_assumption():
-    src = causal.ExternalPriorSourceSpec(
+    src = antecedent.ExternalPriorSourceSpec(
         id="us_study",
         mean=(2.0,),
         variance=(1.0,),
-        weight=causal.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.ExternalPriorWeight(alpha=1.0),
     )
-    composed = causal.compose_external_priors(
+    composed = antecedent.compose_external_priors(
         [src],
         baseline=([0.0], [4.0]),
         source_populations=["us"],
         target_population="eu",
-        transport=causal.TransportPolicy.invariant_conditional_outcome(),
+        transport=antecedent.TransportPolicy.invariant_conditional_outcome(),
     )
     assert all(math.isfinite(x) for x in composed.mean)
     assert all(x > 0 and math.isfinite(x) for x in composed.variance)
@@ -399,18 +399,18 @@ def test_transport_with_policy_records_assumption():
 
 
 def test_transport_propensity_without_weights_zeros_alpha():
-    src = causal.ExternalPriorSourceSpec(
+    src = antecedent.ExternalPriorSourceSpec(
         id="us_study",
         mean=(2.0,),
         variance=(1.0,),
-        weight=causal.ExternalPriorWeight(alpha=0.75),
+        weight=antecedent.ExternalPriorWeight(alpha=0.75),
     )
-    composed = causal.compose_external_priors(
+    composed = antecedent.compose_external_priors(
         [src],
         baseline=([0.0], [4.0]),
         source_populations=["us"],
         target_population="eu",
-        transport=causal.TransportPolicy.invariant_propensity(),
+        transport=antecedent.TransportPolicy.invariant_propensity(),
     )
     assert composed.alphas_requested == (0.75,)
     assert composed.alphas_applied == (0.0,)
@@ -428,21 +428,21 @@ def test_alpha_prior_sensitivity_on_composed_prior():
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
 
     # Design: intercept, treatment, z — bank a tight prior on treatment = 8.
-    src = causal.ExternalPriorSourceSpec(
+    src = antecedent.ExternalPriorSourceSpec(
         id="survey_a",
         mean=(0.0, 8.0, 0.0),
         variance=(0.05, 0.05, 0.05),
-        weight=causal.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.ExternalPriorWeight(alpha=1.0),
     )
-    composed = causal.compose_external_priors(
+    composed = antecedent.compose_external_priors(
         [src],
         baseline=([0.0, 0.0, 0.0], [100.0, 100.0, 100.0]),
     )
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(
             n_draws=64,
             backend="conjugate",
             prior_from=composed,

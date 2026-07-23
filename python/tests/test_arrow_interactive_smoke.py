@@ -47,16 +47,16 @@ def test_arrow_interactive_zero_copy_and_estimate():
     n_rows = table.num_rows
     n_cols = table.num_columns
 
-    info = causal.load_float64_arrow_c_columns(
+    info = antecedent.load_float64_arrow_c_columns(
         list(table.column_names),
         [table.column(i).combine_chunks() for i in range(n_cols)],
     )
     assert info.bytes_borrowed >= n_rows * n_cols * 8
 
-    arrow_result = causal.analyze(
+    arrow_result = antecedent.analyze(
         table,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         latency="interactive",
         seed=1,
     )
@@ -67,10 +67,10 @@ def test_arrow_interactive_zero_copy_and_estimate():
     assert arrow_result.performance.bootstrap_replicates_requested == 0
 
     # Pandas / dict twin remains correct; CDI must not diverge silently.
-    dict_result = causal.analyze(
+    dict_result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         latency="interactive",
         seed=1,
     )
@@ -87,7 +87,7 @@ def test_arrow_interactive_cancel_and_progress():
         }
     )
     requested = 80
-    token = causal.CancellationToken()
+    token = antecedent.CancellationToken()
     seen = {"bootstrap": False}
 
     def on_progress(fraction: float, stage: str) -> None:
@@ -95,10 +95,10 @@ def test_arrow_interactive_cancel_and_progress():
             seen["bootstrap"] = True
             token.cancel()
 
-    partial = causal.analyze(
+    partial = antecedent.analyze(
         table,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         bootstrap=requested,
         refute=False,
         seed=3,

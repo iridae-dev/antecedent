@@ -21,7 +21,7 @@ def test_arrow_c_zero_copy_acceptance():
         pa.array([1.0, 2.0, 3.0, 4.0], type=pa.float64()),
         pa.array([10.0, 20.0, 30.0, 40.0], type=pa.float64()),
     ]
-    info = causal.load_float64_arrow_c_columns(names, columns)
+    info = antecedent.load_float64_arrow_c_columns(names, columns)
     assert info.row_count == 4
     assert info.column_count == 2
     assert info.column_names == names

@@ -25,11 +25,11 @@ def test_fci_review_required_attrs():
     z = rng.normal(size=n)
     t = z + rng.normal(size=n) * 0.3
     y = 1.2 * t + z + rng.normal(size=n) * 0.3
-    with pytest.raises(causal.CausalReviewError) as ei:
-        causal.analyze(
+    with pytest.raises(antecedent.CausalReviewError) as ei:
+        antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=causal.FCI(alpha=0.2, fdr=False, max_cond_size=2),
-            query=causal.AverageEffect(treatment="t", outcome="y"),
+            discovery=antecedent.FCI(alpha=0.2, fdr=False, max_cond_size=2),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
             accept_discovered=False,
             refute=False,
             bootstrap=0,
@@ -44,14 +44,14 @@ def test_fci_review_required_attrs():
 
 def test_complete_temporal_pag_estimates():
     data = _lag1_series()
-    pag = causal.TemporalPag.from_marked_lagged_edges(
+    pag = antecedent.TemporalPag.from_marked_lagged_edges(
         ["x", "y"],
         [("x", 1, "y", 0, "tail", "arrow")],
     )
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=pag,
-        query=causal.PulseEffect(
+        query=antecedent.PulseEffect(
             treatment="x",
             outcome="y",
             treatment_lag=1,
@@ -69,15 +69,15 @@ def test_complete_temporal_pag_estimates():
 
 def test_incomplete_temporal_pag_review_attrs():
     data = _lag1_series(n=60, seed=9)
-    pag = causal.TemporalPag.from_marked_lagged_edges(
+    pag = antecedent.TemporalPag.from_marked_lagged_edges(
         ["x", "y"],
         [("x", 1, "y", 0, "circle", "arrow")],
     )
-    with pytest.raises(causal.CausalReviewError) as ei:
-        causal.analyze(
+    with pytest.raises(antecedent.CausalReviewError) as ei:
+        antecedent.analyze(
             data,
             graph=pag,
-            query=causal.PulseEffect(
+            query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
                 treatment_lag=1,

@@ -17,7 +17,7 @@ def _ate_data(n: int = 200, seed: int = 0):
 
 
 def test_dag_from_edges_parents_children():
-    g = causal.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+    g = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     assert set(g.nodes()) == {"z", "t", "y"}
     assert ("z", "t") in g.edges()
     assert g.parents("y") == ["z", "t"] or set(g.parents("y")) == {"z", "t"}
@@ -26,18 +26,18 @@ def test_dag_from_edges_parents_children():
 
 def test_analyze_with_dag_object_and_levels():
     data = _ate_data()
-    g = causal.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
-    r0 = causal.analyze(
+    g = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+    r0 = antecedent.analyze(
         data,
         graph=g,
-        query=causal.AverageEffect("t", "y", control_level=0.0, active_level=1.0),
+        query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=1.0),
         refute=False,
         bootstrap=0,
     )
-    r1 = causal.analyze(
+    r1 = antecedent.analyze(
         data,
         graph=g,
-        query=causal.AverageEffect("t", "y", control_level=0.0, active_level=2.0),
+        query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=2.0),
         refute=False,
         bootstrap=0,
     )
@@ -53,17 +53,17 @@ def test_sustained_vs_pulse_policy_accepted():
     }
     # a@1 → b@0
     edges = [("a", 1, "b", 0)]
-    pulse = causal.analyze(
+    pulse = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+        query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
         bootstrap=0,
         refute=False,
     )
-    sustained = causal.analyze(
+    sustained = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
+        query=antecedent.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
         bootstrap=0,
         refute=False,
     )
@@ -82,10 +82,10 @@ def test_temporal_refute_runs_by_default():
     y[0] = 0.0
     for t in range(1, n):
         y[t] = 0.8 * x[t - 1]
-    result = causal.analyze(
+    result = antecedent.analyze(
         {"a": x, "b": y},
         graph=[("a", 1, "b", 0)],
-        query=causal.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+        query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
         refute=True,
         bootstrap=0,
         seed=1,
@@ -102,11 +102,11 @@ def test_temporal_accepts_bayesian_pulse():
     y[0] = 0.0
     for t in range(1, n):
         y[t] = 0.8 * x[t - 1]
-    result = causal.analyze(
+    result = antecedent.analyze(
         {"a": x, "b": y},
         graph=[("a", 1, "b", 0)],
-        query=causal.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        inference=causal.Bayesian(n_draws=64),
+        query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+        inference=antecedent.Bayesian(n_draws=64),
         refute=False,
         bootstrap=0,
         seed=1,
@@ -122,14 +122,14 @@ def test_fitted_gcm_sample_do():
     names = list(data.keys())
     cols = [data[n] for n in names]
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
-    gcm = causal.fit_gcm(names, cols, edges)
+    gcm = antecedent.fit_gcm(names, cols, edges)
     out = gcm.sample_do({"t": 1.0}, n=50, seed=3)
     assert out.n_draws == 50
     assert out.draws.shape[1] == 50
 
 
 def test_causal_state_append_data():
-    state = causal.CausalState(cache_bytes=1 << 20)
+    state = antecedent.CausalState(cache_bytes=1 << 20)
     v0 = state.version
     data = _ate_data(n=20)
     names = list(data.keys())
@@ -183,7 +183,7 @@ def test_causal_state_ols_append_matches_full_recompute():
     beta_true = np.array([0.5, -1.25])
     y = x @ beta_true + rng.normal(size=30) * 0.05
 
-    state = causal.CausalState(cache_bytes=1 << 20)
+    state = antecedent.CausalState(cache_bytes=1 << 20)
     state.ols_ensure("ols", 2)
     # Two append batches (online path).
     for i in range(0, 12):
@@ -212,7 +212,7 @@ def test_causal_state_ols_append_matches_full_recompute():
 
 
 def test_rank_designs_full_surface():
-    ranking = causal.rank_designs(
+    ranking = antecedent.rank_designs(
         [0.5, 0.3, 0.2],
         [1, 0, 0],
         [10, 20, 30],
@@ -246,15 +246,15 @@ def test_exact_dag_posterior_tiny():
     x = rng.normal(size=n)
     y = 0.7 * x + rng.normal(size=n) * 0.3
     data = {"x": x, "y": y}
-    post = causal.discover_exact_dag_posterior(data)
+    post = antecedent.discover_exact_dag_posterior(data)
     assert post.n_vars == 2
     assert post.n_graphs >= 1
     assert len(post.weights) == post.n_graphs
 
 
 def test_discovery_result_alias_and_ges_config():
-    assert causal.discovery.DiscoveryResult is causal.PcmciDiscoveryResult
-    cfg = causal.GES(alpha=0.1)
+    assert antecedent.discovery.DiscoveryResult is antecedent.PcmciDiscoveryResult
+    cfg = antecedent.GES(alpha=0.1)
     assert cfg.kind == "ges"
 
 
@@ -274,18 +274,18 @@ def test_path_specific_and_distribution_queries():
         "y": np.asarray(y_vals, dtype=np.float64),
     }
     edges = [("t", "m"), ("m", "y")]
-    path = causal.analyze(
+    path = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.PathSpecificEffect("t", "y", path_nodes=["m"]),
+        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
         refute=False,
         bootstrap=0,
     )
     assert abs(path.ate - 1.0) < 0.1
-    dist = causal.analyze(
+    dist = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.InterventionalDistribution("y", interventions={"t": 1.0}),
+        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
         refute=False,
         bootstrap=0,
     )
@@ -293,4 +293,4 @@ def test_path_specific_and_distribution_queries():
 
 
 def test_extensibility_exported():
-    assert hasattr(causal.extensibility, "CiBatchTest")
+    assert hasattr(antecedent.extensibility, "CiBatchTest")

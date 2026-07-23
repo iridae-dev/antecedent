@@ -9,7 +9,7 @@ Interactive products should prefer this over fresh ``analyze()`` on every batch:
    identification summary with a new estimate.
 
 For full re-estimate on a fixed graph/query with a new table (same schema), use
-``causal.PreparedAnalysis`` instead — compile once, ``estimate`` / ``refresh``
+``antecedent.PreparedAnalysis`` instead — compile once, ``estimate`` / ``refresh``
 many times.
 """
 
@@ -21,7 +21,7 @@ import antecedent
 
 rng = np.random.default_rng(1)
 # Bound retained result bytes; over-budget refresh refuses instead of silent drop.
-state = causal.CausalState(cache_bytes=1 << 20)
+state = antecedent.CausalState(cache_bytes=1 << 20)
 
 n = 40
 t = rng.normal(size=n)

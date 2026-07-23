@@ -31,17 +31,17 @@ def _confounded_scm(n: int = 500, seed: int = 19):
 
 def test_prepared_reestimate_matches_fresh_analyze():
     data, edges = _confounded_scm()
-    fresh = causal.analyze(
+    fresh = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         latency="interactive",
         seed=1,
     )
-    prepared = causal.PreparedAnalysis.prepare(
+    prepared = antecedent.PreparedAnalysis.prepare(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         latency="interactive",
         seed=1,
     )
@@ -61,10 +61,10 @@ def test_prepared_reestimate_matches_fresh_analyze():
 
 def test_oneshot_analyze_result_cannot_refresh():
     data, edges = _confounded_scm(n=200, seed=5)
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         latency="interactive",
         seed=1,
     )
@@ -75,10 +75,10 @@ def test_oneshot_analyze_result_cannot_refresh():
 def test_prepared_second_shot_not_slower_than_prepare_plus_first():
     data, edges = _confounded_scm(n=800, seed=31)
     t0 = time.perf_counter()
-    prepared = causal.PreparedAnalysis.prepare(
+    prepared = antecedent.PreparedAnalysis.prepare(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         latency="interactive",
         seed=1,
     )

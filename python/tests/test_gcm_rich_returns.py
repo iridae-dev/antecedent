@@ -22,7 +22,7 @@ def _gcm_linear(n: int = 200, seed: int = 3):
 
 def test_counterfactual_ite_returns_unit_effects():
     names, cols, edges = _gcm_linear()
-    result = causal.counterfactual_ite(
+    result = antecedent.counterfactual_ite(
         names, cols, edges, "t", "y", 1.0, 0.0, seed=1
     )
     assert result.n_units == len(cols[0])
@@ -35,7 +35,7 @@ def test_counterfactual_ite_returns_unit_effects():
 def test_sample_do_returns_draws():
     names, cols, edges = _gcm_linear(n=80)
     n_draws = 50
-    result = causal.sample_do(
+    result = antecedent.sample_do(
         names, cols, edges, "t", 1.0, n_draws, seed=2
     )
     assert result.n_draws == n_draws
@@ -47,7 +47,7 @@ def test_sample_do_returns_draws():
 def test_sample_interventional_distribution():
     names, cols, edges = _gcm_linear(n=80)
     n_draws = 40
-    result = causal.sample_interventional_distribution(
+    result = antecedent.sample_interventional_distribution(
         names, cols, edges, "t", 1.0, n_draws, outcome="y", seed=2
     )
     assert result.n_draws == n_draws
@@ -63,7 +63,7 @@ def test_attribute_path_specific():
     names = ["t", "m", "y"]
     cols = [t, m, y]
     edges = [("t", "m"), ("m", "y"), ("t", "y")]
-    result = causal.attribute_path_specific(
+    result = antecedent.attribute_path_specific(
         names, cols, edges, "t", "y", path_nodes=["m"], seed=1
     )
     assert isinstance(result.total_change, float)
@@ -81,7 +81,7 @@ def test_attribute_path_specific():
 
 def test_fit_gcm_oo_sample_do():
     names, cols, edges = _gcm_linear(n=80)
-    gcm = causal.fit_gcm(names, cols, edges)
+    gcm = antecedent.fit_gcm(names, cols, edges)
     result = gcm.sample_do({"t": 1.0}, 40, seed=2)
     assert result.n_draws == 40
     assert result.draws.shape == (result.n_nodes, 40)

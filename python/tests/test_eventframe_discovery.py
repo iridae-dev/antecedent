@@ -22,12 +22,12 @@ def _lag1_series(n: int = 120, seed: int = 3):
 def test_eventframe_pcmci_discovery_happy_path():
     data = _lag1_series()
     n = len(data["x"])
-    frame = causal.event(data, np.arange(n, dtype=np.int64), align_interval_ns=1)
+    frame = antecedent.event(data, np.arange(n, dtype=np.int64), align_interval_ns=1)
     try:
-        result = causal.analyze(
+        result = antecedent.analyze(
             frame,
-            discovery=causal.PCMCI(max_lag=1, alpha=0.2, fdr=False),
-            query=causal.PulseEffect(
+            discovery=antecedent.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+            query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
                 treatment_lag=1,
@@ -46,12 +46,12 @@ def test_eventframe_pcmci_discovery_happy_path():
 def test_eventframe_rejects_jpcmci_plus():
     data = _lag1_series(n=60, seed=2)
     n = len(data["x"])
-    frame = causal.event(data, np.arange(n, dtype=np.int64), align_interval_ns=1)
+    frame = antecedent.event(data, np.arange(n, dtype=np.int64), align_interval_ns=1)
     with pytest.raises(TypeError, match="EventFrame does not support discovery=JPCMCIPlus"):
-        causal.analyze(
+        antecedent.analyze(
             frame,
-            discovery=causal.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
-            query=causal.PulseEffect(
+            discovery=antecedent.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
+            query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
                 treatment_lag=1,

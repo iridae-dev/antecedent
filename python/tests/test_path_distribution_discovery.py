@@ -36,10 +36,10 @@ def _binary_pair(n: int = 80, seed: int = 4):
 def test_path_specific_lingam_discovery_smoke():
     # Path/distribution functionals require discrete levels; LiNGAM orients the chain.
     data = _discrete_chain()
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
-        discovery=causal.LiNGAM(),
-        query=causal.PathSpecificEffect("t", "y", path_nodes=["m"]),
+        discovery=antecedent.LiNGAM(),
+        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
         refute=False,
         bootstrap=0,
         seed=1,
@@ -49,10 +49,10 @@ def test_path_specific_lingam_discovery_smoke():
 
 def test_interventional_lingam_discovery_smoke():
     data = _discrete_chain()
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
-        discovery=causal.LiNGAM(),
-        query=causal.InterventionalDistribution("y", interventions={"t": 1.0}),
+        discovery=antecedent.LiNGAM(),
+        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
         refute=False,
         bootstrap=0,
         seed=1,
@@ -62,10 +62,10 @@ def test_interventional_lingam_discovery_smoke():
 
 def test_path_specific_exact_dag_posterior_map():
     data = _binary_pair()
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
-        discovery=causal.ExactDagPosterior(),
-        query=causal.PathSpecificEffect("x", "y"),
+        discovery=antecedent.ExactDagPosterior(),
+        query=antecedent.PathSpecificEffect("x", "y"),
         refute=False,
         bootstrap=0,
         seed=1,
@@ -81,10 +81,10 @@ def test_path_specific_fci_rejected():
     y = t + z + rng.normal(size=n) * 0.3
     data = {"z": z, "t": t, "y": y}
     with pytest.raises(ValueError, match="oriented DAG|PAG|cannot invent"):
-        causal.analyze(
+        antecedent.analyze(
             data,
-            discovery=causal.FCI(alpha=0.2, fdr=False),
-            query=causal.PathSpecificEffect("t", "y"),
+            discovery=antecedent.FCI(alpha=0.2, fdr=False),
+            query=antecedent.PathSpecificEffect("t", "y"),
             accept_discovered=True,
             refute=False,
             bootstrap=0,
@@ -100,10 +100,10 @@ def test_path_specific_incomplete_pc_rejected():
     y = t + z + rng.normal(size=n) * 0.3
     data = {"z": z, "t": t, "y": y}
     with pytest.raises(ValueError, match="incomplete|orient|cannot invent|cannot coerce"):
-        causal.analyze(
+        antecedent.analyze(
             data,
-            discovery=causal.PC(alpha=0.5, fdr=False, max_cond_size=0),
-            query=causal.PathSpecificEffect("t", "y"),
+            discovery=antecedent.PC(alpha=0.5, fdr=False, max_cond_size=0),
+            query=antecedent.PathSpecificEffect("t", "y"),
             accept_discovered=True,
             refute=False,
             bootstrap=0,
@@ -117,11 +117,11 @@ def test_path_specific_accept_discovered_false_review_attrs():
     z = rng.normal(size=n)
     t = z + rng.normal(size=n) * 0.3
     y = 1.2 * t + z + rng.normal(size=n) * 0.3
-    with pytest.raises(causal.CausalReviewError) as ei:
-        causal.analyze(
+    with pytest.raises(antecedent.CausalReviewError) as ei:
+        antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=causal.PC(alpha=0.5, fdr=False, max_cond_size=0),
-            query=causal.PathSpecificEffect("t", "y"),
+            discovery=antecedent.PC(alpha=0.5, fdr=False, max_cond_size=0),
+            query=antecedent.PathSpecificEffect("t", "y"),
             accept_discovered=False,
             refute=False,
             bootstrap=0,
@@ -136,15 +136,15 @@ def test_path_specific_accept_discovered_false_review_attrs():
 
 def test_analyze_path_specific_graph_cpdag_fully_oriented():
     data = _discrete_chain()
-    cpdag = causal.Cpdag.from_directed_undirected(
+    cpdag = antecedent.Cpdag.from_directed_undirected(
         ["t", "m", "y"],
         directed=[("t", "m"), ("m", "y")],
         undirected=[],
     )
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=cpdag,
-        query=causal.PathSpecificEffect("t", "y", path_nodes=["m"]),
+        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
         refute=False,
         bootstrap=0,
     )
@@ -153,16 +153,16 @@ def test_analyze_path_specific_graph_cpdag_fully_oriented():
 
 def test_analyze_path_specific_graph_cpdag_incomplete():
     data = _discrete_chain()
-    cpdag = causal.Cpdag.from_directed_undirected(
+    cpdag = antecedent.Cpdag.from_directed_undirected(
         ["t", "m", "y"],
         directed=[("t", "m")],
         undirected=[("m", "y")],
     )
     with pytest.raises(ValueError, match="undirected|orient|not fully oriented"):
-        causal.analyze(
+        antecedent.analyze(
             data,
             graph=cpdag,
-            query=causal.PathSpecificEffect("t", "y", path_nodes=["m"]),
+            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
             refute=False,
             bootstrap=0,
         )

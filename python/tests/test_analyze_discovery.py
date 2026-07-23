@@ -21,10 +21,10 @@ def _lag1_series(n: int = 120, seed: int = 3):
 
 def test_analyze_discovery_pcmci_smoke():
     data = _lag1_series()
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
-        discovery=causal.PCMCI(max_lag=1, alpha=0.2, fdr=False),
-        query=causal.PulseEffect(
+        discovery=antecedent.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+        query=antecedent.PulseEffect(
             treatment="x",
             outcome="y",
             treatment_lag=1,
@@ -54,10 +54,10 @@ def test_analyze_discovery_jpcmci_plus_two_env():
         envs.append({"x": x, "y": y})
     # May Ready-estimate or fail closed on review/ID; both prove the wire path.
     try:
-        result = causal.analyze(
+        result = antecedent.analyze(
             envs,
-            discovery=causal.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
-            query=causal.PulseEffect(
+            discovery=antecedent.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
+            query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
                 treatment_lag=1,
@@ -78,11 +78,11 @@ def test_analyze_discovery_rpcmci_regimes():
     n = len(data["x"])
     regimes = [0] * (n // 2) + [1] * (n - n // 2)
     try:
-        result = causal.analyze(
+        result = antecedent.analyze(
             data,
-            discovery=causal.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+            discovery=antecedent.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
             regimes=regimes,
-            query=causal.PulseEffect(
+            query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
                 treatment_lag=1,
@@ -105,10 +105,10 @@ def test_analyze_discovery_pc_smoke():
     t = z + rng.normal(size=n) * 0.3
     y = 1.5 * t + z + rng.normal(size=n) * 0.3
     try:
-        result = causal.analyze(
+        result = antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=causal.PC(alpha=0.2, fdr=False, max_cond_size=2),
-            query=causal.AverageEffect(treatment="t", outcome="y"),
+            discovery=antecedent.PC(alpha=0.2, fdr=False, max_cond_size=2),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
             refute=False,
             bootstrap=0,
             seed=1,
@@ -124,10 +124,10 @@ def test_analyze_ate_enriched_fields():
     z = rng.normal(size=n)
     t = (z + rng.normal(size=n) > 0).astype(np.float64)
     y = 2.0 * t + z + rng.normal(size=n) * 0.3
-    result = causal.analyze(
+    result = antecedent.analyze(
         {"t": t, "y": y, "z": z},
         graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
         refute=False,
         bootstrap=0,
         seed=1,

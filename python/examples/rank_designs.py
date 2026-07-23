@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import antecedent
 
-ranking = causal.rank_designs(
+ranking = antecedent.rank_designs(
     [0.5, 0.3, 0.2],
     [1, 0, 0],
     [10, 20, 30],

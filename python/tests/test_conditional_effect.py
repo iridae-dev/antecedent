@@ -15,10 +15,10 @@ def test_conditional_effect_recovers_interaction():
     y = 1.0 + 2.0 * t + 0.5 * t * w
     data = {"t": t, "y": y, "w": w}
     edges = [("t", "y"), ("w", "y")]
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.ConditionalEffect("t", "y", "w"),
+        query=antecedent.ConditionalEffect("t", "y", "w"),
         refute=False,
         bootstrap=0,
         seed=1,
@@ -29,11 +29,11 @@ def test_conditional_effect_recovers_interaction():
 def test_conditional_rejects_bayesian():
     data = {"t": np.zeros(10), "y": np.zeros(10), "w": np.zeros(10)}
     with pytest.raises(TypeError, match="Bayesian"):
-        causal.analyze(
+        antecedent.analyze(
             data,
             graph=[("t", "y")],
-            query=causal.ConditionalEffect("t", "y", "w"),
-            inference=causal.Bayesian(n_draws=8),
+            query=antecedent.ConditionalEffect("t", "y", "w"),
+            inference=antecedent.Bayesian(n_draws=8),
             refute=False,
             bootstrap=0,
         )

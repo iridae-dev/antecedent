@@ -63,7 +63,7 @@ def _conformance_lag1_series():
 
 def test_discover_pcmci_schema_fields():
     names, cols = _lag1_series()
-    result = causal.discover_pcmci(names, cols, max_lag=2, alpha=0.05, fdr=False, seed=9)
+    result = antecedent.discover_pcmci(names, cols, max_lag=2, alpha=0.05, fdr=False, seed=9)
     for name in SCHEMA_FIELDS:
         assert hasattr(result, name), name
     assert result.algorithm_id == "pcmci"
@@ -81,7 +81,7 @@ def test_discover_pcmci_schema_fields():
 
 def test_discover_pcmci_recovers_lag1_parent():
     names, cols = _lag1_series()
-    result = causal.discover_pcmci(names, cols, max_lag=2, alpha=0.05, fdr=False, seed=9)
+    result = antecedent.discover_pcmci(names, cols, max_lag=2, alpha=0.05, fdr=False, seed=9)
     recovered = {
         (link.source, link.source_lag, link.target, link.target_lag) for link in result.links
     }
@@ -92,7 +92,7 @@ def test_discover_pcmci_conformance_exact_lag1_dual():
     """Python recovers the Exact parent set of the Rust pcmci_lag1 conformance fixture."""
     names, cols = _conformance_lag1_series()
     assert len(cols[0]) == 500
-    result = causal.discover_pcmci(names, cols, max_lag=2, alpha=0.05, fdr=False, seed=42)
+    result = antecedent.discover_pcmci(names, cols, max_lag=2, alpha=0.05, fdr=False, seed=42)
     recovered = {
         (link.source, link.source_lag, link.target, link.target_lag) for link in result.links
     }

@@ -19,11 +19,11 @@ def _confounded(n: int = 200, seed: int = 7):
 
 def test_bayesian_ate_validation_includes_prior_and_posterior_ppc():
     data, edges = _confounded()
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(n_draws=64),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=64),
         seed=1,
     )
     prior = result.validation.prior_predictive
@@ -50,11 +50,11 @@ def test_bayesian_ate_validation_includes_prior_and_posterior_ppc():
 
 def test_bayesian_ate_refute_false_skips_ppc():
     data, edges = _confounded()
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
-        inference=causal.Bayesian(n_draws=32),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=32),
         refute=False,
         seed=1,
     )
