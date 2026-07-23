@@ -113,9 +113,15 @@ cargo bench -p causal-discovery --bench rpcmci -- --test
 cargo bench -p causal-estimate --bench temporal_mediation -- --test
 
 echo "== Python EventFrame / panel pooled discovery facade smoke =="
-(
-  cd python
-  uv run pytest tests/test_eventframe_discovery.py tests/test_panel_pooled_discovery.py -q
-)
+if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
+  echo "SKIP_PYTHON_SMOKE=1; skipping (covered by python-wheels CI)"
+elif ! command -v uv >/dev/null 2>&1; then
+  echo "WARN: uv not on PATH; skipping Python facade smoke (covered by python-wheels CI)"
+else
+  (
+    cd python
+    uv run pytest tests/test_eventframe_discovery.py tests/test_panel_pooled_discovery.py -q
+  )
+fi
 
 echo "Context gate PASSED"
