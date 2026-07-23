@@ -504,6 +504,39 @@ impl OwnedColumn {
         }
     }
 
+    /// Clone the column with a remapped dense id (value buffers stay shared).
+    #[must_use]
+    pub fn with_id(&self, id: VariableId) -> Self {
+        match self {
+            Self::Float64(c) => {
+                Self::Float64(Float64Column { id, values: c.values.clone(), validity: c.validity.clone() })
+            }
+            Self::Int64(c) => {
+                Self::Int64(Int64Column { id, values: Arc::clone(&c.values), validity: c.validity.clone() })
+            }
+            Self::Boolean(c) => {
+                Self::Boolean(BooleanColumn { id, values: Arc::clone(&c.values), validity: c.validity.clone() })
+            }
+            Self::Categorical(c) => Self::Categorical(CategoricalColumn {
+                id,
+                codes: Arc::clone(&c.codes),
+                validity: c.validity.clone(),
+                domain: Arc::clone(&c.domain),
+            }),
+            Self::Timestamp(c) => Self::Timestamp(TimestampColumn {
+                id,
+                values_ns: Arc::clone(&c.values_ns),
+                validity: c.validity.clone(),
+            }),
+            Self::FixedVector(c) => Self::FixedVector(FixedVectorColumn {
+                id,
+                values: Arc::clone(&c.values),
+                dim: c.dim,
+                validity: c.validity.clone(),
+            }),
+        }
+    }
+
     /// Row count.
     #[must_use]
     pub fn len(&self) -> usize {

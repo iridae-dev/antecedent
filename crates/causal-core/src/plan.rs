@@ -118,4 +118,18 @@ pub struct ExecutionPerformanceRecord {
     pub copy_count: u64,
     /// Number of scalar kernel fallbacks.
     pub scalar_fallback_count: u64,
+    /// Latency tier label (`interactive` / `standard` / `report`), if set.
+    pub latency_mode: Option<Arc<str>>,
+    /// Per-stage wall times `(stage_id, nanos)` — e.g. `identify`, `estimate_point`.
+    pub stage_timings_ns: Vec<(Arc<str>, u64)>,
+    /// Bootstrap replicates requested by the analysis budget.
+    pub bootstrap_replicates_requested: Option<u32>,
+    /// Bootstrap replicates that produced a finite estimate.
+    pub bootstrap_replicates_ok: Option<u32>,
+    /// Posterior draws used (Bayesian paths).
+    pub n_draws: Option<u32>,
+    /// Cooperative cancellation was observed (partial result possible).
+    pub cancelled: bool,
+    /// Adaptive early-stop (bootstrap SE and/or Bayesian draws).
+    pub early_stopped: bool,
 }

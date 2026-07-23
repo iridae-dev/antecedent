@@ -43,6 +43,7 @@ def _fit_artifact(
         inference=causal.Bayesian(n_draws=96, backend="conjugate"),
         refute=False,
         seed=seed,
+        return_posterior_artifact=True,
     )
     assert result.posterior is not None
     return bytes(result.posterior.artifact), float(result.posterior.effect_mean)

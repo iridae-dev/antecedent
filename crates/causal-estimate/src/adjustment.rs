@@ -70,6 +70,10 @@ pub struct EffectEstimate {
     pub bootstrap_replicates_ok: Option<u32>,
     /// Soft-failed bootstrap replicates when bootstrap was requested.
     pub bootstrap_replicates_failed: Option<u32>,
+    /// Bootstrap loop observed cooperative cancellation (partial replicates).
+    pub bootstrap_cancelled: bool,
+    /// Adaptive bootstrap early-stop (SE relative change).
+    pub bootstrap_early_stopped: bool,
     /// Assumptions carried from identification.
     pub assumptions: AssumptionSet,
     /// Overlap policy recorded on the artifact.
@@ -89,11 +93,15 @@ impl EffectEstimate {
                 self.se_bootstrap = None;
                 self.bootstrap_replicates_ok = None;
                 self.bootstrap_replicates_failed = None;
+                self.bootstrap_cancelled = false;
+                self.bootstrap_early_stopped = false;
             }
             Some(b) => {
                 self.se_bootstrap = b.se;
                 self.bootstrap_replicates_ok = Some(b.replicates_ok);
                 self.bootstrap_replicates_failed = Some(b.replicates_failed);
+                self.bootstrap_cancelled = b.cancelled;
+                self.bootstrap_early_stopped = b.early_stopped;
             }
         }
         self
@@ -239,6 +247,21 @@ impl LinearAdjustmentAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        let point = self.fit_point(problem, workspace, assumptions)?;
+        self.attach_bootstrap(problem, workspace, ctx, point)
+    }
+
+    /// Point estimate + analytic SE only (no bootstrap).
+    ///
+    /// # Errors
+    ///
+    /// Fit / SE failure.
+    pub fn fit_point(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
         let (coefficients, residuals, rss, analytic_se_ok) =
             self.fit_coefficients(problem, workspace)?;
         let t_col = problem
@@ -273,24 +296,43 @@ impl LinearAdjustmentAte {
         };
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
-        };
-
         Ok(EffectEstimate {
             ate,
             se_analytic,
             se_bootstrap: None,
             bootstrap_replicates_ok: None,
             bootstrap_replicates_failed: None,
+            bootstrap_cancelled: false,
+            bootstrap_early_stopped: false,
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
             retained_memory_bytes: None,
-        }
-        .with_bootstrap(boot))
+        })
+    }
+
+    /// Attach bootstrap SE onto a point estimate (progressive uncertainty stage).
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap failure.
+    pub fn attach_bootstrap(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        let boot = if self.bootstrap_replicates == 0 {
+            None
+        } else {
+            let t_col = problem
+                .design
+                .treatment_column()
+                .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
+            Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
+        };
+        Ok(point.with_bootstrap(boot))
     }
 
     fn fit_coefficients(

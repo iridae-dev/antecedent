@@ -279,14 +279,14 @@ pub fn fit_laplace_glm(
     }
 
     let map = workspace.beta[..ncols].to_vec();
-    let draws_vals = draw_mvn(&map, &cov, options.n_draws, options.seed, workspace)?;
+    let draws_vals = sample_gaussian_mvn(&map, &cov, options.n_draws, options.seed, workspace)?;
     let draws = PosteriorDraws::from_column_major(
         PosteriorSchema::coefficients(ncols),
         options.n_draws,
         draws_vals,
     )?;
 
-    Ok(BayesFitResult { draws, map, diagnostics })
+    Ok(BayesFitResult { draws, map, diagnostics, cov: Some(cov) })
 }
 
 pub(crate) fn validate_design(design: BayesDesignRef<'_>) -> Result<(), ProbError> {
@@ -494,7 +494,14 @@ fn norm_pdf(x: f64) -> f64 {
     INV_SQRT_2PI * (-0.5 * x * x).exp()
 }
 
-fn draw_mvn(
+/// Draw `n_draws` samples from `N(mean, cov)` (Cholesky).
+///
+/// Column-major layout: `values[i * n_draws + d]` is coefficient `i` at draw `d`.
+///
+/// # Errors
+///
+/// Non-SPD covariance or workspace too small.
+pub fn sample_gaussian_mvn(
     mean: &[f64],
     cov: &[f64],
     n_draws: usize,
@@ -502,6 +509,10 @@ fn draw_mvn(
     workspace: &mut LaplaceWorkspace,
 ) -> Result<Arc<[f64]>, ProbError> {
     let ncols = mean.len();
+    // Ensure z-scratch capacity without changing design-sized buffers.
+    if workspace.draw_scratch.len() < ncols {
+        workspace.draw_scratch.resize(ncols, 0.0);
+    }
     let chol = cholesky_spd(cov, ncols)?;
     let mut rng = CausalRng::from_seed(seed);
     let mut values = vec![0.0; n_draws * ncols];

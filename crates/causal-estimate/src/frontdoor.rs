@@ -220,6 +220,8 @@ impl FrontDoorTwoStage {
             se_bootstrap: None,
             bootstrap_replicates_ok: None,
             bootstrap_replicates_failed: None,
+            bootstrap_cancelled: false,
+            bootstrap_early_stopped: false,
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,

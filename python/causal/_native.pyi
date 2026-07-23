@@ -33,6 +33,11 @@ class CausalReviewError(CausalError):
     hint: str
     message: str
 class CausalUnsupportedError(CausalError): ...
+class CausalCancelledError(CausalError): ...
+
+class CancellationToken:
+    def cancel(self) -> None: ...
+    def is_cancelled(self) -> bool: ...
 
 class ArrowLoadInfo:
     row_count: int
@@ -81,6 +86,14 @@ class AteAnalysisResult:
     conflict_alphas_requested: list[float] | None
     conflict_alphas_applied: list[float] | None
     posterior_unidentified_mass: float | None
+    latency_mode: str | None
+    wall_time_ns: int | None
+    bootstrap_replicates_requested: int | None
+    bootstrap_replicates_ok: int | None
+    n_draws_effort: int | None
+    cancelled: bool
+    early_stopped: bool
+    stage_timings: list[tuple[str, int]]
 
 class PosteriorArtifact:
     n_draws: int
@@ -176,6 +189,47 @@ class AnalysisResult:
     expected_python_crossings: int
 
 TemporalAnalysisResult = AnalysisResult
+
+class PreparedAnalysis:
+    @staticmethod
+    def prepare(
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        inference: str | None = None,
+        n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 50,
+        threads: int = 1,
+        latency: str | None = None,
+    ) -> PreparedAnalysis: ...
+    def estimate(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AteAnalysisResult: ...
+    def refresh(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AteAnalysisResult: ...
+    @property
+    def names(self) -> list[str]: ...
 
 class GcmIteResult:
     mean_ite: float
@@ -393,6 +447,9 @@ def analyze_ate(
     inference: str | None = None,
     n_draws: int = 1000,
     prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    prior_mapping: dict[str, Any] | None = None,
+    composed_prior: dict[str, Any] | None = None,
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     running_variable: str | None = None,
@@ -404,6 +461,11 @@ def analyze_ate(
     target_population: dict[str, Any] | None = None,
     population_predicates: dict[str, list[int]] | None = None,
     population_distributions: dict[int, list[float]] | None = None,
+    latency: str | None = None,
+    cancel: CancellationToken | None = None,
+    on_progress: Callable[[float, str], Any] | None = None,
+    on_stage: Callable[[str, dict[str, Any]], Any] | None = None,
+    return_posterior_artifact: bool = False,
 ) -> AteAnalysisResult: ...
 
 def analyze_ate_arrow_c(
@@ -420,6 +482,9 @@ def analyze_ate_arrow_c(
     inference: str | None = None,
     n_draws: int = 1000,
     prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    prior_mapping: dict[str, Any] | None = None,
+    composed_prior: dict[str, Any] | None = None,
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     running_variable: str | None = None,
@@ -428,6 +493,10 @@ def analyze_ate_arrow_c(
     seed: int = 1,
     bootstrap: int = 50,
     threads: int = 1,
+    latency: str | None = None,
+    cancel: CancellationToken | None = None,
+    on_progress: Callable[[float, str], Any] | None = None,
+    return_posterior_artifact: bool = False,
 ) -> AteAnalysisResult: ...
 
 def analyze(

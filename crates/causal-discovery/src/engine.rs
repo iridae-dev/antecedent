@@ -195,12 +195,25 @@ impl PcmciEngine {
         // PC1 strength ranking: minimum |statistic| across the levels a candidate survived.
         let mut min_stat = vec![f64::INFINITY; parents.len()];
         for cond_size in 0..=max_cond {
+            if ctx.cancellation.is_cancelled() {
+                break;
+            }
             // A level-q test needs q other candidates to condition on.
             if parents.is_empty() || parents.len() <= cond_size {
                 break;
             }
+            if let Some(p) = &ctx.progress {
+                #[allow(clippy::cast_precision_loss)]
+                p.report(
+                    cond_size as f64 / (max_cond.max(1) as f64 + 1.0),
+                    "discovery.ci",
+                );
+            }
             workspace.removed.clear();
             for pi in 0..parents.len() {
+                if ctx.cancellation.is_cancelled() {
+                    break;
+                }
                 let (src, slag) = parents[pi];
                 // Single strongest-q conditioning set: candidates are kept sorted by
                 // descending min |stat|, so the top q others are the strongest.
@@ -444,6 +457,9 @@ impl PcmciEngine {
             let mut iterations = Vec::with_capacity(variables.len());
             let mut ci_tests = 0u64;
             for &target in variables {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
                 let (parents, tests) =
                     self.select_parents(frame, target, variables, compiled, workspace, ctx)?;
                 ci_tests += tests;
@@ -452,6 +468,13 @@ impl PcmciEngine {
                     ci_tests: tests,
                 });
                 all_parents.push((target, parents));
+                if let Some(p) = &ctx.progress {
+                    #[allow(clippy::cast_precision_loss)]
+                    p.report(
+                        all_parents.len() as f64 / variables.len().max(1) as f64,
+                        "discovery.ci",
+                    );
+                }
             }
             return Ok((all_parents, iterations, ci_tests));
         }

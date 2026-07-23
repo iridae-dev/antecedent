@@ -50,9 +50,9 @@ pub use external_prior::{
     ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
     compose_external_priors_with_alphas,
 };
-pub use graph_samples::{GraphIdentFlag, WeightedGraphSamples};
+pub use graph_samples::{GraphEnvelopeSubsample, GraphIdentFlag, WeightedGraphSamples};
 pub use hmc::{HmcGlmBackend, HmcOptions, fit_hmc_glm};
-pub use laplace::{LaplaceGlmBackend, fit_laplace_glm};
+pub use laplace::{LaplaceGlmBackend, fit_laplace_glm, sample_gaussian_mvn};
 pub use mcmc_stats::{max_split_rhat, min_bulk_ess};
 pub use posterior::{
     EffectBatch, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,

@@ -96,7 +96,9 @@ pub use posterior::{
     decode_posterior_meta_from_path, decode_posterior_meta_from_seek, encode_posterior_artifact,
 };
 pub use posterior_convert::{
-    decode_causal_posterior_bytes, encode_causal_posterior, encode_causal_posterior_bytes,
+    PosteriorPayload, decode_causal_posterior_bytes, encode_causal_posterior,
+    encode_causal_posterior_bytes, encode_causal_posterior_bytes_with_payload,
+    encode_causal_posterior_with_payload,
 };
 pub use prior_bank::{
     CompatibilityRejectReason, CompatibilityReport, DesignVariableRole, DesignVariableSummary,

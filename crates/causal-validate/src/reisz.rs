@@ -140,7 +140,8 @@ impl ReiszSensitivity {
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<(Vec<f64>, Vec<f64>, f64), ValidationError> {
-        let cols = fit_diagnostic_propensity(problem, &self.glm_options, true)?;
+        let mut local_ws = causal_stats::PropensityWorkspace::default();
+        let cols = fit_diagnostic_propensity(problem, &self.glm_options, true, &mut local_ws)?;
         let y = cols.outcome.expect("outcome requested");
         let nrows = cols.treatment.len();
         for &ti in &cols.treatment {

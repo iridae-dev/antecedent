@@ -5,12 +5,14 @@ library = "causal"
 [[capabilities]]
 id = "attribution.shapley"
 status = "done"
+python_facade = "full"
 notes = "Exact + Monte Carlo / permutation Shapley with size limits and MC stderr"
 
 [[capabilities]]
 id = "attribution.coalition_cache"
 status = "done"
-notes = "Semantic coalition cache keyed by mask + tag under CachePolicy"
+python_facade = "thin"
+notes = "Semantic coalition cache keyed by mask + tag under CachePolicy (ExecutionContext; no dedicated Python type)"
 
 [[capabilities]]
 id = "attribution.distribution_change"

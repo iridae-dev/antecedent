@@ -478,3 +478,98 @@ pub fn apply_mechanism_wrappers(
     }
     Ok(model.clone().with_mechanisms(store))
 }
+
+/// Progress sink that calls a Python `(fraction: float, stage: str) -> None`.
+pub struct PyProgressSink {
+    callback: Py<PyAny>,
+}
+
+impl PyProgressSink {
+    pub fn new(callback: Py<PyAny>) -> Self {
+        Self { callback }
+    }
+}
+
+impl causal_core::ProgressSink for PyProgressSink {
+    fn report(&self, fraction: f64, stage: &str) {
+        Python::attach(|py| {
+            let _ = self.callback.bind(py).call1((fraction, stage));
+        });
+    }
+}
+
+/// Build an optional [`ProgressSink`] from a Python callable.
+pub fn progress_sink_from_py(
+    on_progress: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Option<std::sync::Arc<dyn causal_core::ProgressSink>>> {
+    match on_progress {
+        None => Ok(None),
+        Some(cb) => {
+            if !cb.is_callable() {
+                return Err(PyValueError::new_err("on_progress must be callable"));
+            }
+            Ok(Some(std::sync::Arc::new(PyProgressSink::new(cb.clone().unbind()))
+                as std::sync::Arc<dyn causal_core::ProgressSink>))
+        }
+    }
+}
+
+/// Stage-result sink that calls a Python `(stage: str, payload: dict) -> None`.
+pub struct PyStageResultSink {
+    callback: Py<PyAny>,
+}
+
+impl PyStageResultSink {
+    pub fn new(callback: Py<PyAny>) -> Self {
+        Self { callback }
+    }
+}
+
+impl causal::StageResultSink for PyStageResultSink {
+    fn on_stage(&self, event: &causal::AnalysisStageEvent) {
+        Python::attach(|py| {
+            let payload = match event {
+                causal::AnalysisStageEvent::Identify { identification, estimand } => {
+                    let d = PyDict::new(py);
+                    let _ = d.set_item("status", format!("{:?}", identification.status));
+                    let _ = d.set_item("method", estimand.method.as_ref());
+                    d
+                }
+                causal::AnalysisStageEvent::Point { estimate }
+                | causal::AnalysisStageEvent::Uncertainty { estimate } => {
+                    let d = PyDict::new(py);
+                    let _ = d.set_item("ate", estimate.ate);
+                    let _ = d.set_item("se_analytic", estimate.se_analytic);
+                    let _ = d.set_item("se_bootstrap", estimate.se_bootstrap);
+                    d
+                }
+                causal::AnalysisStageEvent::Validate {
+                    refutations,
+                    predictive_checks,
+                } => {
+                    let d = PyDict::new(py);
+                    let _ = d.set_item("n_refutations", refutations.len());
+                    let _ = d.set_item("n_predictive_checks", predictive_checks.len());
+                    d
+                }
+            };
+            let _ = self.callback.bind(py).call1((event.stage_id(), payload));
+        });
+    }
+}
+
+/// Build an optional [`causal::StageResultSink`] from a Python callable.
+pub fn stage_sink_from_py(
+    on_stage: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Option<std::sync::Arc<dyn causal::StageResultSink>>> {
+    match on_stage {
+        None => Ok(None),
+        Some(cb) => {
+            if !cb.is_callable() {
+                return Err(PyValueError::new_err("on_stage must be callable"));
+            }
+            Ok(Some(std::sync::Arc::new(PyStageResultSink::new(cb.clone().unbind()))
+                as std::sync::Arc<dyn causal::StageResultSink>))
+        }
+    }
+}

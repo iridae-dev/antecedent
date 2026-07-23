@@ -169,6 +169,46 @@ def test_causal_state_append_data():
     v_rep = state.replace_data(names, cols)
     assert v_rep > v1
     assert len(state.batch_ids()) == 1
+    # Replace invalidates registered query results until explicit refresh (ADR 0016).
+    assert state.stale_query_count() >= 1
+    state.refresh_results([(qid, 1, 8)])
+    assert state.stale_query_count() == 0
+
+
+def test_causal_state_ols_append_matches_full_recompute():
+    """Python dual of Rust incremental_ols_match: append batches ≡ full XtX/XtY."""
+    rng = np.random.default_rng(11)
+    x = rng.normal(size=(30, 2))
+    x[:, 0] = 1.0
+    beta_true = np.array([0.5, -1.25])
+    y = x @ beta_true + rng.normal(size=30) * 0.05
+
+    state = causal.CausalState(cache_bytes=1 << 20)
+    state.ols_ensure("ols", 2)
+    # Two append batches (online path).
+    for i in range(0, 12):
+        state.ols_append_row("ols", [float(x[i, 0]), float(x[i, 1])], float(y[i]))
+    for i in range(12, 30):
+        state.ols_append_row("ols", [float(x[i, 0]), float(x[i, 1])], float(y[i]))
+    inc = state.ols_get("ols")
+    assert inc["n"] == 30
+    xtx = np.asarray(inc["xtx"], dtype=np.float64).reshape(2, 2)
+    xty = np.asarray(inc["xty"], dtype=np.float64)
+    beta_inc = np.linalg.solve(xtx, xty)
+
+    xtx_full = x.T @ x
+    xty_full = x.T @ y
+    beta_full = np.linalg.solve(xtx_full, xty_full)
+    assert np.allclose(xtx, xtx_full, rtol=0, atol=1e-10)
+    assert np.allclose(xty, xty_full, rtol=0, atol=1e-10)
+    assert np.allclose(beta_inc, beta_full, rtol=0, atol=1e-9)
+
+    _, qid = state.register_average_effect(0, 1)
+    state.refresh_results([(qid, 2, 16)])
+    assert state.stale_query_count() == 0
+    # Append data must not auto-refresh results.
+    state.append_data(["t", "y"], [y[:5], y[5:10]])
+    assert state.stale_query_count() >= 1
 
 
 def test_rank_designs_full_surface():

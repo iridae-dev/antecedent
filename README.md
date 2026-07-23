@@ -41,13 +41,14 @@ cargo add causal
 import causal
 
 result = causal.analyze(
-    data,  # mapping, pandas DataFrame, or Arrow CDI columns
+    data,  # prefer PyArrow / Arrow CDI for interactive; pandas remains correct
     graph=[("z", "campaign"), ("z", "revenue"), ("campaign", "revenue")],
     query=causal.AverageEffect(
         treatment="campaign",
         outcome="revenue",
     ),
     inference=causal.Frequentist(),
+    latency="interactive",  # optional: analytic/cheap path; pass Arrow for zero-copy
 )
 
 print(result.identification.status, result.estimate.ate)

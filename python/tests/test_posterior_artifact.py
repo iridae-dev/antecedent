@@ -1,4 +1,4 @@
-"""posterior artifact encode/decode round-trip from Python."""
+"""posterior artifact encode/decode + no-default-artifact (BACKLOG E)."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _confounded_scm(n: int = 400, seed: int = 11):
     return {"t": t, "y": y, "z": z}, [("z", "t"), ("z", "y"), ("t", "y")]
 
 
-def test_posterior_artifact_round_trip():
+def test_bayesian_default_omits_posterior_artifact():
     data, edges = _confounded_scm()
     result = causal.analyze(
         data,
@@ -37,6 +37,24 @@ def test_posterior_artifact_round_trip():
         inference=causal.Bayesian(n_draws=128),
         seed=3,
         refute=False,
+    )
+    assert result.posterior is not None
+    assert result.posterior.artifact is None
+    assert result.posterior.n_draws == 128
+    assert result.posterior.effect_mean is not None
+    assert math.isfinite(result.posterior.effect_mean)
+
+
+def test_posterior_artifact_round_trip_opt_in():
+    data, edges = _confounded_scm()
+    result = causal.analyze(
+        data,
+        graph=edges,
+        query=causal.AverageEffect(treatment="t", outcome="y"),
+        inference=causal.Bayesian(n_draws=128),
+        seed=3,
+        refute=False,
+        return_posterior_artifact=True,
     )
     assert result.posterior is not None
     assert result.posterior.artifact is not None
@@ -56,3 +74,30 @@ def test_posterior_artifact_round_trip():
     assert art2.draws == art.draws
     assert art2.mean == art.mean
     assert abs(art2.mean[effect_idx] - 2.0) < 0.5
+
+
+def test_posterior_artifact_payload_size_vs_summaries():
+    data, edges = _confounded_scm(n=200, seed=5)
+    summary = causal.analyze(
+        data,
+        graph=edges,
+        query=causal.AverageEffect(treatment="t", outcome="y"),
+        inference=causal.Bayesian(n_draws=2000),
+        seed=5,
+        refute=False,
+    )
+    full = causal.analyze(
+        data,
+        graph=edges,
+        query=causal.AverageEffect(treatment="t", outcome="y"),
+        inference=causal.Bayesian(n_draws=2000),
+        seed=5,
+        refute=False,
+        return_posterior_artifact=True,
+    )
+    assert summary.posterior.artifact is None
+    assert full.posterior.artifact is not None
+    art = causal.decode_posterior_artifact(full.posterior.artifact)
+    assert len(art.draws) == art.n_draws * len(art.quantity_names)
+    assert len(art.draws) > 0
+    assert len(full.posterior.artifact) > len(art.mean) * 8

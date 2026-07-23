@@ -72,6 +72,27 @@ pub struct ExecutionPerformanceWire {
     pub copy_count: u64,
     /// Scalar fallbacks.
     pub scalar_fallback_count: u64,
+    /// Latency tier label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latency_mode: Option<String>,
+    /// Stage timings `(stage, ns)`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stage_timings_ns: Vec<(String, u64)>,
+    /// Bootstrap replicates requested.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bootstrap_replicates_requested: Option<u32>,
+    /// Bootstrap replicates that succeeded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bootstrap_replicates_ok: Option<u32>,
+    /// Posterior draws.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub n_draws: Option<u32>,
+    /// Cancellation observed.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cancelled: bool,
+    /// Adaptive early-stop.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub early_stopped: bool,
 }
 
 /// Encode logical plan.
@@ -233,6 +254,17 @@ pub fn performance_to_wire(p: &ExecutionPerformanceRecord) -> ExecutionPerforman
         peak_rss_bytes: p.peak_rss_bytes,
         copy_count: p.copy_count,
         scalar_fallback_count: p.scalar_fallback_count,
+        latency_mode: p.latency_mode.as_ref().map(std::string::ToString::to_string),
+        stage_timings_ns: p
+            .stage_timings_ns
+            .iter()
+            .map(|(s, ns)| (s.to_string(), *ns))
+            .collect(),
+        bootstrap_replicates_requested: p.bootstrap_replicates_requested,
+        bootstrap_replicates_ok: p.bootstrap_replicates_ok,
+        n_draws: p.n_draws,
+        cancelled: p.cancelled,
+        early_stopped: p.early_stopped,
     }
 }
 
@@ -244,6 +276,17 @@ pub fn performance_from_wire(w: &ExecutionPerformanceWire) -> ExecutionPerforman
         peak_rss_bytes: w.peak_rss_bytes,
         copy_count: w.copy_count,
         scalar_fallback_count: w.scalar_fallback_count,
+        latency_mode: w.latency_mode.as_ref().map(|s| Arc::<str>::from(s.as_str())),
+        stage_timings_ns: w
+            .stage_timings_ns
+            .iter()
+            .map(|(s, ns)| (Arc::<str>::from(s.as_str()), *ns))
+            .collect(),
+        bootstrap_replicates_requested: w.bootstrap_replicates_requested,
+        bootstrap_replicates_ok: w.bootstrap_replicates_ok,
+        n_draws: w.n_draws,
+        cancelled: w.cancelled,
+        early_stopped: w.early_stopped,
     }
 }
 

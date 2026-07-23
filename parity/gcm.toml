@@ -6,11 +6,13 @@ library = "causal"
 [[capabilities]]
 id = "gcm.model.compiled_plans"
 status = "done"
-notes = "CompiledCausalModel topo + ParentGatherPlan"
+python_facade = "thin"
+notes = "CompiledCausalModel topo + ParentGatherPlan (Rust); Python via fit_gcm opaque handle"
 
 [[capabilities]]
 id = "gcm.model.mechanisms"
 status = "done"
+python_facade = "thin"
 notes = "Linear Gaussian, discrete, constant batch kernels"
 
 [[capabilities]]

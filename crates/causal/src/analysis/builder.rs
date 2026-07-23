@@ -33,12 +33,18 @@ use crate::planner::GraphInput;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
 use super::execute::CausalAnalysis;
+use super::latency::{
+    ComputeBudget, LatencyMode, ResolvedLatencyBudget, refuse_discovery_under_interactive,
+    refuse_non_report_hmc,
+};
 
 /// Which refuters to run (static ATE path).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum RefuteSuite {
     /// Skip refutation.
     None,
+    /// Cheap interactive validators: overlap + E-value only.
+    Cheap,
     /// Placebo + random common cause (linear backdoor only).
     PlaceboAndRcc,
     /// Full validation suite (applicable validators only; others NotApplicable).
@@ -78,12 +84,18 @@ pub struct CausalAnalysisBuilder {
     graph: Option<GraphInput>,
     query: Option<CausalQuery>,
     refute: RefuteSuite,
+    /// Whether [`Self::refute`] was set explicitly (wins over latency mode).
+    refute_explicit: bool,
     bootstrap_replicates: u32,
+    /// Whether [`Self::bootstrap_replicates`] was set explicitly.
+    bootstrap_explicit: bool,
     split: Option<DiscoveryEstimationSplit>,
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
+    /// Whether Bayesian `n_draws` were set via [`ComputeBudget`] (mode draw map skipped).
+    n_draws_explicit: bool,
     /// Optional override for propensity / AIPW overlap (clip/trim). `None` keeps estimator defaults.
     overlap_policy: Option<OverlapPolicy>,
     /// Optional bindings for named predicates / custom target distributions.
@@ -92,6 +104,12 @@ pub struct CausalAnalysisBuilder {
     discovery_ci: Option<Arc<dyn ConditionalIndependence + Send + Sync>>,
     /// Custom slow-path validators appended after the built-in refute suite.
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
+    /// Optional latency tier (maps to known-equivalent budgets unless overridden).
+    latency_mode: Option<LatencyMode>,
+    /// Optional field-level compute budget overrides.
+    compute_budget: ComputeBudget,
+    /// Optional progressive stage-result sink (Identify → Point → Uncertainty → Validate).
+    stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
 }
 
 impl std::fmt::Debug for CausalAnalysisBuilder {
@@ -102,16 +120,22 @@ impl std::fmt::Debug for CausalAnalysisBuilder {
             .field("graph", &self.graph)
             .field("query", &self.query.as_ref().map(|_| "<query>"))
             .field("refute", &self.refute)
+            .field("refute_explicit", &self.refute_explicit)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
+            .field("bootstrap_explicit", &self.bootstrap_explicit)
             .field("split", &self.split)
             .field("identifier", &self.identifier)
             .field("estimator", &self.estimator)
             .field("rd", &self.rd)
             .field("inference", &self.inference)
+            .field("n_draws_explicit", &self.n_draws_explicit)
             .field("overlap_policy", &self.overlap_policy)
             .field("population_registry", &self.population_registry.as_ref().map(|_| "<registry>"))
             .field("discovery_ci", &self.discovery_ci.as_ref().map(|_| "<dyn CI>"))
             .field("custom_validators", &self.custom_validators.len())
+            .field("latency_mode", &self.latency_mode)
+            .field("compute_budget", &self.compute_budget)
+            .field("stage_sink_is_some", &self.stage_sink.is_some())
             .finish()
     }
 }
@@ -132,16 +156,22 @@ impl CausalAnalysisBuilder {
             graph: None,
             query: None,
             refute: RefuteSuite::PlaceboAndRcc,
-            bootstrap_replicates: 100,
+            refute_explicit: false,
+            bootstrap_replicates: 50,
+            bootstrap_explicit: false,
             split: None,
             identifier: None,
             estimator: None,
             rd: None,
             inference: InferenceMode::Frequentist,
+            n_draws_explicit: false,
             overlap_policy: None,
             population_registry: None,
             discovery_ci: None,
             custom_validators: Vec::new(),
+            latency_mode: None,
+            compute_budget: ComputeBudget::new(),
+            stage_sink: None,
         }
     }
 
@@ -584,6 +614,7 @@ impl CausalAnalysisBuilder {
     #[must_use]
     pub fn refute(mut self, suite: RefuteSuite) -> Self {
         self.refute = suite;
+        self.refute_explicit = true;
         self
     }
 
@@ -591,6 +622,34 @@ impl CausalAnalysisBuilder {
     #[must_use]
     pub fn bootstrap_replicates(mut self, n: u32) -> Self {
         self.bootstrap_replicates = n;
+        self.bootstrap_explicit = true;
+        self
+    }
+
+    /// Latency tier (`Interactive` / `Standard` / `Report`).
+    ///
+    /// Maps to known-equivalent bootstrap / refute / draw budgets. Explicit
+    /// [`Self::bootstrap_replicates`], [`Self::refute`], and [`Self::compute_budget`]
+    /// field overrides always win.
+    #[must_use]
+    pub fn latency_mode(mut self, mode: LatencyMode) -> Self {
+        self.latency_mode = Some(mode);
+        self
+    }
+
+    /// Field-level compute budget overrides (applied after latency mode mapping).
+    #[must_use]
+    pub fn compute_budget(mut self, budget: ComputeBudget) -> Self {
+        if budget.bootstrap.is_some() {
+            self.bootstrap_explicit = true;
+        }
+        if budget.validators.is_some() {
+            self.refute_explicit = true;
+        }
+        if budget.n_draws.is_some() {
+            self.n_draws_explicit = true;
+        }
+        self.compute_budget = budget;
         self
     }
 
@@ -660,11 +719,21 @@ impl CausalAnalysisBuilder {
         self
     }
 
+    /// Stream intermediate stage payloads (identify → point → uncertainty → validate).
+    ///
+    /// Final [`super::execute::CausalAnalysis::run`] still returns the complete result.
+    #[must_use]
+    pub fn stage_sink(mut self, sink: Arc<dyn super::stage::StageResultSink>) -> Self {
+        self.stage_sink = Some(sink);
+        self
+    }
+
     /// Build the analysis object.
     ///
     /// # Errors
     ///
-    /// Missing required fields, or event alignment failure.
+    /// Missing required fields, event alignment failure, Interactive+HMC, or
+    /// Interactive+discovery graph.
     pub fn build(self) -> Result<CausalAnalysis, AnalysisError> {
         let data = if let Some((event, interval_ns)) = self.event_pending {
             let aligned = event.align_to_grid(interval_ns).map_err(|e| AnalysisError::Compile {
@@ -674,21 +743,73 @@ impl CausalAnalysisBuilder {
         } else {
             self.data.ok_or(AnalysisError::Missing { field: "data" })?
         };
+
+        let graph = self.graph.ok_or(AnalysisError::Missing { field: "graph" })?;
+        let mut refute = self.refute;
+        let mut bootstrap_replicates = self.bootstrap_replicates;
+        let mut inference = self.inference;
+        let latency_mode = self.latency_mode;
+
+        if let Some(mode) = latency_mode {
+            refuse_non_report_hmc(mode, &inference)?;
+            refuse_discovery_under_interactive(mode, &graph)?;
+            let resolved = ResolvedLatencyBudget::from_mode(mode).with_overrides(self.compute_budget);
+            if !self.bootstrap_explicit {
+                bootstrap_replicates = resolved.bootstrap;
+            } else if let Some(b) = self.compute_budget.bootstrap {
+                bootstrap_replicates = b;
+            }
+            if !self.refute_explicit {
+                refute = resolved.refute;
+            } else if let Some(v) = self.compute_budget.validators {
+                refute = v;
+            }
+            inference = match inference {
+                InferenceMode::Bayesian(cfg) => {
+                    let draws = if self.n_draws_explicit {
+                        self.compute_budget.n_draws.unwrap_or(cfg.n_draws)
+                    } else {
+                        resolved.n_draws
+                    };
+                    InferenceMode::Bayesian(cfg.n_draws(draws))
+                }
+                InferenceMode::Frequentist => InferenceMode::Frequentist,
+            };
+        } else if self.compute_budget.bootstrap.is_some()
+            || self.compute_budget.validators.is_some()
+            || self.compute_budget.n_draws.is_some()
+        {
+            if let Some(b) = self.compute_budget.bootstrap {
+                bootstrap_replicates = b;
+            }
+            if let Some(v) = self.compute_budget.validators {
+                refute = v;
+            }
+            if let Some(n) = self.compute_budget.n_draws {
+                inference = match inference {
+                    InferenceMode::Bayesian(cfg) => InferenceMode::Bayesian(cfg.n_draws(n)),
+                    InferenceMode::Frequentist => InferenceMode::Frequentist,
+                };
+            }
+        }
+
         Ok(CausalAnalysis {
             data,
-            graph: self.graph.ok_or(AnalysisError::Missing { field: "graph" })?,
+            graph,
             query: self.query.ok_or(AnalysisError::Missing { field: "query" })?,
-            refute: self.refute,
-            bootstrap_replicates: self.bootstrap_replicates,
+            refute,
+            bootstrap_replicates,
             split: self.split,
             identifier: self.identifier,
             estimator: self.estimator,
             rd: self.rd,
-            inference: self.inference,
+            inference,
             overlap_policy: self.overlap_policy,
             population_registry: self.population_registry,
             discovery_ci: self.discovery_ci,
             custom_validators: self.custom_validators,
+            latency_mode,
+            stage_sink: self.stage_sink,
         })
     }
 }

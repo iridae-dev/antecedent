@@ -182,6 +182,87 @@ pub struct MonteCarloError {
     pub samples: u64,
 }
 
+/// Adaptive bootstrap early-stop budget (SE relative-change criterion).
+///
+/// After at least [`Self::min_replicates`] successful replicates, stop when
+/// `|SE_t − SE_{t−1}| / max(|SE_{t−1}|, ε₀) < se_rel_epsilon`. Cap remains the
+/// requested replicate count. Disabled runs always evaluate the full request.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AdaptiveBootstrapBudget {
+    /// When false, evaluate all requested replicates (no early-stop).
+    pub enabled: bool,
+    /// Minimum successful replicates before early-stop is eligible.
+    pub min_replicates: u32,
+    /// Relative SE change threshold (default `0.01`).
+    pub se_rel_epsilon: f64,
+}
+
+impl AdaptiveBootstrapBudget {
+    /// Enabled defaults: min 10 replicates, 1% relative SE change.
+    #[must_use]
+    pub const fn enabled_default() -> Self {
+        Self { enabled: true, min_replicates: 10, se_rel_epsilon: 0.01 }
+    }
+
+    /// Force full requested replicate count (tests / exact-N pins).
+    #[must_use]
+    pub const fn disabled() -> Self {
+        Self { enabled: false, min_replicates: 0, se_rel_epsilon: 0.0 }
+    }
+}
+
+impl Default for AdaptiveBootstrapBudget {
+    fn default() -> Self {
+        Self::enabled_default()
+    }
+}
+
+/// Adaptive Bayesian draw budget (Laplace / conjugate path).
+///
+/// Cap by quantile-width relative change and/or ESS target under the latency
+/// `n_draws` maximum. HMC ignores this and always draws the full request.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AdaptiveDrawBudget {
+    /// When false, materialize the full requested draw count.
+    pub enabled: bool,
+    /// Minimum draws before early-stop is eligible.
+    pub min_draws: usize,
+    /// Relative 95% quantile-width change threshold (default `0.01`).
+    pub quantile_width_rel_epsilon: f64,
+    /// Stop when ESS of the effect draws reaches this target (default large).
+    pub ess_target: f64,
+}
+
+impl AdaptiveDrawBudget {
+    /// Enabled defaults: min 32 draws, 1% quantile-width change, high ESS target.
+    #[must_use]
+    pub const fn enabled_default() -> Self {
+        Self {
+            enabled: true,
+            min_draws: 32,
+            quantile_width_rel_epsilon: 0.01,
+            ess_target: 10_000.0,
+        }
+    }
+
+    /// Force full requested draw count.
+    #[must_use]
+    pub const fn disabled() -> Self {
+        Self {
+            enabled: false,
+            min_draws: 0,
+            quantile_width_rel_epsilon: 0.0,
+            ess_target: 0.0,
+        }
+    }
+}
+
+impl Default for AdaptiveDrawBudget {
+    fn default() -> Self {
+        Self::enabled_default()
+    }
+}
+
 /// Cooperative cancellation token.
 #[derive(Clone, Debug, Default)]
 pub struct CancellationToken {
@@ -315,6 +396,10 @@ pub struct ExecutionContext {
     pub kernel_policy: KernelPolicy,
     /// Cache policy.
     pub cache_policy: CachePolicy,
+    /// Adaptive bootstrap early-stop (estimate SE path).
+    pub adaptive_bootstrap: AdaptiveBootstrapBudget,
+    /// Adaptive Bayesian draw early-stop (Laplace / conjugate).
+    pub adaptive_draws: AdaptiveDrawBudget,
 }
 
 impl ExecutionContext {
@@ -339,6 +424,9 @@ impl ExecutionContext {
             progress: None,
             kernel_policy: KernelPolicy::scalar_only(),
             cache_policy: CachePolicy::disabled(),
+            // Exact-N pins in unit tests; enable explicitly for adaptive MC tests.
+            adaptive_bootstrap: AdaptiveBootstrapBudget::disabled(),
+            adaptive_draws: AdaptiveDrawBudget::disabled(),
         }
     }
 
@@ -356,6 +444,8 @@ impl ExecutionContext {
             progress: None,
             kernel_policy: KernelPolicy::default_policy(),
             cache_policy: CachePolicy::enabled(None),
+            adaptive_bootstrap: AdaptiveBootstrapBudget::enabled_default(),
+            adaptive_draws: AdaptiveDrawBudget::enabled_default(),
         }
     }
 }
@@ -371,6 +461,8 @@ impl core::fmt::Debug for ExecutionContext {
             .field("progress_is_some", &self.progress.is_some())
             .field("kernel_policy", &self.kernel_policy)
             .field("cache_policy", &self.cache_policy)
+            .field("adaptive_bootstrap", &self.adaptive_bootstrap)
+            .field("adaptive_draws", &self.adaptive_draws)
             .finish()
     }
 }

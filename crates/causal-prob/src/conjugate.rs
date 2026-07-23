@@ -161,6 +161,7 @@ pub fn fit_conjugate_gaussian(
         draws: posterior,
         map,
         diagnostics: InferenceDiagnostics::analytic("conjugate_gaussian"),
+        cov: None,
     })
 }
 

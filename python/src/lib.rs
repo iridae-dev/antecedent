@@ -9,6 +9,7 @@
     clippy::doc_markdown,
     clippy::needless_pass_by_value,
     clippy::too_many_arguments,
+    clippy::too_many_lines,
     clippy::fn_params_excessive_bools,
     clippy::similar_names,
     clippy::cast_possible_truncation,
@@ -20,6 +21,7 @@ mod callbacks;
 mod design_api;
 mod gcm_api;
 mod graphs;
+mod prepared_api;
 mod prior_bank;
 mod stability;
 mod state_api;
@@ -113,10 +115,11 @@ create_exception!(causal._native, CausalCompileError, CausalError);
 create_exception!(causal._native, CausalResourceError, CausalError);
 create_exception!(causal._native, CausalReviewError, CausalError);
 create_exception!(causal._native, CausalUnsupportedError, CausalError);
+create_exception!(causal._native, CausalCancelledError, CausalError);
 
 /// Parse Python `refute=` — bool or suite name (`"full"` / `"placebo"` / `"none"`).
 /// `None` (omitted kwarg) defaults to PlaceboAndRcc.
-fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<RefuteSuite> {
+pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<RefuteSuite> {
     let Some(obj) = obj else {
         return Ok(RefuteSuite::PlaceboAndRcc);
     };
@@ -126,12 +129,13 @@ fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<RefuteSuite> {
     if let Ok(s) = obj.extract::<String>() {
         return match s.trim().to_ascii_lowercase().as_str() {
             "full" | "validation.full" => Ok(RefuteSuite::Full),
+            "cheap" | "overlap" | "overlap+evalue" | "interactive" => Ok(RefuteSuite::Cheap),
             "placebo" | "placebo_and_rcc" | "placebo+rcc" | "true" | "1" => {
                 Ok(RefuteSuite::PlaceboAndRcc)
             }
             "none" | "off" | "false" | "0" => Ok(RefuteSuite::None),
             other => Err(PyValueError::new_err(format!(
-                "unknown refute={other:?}; use True|False|\"full\"|\"placebo\"|\"none\""
+                "unknown refute={other:?}; use True|False|\"full\"|\"placebo\"|\"cheap\"|\"none\""
             ))),
         };
     }
@@ -229,6 +233,9 @@ impl IntoCausalPyErr for AnalysisError {
             Self::Missing { field } => {
                 CausalCompileError::new_err(format!("missing required field: {field}"))
             }
+            Self::Cancelled { stage } => {
+                CausalCancelledError::new_err(format!("cancelled during {stage}"))
+            }
         }
     }
 }
@@ -283,7 +290,8 @@ struct ArrowLoadInfo {
 
 /// Coarse-grained ATE analysis result (single boundary crossing).
 #[pyclass]
-struct AteAnalysisResult {
+#[allow(clippy::struct_excessive_bools)] // FFI flat getters; effort flags are intentional
+pub(crate) struct AteAnalysisResult {
     #[pyo3(get)]
     ate: f64,
     #[pyo3(get)]
@@ -398,6 +406,22 @@ struct AteAnalysisResult {
     conflict_alphas_applied: Option<Vec<f64>>,
     #[pyo3(get)]
     posterior_unidentified_mass: Option<f64>,
+    #[pyo3(get)]
+    latency_mode: Option<String>,
+    #[pyo3(get)]
+    wall_time_ns: Option<u64>,
+    #[pyo3(get)]
+    bootstrap_replicates_requested: Option<u32>,
+    #[pyo3(get)]
+    bootstrap_replicates_ok: Option<u32>,
+    #[pyo3(get)]
+    n_draws_effort: Option<u32>,
+    #[pyo3(get)]
+    cancelled: bool,
+    #[pyo3(get)]
+    early_stopped: bool,
+    #[pyo3(get)]
+    stage_timings: Vec<(String, u64)>,
 }
 
 /// Decoded posterior artifact for Python consumers .
@@ -625,8 +649,51 @@ fn tabular_from_arrow_c_objs(
     Ok(loaded.data)
 }
 
+/// Default coalition / semantic cache budget for Python production contexts
+/// (matches attribution bench policy).
+pub(crate) const PY_DEFAULT_CACHE_MAX_BYTES: u64 = 4_000_000;
+
 pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
-    ExecutionContext::production(seed, threads)
+    py_execution_context_ext(seed, threads, None, None, Some(PY_DEFAULT_CACHE_MAX_BYTES))
+}
+
+pub(crate) fn py_execution_context_ext(
+    seed: u64,
+    threads: u32,
+    cancel: Option<causal_core::CancellationToken>,
+    progress: Option<std::sync::Arc<dyn causal_core::ProgressSink>>,
+    cache_max_bytes: Option<u64>,
+) -> ExecutionContext {
+    let mut ctx = ExecutionContext::production(seed, threads);
+    ctx.cache_policy = CachePolicy::enabled(cache_max_bytes);
+    if let Some(token) = cancel {
+        ctx.cancellation = token;
+    }
+    ctx.progress = progress;
+    ctx
+}
+
+/// Cooperative cancellation token shared with a running analysis.
+#[pyclass(name = "CancellationToken", from_py_object)]
+#[derive(Clone)]
+pub struct PyCancellationToken {
+    pub(crate) inner: causal_core::CancellationToken,
+}
+
+#[pymethods]
+impl PyCancellationToken {
+    #[new]
+    fn new() -> Self {
+        Self { inner: causal_core::CancellationToken::new() }
+    }
+
+    fn cancel(&self) {
+        self.inner.cancel();
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.inner.is_cancelled()
+    }
 }
 
 fn parse_rd_config<F>(
@@ -674,6 +741,9 @@ fn run_static_ate_from_builder(
     composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
     seed: u64,
     threads: u32,
+    cancel: Option<causal_core::CancellationToken>,
+    progress: Option<std::sync::Arc<dyn causal_core::ProgressSink>>,
+    include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     if let Some(mode) = inference {
         let mut cfg = match mode.to_ascii_lowercase().as_str() {
@@ -689,9 +759,15 @@ fn run_static_ate_from_builder(
             "frequentist" => {
                 builder = builder.inference(InferenceMode::Frequentist);
                 let analysis = builder.build().map_err(py_err)?;
-                let ctx = py_execution_context(seed, threads);
+                let ctx = py_execution_context_ext(
+                    seed,
+                    threads,
+                    cancel.clone(),
+                    progress.clone(),
+                    Some(PY_DEFAULT_CACHE_MAX_BYTES),
+                );
                 let result = analysis.run(&ctx).map_err(py_err)?;
-                return ate_result_from_analysis(names, result);
+                return ate_result_from_analysis(names, result, include_posterior_artifact);
             }
             other => {
                 return Err(PyValueError::new_err(format!(
@@ -707,9 +783,15 @@ fn run_static_ate_from_builder(
         builder = builder.inference(InferenceMode::Bayesian(cfg));
     }
     let analysis = builder.build().map_err(py_err)?;
-    let ctx = py_execution_context(seed, threads);
+    let ctx = py_execution_context_ext(
+        seed,
+        threads,
+        cancel,
+        progress,
+        Some(PY_DEFAULT_CACHE_MAX_BYTES),
+    );
     let result = analysis.run(&ctx).map_err(py_err)?;
-    ate_result_from_analysis(names, result)
+    ate_result_from_analysis(names, result, include_posterior_artifact)
 }
 
 struct PpcFields {
@@ -772,10 +854,17 @@ type PosteriorSummary = (
 
 fn posterior_summary_from_result(
     result: &causal::CausalAnalysisResult,
+    include_artifact: bool,
 ) -> PyResult<PosteriorSummary> {
     if let Some(post) = result.posterior.as_ref() {
         let eq = post.effect_column().unwrap_or(0);
-        let artifact = encode_causal_posterior_bytes(post, "ate-analysis").map_err(py_err)?;
+        let artifact = if include_artifact {
+            Some(
+                encode_causal_posterior_bytes(post, "ate-analysis").map_err(py_err)?,
+            )
+        } else {
+            None
+        };
         let p_below = post.probability_below(0.0).map_err(py_estimate)?;
         Ok((
             Some(post.summaries.mean[eq]),
@@ -785,7 +874,7 @@ fn posterior_summary_from_result(
             Some(post.draws.n_draws),
             Some(p_below),
             Some(post.diagnostics.backend_id.to_string()),
-            Some(artifact),
+            artifact,
         ))
     } else {
         Ok((None, None, None, None, None, None, None, None))
@@ -812,7 +901,7 @@ fn conflict_summary_from_result(result: &causal::CausalAnalysisResult) -> Confli
     if let Some(post) = result.posterior.as_ref() {
         if let Some(cs) = post.conflict_summary.as_ref() {
             return (
-                Some(cs.source_ids.iter().map(|s| s.to_string()).collect()),
+                Some(cs.source_ids.iter().map(std::string::ToString::to_string).collect()),
                 Some(cs.alphas_requested.iter().copied().collect()),
                 Some(cs.alphas_applied.iter().copied().collect()),
             );
@@ -993,6 +1082,11 @@ fn parse_population_registry(
     target_population=None,
     population_predicates=None,
     population_distributions=None,
+    latency=None,
+    cancel=None,
+    on_progress=None,
+    on_stage=None,
+    return_posterior_artifact=false,
 ))]
 fn analyze_ate(
     py: Python<'_>,
@@ -1022,6 +1116,11 @@ fn analyze_ate(
     target_population: Option<Bound<'_, PyDict>>,
     population_predicates: Option<Bound<'_, PyDict>>,
     population_distributions: Option<Bound<'_, PyDict>>,
+    latency: Option<String>,
+    cancel: Option<PyCancellationToken>,
+    on_progress: Option<Bound<'_, PyAny>>,
+    on_stage: Option<Bound<'_, PyAny>>,
+    return_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let pop_spec = parse_target_population(target_population.as_ref())?;
     let registry = parse_population_registry(
@@ -1036,6 +1135,19 @@ fn analyze_ate(
     let composed_prior = match composed_prior {
         Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
         None => None,
+    };
+    let cancel_token = cancel.map(|c| c.inner);
+    let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
+    let stage_sink = callbacks::stage_sink_from_py(on_stage.as_ref())?;
+    let latency_mode = match latency.as_deref() {
+        None => None,
+        Some(s) => Some(
+            causal::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?,
+        ),
     };
     // Drop NumPy borrows before releasing the GIL.
     drop(columns);
@@ -1084,6 +1196,12 @@ fn analyze_ate(
             .refute(suite)
             .custom_validators(custom_validators)
             .bootstrap_replicates(bootstrap);
+        if let Some(mode) = latency_mode {
+            builder = builder.latency_mode(mode);
+        }
+        if let Some(sink) = stage_sink {
+            builder = builder.stage_sink(sink);
+        }
         if let Some(reg) = registry {
             builder = builder.population_registry(reg);
         }
@@ -1108,6 +1226,9 @@ fn analyze_ate(
             composed_prior,
             seed,
             threads,
+            cancel_token,
+            progress,
+            return_posterior_artifact,
         )
     })
 }
@@ -1129,6 +1250,8 @@ fn analyze_ate(
     n_draws=1000,
     prior_scale=10.0,
     prior_artifact=None,
+    prior_mapping=None,
+    composed_prior=None,
     refute=None,
     validators=None,
     running_variable=None,
@@ -1136,7 +1259,11 @@ fn analyze_ate(
     bandwidth=None,
     seed=1,
     bootstrap=50,
-    threads=1
+    threads=1,
+    latency=None,
+    cancel=None,
+    on_progress=None,
+    return_posterior_artifact=false,
 ))]
 fn analyze_ate_arrow_c(
     py: Python<'_>,
@@ -1153,6 +1280,8 @@ fn analyze_ate_arrow_c(
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
+    prior_mapping: Option<&Bound<'_, PyDict>>,
+    composed_prior: Option<&Bound<'_, PyDict>>,
     refute: Option<Bound<'_, PyAny>>,
     validators: Option<Bound<'_, PyAny>>,
     running_variable: Option<String>,
@@ -1161,11 +1290,32 @@ fn analyze_ate_arrow_c(
     seed: u64,
     bootstrap: u32,
     threads: u32,
+    latency: Option<String>,
+    cancel: Option<PyCancellationToken>,
+    on_progress: Option<Bound<'_, PyAny>>,
+    return_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let data = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let prior_mapping = parse_prior_mapping(prior_mapping)?;
+    let composed_prior = match composed_prior {
+        Some(d) => Some(crate::prior_bank::owned_composed_prior_from_dict(d)?),
+        None => None,
+    };
+    let cancel_token = cancel.map(|c| c.inner);
+    let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
+    let latency_mode = match latency.as_deref() {
+        None => None,
+        Some(s) => Some(
+            causal::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?,
+        ),
+    };
 
     detach_catch(py, move || {
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -1206,6 +1356,9 @@ fn analyze_ate_arrow_c(
             .refute(suite)
             .custom_validators(custom_validators)
             .bootstrap_replicates(bootstrap);
+        if let Some(mode) = latency_mode {
+            builder = builder.latency_mode(mode);
+        }
         if let Some(id) = identifier {
             builder = builder.identifier(id);
         }
@@ -1223,11 +1376,105 @@ fn analyze_ate_arrow_c(
             n_draws,
             prior_scale,
             prior_artifact.as_deref(),
-            None,
-            None,
+            prior_mapping,
+            composed_prior,
             seed,
             threads,
+            cancel_token,
+            progress,
+            return_posterior_artifact,
         )
+    })
+}
+
+/// Batch static ATE: one table ingest, N average-effect queries.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    edges,
+    queries,
+    *,
+    identifier=None,
+    estimator=None,
+    refute=None,
+    seed=1,
+    bootstrap=50,
+    threads=1,
+    latency=None,
+))]
+fn analyze_ate_many(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    queries: Vec<(String, String, f64, f64)>,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
+    bootstrap: u32,
+    threads: u32,
+    latency: Option<String>,
+) -> PyResult<Vec<AteAnalysisResult>> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let suite = suite_from_refute(refute.as_ref())?;
+    let latency_mode = match latency.as_deref() {
+        None => None,
+        Some(s) => Some(
+            causal::LatencyMode::parse(s).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "unknown latency={s:?}; use interactive|standard|report"
+                ))
+            })?,
+        ),
+    };
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let n_vars = u32::try_from(data.schema().len())
+            .map_err(|_| PyValueError::new_err("too many variables"))?;
+        let mut dag = Dag::with_variables(n_vars);
+        for (from, to) in &edges {
+            let from_id = data
+                .schema()
+                .id_of(from)
+                .map_err(|e| CausalDataError::new_err(format!("edge from: {e}")))?;
+            let to_id = data
+                .schema()
+                .id_of(to)
+                .map_err(|e| CausalDataError::new_err(format!("edge to: {e}")))?;
+            dag.insert_directed(
+                DenseNodeId::from_raw(from_id.raw()),
+                DenseNodeId::from_raw(to_id.raw()),
+            )
+            .map_err(py_err)?;
+        }
+        let mut ate_queries = Vec::with_capacity(queries.len());
+        for (treatment, outcome, control, active) in &queries {
+            let t_id = data.schema().id_of(treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(outcome).map_err(py_err)?;
+            ate_queries.push(AverageEffectQuery::with_levels(t_id, y_id, *control, *active));
+        }
+        let mut batch = causal::BatchAnalysis::new(data, dag)
+            .bootstrap_replicates(bootstrap)
+            .refute(suite);
+        if let Some(mode) = latency_mode {
+            batch = batch.latency_mode(mode);
+        }
+        if let Some(id) = identifier {
+            batch = batch.identifier(id);
+        }
+        if let Some(est) = estimator {
+            batch = batch.estimator(est);
+        }
+        let ctx = py_execution_context(seed, threads);
+        let results = batch.estimate_many(&ate_queries, &ctx).map_err(py_err)?;
+        results
+            .into_iter()
+            .map(|r| ate_result_from_analysis(&names, r, false))
+            .collect()
     })
 }
 
@@ -1301,6 +1548,9 @@ fn run_ate_with_graph_input(
         None,
         seed,
         threads,
+        None,
+        None,
+        false,
     )
 }
 
@@ -1687,6 +1937,9 @@ fn analyze_ate_discover(
             None,
             seed,
             threads,
+            None,
+            None,
+            false,
         )
     })
 }
@@ -1768,7 +2021,7 @@ fn analyze_distribution(
             .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
-        ate_result_from_analysis(&names, result)
+        ate_result_from_analysis(&names, result, false)
     })
 }
 
@@ -1838,13 +2091,14 @@ fn analyze_path_specific(
             .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
-        ate_result_from_analysis(&names, result)
+        ate_result_from_analysis(&names, result, false)
     })
 }
 
-fn ate_result_from_analysis(
+pub(crate) fn ate_result_from_analysis(
     names: &[String],
     result: causal::CausalAnalysisResult,
+    include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let adjustment_set: Vec<String> = result
         .estimand
@@ -1873,7 +2127,7 @@ fn ate_result_from_analysis(
         posterior_p_below_zero,
         posterior_backend,
         posterior_artifact,
-    ) = posterior_summary_from_result(&result)?;
+    ) = posterior_summary_from_result(&result, include_posterior_artifact)?;
     let ppc = ppc_fields_from_checks(&result.predictive_checks);
     let (
         prior_sensitivity_scales,
@@ -1938,6 +2192,22 @@ fn ate_result_from_analysis(
         conflict_alphas_requested,
         conflict_alphas_applied,
         posterior_unidentified_mass,
+        latency_mode: result.performance.latency_mode.as_ref().map(std::string::ToString::to_string),
+        wall_time_ns: result.performance.wall_time_ns,
+        bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
+        bootstrap_replicates_ok: result
+            .performance
+            .bootstrap_replicates_ok
+            .or(result.estimate.bootstrap_replicates_ok),
+        n_draws_effort: result.performance.n_draws,
+        cancelled: result.performance.cancelled || result.estimate.bootstrap_cancelled,
+        early_stopped: result.performance.early_stopped,
+        stage_timings: result
+            .performance
+            .stage_timings_ns
+            .iter()
+            .map(|(s, ns)| (s.to_string(), *ns))
+            .collect(),
     })
 }
 
@@ -4075,8 +4345,7 @@ fn attribute_distribution_change(
         .with_allocation(AllocationMethod::Shapley {
             approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
         });
-        let mut ctx = py_execution_context(seed, threads);
-        ctx.cache_policy = CachePolicy::enabled(Some(4_000_000));
+        let ctx = py_execution_context(seed, threads);
         let opts = DistributionChangeOptions {
             measure: DifferenceMeasure::MeanDiff,
             n_samples: n_samples.max(100),
@@ -4146,8 +4415,7 @@ fn attribute_structure_change(
         .with_allocation(AllocationMethod::Shapley {
             approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
         });
-        let mut ctx = py_execution_context(seed, threads);
-        ctx.cache_policy = CachePolicy::enabled(Some(4_000_000));
+        let ctx = py_execution_context(seed, threads);
         let opts = StructureChangeOptions {
             measure: DifferenceMeasure::MeanDiff,
             n_samples: n_samples.max(100),
@@ -5061,7 +5329,7 @@ fn analysis_result_from_run(
         posterior_unidentified_mass,
     ) = if let Some(post) = result.posterior.as_ref() {
         let eq = post.effect_column().unwrap_or(0);
-        let artifact = encode_causal_posterior_bytes(post, "temporal-analysis").map_err(py_err)?;
+        let artifact = None;
         let p_below = post.probability_below(0.0).map_err(py_estimate)?;
         (
             Some(post.summaries.mean[eq]),
@@ -5071,7 +5339,7 @@ fn analysis_result_from_run(
             Some(post.draws.n_draws),
             Some(p_below),
             Some(post.diagnostics.backend_id.to_string()),
-            Some(artifact),
+            artifact,
             Some(post.unidentified_mass),
         )
     } else {
@@ -5516,7 +5784,7 @@ fn analyze_conditional(
             .map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
-        ate_result_from_analysis(&names, result)
+        ate_result_from_analysis(&names, result, false)
     })
 }
 
@@ -5598,6 +5866,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_native_classes(m)?;
     gcm_api::register(m)?;
     state_api::register(m)?;
+    prepared_api::register(m)?;
     bayesian::register(m)?;
     stability::register(m)?;
     prior_bank::register(m)?;
@@ -5623,6 +5892,7 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CausalResourceError", m.py().get_type::<CausalResourceError>())?;
     m.add("CausalReviewError", m.py().get_type::<CausalReviewError>())?;
     m.add("CausalUnsupportedError", m.py().get_type::<CausalUnsupportedError>())?;
+    m.add("CausalCancelledError", m.py().get_type::<CausalCancelledError>())?;
     Ok(())
 }
 
@@ -5634,6 +5904,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate_cpdag, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_admg, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_arrow_c, m)?)?;
+    m.add_function(wrap_pyfunction!(analyze_ate_many, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_ate_discover, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_path_specific, m)?)?;
@@ -5692,6 +5963,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
 fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
+    m.add_class::<PyCancellationToken>()?;
     m.add_class::<PosteriorArtifact>()?;
     m.add_class::<AnalysisResult>()?;
     m.add_class::<DiscoveredLink>()?;

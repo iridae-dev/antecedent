@@ -61,6 +61,10 @@ pub struct InterventionalDistributionEstimate {
     pub bootstrap_replicates_ok: Option<u32>,
     /// Soft-failed bootstrap replicates.
     pub bootstrap_replicates_failed: Option<u32>,
+    /// Bootstrap loop observed cooperative cancellation.
+    pub bootstrap_cancelled: bool,
+    /// Adaptive bootstrap early-stop.
+    pub bootstrap_early_stopped: bool,
     /// Assumptions carried from identification.
     pub assumptions: AssumptionSet,
     /// Overlap policy recorded on the artifact.
@@ -249,6 +253,8 @@ impl FunctionalDistribution {
         out.se_bootstrap = boot.se;
         out.bootstrap_replicates_ok = Some(boot.replicates_ok);
         out.bootstrap_replicates_failed = Some(boot.replicates_failed);
+        out.bootstrap_cancelled = boot.cancelled;
+        out.bootstrap_early_stopped = boot.early_stopped;
         Ok(out)
     }
 
@@ -352,6 +358,8 @@ impl FunctionalDistribution {
             se_bootstrap: None,
             bootstrap_replicates_ok: None,
             bootstrap_replicates_failed: None,
+            bootstrap_cancelled: false,
+            bootstrap_early_stopped: false,
             assumptions: prepared.assumptions.clone(),
             overlap: self.overlap,
             retained_memory_bytes: None,
@@ -493,6 +501,8 @@ impl FunctionalEffect {
             } else {
                 Some(boot.replicates_failed)
             },
+            bootstrap_cancelled: boot.cancelled,
+            bootstrap_early_stopped: boot.early_stopped,
             assumptions: prepared.assumptions.clone(),
             overlap: self.overlap,
             overlap_report: None,

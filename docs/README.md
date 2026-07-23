@@ -10,7 +10,6 @@
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
 
-Open composition work beyond inventories: [BACKLOG.md](../BACKLOG.md).
 Decisions: [adr/](../adr/README.md).
 
 Regenerate conformance docs:

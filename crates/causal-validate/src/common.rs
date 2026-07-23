@@ -383,6 +383,7 @@ pub(crate) fn fit_diagnostic_propensity(
     problem: &RefutationProblem<'_>,
     glm_options: &GlmOptions,
     include_outcome_in_mask: bool,
+    propensity: &mut PropensityWorkspace,
 ) -> Result<DiagnosticPropensityColumns, ValidationError> {
     let mut ids = vec![problem.treatment()];
     if include_outcome_in_mask {
@@ -416,14 +417,13 @@ pub(crate) fn fit_diagnostic_propensity(
         design[base..base + nrows].copy_from_slice(&col);
     }
     let backend = FaerBackend;
-    let mut ws = PropensityWorkspace::default();
     let fit: PropensityFit = fit_propensity_diagnostic(
         &design,
         nrows,
         ncols,
         &treatment,
         &backend,
-        &mut ws,
+        propensity,
         glm_options,
     )
     .map_err(ValidationError::from)?;
@@ -436,7 +436,18 @@ pub(crate) fn diagnostic_overlap_report(
     glm_options: &GlmOptions,
     policy: OverlapPolicy,
 ) -> Result<OverlapReport, ValidationError> {
-    let cols = fit_diagnostic_propensity(problem, glm_options, false)?;
+    let mut ws = PropensityWorkspace::default();
+    diagnostic_overlap_report_with(problem, glm_options, policy, &mut ws)
+}
+
+/// Like [`diagnostic_overlap_report`], reusing a warmed propensity workspace.
+pub(crate) fn diagnostic_overlap_report_with(
+    problem: &RefutationProblem<'_>,
+    glm_options: &GlmOptions,
+    policy: OverlapPolicy,
+    propensity: &mut PropensityWorkspace,
+) -> Result<OverlapReport, ValidationError> {
+    let cols = fit_diagnostic_propensity(problem, glm_options, false, propensity)?;
     // ATE IPW weights so ESS / extreme-weight fields are defined for the overlap refuter.
     let weights: Vec<f64> = cols
         .treatment

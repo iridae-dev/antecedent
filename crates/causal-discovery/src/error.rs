@@ -37,6 +37,9 @@ pub enum DiscoveryError {
     /// Resource / memory budget exceeded.
     #[error("resource: {0}")]
     Resource(String),
+    /// Cooperative cancellation.
+    #[error("cancelled")]
+    Cancelled,
 }
 
 impl DiscoveryError {

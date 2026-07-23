@@ -135,6 +135,7 @@ pub fn aggregate_effect_envelope(
         diagnostics,
         assumptions: causal_core::AssumptionSet::new(),
         unidentified_mass: retained_unidentified,
+        early_stopped: false,
     })
 }
 
@@ -200,5 +201,67 @@ mod tests {
         assert_eq!(env.identification, IdentificationStatus::NonparametricallyIdentified);
         // (0.5*1 + 0.2*3) / 0.7 = 1.1/0.7
         assert!((env.summaries.mean[0] - 1.1 / 0.7).abs() < 1e-12);
+    }
+
+    #[test]
+    fn interactive_subsample_mass_accounting_honest() {
+        use causal_core::CausalRng;
+
+        let graphs = WeightedGraphSamples::new(
+            vec![0.2, 0.2, 0.2, 0.2, 0.2],
+            vec![
+                GraphIdentFlag::Identified,
+                GraphIdentFlag::Identified,
+                GraphIdentFlag::Identified,
+                GraphIdentFlag::Identified,
+                GraphIdentFlag::Unidentified,
+            ],
+            vec![1, 2, 3, 4, 5],
+        )
+        .unwrap();
+        let per_full: Vec<GraphEffectDraws> = [1u64, 2, 3, 4]
+            .into_iter()
+            .map(|k| GraphEffectDraws {
+                graph_key: k,
+                effect_draws: Arc::from(vec![k as f64; 4]),
+            })
+            .collect();
+        let full = aggregate_effect_envelope(
+            &graphs,
+            &per_full,
+            InferenceDiagnostics::analytic("full"),
+            EnvelopeOptions::default(),
+        )
+        .unwrap();
+        assert!((full.unidentified_mass - 0.2).abs() < 1e-12);
+
+        let mut rng = CausalRng::from_seed(3);
+        let sub = graphs.stratified_interactive_subsample(2, &mut rng).unwrap();
+        assert!(sub.approximate);
+        let keep: std::collections::HashSet<u64> = sub
+            .graphs
+            .graph_keys
+            .iter()
+            .zip(sub.graphs.identified.iter())
+            .filter(|(_, f)| **f == GraphIdentFlag::Identified)
+            .map(|(k, _)| *k)
+            .collect();
+        let per_sub: Vec<_> =
+            per_full.into_iter().filter(|g| keep.contains(&g.graph_key)).collect();
+        let approx = aggregate_effect_envelope(
+            &sub.graphs,
+            &per_sub,
+            InferenceDiagnostics::analytic("approx"),
+            EnvelopeOptions::default(),
+        )
+        .unwrap();
+        // Mass honesty: unidentified = original UID + leftover identified, / total.
+        let expected_uid =
+            (graphs.unidentified_mass() + sub.leftover_identified_mass) / graphs.total_weight();
+        let mass_err = (approx.unidentified_mass - expected_uid).abs();
+        assert!(mass_err < 1e-12);
+        assert!(approx.unidentified_mass > full.unidentified_mass);
+        // Mean is E[τ | identified-in-subset], not silently the full mixture.
+        assert!(approx.summaries.mean[0].is_finite());
     }
 }

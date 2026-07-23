@@ -9,12 +9,15 @@ from ._data import as_columns, as_multi_env_columns, try_as_arrow_c_columns
 from ._native import (
     AnalysisResult as TemporalAnalysisResult,
     AteAnalysisResult,
+    CausalUnsupportedError,
+    PreparedAnalysis as _NativePreparedAnalysis,
     analyze as _analyze_temporal,
     analyze_ate as _analyze_ate,
     analyze_ate_admg as _analyze_ate_admg,
     analyze_ate_arrow_c as _analyze_ate_arrow_c,
     analyze_ate_cpdag as _analyze_ate_cpdag,
     analyze_ate_discover as _analyze_ate_discover,
+    analyze_ate_many as _analyze_ate_many,
     analyze_ate_pag as _analyze_ate_pag,
     analyze_conditional as _analyze_conditional,
     analyze_distribution as _analyze_distribution,
@@ -170,6 +173,14 @@ class PerformanceView:
     plan_id: str | None = None
     modality: str | None = None
     peak_memory_bytes: int | None = None
+    latency_mode: str | None = None
+    wall_time_ns: int | None = None
+    bootstrap_replicates_requested: int | None = None
+    bootstrap_replicates_ok: int | None = None
+    n_draws: int | None = None
+    cancelled: bool = False
+    early_stopped: bool = False
+    stage_timings: dict[str, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -185,13 +196,52 @@ class AnalysisResult:
     provenance: dict[str, Any]
     mediation: MediationView | None = None
     _raw: Any = None
+    _prepared: Any = None
 
     @property
     def ate(self) -> float:
         return self.estimate.ate
 
+    def refresh(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AnalysisResult:
+        """Re-estimate on new data via the retained prepared handle.
 
-def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
+        Only results from :meth:`PreparedAnalysis.estimate` / ``refresh`` support
+        this. One-shot :func:`analyze` results raise ``TypeError``.
+        """
+        if self._prepared is None:
+            raise TypeError(
+                "AnalysisResult.refresh requires a result from PreparedAnalysis; "
+                "use PreparedAnalysis.prepare(...) then estimate/refresh"
+            )
+        return self._prepared.estimate(data, seed=seed, threads=threads)
+
+    def refute(
+        self,
+        data: Mapping[str, Any] | Any,
+        suite: Literal["placebo", "full", "cheap"] | bool | str = "placebo",
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        cancel: Any | None = None,
+    ) -> AnalysisResult:
+        """Second-click refute via the retained prepared handle."""
+        if self._prepared is None:
+            raise TypeError(
+                "AnalysisResult.refute requires a result from PreparedAnalysis; "
+                "use PreparedAnalysis.prepare(...) then estimate"
+            )
+        return self._prepared.refute(
+            data, suite, seed=seed, threads=threads, cancel=cancel
+        )
+
+
+def _wrap_ate(raw: AteAnalysisResult, prepared: Any | None = None) -> AnalysisResult:
     def _conflict_from_raw(r: AteAnalysisResult) -> ConflictSummaryView | None:
         ids = getattr(r, "conflict_source_ids", None)
         if ids is None:
@@ -290,11 +340,55 @@ def _wrap_ate(raw: AteAnalysisResult) -> AnalysisResult:
             plan_id=raw.plan_id,
             modality=raw.modality,
             peak_memory_bytes=raw.peak_memory_bytes,
+            latency_mode=getattr(raw, "latency_mode", None),
+            wall_time_ns=getattr(raw, "wall_time_ns", None),
+            bootstrap_replicates_requested=getattr(
+                raw, "bootstrap_replicates_requested", None
+            ),
+            bootstrap_replicates_ok=getattr(raw, "bootstrap_replicates_ok", None),
+            n_draws=getattr(raw, "n_draws_effort", None),
+            cancelled=bool(getattr(raw, "cancelled", False)),
+            early_stopped=bool(getattr(raw, "early_stopped", False)),
+            stage_timings={
+                str(k): int(v) for k, v in (getattr(raw, "stage_timings", None) or [])
+            }
+            or None,
         ),
         diagnostics=list(raw.diagnostics),
         provenance={"node_count": raw.provenance_node_count},
         _raw=raw,
+        _prepared=prepared,
     )
+
+
+def _resolve_latency_budget(
+    latency: Literal["interactive", "standard", "report"] | None,
+    bootstrap: int | None,
+    refute: bool | Literal["full", "placebo", "none", "cheap"],
+) -> tuple[int, bool | Literal["full", "placebo", "none", "cheap"]]:
+    """Map latency tier to bootstrap/refute; explicit bootstrap wins when set."""
+    if latency is None:
+        return (50 if bootstrap is None else bootstrap, refute)
+    key = latency.strip().lower()
+    if key == "interactive":
+        mapped_boot, mapped_refute = 0, "cheap"
+    elif key == "standard":
+        mapped_boot, mapped_refute = 50, True
+    elif key == "report":
+        mapped_boot, mapped_refute = 200, "full"
+    else:
+        raise ValueError(
+            f"unknown latency={latency!r}; use interactive|standard|report"
+        )
+    # refute default True means "use mode mapping" when latency is set unless
+    # the caller chose a non-default refute value.
+    out_refute: bool | Literal["full", "placebo", "none", "cheap"]
+    if refute is True:
+        out_refute = mapped_refute  # type: ignore[assignment]
+    else:
+        out_refute = refute
+    out_boot = mapped_boot if bootstrap is None else bootstrap
+    return out_boot, out_refute
 
 
 _STATIC_DISCOVERY = (PC, GES, LiNGAM, NOTEARS, FCI, RFCI)
@@ -724,6 +818,55 @@ def _resolve_static_discovery_edges(data, discovery, accept_discovered: bool, se
     raise TypeError(f"unsupported discovery type for path/distribution: {type(discovery)!r}")
 
 
+def analyze_many(
+    data: Mapping[str, Any] | Any,
+    *,
+    graph: Dag | Sequence[tuple[str, str]],
+    queries: Sequence[AverageEffect],
+    identifier: str | None = None,
+    estimator: str | None = None,
+    refute: bool | Literal["full", "placebo", "none", "cheap"] = True,
+    seed: int = 1,
+    bootstrap: int | None = None,
+    threads: int = 1,
+    latency: Literal["interactive", "standard", "report"] | None = None,
+) -> list[AnalysisResult]:
+    """Estimate many average effects on one shared table ingest.
+
+    Parameters
+    ----------
+    data:
+        Column mapping / DataFrame (ingested once).
+    graph:
+        Static DAG or edge list shared by every query.
+    queries:
+        Non-empty sequence of ``AverageEffect`` queries.
+    """
+    if not queries:
+        raise ValueError("analyze_many requires at least one query")
+    if not all(isinstance(q, AverageEffect) for q in queries):
+        raise TypeError("analyze_many currently supports AverageEffect queries only")
+    bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+    names, columns = as_columns(data)  # type: ignore[arg-type]
+    edges = _static_edges(graph)  # type: ignore[arg-type]
+    specs = [
+        (q.treatment, q.outcome, float(q.control_level), float(q.active_level))
+        for q in queries
+    ]
+    kwargs: dict[str, Any] = dict(
+        identifier=identifier,
+        estimator=estimator,
+        refute=refute,
+        seed=seed,
+        bootstrap=bootstrap,
+        threads=threads,
+    )
+    if latency is not None:
+        kwargs["latency"] = latency
+    raws = _analyze_ate_many(names, columns, edges, specs, **kwargs)
+    return [_wrap_ate(r) for r in raws]
+
+
 def analyze(
     data: Mapping[str, Any] | Any | Sequence[Mapping[str, Any] | Any],
     *,
@@ -752,17 +895,22 @@ def analyze(
     inference: Frequentist | Bayesian | None = None,
     identifier: str | None = None,
     estimator: str | None = None,
-    refute: bool | Literal["full", "placebo", "none"] = True,
+    refute: bool | Literal["full", "placebo", "none", "cheap"] = True,
     validators: Sequence[Any] | None = None,
     accept_discovered: bool = True,
     seed: int = 1,
-    bootstrap: int = 50,
+    bootstrap: int | None = None,
     threads: int = 1,
     regimes: Sequence[int] | None = None,
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
     population_registry: Any | None = None,
+    latency: Literal["interactive", "standard", "report"] | None = None,
+    cancel: Any | None = None,
+    on_progress: Any | None = None,
+    on_stage: Any | None = None,
+    return_posterior_artifact: bool = False,
 ) -> AnalysisResult:
     """Identify then estimate a causal effect.
 
@@ -787,8 +935,38 @@ def analyze(
     discovery:
         Static: ``PC`` / ``GES`` / ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI``.
         Temporal: ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``.
+        One-shot script convenience — discovery runs at compile time. For
+        interactive / spreadsheet estimate clicks, discover once into
+        :class:`causal.AcceptedGraph` (or hold a reviewed graph) and pass
+        ``graph=`` with ``latency="interactive"`` instead. Combining
+        ``discovery=`` with ``latency="interactive"`` raises
+        :class:`CausalUnsupportedError`.
+    latency:
+        Optional compute tier (``interactive`` / ``standard`` / ``report``).
+        Maps to known-equivalent bootstrap / refute / draws; explicit
+        ``bootstrap=`` / ``refute=`` always win. Interactive refuses inline
+        ``discovery=`` (artifact-first UX).
+    cancel:
+        Optional ``CancellationToken`` from ``causal._native``.
+    on_progress:
+        Optional ``(fraction: float, stage: str) -> None`` callback.
+    on_stage:
+        Optional ``(stage: str, payload: dict) -> None`` progressive stage
+        callback (identify → estimate_point → uncertainty → validate).
+    return_posterior_artifact:
+        When ``True`` and inference is Bayesian, attach full posterior draw
+        bytes on ``result.posterior.artifact`` (for download / sequential-prior
+        hydrate). Default ``False``: UI summaries only.
     """
     inference = inference or Frequentist()
+    bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+
+    if discovery is not None and latency == "interactive":
+        raise CausalUnsupportedError(
+            "discovery= is not on the interactive estimate path; "
+            "call discover_* once, accept into AcceptedGraph, then "
+            "analyze(graph=..., latency='interactive')"
+        )
 
     if isinstance(query, ConditionalEffect):
         if isinstance(inference, Bayesian):
@@ -974,6 +1152,16 @@ def analyze(
             threads=threads,
             **bayes_kw,
         )
+        if return_posterior_artifact:
+            common["return_posterior_artifact"] = True
+        if latency is not None:
+            common["latency"] = latency
+        if cancel is not None:
+            common["cancel"] = cancel
+        if on_progress is not None:
+            common["on_progress"] = on_progress
+        if on_stage is not None:
+            common["on_stage"] = on_stage
         from .population import coerce_target_population, registry_wire
 
         pop = coerce_target_population(
@@ -1004,7 +1192,10 @@ def analyze(
         edges = _static_edges(graph)  # type: ignore[arg-type]
         arrow = try_as_arrow_c_columns(data)
         ate_kwargs = dict(edges=edges, **common, **pop_kw)
-        if arrow is not None and not pop_kw:
+        # Prefer Arrow CDI (zero-copy float64) when available. Population kwargs
+        # still require the NumPy path until that surface is wired on CDI.
+        use_arrow = arrow is not None and not pop_kw
+        if use_arrow:
             names, columns = arrow
             raw = _analyze_ate_arrow_c(names, columns, **ate_kwargs)
         else:
@@ -1376,6 +1567,114 @@ def analyze(
     raise TypeError(f"unsupported query type: {type(query)!r}")
 
 
+class PreparedAnalysis:
+    """Compile-once / re-estimate-many handle for static AverageEffect on a DAG.
+
+    Use for interactive sessions: prepare with a fixed graph/query/estimator,
+    then call :meth:`estimate` or :meth:`refresh` when the table changes
+    (same schema). Prefer this over fresh :func:`analyze` on every click.
+    For streaming append + incremental OLS, use :class:`causal.CausalState`.
+    """
+
+    def __init__(self, native: Any) -> None:
+        self._native = native
+
+    @classmethod
+    def prepare(
+        cls,
+        data: Mapping[str, Any] | Any,
+        *,
+        query: AverageEffect,
+        graph: Dag | Sequence[tuple[str, str]],
+        inference: Frequentist | Bayesian | None = None,
+        identifier: str | None = None,
+        estimator: str | None = None,
+        refute: bool | Literal["full", "placebo", "none", "cheap"] = False,
+        seed: int = 1,
+        bootstrap: int | None = None,
+        threads: int = 1,
+        latency: Literal["interactive", "standard", "report"] | None = "interactive",
+    ) -> PreparedAnalysis:
+        """Compile a durable plan for static ATE on a supplied DAG."""
+        if not isinstance(query, AverageEffect):
+            raise TypeError("PreparedAnalysis supports AverageEffect only")
+        inference = inference or Frequentist()
+        bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+        names, columns = as_columns(data)  # type: ignore[arg-type]
+        edges = _static_edges(graph)  # type: ignore[arg-type]
+        bayes_kw: dict[str, Any] = {}
+        if isinstance(inference, Bayesian):
+            bayes_kw = _bayesian_inference_kwargs(inference)
+            inference_mode = str(bayes_kw.pop("inference"))
+        else:
+            inference_mode = "frequentist"
+        native = _NativePreparedAnalysis.prepare(
+            names,
+            columns,
+            edges,
+            query.treatment,
+            query.outcome,
+            control_level=query.control_level,
+            active_level=query.active_level,
+            identifier=identifier,
+            estimator=estimator,
+            inference=inference_mode,
+            n_draws=int(bayes_kw.get("n_draws", 1000)),
+            prior_scale=float(bayes_kw.get("prior_scale", 10.0)),
+            refute=refute,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+            latency=latency,
+        )
+        return cls(native)
+
+    def estimate(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AnalysisResult:
+        """Re-estimate without recompiling (same schema as prepare)."""
+        names, columns = as_columns(data)  # type: ignore[arg-type]
+        raw = self._native.estimate(names, columns, seed=seed, threads=threads)
+        return _wrap_ate(raw, prepared=self)
+
+    def refresh(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AnalysisResult:
+        """Replace retained data and re-estimate."""
+        names, columns = as_columns(data)  # type: ignore[arg-type]
+        raw = self._native.refresh(names, columns, seed=seed, threads=threads)
+        return _wrap_ate(raw, prepared=self)
+
+    def refute(
+        self,
+        data: Mapping[str, Any] | Any,
+        suite: Literal["placebo", "full", "cheap"] | bool | str = "placebo",
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        cancel: Any | None = None,
+    ) -> AnalysisResult:
+        """Second-click refute against the last :meth:`estimate` / :meth:`refresh`.
+
+        Interactive first clicks typically use ``refute=False`` or ``cheap``;
+        call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
+        """
+        names, columns = as_columns(data)  # type: ignore[arg-type]
+        kwargs: dict[str, Any] = dict(seed=seed, threads=threads)
+        if cancel is not None:
+            kwargs["cancel"] = cancel
+        raw = self._native.refute(names, columns, suite, **kwargs)
+        return _wrap_ate(raw, prepared=self)
+
+
 __all__ = [
     "AnalysisResult",
     "AteAnalysisResult",
@@ -1387,8 +1686,10 @@ __all__ = [
     "PerformanceView",
     "PosteriorView",
     "PredictiveCheckReport",
+    "PreparedAnalysis",
     "PriorSensitivityReport",
     "TemporalAnalysisResult",
     "ValidationView",
     "analyze",
+    "analyze_many",
 ]

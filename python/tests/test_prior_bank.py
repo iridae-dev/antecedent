@@ -61,6 +61,7 @@ def test_catalog_filter_accept_reject_partial():
         inference=causal.Bayesian(n_draws=48),
         refute=False,
         seed=11,
+        return_posterior_artifact=True,
     )
     assert result.posterior is not None
     artifact = bytes(result.posterior.artifact)
@@ -136,6 +137,8 @@ def test_effect_prior_transfer_shrinks_toward_source():
         inference=causal.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
         refute=False,
         seed=3,
+    
+        return_posterior_artifact=True,
     )
     assert source.posterior is not None
     artifact = bytes(source.posterior.artifact)
@@ -156,6 +159,8 @@ def test_effect_prior_transfer_shrinks_toward_source():
         inference=causal.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
         refute=False,
         seed=5,
+    
+        return_posterior_artifact=True,
     )
     assert baseline.posterior is not None
     baseline_mean = float(baseline.posterior.effect_mean)
@@ -172,6 +177,8 @@ def test_effect_prior_transfer_shrinks_toward_source():
         ),
         refute=False,
         seed=5,
+    
+        return_posterior_artifact=True,
     )
     assert mapped.posterior is not None
     mapped_mean = float(mapped.posterior.effect_mean)
@@ -191,6 +198,8 @@ def test_effect_prior_transfer_shrinks_toward_source():
         ),
         refute=False,
         seed=5,
+    
+        return_posterior_artifact=True,
     )
     assert auto.posterior is not None
     auto_mean = float(auto.posterior.effect_mean)
@@ -209,7 +218,9 @@ def test_effect_prior_transfer_shrinks_toward_source():
             ),
             refute=False,
             seed=5,
-        )
+        
+        return_posterior_artifact=True,
+    )
 
 
 def test_compose_weight_and_conflict():
@@ -293,6 +304,8 @@ def test_compose_weight_and_conflict():
         ),
         refute=False,
         seed=7,
+    
+        return_posterior_artifact=True,
     )
     assert result.posterior is not None
     assert composed2.alphas_applied[0] == 1.0
@@ -436,6 +449,8 @@ def test_alpha_prior_sensitivity_on_composed_prior():
         ),
         refute="full",
         seed=31,
+    
+        return_posterior_artifact=True,
     )
     assert result.posterior is not None
     sens = result.validation.prior_sensitivity

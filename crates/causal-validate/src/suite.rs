@@ -181,6 +181,12 @@ impl ValidationSuite {
         Self::new().with(ValidatorId::Placebo).with(ValidatorId::RandomCommonCause)
     }
 
+    /// Cheap interactive validators: overlap / positivity + E-value only.
+    #[must_use]
+    pub fn overlap_and_evalue() -> Self {
+        Self::new().with(ValidatorId::Overlap).with(ValidatorId::EValue)
+    }
+
     /// Full effect-validation set.
     #[must_use]
     pub fn full_effect() -> Self {
@@ -215,6 +221,35 @@ impl ValidationSuite {
         let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
         for &id in &self.validators {
             out.push(self.run_one(id, problem, workspace, ctx)?);
+        }
+        for custom in &self.custom {
+            out.push(ValidationOutcome::Report(custom.validate(problem, ctx)?));
+        }
+        Ok(out)
+    }
+
+    /// Like [`Self::run`], reusing a warmed propensity workspace for overlap diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Propagates hard failures from applicable validators.
+    pub fn run_with_propensity(
+        &self,
+        problem: &RefutationProblem<'_>,
+        workspace: &mut EstimationWorkspace,
+        propensity: &mut causal_stats::PropensityWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<ValidationOutcome>, ValidationError> {
+        let mut out = Vec::with_capacity(self.validators.len() + self.custom.len());
+        for &id in &self.validators {
+            if id == ValidatorId::Overlap {
+                out.push(ValidationOutcome::Report(
+                    crate::overlap::OverlapRefuter::new()
+                        .refute_with_propensity(problem, propensity)?,
+                ));
+            } else {
+                out.push(self.run_one(id, problem, workspace, ctx)?);
+            }
         }
         for custom in &self.custom {
             out.push(ValidationOutcome::Report(custom.validate(problem, ctx)?));

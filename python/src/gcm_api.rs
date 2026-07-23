@@ -22,7 +22,7 @@ use causal::{
 };
 use causal_attribution::{CacheStats, ComponentContribution, ComputeBudget};
 use causal_core::{
-    AllocationMethod, AttributionComponents, CachePolicy, CausalRng, ChangeAttributionQuery,
+    AllocationMethod, AttributionComponents, CausalRng, ChangeAttributionQuery,
     ComponentId, ExecutionContext, Intervention, MechanismChangeQuery, PathSpecificEffectQuery,
     PopulationSelector, ShapleyConfig, UnitChangeQuery, Value, VariableId,
 };
@@ -358,11 +358,14 @@ impl DecisionEvaluation {
 }
 
 /// Fitted GCM retained across Python calls (fit once, sample / attribute many times).
+///
+/// Model, data, and names are [`Arc`]-shared so GIL-detached methods clone handles
+/// instead of deep-copying the fitted session on every click.
 #[pyclass(name = "FittedGcm")]
 pub struct PyFittedGcm {
-    pub(crate) inner: FittedGcm,
-    pub(crate) names: Vec<String>,
-    pub(crate) data: TabularData,
+    pub(crate) inner: Arc<FittedGcm>,
+    pub(crate) names: Arc<[String]>,
+    pub(crate) data: Arc<TabularData>,
 }
 
 impl PyFittedGcm {
@@ -375,7 +378,7 @@ impl PyFittedGcm {
 impl PyFittedGcm {
     #[getter]
     fn names(&self) -> Vec<String> {
-        self.names.clone()
+        self.names.to_vec()
     }
 
     #[getter]
@@ -393,8 +396,8 @@ impl PyFittedGcm {
         seed: u64,
         threads: u32,
     ) -> PyResult<GcmSampleResult> {
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
         let (flat, n_rows, n_nodes) = detach_catch(py, move || {
             let mut ints = Vec::with_capacity(interventions.len());
             for (name, value) in interventions {
@@ -403,7 +406,7 @@ impl PyFittedGcm {
             }
             let ctx = Self::ctx(seed, threads);
             let mut rng = CausalRng::from_seed(seed);
-            let samples = facade_sample_do(&model, &ints, n, &mut rng, &ctx).map_err(py_err)?;
+            let samples = facade_sample_do(&inner.model, &ints, n, &mut rng, &ctx).map_err(py_err)?;
             Ok::<_, PyErr>((samples.values.as_ref().to_vec(), samples.n_rows, samples.n_nodes))
         })?;
         let batch = ValueBatch { values: Arc::from(flat), n_rows, n_nodes };
@@ -422,14 +425,14 @@ impl PyFittedGcm {
         seed: u64,
         threads: u32,
     ) -> PyResult<GcmIteResult> {
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
         let n_assignments = self.inner.assignments.len();
         let (mean_ite, n_units, noise_inference, unit_vec) = detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let ctx = Self::ctx(seed, threads);
-            let ite = facade_counterfactual_ite(model, &data, t_id, y_id, active, control, &ctx)
+            let ite = facade_counterfactual_ite(inner.model.clone(), &data, t_id, y_id, active, control, &ctx)
                 .map_err(py_err)?;
             Ok::<_, PyErr>((
                 ite.mean_ite,
@@ -459,9 +462,9 @@ impl PyFittedGcm {
         seed: u64,
         threads: u32,
     ) -> PyResult<ChangeAttributionResult> {
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
-        let names = self.names.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -478,7 +481,7 @@ impl PyFittedGcm {
                 query = query.with_path_nodes(intermediates);
             }
             let ctx = Self::ctx(seed, threads);
-            let result = facade_attribute_path_specific(&model, &query, &ctx).map_err(py_err)?;
+            let result = facade_attribute_path_specific(&inner.model, &query, &ctx).map_err(py_err)?;
             Ok(change_result_from_rust(result, &names))
         })
     }
@@ -494,9 +497,9 @@ impl PyFittedGcm {
         seed: u64,
         threads: u32,
     ) -> PyResult<ChangeAttributionResult> {
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
-        let names = self.names.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let src_ids: Vec<VariableId> = sources
@@ -504,7 +507,7 @@ impl PyFittedGcm {
                 .map(|n| data.schema().id_of(n).map_err(py_err))
                 .collect::<PyResult<_>>()?;
             let ctx = Self::ctx(seed, threads);
-            let result = facade_attribute_paths(&model, &src_ids, y_id, max_paths, max_len, &ctx)
+            let result = facade_attribute_paths(&inner.model, &src_ids, y_id, max_paths, max_len, &ctx)
                 .map_err(py_err)?;
             Ok(change_result_from_rust(result, &names))
         })
@@ -523,9 +526,9 @@ impl PyFittedGcm {
         seed: u64,
         threads: u32,
     ) -> PyResult<ChangeAttributionResult> {
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
-        let names = self.names.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let query = ChangeAttributionQuery::new(
@@ -537,14 +540,13 @@ impl PyFittedGcm {
             .with_allocation(AllocationMethod::Shapley {
                 approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
             });
-            let mut ctx = Self::ctx(seed, threads);
-            ctx.cache_policy = CachePolicy::enabled(Some(4_000_000));
+            let ctx = Self::ctx(seed, threads);
             let opts = DistributionChangeOptions {
                 measure: DifferenceMeasure::MeanDiff,
                 n_samples: n_samples.max(100),
                 seed,
             };
-            let result = facade_attribute_distribution_change(&model, &data, &query, &opts, &ctx)
+            let result = facade_attribute_distribution_change(&inner.model, &data, &query, &opts, &ctx)
                 .map_err(py_err)?;
             Ok(change_result_from_rust(result, &names))
         })
@@ -564,9 +566,9 @@ impl PyFittedGcm {
         threads: u32,
     ) -> PyResult<ChangeAttributionResult> {
         let _ = n_samples;
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
-        let names = self.names.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let query = ChangeAttributionQuery {
@@ -588,7 +590,7 @@ impl PyFittedGcm {
             let opts = RobustChangeOptions::default();
             let ctx = Self::ctx(seed, threads);
             let result =
-                facade_attribute_distribution_change_robust(&model, &data, &query, &opts, &ctx)
+                facade_attribute_distribution_change_robust(&inner.model, &data, &query, &opts, &ctx)
                     .map_err(py_err)?;
             Ok(change_result_from_rust(result, &names))
         })
@@ -608,10 +610,11 @@ impl PyFittedGcm {
         seed: u64,
         threads: u32,
     ) -> PyResult<ChangeAttributionResult> {
-        let baseline = self.inner.model.clone();
-        let data = self.data.clone();
-        let names = self.names.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
         detach_catch(py, move || {
+            let baseline = &inner.model;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let g1 = dag_from_edges(&data, &comparison_edges)?;
             let comparison = CompiledCausalModel::compile(g1).map_err(py_msg)?;
@@ -624,15 +627,14 @@ impl PyFittedGcm {
             .with_allocation(AllocationMethod::Shapley {
                 approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
             });
-            let mut ctx = Self::ctx(seed, threads);
-            ctx.cache_policy = CachePolicy::enabled(Some(4_000_000));
+            let ctx = Self::ctx(seed, threads);
             let opts = StructureChangeOptions {
                 measure: DifferenceMeasure::MeanDiff,
                 n_samples: n_samples.max(100),
                 seed,
             };
             let result = facade_attribute_structure_change(
-                &baseline,
+                baseline,
                 &comparison,
                 &data,
                 &query,
@@ -653,16 +655,16 @@ impl PyFittedGcm {
         seed: u64,
         threads: u32,
     ) -> PyResult<ChangeAttributionResult> {
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
-        let names = self.names.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let ctx = Self::ctx(seed, threads);
             let max_u = if max_units == 0 { data.row_count() } else { max_units };
             let query = UnitChangeQuery::new(y_id, max_u);
             let result =
-                facade_attribute_unit_change(&model, &data, &query, &ctx).map_err(py_err)?;
+                facade_attribute_unit_change(&inner.model, &data, &query, &ctx).map_err(py_err)?;
             let pairs: Vec<(ComponentId, f64)> = result
                 .components
                 .iter()
@@ -684,9 +686,9 @@ impl PyFittedGcm {
         seed: u64,
         threads: u32,
     ) -> PyResult<Vec<FeatureRelevance>> {
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
-        let names = self.names.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let ctx = Self::ctx(seed, threads);
@@ -695,7 +697,7 @@ impl PyFittedGcm {
                 .filter(|id| *id != y_id)
                 .collect();
             let scores = facade_attribute_feature_relevance(
-                &model,
+                &inner.model,
                 &data,
                 y_id,
                 &features,
@@ -719,9 +721,9 @@ impl PyFittedGcm {
         outcomes: Vec<String>,
         max_units: usize,
     ) -> PyResult<Vec<AnomalyScores>> {
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
-        let names = self.names.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let outcome_ids: Vec<VariableId> = outcomes
                 .iter()
@@ -729,7 +731,7 @@ impl PyFittedGcm {
                 .collect::<PyResult<_>>()?;
             let max_u = if max_units == 0 { data.row_count() } else { max_units };
             let scores =
-                facade_anomaly_attribution(&model, &data, outcome_ids, max_u).map_err(py_err)?;
+                facade_anomaly_attribution(&inner.model, &data, outcome_ids, max_u).map_err(py_err)?;
             Ok(scores
                 .into_iter()
                 .map(|s| {
@@ -759,9 +761,9 @@ impl PyFittedGcm {
         seed: u64,
         threads: u32,
     ) -> PyResult<Vec<MechanismChangeDetection>> {
-        let model = self.inner.model.clone();
-        let data = self.data.clone();
-        let names = self.names.clone();
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let ctx = Self::ctx(seed, threads);
             let targets: Vec<VariableId> = (0..data.schema().len())
@@ -775,7 +777,7 @@ impl PyFittedGcm {
                 data.schema().len(),
             );
             let detected = facade_mechanism_change_detection(
-                &model,
+                &inner.model,
                 &data,
                 &query,
                 causal::MechanismChangeMethod::MeanDiff,
@@ -833,7 +835,11 @@ fn fit_gcm_py(
         let data = loaded.data;
         let g = dag_from_edges(&data, &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        Ok(PyFittedGcm { inner: fitted, names, data })
+        Ok(PyFittedGcm {
+            inner: Arc::new(fitted),
+            names: Arc::from(names),
+            data: Arc::new(data),
+        })
     })
 }
 

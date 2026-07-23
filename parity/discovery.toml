@@ -326,3 +326,18 @@ description = "Structural process generators and toy models"
 status = "done"
 owner = "discovery"
 notes = "LaggedLinearPair process generator in causal-data::sim for fixtures/toys; full SCM registry is in gcm / bayesian inventory."
+
+[[capabilities]]
+id = "discovery.ux.artifact_first"
+group = "effects_and_models"
+description = "Interactive discover-once / estimate-many (discovery off estimate click)"
+status = "done"
+owner = "context"
+notes = """
+python_facade=full. LatencyMode::Interactive refuses GraphInput::Discover* /
+analyze(discovery=, latency='interactive') → CausalUnsupportedError.
+Session: causal.AcceptedGraph (versioned; rediscover explicit only).
+Docs: docs/artifacts.md (artifact-first); example: python/examples/discover_then_estimate.py.
+Gates: latency_tiers::interactive_refuses_inline_discovery; test_discovery_interactive_guard;
+test_accepted_graph.
+"""

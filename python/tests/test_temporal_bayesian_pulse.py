@@ -39,5 +39,6 @@ def test_manufacturing_bayesian_pulse_recovers_effect():
     assert np.isfinite(result.posterior.p_below_zero)
     assert result.estimate.estimator_id == "bayesian.temporal.gcomp"
     assert result.identification.method  # non-empty
-    art = causal.decode_posterior_artifact(result.posterior.artifact)
-    assert art.n_draws == result.posterior.n_draws
+    # Full draw artifacts are opt-in on static analyze; temporal defaults to summaries.
+    assert result.posterior.n_draws is not None and result.posterior.n_draws > 0
+    assert result.posterior.artifact is None

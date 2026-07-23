@@ -6,7 +6,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-pub use crate::analysis::{CausalAnalysis, CausalAnalysisBuilder, RdConfig, RefuteSuite};
+pub use crate::analysis::{
+    CausalAnalysis, CausalAnalysisBuilder, ComputeBudget, LatencyMode, PreparedAnalysis, RdConfig,
+    RefuteSuite,
+};
 pub use crate::error::{AnalysisError, CausalError};
 pub use crate::inference::{BayesianConfig, InferenceMode};
 pub use crate::options::{DiscoveryAccept, FdrControl};

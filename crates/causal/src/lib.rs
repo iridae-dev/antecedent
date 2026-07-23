@@ -41,7 +41,10 @@ pub mod review;
 pub mod state;
 pub mod strategy_table;
 
-pub use analysis::{CausalAnalysis, CausalAnalysisBuilder, RdConfig, RefuteSuite};
+pub use analysis::{
+    AnalysisStageEvent, BatchAnalysis, CausalAnalysis, CausalAnalysisBuilder, ComputeBudget,
+    LatencyMode, PreparedAnalysis, RdConfig, RefuteSuite, StageResultSink,
+};
 pub use callback_plan::mark_python_callback_plan;
 pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use design::rank_designs;
@@ -89,10 +92,11 @@ pub use strategy_table::{
     DEFAULT_PAG_ESTIMATOR, DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER,
     DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID,
     DEFAULT_PATH_IDENTIFIER, DEFAULT_PATH_IDENTIFIER_ID, EstimatorId, IdentifierId,
-    estimand_compatible_with_estimator, estimate_provenance_step, estimate_static_effect,
-    identification_status_acceptable, identify_admg, identify_pag, identify_provenance_step,
-    identify_static, identify_static_query, identify_static_query_with_rd, require_identified,
-    select_estimand, validate_distribution_pair, validate_path_specific_pair, validate_static_pair,
+    StaticEstimateWorkspaces, estimand_compatible_with_estimator, estimate_provenance_step,
+    estimate_static_effect, identification_status_acceptable, identify_admg, identify_pag,
+    identify_provenance_step, identify_static, identify_static_query, identify_static_query_with_rd,
+    require_identified, select_estimand, validate_distribution_pair, validate_path_specific_pair,
+    validate_static_pair,
 };
 
 // PAG / LPCMCI / Bayesian graph-posterior surfaces.

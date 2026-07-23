@@ -26,9 +26,9 @@ use causal_estimate::{
     AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
     ConditionalLinearAdjustment, EffectEstimate, EnvelopeOptions, EstimationWorkspace,
     FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect, GraphEffectDraws,
-    OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment,
-    TemporalMediationEstimate, TemporalMediationEstimator, aggregate_effect_envelope,
-    nonidentified_with_prior,
+    LinearAdjustmentAte, OverlapPolicy, RdWorkspace, SharpRegressionDiscontinuity,
+    TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
+    aggregate_effect_envelope, nonidentified_with_prior,
 };
 use causal_expr::{CausalExprArena, IdentifiedEstimand};
 use causal_graph::{
@@ -40,6 +40,7 @@ use causal_identify::{
     TemporalMediationIdentifier,
 };
 use causal_prob::{GraphIdentFlag, InferenceDiagnostics, PriorSet, WeightedGraphSamples};
+use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 use causal_validate::{
     BayesianSuiteContext, ExternalAlphaSensitivity, PosteriorPredictiveCheck, PriorPredictiveCheck,
     PriorSensitivity, TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular,
@@ -80,19 +81,19 @@ use crate::strategy_table::{
     DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR, DEFAULT_ESTIMATOR_ID,
     DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID,
     DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER,
-    DEFAULT_PATH_IDENTIFIER_ID, EstimatorId, IdentifierId, estimate_provenance_step,
-    estimate_static_effect, identify_admg, identify_pag, identify_provenance_step, identify_static,
-    identify_static_query, identify_static_query_with_rd, require_identified, select_estimand,
-    validate_static_pair,
+    DEFAULT_PATH_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
+    estimate_provenance_step, estimate_static_effect, identify_admg, identify_pag,
+    identify_provenance_step, identify_static, identify_static_query, identify_static_query_with_rd,
+    require_identified, select_estimand, validate_static_pair,
 };
 
 use super::builder::{CausalAnalysisBuilder, DataInput, RdConfig, RefuteSuite};
 use super::helpers::{
-    AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic, provenance_pair,
-    push_conflict_diagnostics, resolve_analysis_ci, run_fci_review, run_ges_review,
-    run_jpcmci_plus_review, run_lingam_review, run_lpcmci_review, run_notears_review,
-    run_pc_review, run_pcmci_plus_review, run_pcmci_review, run_refuters, run_rfci_review,
-    run_rpcmci_discovery,
+    AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic, project_for_ate_estimate,
+    projection_diagnostic, provenance_pair, push_conflict_diagnostics, resolve_analysis_ci,
+    run_fci_review, run_ges_review, run_jpcmci_plus_review, run_lingam_review, run_lpcmci_review,
+    run_notears_review, run_pc_review, run_pcmci_plus_review, run_pcmci_review, run_refuters,
+    run_rfci_review, run_rpcmci_discovery,
 };
 
 /// Prepared analysis (static or temporal).
@@ -112,6 +113,8 @@ pub struct CausalAnalysis {
     pub(crate) population_registry: Option<PopulationRegistry>,
     pub(crate) discovery_ci: Option<Arc<dyn causal_stats::ConditionalIndependence + Send + Sync>>,
     pub(crate) custom_validators: Vec<Arc<dyn causal_validate::CustomEffectValidator>>,
+    pub(crate) latency_mode: Option<super::latency::LatencyMode>,
+    pub(crate) stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
 }
 
 impl std::fmt::Debug for CausalAnalysis {
@@ -131,6 +134,8 @@ impl std::fmt::Debug for CausalAnalysis {
             .field("population_registry", &self.population_registry.as_ref().map(|_| "<registry>"))
             .field("discovery_ci", &self.discovery_ci.as_ref().map(|_| "<dyn CI>"))
             .field("custom_validators", &self.custom_validators.len())
+            .field("latency_mode", &self.latency_mode)
+            .field("stage_sink_is_some", &self.stage_sink.is_some())
             .finish()
     }
 }
@@ -1260,6 +1265,7 @@ impl CausalAnalysis {
     fn validation_suite_id(&self) -> Option<Arc<str>> {
         match self.refute {
             RefuteSuite::None => None,
+            RefuteSuite::Cheap => Some(Arc::from("overlap+evalue")),
             RefuteSuite::PlaceboAndRcc => Some(Arc::from("placebo+rcc")),
             RefuteSuite::Full => Some(Arc::from("validation.full")),
         }
@@ -1745,7 +1751,7 @@ impl CausalAnalysis {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, AnalysisError> {
-        let started = Instant::now();
+        let mut clock = super::stage::StageClock::new();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
         let estimator = physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
@@ -1760,6 +1766,7 @@ impl CausalAnalysis {
             return self.execute_bayesian(data, graph, query, physical, ctx);
         }
 
+        clock.begin(ctx, super::stage::STAGE_IDENTIFY, 0.05)?;
         let rd = self.rd.map(|c| SharpRdConfig {
             running_variable: c.running_variable,
             cutoff: c.cutoff,
@@ -1771,39 +1778,167 @@ impl CausalAnalysis {
             &CausalQuery::AverageEffect(query.clone()),
             rd,
         )?;
-        let estimand = select_estimand(&identification, estimator_id)?;
+        let estimand = select_estimand(&identification, estimator_id.clone())?;
         let assumptions = identification.required_assumptions.clone();
+        clock.finish(super::stage::STAGE_IDENTIFY);
+        super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            super::stage::AnalysisStageEvent::Identify {
+                identification: identification.clone(),
+                estimand: estimand.clone(),
+            },
+        );
 
-        let estimate = estimate_static_effect(
+        let full_cols = data.schema().len();
+        let (data_est, query_est, estimand_est) =
+            project_for_ate_estimate(data, query, &estimand)?;
+        let projected_cols = data_est.schema().len();
+
+        // Point estimate first (no bootstrap); uncertainty stage fills SE separately.
+        clock.begin(ctx, super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(AnalysisError::Cancelled { stage: super::stage::STAGE_ESTIMATE_POINT });
+        }
+        let mut estimate_ws = StaticEstimateWorkspaces::default();
+        let point = estimate_static_effect(
             estimator,
-            data,
-            &estimand,
-            query,
-            assumptions,
-            self.bootstrap_replicates,
+            &data_est,
+            &estimand_est,
+            &query_est,
+            assumptions.clone(),
+            0, // point stage: no bootstrap
             self.overlap_policy,
             self.population_registry.as_ref(),
             ctx,
+            &mut estimate_ws,
         )?;
+        clock.finish(super::stage::STAGE_ESTIMATE_POINT);
+        super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            super::stage::AnalysisStageEvent::Point { estimate: point.clone() },
+        );
+
+        // Uncertainty: bootstrap fills (real work when replicates > 0).
+        let estimate = if self.bootstrap_replicates == 0 {
+            if ctx.cancellation.is_cancelled() {
+                clock.mark_cancelled();
+                point
+            } else {
+                clock.begin(ctx, super::stage::STAGE_UNCERTAINTY, 0.55)?;
+                clock.finish(super::stage::STAGE_UNCERTAINTY);
+                super::stage::emit_stage(
+                    self.stage_sink.as_ref(),
+                    super::stage::AnalysisStageEvent::Uncertainty { estimate: point.clone() },
+                );
+                point
+            }
+        } else if matches!(estimator_id, EstimatorId::LinearAdjustmentAte) {
+            // Reuse warmed OLS workspace: re-prepare + attach bootstrap without refitting point.
+            let cancelled_before = ctx.cancellation.is_cancelled();
+            if cancelled_before {
+                clock.mark_cancelled();
+                if let Some(p) = &ctx.progress {
+                    p.report(0.55, super::stage::STAGE_UNCERTAINTY);
+                }
+                point
+            } else {
+                clock.begin(ctx, super::stage::STAGE_UNCERTAINTY, 0.55)?;
+                let mut est = LinearAdjustmentAte::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.overlap = OverlapPolicy::ExplicitOverride;
+                let prep = est.prepare(&data_est, &estimand_est, &query_est).map_err(|e| {
+                    AnalysisError::from(e)
+                })?;
+                let filled = est
+                    .attach_bootstrap(&prep, &mut estimate_ws.linear, ctx, point)
+                    .map_err(AnalysisError::from)?;
+                let cancelled = filled.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+                if cancelled {
+                    clock.mark_cancelled();
+                } else {
+                    clock.finish(super::stage::STAGE_UNCERTAINTY);
+                }
+                super::stage::emit_stage(
+                    self.stage_sink.as_ref(),
+                    super::stage::AnalysisStageEvent::Uncertainty { estimate: filled.clone() },
+                );
+                filled
+            }
+        } else {
+            // Non-linear static estimators: re-run with bootstrap for uncertainty fills.
+            let cancelled_before = ctx.cancellation.is_cancelled();
+            if cancelled_before {
+                clock.mark_cancelled();
+                if let Some(p) = &ctx.progress {
+                    p.report(0.55, super::stage::STAGE_UNCERTAINTY);
+                }
+                point
+            } else {
+                clock.begin(ctx, super::stage::STAGE_UNCERTAINTY, 0.55)?;
+                let filled = estimate_static_effect(
+                    estimator,
+                    &data_est,
+                    &estimand_est,
+                    &query_est,
+                    assumptions,
+                    self.bootstrap_replicates,
+                    self.overlap_policy,
+                    self.population_registry.as_ref(),
+                    ctx,
+                    &mut estimate_ws,
+                )?;
+                let cancelled = filled.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+                if cancelled {
+                    clock.mark_cancelled();
+                } else {
+                    clock.finish(super::stage::STAGE_UNCERTAINTY);
+                }
+                super::stage::emit_stage(
+                    self.stage_sink.as_ref(),
+                    super::stage::AnalysisStageEvent::Uncertainty { estimate: filled.clone() },
+                );
+                filled
+            }
+        };
+
+        let cancelled = estimate.bootstrap_cancelled || clock.cancelled();
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
+        if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
+            diagnostics.push(d);
+        }
 
-        // ValidationSuite skips incompatible validators with NotApplicable rather than failing.
-        let refutations = {
-            let mut refute_ws = EstimationWorkspace::default();
-            run_refuters(
-                data,
-                &estimand,
-                query,
+        let refutations = if cancelled {
+            Vec::new()
+        } else {
+            clock.begin(ctx, super::stage::STAGE_VALIDATE, 0.8)?;
+            let prop_scratch = match estimator_id {
+                EstimatorId::Aipw => &mut estimate_ws.aipw.propensity,
+                _ => &mut estimate_ws.propensity.propensity,
+            };
+            let reports = run_refuters(
+                &data_est,
+                &estimand_est,
+                &query_est,
                 &estimate,
-                &mut refute_ws,
+                &mut estimate_ws.linear,
+                Some(prop_scratch),
                 ctx,
                 self.refute,
                 estimator,
                 &self.custom_validators,
                 None,
-            )?
+            )?;
+            clock.finish(super::stage::STAGE_VALIDATE);
+            super::stage::emit_stage(
+                self.stage_sink.as_ref(),
+                super::stage::AnalysisStageEvent::Validate {
+                    refutations: reports.clone(),
+                    predictive_checks: Vec::new(),
+                },
+            );
+            reports
         };
 
         let (id_artifact, id_op) = identify_provenance_step(identifier);
@@ -1815,6 +1950,8 @@ impl CausalAnalysis {
 
         let physical_record =
             self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let bootstrap_ok = estimate.bootstrap_replicates_ok;
+        let early_stopped = estimate.bootstrap_early_stopped;
         Ok(assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -1834,7 +1971,14 @@ impl CausalAnalysis {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            wall_time_ns: clock.wall_time_ns(),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: clock.timings(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: bootstrap_ok,
+            n_draws: None,
+            cancelled: clock.cancelled(),
+            early_stopped,
         }))
     }
 
@@ -1890,6 +2034,8 @@ impl CausalAnalysis {
             se_bootstrap: dist.se_bootstrap,
             bootstrap_replicates_ok: dist.bootstrap_replicates_ok,
             bootstrap_replicates_failed: dist.bootstrap_replicates_failed,
+            bootstrap_cancelled: dist.bootstrap_cancelled,
+            bootstrap_early_stopped: dist.bootstrap_early_stopped,
             assumptions: dist.assumptions.clone(),
             overlap: dist.overlap,
             overlap_report: None,
@@ -1905,6 +2051,9 @@ impl CausalAnalysis {
         let outcome = *query.outcomes.first().ok_or_else(|| AnalysisError::Compile {
             message: "distribution query missing outcome".into(),
         })?;
+        let early_stopped = estimate.bootstrap_early_stopped;
+        let bootstrap_ok = estimate.bootstrap_replicates_ok;
+        let cancelled = estimate.bootstrap_cancelled;
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
@@ -1918,6 +2067,7 @@ impl CausalAnalysis {
                 &ate_q,
                 &estimate,
                 &mut refute_ws,
+                None,
                 ctx,
                 self.refute,
                 estimator,
@@ -1963,6 +2113,13 @@ impl CausalAnalysis {
             treatment,
             outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: bootstrap_ok,
+            n_draws: None,
+            cancelled,
+            early_stopped,
         }))
     }
 
@@ -2021,6 +2178,7 @@ impl CausalAnalysis {
             &ate_q,
             &estimate,
             &mut refute_ws,
+            None,
             ctx,
             self.refute,
             estimator,
@@ -2057,6 +2215,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -2069,11 +2234,25 @@ impl CausalAnalysis {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<CausalAnalysisResult, AnalysisError> {
-        let started = Instant::now();
+        let mut clock = super::stage::StageClock::new();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
+        clock.begin(ctx, super::stage::STAGE_IDENTIFY, 0.05)?;
         let identification = identify_static(identifier, graph, query)?;
         let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
+        clock.finish(super::stage::STAGE_IDENTIFY);
+        super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            super::stage::AnalysisStageEvent::Identify {
+                identification: identification.clone(),
+                estimand: estimand.clone(),
+            },
+        );
+
+        let full_cols = data.schema().len();
+        let (data_est, query_est, estimand_est) =
+            project_for_ate_estimate(data, query, &estimand)?;
+        let projected_cols = data_est.schema().len();
 
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
@@ -2088,7 +2267,8 @@ impl CausalAnalysis {
             prior_scale: cfg.prior_scale,
             prior: None,
         };
-        let prep = est.prepare(data, &estimand, query).map_err(AnalysisError::from)?;
+        clock.begin(ctx, super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
+        let prep = est.prepare(&data_est, &estimand_est, &query_est).map_err(AnalysisError::from)?;
         let (resolved_prior, conflict_summary) =
             resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
         est.prior = resolved_prior;
@@ -2099,22 +2279,38 @@ impl CausalAnalysis {
             posterior = with_conflict_summary(posterior, summary);
         }
         let estimate = effect_from_posterior(&posterior)?;
+        clock.finish(super::stage::STAGE_ESTIMATE_POINT);
+        super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            super::stage::AnalysisStageEvent::Point { estimate: estimate.clone() },
+        );
+        clock.begin(ctx, super::stage::STAGE_UNCERTAINTY, 0.55)?;
+        clock.finish(super::stage::STAGE_UNCERTAINTY);
+        super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            super::stage::AnalysisStageEvent::Uncertainty { estimate: estimate.clone() },
+        );
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
+        if let Some(d) = projection_diagnostic(full_cols, projected_cols) {
+            diagnostics.push(d);
+        }
         if let Some(cs) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
 
+        clock.begin(ctx, super::stage::STAGE_VALIDATE, 0.8)?;
         let mut refute_ws = EstimationWorkspace::default();
         let mut refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
-            RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
-                data,
-                &estimand,
-                query,
+            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
+                &data_est,
+                &estimand_est,
+                &query_est,
                 &estimate,
                 &mut refute_ws,
+                None,
                 ctx,
                 self.refute,
                 "bayesian.gcomp",
@@ -2192,6 +2388,14 @@ impl CausalAnalysis {
             let outcomes = suite.run_bayesian(&mut bayes_ctx, ctx).map_err(AnalysisError::from)?;
             refutations.extend(ValidationSuite::reports_only(&outcomes));
         }
+        clock.finish(super::stage::STAGE_VALIDATE);
+        super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            super::stage::AnalysisStageEvent::Validate {
+                refutations: refutations.clone(),
+                predictive_checks: predictive_checks.clone(),
+            },
+        );
 
         let (id_artifact, id_op) = identify_provenance_step(identifier);
         let provenance = provenance_pair(
@@ -2206,6 +2410,8 @@ impl CausalAnalysis {
 
         let physical_record =
             self.apply_callback_plan_marks(physical.record.clone(), &mut diagnostics);
+        let n_draws = u32::try_from(posterior.draws.n_draws).ok();
+        let early_stopped = posterior.early_stopped;
         let mut result = assemble_result(AssembleArgs {
             logical: &physical.logical.record,
             physical: &physical_record,
@@ -2225,7 +2431,14 @@ impl CausalAnalysis {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            wall_time_ns: clock.wall_time_ns(),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: clock.timings(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws,
+            cancelled: clock.cancelled(),
+            early_stopped,
         });
         result.predictive_checks = predictive_checks;
         Ok(result)
@@ -2270,6 +2483,7 @@ impl CausalAnalysis {
             query,
             &estimate,
             &mut refute_ws,
+            None,
             ctx,
             self.refute,
             "rd.sharp",
@@ -2304,6 +2518,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -2395,6 +2616,18 @@ impl CausalAnalysis {
         let mut envelope_conflict: Option<causal_prob::ConflictSummary> = None;
 
         for i in 0..gp.n_graphs {
+            if ctx.cancellation.is_cancelled() {
+                for j in i..gp.n_graphs {
+                    keys.push(gp.graph_keys[j]);
+                    weights.push(gp.weights[j]);
+                    flags.push(GraphIdentFlag::Unidentified);
+                }
+                break;
+            }
+            if let Some(p) = &ctx.progress {
+                #[allow(clippy::cast_precision_loss)]
+                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope");
+            }
             let cmask = gp.adjacency[i];
             let lmask = lag_masks[i];
             let key = gp.graph_keys[i];
@@ -2452,7 +2685,7 @@ impl CausalAnalysis {
                 envelope_prior = resolved;
                 envelope_conflict = conflict;
             }
-            bayes.inner.prior = envelope_prior.clone();
+            bayes.inner.prior.clone_from(&envelope_prior);
             let mut ws = BayesianGCompWorkspace::default();
             let Ok(posterior) = bayes.fit(&bprep, identification.status, &mut ws, ctx) else {
                 if let Some(f) = flags.last_mut() {
@@ -2478,6 +2711,14 @@ impl CausalAnalysis {
 
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+        let mut subsample_notes = Vec::new();
+        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+            self.latency_mode,
+            graphs,
+            per_graph,
+            ctx,
+            &mut subsample_notes,
+        )?;
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -2497,6 +2738,7 @@ impl CausalAnalysis {
         })?;
 
         let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(Diagnostic::new(
             "estimate.dbn_posterior.envelope",
@@ -2539,6 +2781,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -2666,6 +2915,7 @@ impl CausalAnalysis {
             &ate_q,
             &estimate,
             &mut refute_ws,
+            None,
             ctx,
             self.refute,
             if posterior.is_some() {
@@ -2778,6 +3028,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -2898,6 +3155,7 @@ impl CausalAnalysis {
             &ate_q,
             &estimate,
             &mut refute_ws,
+            None,
             ctx,
             self.refute,
             if posterior.is_some() {
@@ -2985,6 +3243,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -3044,6 +3309,7 @@ impl CausalAnalysis {
             query,
             &estimate,
             &mut refute_ws,
+            None,
             ctx,
             self.refute,
             estimator,
@@ -3080,6 +3346,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -3165,6 +3438,7 @@ impl CausalAnalysis {
             if estimand.method.as_ref().starts_with("generalized.adjustment") {
                 estimand.method = Arc::from("backdoor.adjustment");
             }
+            let mut case_ws = StaticEstimateWorkspaces::default();
             let estimate = estimate_static_effect(
                 estimator_id.clone(),
                 data,
@@ -3175,6 +3449,7 @@ impl CausalAnalysis {
                 self.overlap_policy,
                 self.population_registry.as_ref(),
                 ctx,
+                &mut case_ws,
             )?;
             let w = case.weight.0;
             weighted_ate += w * estimate.ate;
@@ -3202,6 +3477,8 @@ impl CausalAnalysis {
             se_bootstrap: None,
             bootstrap_replicates_ok: None,
             bootstrap_replicates_failed: None,
+            bootstrap_cancelled: false,
+            bootstrap_early_stopped: false,
             assumptions: assumptions.clone(),
             overlap: OverlapPolicy::ExplicitOverride,
             overlap_report: None,
@@ -3215,6 +3492,7 @@ impl CausalAnalysis {
             query,
             &estimate,
             &mut refute_ws,
+            None,
             ctx,
             self.refute,
             estimator,
@@ -3251,6 +3529,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -3336,6 +3621,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -3489,6 +3781,18 @@ impl CausalAnalysis {
         let mut envelope_conflict: Option<causal_prob::ConflictSummary> = None;
 
         for i in 0..gp.n_graphs {
+            if ctx.cancellation.is_cancelled() {
+                for j in i..gp.n_graphs {
+                    keys.push(gp.graph_keys[j]);
+                    weights.push(gp.weights[j]);
+                    flags.push(GraphIdentFlag::Unidentified);
+                }
+                break;
+            }
+            if let Some(p) = &ctx.progress {
+                #[allow(clippy::cast_precision_loss)]
+                p.report(i as f64 / gp.n_graphs.max(1) as f64, "envelope");
+            }
             let mask = gp.adjacency[i];
             let key = gp.graph_keys[i];
             keys.push(key);
@@ -3517,7 +3821,7 @@ impl CausalAnalysis {
                     envelope_prior = resolved;
                     envelope_conflict = conflict;
                 }
-                est.prior = envelope_prior.clone();
+                est.prior.clone_from(&envelope_prior);
                 let mut ws = BayesianGCompWorkspace::default();
                 let posterior = est
                     .fit(&prep, identification.status, &mut ws, ctx)
@@ -3538,6 +3842,14 @@ impl CausalAnalysis {
 
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+        let mut subsample_notes = Vec::new();
+        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+            self.latency_mode,
+            graphs,
+            per_graph,
+            ctx,
+            &mut subsample_notes,
+        )?;
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -3557,6 +3869,7 @@ impl CausalAnalysis {
         })?;
 
         let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(Diagnostic::new(
             "estimate.graph_posterior.envelope",
@@ -3571,12 +3884,13 @@ impl CausalAnalysis {
         let mut refute_ws = EstimationWorkspace::default();
         let refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
-            RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
+            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
                 data,
                 &estimand,
                 query,
                 &estimate,
                 &mut refute_ws,
+                None,
                 ctx,
                 self.refute,
                 "bayesian.gcomp",
@@ -3619,6 +3933,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -3675,7 +3996,7 @@ impl CausalAnalysis {
                     envelope_prior = resolved;
                     envelope_conflict = conflict;
                 }
-                est.prior = envelope_prior.clone();
+                est.prior.clone_from(&envelope_prior);
                 let mut ws = BayesianGCompWorkspace::default();
                 let posterior = est
                     .fit(&prep, case.result.status, &mut ws, ctx)
@@ -3695,6 +4016,14 @@ impl CausalAnalysis {
         }
         let graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+        let mut subsample_notes = Vec::new();
+        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+            self.latency_mode,
+            graphs,
+            per_graph,
+            ctx,
+            &mut subsample_notes,
+        )?;
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -3711,6 +4040,7 @@ impl CausalAnalysis {
         })?;
 
         let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(Diagnostic::new(
             "estimate.pag.envelope",
@@ -3725,12 +4055,13 @@ impl CausalAnalysis {
         let mut refute_ws = EstimationWorkspace::default();
         let refutations = match self.refute {
             RefuteSuite::None => Vec::new(),
-            RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
+            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => run_refuters(
                 data,
                 &estimand,
                 query,
                 &estimate,
                 &mut refute_ws,
+                None,
                 ctx,
                 self.refute,
                 "bayesian.gcomp",
@@ -3784,6 +4115,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -3810,6 +4148,7 @@ impl CausalAnalysis {
             &query.inner,
             &estimate,
             &mut refute_ws,
+            None,
             ctx,
             self.refute,
             "conditional.linear.adjustment",
@@ -3848,6 +4187,13 @@ impl CausalAnalysis {
             treatment: query.inner.treatment,
             outcome: query.inner.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -3910,6 +4256,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -3937,6 +4290,7 @@ impl CausalAnalysis {
         };
         let identification = identify_static("frontdoor", graph, &ate)?;
         let estimand = select_estimand(&identification, EstimatorId::FrontDoorTwoStage)?;
+        let mut estimate_ws = StaticEstimateWorkspaces::default();
         let estimate = estimate_static_effect(
             EstimatorId::FrontDoorTwoStage,
             data,
@@ -3947,6 +4301,7 @@ impl CausalAnalysis {
             self.overlap_policy,
             self.population_registry.as_ref(),
             ctx,
+            &mut estimate_ws,
         )?;
         let mediation = TemporalMediationEstimate {
             effect: estimate.clone(),
@@ -3956,13 +4311,13 @@ impl CausalAnalysis {
         };
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        let mut refute_ws = EstimationWorkspace::default();
         let refutations = run_refuters(
             data,
             &estimand,
             &ate,
             &estimate,
-            &mut refute_ws,
+            &mut estimate_ws.linear,
+            None,
             ctx,
             self.refute,
             "frontdoor.two_stage",
@@ -4000,6 +4355,13 @@ impl CausalAnalysis {
             treatment: query.treatment,
             outcome: query.outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -4025,6 +4387,8 @@ impl CausalAnalysis {
             se_bootstrap: None,
             bootstrap_replicates_ok: None,
             bootstrap_replicates_failed: None,
+            bootstrap_cancelled: false,
+            bootstrap_early_stopped: false,
             assumptions: causal_core::AssumptionSet::default(),
             overlap: OverlapPolicy::ExplicitOverride,
             overlap_report: None,
@@ -4063,6 +4427,13 @@ impl CausalAnalysis {
             treatment,
             outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -4115,6 +4486,13 @@ impl CausalAnalysis {
             treatment,
             outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -4144,6 +4522,8 @@ impl CausalAnalysis {
             se_bootstrap: None,
             bootstrap_replicates_ok: None,
             bootstrap_replicates_failed: None,
+            bootstrap_cancelled: false,
+            bootstrap_early_stopped: false,
             assumptions: causal_core::AssumptionSet::default(),
             overlap: OverlapPolicy::ExplicitOverride,
             overlap_report: None,
@@ -4177,6 +4557,13 @@ impl CausalAnalysis {
             treatment,
             outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -4229,6 +4616,13 @@ impl CausalAnalysis {
             treatment,
             outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -4275,6 +4669,13 @@ impl CausalAnalysis {
             treatment,
             outcome,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(self.bootstrap_replicates),
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
         }))
     }
 
@@ -4345,11 +4746,54 @@ fn nan_effect() -> EffectEstimate {
         se_bootstrap: None,
         bootstrap_replicates_ok: None,
         bootstrap_replicates_failed: None,
+        bootstrap_cancelled: false,
+        bootstrap_early_stopped: false,
         assumptions: causal_core::AssumptionSet::default(),
         overlap: OverlapPolicy::ExplicitOverride,
         overlap_report: None,
         retained_memory_bytes: None,
     }
+}
+
+/// Interactive graph×effect: stratified subsample of Identified graphs; leftover
+/// identified mass is flipped to Unidentified (never silent renormalize to 1).
+fn maybe_interactive_envelope_subsample(
+    latency_mode: Option<LatencyMode>,
+    graphs: WeightedGraphSamples,
+    per_graph: Vec<GraphEffectDraws>,
+    ctx: &ExecutionContext,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<(WeightedGraphSamples, Vec<GraphEffectDraws>), AnalysisError> {
+    if latency_mode != Some(LatencyMode::Interactive) {
+        return Ok((graphs, per_graph));
+    }
+    let mut rng = ctx.rng.stream(0xE11E_u64);
+    let sub = graphs
+        .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
+        .map_err(|e| AnalysisError::Compile { message: e.to_string() })?;
+    if !sub.approximate {
+        return Ok((sub.graphs, per_graph));
+    }
+    let keep_keys: std::collections::HashSet<u64> = sub
+        .graphs
+        .graph_keys
+        .iter()
+        .zip(sub.graphs.identified.iter())
+        .filter(|(_, f)| **f == GraphIdentFlag::Identified)
+        .map(|(k, _)| *k)
+        .collect();
+    let filtered: Vec<GraphEffectDraws> =
+        per_graph.into_iter().filter(|g| keep_keys.contains(&g.graph_key)).collect();
+    diagnostics.push(Diagnostic::new(
+        "estimate.envelope.interactive_subsample",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "approximate=true leftover_identified_mass={} max_identified={}",
+            sub.leftover_identified_mass, INTERACTIVE_MAX_ENVELOPE_GRAPHS
+        ),
+    ));
+    Ok((sub.graphs, filtered))
 }
 
 fn parametric_scm_identification(

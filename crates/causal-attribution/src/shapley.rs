@@ -136,6 +136,13 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
             let mut phi = vec![0.0; n];
             let fact = factorial_weights(n);
             for mask in 0..n_coalitions {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(AttributionError::Cancelled);
+                }
+                if let Some(p) = &ctx.progress {
+                    #[allow(clippy::cast_precision_loss)]
+                    p.report(mask as f64 / n_coalitions as f64, "shapley");
+                }
                 let v_s = eval(mask, payoff, &mut cache, &mut budget)?;
                 for i in 0..n {
                     let bit = 1u64 << i;
@@ -162,7 +169,11 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
             let mut rng = CausalRng::from_seed(config.seed);
             let mut phi = vec![0.0; n];
             let mut phi2 = vec![0.0; n];
+            let mut completed = 0u64;
             for _ in 0..n_samples {
+                if ctx.cancellation.is_cancelled() {
+                    break;
+                }
                 let mut order: Vec<usize> = (0..n).collect();
                 shuffle(&mut rng, &mut order);
                 let mut mask = 0u64;
@@ -179,8 +190,17 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                     phi[i] += sample_phi[i];
                     phi2[i] += sample_phi[i] * sample_phi[i];
                 }
+                completed += 1;
+                if let Some(p) = &ctx.progress {
+                    #[allow(clippy::cast_precision_loss)]
+                    p.report(completed as f64 / n_samples as f64, "shapley");
+                }
             }
-            let ns = n_samples as f64;
+            if completed == 0 {
+                return Err(AttributionError::Cancelled);
+            }
+            budget.samples = completed;
+            let ns = completed as f64;
             for i in 0..n {
                 phi[i] /= ns;
                 phi2[i] = ((phi2[i] / ns) - phi[i] * phi[i]).max(0.0).sqrt() / ns.sqrt();

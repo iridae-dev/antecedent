@@ -266,7 +266,7 @@ pub fn fit_hmc_glm(
         total_draws,
         values,
     )?;
-    Ok(BayesFitResult { draws, map, diagnostics })
+    Ok(BayesFitResult { draws, map, diagnostics, cov: None })
 }
 
 fn hmc_step(

@@ -97,6 +97,12 @@ pub enum AnalysisError {
         /// Field name.
         field: &'static str,
     },
+    /// Cooperative cancellation before a usable point estimate was available.
+    #[error("cancelled during {stage}")]
+    Cancelled {
+        /// Pipeline stage where cancellation was observed.
+        stage: &'static str,
+    },
 }
 
 impl AnalysisError {

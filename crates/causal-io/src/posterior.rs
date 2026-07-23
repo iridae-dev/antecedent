@@ -77,13 +77,22 @@ pub fn encode_posterior_artifact(
     artifact_id: &str,
     library_version: &str,
 ) -> Result<EncodedArtifact, IoError> {
-    let expected = meta.n_draws as usize * meta.quantities.len();
-    if draws_colmajor.len() != expected {
-        return Err(IoError::Convert(format!(
-            "draws length {} != n_draws*n_quantities {}",
-            draws_colmajor.len(),
-            expected
-        )));
+    let summary_only = meta.draws_encoding == "none";
+    if summary_only {
+        if !draws_colmajor.is_empty() {
+            return Err(IoError::Convert(
+                "summary posterior encoding expects empty draws payload".into(),
+            ));
+        }
+    } else {
+        let expected = meta.n_draws as usize * meta.quantities.len();
+        if draws_colmajor.len() != expected {
+            return Err(IoError::Convert(format!(
+                "draws length {} != n_draws*n_quantities {}",
+                draws_colmajor.len(),
+                expected
+            )));
+        }
     }
     let meta_bytes = to_cbor(meta)?;
     let mut draw_bytes = Vec::with_capacity(draws_colmajor.len() * 8);
@@ -142,6 +151,14 @@ pub fn decode_posterior_artifact(
         let mut buf = [0u8; 8];
         buf.copy_from_slice(chunk);
         draws.push(f64::from_le_bytes(buf));
+    }
+    if meta.draws_encoding == "none" {
+        if !draws.is_empty() {
+            return Err(IoError::Convert(
+                "summary posterior encoding expects empty draws section".into(),
+            ));
+        }
+        return Ok((meta, draws));
     }
     let expected = meta.n_draws as usize * meta.quantities.len();
     if draws.len() != expected {

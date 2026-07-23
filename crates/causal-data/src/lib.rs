@@ -58,6 +58,7 @@ pub mod multi_env;
 pub mod multi_env_plan;
 pub mod panel;
 pub mod pooled_frame;
+pub mod project;
 pub mod reference;
 pub mod resample;
 pub mod sample;
@@ -102,6 +103,7 @@ pub use pooled_frame::{
     DEFAULT_MAX_TIME_ONE_HOT_LEVELS, DummyOptions, PooledLaggedFrame, TimeDummyEncoding,
     pool_multi_env_lagged_frame,
 };
+pub use project::{IdRemap, dedupe_variable_ids};
 pub use reference::ReferencePointPolicy;
 pub use resample::{
     PermutationScheme, ResamplingPlan, fill_resample_index_batch, fill_resample_indexes,

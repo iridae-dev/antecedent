@@ -28,7 +28,7 @@ use causal_prob::{
     EffectBatch, EffectPrior, GaussianCoefficientPrior, HmcGlmBackend, HmcOptions,
     InferenceBackend, InferenceDiagnostics, LaplaceGlmBackend, LaplaceWorkspace, PosteriorBatch,
     PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind, PosteriorSchema,
-    PosteriorSummary, PriorSensitivitySummary, PriorSet, PriorSpec,
+    PosteriorSummary, PriorSensitivitySummary, PriorSet, PriorSpec, sample_gaussian_mvn,
 };
 use causal_stats::{CompiledDesign, DesignColumnRole, GlmFamily};
 
@@ -56,6 +56,8 @@ pub struct CausalPosterior {
     pub assumptions: AssumptionSet,
     /// Unidentified graph mass retained when aggregating envelopes (0 if single graph).
     pub unidentified_mass: f64,
+    /// Adaptive draw early-stop (Laplace / conjugate Gaussian redraw path).
+    pub early_stopped: bool,
 }
 
 impl CausalPosterior {
@@ -621,8 +623,18 @@ impl BayesianGComputationAte {
             BayesianBackendKind::ConjugateGaussian => BayesLikelihood::GaussianIdentity,
             BayesianBackendKind::Laplace | BayesianBackendKind::Hmc => self.likelihood,
         };
+        let max_draws = self.n_draws.max(1);
+        let adaptive = ctx.adaptive_draws;
+        let laplace_adaptive = adaptive.enabled
+            && matches!(self.backend, BayesianBackendKind::Laplace)
+            && max_draws > adaptive.min_draws.max(2);
+        let initial_draws = if laplace_adaptive {
+            adaptive.min_draws.max(2).min(max_draws)
+        } else {
+            max_draws
+        };
         let opts = BayesFitOptions {
-            n_draws: self.n_draws,
+            n_draws: initial_draws,
             seed: self.seed,
             ..BayesFitOptions::default()
         };
@@ -635,7 +647,7 @@ impl BayesianGComputationAte {
             offsets: None,
         };
 
-        let fit = match self.backend {
+        let mut fit = match self.backend {
             BayesianBackendKind::ConjugateGaussian => ConjugateGaussianBackend.fit(
                 likelihood,
                 design_ref,
@@ -671,17 +683,6 @@ impl BayesianGComputationAte {
             .treatment_column()
             .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
 
-        let mechanism = BayesianGlmMechanism {
-            coefficient_draws: fit.draws,
-            map: fit.map,
-            likelihood,
-            diagnostics: fit.diagnostics.clone(),
-            design: problem.design.clone(),
-            treatment_col: t_col,
-            active: problem.active,
-            control: problem.control,
-        };
-
         let glm_family = likelihood_to_glm_family(likelihood);
         let evaluator = GCompAteEvaluator {
             family: glm_family,
@@ -693,7 +694,143 @@ impl BayesianGComputationAte {
             matrix: Arc::clone(&problem.design.matrix),
         };
         let compiled = evaluator.compile()?;
-        let n_draws = mechanism.coefficient_draws.n_draws;
+
+        let mut early_stopped = false;
+        let mut n_draws = fit.draws.n_draws;
+        let mut coef_draws = fit.draws;
+
+        if laplace_adaptive {
+            let cov = fit.cov.as_ref().ok_or_else(|| {
+                EstimationError::stats_msg("Laplace adaptive draws require posterior covariance")
+            })?;
+            let map = fit.map.clone();
+            let batch = 32usize;
+            let mut effect_acc: Vec<f64> = Vec::with_capacity(max_draws);
+            let mut width_prev: Option<f64> = None;
+
+            // Evaluate initial block.
+            {
+                workspace.eval.prepare(n_draws, problem.design.ncols);
+                let mut effect_out = EffectBatch::default();
+                effect_out.prepare(n_draws);
+                let batch_view =
+                    coef_draws.batch(0, n_draws).map_err(EstimationError::from)?;
+                evaluator.evaluate_batch(
+                    &compiled,
+                    batch_view,
+                    &mut effect_out,
+                    &mut workspace.eval,
+                    ctx,
+                )?;
+                effect_acc.extend_from_slice(&effect_out.values[..n_draws]);
+            }
+
+            loop {
+                let width = quantile_width_95(&effect_acc);
+                let ess = effect_acc.len() as f64; // independent MVN draws
+                if effect_acc.len() >= adaptive.min_draws.max(2) {
+                    let width_ok = width_prev.is_some_and(|prev| {
+                        let rel = (width - prev).abs() / prev.abs().max(1e-12);
+                        rel < adaptive.quantile_width_rel_epsilon
+                    });
+                    if width_ok || ess >= adaptive.ess_target {
+                        early_stopped = n_draws < max_draws;
+                        break;
+                    }
+                }
+                width_prev = Some(width);
+                if n_draws >= max_draws {
+                    break;
+                }
+                let next = (n_draws + batch).min(max_draws);
+                let add = next - n_draws;
+                let extra = sample_gaussian_mvn(
+                    &map,
+                    cov,
+                    add,
+                    self.seed.wrapping_add(n_draws as u64),
+                    &mut workspace.laplace,
+                )
+                .map_err(EstimationError::from)?;
+                let extra_draws = PosteriorDraws::from_column_major(
+                    PosteriorSchema::coefficients(problem.design.ncols),
+                    add,
+                    extra,
+                )
+                .map_err(EstimationError::from)?;
+                workspace.eval.prepare(add, problem.design.ncols);
+                let mut effect_out = EffectBatch::default();
+                effect_out.prepare(add);
+                let batch_view = extra_draws.batch(0, add).map_err(EstimationError::from)?;
+                evaluator.evaluate_batch(
+                    &compiled,
+                    batch_view,
+                    &mut effect_out,
+                    &mut workspace.eval,
+                    ctx,
+                )?;
+                effect_acc.extend_from_slice(&effect_out.values[..add]);
+                coef_draws = merge_coefficient_draws(&coef_draws, &extra_draws)?;
+                n_draws = next;
+                fit.draws = coef_draws.clone();
+            }
+
+            // Rebuild combined posterior from accumulated effects + final coef draws.
+            let mechanism_draws = coef_draws;
+            let mut quantities = mechanism_draws.schema.quantities.to_vec();
+            quantities.retain(|q| !matches!(q, PosteriorQuantityKind::ResidualVariance));
+            let effect_idx = quantities.len();
+            quantities.push(PosteriorQuantityKind::Effect { name: Arc::from("ate") });
+            let n_q = quantities.len();
+            let mut values = vec![0.0; n_draws * n_q];
+            for (qi, q) in mechanism_draws.schema.quantities.iter().enumerate() {
+                if matches!(q, PosteriorQuantityKind::ResidualVariance) {
+                    continue;
+                }
+                let dest = quantities.iter().position(|qq| qq == q).ok_or_else(|| {
+                    EstimationError::stats_msg(format!(
+                        "posterior quantity missing from schema: {q:?}"
+                    ))
+                })?;
+                let coef_col = mechanism_draws.column(qi).map_err(EstimationError::from)?;
+                values[dest * n_draws..(dest + 1) * n_draws].copy_from_slice(coef_col);
+            }
+            values[effect_idx * n_draws..(effect_idx + 1) * n_draws]
+                .copy_from_slice(&effect_acc[..n_draws]);
+            if let Some(names) = problem.coef_names.as_ref() {
+                apply_coefficient_names(&mut quantities, names);
+            }
+            let draws = PosteriorDraws::from_column_major(
+                PosteriorSchema { quantities: Arc::from(quantities) },
+                n_draws,
+                values,
+            )
+            .map_err(EstimationError::from)?;
+            let summaries = draws.summarize();
+            return Ok(CausalPosterior {
+                draws,
+                summaries,
+                identification,
+                prior_sensitivity: None,
+                conflict_summary: None,
+                diagnostics: fit.diagnostics,
+                assumptions,
+                unidentified_mass: 0.0,
+                early_stopped,
+            });
+        }
+
+        let mechanism = BayesianGlmMechanism {
+            coefficient_draws: coef_draws,
+            map: fit.map,
+            likelihood,
+            diagnostics: fit.diagnostics.clone(),
+            design: problem.design.clone(),
+            treatment_col: t_col,
+            active: problem.active,
+            control: problem.control,
+        };
+
         workspace.eval.prepare(n_draws, problem.design.ncols);
         let mut effect_out = EffectBatch::default();
         effect_out.prepare(n_draws);
@@ -742,6 +879,7 @@ impl BayesianGComputationAte {
             diagnostics: fit.diagnostics,
             assumptions,
             unidentified_mass: 0.0,
+            early_stopped: false,
         })
     }
 }
@@ -1000,6 +1138,42 @@ fn prob_err(e: causal_prob::ProbError) -> EstimationError {
     EstimationError::from(e)
 }
 
+/// 95% quantile width of a scalar draw vector.
+fn quantile_width_95(values: &[f64]) -> f64 {
+    if values.len() < 2 {
+        return f64::NAN;
+    }
+    // Reuse posterior summarization for consistent quantiles.
+    let schema = PosteriorSchema {
+        quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("w") }]),
+    };
+    let Ok(draws) = PosteriorDraws::from_column_major(schema, values.len(), values.to_vec()) else {
+        return f64::NAN;
+    };
+    let s = draws.summarize();
+    s.q975[0] - s.q025[0]
+}
+
+/// Concatenate two coefficient-only posterior draw tables (same schema).
+fn merge_coefficient_draws(
+    a: &PosteriorDraws,
+    b: &PosteriorDraws,
+) -> Result<PosteriorDraws, EstimationError> {
+    if a.schema != b.schema {
+        return Err(EstimationError::stats_msg("merge_coefficient_draws: schema mismatch"));
+    }
+    let n_q = a.schema.quantities.len();
+    let n = a.n_draws + b.n_draws;
+    let mut values = vec![0.0; n * n_q];
+    for q in 0..n_q {
+        let col_a = a.column(q).map_err(EstimationError::from)?;
+        let col_b = b.column(q).map_err(EstimationError::from)?;
+        values[q * n..q * n + a.n_draws].copy_from_slice(col_a);
+        values[q * n + a.n_draws..(q + 1) * n].copy_from_slice(col_b);
+    }
+    PosteriorDraws::from_column_major(a.schema.clone(), n, values).map_err(EstimationError::from)
+}
+
 /// Build a non-identified posterior artifact that still records priors (exit criterion #2).
 ///
 /// Samples prior-predictive draws for a scalar effect mean (isotropic Gaussian / weakly
@@ -1049,6 +1223,7 @@ pub fn nonidentified_with_prior(
         diagnostics,
         assumptions,
         unidentified_mass: 1.0,
+        early_stopped: false,
     }
 }
 

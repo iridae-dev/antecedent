@@ -72,9 +72,9 @@ pub use assumption::{
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{
-    CacheBudget, CachePolicy, CancellationToken, CausalRng, Determinism, ExecutionContext,
-    KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount, Parallelism,
-    ProgressSink, RngFactory,
+    AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy, CancellationToken,
+    CausalRng, Determinism, ExecutionContext, KernelPolicy, MemoryBudget, MonteCarloBudget,
+    MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RngFactory,
 };
 pub use identification::IdentificationStatus;
 pub use ids::{

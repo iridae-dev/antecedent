@@ -36,6 +36,7 @@ def main() -> None:
         inference=Bayesian(n_draws=128),
         refute=False,
         seed=11,
+        return_posterior_artifact=True,
     )
     assert batch_a.posterior is not None
     artifact = bytes(batch_a.posterior.artifact)

@@ -229,6 +229,35 @@ pub enum GraphInput {
     },
 }
 
+impl GraphInput {
+    /// True when this input runs a discovery algorithm at compile time.
+    ///
+    /// Supplied static/temporal graphs return `false`. Interactive estimate clicks
+    /// must use a supplied (accepted) artifact — never a `Discover*` variant.
+    #[must_use]
+    pub const fn is_discovery(&self) -> bool {
+        matches!(
+            self,
+            Self::DiscoverPcmci { .. }
+                | Self::DiscoverPcmciPlus { .. }
+                | Self::DiscoverLpcmci { .. }
+                | Self::DiscoverJpcmciPlus { .. }
+                | Self::DiscoverRpcmci { .. }
+                | Self::DiscoverPc { .. }
+                | Self::DiscoverFci { .. }
+                | Self::DiscoverRfci { .. }
+                | Self::DiscoverGes { .. }
+                | Self::DiscoverLingam { .. }
+                | Self::DiscoverNotears { .. }
+                | Self::DiscoverExactDagPosterior
+                | Self::DiscoverOrderMcmc { .. }
+                | Self::DiscoverStructureMcmc { .. }
+                | Self::DiscoverCiScreenedPosterior { .. }
+                | Self::DiscoverDbnPosterior { .. }
+        )
+    }
+}
+
 /// Logical plan after compile (semantics only).
 #[derive(Clone, Debug)]
 pub struct LogicalAnalysisPlan {

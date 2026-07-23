@@ -833,6 +833,7 @@ pub fn estimate_static_effect(
     overlap_policy: Option<OverlapPolicy>,
     population_registry: Option<&PopulationRegistry>,
     ctx: &ExecutionContext,
+    workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, AnalysisError> {
     match estimator.into() {
         EstimatorId::LinearAdjustmentAte => {
@@ -840,8 +841,7 @@ pub fn estimate_static_effect(
             est.bootstrap_replicates = bootstrap_replicates;
             est.overlap = OverlapPolicy::ExplicitOverride;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = EstimationWorkspace::default();
-            est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            est.fit(&prep, &mut workspaces.linear, ctx, assumptions).map_err(est_err)
         }
         EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();
@@ -851,8 +851,7 @@ pub fn estimate_static_effect(
             }
             est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = PropensityEstimationWorkspace::default();
-            est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            est.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
         }
         EstimatorId::PropensityMatching => {
             let mut est = PropensityMatching::new();
@@ -862,8 +861,7 @@ pub fn estimate_static_effect(
             }
             est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = PropensityEstimationWorkspace::default();
-            est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            est.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
         }
         EstimatorId::PropensityStratification => {
             let mut est = PropensityStratification::new();
@@ -873,8 +871,7 @@ pub fn estimate_static_effect(
             }
             est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = PropensityEstimationWorkspace::default();
-            est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            est.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
         }
         EstimatorId::DistanceMatching => {
             let mut est = DistanceMatching::new();
@@ -884,8 +881,7 @@ pub fn estimate_static_effect(
             }
             est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = PropensityEstimationWorkspace::default();
-            est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            est.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
         }
         EstimatorId::Aipw => {
             let mut est = AipwAte::new();
@@ -895,8 +891,7 @@ pub fn estimate_static_effect(
             }
             est.population_registry = population_registry.cloned();
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
-            let mut ws = AipwWorkspace::default();
-            est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+            est.fit(&prep, &mut workspaces.aipw, ctx, assumptions).map_err(est_err)
         }
         EstimatorId::GlmAdjustment => {
             let mut est = GlmAdjustmentAte::new();
@@ -927,6 +922,17 @@ pub fn estimate_static_effect(
         }
         _ => Err(AnalysisError::Unsupported { message: "unknown static estimator" }),
     }
+}
+
+/// Shared estimate→refute scratch for static ATE hot paths.
+#[derive(Clone, Debug, Default)]
+pub struct StaticEstimateWorkspaces {
+    /// OLS linear-adjustment scratch.
+    pub linear: EstimationWorkspace,
+    /// Propensity / matching scratch.
+    pub propensity: PropensityEstimationWorkspace,
+    /// AIPW propensity + outcome scratch.
+    pub aipw: AipwWorkspace,
 }
 
 fn est_err(e: EstimationError) -> AnalysisError {

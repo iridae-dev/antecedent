@@ -14,6 +14,18 @@ allocation/memory contracts, and owning crates.
 | PCMCI discovery | `causal-discovery` | `pcmci` | [pcmci.md](../benches/baselines/pcmci.md) | LaggedFrame + DiscoveryWorkspace; no per-CI plan rebuild |
 | CI / orientation | `causal-stats` / `causal-discovery` | `ci_framework`, `orientation` | [ci_orientation.md](../benches/baselines/ci_orientation.md) | Batch CI; mask complete-case |
 | Propensity bootstrap | `causal-estimate` | `propensity_bootstrap` | [propensity.md](../benches/baselines/propensity.md) | Workspace buffer reuse across replicates |
+| Progressive estimate execute | `causal` | (conformance) `latency_tiers` | — | StageClock + ProgressSink + `StageResultSink` payloads; effort on `ExecutionPerformanceRecord` |
+| Cancel mid-bootstrap | `causal-estimate` / `causal` | (conformance) `latency_tiers::cancel_mid_bootstrap` | — | Soft partial SE; `cancelled` flag; no silent full result |
+| Adaptive bootstrap | `causal-estimate` / `causal` | (conformance) `latency_tiers::adaptive_bootstrap_pin` | — | SE relative early-stop; `early_stopped` + actual `bootstrap_replicates_ok` |
+| Adaptive Bayesian draws | `causal-estimate` / `causal` | (conformance) `latency_tiers::adaptive_draws_pin` | — | Quantile-width early-stop; `early_stopped` + actual `n_draws` |
+| Prepared re-estimate | `causal` | (conformance) `prepared_analysis` | — | Compile-once Ready plan; schema-gated refresh; 2nd shot skips compile |
+| Discover-once / estimate-many | `causal` / Python | (conformance) `latency_tiers::interactive_refuses_inline_discovery`, `test_accepted_graph`, `test_discovery_interactive_guard` | — | Interactive refuses `Discover*`; `AcceptedGraph` version stable across estimate clicks |
+| Shared estimate→refute workspace | `causal` | (conformance) `shared_workspace` | — | `StaticEstimateWorkspaces` for linear / propensity / AIPW across estimate→refute |
+| Interactive graph×effect subsample | `causal-prob` / `causal` | (unit) `envelope::interactive_subsample_mass_accounting_honest` | — | Leftover identified mass → `unidentified_mass`; approximate diagnostic |
+| Arrow CDI interactive estimate | Python / `causal-data` | (conformance) `test_arrow_interactive_smoke` | — | Prefer CDI borrow under `latency=interactive`; pandas correct but not latency default |
+| Post-ID column projection | `causal-data` / `causal` | (conformance) `projection_wide` | — | Wide sheet → gather T/Y/Z only; ATE matches; `exec.project.columns` diagnostic |
+| Batch multi-query | `causal` / Python | (conformance) `batch_analysis`, `test_analyze_many` | — | One table ingest, N AverageEffect queries; match solo ATE |
+| Refute second click | `causal` / Python | (conformance) `refute_second_click`, `test_refute_second_click` | — | Prepared estimate then `refute(suite)`; ATE frozen; validation replaced |
 | Matching index | `causal-stats` | `matching` | [matching.md](../benches/baselines/matching.md) | Exact path ≤ 10k; retain index on compatible fits |
 | m-separation / PAG orient | `causal-graph` / `causal-discovery` | `mseparation`, `pag_orientation` | [pag.md](../benches/baselines/pag.md) | Sparse + stress fixtures |
 | RPCMCI / temporal mediation | `causal-discovery` / `causal-estimate` | `rpcmci`, `temporal_mediation` | [regime_mediation.md](../benches/baselines/regime_mediation.md) | Multi-env plans must not clone sibling series |

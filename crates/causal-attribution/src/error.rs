@@ -109,6 +109,9 @@ pub enum AttributionError {
     /// Passthrough from causal-prob.
     #[error(transparent)]
     Prob(#[from] causal_prob::ProbError),
+    /// Cooperative cancellation before a usable partial result.
+    #[error("cancelled")]
+    Cancelled,
 }
 
 impl AttributionError {

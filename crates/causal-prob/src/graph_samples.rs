@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use causal_core::CausalRng;
+
 use crate::error::ProbError;
 
 /// One graph sample's identification flag (does not invent identification).
@@ -13,6 +15,17 @@ pub enum GraphIdentFlag {
     Identified,
     /// Not identified under this graph.
     Unidentified,
+}
+
+/// Result of an Interactive stratified graph subsample.
+#[derive(Clone, Debug)]
+pub struct GraphEnvelopeSubsample {
+    /// Ensemble used for the mixture (excluded identified mass flipped to Unidentified).
+    pub graphs: WeightedGraphSamples,
+    /// Absolute weight of identified graphs reclassified as Unidentified for UI.
+    pub leftover_identified_mass: f64,
+    /// True when the ensemble was truncated below the full identified set.
+    pub approximate: bool,
 }
 
 /// Columnar ensemble of weighted graphs.
@@ -111,6 +124,59 @@ impl WeightedGraphSamples {
             orientation_marginals: self.orientation_marginals.clone(),
         })
     }
+
+    /// Interactive stratified subsample: keep at most `max_identified` Identified
+    /// graphs (plus all Unidentified), flipping leftover Identified flags to
+    /// Unidentified so their mass is never silently dropped.
+    ///
+    /// Total weight is unchanged. Mixture draws use E[τ | identified-in-subset].
+    ///
+    /// # Errors
+    ///
+    /// Empty ensemble.
+    pub fn stratified_interactive_subsample(
+        &self,
+        max_identified: usize,
+        rng: &mut CausalRng,
+    ) -> Result<GraphEnvelopeSubsample, ProbError> {
+        if self.n_samples == 0 {
+            return Err(ProbError::Shape { message: "empty graph ensemble" });
+        }
+        let mut identified_idx: Vec<usize> = (0..self.n_samples)
+            .filter(|&i| self.identified[i] == GraphIdentFlag::Identified)
+            .collect();
+        if identified_idx.len() <= max_identified {
+            return Ok(GraphEnvelopeSubsample {
+                graphs: self.clone(),
+                leftover_identified_mass: 0.0,
+                approximate: false,
+            });
+        }
+        // Fisher–Yates partial shuffle: first `max_identified` slots are the keep set.
+        for i in 0..max_identified {
+            let j = i + (rng.next_u64() as usize % (identified_idx.len() - i));
+            identified_idx.swap(i, j);
+        }
+        let mut flags = self.identified.to_vec();
+        let mut leftover = 0.0;
+        for &i in &identified_idx[max_identified..] {
+            leftover += self.weights[i];
+            flags[i] = GraphIdentFlag::Unidentified;
+        }
+        let graphs = Self {
+            n_samples: self.n_samples,
+            weights: Arc::clone(&self.weights),
+            identified: Arc::from(flags),
+            graph_keys: Arc::clone(&self.graph_keys),
+            edge_marginals: self.edge_marginals.clone(),
+            orientation_marginals: self.orientation_marginals.clone(),
+        };
+        Ok(GraphEnvelopeSubsample {
+            graphs,
+            leftover_identified_mass: leftover,
+            approximate: leftover > 0.0,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -120,7 +186,7 @@ mod tests {
     #[test]
     fn unidentified_mass_preserved() {
         let g = WeightedGraphSamples::new(
-            vec![0.4, 0.3, 0.3],
+            vec![0.5, 0.3, 0.2],
             vec![
                 GraphIdentFlag::Identified,
                 GraphIdentFlag::Unidentified,
@@ -131,5 +197,34 @@ mod tests {
         .unwrap();
         assert!((g.unidentified_mass() - 0.3).abs() < 1e-12);
         assert!((g.identified_mass() - 0.7).abs() < 1e-12);
+    }
+
+    #[test]
+    fn stratified_subsample_moves_leftover_to_unidentified() {
+        let g = WeightedGraphSamples::new(
+            vec![0.25, 0.25, 0.25, 0.25],
+            vec![
+                GraphIdentFlag::Identified,
+                GraphIdentFlag::Identified,
+                GraphIdentFlag::Identified,
+                GraphIdentFlag::Unidentified,
+            ],
+            vec![10, 11, 12, 13],
+        )
+        .unwrap();
+        let mut rng = CausalRng::from_seed(7);
+        let sub = g.stratified_interactive_subsample(1, &mut rng).unwrap();
+        assert!(sub.approximate);
+        assert!(sub.leftover_identified_mass > 0.0);
+        assert!((sub.graphs.total_weight() - g.total_weight()).abs() < 1e-12);
+        let expected_uid = g.unidentified_mass() + sub.leftover_identified_mass;
+        assert!((sub.graphs.unidentified_mass() - expected_uid).abs() < 1e-12);
+        let n_id = sub
+            .graphs
+            .identified
+            .iter()
+            .filter(|f| **f == GraphIdentFlag::Identified)
+            .count();
+        assert_eq!(n_id, 1);
     }
 }

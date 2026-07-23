@@ -68,3 +68,24 @@ Supported graph classes: **DAG**, **CPDAG**, **PAG**, and **ADMG**
 NetworkX `undirected=true`. ADMG bidirected edges use DOT `dir=both` / GML
 `bidirected 1` / NetworkX `bidirected=true`. PAG circle/conflict marks use
 `mark_a` / `mark_b` attributes.
+
+### Interactive / artifact-first (discovery off the estimate click)
+
+Discovery is evidence and is **not** on the interactive estimate path. Preferred
+spreadsheet / dashboard spine:
+
+```text
+discover_* once  →  AcceptedGraph (versioned) / JSON hold
+  →  many analyze(graph=..., latency="interactive") or PreparedAnalysis
+  →  rediscover only on explicit AcceptedGraph.rediscover / refresh
+```
+
+Static graphs: Dag / Cpdag / Pag / Admg. Temporal completions: `TemporalDag`
+(and reviewed `TemporalCpdag` / `TemporalPag`) from PCMCI / PCMCI+ / LPCMCI —
+estimate-only pulse clicks never re-run discovery.
+
+One-shot `analyze(..., discovery=...)` remains a **script** convenience
+(Standard/Report or no latency tier). Combining `discovery=` with
+`latency="interactive"` raises `CausalUnsupportedError` (Rust:
+`refuse_discovery_under_interactive`). See `python/examples/discover_then_estimate.py`
+and `parity/discovery.toml` capability `discovery.ux.artifact_first`.

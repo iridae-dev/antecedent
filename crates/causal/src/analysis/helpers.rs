@@ -16,12 +16,13 @@ use std::sync::Arc;
 
 use causal_core::{
     AssumptionSet, AverageEffectQuery, BufferMaterialization, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord, LogicalAnalysisPlanRecord,
-    PhysicalExecutionPlanRecord, ProvenanceGraph, ProvenanceNode, VERSION, VariableId,
+    DiagnosticSeverity, ExecutionContext, ExecutionPerformanceRecord, Intervention,
+    InterventionSequence, LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph,
+    ProvenanceNode, SequencedIntervention, VERSION, VariableId,
 };
-use causal_data::{MultiEnvironmentData, TableView, TabularData, TimeSeriesData};
+use causal_data::{IdRemap, MultiEnvironmentData, TableView, TabularData, TimeSeriesData, dedupe_variable_ids};
 use causal_estimate::{CausalPosterior, EffectEstimate, EstimationWorkspace, OverlapPolicy};
-use causal_expr::IdentifiedEstimand;
+use causal_expr::{IdentifiedEstimand, RdDesignParams};
 use causal_graph::{CpdagReview, TemporalCpdagReview, TemporalGraphReview};
 use causal_validate::{RefutationProblem, RefutationReport, ValidationSuite};
 
@@ -58,6 +59,20 @@ pub(crate) struct AssembleArgs<'a> {
     pub(crate) outcome: VariableId,
     /// Wall-clock nanoseconds for identify→estimate→refute.
     pub(crate) wall_time_ns: u64,
+    /// Latency mode label when a tier was requested.
+    pub(crate) latency_mode: Option<Arc<str>>,
+    /// Per-stage timings.
+    pub(crate) stage_timings_ns: Vec<(Arc<str>, u64)>,
+    /// Bootstrap replicates requested.
+    pub(crate) bootstrap_replicates_requested: Option<u32>,
+    /// Bootstrap replicates that succeeded.
+    pub(crate) bootstrap_replicates_ok: Option<u32>,
+    /// Posterior draws (Bayesian).
+    pub(crate) n_draws: Option<u32>,
+    /// Cancellation observed during execute.
+    pub(crate) cancelled: bool,
+    /// Adaptive early-stop (bootstrap SE and/or Bayesian draws).
+    pub(crate) early_stopped: bool,
 }
 
 pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
@@ -90,6 +105,13 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
             peak_rss_bytes: None,
             copy_count,
             scalar_fallback_count: 0,
+            latency_mode: args.latency_mode,
+            stage_timings_ns: args.stage_timings_ns,
+            bootstrap_replicates_requested: args.bootstrap_replicates_requested,
+            bootstrap_replicates_ok: args.bootstrap_replicates_ok,
+            n_draws: args.n_draws,
+            cancelled: args.cancelled,
+            early_stopped: args.early_stopped,
         },
         treatment: args.treatment,
         outcome: args.outcome,
@@ -332,6 +354,7 @@ pub(crate) fn run_refuters(
     query: &AverageEffectQuery,
     estimate: &EffectEstimate,
     workspace: &mut EstimationWorkspace,
+    propensity: Option<&mut causal_stats::PropensityWorkspace>,
     ctx: &ExecutionContext,
     suite: RefuteSuite,
     estimator: &str,
@@ -353,13 +376,19 @@ pub(crate) fn run_refuters(
             }
             ValidationSuite::new()
         }
+        RefuteSuite::Cheap => ValidationSuite::overlap_and_evalue(),
         RefuteSuite::PlaceboAndRcc => ValidationSuite::placebo_and_rcc(),
         RefuteSuite::Full => ValidationSuite::full_effect(),
     };
     for v in custom {
         validation = validation.with_custom(Arc::clone(v));
     }
-    let outcomes = validation.run(&problem, workspace, ctx).map_err(AnalysisError::from)?;
+    let outcomes = match propensity {
+        Some(pws) => validation
+            .run_with_propensity(&problem, workspace, pws, ctx)
+            .map_err(AnalysisError::from)?,
+        None => validation.run(&problem, workspace, ctx).map_err(AnalysisError::from)?,
+    };
     Ok(ValidationSuite::reports_only(&outcomes))
 }
 
@@ -387,6 +416,8 @@ pub(crate) fn effect_from_posterior(
         se_bootstrap: None,
         bootstrap_replicates_ok: None,
         bootstrap_replicates_failed: None,
+        bootstrap_cancelled: false,
+            bootstrap_early_stopped: false,
         assumptions: posterior.assumptions.clone(),
         overlap: OverlapPolicy::ExplicitOverride,
         overlap_report: None,
@@ -445,4 +476,142 @@ pub(crate) fn push_conflict_diagnostics(
         ]);
         diagnostics.push(d);
     }
+}
+
+/// Columns required for estimation after identification (treatment, outcome, Z, …).
+pub(crate) fn columns_for_ate_estimand(
+    query: &AverageEffectQuery,
+    estimand: &IdentifiedEstimand,
+) -> Vec<VariableId> {
+    dedupe_variable_ids(
+        std::iter::once(query.treatment)
+            .chain(std::iter::once(query.outcome))
+            .chain(query.effect_modifiers.iter().copied())
+            .chain(estimand.adjustment_set.iter().copied())
+            .chain(estimand.instruments.iter().copied())
+            .chain(estimand.mediators.iter().copied())
+            .chain(estimand.rd_design.map(|rd| rd.running_variable)),
+    )
+}
+
+/// Project table to estimand columns and remap query/estimand for kernel work.
+///
+/// Returns projected data + remapped query/estimand. The caller should keep the
+/// original estimand for result name resolution.
+///
+/// # Errors
+///
+/// Projection or id remap failures.
+pub(crate) fn project_for_ate_estimate(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    estimand: &IdentifiedEstimand,
+) -> Result<(TabularData, AverageEffectQuery, IdentifiedEstimand), AnalysisError> {
+    let ids = columns_for_ate_estimand(query, estimand);
+    // Already thin — skip rebuild when every column is required.
+    if ids.len() == data.schema().len() {
+        return Ok((data.clone(), query.clone(), estimand.clone()));
+    }
+    let (projected, remap) = data.project(&ids)?;
+    let query_p = remap_average_effect_query(query, &remap)?;
+    let estimand_p = remap_identified_estimand(estimand, &remap)?;
+    Ok((projected, query_p, estimand_p))
+}
+
+fn remap_variable_slice(
+    ids: &[VariableId],
+    remap: &IdRemap,
+) -> Result<Arc<[VariableId]>, AnalysisError> {
+    let mapped: Result<Vec<_>, _> = ids.iter().map(|id| remap.map(*id)).collect();
+    Ok(Arc::from(mapped?))
+}
+
+fn remap_intervention(
+    intervention: &Intervention,
+    remap: &IdRemap,
+) -> Result<Intervention, AnalysisError> {
+    match intervention {
+        Intervention::Set { variable, value } => {
+            Ok(Intervention::Set { variable: remap.map(*variable)?, value: value.clone() })
+        }
+        Intervention::Shift { variable, delta } => {
+            Ok(Intervention::Shift { variable: remap.map(*variable)?, delta: delta.clone() })
+        }
+        Intervention::Stochastic { variable, policy } => Ok(Intervention::Stochastic {
+            variable: remap.map(*variable)?,
+            policy: policy.clone(),
+        }),
+        Intervention::Soft { variable, mechanism } => Ok(Intervention::Soft {
+            variable: remap.map(*variable)?,
+            mechanism: mechanism.clone(),
+        }),
+        Intervention::Sequence(seq) => {
+            let steps: Result<Vec<_>, AnalysisError> = seq
+                .steps
+                .iter()
+                .map(|s| {
+                    Ok(SequencedIntervention {
+                        intervention: remap_intervention(&s.intervention, remap)?,
+                        temporal: s.temporal.clone(),
+                    })
+                })
+                .collect();
+            Ok(Intervention::Sequence(InterventionSequence::new(steps?)))
+        }
+        other => Err(AnalysisError::Compile {
+            message: format!("cannot remap unsupported intervention variant: {other:?}"),
+        }),
+    }
+}
+
+fn remap_average_effect_query(
+    query: &AverageEffectQuery,
+    remap: &IdRemap,
+) -> Result<AverageEffectQuery, AnalysisError> {
+    Ok(AverageEffectQuery {
+        treatment: remap.map(query.treatment)?,
+        outcome: remap.map(query.outcome)?,
+        effect_modifiers: remap_variable_slice(&query.effect_modifiers, remap)?,
+        control: remap_intervention(&query.control, remap)?,
+        active: remap_intervention(&query.active, remap)?,
+        target_population: query.target_population.clone(),
+    })
+}
+
+fn remap_identified_estimand(
+    estimand: &IdentifiedEstimand,
+    remap: &IdRemap,
+) -> Result<IdentifiedEstimand, AnalysisError> {
+    let rd_design = match &estimand.rd_design {
+        None => None,
+        Some(rd) => Some(RdDesignParams {
+            running_variable: remap.map(rd.running_variable)?,
+            cutoff: rd.cutoff,
+            bandwidth: rd.bandwidth,
+        }),
+    };
+    Ok(IdentifiedEstimand {
+        method: Arc::clone(&estimand.method),
+        adjustment_set: remap_variable_slice(&estimand.adjustment_set, remap)?,
+        instruments: remap_variable_slice(&estimand.instruments, remap)?,
+        mediators: remap_variable_slice(&estimand.mediators, remap)?,
+        functional: estimand.functional,
+        rd_design,
+    })
+}
+
+/// Diagnostic when a wide table was narrowed after identification.
+pub(crate) fn projection_diagnostic(
+    full_cols: usize,
+    projected_cols: usize,
+) -> Option<Diagnostic> {
+    if projected_cols >= full_cols {
+        return None;
+    }
+    Some(Diagnostic::new(
+        "exec.project.columns",
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        format!("projected {full_cols} → {projected_cols} columns after identification"),
+    ))
 }

@@ -6,10 +6,10 @@
 
 use std::sync::Arc;
 
-use causal_estimate::{OverlapPolicy, OverlapReport};
+use causal_estimate::OverlapPolicy;
 use causal_stats::GlmOptions;
 
-use crate::common::{RefutationProblem, RefutationReport, diagnostic_overlap_report};
+use crate::common::{RefutationProblem, RefutationReport};
 use crate::error::ValidationError;
 
 /// Overlap / positivity assessment.
@@ -56,9 +56,31 @@ impl OverlapRefuter {
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<RefutationReport, ValidationError> {
+        let mut local = causal_stats::PropensityWorkspace::default();
+        self.refute_with_propensity(problem, &mut local)
+    }
+
+    /// Like [`Self::refute`], reusing a warmed propensity workspace for diagnostic fits.
+    ///
+    /// # Errors
+    ///
+    /// Data failures while building a diagnostic-only propensity fit.
+    pub fn refute_with_propensity(
+        &self,
+        problem: &RefutationProblem<'_>,
+        propensity: &mut causal_stats::PropensityWorkspace,
+    ) -> Result<RefutationReport, ValidationError> {
         let (report, replicates) = match &problem.original.overlap_report {
             Some(r) => (r.clone(), 0),
-            None => (self.diagnostic_report(problem)?, 1),
+            None => (
+                crate::common::diagnostic_overlap_report_with(
+                    problem,
+                    &self.glm_options,
+                    OverlapPolicy::require_diagnostics(),
+                    propensity,
+                )?,
+                1,
+            ),
         };
         let nrows = estimation_row_count(problem)? as f64;
         let Some(ess) = report.ess else {
@@ -99,13 +121,6 @@ impl OverlapRefuter {
             },
             replicates,
         })
-    }
-
-    fn diagnostic_report(
-        &self,
-        problem: &RefutationProblem<'_>,
-    ) -> Result<OverlapReport, ValidationError> {
-        diagnostic_overlap_report(problem, &self.glm_options, OverlapPolicy::require_diagnostics())
     }
 }
 

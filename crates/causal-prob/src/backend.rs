@@ -67,6 +67,10 @@ pub struct BayesFitResult {
     pub map: Vec<f64>,
     /// Diagnostics (required for Laplace).
     pub diagnostics: InferenceDiagnostics,
+    /// Dense posterior covariance (`ncols²`, column-major) when the approximation
+    /// is Gaussian (Laplace / conjugate known-σ²). Enables adaptive redraws
+    /// without re-fitting MAP.
+    pub cov: Option<Vec<f64>>,
 }
 
 /// Backend-neutral Bayesian inference interface.

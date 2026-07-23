@@ -55,6 +55,8 @@ from ._native import (
     CausalState,
     CausalStateError,
     CausalUnsupportedError,
+    CausalCancelledError,
+    CancellationToken,
     CausalValidateError,
     ChangeAttributionResult,
     Contribution,
@@ -168,9 +170,12 @@ from .estimation import (
     ConflictSummaryView,
     EffectEnvelope,
     PredictiveCheckReport,
+    PreparedAnalysis,
     PriorSensitivityReport,
     analyze,
+    analyze_many,
 )
+from .accepted_graph import AcceptedGraph
 from .inference import Bayesian, Frequentist
 from .prior_bank import (
     CompatibilityReport,
@@ -211,6 +216,7 @@ from .validation import (
 )
 
 __all__ = [
+    "AcceptedGraph",
     "Admg",
     "AnalysisResult",
     "AnomalyScores",
@@ -235,6 +241,8 @@ __all__ = [
     "CausalState",
     "CausalStateError",
     "CausalUnsupportedError",
+    "CausalCancelledError",
+    "CancellationToken",
     "CausalValidateError",
     "ChangeAttributionResult",
     "CompatibilityReport",
@@ -271,6 +279,7 @@ __all__ = [
     "PCMCI",
     "PCMCIPlus",
     "Pag",
+    "PreparedAnalysis",
     "PathSpecificEffect",
     "PcmciDiscoveryResult",
     "PopulationRegistry",
@@ -303,6 +312,7 @@ __all__ = [
     "TemporalMediationEffect",
     "TemporalPag",
     "analyze",
+    "analyze_many",
     "anomaly_attribution",
     "attribute_distribution_change",
     "attribute_distribution_change_robust",
