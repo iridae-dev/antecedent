@@ -21,7 +21,7 @@ workspace = true
 [dependencies]
 causal-core = { path = "../crates/causal-core" }
 causal-data = { path = "../crates/causal-data", features = ["arrow"] }
-causal = { path = "../crates/causal" }
+antecedent = { path = "../crates/antecedent" }
 causal-io = { path = "../crates/causal-io" }
 causal-prob = { path = "../crates/causal-prob" }
 # Type conversion only (mediation estimand / graph construction for analyze*).

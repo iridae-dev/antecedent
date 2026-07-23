@@ -20,7 +20,7 @@ use crate::error::StatsError;
 /// - `robust_parcorr` / `robust_partial_corr`
 /// - `weighted_parcorr` / `weighted_partial_corr` — **not** constructible here; requires
 ///   explicit weights via [`WeightedPartialCorrelation`](super::parcorr_variants::WeightedPartialCorrelation)
-///   or `causal::resolve_ci(..., Some(weights))`
+///   or `antecedent::resolve_ci(..., Some(weights))`
 /// - `multivariate_parcorr` / `multivariate_partial_corr`
 /// - `pairwise_multivariate` / `pairwise_mv`
 /// - `gsquared` / `g_squared`

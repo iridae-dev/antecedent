@@ -869,14 +869,14 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             control,
             active,
             target_population,
-        } => CausalQuery::AverageEffect(AverageEffectQuery {
-            treatment: VariableId::from_raw(*treatment),
-            outcome: VariableId::from_raw(*outcome),
-            effect_modifiers: vars_from_raw(effect_modifiers),
-            control: control.to_domain(),
-            active: active.to_domain(),
-            target_population: target_population.to_domain()?,
-        }),
+        } => CausalQuery::AverageEffect(AverageEffectQuery::new(
+            VariableId::from_raw(*treatment),
+            VariableId::from_raw(*outcome),
+            vars_from_raw(effect_modifiers),
+            control.to_domain(),
+            active.to_domain(),
+            target_population.to_domain()?,
+        )),
         CausalQueryWire::TemporalEffect {
             treatment,
             outcome,

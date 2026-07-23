@@ -48,6 +48,13 @@ Optional `blas` features (if added later) are non-default.
 - Not run in GitHub Actions; run before release or when touching security-sensitive surfaces.
 - Third-party Actions in workflows are pinned to commit SHAs; workflows set explicit `permissions`.
 
+## Published surface
+
+| Surface | Destination | Notes |
+|---------|-------------|--------|
+| Rust facade `antecedent` + `causal-*` library crates | crates.io | Tag workflow `publish-crates.yml`; see `scripts/publish_crates.sh` |
+| Python package `antecedent` (PyO3 crate `causal-py`) | GitHub Packages / Release assets | **Not** on crates.io (`publish = false`); not public PyPI yet |
+
 ## Evidence commands
 
 ```bash

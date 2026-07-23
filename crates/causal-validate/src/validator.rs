@@ -23,11 +23,17 @@ use crate::reisz::ReiszSensitivity;
 use crate::sensitivity::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
 use crate::unobserved_common_cause::UnobservedCommonCause;
 
+mod sealed {
+    pub trait Sealed {}
+}
+
 /// Validation / refutation algorithm over artifact type `A` .
 ///
 /// `validate` also takes an [`EstimationWorkspace`] because effect refuters in
 /// this crate refit estimators; DESIGN's sketch omits it.
-pub trait Validator<A> {
+///
+/// This trait is sealed: only types in this crate may implement it.
+pub trait Validator<A>: sealed::Sealed {
     /// Prepared artifact produced by [`Self::prepare`].
     type Prepared;
     /// Report produced by [`Self::validate`].
@@ -88,6 +94,7 @@ where
 
 macro_rules! impl_effect_validator {
     ($ty:ty, $call:expr) => {
+        impl crate::validator::sealed::Sealed for $ty {}
         impl<'a> Validator<RefutationProblem<'a>> for $ty {
             type Prepared = PreparedRefutation<'a>;
             type Report = RefutationReport;
@@ -145,6 +152,7 @@ impl_effect_validator!(ReiszSensitivity, |this: &ReiszSensitivity, p, ws, ctx| {
 /// Validators whose `refute` does not need an estimation workspace.
 macro_rules! impl_stateless_effect_validator {
     ($ty:ty, $call:expr) => {
+        impl crate::validator::sealed::Sealed for $ty {}
         impl<'a> Validator<RefutationProblem<'a>> for $ty {
             type Prepared = PreparedRefutation<'a>;
             type Report = RefutationReport;

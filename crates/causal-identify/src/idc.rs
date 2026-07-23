@@ -157,14 +157,14 @@ impl IdcIdentifier {
 
         match expr_result {
             IdcOk::Identified { functional, arena } => {
-                let estimand = IdentifiedEstimand {
-                    method: Arc::from(EstimandMethod::GeneralId.as_str()),
-                    adjustment_set: Arc::from([]),
-                    instruments: Arc::from([]),
-                    mediators: Arc::from([]),
+                let estimand = IdentifiedEstimand::new(
+                    Arc::from(EstimandMethod::GeneralId.as_str()),
+                    Arc::from([]),
+                    Arc::from([]),
+                    Arc::from([]),
                     functional,
-                    rd_design: None,
-                };
+                    None,
+                );
                 Ok(IdentificationResult::identified(
                     CausalQuery::Distribution(InterventionalDistributionQuery {
                         outcomes: Arc::from(outcomes.to_vec()),

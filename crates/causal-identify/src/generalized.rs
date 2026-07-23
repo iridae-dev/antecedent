@@ -155,14 +155,14 @@ fn identify_on_mag_completion(
     control: Value,
     max_candidates: usize,
 ) -> Result<IdentificationResult, IdentificationError> {
-    let query = CausalQuery::AverageEffect(AverageEffectQuery {
-        treatment: t,
-        outcome: y,
-        control: causal_core::Intervention::set(t, control.clone()),
-        active: causal_core::Intervention::set(t, active.clone()),
-        effect_modifiers: Arc::from([]),
-        target_population: causal_core::TargetPopulation::AllObserved,
-    });
+    let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
+        t,
+        y,
+        Arc::from([]),
+        causal_core::Intervention::set(t, control.clone()),
+        causal_core::Intervention::set(t, active.clone()),
+        causal_core::TargetPopulation::AllObserved,
+    ));
     let Some(admg) = mag_to_admg(mag) else {
         return Ok(not_identified(query, "completion is not a MAG (undirected marks remain)"));
     };

@@ -6,6 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
 description = "Causal identification (backdoor and related)"
 readme = "README.md"
 
@@ -13,10 +17,10 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-causal-core = { path = "../causal-core" }
-causal-data = { path = "../causal-data" }
-causal-expr = { path = "../causal-expr" }
-causal-graph = { path = "../causal-graph" }
+causal-core = { version = "0.1.0", path = "../causal-core" }
+causal-data = { version = "0.1.0", path = "../causal-data" }
+causal-expr = { version = "0.1.0", path = "../causal-expr" }
+causal-graph = { version = "0.1.0", path = "../causal-graph" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

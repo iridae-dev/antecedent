@@ -21,7 +21,7 @@ Groups: `ci_batch_parcorr`, `ci_batch_robust`, `ci_batch_gsquared`, `ci_batch_kn
 | knn z1_full | **~8 ms** |
 
 ```bash
-cargo +1.85 bench -p causal-stats --bench ci_phase5
+cargo +1.85 bench -p antecedent-stats --bench ci_phase5
 ```
 
 Acceptance: no unexplained >20% regression vs last accepted Criterion mean on
@@ -39,7 +39,7 @@ bench). Gate also covered by unit test
 | knn_dependence_reuse_batch8 | **2.18 ms** |
 
 ```bash
-cargo +1.85 bench -p causal-stats --bench ci_phase5 -- knn_dependence_reuse
+cargo +1.85 bench -p antecedent-stats --bench ci_phase5 -- knn_dependence_reuse
 ```
 
 ## Orientation local-delta vs global rescan (`causal-discovery` bench `orientation`)
@@ -61,7 +61,7 @@ the full node set every rule application.
 Local-delta remains clearly faster than global rescan at each size (~15–25% win).
 
 ```bash
-cargo +1.85 bench -p causal-discovery --bench orientation
+cargo +1.85 bench -p antecedent-discovery --bench orientation
 ```
 
 ## Calibration suite

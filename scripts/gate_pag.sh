@@ -32,14 +32,14 @@ EVIDENCE = {
     "pag.graph.admg": "crates/causal-graph/src/admg.rs",
     "pag.graph.pag_temporal": "crates/causal-graph/src/pag.rs",
     "pag.graph.m_separation": "crates/causal-graph/src/msep.rs",
-    "pag.graph.latent_projection": "crates/causal/tests/pag.rs",
+    "pag.graph.latent_projection": "crates/antecedent/tests/pag.rs",
     "pag.graph.completions_streamed": "crates/causal-graph/src/completion.rs",
     "pag.graph.cpdag_mec_completions": "crates/causal-graph/src/cpdag_completion.rs",
-    "pag.identify.generalized_adjustment": "crates/causal/tests/pag.rs",
+    "pag.identify.generalized_adjustment": "crates/antecedent/tests/pag.rs",
     "pag.identify.full_id_idc": "crates/causal-identify/src/id.rs",
-    "pag.discovery.lpcmci": "crates/causal/tests/pag.rs",
+    "pag.discovery.lpcmci": "crates/antecedent/tests/pag.rs",
     "pag.discovery.fci_rfci": "crates/causal-discovery/src/fci.rs",
-    "pag.facade.dag_only_reject": "crates/causal/tests/pag.rs",
+    "pag.facade.dag_only_reject": "crates/antecedent/tests/pag.rs",
 }
 
 missing = []
@@ -94,14 +94,14 @@ print("PAG inventory evidence map OK")
 PY
 
 echo "== cargo test graph / discovery LPCMCI / identify / facade pag =="
-cargo test -p causal-graph --lib
-cargo test -p causal-discovery --lib
-cargo test -p causal-identify --lib
-cargo test -p causal --test pag
-cargo test -p causal --lib refuses_dag_only
+cargo test -p antecedent-graph --lib
+cargo test -p antecedent-discovery --lib
+cargo test -p antecedent-identify --lib
+cargo test -p antecedent --test pag
+cargo test -p antecedent --lib refuses_dag_only
 
 echo "== criterion smoke (m-sep + PAG orientation) =="
-cargo bench -p causal-graph --bench mseparation -- --test
-cargo bench -p causal-discovery --bench pag_orientation -- --test
+cargo bench -p antecedent-graph --bench mseparation -- --test
+cargo bench -p antecedent-discovery --bench pag_orientation -- --test
 
 echo "PAG gate PASSED"

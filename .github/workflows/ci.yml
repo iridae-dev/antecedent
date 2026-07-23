@@ -43,6 +43,16 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      - name: crates.io publish dry-run
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.sh$'; then
+            bash scripts/publish_crates.sh --dry-run
+          else
+            echo "No crate manifest changes; skipping publish dry-run"
+          fi
+
       - name: Install cargo-deny
         # Pin to a release that still builds on MSRV 1.85 (newer deny needs 1.88+).
         run: cargo install cargo-deny --locked --version 0.18.3

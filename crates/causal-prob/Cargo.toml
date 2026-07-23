@@ -6,6 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
 description = "Probability distributions, columnar posteriors, priors, and inference backends"
 readme = "README.md"
 
@@ -13,8 +17,8 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-causal-core = { path = "../causal-core" }
-causal-kernels = { path = "../causal-kernels" }
+causal-core = { version = "0.1.0", path = "../causal-core" }
+causal-kernels = { version = "0.1.0", path = "../causal-kernels" }
 thiserror = { workspace = true }
 
 [features]

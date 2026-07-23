@@ -713,9 +713,9 @@ pub(crate) fn owned_composed_prior_from_dict(
 
 /// Build [`BayesianConfig`] external compose from owned composed-prior data.
 pub(crate) fn apply_owned_composed_prior(
-    cfg: causal::BayesianConfig,
+    cfg: antecedent::BayesianConfig,
     owned: OwnedComposedPrior,
-) -> PyResult<causal::BayesianConfig> {
+) -> PyResult<antecedent::BayesianConfig> {
     use causal_core::PriorAssumption;
     use std::sync::Arc;
 

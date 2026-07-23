@@ -59,6 +59,7 @@ pub struct EstimationWorkspace {
 
 /// Point estimate with uncertainty.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct EffectEstimate {
     /// ATE point estimate `β_T * (active − control)`.
     pub ate: f64,
@@ -85,6 +86,60 @@ pub struct EffectEstimate {
 }
 
 impl EffectEstimate {
+    /// Construct a point estimate without bootstrap accounting.
+    #[must_use]
+    pub fn new(
+        ate: f64,
+        se_analytic: f64,
+        assumptions: AssumptionSet,
+        overlap: OverlapPolicy,
+    ) -> Self {
+        Self {
+            ate,
+            se_analytic,
+            se_bootstrap: None,
+            bootstrap_replicates_ok: None,
+            bootstrap_replicates_failed: None,
+            bootstrap_cancelled: false,
+            bootstrap_early_stopped: false,
+            assumptions,
+            overlap,
+            overlap_report: None,
+            retained_memory_bytes: None,
+        }
+    }
+
+    /// Full constructor (required outside this crate because the type is `#[non_exhaustive]`).
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        ate: f64,
+        se_analytic: f64,
+        se_bootstrap: Option<f64>,
+        bootstrap_replicates_ok: Option<u32>,
+        bootstrap_replicates_failed: Option<u32>,
+        bootstrap_cancelled: bool,
+        bootstrap_early_stopped: bool,
+        assumptions: AssumptionSet,
+        overlap: OverlapPolicy,
+        overlap_report: Option<OverlapReport>,
+        retained_memory_bytes: Option<u64>,
+    ) -> Self {
+        Self {
+            ate,
+            se_analytic,
+            se_bootstrap,
+            bootstrap_replicates_ok,
+            bootstrap_replicates_failed,
+            bootstrap_cancelled,
+            bootstrap_early_stopped,
+            assumptions,
+            overlap,
+            overlap_report,
+            retained_memory_bytes,
+        }
+    }
+
     /// Attach bootstrap SE accounting (or clear when bootstrap was skipped).
     #[must_use]
     pub fn with_bootstrap(mut self, boot: Option<crate::util::BootstrapSeResult>) -> Self {

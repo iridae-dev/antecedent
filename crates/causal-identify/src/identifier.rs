@@ -26,13 +26,25 @@ pub struct IdentificationWorkspace {
     pub dsep: DSeparationWorkspace,
 }
 
+pub(crate) mod sealed {
+    pub trait Sealed {}
+}
+
+impl sealed::Sealed for BackdoorIdentifier {}
+impl sealed::Sealed for EfficientBackdoorIdentifier {}
+impl sealed::Sealed for FrontDoorIdentifier {}
+impl sealed::Sealed for InstrumentalVariableIdentifier {}
+impl sealed::Sealed for IdIdentifier {}
+
 /// Identification algorithm over graph type `G` .
 ///
 /// Concrete identifiers keep inherent `prepare` / `identify` methods as the
 /// primary API. This trait is the extension / dispatch surface. Declared
 /// `assumptions` are stored on the prepared graph and merged into the result;
 /// `workspace` carries reusable graph-search scratch.
-pub trait Identifier<G> {
+///
+/// This trait is sealed: only types in this crate may implement it.
+pub trait Identifier<G>: sealed::Sealed {
     /// Prepared graph type for this identifier.
     type Prepared;
 

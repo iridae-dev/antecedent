@@ -6,6 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
 description = "Low-level borrowed views and scalar/optimized numerical kernels"
 readme = "README.md"
 
@@ -13,7 +17,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-causal-core = { path = "../causal-core" }
+causal-core = { version = "0.1.0", path = "../causal-core" }
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }

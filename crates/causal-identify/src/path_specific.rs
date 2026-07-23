@@ -154,14 +154,14 @@ impl PathSpecificIdentifier {
             ),
         );
 
-        let ate = AverageEffectQuery {
-            treatment: q.treatment,
-            outcome: q.outcome,
-            control: q.control.clone(),
-            active: q.active.clone(),
-            effect_modifiers: Arc::from([]),
-            target_population: q.target_population.clone(),
-        };
+        let ate = AverageEffectQuery::new(
+            q.treatment,
+            q.outcome,
+            Arc::from([]),
+            q.control.clone(),
+            q.active.clone(),
+            q.target_population.clone(),
+        );
         let mut id_res = self.inner.identify_ate(&surgical_prep, &ate, workspace)?;
         id_res.derivation.steps.splice(0..0, derivation.steps);
         id_res.performance.candidates_examined =

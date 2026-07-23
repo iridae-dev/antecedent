@@ -76,4 +76,4 @@ notes = "Dual-graph parent-set Shapley structure_change; causal.attribute_struct
 id = "attribution.facade"
 status = "done"
 python_facade = "full"
-notes = "Facade + conformance tests under crates/causal/tests/attribution.rs; Python causal.attribution + package helpers"
+notes = "Facade + conformance tests under crates/antecedent/tests/attribution.rs; Python causal.attribution + package helpers"

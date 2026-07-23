@@ -3,7 +3,7 @@
 **Suite path:** `conformance/estimate/glm_adjustment`
 
 Clean-room synthetic SCM generated inline by
-`crates/causal/tests/estimate_conformance.rs`.
+`crates/antecedent/tests/estimate_conformance.rs`.
 
 ## Expected summary
 

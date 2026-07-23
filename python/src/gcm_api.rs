@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use causal::gcm::{
+use antecedent::gcm::{
     ChangeAttributionResult as RustChangeAttributionResult, DifferenceMeasure,
     DistributionChangeOptions, FittedGcm, RobustChangeOptions, StructureChangeOptions,
     anomaly_attribution as facade_anomaly_attribution,
@@ -813,7 +813,7 @@ impl PyFittedGcm {
                 &inner.model,
                 &data,
                 &query,
-                causal::gcm::MechanismChangeMethod::MeanDiff,
+                antecedent::gcm::MechanismChangeMethod::MeanDiff,
                 &ctx,
             )
             .map_err(py_err)?;

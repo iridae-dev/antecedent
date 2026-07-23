@@ -1,0 +1,47 @@
+name: publish-crates
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Publish crates.io
+    runs-on: ubuntu-latest
+    # Separate from Python GitHub Packages / Release wheels.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          bash scripts/set_version.sh "$TAG"
+
+      - name: Publish (dry-run on workflow_dispatch without token)
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${CRATES_IO_TOKEN:-}" ]]; then
+            export CARGO_REGISTRY_TOKEN="$CRATES_IO_TOKEN"
+            bash scripts/publish_crates.sh --execute
+          else
+            echo "CRATES_IO_TOKEN unset; dry-run only"
+            bash scripts/publish_crates.sh --dry-run
+          fi

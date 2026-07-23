@@ -6,6 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
 description = "Library-owned causal data views and Arrow-backed adapters"
 readme = "README.md"
 
@@ -24,8 +28,8 @@ arrow = [
 ]
 
 [dependencies]
-causal-core = { path = "../causal-core" }
-causal-kernels = { path = "../causal-kernels" }
+causal-core = { version = "0.1.0", path = "../causal-core" }
+causal-kernels = { version = "0.1.0", path = "../causal-kernels" }
 arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }

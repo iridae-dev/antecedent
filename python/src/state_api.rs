@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use causal::state::{
+use antecedent::state::{
     CausalState, ConstraintId, DataBatchRef, GraphConstraintRecord, GraphEvidenceRecord,
     InterventionRecord, LgssmParams, LinearOlsSuffStats, ParticleFilterState, StateEvent,
     StreamingCovariance, apply_state_event, new_causal_state,

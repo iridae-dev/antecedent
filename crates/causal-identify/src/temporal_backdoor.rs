@@ -192,14 +192,14 @@ impl TemporalBackdoorIdentifier {
         let treatment_var = VariableId::from_raw(treatment_dense);
         let outcome_var = VariableId::from_raw(outcome_dense);
 
-        let ate = AverageEffectQuery {
-            treatment: treatment_var,
-            outcome: outcome_var,
-            effect_modifiers: Arc::from([]),
-            control: retarget(&query.control, treatment_var)?,
-            active: retarget(&query.active, treatment_var)?,
-            target_population: query.target_population.clone(),
-        };
+        let ate = AverageEffectQuery::new(
+            treatment_var,
+            outcome_var,
+            Arc::from([]),
+            retarget(&query.control, treatment_var)?,
+            retarget(&query.active, treatment_var)?,
+            query.target_population.clone(),
+        );
 
         let mut identifier = self.inner.clone();
         apply_history_lag_filter(

@@ -250,7 +250,7 @@ impl CausalSchema {
     /// # Errors
     ///
     /// Returns [`SchemaError::UnknownVariableName`] when the name is absent.
-    pub fn get_by_name(&self, name: &str) -> Result<&VariableSchema, SchemaError> {
+    pub fn by_name(&self, name: &str) -> Result<&VariableSchema, SchemaError> {
         let id = self.id_of(name)?;
         self.get(id)
     }

@@ -133,12 +133,12 @@ fn drop_adjustment_at(base: &IdentifiedEstimand, drop_idx: usize) -> IdentifiedE
         .filter(|(i, _)| *i != drop_idx)
         .map(|(_, z)| z)
         .collect();
-    IdentifiedEstimand {
-        method: Arc::clone(&base.method),
-        adjustment_set: Arc::from(zs),
-        instruments: Arc::clone(&base.instruments),
-        mediators: Arc::clone(&base.mediators),
-        functional: base.functional,
-        rd_design: base.rd_design,
-    }
+    IdentifiedEstimand::new(
+        Arc::clone(&base.method),
+        Arc::from(zs),
+        Arc::clone(&base.instruments),
+        Arc::clone(&base.mediators),
+        base.functional,
+        base.rd_design,
+    )
 }

@@ -6,6 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
 description = "Versioned artifact container and wire types for Antecedent"
 readme = "README.md"
 
@@ -13,16 +17,16 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-causal-core = { path = "../causal-core" }
-causal-data = { path = "../causal-data" }
-causal-discovery = { path = "../causal-discovery" }
-causal-estimate = { path = "../causal-estimate" }
-causal-expr = { path = "../causal-expr" }
-causal-graph = { path = "../causal-graph" }
-causal-identify = { path = "../causal-identify" }
-causal-model = { path = "../causal-model" }
-causal-prob = { path = "../causal-prob" }
-causal-validate = { path = "../causal-validate" }
+causal-core = { version = "0.1.0", path = "../causal-core" }
+causal-data = { version = "0.1.0", path = "../causal-data" }
+causal-discovery = { version = "0.1.0", path = "../causal-discovery" }
+causal-estimate = { version = "0.1.0", path = "../causal-estimate" }
+causal-expr = { version = "0.1.0", path = "../causal-expr" }
+causal-graph = { version = "0.1.0", path = "../causal-graph" }
+causal-identify = { version = "0.1.0", path = "../causal-identify" }
+causal-model = { version = "0.1.0", path = "../causal-model" }
+causal-prob = { version = "0.1.0", path = "../causal-prob" }
+causal-validate = { version = "0.1.0", path = "../causal-validate" }
 blake3 = { workspace = true }
 ciborium = { workspace = true }
 memmap2 = { workspace = true }

@@ -164,19 +164,19 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> EffectEstimate {
         }
         _ => OverlapPolicy::ExplicitOverride,
     };
-    EffectEstimate {
-        ate: w.ate,
-        se_analytic: w.se_analytic,
-        se_bootstrap: w.se_bootstrap,
-        bootstrap_replicates_ok: w.bootstrap_replicates_ok,
-        bootstrap_replicates_failed: w.bootstrap_replicates_failed,
-        bootstrap_cancelled: false,
-        bootstrap_early_stopped: false,
-        assumptions: causal_core::AssumptionSet::new(),
+    EffectEstimate::from_parts(
+        w.ate,
+        w.se_analytic,
+        w.se_bootstrap,
+        w.bootstrap_replicates_ok,
+        w.bootstrap_replicates_failed,
+        false,
+        false,
+        causal_core::AssumptionSet::new(),
         overlap,
-        overlap_report: None,
-        retained_memory_bytes: w.retained_memory_bytes,
-    }
+        None,
+        w.retained_memory_bytes,
+    )
 }
 
 /// Encode identification result.
@@ -256,27 +256,30 @@ pub fn identification_from_wire(
             return Err(IoError::Convert(format!("unknown IdentificationStatus `{other}`")));
         }
     };
-    Ok(IdentificationResult {
+    Ok(IdentificationResult::from_parts(
         status,
-        query: causal_query_from_wire(&w.query)?,
-        estimands: w
-            .estimands
+        causal_query_from_wire(&w.query)?,
+        w.estimands
             .iter()
-            .map(|e| IdentifiedEstimand {
-                method: Arc::from(e.method.as_str()),
-                adjustment_set: vars_from_raw(&e.adjustment_set),
-                instruments: vars_from_raw(&e.instruments),
-                mediators: vars_from_raw(&e.mediators),
-                functional: ExprId::from_raw(e.functional),
-                rd_design: e.rd_design.as_ref().map(|d| causal_expr::RdDesignParams {
-                    running_variable: causal_core::VariableId::from_raw(d.running_variable),
-                    cutoff: d.cutoff,
-                    bandwidth: d.bandwidth,
-                }),
+            .map(|e| {
+                IdentifiedEstimand::new(
+                    Arc::from(e.method.as_str()),
+                    vars_from_raw(&e.adjustment_set),
+                    vars_from_raw(&e.instruments),
+                    vars_from_raw(&e.mediators),
+                    ExprId::from_raw(e.functional),
+                    e.rd_design.as_ref().map(|d| {
+                        causal_expr::RdDesignParams::new(
+                            causal_core::VariableId::from_raw(d.running_variable),
+                            d.cutoff,
+                            d.bandwidth,
+                        )
+                    }),
+                )
             })
             .collect(),
-        arena: expr_arena_from_wire(&w.arena)?,
-        derivation: DerivationTrace {
+        expr_arena_from_wire(&w.arena)?,
+        DerivationTrace {
             steps: w
                 .derivation
                 .iter()
@@ -286,18 +289,14 @@ pub fn identification_from_wire(
                 })
                 .collect(),
         },
-        required_assumptions: causal_core::AssumptionSet::new(),
-        diagnostics: w
-            .diagnostics
-            .iter()
-            .map(diagnostic_from_wire)
-            .collect::<Result<Vec<_>, _>>()?,
-        performance: IdentificationPerformanceRecord {
+        causal_core::AssumptionSet::new(),
+        w.diagnostics.iter().map(diagnostic_from_wire).collect::<Result<Vec<_>, _>>()?,
+        IdentificationPerformanceRecord {
             candidates_examined: w.candidates_examined,
             sets_returned: w.sets_returned,
         },
-        hedge: None,
-    })
+        None,
+    ))
 }
 
 /// Encode refutation.
@@ -318,16 +317,16 @@ pub fn refutation_to_wire(r: &RefutationReport) -> RefutationReportWire {
 /// Decode refutation.
 #[must_use]
 pub fn refutation_from_wire(w: &RefutationReportWire) -> RefutationReport {
-    RefutationReport {
-        refuter: Arc::from(w.refuter.as_str()),
-        original_ate: w.original_ate,
-        refuted_ate: w.refuted_ate,
-        comparison: w.comparison,
-        informative: w.informative,
-        passed: w.passed,
-        failure_condition: w.failure_condition.as_ref().map(|s| Arc::<str>::from(s.as_str())),
-        replicates: w.replicates,
-    }
+    RefutationReport::new(
+        Arc::from(w.refuter.as_str()),
+        w.original_ate,
+        w.refuted_ate,
+        w.comparison,
+        w.informative,
+        w.passed,
+        w.failure_condition.as_ref().map(|s| Arc::<str>::from(s.as_str())),
+        w.replicates,
+    )
 }
 
 /// Encode diagnostic.
@@ -392,17 +391,17 @@ mod tests {
     fn empty_id_result(status: IdentificationStatus) -> IdentificationResult {
         let t = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
-        IdentificationResult {
+        IdentificationResult::from_parts(
             status,
-            query: CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(t, y)),
-            estimands: Vec::new(),
-            arena: CausalExprArena::new(),
-            derivation: DerivationTrace::default(),
-            required_assumptions: AssumptionSet::default(),
-            diagnostics: Vec::new(),
-            performance: IdentificationPerformanceRecord::default(),
-            hedge: None,
-        }
+            CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(t, y)),
+            Vec::new(),
+            CausalExprArena::new(),
+            DerivationTrace::default(),
+            AssumptionSet::default(),
+            Vec::new(),
+            IdentificationPerformanceRecord::default(),
+            None,
+        )
     }
 
     #[test]
@@ -445,14 +444,14 @@ mod tests {
         );
         let mut path = empty_id_result(IdentificationStatus::NonparametricallyIdentified);
         path.query = path_q;
-        path.estimands.push(IdentifiedEstimand {
-            method: Arc::from("path_specific.natural"),
-            adjustment_set: Arc::from([]),
-            instruments: Arc::from([]),
-            mediators: Arc::from([]),
-            functional: ExprId::from_raw(0),
-            rd_design: None,
-        });
+        path.estimands.push(IdentifiedEstimand::new(
+            Arc::from("path_specific.natural"),
+            Arc::from([]),
+            Arc::from([]),
+            Arc::from([]),
+            ExprId::from_raw(0),
+            None,
+        ));
         let wire = identification_to_wire(&path).unwrap();
         assert_eq!(wire.estimands[0].method, "path_specific.natural");
         let back = identification_from_wire(&wire).unwrap();

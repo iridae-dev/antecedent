@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal::{BayesianConfig, CausalAnalysis, Dag, InferenceMode, PreparedAnalysis};
+use antecedent::{BayesianConfig, CausalAnalysis, Dag, InferenceMode, PreparedAnalysis};
 use causal_core::AverageEffectQuery;
 use causal_data::{TableView, tabular_from_record_batch};
 use causal_graph::DenseNodeId;
@@ -22,7 +22,7 @@ pub struct PyPreparedAnalysis {
     inner: PreparedAnalysis,
     names: Vec<String>,
     /// Last estimate result retained for second-click refute.
-    last: Option<causal::CausalAnalysisResult>,
+    last: Option<antecedent::CausalAnalysisResult>,
 }
 
 #[pymethods]
@@ -74,7 +74,7 @@ impl PyPreparedAnalysis {
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
             None => None,
-            Some(s) => Some(causal::LatencyMode::parse(s).ok_or_else(|| {
+            Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
                 PyValueError::new_err(format!(
                     "unknown latency={s:?}; use interactive|standard|report"
                 ))
@@ -278,11 +278,11 @@ impl PyPreparedAnalysis {
 }
 
 fn apply_inference(
-    builder: causal::CausalAnalysisBuilder,
+    builder: antecedent::CausalAnalysisBuilder,
     mode: &str,
     n_draws: usize,
     prior_scale: f64,
-) -> PyResult<causal::CausalAnalysisBuilder> {
+) -> PyResult<antecedent::CausalAnalysisBuilder> {
     match mode.to_ascii_lowercase().as_str() {
         "bayesian" | "bayesian.laplace" | "laplace" => {
             let cfg = BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale);

@@ -41,7 +41,7 @@ EVIDENCE = {
     "attribution.feature_relevance": "crates/causal-attribution/src/feature_relevance.rs",
     "attribution.root_cause": "crates/causal-attribution/src/root_cause.rs",
     "attribution.structure": "crates/causal-attribution/src/structure_change.rs",
-    "attribution.facade": "crates/causal/tests/attribution.rs",
+    "attribution.facade": "crates/antecedent/tests/attribution.rs",
 }
 
 missing = []
@@ -105,10 +105,10 @@ print("Attribution inventory evidence map OK")
 PY
 
 echo "== cargo test attribution / facade attribution =="
-cargo test -p causal-attribution --lib
-cargo test -p causal --test attribution
+cargo test -p antecedent-attribution --lib
+cargo test -p antecedent --test attribution
 
 echo "== criterion smoke (shapley) =="
-cargo bench -p causal-attribution --bench shapley -- --test
+cargo bench -p antecedent-attribution --bench shapley -- --test
 
 echo "Attribution gate PASSED"

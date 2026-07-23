@@ -39,7 +39,7 @@ EVIDENCE = {
     "design_state.incremental_ols": "crates/causal-state/src/suff_stats.rs",
     "design_state.streaming_cov": "crates/causal-state/src/suff_stats.rs",
     "design_state.cache_budget": "crates/causal-state/src/store.rs",
-    "design_state.facade": "crates/causal/tests/design_state.rs",
+    "design_state.facade": "crates/antecedent/tests/design_state.rs",
     "design_state.incremental.particle_graph_score": "crates/causal-state/src/graph_score.rs",
     "design_state.rolling_mechanism_diagnostics": "crates/causal-state/src/mechanism_diag.rs",
 }
@@ -86,12 +86,12 @@ print("Design state inventory evidence map OK")
 PY
 
 echo "== cargo test design / state / facade design_state =="
-cargo test -p causal-design --lib
-cargo test -p causal-state --lib
-cargo test -p causal --test design_state
+cargo test -p antecedent-design --lib
+cargo test -p antecedent-state --lib
+cargo test -p antecedent --test design_state
 
 echo "== criterion smoke (design + state) =="
-cargo bench -p causal-design --bench design_rank -- --test
-cargo bench -p causal-state --bench state_append -- --test
+cargo bench -p antecedent-design --bench design_rank -- --test
+cargo bench -p antecedent-state --bench state_append -- --test
 
 echo "Design state gate PASSED"

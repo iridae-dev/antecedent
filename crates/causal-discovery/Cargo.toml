@@ -6,6 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
 description = "Causal discovery algorithms (PCMCI family, static PC/GES/LiNGAM/NOTEARS, Bayesian graph posterior)"
 readme = "README.md"
 
@@ -13,12 +17,12 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-causal-core = { path = "../causal-core" }
-causal-data = { path = "../causal-data" }
-causal-graph = { path = "../causal-graph" }
-causal-prob = { path = "../causal-prob" }
-causal-state = { path = "../causal-state" }
-causal-stats = { path = "../causal-stats" }
+causal-core = { version = "0.1.0", path = "../causal-core" }
+causal-data = { version = "0.1.0", path = "../causal-data" }
+causal-graph = { version = "0.1.0", path = "../causal-graph" }
+causal-prob = { version = "0.1.0", path = "../causal-prob" }
+causal-state = { version = "0.1.0", path = "../causal-state" }
+causal-stats = { version = "0.1.0", path = "../causal-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

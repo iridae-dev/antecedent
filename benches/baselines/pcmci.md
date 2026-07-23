@@ -46,11 +46,11 @@ workers; no global pool).
 Refresh after algorithm changes:
 
 ```bash
-cargo +1.85 bench -p causal-discovery --bench pcmci -- pcmci_target_parallel
+cargo +1.85 bench -p antecedent-discovery --bench pcmci -- pcmci_target_parallel
 ```
 
 ## How to refresh
 
 ```bash
-cargo +1.85 bench -p causal-discovery --bench pcmci
+cargo +1.85 bench -p antecedent-discovery --bench pcmci
 ```

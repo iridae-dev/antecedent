@@ -9,6 +9,12 @@ use causal_expr::IdentifiedEstimand;
 use crate::adjustment::{EffectEstimate, EstimationWorkspace, PreparedEstimationProblem};
 use crate::error::EstimationError;
 
+mod sealed {
+    pub trait Sealed {}
+}
+
+impl sealed::Sealed for crate::adjustment::LinearAdjustmentAte {}
+
 /// Estimator preparation + fit .
 ///
 /// Extension / dispatch surface. Most concrete estimators expose inherent
@@ -18,7 +24,9 @@ use crate::error::EstimationError;
 ///
 /// `query` is required to bind intervention levels; DESIGN omits it in the sketch
 /// but every ATE estimator needs it at prepare time.
-pub trait Estimator<D, Q = AverageEffectQuery> {
+///
+/// This trait is sealed: only types in this crate may implement it.
+pub trait Estimator<D, Q = AverageEffectQuery>: sealed::Sealed {
     /// Fitted artifact type.
     type Fit;
 
