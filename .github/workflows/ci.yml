@@ -44,7 +44,8 @@ jobs:
         run: cargo test --workspace
 
       - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
+        # Pin to a release that still builds on MSRV 1.85 (newer deny needs 1.88+).
+        run: cargo install cargo-deny --locked --version 0.18.3
 
       - name: Release gate
         run: bash scripts/gate_release.sh
