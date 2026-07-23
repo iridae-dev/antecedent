@@ -1875,7 +1875,7 @@ impl CausalAnalysis {
                 est.overlap = OverlapPolicy::ExplicitOverride;
                 let prep = est
                     .prepare(&data_est, &estimand_est, &query_est)
-                    .map_err(|e| CausalError::from(e))?;
+                    .map_err(CausalError::from)?;
                 let filled = est
                     .attach_bootstrap(&prep, &mut estimate_ws.linear, ctx, point)
                     .map_err(CausalError::from)?;
