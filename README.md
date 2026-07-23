@@ -1,16 +1,30 @@
 # Antecedent
 
-**Fast, explicit causal inference for Python and Rust.**
+Antecedent is a causal inference library written in Rust with a Python API.
 
-Discovery, identification, estimation, counterfactuals, attribution, and validation in one API—across tabular, temporal, panel, multi-environment, and event data.
+It provides a single workflow for causal discovery, identification, estimation, Bayesian inference, interventions, counterfactuals, attribution, validation, experimental design, and incremental causal state.
+
+The library is built around three rules:
+
+* identification is evaluated before estimation;
+* priors and parametric assumptions do not upgrade nonparametric identification;
+* uncertainty about causal structure is retained rather than silently resolved.
+
+## Quick start
+
+```bash
+pip install antecedent
+```
 
 ```python
-result = antecedent.analyze(
-    data,
+from antecedent import AverageEffect, analyze
+
+result = analyze(
+    data=data,
     graph=graph,
-    query=antecedent.AverageEffect(
-        treatment="price",
-        outcome="demand",
+    query=AverageEffect(
+        treatment="treatment",
+        outcome="outcome",
     ),
 )
 
@@ -19,197 +33,418 @@ print(result.estimate)
 print(result.validation)
 ```
 
-Identify first. Estimate second. Estimators never silently choose confounders or invent a number for an unidentified query.
+The corresponding Rust interface uses `CausalAnalysis::builder()`:
 
-## Installation
+```rust
+use antecedent::prelude::*;
 
-**Python** (CPython 3.11–3.14; wheels for Linux, macOS, Windows).
-
-Private builds publish to **GitHub Packages** and as assets on each GitHub
-Release (`vX.Y.Z`). Public PyPI is not used yet; the distribution name is
-`antecedent`.
-
-GitHub Packages (replace `OWNER` / use a PAT with `read:packages`):
-
-```bash
-# uv
-export UV_INDEX_GITHUB_USERNAME=TOKEN
-export UV_INDEX_GITHUB_PASSWORD=ghp_...   # or fine-scoped token
-uv add antecedent --index https://pypi.pkg.github.com/OWNER/antecedent/simple/
+let result = CausalAnalysis::builder()
+    .data(data)
+    .graph(graph)
+    .query(query)
+    .build()?
+    .run(&ctx)?;
 ```
-
-```toml
-# pyproject.toml (uv)
-[[tool.uv.index]]
-name = "github"
-url = "https://pypi.pkg.github.com/OWNER/antecedent/simple/"
-authenticate = "always"
-
-[tool.uv.sources]
-antecedent = { index = "github" }
-```
-
-```bash
-# pip
-pip install antecedent \
-  --index-url https://OWNER:ghp_...@pypi.pkg.github.com/OWNER/antecedent/simple/
-```
-
-Or download the platform wheel from the Release assets and
-`pip install ./antecedent-*.whl`.
-
-**Rust** (1.85+, edition 2024) — facade on crates.io:
 
 ```bash
 cargo add antecedent
 ```
 
-```toml
-antecedent = "0.1"
+An analysis can include:
+
+* identification status and assumptions;
+* an estimand and applicable identification strategies;
+* a frequentist estimate or Bayesian posterior;
+* uncertainty across compatible graphs;
+* diagnostics, refuters, and sensitivity analyses;
+* provenance and serialized artifacts.
+
+## Workflow
+
+```text
+data
+  │
+  ├── discover
+  │     └── DAG · CPDAG · PAG · temporal graph · graph posterior
+  │
+  └── graph
+        ├── identify
+        ├── estimate
+        ├── infer posterior
+        ├── intervene
+        ├── evaluate counterfactuals
+        ├── attribute change
+        ├── validate
+        └── rank experimental designs
 ```
 
-```rust
-use antecedent::prelude::*;
-```
+Discovery results are treated as evidence about causal structure. They are not automatically treated as the true graph.
 
-Supporting crates (`antecedent-core`, `antecedent-graph`, …) publish alongside the facade
-and are public dependencies of `antecedent`. The Python extension crate
-(`antecedent-py`) is not on crates.io.
+## Queries
 
-For a private checkout before crates.io mirrors catch up:
+Antecedent uses typed causal queries rather than a string query language.
 
-```toml
-antecedent = { git = "ssh://git@github.com/iridae-dev/antecedent.git" }
-```
+| Query                        | Purpose                                        |
+| ---------------------------- | ---------------------------------------------- |
+| `AverageEffect`              | Average treatment effects and contrasts        |
+| `ConditionalEffect`          | Conditional and heterogeneous effects          |
+| `PulseEffect`                | Temporary temporal interventions               |
+| `SustainedEffect`            | Sustained temporal interventions               |
+| `InterventionalDistribution` | Distributions under `do(·)`                    |
+| `PathSpecificEffect`         | Direct, mediated, and path-specific effects    |
+| Counterfactual queries       | Nested and unit-level counterfactuals          |
+| Attribution queries          | Anomaly, mechanism, path, and unit attribution |
 
-See [docs/development.md](docs/development.md) for tagging releases and the
-crates.io publish checklist.
+## Graphs
 
-## Python quick start
+Supported graph classes include:
 
-```python
-import antecedent
+* DAG;
+* ADMG;
+* CPDAG;
+* PAG;
+* temporal DAG;
+* temporal CPDAG;
+* temporal PAG.
 
-result = antecedent.analyze(
-    data,  # prefer PyArrow / Arrow CDI for interactive; pandas remains correct
-    graph=[("z", "campaign"), ("z", "revenue"), ("campaign", "revenue")],
-    query=antecedent.AverageEffect(
-        treatment="campaign",
-        outcome="revenue",
-    ),
-    inference=antecedent.Frequentist(),
-    latency="interactive",  # optional: analytic/cheap path; pass Arrow for zero-copy
-)
+Graph operations include:
 
-print(result.identification.status, result.estimate.ate)
-```
+* d-separation;
+* m-separation;
+* districts;
+* latent projection;
+* Markov-equivalence completions;
+* definite-status separation;
+* temporal unfolding;
+* intervention overlays.
 
-Stages are available separately: `identification`, `estimate`, `posterior`, `validation`, `diagnostics`, `provenance`.
+Static and temporal graphs have separate semantics. A static graph is not interpreted as temporal by default.
 
-Temporal discovery then estimation:
+Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned CBOR artifacts.
 
-```python
-discovered = antecedent.discover_pcmci(
-    names, columns, max_lag=12, alpha=0.05, seed=1
-)
-result = antecedent.analyze(
-    {"pressure": pressure, "defect": defect},
-    graph=[("pressure", 1, "defect", 0)],
-    query=antecedent.PulseEffect(
-        treatment="pressure",
-        outcome="defect",
-        active_level=-0.03,
-        treatment_lag=1,
-        horizon_steps=1,
-    ),
-)
-```
+## Discovery
 
-## Rust quick start
+### Static
 
-```rust
-use antecedent::prelude::*;
-use antecedent::RefuteSuite;
+* PC
+* FCI
+* RFCI
+* GES
+* DirectLiNGAM
+* NOTEARS
 
-fn main() -> Result<(), CausalError> {
-    let schema = CausalSchemaBuilder::new()
-        .continuous("campaign")
-        .treatment()
-        .continuous("revenue")
-        .outcome()
-        .continuous("z")
-        .context()
-        .build()?;
-    let data = TabularData::from_f64_columns([
-        ("campaign", campaign.as_slice()),
-        ("revenue", revenue.as_slice()),
-        ("z", z.as_slice()),
-    ])?;
-    let dag = Dag::from_named_edges(
-        &schema,
-        &[("z", "campaign"), ("z", "revenue"), ("campaign", "revenue")],
-    )?;
-    let t = schema.id_of("campaign")?;
-    let y = schema.id_of("revenue")?;
-    let ctx = ExecutionContext::for_tests(1);
+### Temporal and multi-context
 
-    let result = CausalAnalysis::builder()
-        .data(data)
-        .graph(dag)
-        .query(AverageEffectQuery::binary_ate(t, y))
-        .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(1000)))
-        .refute(RefuteSuite::None)
-        .build()?
-        .run(&ctx)?;
+* PCMCI
+* PCMCI+
+* LPCMCI
+* J-PCMCI+
+* regime-specific RPCMCI workflows
 
-    if let Some(posterior) = &result.posterior {
-        println!("P(effect < 0) = {}", posterior.probability_below(0.0)?);
-    }
-    println!("ATE point = {}", result.effect());
-    Ok(())
-}
-```
+### Bayesian structure learning
 
-`use antecedent::prelude::*` for day-1 imports. Prefer modules (`antecedent::discovery`, `antecedent::gcm`, `antecedent::io`, …) for stage depth — those are no longer re-exported at the crate root (0.1.x breaking). Examples: `cargo run -p antecedent --example ate_quickstart`.
+* exact DAG posterior;
+* order MCMC;
+* structure MCMC;
+* CI-screened graph posterior;
+* DBN posterior.
 
-## What it covers
+Posterior graph samples can be propagated into downstream effect analyses.
 
-| Area | Includes |
-| --- | --- |
-| Data | Tabular, time series, panel (multi-unit; J-PCMCI+ / clustered SE), multi-environment (J-PCMCI+ discover), events (duration-bin align → temporal); NumPy/pandas/Arrow CDI |
-| Graphs | DAG, ADMG, CPDAG, PAG, temporal; d/m-separation, projection, interventions |
-| Discovery | Constraint- and score-based, NOTEARS, PCMCI family, Bayesian search; evidence retained |
-| Identification | Backdoor, front-door, IV, ID/IDC, mediation, partial ID, temporal |
-| Estimation | Adjustment, matching, weighting, DR, IV, RD; frequentist and Bayesian |
-| SCMs / CFs | Interventions, abduction–action–prediction, trajectories |
-| Attribution | Anomaly, distribution/mechanism change, path-specific, Shapley, root cause |
-| Validation | Placebos, sensitivity, overlap, graph/discovery stability, PPC |
+### Conditional independence tests
 
-## Design rules
+Supported tests include:
 
-* **Identification ≠ estimation** — the estimand is decided before fitting.
-* **Priors ≠ nonparametric ID** — Bayesian restrictions are recorded as such.
-* **Graph ≠ parameter uncertainty** — kept separate in results.
-* **Discovery is evidence** — not auto-promoted to ground truth.
-* **Static ≠ temporal graphs** — lag/time-index semantics are explicit.
+* partial correlation;
+* weighted and robust partial correlation;
+* regression CI;
+* k-nearest-neighbour CI;
+* mixed k-nearest-neighbour CI;
+* symbolic conditional mutual information;
+* GPDC;
+* G²;
+* oracle tests;
+* Bayesian CI tests.
 
-Hot paths run in Rust (batched APIs, reusable workspaces, optimized kernels). Results keep assumptions, diagnostics, and provenance. Artifacts use versioned serialization, not internal struct dumps.
+Multiplicity corrections include BH, BY, Bonferroni, and Holm.
+
+Discovery stability tools include block bootstrap, lag and threshold sensitivity, orientation stability, environment holdout, synthetic-null checks, and permutation or phase-randomized surrogates.
+
+## Identification
+
+Antecedent reports whether a query is:
+
+* nonparametrically identified;
+* partially identified;
+* graph-dependent;
+* not identified.
+
+Implemented identification strategies include:
+
+* backdoor adjustment;
+* efficient backdoor adjustment;
+* front-door identification;
+* instrumental variables;
+* sharp regression discontinuity;
+* ID and IDC for DAGs and ADMGs;
+* hedge certificates;
+* nonparametric path-specific identification;
+* generalized adjustment for partial graphs;
+* unfolded temporal backdoor;
+* temporal mediation.
+
+`AutoIdentifier` reports applicable strategies. It does not silently choose an estimator.
+
+For PAGs, Antecedent uses identification envelopes or explicit graph completions. Full PAG-native ID and IDC are outside the supported scope.
+
+## Estimation
+
+### Frequentist
+
+* linear and generalized-linear outcome regression;
+* g-computation;
+* inverse probability weighting;
+* propensity matching;
+* covariate-distance matching;
+* stratification;
+* AIPW;
+* front-door two-stage estimation;
+* Wald estimation;
+* 2SLS;
+* sharp local-linear regression discontinuity;
+* linear conditional effect models;
+* temporal adjustment;
+* temporal mediation;
+* functional plug-in estimation.
+
+### Bayesian
+
+* Bayesian g-computation;
+* temporal Bayesian g-computation;
+* conjugate Gaussian models;
+* Laplace GLM approximation;
+* HMC GLMs;
+* graph-by-effect posterior envelopes;
+* same-design prior transfer;
+* effect-level and mapped prior transfer;
+* prior catalogs and compatibility filtering;
+* power-prior mixtures;
+* conflict-sensitive prior weighting;
+* transport policies across compatible designs.
+
+Unidentified graph-posterior mass is retained rather than silently renormalized away.
+
+## Interventions and counterfactuals
+
+Antecedent includes a structural causal model layer.
+
+Supported mechanisms include:
+
+* linear-Gaussian models;
+* constant mechanisms;
+* discrete mechanisms;
+* hierarchical linear and generalized-linear models;
+* Minnesota BVAR;
+* linear Gaussian state-space models;
+* Gaussian-process mechanisms.
+
+Supported interventions include:
+
+* hard interventions;
+* soft interventions;
+* stochastic interventions;
+* sequenced interventions;
+* temporal policies;
+* dynamic policies;
+* mechanism overrides.
+
+Do-sampling methods include weighting, KDE, and MCMC.
+
+Counterfactual support includes:
+
+* abduction–action–prediction;
+* nested counterfactuals;
+* temporal trajectories;
+* unit-level counterfactual analysis.
+
+## Attribution and diagnostics
+
+Antecedent can analyze:
+
+* anomalous outcomes;
+* distribution shifts;
+* structural changes;
+* mechanism changes;
+* change points;
+* unit-level change;
+* path contributions;
+* arrow strength;
+* feature relevance;
+* root-cause rankings.
+
+Implemented techniques include:
+
+* likelihood-ratio tests;
+* mean-difference tests;
+* classifier-based tests;
+* MMD;
+* Gaussian KL divergence;
+* CUSUM-style scans;
+* Shapley attribution;
+* coalition caching.
+
+## Validation and sensitivity
+
+Estimate validation includes:
+
+* placebo refuters;
+* random common-cause refuters;
+* unobserved common-cause refuters;
+* bootstrap refuters;
+* data-subset refuters;
+* dummy-outcome refuters;
+* overlap diagnostics;
+* E-values;
+* graph refutation.
+
+Sensitivity methods include:
+
+* linear sensitivity;
+* partial-linear sensitivity;
+* nonparametric sensitivity;
+* Reisz sensitivity.
+
+Bayesian validation includes:
+
+* prior predictive checks;
+* prior sensitivity;
+* MCMC diagnostics;
+* simulation-based calibration hooks.
+
+Resampling support includes:
+
+* IID bootstrap;
+* Bayesian bootstrap;
+* moving-block bootstrap;
+* circular-block bootstrap;
+* column permutation;
+* phase-randomized surrogates.
+
+## Experimental design
+
+Antecedent can rank candidate actions such as:
+
+* measuring a variable;
+* intervening on a variable;
+* observing an environment;
+* changing a sampling plan.
+
+Ranking criteria include:
+
+* expected information gain;
+* probability of identification;
+* expected effect-interval width;
+* decision utility.
+
+The design layer supports batched Monte Carlo evaluation, common random numbers, and early stopping.
+
+## Incremental state
+
+`CausalState` supports stateful and online workflows.
+
+Available components include:
+
+* explicit invalidation;
+* incremental OLS;
+* streaming covariance;
+* particle-filter state-space models;
+* local score caches;
+* rolling mechanism diagnostics;
+* configurable cache budgets;
+* prepared analyses;
+* progressive and cancellable execution;
+* adaptive resampling.
+
+Invalidation does not automatically rerun an analysis.
+
+## Data support
+
+Antecedent supports:
+
+* tabular data;
+* time series;
+* panel data;
+* multi-environment data;
+* event data converted into temporal frames.
+
+Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
+
+## Artifacts
+
+Versioned artifacts include:
+
+* graphs;
+* graph posteriors;
+* model bundles;
+* analysis traces;
+* causal state.
+
+Artifacts use schema-versioned CBOR containers with optional Zstandard-compressed sections, selective reads, and memory-mapped access.
+
+## Scientific scope
+
+Antecedent follows several explicit constraints:
+
+1. Priors do not upgrade nonparametric identification.
+2. Discovery results are not assumed to be ground truth.
+3. Static and temporal graph semantics are not interchangeable.
+4. Unidentified graph-posterior mass is preserved.
+5. Partial graphs are not silently completed.
+6. PAG-native full ID and IDC are not claimed.
+7. Unsupervised regime discovery is outside the RPCMCI workflow.
+
+## Platform support
+
+Python wheels are provided for:
+
+* CPython 3.11–3.14;
+* Linux;
+* macOS;
+* Windows.
+
+The scientific engine and native API are written in Rust. No additional language bindings are currently provided.
+
+Until public PyPI is enabled, install from [GitHub Packages](docs/development.md) or a Release wheel. Rust: `cargo add antecedent` (crates.io) or a git dependency — see [docs/development.md](docs/development.md).
 
 ## Documentation
 
-* [Architecture](docs/architecture.md) · [Development](docs/development.md) · [Artifacts](docs/artifacts.md)
-* [API naming (Rust ↔ Python)](docs/api_naming.md) · [Hot paths](docs/hot_paths.md) · [Conformance](docs/conformance/README.md) · [ADRs](adr/README.md)
-* API docs: narrative on Read the Docs (MkDocs); Rust on [docs.rs/antecedent](https://docs.rs/antecedent); Python pdoc in Release `docs.tar.gz`. Locally: `mkdocs serve`, `cargo doc -p antecedent --open`
-* [Examples](crates/antecedent/examples/) · [Python examples](python/examples/)
+The documentation covers:
+
+* installation;
+* typed queries;
+* graph construction;
+* discovery;
+* identification;
+* estimation;
+* Bayesian inference;
+* temporal and panel analysis;
+* interventions;
+* counterfactuals;
+* attribution;
+* validation;
+* experimental design;
+* artifacts;
+* Rust API;
+* Python API.
+
+Narrative docs: [docs/](docs/index.md) (MkDocs / Read the Docs). Rust API: [docs.rs/antecedent](https://docs.rs/antecedent). Python API HTML ships in Release `docs.tar.gz` via pdoc. Locally: `mkdocs serve`, `cargo doc -p antecedent --open`.
+
+Also: [Architecture](docs/architecture.md) · [Development](docs/development.md) · [API naming](docs/api_naming.md) · [ADRs](adr/README.md) · [Examples](crates/antecedent/examples/) · [Python examples](python/examples/).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Algorithm work should include method basis, tests, calibration where relevant, a benchmark, and provenance. DCO sign-off required.
+See [CONTRIBUTING.md](CONTRIBUTING.md). DCO sign-off required.
 
 ## License
 
-MIT OR Apache-2.0, at your option.
-
-```text
-SPDX-License-Identifier: MIT OR Apache-2.0
-```
+MIT OR Apache-2.0 — see `LICENSE-MIT` and `LICENSE-APACHE`.
