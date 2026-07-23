@@ -66,7 +66,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .ids import Estimator, Identifier
+from .ids import Estimator, Identifier, Latency, Refute
 
 # Preferred name for the native temporal DTO.
 NativeAnalysisResult = TemporalAnalysisResult
@@ -189,6 +189,33 @@ class PerformanceView:
 
 
 @dataclass(frozen=True)
+class PlanView:
+    """Logical-plan summary (semantics; inspect before/after estimate)."""
+
+    plan_id: str
+    modality: str | None = None
+    discovery_algorithm: str | None = None
+    graph_review_required: bool = False
+    identifier: str | None = None
+    estimator: str | None = None
+    validation_suite: str | None = None
+
+
+@dataclass(frozen=True)
+class PhysicalPlanView:
+    """Physical-plan highlights from prepare (layouts / threads / kernels)."""
+
+    plan_id: str
+    estimated_peak_memory_bytes: int | None = None
+    workspace_bytes: int | None = None
+    batch_size: int | None = None
+    worker_threads: int = 0
+    expected_python_crossings: int = 0
+    deterministic_reductions: bool = True
+    kernels: str | None = None
+
+
+@dataclass(frozen=True)
 class AnalysisResult:
     """Nested analysis result matching the Rust facade sections."""
 
@@ -200,12 +227,23 @@ class AnalysisResult:
     diagnostics: list[str]
     provenance: dict[str, Any]
     mediation: MediationView | None = None
+    plan: PlanView | None = None
     _raw: Any = None
     _prepared: Any = None
 
     @property
-    def ate(self) -> float:
+    def effect(self) -> float:
+        """Primary scalar effect (mediation total when present, else estimate ATE/mean)."""
+        if self.mediation is not None and self.mediation.total is not None:
+            return float(self.mediation.total)
+        if self.estimate.mediation is not None and self.estimate.mediation.total is not None:
+            return float(self.estimate.mediation.total)
         return self.estimate.ate
+
+    @property
+    def ate(self) -> float:
+        """Alias for :attr:`effect` (prefer ``effect`` for non-ATE queries)."""
+        return self.effect
 
     def refresh(
         self,
@@ -229,7 +267,7 @@ class AnalysisResult:
     def refute(
         self,
         data: Mapping[str, Any] | Any,
-        suite: Literal["placebo", "full", "cheap"] | bool | str = "placebo",
+        suite: Refute | Literal["placebo", "full", "cheap"] | bool | str = "placebo",
         *,
         seed: int = 1,
         threads: int = 1,
@@ -241,9 +279,24 @@ class AnalysisResult:
                 "AnalysisResult.refute requires a result from PreparedAnalysis; "
                 "use PreparedAnalysis.prepare(...) then estimate"
             )
+        if isinstance(suite, Refute):
+            suite = str(suite)
         return self._prepared.refute(
             data, suite, seed=seed, threads=threads, cancel=cancel
         )
+
+
+def _plan_from_raw(raw: Any) -> PlanView:
+    return PlanView(
+        plan_id=str(getattr(raw, "plan_id", "") or ""),
+        modality=getattr(raw, "modality", None),
+        discovery_algorithm=getattr(raw, "discovery_algorithm", None),
+        graph_review_required=bool(getattr(raw, "graph_review_required", False)),
+        identifier=getattr(raw, "plan_identifier", None),
+        estimator=getattr(raw, "plan_estimator", None)
+        or (getattr(raw, "estimator_id", None) or None),
+        validation_suite=getattr(raw, "validation_suite", None),
+    )
 
 
 def _wrap_ate(raw: AteAnalysisResult, prepared: Any | None = None) -> AnalysisResult:
@@ -361,20 +414,25 @@ def _wrap_ate(raw: AteAnalysisResult, prepared: Any | None = None) -> AnalysisRe
         ),
         diagnostics=list(raw.diagnostics),
         provenance={"node_count": raw.provenance_node_count},
+        plan=_plan_from_raw(raw),
         _raw=raw,
         _prepared=prepared,
     )
 
 
 def _resolve_latency_budget(
-    latency: Literal["interactive", "standard", "report"] | None,
+    latency: Latency | Literal["interactive", "standard", "report"] | str | None,
     bootstrap: int | None,
-    refute: bool | Literal["full", "placebo", "none", "cheap"],
+    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | str,
 ) -> tuple[int, bool | Literal["full", "placebo", "none", "cheap"]]:
     """Map latency tier to bootstrap/refute; explicit bootstrap wins when set."""
+    if isinstance(latency, Latency):
+        latency = str(latency)
+    if isinstance(refute, Refute):
+        refute = str(refute)
     if latency is None:
-        return (50 if bootstrap is None else bootstrap, refute)
-    key = latency.strip().lower()
+        return (50 if bootstrap is None else bootstrap, refute)  # type: ignore[return-value]
+    key = str(latency).strip().lower()
     if key == "interactive":
         mapped_boot, mapped_refute = 0, "cheap"
     elif key == "standard":
@@ -391,7 +449,7 @@ def _resolve_latency_budget(
     if refute is True:
         out_refute = mapped_refute  # type: ignore[assignment]
     else:
-        out_refute = refute
+        out_refute = refute  # type: ignore[assignment]
     out_boot = mapped_boot if bootstrap is None else bootstrap
     return out_boot, out_refute
 
@@ -706,6 +764,7 @@ def _wrap_temporal(raw: TemporalAnalysisResult) -> AnalysisResult:
             "worker_threads": getattr(raw, "worker_threads", None),
             "expected_python_crossings": getattr(raw, "expected_python_crossings", None),
         },
+        plan=_plan_from_raw(raw),
         _raw=raw,
     )
 
@@ -943,7 +1002,7 @@ def analyze(
     inference: Frequentist | Bayesian | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | None = None,
-    refute: bool | Literal["full", "placebo", "none", "cheap"] = True,
+    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] = True,
     validators: Sequence[Any] | None = None,
     accept_discovered: bool = True,
     seed: int = 1,
@@ -954,7 +1013,7 @@ def analyze(
     cutoff: float | None = None,
     bandwidth: float | None = None,
     population_registry: Any | None = None,
-    latency: Literal["interactive", "standard", "report"] | None = None,
+    latency: Latency | Literal["interactive", "standard", "report"] | None = None,
     cancel: Any | None = None,
     on_progress: Any | None = None,
     on_stage: Any | None = None,
@@ -1011,6 +1070,10 @@ def analyze(
         identifier = str(identifier)
     if isinstance(estimator, Estimator):
         estimator = str(estimator)
+    if isinstance(latency, Latency):
+        latency = str(latency)  # type: ignore[assignment]
+    if isinstance(refute, Refute):
+        refute = str(refute)  # type: ignore[assignment]
     inference = inference or Frequentist()
     bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
 
@@ -1707,18 +1770,26 @@ class PreparedAnalysis:
         query: AverageEffect,
         graph: Dag | Sequence[tuple[str, str]],
         inference: Frequentist | Bayesian | None = None,
-        identifier: str | None = None,
-        estimator: str | None = None,
-        refute: bool | Literal["full", "placebo", "none", "cheap"] = False,
+        identifier: str | Identifier | None = None,
+        estimator: str | Estimator | None = None,
+        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] = False,
         seed: int = 1,
         bootstrap: int | None = None,
         threads: int = 1,
-        latency: Literal["interactive", "standard", "report"] | None = "interactive",
+        latency: Latency | Literal["interactive", "standard", "report"] | None = "interactive",
     ) -> PreparedAnalysis:
         """Compile a durable plan for static ATE on a supplied DAG."""
         if not isinstance(query, AverageEffect):
             raise TypeError("PreparedAnalysis supports AverageEffect only")
         inference = inference or Frequentist()
+        if isinstance(identifier, Identifier):
+            identifier = str(identifier)
+        if isinstance(estimator, Estimator):
+            estimator = str(estimator)
+        if isinstance(latency, Latency):
+            latency = str(latency)  # type: ignore[assignment]
+        if isinstance(refute, Refute):
+            refute = str(refute)  # type: ignore[assignment]
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
         names, columns = as_columns(data)  # type: ignore[arg-type]
         edges = _static_edges(graph)  # type: ignore[arg-type]
@@ -1749,6 +1820,28 @@ class PreparedAnalysis:
         )
         return cls(native)
 
+    @property
+    def plan(self) -> PhysicalPlanView:
+        """Physical-plan summary retained from prepare."""
+        raw = self._native.plan_summary()
+        return PhysicalPlanView(
+            plan_id=str(raw.get("plan_id", "")),
+            estimated_peak_memory_bytes=(
+                int(raw["estimated_peak_memory_bytes"])
+                if "estimated_peak_memory_bytes" in raw
+                else None
+            ),
+            workspace_bytes=(
+                int(raw["workspace_bytes"]) if "workspace_bytes" in raw else None
+            ),
+            batch_size=int(raw["batch_size"]) if "batch_size" in raw else None,
+            worker_threads=int(raw.get("worker_threads", 0)),
+            expected_python_crossings=int(raw.get("expected_python_crossings", 0)),
+            deterministic_reductions=str(raw.get("deterministic_reductions", "true")).lower()
+            in ("1", "true"),
+            kernels=raw.get("kernels") or None,
+        )
+
     def estimate(
         self,
         data: Mapping[str, Any] | Any,
@@ -1776,7 +1869,7 @@ class PreparedAnalysis:
     def refute(
         self,
         data: Mapping[str, Any] | Any,
-        suite: Literal["placebo", "full", "cheap"] | bool | str = "placebo",
+        suite: Refute | Literal["placebo", "full", "cheap"] | bool | str = "placebo",
         *,
         seed: int = 1,
         threads: int = 1,
@@ -1787,6 +1880,8 @@ class PreparedAnalysis:
         Interactive first clicks typically use ``refute=False`` or ``cheap``;
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
         """
+        if isinstance(suite, Refute):
+            suite = str(suite)
         names, columns = as_columns(data)  # type: ignore[arg-type]
         kwargs: dict[str, Any] = dict(seed=seed, threads=threads)
         if cancel is not None:
@@ -1804,6 +1899,8 @@ __all__ = [
     "IdentifyResult",
     "NativeAnalysisResult",
     "PerformanceView",
+    "PhysicalPlanView",
+    "PlanView",
     "PosteriorView",
     "PredictiveCheckReport",
     "PreparedAnalysis",

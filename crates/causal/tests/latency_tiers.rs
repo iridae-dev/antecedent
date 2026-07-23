@@ -10,7 +10,13 @@
 
 use std::sync::{Arc, Mutex};
 
-use causal::{AnalysisStageEvent, CausalAnalysis, LatencyMode, RefuteSuite, StageResultSink};
+use causal::{
+    AnalysisStageEvent,
+    CausalAnalysis,
+    LatencyMode,
+    RefuteSuite,
+    StageResultSink,
+};
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     ProgressSink, RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -203,7 +209,10 @@ fn cancel_mid_bootstrap_yields_partial_not_silent_full() {
 
 #[test]
 fn interactive_refuses_inline_discovery() {
-    use causal::{DiscoveryAccept, FdrControl};
+    use causal::{
+    DiscoveryAccept,
+    FdrControl,
+};
 
     let (data, dag, query) = confounded_scm(200, 23);
     let err = CausalAnalysis::builder()

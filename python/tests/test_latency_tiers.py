@@ -128,4 +128,4 @@ def test_progressive_stages_callback_order():
     assert stages == ["identify", "estimate_point", "uncertainty", "validate"]
     assert point_ate and math.isfinite(point_ate[0])
     assert abs(point_ate[0] - result.ate) < 1e-12
-    assert result.se_bootstrap is not None
+    assert result.estimate.se_bootstrap is not None

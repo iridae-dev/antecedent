@@ -1,4 +1,4 @@
-"""Typed identifier / estimator wire ids (Pythonic enums)."""
+"""Typed identifier / estimator / latency / refute wire ids (Pythonic enums)."""
 
 from __future__ import annotations
 
@@ -42,4 +42,21 @@ class Estimator(StrEnum):
     TEMPORAL_MEDIATION = "temporal.mediation"
 
 
-__all__ = ["Estimator", "Identifier"]
+class Latency(StrEnum):
+    """Latency tiers (wire ids match Rust ``LatencyMode``)."""
+
+    INTERACTIVE = "interactive"
+    STANDARD = "standard"
+    REPORT = "report"
+
+
+class Refute(StrEnum):
+    """Refutation suite ids (also accept ``bool`` at call sites)."""
+
+    FULL = "full"
+    PLACEBO = "placebo"
+    NONE = "none"
+    CHEAP = "cheap"
+
+
+__all__ = ["Estimator", "Identifier", "Latency", "Refute"]

@@ -11,7 +11,12 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use causal::{CausalAnalysis, LatencyMode, PreparedAnalysis, RefuteSuite};
+use causal::{
+    CausalAnalysis,
+    LatencyMode,
+    PreparedAnalysis,
+    RefuteSuite,
+};
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -221,7 +226,10 @@ fn prepared_second_shot_cheaper_than_full_run() {
 
 #[test]
 fn prepare_refuses_discovery_graph() {
-    use causal::{DiscoveryAccept, FdrControl};
+    use causal::{
+    DiscoveryAccept,
+    FdrControl,
+};
     let (data, _, query) = confounded_scm(100, 37);
     // Discovery under Interactive is refused at build; Standard one-shot still
     // reaches prepare, which refuses Discover* graphs.

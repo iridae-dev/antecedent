@@ -10,7 +10,10 @@
 
 use std::sync::Arc;
 
-use causal::{CausalAnalysis, RefuteSuite};
+use causal::{
+    CausalAnalysis,
+    RefuteSuite,
+};
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -169,7 +172,10 @@ fn shared_workspace_placebo_parity_and_capacity() {
 #[test]
 fn propensity_workspace_reused_estimate_into_overlap() {
     use causal::strategy_table::{EstimatorId, StaticEstimateWorkspaces, estimate_static_effect};
-    use causal::{CausalAnalysis, RefuteSuite};
+    use causal::{
+    CausalAnalysis,
+    RefuteSuite,
+};
     use causal_estimate::OverlapPolicy;
     use causal_validate::OverlapRefuter;
 

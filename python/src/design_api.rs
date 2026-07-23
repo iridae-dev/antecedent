@@ -4,12 +4,13 @@
 
 use std::sync::Arc;
 
-use causal::{
+use causal::design::{
     CandidateDesign, DesignConstraints, DesignCost, DesignEvaluationContext, DesignObjective,
     DesignRankConfig, DesignRanker, EffectWidthContext, EnvironmentGramSpec, EnvironmentPlan,
-    ExperimentPlan, GraphIdentFlag, InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan,
-    ModelLoglikDraws, SamplingPlan, WeightedGraphSamples, rank_designs as facade_rank_designs,
+    ExperimentPlan, InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan,
+    ModelLoglikDraws, SamplingPlan, rank_designs as facade_rank_designs,
 };
+use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
 use causal_core::{EnvironmentId, ModelId, QueryId, VariableId};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -130,7 +131,7 @@ fn parse_objective(
                     PyValueError::new_err("reduce_decision_regret requires decision_id")
                 })?;
                 Ok(DesignObjective::ReduceDecisionRegret {
-                    decision: causal::DecisionProblemId::from_raw(d),
+                    decision: causal::design::DecisionProblemId::from_raw(d),
                 })
             }
             "distinguish_models" => {
@@ -177,7 +178,7 @@ fn parse_objective(
                 PyValueError::new_err("reduce_decision_regret requires decision_id")
             })?;
             Ok(DesignObjective::ReduceDecisionRegret {
-                decision: causal::DecisionProblemId::from_raw(d),
+                decision: causal::design::DecisionProblemId::from_raw(d),
             })
         }
         "distinguish_models" => {

@@ -20,8 +20,12 @@ Rust and Python expose the **same capabilities** with idiomatic shapes on each s
 | Named DAG | `Dag::from_named_edges(&schema, &[…])` | `Dag.from_edges(names, edges)` or edge list |
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |
 | Latent projection | `latent_project` | `Dag.latent_project(observed)` |
-| Primary scalar effect | `result.effect()` | `result.estimate.ate` / `result.ate` |
+| Primary scalar effect | `result.effect()` | `result.effect` (`.ate` alias) |
 | Errors | `CausalError` | `CausalError` (+ typed subclasses) |
+| Latency tier | `LatencyMode::Interactive` | `Latency.INTERACTIVE` / `"interactive"` |
+| Refute suite | `RefuteSuite::…` | `Refute.FULL` / `bool` / `"placebo"` |
+| Plan inspection | `result.logical_plan()` / `PreparedAnalysis::plan()` | `result.plan` / `PreparedAnalysis.plan` |
 | Stage modules | `causal::discovery`, `causal::gcm`, `causal::io` | `causal.discovery`, `causal.gcm`, `causal.graph` |
 
 Prefer package / module paths for stage depth; keep day-1 at the crate / package root.
+Rust stage APIs are **not** re-exported at the crate root — use `causal::io::…`, `causal::discovery::…`, `causal::gcm::…`, etc.

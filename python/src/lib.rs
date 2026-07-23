@@ -39,35 +39,44 @@ use std::sync::Arc;
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use causal::{
-    BayesianConfig, CausalAnalysis, CausalError as RustCausalError, CompiledCausalModel,
-    DecisionProblem,
-    DifferenceMeasure, DiscoverParams, DiscoveryAccept, DiscoveryPerformanceRecord,
-    DistributionChangeOptions, EstimatorId, FdrAdjustment, FdrControl, GraphInput, IdentifierId,
-    InferenceMode, MultiDatasetConstraints, RefuteSuite, RegimeAssignment, ScoredLink,
-    SpaceDummyCiMode, StaticDiscoverParams, StructureChangeOptions, TemporalLinearPredictor,
-    TemporalMediationEstimator, TimeDummyCiMode, anomaly_attribution as facade_anomaly_attribution,
+    BayesianConfig, CausalAnalysis, CausalError as RustCausalError, DiscoveryAccept, EstimatorId,
+    FdrControl, GraphInput, IdentifierId, InferenceMode, RefuteSuite,
+};
+use causal::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
+use causal::discovery::{
+    DiscoverParams, DiscoveryPerformanceRecord, MultiDatasetConstraints, RegimeAssignment,
+    ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
+    discover_fci as facade_discover_fci, discover_ges as facade_discover_ges,
+    discover_jpcmci_plus as facade_discover_jpcmci_plus, discover_lingam as facade_discover_lingam,
+    discover_lpcmci as facade_discover_lpcmci, discover_notears as facade_discover_notears,
+    discover_pc as facade_discover_pc, discover_pcmci as facade_discover_pcmci,
+    discover_pcmci_plus as facade_discover_pcmci_plus, discover_rfci as facade_discover_rfci,
+    discover_rpcmci as facade_discover_rpcmci, pag_definite_directed_edge_count,
+    two_regime_half_split,
+};
+use causal::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
+use causal::gcm::{
+    CompiledCausalModel, DifferenceMeasure, DistributionChangeOptions, StructureChangeOptions,
+    anomaly_attribution as facade_anomaly_attribution,
     attribute_distribution_change as facade_attribute_distribution_change,
     attribute_distribution_change_robust as facade_attribute_distribution_change_robust,
     attribute_feature_relevance as facade_attribute_feature_relevance,
     attribute_path_specific as facade_attribute_path_specific,
     attribute_structure_change as facade_attribute_structure_change,
     attribute_unit_change as facade_attribute_unit_change,
-    counterfactual_ite as facade_counterfactual_ite, dag_from_dot as facade_dag_from_dot,
+    counterfactual_ite as facade_counterfactual_ite, fit_gcm,
+    mechanism_change_detection as facade_mechanism_change_detection,
+    sample_do as facade_sample_do,
+    sample_interventional_distribution as facade_sample_interventional_distribution,
+};
+use causal::io::{
+    dag_from_dot as facade_dag_from_dot,
     dag_from_networkx_adjacency as facade_dag_from_networkx_adjacency,
     dag_to_dot as facade_dag_to_dot, dag_to_json as facade_dag_to_json,
     dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency, decode_causal_posterior_bytes,
-    discover_fci as facade_discover_fci, discover_ges as facade_discover_ges,
-    discover_jpcmci_plus as facade_discover_jpcmci_plus, discover_lingam as facade_discover_lingam,
-    discover_lpcmci as facade_discover_lpcmci, discover_notears as facade_discover_notears,
-    discover_pc as facade_discover_pc, discover_pcmci as facade_discover_pcmci,
-    discover_pcmci_plus as facade_discover_pcmci_plus, discover_rfci as facade_discover_rfci,
-    discover_rpcmci as facade_discover_rpcmci, encode_causal_posterior_bytes,
-    evaluate_decision as facade_evaluate_decision, fit_gcm,
-    mechanism_change_detection as facade_mechanism_change_detection,
-    pag_definite_directed_edge_count, sample_do as facade_sample_do,
-    sample_interventional_distribution as facade_sample_interventional_distribution,
-    two_regime_half_split,
+    encode_causal_posterior_bytes,
 };
+use causal_stats::FdrAdjustment;
 use causal_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalQuery,
     CausalRng, ChangeAttributionQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
@@ -210,7 +219,7 @@ impl IntoCausalPyErr for RustCausalError {
             Self::Graph(e) => CausalGraphError::new_err(e.to_string()),
             Self::Design(e) => CausalDesignError::new_err(e.to_string()),
             Self::State(e) => match &e {
-                causal::StateError::CacheBudget { .. } => {
+                causal::state::StateError::CacheBudget { .. } => {
                     CausalResourceError::new_err(e.to_string())
                 }
                 _ => CausalStateError::new_err(e.to_string()),
@@ -361,6 +370,21 @@ pub(crate) struct AteAnalysisResult {
     /// Data modality classification.
     #[pyo3(get)]
     modality: String,
+    /// Discovery algorithm id from the logical plan, if any.
+    #[pyo3(get)]
+    discovery_algorithm: Option<String>,
+    /// Whether graph review is required before estimation.
+    #[pyo3(get)]
+    graph_review_required: bool,
+    /// Identifier algorithm id from the logical plan, if any.
+    #[pyo3(get)]
+    plan_identifier: Option<String>,
+    /// Estimator id from the logical plan, if any.
+    #[pyo3(get)]
+    plan_estimator: Option<String>,
+    /// Validation suite id from the logical plan, if any.
+    #[pyo3(get)]
+    validation_suite: Option<String>,
     /// Estimated peak memory from the physical plan.
     #[pyo3(get)]
     peak_memory_bytes: Option<u64>,
@@ -1866,9 +1890,9 @@ fn analyze_ate_discover(
         )?;
         let mut builder = CausalAnalysis::builder().data(data);
         let soft = match soft_weight.as_str() {
-            "none" | "" => causal::CiSoftWeight::None,
-            "bayes_factor" | "bf" => causal::CiSoftWeight::BayesFactor,
-            "posterior_dependence" | "pd" => causal::CiSoftWeight::PosteriorDependence,
+            "none" | "" => causal::discovery::CiSoftWeight::None,
+            "bayes_factor" | "bf" => causal::discovery::CiSoftWeight::BayesFactor,
+            "posterior_dependence" | "pd" => causal::discovery::CiSoftWeight::PosteriorDependence,
             other => {
                 return Err(PyValueError::new_err(format!(
                     "unknown soft_weight {other:?}; use none|bayes_factor|posterior_dependence"
@@ -2172,6 +2196,27 @@ pub(crate) fn ate_result_from_analysis(
         provenance_node_count: result.provenance.len(),
         plan_id: result.logical_plan.plan_id.to_string(),
         modality: format!("{:?}", result.logical_plan.data_classification),
+        discovery_algorithm: result
+            .logical_plan
+            .discovery_algorithm
+            .as_ref()
+            .map(std::string::ToString::to_string),
+        graph_review_required: result.logical_plan.graph_review_required,
+        plan_identifier: result
+            .logical_plan
+            .identifier
+            .as_ref()
+            .map(std::string::ToString::to_string),
+        plan_estimator: result
+            .logical_plan
+            .estimator
+            .as_ref()
+            .map(std::string::ToString::to_string),
+        validation_suite: result
+            .logical_plan
+            .validation_suite
+            .as_ref()
+            .map(std::string::ToString::to_string),
         peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
         worker_threads: result.physical_plan.worker_threads,
         expected_python_crossings: result.physical_plan.expected_python_crossings,
@@ -3295,6 +3340,16 @@ struct AnalysisResult {
     plan_id: String,
     #[pyo3(get)]
     modality: String,
+    #[pyo3(get)]
+    discovery_algorithm: Option<String>,
+    #[pyo3(get)]
+    graph_review_required: bool,
+    #[pyo3(get)]
+    plan_identifier: Option<String>,
+    #[pyo3(get)]
+    plan_estimator: Option<String>,
+    #[pyo3(get)]
+    validation_suite: Option<String>,
     #[pyo3(get)]
     peak_memory_bytes: Option<u64>,
     #[pyo3(get)]
@@ -4571,7 +4626,7 @@ fn dag_to_json(
 #[pyfunction]
 fn dag_from_gml(gml: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
-        let dag = causal::dag_from_gml(gml).map_err(py_err)?;
+        let dag = causal::io::dag_from_gml(gml).map_err(py_err)?;
         let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
         Ok((wire.node_count as usize, wire.edges))
     })
@@ -4583,7 +4638,7 @@ fn dag_to_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
     catch_ffi(|| {
         let wire = causal_io::DagWire { node_count, edges };
         let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
-        causal::dag_to_gml(&dag, None).map_err(py_err)
+        causal::io::dag_to_gml(&dag, None).map_err(py_err)
     })
 }
 
@@ -4591,7 +4646,7 @@ fn dag_to_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
 #[pyfunction]
 fn dag_from_networkx_node_link(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
     catch_ffi(|| {
-        let dag = causal::dag_from_networkx_node_link(json).map_err(py_err)?;
+        let dag = causal::io::dag_from_networkx_node_link(json).map_err(py_err)?;
         let wire = causal_io::dag_to_wire(&dag).map_err(py_err)?;
         Ok((wire.node_count as usize, wire.edges))
     })
@@ -4603,7 +4658,7 @@ fn dag_to_networkx_node_link(node_count: u32, edges: Vec<(u32, u32)>) -> PyResul
     catch_ffi(|| {
         let wire = causal_io::DagWire { node_count, edges };
         let dag = causal_io::dag_from_wire(&wire).map_err(py_err)?;
-        causal::dag_to_networkx_node_link(&dag, None).map_err(py_err)
+        causal::io::dag_to_networkx_node_link(&dag, None).map_err(py_err)
     })
 }
 
@@ -4618,7 +4673,7 @@ fn encode_model_bundle(
     mechanisms: Vec<MechanismWireEntry>,
 ) -> PyResult<Vec<u8>> {
     catch_ffi(|| {
-        use causal::{CompiledMechanismStore, MechanismSlot};
+        use causal::gcm::{CompiledMechanismStore, MechanismSlot};
         use causal_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
         use causal_io::{
             ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire, encode_model_bundle as enc,
@@ -4687,7 +4742,7 @@ fn encode_model_bundle(
 #[pyfunction]
 fn decode_model_bundle(bytes: &[u8]) -> PyResult<ModelBundleSummary> {
     catch_ffi(|| {
-        let bundle = causal::decode_model_bundle_bytes(bytes).map_err(py_err)?;
+        let bundle = causal::io::decode_model_bundle_bytes(bytes).map_err(py_err)?;
         let names = bundle.schema.variables().iter().map(|v| v.name.to_string()).collect();
         let wire = causal_io::dag_to_wire(&bundle.dag).map_err(py_err)?;
         Ok((names, wire.edges, bundle.mechanisms.slots.len()))
@@ -5352,6 +5407,27 @@ fn analysis_result_from_run(
         se_bootstrap: result.estimate.se_bootstrap,
         plan_id: result.logical_plan.plan_id.to_string(),
         modality: format!("{:?}", result.logical_plan.data_classification),
+        discovery_algorithm: result
+            .logical_plan
+            .discovery_algorithm
+            .as_ref()
+            .map(std::string::ToString::to_string),
+        graph_review_required: result.logical_plan.graph_review_required,
+        plan_identifier: result
+            .logical_plan
+            .identifier
+            .as_ref()
+            .map(std::string::ToString::to_string),
+        plan_estimator: result
+            .logical_plan
+            .estimator
+            .as_ref()
+            .map(std::string::ToString::to_string),
+        validation_suite: result
+            .logical_plan
+            .validation_suite
+            .as_ref()
+            .map(std::string::ToString::to_string),
         peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
         identification_status: format!("{:?}", result.identification.status),
         method: result.estimand.method.to_string(),
@@ -5631,7 +5707,7 @@ fn attribute_distribution_change_robust(
             },
             max_components: 64,
         };
-        let opts = causal::RobustChangeOptions::default();
+        let opts = causal::gcm::RobustChangeOptions::default();
         let ctx = py_execution_context(seed, threads);
         let result =
             facade_attribute_distribution_change_robust(&fitted.model, &data, &query, &opts, &ctx)
@@ -5688,7 +5764,7 @@ fn mechanism_change_detection(
             &fitted.model,
             &data,
             &query,
-            causal::MechanismChangeMethod::MeanDiff,
+            causal::gcm::MechanismChangeMethod::MeanDiff,
             &ctx,
         )
         .map_err(py_err)?;

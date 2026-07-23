@@ -7,7 +7,8 @@
 use std::sync::Arc;
 
 use arrow_array::RecordBatch;
-use causal::{RegimeAssignment, jpcmci_constraints, pcmci_constraints, resolve_ci};
+use causal::discovery::RegimeAssignment;
+use causal::discovery_defaults::{jpcmci_constraints, pcmci_constraints, resolve_ci};
 use causal_core::{Lag, RegimeId, VariableId};
 use causal_data::{EnvHoldoutSplit, MultiEnvironmentData, TableView};
 use causal_discovery::{

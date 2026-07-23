@@ -12,10 +12,20 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal::{
-    AbductionMissingPolicy, CounterfactualEngine, CounterfactualWorld, KdeDoSampler, McmcDoSampler,
-    MechanismWorkspace, WeightingDoSampler, anomaly_attribution, arrow_strengths,
-    counterfactual_ite, fit_gcm, sample_do, streaming_matches_retained,
+use causal::gcm::{
+    AbductionMissingPolicy,
+    CounterfactualEngine,
+    CounterfactualWorld,
+    KdeDoSampler,
+    McmcDoSampler,
+    MechanismWorkspace,
+    WeightingDoSampler,
+    anomaly_attribution,
+    arrow_strengths,
+    counterfactual_ite,
+    fit_gcm,
+    sample_do,
+    streaming_matches_retained,
 };
 use causal_core::{
     CausalRng, CausalSchemaBuilder, ExecutionContext, Intervention, MeasurementSpec, RoleHint,
@@ -99,7 +109,7 @@ fn gcm_fit_intervene() {
 
 #[test]
 fn gcm_interventional_distribution_query() {
-    use causal::sample_interventional_distribution;
+    use causal::gcm::sample_interventional_distribution;
     use causal_core::InterventionalDistributionQuery;
 
     let expected = load_expected("gcm_fit_intervene");
@@ -121,7 +131,7 @@ fn gcm_interventional_distribution_query() {
 
 #[test]
 fn gcm_path_specific_query() {
-    use causal::attribute_path_specific;
+    use causal::gcm::attribute_path_specific;
     use causal_core::PathSpecificEffectQuery;
     use causal_model::{CompiledCausalModel, MechanismRegistry, SelectionPolicy};
 
@@ -216,7 +226,7 @@ fn gcm_cf_ite() {
     assert!(expected["streaming_equiv_retained"].as_bool().unwrap());
 }
 
-fn binary_treatment_scm(n: usize) -> (causal::CompiledCausalModel, TabularData) {
+fn binary_treatment_scm(n: usize) -> (causal::gcm::CompiledCausalModel, TabularData) {
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(
         "t",

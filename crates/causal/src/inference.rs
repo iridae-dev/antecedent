@@ -16,8 +16,8 @@ use causal_prob::{
 };
 use causal_validate::{ConflictPolicy, PriorPredictiveCheck, compose_with_conflict_policy};
 
-use crate::decode_causal_posterior_bytes;
 use crate::error::CausalError;
+use crate::io::decode_causal_posterior_bytes;
 
 /// Frequentist vs Bayesian inference mode.
 #[derive(Clone, Debug, PartialEq)]

@@ -114,7 +114,7 @@ fn supplied_admg_without_bidirected_coerces_to_dag() {
 fn cpdag_json_codec_round_trip_via_facade() {
     let mut cpdag = Cpdag::with_variables(2);
     cpdag.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    let s = causal::cpdag_to_json(&cpdag, Some(&["a".into(), "b".into()])).unwrap();
-    let back = causal::cpdag_from_json(&s).unwrap();
+    let s = causal::io::cpdag_to_json(&cpdag, Some(&["a".into(), "b".into()])).unwrap();
+    let back = causal::io::cpdag_from_json(&s).unwrap();
     assert_eq!(back.undirected_edge_count(), 1);
 }

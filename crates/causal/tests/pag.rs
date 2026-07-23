@@ -8,7 +8,18 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal::{GeneralizedAdjustmentIdentifier, GraphInput, Lpcmci, reject_dag_only_on_pag};
+use causal::{
+    GraphInput,
+};
+use causal::discovery::{
+    Lpcmci,
+};
+use causal::identify::{
+    GeneralizedAdjustmentIdentifier,
+};
+use causal::planner::{
+    reject_dag_only_on_pag,
+};
 use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,

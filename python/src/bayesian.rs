@@ -2,16 +2,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal::{
-    BayesianDiscoverParams, CiSoftWeight, FdrAdjustment, GraphMcmcSchedule,
-    GraphPosterior as RustGraphPosterior, StaticDiscoverParams,
-    discover_ci_screened_posterior as facade_discover_ci_screened,
+use causal::discovery::{
+    BayesianDiscoverParams, CiSoftWeight, GraphMcmcSchedule, GraphPosterior as RustGraphPosterior,
+    StaticDiscoverParams, discover_ci_screened_posterior as facade_discover_ci_screened,
     discover_dbn_posterior as facade_discover_dbn,
     discover_exact_dag_posterior as facade_discover_exact,
     discover_order_mcmc as facade_discover_order_mcmc,
-    discover_structure_mcmc as facade_discover_structure_mcmc, resolve_ci,
+    discover_structure_mcmc as facade_discover_structure_mcmc,
 };
-use causal_stats::PartialCorrelation;
+use causal::discovery_defaults::resolve_ci;
+use causal_stats::{FdrAdjustment, PartialCorrelation};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;

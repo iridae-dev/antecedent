@@ -67,135 +67,25 @@ pub mod io;
 pub mod query;
 pub mod validate;
 
-// --- Day-1 / common crate-root surface ---
+// --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use analysis::{
     AnalysisStageEvent, BatchAnalysis, CausalAnalysis, CausalAnalysisBuilder, ComputeBudget,
     LatencyMode, PreparedAnalysis, RdConfig, RefuteSuite, StageResultSink,
 };
-pub use callback_plan::mark_python_callback_plan;
-pub use design::rank_designs;
-pub use discovery::{
-    BayesianDiscoverParams, DiscoverParams, GraphMcmcSchedule, StaticDiscoverParams,
-    discover_ci_screened_posterior, discover_dbn_posterior, discover_exact_dag_posterior,
-    discover_fci, discover_ges, discover_jpcmci_plus, discover_lingam, discover_lpcmci,
-    discover_notears, discover_order_mcmc, discover_pc, discover_pcmci, discover_pcmci_plus,
-    discover_rfci, discover_rpcmci, discover_structure_mcmc, pag_definite_directed_edge_count,
-};
-pub use discovery_defaults::{
-    DEFAULT_ALPHA, DEFAULT_MAX_COND_SIZE, DEFAULT_RPCMCI_MIN_REGIME_LEN,
-    contemporaneous_constraints, jpcmci_constraints, pcmci_constraints, resolve_ci,
-    static_pc_constraints,
-};
 pub use error::CausalError;
 #[allow(deprecated)]
 pub use error::AnalysisError;
-pub use estimate::{EstimatorId, IdentifierId};
-pub use gcm::{
-    FittedGcm, IteResult, anomaly_attribution, attribute_distribution_change,
-    attribute_distribution_change_robust, attribute_feature_relevance, attribute_path_specific,
-    attribute_paths, attribute_structure_change, attribute_unit_change, change_attribution_builder,
-    counterfactual_ite, fit_gcm, mechanism_change_detection, rank_root_causes, sample_do,
-    sample_interventional_distribution,
-};
-pub use graph::{
-    Admg, CompletionSampler, Cpdag, CpdagCompletion, CpdagCompletionSampler, CpdagReview, Dag,
-    DagReview, DenseNodeId, Pag, PagCompletion, PagReview, TemporalCpdag, TemporalDag,
-    TemporalPag, TemporalPagReview, is_mec_member, latent_project,
-};
-pub use identify::{
-    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, GraphIdentificationCase,
-    IdentificationEnvelope, ProbabilityMass, TemporalMediationIdentifier,
-};
-pub use inference::{
-    BayesianConfig, ExternalComposeSpec, InferenceMode, hydrate_mapping_from_io,
-    hydrate_prior_from_posterior_bytes, resolve_bayesian_prior,
-    resolve_bayesian_prior_with_conflict,
-};
-pub use io::*;
+pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
+pub use graph::{Dag, DenseNodeId, TemporalDag};
+pub use inference::{BayesianConfig, InferenceMode};
 pub use options::{DiscoveryAccept, FdrControl};
-pub use planner::{
-    CompiledAnalysis, GraphInput, LogicalAnalysisPlan, PhysicalExecutionPlan,
-    StaticAteCompileInput, StaticDistributionCompileInput, StaticPagAteCompileInput,
-    StaticPathSpecificCompileInput, compile_logical_distribution, compile_logical_path_specific,
-    compile_logical_static_ate, compile_logical_static_pag_ate, compile_logical_temporal_effect,
-    is_dag_only_identifier, reject_dag_only_on_pag,
-};
+pub use planner::{CompiledAnalysis, GraphInput};
 pub use query::*;
 pub use result::CausalAnalysisResult;
-pub use review::{
-    PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
-    compile_review_required_pag, compile_review_required_static_cpdag,
-    compile_review_required_static_dag, compile_review_required_static_pag,
-    compile_temporal_with_graph, ensure_review_complete,
-};
-pub use state::{apply_state_event, new_causal_state};
-pub use validate::{
-    PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport, PriorPredictiveCheck,
-};
-pub use causal_stats::{FdrAdjustment, MultipleTestingMethod};
 
-// Discovery algorithm types (also under `causal::discovery`).
-pub use discovery::{
-    CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult, DagDiscoveryResult,
-    DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, EXACT_ENUM_MAX_NODES,
-    ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
-    JpcmciPlus, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult, OrderMcmc,
-    PagDiscoveryResult, Pc, RegimeAssignment, RegimeGraphCollection, Rfci, Rpcmci,
-    RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
-    StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode,
-    two_regime_half_split,
-};
-
-// Stage / peer surfaces kept at root for binding convenience; prefer module paths.
-pub use estimate::{
-    CausalPosterior, ConditionalLinearAdjustment, EffectEstimate, OverlapPolicy,
-    TemporalEffectSurface, TemporalLinearPredictor, TemporalMediationEstimator,
-};
-pub use gcm::{
-    AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
-    DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
-    MechanismChangeMethod, RobustChangeOptions, RootCauseRank, StructureChangeOptions,
-    UnitChangeResult, arrow_strengths, detect_mechanism_changes, distribution_change,
-    distribution_change_robust, feature_relevance, path_decompose, population_do_contrast,
-    root_cause_rank, score_anomalies, structure_change, unit_change,
-    AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
-    CounterfactualResult, CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind,
-    nested_counterfactual, nested_hard_counterfactual, simultaneous_hard_counterfactual,
-    streaming_matches_retained,
-    CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
-    InvertibleStructuralCausalModel, KdeDoSampler, McmcDoSampler, MechanismAssignment,
-    MechanismFamily, MechanismRegistry, MechanismSlot, MechanismWorkspace, ModelCollection,
-    ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy, StructuralCausalModel,
-    WeightingDoSampler, interventional_mean, sample_interventional, sample_observational,
-};
-pub use design::{
-    CandidateDesign, ConstraintViolation, DecisionConstraint, DecisionEvaluation, DecisionProblem,
-    DecisionProblemId, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
-    DesignObjective, DesignRankConfig, DesignRanker, DesignRanking, EffectWidthContext,
-    EnvironmentGramSpec, EnvironmentPlan, ExperimentPlan, InterventionDesignEffect,
-    MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, RankedCandidate, SamplingPlan, Utility,
-    evaluate_decision,
-};
-pub use causal_prob::{GraphIdentFlag, WeightedGraphSamples};
-pub use state::{
-    CachedResult, CausalState, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
-    GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, GraphScoreCacheKey,
-    GraphScoreData, GraphScoreFamily, InterventionRecord, InvalidationEntry, InvalidationLog,
-    InvalidationTarget, LagIndexCacheEntry, LagIndexCacheKey, LgssmParams, LinearOlsSuffStats,
-    LocalScoreCache, ModelRecord, ModelStore, ParentSetOp, ParticleFilterState, QueryRecord,
-    QueryStore, ResultStore, RetentionPolicy, RollingMechanismDiagnostics, StateError, StateEvent,
-    StreamingCovariance, SuffStatStore, evict_mechanism_diag, full_graph_score,
-    insert_mechanism_diag,
-};
-
-// Strategy helpers live under `estimate` (not crate-root DEFAULT_* soup).
-pub use estimate::{
-    StaticEstimateWorkspaces, estimand_compatible_with_estimator, estimate_provenance_step,
-    estimate_static_effect, identification_status_acceptable, identify_admg, identify_pag,
-    identify_provenance_step, identify_static, identify_static_query, identify_static_query_with_rd,
-    require_identified, select_estimand, validate_distribution_pair, validate_path_specific_pair,
-    validate_static_pair,
-};
+// Strategy helpers and peer APIs: use `causal::estimate`, `causal::discovery`,
+// `causal::gcm`, `causal::io`, `causal::design`, `causal::state`, `causal::graph`,
+// `causal::identify`, `causal::review`, `causal::validate`, `causal::planner`.
 
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
@@ -214,6 +104,7 @@ mod tests {
     use causal_kernels::standard_normal;
 
     use super::*;
+    use crate::validate::PredictiveCheckKind;
 
     fn scm() -> (TabularData, Dag, AverageEffectQuery) {
         let n = 200usize;
@@ -473,7 +364,7 @@ mod tests {
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
-            .causal_query(CausalQuery::Distribution(query))
+            .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
             .estimator(EstimatorId::FunctionalDistribution)
             .build()
@@ -549,7 +440,7 @@ mod tests {
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
-            .causal_query(CausalQuery::PathSpecific(query))
+            .query(CausalQuery::PathSpecific(query))
             .identifier(IdentifierId::PathSpecificNatural)
             .estimator(EstimatorId::FunctionalEffect)
             .build()

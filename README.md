@@ -120,7 +120,7 @@ fn main() -> Result<(), CausalError> {
 }
 ```
 
-`use causal::prelude::*` for day-1 imports. Prefer modules (`causal::discovery`, `causal::gcm`, `causal::io`, …) for stage depth. Examples: `cargo run -p causal --example ate_quickstart`.
+`use causal::prelude::*` for day-1 imports. Prefer modules (`causal::discovery`, `causal::gcm`, `causal::io`, …) for stage depth — those are no longer re-exported at the crate root (0.1.x breaking). Examples: `cargo run -p causal --example ate_quickstart`.
 
 ## What it covers
 

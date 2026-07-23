@@ -6,7 +6,11 @@
 
 use std::sync::Arc;
 
-use causal::{BatchAnalysis, CausalAnalysis, RefuteSuite};
+use causal::{
+    BatchAnalysis,
+    CausalAnalysis,
+    RefuteSuite,
+};
 use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,

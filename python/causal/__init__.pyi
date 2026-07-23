@@ -172,7 +172,7 @@ from .estimation import (
 )
 from .accepted_graph import AcceptedGraph
 from .inference import Bayesian, Frequentist
-from .ids import Estimator, Identifier
+from .ids import Estimator, Identifier, Latency, Refute
 from .prior_bank import (
     CompatibilityReport,
     ComposedPrior,

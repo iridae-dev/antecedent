@@ -6,7 +6,11 @@
 
 use std::sync::Arc;
 
-use causal::{CausalAnalysis, LatencyMode, RefuteSuite};
+use causal::{
+    CausalAnalysis,
+    LatencyMode,
+    RefuteSuite,
+};
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,

@@ -9,8 +9,17 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use causal::{
-    BayesianConfig, CausalAnalysis, InferenceMode, PredictiveCheckKind as FacadeKind, RefuteSuite,
-    decode_causal_posterior_bytes, encode_causal_posterior_bytes,
+    BayesianConfig,
+    CausalAnalysis,
+    InferenceMode,
+    RefuteSuite,
+};
+use causal::io::{
+    decode_causal_posterior_bytes,
+    encode_causal_posterior_bytes,
+};
+use causal::validate::{
+    PredictiveCheckKind as FacadeKind,
 };
 use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
@@ -610,9 +619,18 @@ fn prior_bank_effect_map() {
     use std::sync::Arc;
 
     use causal::{
-        BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite, encode_causal_posterior_bytes,
-        hydrate_mapping_from_io, hydrate_prior_from_posterior_bytes,
-    };
+    BayesianConfig,
+    CausalAnalysis,
+    InferenceMode,
+    RefuteSuite,
+};
+use causal::inference::{
+    hydrate_mapping_from_io,
+    hydrate_prior_from_posterior_bytes,
+};
+use causal::io::{
+    encode_causal_posterior_bytes,
+};
     use causal_core::{
         Assumption, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
         RoleHint, SmallRoleSet, ValueType, VariableId,

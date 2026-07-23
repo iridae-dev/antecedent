@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal::{
+use causal::io::{
     admg_from_dot as facade_admg_from_dot, admg_from_gml as facade_admg_from_gml,
     admg_from_json as facade_admg_from_json,
     admg_from_networkx_node_link as facade_admg_from_networkx_node_link,
@@ -243,7 +243,7 @@ impl Dag {
 
     /// Latent-project onto ``observed`` variable names; returns an ``Admg``.
     fn latent_project(&self, observed: Vec<String>) -> PyResult<Admg> {
-        use causal::latent_project;
+        use causal::graph::latent_project;
         let mut obs = Vec::with_capacity(observed.len());
         let mut obs_names = Vec::with_capacity(observed.len());
         for n in &observed {

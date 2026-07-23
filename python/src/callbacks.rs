@@ -4,7 +4,8 @@
 
 use std::sync::Arc;
 
-use causal::{CompiledCausalModel, DynamicMechanism, MechanismSlot, Utility};
+use causal::design::Utility;
+use causal::gcm::{CompiledCausalModel, DynamicMechanism, MechanismSlot};
 use causal_core::{CausalRng, ExecutionContext};
 use causal_graph::DenseNodeId;
 use causal_model::{MechanismWorkspace, ModelError, ParentBatch};
@@ -415,12 +416,12 @@ pub fn resolve_ci_arg(
     weights: Option<Vec<f64>>,
 ) -> PyResult<(Arc<dyn ConditionalIndependence + Send + Sync>, String, bool)> {
     let Some(ci) = ci else {
-        let impl_ = causal::resolve_ci("parcorr", weights)
+        let impl_ = causal::discovery_defaults::resolve_ci("parcorr", weights)
             .map_err(|e| crate::CausalCompileError::new_err(e.to_string()))?;
         return Ok((impl_, "parcorr".into(), false));
     };
     if let Ok(name) = ci.extract::<&str>() {
-        let impl_ = causal::resolve_ci(name, weights)
+        let impl_ = causal::discovery_defaults::resolve_ci(name, weights)
             .map_err(|e| crate::CausalCompileError::new_err(e.to_string()))?;
         return Ok((impl_, name.to_string(), false));
     }

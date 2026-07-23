@@ -9,7 +9,13 @@
 use std::sync::Arc;
 
 use causal::{
-    BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite, decode_causal_posterior_bytes,
+    BayesianConfig,
+    CausalAnalysis,
+    InferenceMode,
+    RefuteSuite,
+};
+use causal::io::{
+    decode_causal_posterior_bytes,
     encode_causal_posterior_bytes,
 };
 use causal_core::{

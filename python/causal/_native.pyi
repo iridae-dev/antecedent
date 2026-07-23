@@ -75,6 +75,11 @@ class AteAnalysisResult:
     provenance_node_count: int
     plan_id: str
     modality: str
+    discovery_algorithm: str | None
+    graph_review_required: bool
+    plan_identifier: str | None
+    plan_estimator: str | None
+    validation_suite: str | None
     peak_memory_bytes: int | None
     worker_threads: int
     expected_python_crossings: int
@@ -179,6 +184,11 @@ class AnalysisResult:
     se_bootstrap: float | None
     plan_id: str
     modality: str
+    discovery_algorithm: str | None
+    graph_review_required: bool
+    plan_identifier: str | None
+    plan_estimator: str | None
+    validation_suite: str | None
     peak_memory_bytes: int | None
     identification_status: str
     method: str
@@ -212,6 +222,7 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
     ) -> PreparedAnalysis: ...
+    def plan_summary(self) -> dict[str, str]: ...
     def estimate(
         self,
         names: list[str],

@@ -254,6 +254,38 @@ impl PyPreparedAnalysis {
     fn names(&self) -> Vec<String> {
         self.names.clone()
     }
+
+    /// Physical-plan highlights retained from prepare (no recompile).
+    fn plan_summary(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        let rec = &self.inner.plan().record;
+        let mut out = std::collections::HashMap::new();
+        out.insert("plan_id".into(), rec.plan_id.to_string());
+        if let Some(b) = rec.estimated_peak_memory_bytes {
+            out.insert("estimated_peak_memory_bytes".into(), b.to_string());
+        }
+        if let Some(b) = rec.workspace_bytes {
+            out.insert("workspace_bytes".into(), b.to_string());
+        }
+        if let Some(b) = rec.batch_size {
+            out.insert("batch_size".into(), b.to_string());
+        }
+        out.insert("worker_threads".into(), rec.worker_threads.to_string());
+        out.insert(
+            "expected_python_crossings".into(),
+            rec.expected_python_crossings.to_string(),
+        );
+        out.insert(
+            "deterministic_reductions".into(),
+            rec.deterministic_reductions.to_string(),
+        );
+        let kernels: Vec<String> = rec
+            .kernels
+            .iter()
+            .map(|(name, k)| format!("{name}:{k:?}"))
+            .collect();
+        out.insert("kernels".into(), kernels.join(","));
+        Ok(out)
+    }
 }
 
 fn apply_inference(
