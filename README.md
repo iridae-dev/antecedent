@@ -414,7 +414,7 @@ Python wheels are provided for:
 
 The scientific engine and native API are written in Rust. No additional language bindings are currently provided.
 
-Until public PyPI is enabled, install from [GitHub Packages](docs/development.md) or a Release wheel. Rust: `cargo add antecedent` (crates.io) or a git dependency — see [docs/development.md](docs/development.md).
+Python: `pip install antecedent` (PyPI; also GitHub Release wheels / [GitHub Packages](docs/development.md)). Rust: `cargo add antecedent` (crates.io) — see [docs/development.md](docs/development.md).
 
 ## Documentation
 

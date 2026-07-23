@@ -1,4 +1,7 @@
-# Tag-driven private release: wheels → GitHub Release + GitHub Packages.
+# Tag-driven release: wheels → GitHub Release + GitHub Packages + PyPI.
+# PyPI uses trusted publishing (OIDC). Pending publisher on pypi.org must match
+# this workflow filename and leave Environment blank (or set `environment:` here
+# to the same name).
 name: publish-release
 
 on:
@@ -251,6 +254,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write  # PyPI trusted publishing
     steps:
       - uses: actions/checkout@v4
 
@@ -303,3 +307,15 @@ jobs:
           uv publish \
             --publish-url "https://upload.pypi.pkg.github.com/${{ github.repository_owner }}/" \
             "${wheels[@]}"
+
+      - name: Publish wheels to PyPI
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=(wheels/*.whl)
+          if [[ ${#wheels[@]} -eq 0 ]]; then
+            echo "no wheels found" >&2
+            exit 1
+          fi
+          # OIDC → short-lived PyPI token (no PYPI_TOKEN secret).
+          uv publish --trusted-publishing always "${wheels[@]}"

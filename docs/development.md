@@ -114,10 +114,13 @@ git push origin v0.1.0
 
 Workflow [`.github/workflows/publish-release.yml`](../.github/workflows/publish-release.yml)
 builds the full wheel matrix, attaches wheels + `docs.tar.gz` to the GitHub
-Release, and uploads wheels to the GitHub Packages PyPI registry. No extra
-secrets beyond `GITHUB_TOKEN` (needs `contents: write` and `packages: write`).
+Release, uploads to GitHub Packages, and publishes to public PyPI via trusted
+publishing (`id-token: write`). Configure a pending/trusted publisher on
+[pypi.org](https://pypi.org) for this repo and workflow file
+`publish-release.yml` (Environment blank unless the job sets `environment:`).
 
-Consumers need a PAT with `read:packages` (see Installation in the root README).
+GitHub Packages still needs `packages: write` on `GITHUB_TOKEN`. Public
+installers can use `pip install antecedent` once the project exists on PyPI.
 
 Azure / non-GitHub deploys: store that PAT in Key Vault or app settings and
 install from GitHub Packages, or bake a Release `.whl` into the container image.
