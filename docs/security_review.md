@@ -42,8 +42,10 @@ Optional `blas` features (if added later) are non-default.
 
 ## CodeQL
 
-- CI: `.github/workflows/codeql.yml` (rust / python / actions, `build-mode: none`, `security-and-quality` suites via `.github/codeql/codeql-config.yml`).
-- Local gate (requires `codeql` on `PATH`): `bash scripts/gate_codeql.sh` — fails unless all three SARIF reports have **0** findings.
+- Local gate only (requires `codeql` on `PATH`): `bash scripts/gate_codeql.sh` —
+  fails unless rust / python / actions SARIF reports have **0** findings.
+  Config: `.github/codeql/codeql-config.yml` (`security-and-quality` suites).
+- Not run in GitHub Actions; run before release or when touching security-sensitive surfaces.
 - Third-party Actions in workflows are pinned to commit SHAs; workflows set explicit `permissions`.
 
 ## Evidence commands

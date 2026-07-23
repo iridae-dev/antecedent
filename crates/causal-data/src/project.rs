@@ -26,10 +26,7 @@ impl IdRemap {
     ///
     /// [`DataError::UnknownVariable`] when `old` was not included in the projection.
     pub fn map(&self, old: VariableId) -> Result<VariableId, DataError> {
-        self.old_to_new
-            .get(&old)
-            .copied()
-            .ok_or(DataError::UnknownVariable { id: old })
+        self.old_to_new.get(&old).copied().ok_or(DataError::UnknownVariable { id: old })
     }
 
     /// Number of projected columns.
@@ -92,9 +89,10 @@ impl TabularData {
                 }
             })?);
             old_to_new.insert(old_id, new_id);
-            let col = storage.columns().get(old_id.as_usize()).ok_or(DataError::UnknownVariable {
-                id: old_id,
-            })?;
+            let col = storage
+                .columns()
+                .get(old_id.as_usize())
+                .ok_or(DataError::UnknownVariable { id: old_id })?;
             cols.push(col.with_id(new_id));
         }
 
@@ -168,18 +166,9 @@ mod tests {
         let z = VariableId::from_raw(3);
         let (proj, remap) = data.project(&[t, y, z]).unwrap();
         assert_eq!(proj.schema().len(), 3);
-        assert_eq!(
-            proj.schema().get(VariableId::from_raw(0)).unwrap().name.as_ref(),
-            "t"
-        );
-        assert_eq!(
-            proj.schema().get(VariableId::from_raw(1)).unwrap().name.as_ref(),
-            "y"
-        );
-        assert_eq!(
-            proj.schema().get(VariableId::from_raw(2)).unwrap().name.as_ref(),
-            "z"
-        );
+        assert_eq!(proj.schema().get(VariableId::from_raw(0)).unwrap().name.as_ref(), "t");
+        assert_eq!(proj.schema().get(VariableId::from_raw(1)).unwrap().name.as_ref(), "y");
+        assert_eq!(proj.schema().get(VariableId::from_raw(2)).unwrap().name.as_ref(), "z");
         assert_eq!(remap.map(t).unwrap(), VariableId::from_raw(0));
         assert_eq!(remap.map(y).unwrap(), VariableId::from_raw(1));
         assert_eq!(remap.map(z).unwrap(), VariableId::from_raw(2));

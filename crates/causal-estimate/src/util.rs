@@ -100,24 +100,15 @@ pub(crate) fn finalize_bootstrap_se_ex(
     let partial = cancelled || early_stopped;
     let failed = if partial { 0 } else { replicates.saturating_sub(ok) };
     let too_few = ates.len() < 2;
-    let fail_frac = if replicates == 0 || partial {
-        0.0
-    } else {
-        f64::from(failed) / f64::from(replicates)
-    };
+    let fail_frac =
+        if replicates == 0 || partial { 0.0 } else { f64::from(failed) / f64::from(replicates) };
     let se = if too_few || fail_frac > BOOTSTRAP_MAX_FAILURE_FRAC {
         None
     } else {
         let s = sample_std(ates);
         if s.is_finite() { Some(s) } else { None }
     };
-    BootstrapSeResult {
-        se,
-        replicates_ok: ok,
-        replicates_failed: failed,
-        cancelled,
-        early_stopped,
-    }
+    BootstrapSeResult { se, replicates_ok: ok, replicates_failed: failed, cancelled, early_stopped }
 }
 
 /// Relative SE change for adaptive early-stop.
@@ -315,11 +306,8 @@ mod tests {
 
     #[test]
     fn adaptive_stop_requires_min_and_relative_eps() {
-        let budget = AdaptiveBootstrapBudget {
-            enabled: true,
-            min_replicates: 4,
-            se_rel_epsilon: 0.05,
-        };
+        let budget =
+            AdaptiveBootstrapBudget { enabled: true, min_replicates: 4, se_rel_epsilon: 0.05 };
         assert!(!adaptive_bootstrap_should_stop(budget, 3, Some(1.0), 1.0));
         assert!(!adaptive_bootstrap_should_stop(budget, 4, None, 1.0));
         assert!(!adaptive_bootstrap_should_stop(budget, 4, Some(1.0), 1.1)); // 10% > 5%
@@ -335,11 +323,8 @@ mod tests {
     #[test]
     fn bootstrap_adaptive_early_stop_stable_count() {
         let mut ctx = ExecutionContext::for_tests(42);
-        ctx.adaptive_bootstrap = AdaptiveBootstrapBudget {
-            enabled: true,
-            min_replicates: 5,
-            se_rel_epsilon: 0.02,
-        };
+        ctx.adaptive_bootstrap =
+            AdaptiveBootstrapBudget { enabled: true, min_replicates: 5, se_rel_epsilon: 0.02 };
         // Constant ATE → SE → 0 quickly; should early-stop soon after min.
         let r1 = bootstrap_se(80, &ctx, 0xABCD, 20, |_| Ok(Some(2.0))).unwrap();
         let r2 = bootstrap_se(80, &ctx, 0xABCD, 20, |_| Ok(Some(2.0))).unwrap();

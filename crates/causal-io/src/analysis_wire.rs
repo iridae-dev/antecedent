@@ -171,7 +171,7 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> EffectEstimate {
         bootstrap_replicates_ok: w.bootstrap_replicates_ok,
         bootstrap_replicates_failed: w.bootstrap_replicates_failed,
         bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
+        bootstrap_early_stopped: false,
         assumptions: causal_core::AssumptionSet::new(),
         overlap,
         overlap_report: None,

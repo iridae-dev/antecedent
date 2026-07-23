@@ -210,13 +210,14 @@ mod tests {
 
     #[test]
     fn explicit_budget_overrides_mode() {
-        let resolved = ResolvedLatencyBudget::from_mode(LatencyMode::Interactive)
-            .with_overrides(ComputeBudget {
+        let resolved = ResolvedLatencyBudget::from_mode(LatencyMode::Interactive).with_overrides(
+            ComputeBudget {
                 wall_ms: Some(250),
                 bootstrap: Some(10),
                 n_draws: Some(128),
                 validators: Some(RefuteSuite::None),
-            });
+            },
+        );
         assert_eq!(resolved.bootstrap, 10);
         assert_eq!(resolved.n_draws, 128);
         assert_eq!(resolved.refute, RefuteSuite::None);
@@ -227,28 +228,27 @@ mod tests {
     #[test]
     fn non_report_refuses_hmc() {
         let cfg = BayesianConfig::hmc();
-        let err = refuse_non_report_hmc(
-            LatencyMode::Interactive,
-            &InferenceMode::Bayesian(cfg.clone()),
-        )
-        .unwrap_err();
+        let err =
+            refuse_non_report_hmc(LatencyMode::Interactive, &InferenceMode::Bayesian(cfg.clone()))
+                .unwrap_err();
         assert!(matches!(err, CausalError::Unsupported { .. }));
-        let err_std = refuse_non_report_hmc(
-            LatencyMode::Standard,
-            &InferenceMode::Bayesian(cfg),
-        )
-        .unwrap_err();
+        let err_std = refuse_non_report_hmc(LatencyMode::Standard, &InferenceMode::Bayesian(cfg))
+            .unwrap_err();
         assert!(matches!(err_std, CausalError::Unsupported { .. }));
-        assert!(refuse_non_report_hmc(
-            LatencyMode::Interactive,
-            &InferenceMode::Bayesian(BayesianConfig::laplace()),
-        )
-        .is_ok());
-        assert!(refuse_non_report_hmc(
-            LatencyMode::Report,
-            &InferenceMode::Bayesian(BayesianConfig::hmc()),
-        )
-        .is_ok());
+        assert!(
+            refuse_non_report_hmc(
+                LatencyMode::Interactive,
+                &InferenceMode::Bayesian(BayesianConfig::laplace()),
+            )
+            .is_ok()
+        );
+        assert!(
+            refuse_non_report_hmc(
+                LatencyMode::Report,
+                &InferenceMode::Bayesian(BayesianConfig::hmc()),
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -259,9 +259,11 @@ mod tests {
             fdr: None,
             accept_discovered: true,
         };
-        let err = refuse_discovery_under_interactive(LatencyMode::Interactive, &discover)
-            .unwrap_err();
-        assert!(matches!(err, CausalError::Unsupported { message } if message.contains("Interactive")));
+        let err =
+            refuse_discovery_under_interactive(LatencyMode::Interactive, &discover).unwrap_err();
+        assert!(
+            matches!(err, CausalError::Unsupported { message } if message.contains("Interactive"))
+        );
         assert!(refuse_discovery_under_interactive(LatencyMode::Standard, &discover).is_ok());
         assert!(refuse_discovery_under_interactive(LatencyMode::Report, &discover).is_ok());
         let supplied = GraphInput::Static(causal_graph::Dag::with_variables(1));

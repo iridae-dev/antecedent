@@ -2,8 +2,8 @@
 //!
 //! Run: `cargo run -p causal --example identify_only`
 
-use causal::prelude::*;
 use causal::RefuteSuite;
+use causal::prelude::*;
 
 fn main() -> Result<(), CausalError> {
     let schema = CausalSchemaBuilder::new()

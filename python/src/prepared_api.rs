@@ -2,9 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use causal::{
-    BayesianConfig, CausalAnalysis, Dag, InferenceMode, PreparedAnalysis,
-};
+use causal::{BayesianConfig, CausalAnalysis, Dag, InferenceMode, PreparedAnalysis};
 use causal_core::AverageEffectQuery;
 use causal_data::{TableView, tabular_from_record_batch};
 use causal_graph::DenseNodeId;
@@ -101,8 +99,7 @@ impl PyPreparedAnalysis {
                 )
                 .map_err(py_err)?;
             }
-            let query =
-                AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+            let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
             let mut builder = CausalAnalysis::builder()
                 .data(data)
                 .graph(dag)
@@ -224,9 +221,10 @@ impl PyPreparedAnalysis {
                 "prepared refute requires the same column names (order) as prepare",
             ));
         }
-        let prior = self.last.clone().ok_or_else(|| {
-            PyValueError::new_err("call estimate/refresh before refute")
-        })?;
+        let prior = self
+            .last
+            .clone()
+            .ok_or_else(|| PyValueError::new_err("call estimate/refresh before refute"))?;
         let batch = columns_to_batch(&names, &columns)?;
         let refute_suite = suite_from_refute(Some(&suite))?;
         let cancel_token = cancel.map(|c| c.inner);
@@ -270,19 +268,10 @@ impl PyPreparedAnalysis {
             out.insert("batch_size".into(), b.to_string());
         }
         out.insert("worker_threads".into(), rec.worker_threads.to_string());
-        out.insert(
-            "expected_python_crossings".into(),
-            rec.expected_python_crossings.to_string(),
-        );
-        out.insert(
-            "deterministic_reductions".into(),
-            rec.deterministic_reductions.to_string(),
-        );
-        let kernels: Vec<String> = rec
-            .kernels
-            .iter()
-            .map(|(name, k)| format!("{name}:{k:?}"))
-            .collect();
+        out.insert("expected_python_crossings".into(), rec.expected_python_crossings.to_string());
+        out.insert("deterministic_reductions".into(), rec.deterministic_reductions.to_string());
+        let kernels: Vec<String> =
+            rec.kernels.iter().map(|(name, k)| format!("{name}:{k:?}")).collect();
         out.insert("kernels".into(), kernels.join(","));
         out
     }

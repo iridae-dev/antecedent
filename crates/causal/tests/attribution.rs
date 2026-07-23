@@ -12,18 +12,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use causal::gcm::fit_gcm;
 use causal::gcm::{
-    DifferenceMeasure,
-    DistributionChangeOptions,
-    MechanismChangeMethod,
-    StructureChangeOptions,
-    attribute_distribution_change,
-    attribute_structure_change,
-    mechanism_change_detection,
+    DifferenceMeasure, DistributionChangeOptions, MechanismChangeMethod, StructureChangeOptions,
+    attribute_distribution_change, attribute_structure_change, mechanism_change_detection,
     rank_root_causes,
-};
-use causal::gcm::{
-    fit_gcm,
 };
 use causal_core::{
     AllocationMethod, AttributionComponents, CachePolicy, CausalSchemaBuilder,

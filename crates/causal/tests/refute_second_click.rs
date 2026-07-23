@@ -6,11 +6,7 @@
 
 use std::sync::Arc;
 
-use causal::{
-    CausalAnalysis,
-    LatencyMode,
-    RefuteSuite,
-};
+use causal::{CausalAnalysis, LatencyMode, RefuteSuite};
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -97,17 +93,10 @@ fn prepared_refute_second_click_preserves_ate() {
     assert!(first.refutations.is_empty());
     let ate = first.estimate.ate;
 
-    let second = prepared
-        .refute(&first, &data, RefuteSuite::PlaceboAndRcc, &ctx)
-        .unwrap();
+    let second = prepared.refute(&first, &data, RefuteSuite::PlaceboAndRcc, &ctx).unwrap();
     assert!((second.estimate.ate - ate).abs() < 1e-15);
     assert!(!second.refutations.is_empty());
-    assert!(
-        second
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "exec.refute.second_click")
-    );
+    assert!(second.diagnostics.iter().any(|d| d.code.as_ref() == "exec.refute.second_click"));
 
     let one_shot = CausalAnalysis::builder()
         .data(data)

@@ -4,6 +4,6 @@
 
 pub use causal_graph::{
     Admg, CompletionSampler, Cpdag, CpdagCompletion, CpdagCompletionSampler, CpdagReview, Dag,
-    DagReview, DenseNodeId, Pag, PagCompletion, PagReview, TemporalCpdag, TemporalDag,
-    TemporalPag, TemporalPagReview, is_mec_member, latent_project,
+    DagReview, DenseNodeId, Pag, PagCompletion, PagReview, TemporalCpdag, TemporalDag, TemporalPag,
+    TemporalPagReview, is_mec_member, latent_project,
 };

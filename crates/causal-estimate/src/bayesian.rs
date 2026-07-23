@@ -628,11 +628,8 @@ impl BayesianGComputationAte {
         let laplace_adaptive = adaptive.enabled
             && matches!(self.backend, BayesianBackendKind::Laplace)
             && max_draws > adaptive.min_draws.max(2);
-        let initial_draws = if laplace_adaptive {
-            adaptive.min_draws.max(2).min(max_draws)
-        } else {
-            max_draws
-        };
+        let initial_draws =
+            if laplace_adaptive { adaptive.min_draws.max(2).min(max_draws) } else { max_draws };
         let opts = BayesFitOptions {
             n_draws: initial_draws,
             seed: self.seed,
@@ -713,8 +710,7 @@ impl BayesianGComputationAte {
                 workspace.eval.prepare(n_draws, problem.design.ncols);
                 let mut effect_out = EffectBatch::default();
                 effect_out.prepare(n_draws);
-                let batch_view =
-                    coef_draws.batch(0, n_draws).map_err(EstimationError::from)?;
+                let batch_view = coef_draws.batch(0, n_draws).map_err(EstimationError::from)?;
                 evaluator.evaluate_batch(
                     &compiled,
                     batch_view,

@@ -219,12 +219,8 @@ mod tests {
         assert!((sub.graphs.total_weight() - g.total_weight()).abs() < 1e-12);
         let expected_uid = g.unidentified_mass() + sub.leftover_identified_mass;
         assert!((sub.graphs.unidentified_mass() - expected_uid).abs() < 1e-12);
-        let n_id = sub
-            .graphs
-            .identified
-            .iter()
-            .filter(|f| **f == GraphIdentFlag::Identified)
-            .count();
+        let n_id =
+            sub.graphs.identified.iter().filter(|f| **f == GraphIdentFlag::Identified).count();
         assert_eq!(n_id, 1);
     }
 }

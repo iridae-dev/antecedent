@@ -22,8 +22,8 @@ use causal::gcm::{
 };
 use causal_attribution::{CacheStats, ComponentContribution, ComputeBudget};
 use causal_core::{
-    AllocationMethod, AttributionComponents, CausalRng, ChangeAttributionQuery,
-    ComponentId, ExecutionContext, Intervention, MechanismChangeQuery, PathSpecificEffectQuery,
+    AllocationMethod, AttributionComponents, CausalRng, ChangeAttributionQuery, ComponentId,
+    ExecutionContext, Intervention, MechanismChangeQuery, PathSpecificEffectQuery,
     PopulationSelector, ShapleyConfig, UnitChangeQuery, Value, VariableId,
 };
 use causal_data::{TableView, TabularData, tabular_from_record_batch};
@@ -422,7 +422,8 @@ impl PyFittedGcm {
             }
             let ctx = Self::ctx(seed, threads);
             let mut rng = CausalRng::from_seed(seed);
-            let samples = facade_sample_do(&inner.model, &ints, n, &mut rng, &ctx).map_err(py_err)?;
+            let samples =
+                facade_sample_do(&inner.model, &ints, n, &mut rng, &ctx).map_err(py_err)?;
             Ok::<_, PyErr>((samples.values.as_ref().to_vec(), samples.n_rows, samples.n_nodes))
         })?;
         let batch = ValueBatch { values: Arc::from(flat), n_rows, n_nodes };
@@ -448,8 +449,16 @@ impl PyFittedGcm {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let ctx = Self::ctx(seed, threads);
-            let ite = facade_counterfactual_ite(inner.model.clone(), &data, t_id, y_id, active, control, &ctx)
-                .map_err(py_err)?;
+            let ite = facade_counterfactual_ite(
+                inner.model.clone(),
+                &data,
+                t_id,
+                y_id,
+                active,
+                control,
+                &ctx,
+            )
+            .map_err(py_err)?;
             Ok::<_, PyErr>((
                 ite.mean_ite,
                 ite.unit_effects.len(),
@@ -497,7 +506,8 @@ impl PyFittedGcm {
                 query = query.with_path_nodes(intermediates);
             }
             let ctx = Self::ctx(seed, threads);
-            let result = facade_attribute_path_specific(&inner.model, &query, &ctx).map_err(py_err)?;
+            let result =
+                facade_attribute_path_specific(&inner.model, &query, &ctx).map_err(py_err)?;
             Ok(change_result_from_rust(result, &names))
         })
     }
@@ -523,8 +533,9 @@ impl PyFittedGcm {
                 .map(|n| data.schema().id_of(n).map_err(py_err))
                 .collect::<PyResult<_>>()?;
             let ctx = Self::ctx(seed, threads);
-            let result = facade_attribute_paths(&inner.model, &src_ids, y_id, max_paths, max_len, &ctx)
-                .map_err(py_err)?;
+            let result =
+                facade_attribute_paths(&inner.model, &src_ids, y_id, max_paths, max_len, &ctx)
+                    .map_err(py_err)?;
             Ok(change_result_from_rust(result, &names))
         })
     }
@@ -562,8 +573,9 @@ impl PyFittedGcm {
                 n_samples: n_samples.max(100),
                 seed,
             };
-            let result = facade_attribute_distribution_change(&inner.model, &data, &query, &opts, &ctx)
-                .map_err(py_err)?;
+            let result =
+                facade_attribute_distribution_change(&inner.model, &data, &query, &opts, &ctx)
+                    .map_err(py_err)?;
             Ok(change_result_from_rust(result, &names))
         })
     }
@@ -605,9 +617,14 @@ impl PyFittedGcm {
             };
             let opts = RobustChangeOptions::default();
             let ctx = Self::ctx(seed, threads);
-            let result =
-                facade_attribute_distribution_change_robust(&inner.model, &data, &query, &opts, &ctx)
-                    .map_err(py_err)?;
+            let result = facade_attribute_distribution_change_robust(
+                &inner.model,
+                &data,
+                &query,
+                &opts,
+                &ctx,
+            )
+            .map_err(py_err)?;
             Ok(change_result_from_rust(result, &names))
         })
     }
@@ -746,8 +763,8 @@ impl PyFittedGcm {
                 .map(|n| data.schema().id_of(n).map_err(py_err))
                 .collect::<PyResult<_>>()?;
             let max_u = if max_units == 0 { data.row_count() } else { max_units };
-            let scores =
-                facade_anomaly_attribution(&inner.model, &data, outcome_ids, max_u).map_err(py_err)?;
+            let scores = facade_anomaly_attribution(&inner.model, &data, outcome_ids, max_u)
+                .map_err(py_err)?;
             Ok(scores
                 .into_iter()
                 .map(|s| {
@@ -851,11 +868,7 @@ fn fit_gcm_py(
         let data = loaded.data;
         let g = dag_from_edges(&data, &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        Ok(PyFittedGcm {
-            inner: Arc::new(fitted),
-            names: Arc::from(names),
-            data: Arc::new(data),
-        })
+        Ok(PyFittedGcm { inner: Arc::new(fitted), names: Arc::from(names), data: Arc::new(data) })
     })
 }
 

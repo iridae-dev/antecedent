@@ -15,6 +15,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 use causal_core::{
     AverageEffectQuery, CausalQuery, DataClassification, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, ExecutionContext, Intervention, MediationContrast, PopulationRegistry,
@@ -40,7 +41,6 @@ use causal_identify::{
     TemporalMediationIdentifier,
 };
 use causal_prob::{GraphIdentFlag, InferenceDiagnostics, PriorSet, WeightedGraphSamples};
-use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 use causal_validate::{
     BayesianSuiteContext, ExternalAlphaSensitivity, PosteriorPredictiveCheck, PriorPredictiveCheck,
     PriorSensitivity, TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular,
@@ -83,17 +83,17 @@ use crate::strategy_table::{
     DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER,
     DEFAULT_PATH_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
     estimate_provenance_step, estimate_static_effect, identify_admg, identify_pag,
-    identify_provenance_step, identify_static, identify_static_query, identify_static_query_with_rd,
-    require_identified, select_estimand, validate_static_pair,
+    identify_provenance_step, identify_static, identify_static_query,
+    identify_static_query_with_rd, require_identified, select_estimand, validate_static_pair,
 };
 
 use super::builder::{CausalAnalysisBuilder, DataInput, RdConfig, RefuteSuite};
 use super::helpers::{
-    AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic, project_for_ate_estimate,
-    projection_diagnostic, provenance_pair, push_conflict_diagnostics, resolve_analysis_ci,
-    run_fci_review, run_ges_review, run_jpcmci_plus_review, run_lingam_review, run_lpcmci_review,
-    run_notears_review, run_pc_review, run_pcmci_plus_review, run_pcmci_review, run_refuters,
-    run_rfci_review, run_rpcmci_discovery,
+    AssembleArgs, assemble_result, effect_from_posterior, overlap_diagnostic,
+    project_for_ate_estimate, projection_diagnostic, provenance_pair, push_conflict_diagnostics,
+    resolve_analysis_ci, run_fci_review, run_ges_review, run_jpcmci_plus_review, run_lingam_review,
+    run_lpcmci_review, run_notears_review, run_pc_review, run_pcmci_plus_review, run_pcmci_review,
+    run_refuters, run_rfci_review, run_rpcmci_discovery,
 };
 
 /// Prepared analysis (static or temporal).
@@ -1818,8 +1818,7 @@ impl CausalAnalysis {
         );
 
         let full_cols = data.schema().len();
-        let (data_est, query_est, estimand_est) =
-            project_for_ate_estimate(data, query, &estimand)?;
+        let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let projected_cols = data_est.schema().len();
 
         // Point estimate first (no bootstrap); uncertainty stage fills SE separately.
@@ -1874,9 +1873,9 @@ impl CausalAnalysis {
                 let mut est = LinearAdjustmentAte::new();
                 est.bootstrap_replicates = self.bootstrap_replicates;
                 est.overlap = OverlapPolicy::ExplicitOverride;
-                let prep = est.prepare(&data_est, &estimand_est, &query_est).map_err(|e| {
-                    CausalError::from(e)
-                })?;
+                let prep = est
+                    .prepare(&data_est, &estimand_est, &query_est)
+                    .map_err(|e| CausalError::from(e))?;
                 let filled = est
                     .attach_bootstrap(&prep, &mut estimate_ws.linear, ctx, point)
                     .map_err(CausalError::from)?;
@@ -2278,8 +2277,7 @@ impl CausalAnalysis {
         );
 
         let full_cols = data.schema().len();
-        let (data_est, query_est, estimand_est) =
-            project_for_ate_estimate(data, query, &estimand)?;
+        let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let projected_cols = data_est.schema().len();
 
         let cfg = match &self.inference {
@@ -4026,9 +4024,8 @@ impl CausalAnalysis {
                 }
                 est.prior.clone_from(&envelope_prior);
                 let mut ws = BayesianGCompWorkspace::default();
-                let posterior = est
-                    .fit(&prep, case.result.status, &mut ws, ctx)
-                    .map_err(CausalError::from)?;
+                let posterior =
+                    est.fit(&prep, case.result.status, &mut ws, ctx).map_err(CausalError::from)?;
                 let col = posterior.effect_column().ok_or_else(|| CausalError::Compile {
                     message: "Bayesian posterior missing effect column".into(),
                 })?;

@@ -109,11 +109,7 @@ impl PreparedAnalysis {
                     .into(),
             });
         }
-        let estimator = self
-            .analysis
-            .estimator
-            .as_ref()
-            .map_or(DEFAULT_ESTIMATOR, |e| e.as_str());
+        let estimator = self.analysis.estimator.as_ref().map_or(DEFAULT_ESTIMATOR, |e| e.as_str());
 
         let (data_est, query_est, estimand_est) =
             project_for_ate_estimate(data, query, &prior.estimand)?;
@@ -144,9 +140,8 @@ impl PreparedAnalysis {
         let mut out = prior.clone();
         out.refutations = reports;
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
-        out.performance.wall_time_ns = Some(
-            out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns),
-        );
+        out.performance.wall_time_ns =
+            Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));
         let suite_label: Arc<str> = match suite {
             RefuteSuite::None => Arc::from("none"),
             RefuteSuite::Cheap => Arc::from("overlap+evalue"),
@@ -185,10 +180,7 @@ impl CausalAnalysis {
     /// # Errors
     ///
     /// Unsupported combination, compile failure, or review-required plan.
-    pub fn prepare(
-        &self,
-        ctx: &ExecutionContext,
-    ) -> Result<PreparedAnalysis, CausalError> {
+    pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedAnalysis, CausalError> {
         ensure_prepared_supported(self)?;
         let compiled = self.compile(ctx)?;
         let CompiledAnalysis::Ready(plan) = compiled else {

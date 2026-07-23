@@ -248,12 +248,7 @@ impl AdaptiveDrawBudget {
     /// Force full requested draw count.
     #[must_use]
     pub const fn disabled() -> Self {
-        Self {
-            enabled: false,
-            min_draws: 0,
-            quantile_width_rel_epsilon: 0.0,
-            ess_target: 0.0,
-        }
+        Self { enabled: false, min_draws: 0, quantile_width_rel_epsilon: 0.0, ess_target: 0.0 }
     }
 }
 

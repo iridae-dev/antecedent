@@ -10,17 +10,8 @@
 
 use std::sync::Arc;
 
-use causal::{
-    CausalAnalysis,
-    CompiledAnalysis,
-    EstimatorId,
-    IdentifierId,
-    RefuteSuite,
-};
-use causal::estimate::{
-    identify_static_query,
-    select_estimand,
-};
+use causal::estimate::{identify_static_query, select_estimand};
+use causal::{CausalAnalysis, CompiledAnalysis, EstimatorId, IdentifierId, RefuteSuite};
 use causal_core::{
     AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CausalSchemaBuilder,
     ConditionalEffectQuery, CounterfactualQuery, ExecutionContext, IdentificationStatus,

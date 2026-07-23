@@ -508,15 +508,21 @@ impl OwnedColumn {
     #[must_use]
     pub fn with_id(&self, id: VariableId) -> Self {
         match self {
-            Self::Float64(c) => {
-                Self::Float64(Float64Column { id, values: c.values.clone(), validity: c.validity.clone() })
-            }
-            Self::Int64(c) => {
-                Self::Int64(Int64Column { id, values: Arc::clone(&c.values), validity: c.validity.clone() })
-            }
-            Self::Boolean(c) => {
-                Self::Boolean(BooleanColumn { id, values: Arc::clone(&c.values), validity: c.validity.clone() })
-            }
+            Self::Float64(c) => Self::Float64(Float64Column {
+                id,
+                values: c.values.clone(),
+                validity: c.validity.clone(),
+            }),
+            Self::Int64(c) => Self::Int64(Int64Column {
+                id,
+                values: Arc::clone(&c.values),
+                validity: c.validity.clone(),
+            }),
+            Self::Boolean(c) => Self::Boolean(BooleanColumn {
+                id,
+                values: Arc::clone(&c.values),
+                validity: c.validity.clone(),
+            }),
             Self::Categorical(c) => Self::Categorical(CategoricalColumn {
                 id,
                 codes: Arc::clone(&c.codes),

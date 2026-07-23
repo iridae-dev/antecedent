@@ -12,10 +12,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use causal::{
-    CausalAnalysis,
-    RefuteSuite,
-};
+use causal::{CausalAnalysis, RefuteSuite};
 use causal_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ToleranceClass, ValueType, VariableId,

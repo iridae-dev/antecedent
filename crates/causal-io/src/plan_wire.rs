@@ -255,11 +255,7 @@ pub fn performance_to_wire(p: &ExecutionPerformanceRecord) -> ExecutionPerforman
         copy_count: p.copy_count,
         scalar_fallback_count: p.scalar_fallback_count,
         latency_mode: p.latency_mode.as_ref().map(std::string::ToString::to_string),
-        stage_timings_ns: p
-            .stage_timings_ns
-            .iter()
-            .map(|(s, ns)| (s.to_string(), *ns))
-            .collect(),
+        stage_timings_ns: p.stage_timings_ns.iter().map(|(s, ns)| (s.to_string(), *ns)).collect(),
         bootstrap_replicates_requested: p.bootstrap_replicates_requested,
         bootstrap_replicates_ok: p.bootstrap_replicates_ok,
         n_draws: p.n_draws,

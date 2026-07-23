@@ -762,7 +762,8 @@ impl CausalAnalysisBuilder {
         if let Some(mode) = latency_mode {
             refuse_non_report_hmc(mode, &inference)?;
             refuse_discovery_under_interactive(mode, &graph)?;
-            let resolved = ResolvedLatencyBudget::from_mode(mode).with_overrides(self.compute_budget);
+            let resolved =
+                ResolvedLatencyBudget::from_mode(mode).with_overrides(self.compute_budget);
             if !self.bootstrap_explicit {
                 bootstrap_replicates = resolved.bootstrap;
             } else if let Some(b) = self.compute_budget.bootstrap {

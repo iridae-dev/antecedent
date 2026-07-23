@@ -11,11 +11,7 @@ fn main() -> Result<(), CausalError> {
     let n = 120usize;
     let z: Vec<f64> = (0..n).map(|i| (i as f64) * 0.01).collect();
     let t: Vec<f64> = z.iter().map(|&zi| if zi > 0.5 { 1.0 } else { 0.0 }).collect();
-    let y: Vec<f64> = t
-        .iter()
-        .zip(z.iter())
-        .map(|(&ti, &zi)| 1.0 + 2.0 * ti + zi)
-        .collect();
+    let y: Vec<f64> = t.iter().zip(z.iter()).map(|(&ti, &zi)| 1.0 + 2.0 * ti + zi).collect();
 
     let schema = CausalSchemaBuilder::new()
         .continuous("t")

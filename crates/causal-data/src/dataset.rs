@@ -88,11 +88,7 @@ impl TabularData {
         let mut by_name: std::collections::HashMap<&str, &[f64]> = columns.into_iter().collect();
         if by_name.len() != n_vars {
             return Err(DataError::InvalidArgument {
-                message: format!(
-                    "expected {} columns for schema, got {}",
-                    n_vars,
-                    by_name.len()
-                ),
+                message: format!("expected {} columns for schema, got {}", n_vars, by_name.len()),
             });
         }
         let mut row_count = None;
@@ -192,10 +188,7 @@ impl TimeSeriesData {
         let length = tabular.row_count();
         Self::try_new(
             tabular.storage().clone(),
-            TimeIndex {
-                regularity: SamplingRegularity::Regular { interval_ns },
-                length,
-            },
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns }, length },
         )
     }
 

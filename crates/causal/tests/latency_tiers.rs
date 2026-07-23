@@ -2,21 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
-    clippy::many_single_char_names
-)]
+#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::many_single_char_names)]
 
 use std::sync::{Arc, Mutex};
 
-use causal::{
-    AnalysisStageEvent,
-    CausalAnalysis,
-    LatencyMode,
-    RefuteSuite,
-    StageResultSink,
-};
+use causal::{AnalysisStageEvent, CausalAnalysis, LatencyMode, RefuteSuite, StageResultSink};
 use causal_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     ProgressSink, RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -115,18 +105,13 @@ fn interactive_vs_standard_records_mode_and_effort() {
 
     assert!(interactive.estimate.ate.is_finite());
     assert!((interactive.estimate.ate - 2.0).abs() < 0.5, "ate={}", interactive.estimate.ate);
-    assert_eq!(
-        interactive.performance.latency_mode.as_deref(),
-        Some("interactive")
-    );
+    assert_eq!(interactive.performance.latency_mode.as_deref(), Some("interactive"));
     assert_eq!(interactive.performance.bootstrap_replicates_requested, Some(0));
     assert!(
         interactive.estimate.bootstrap_replicates_ok.is_none()
             || interactive.estimate.bootstrap_replicates_ok == Some(0)
     );
-    assert!(
-        interactive.performance.stage_timings_ns.iter().any(|(s, _)| s.as_ref() == "identify")
-    );
+    assert!(interactive.performance.stage_timings_ns.iter().any(|(s, _)| s.as_ref() == "identify"));
 
     let standard = CausalAnalysis::builder()
         .data(data)
@@ -209,10 +194,7 @@ fn cancel_mid_bootstrap_yields_partial_not_silent_full() {
 
 #[test]
 fn interactive_refuses_inline_discovery() {
-    use causal::{
-    DiscoveryAccept,
-    FdrControl,
-};
+    use causal::{DiscoveryAccept, FdrControl};
 
     let (data, dag, query) = confounded_scm(200, 23);
     let err = CausalAnalysis::builder()
@@ -224,10 +206,7 @@ fn interactive_refuses_inline_discovery() {
         .build()
         .unwrap_err();
     let msg = err.to_string();
-    assert!(
-        msg.contains("Interactive") || msg.contains("discovery"),
-        "unexpected: {msg}"
-    );
+    assert!(msg.contains("Interactive") || msg.contains("discovery"), "unexpected: {msg}");
 
     // Standard one-shot discovery remains a valid script path (may review/fail later).
     let standard = CausalAnalysis::builder()
@@ -273,11 +252,8 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
     assert!(!full.performance.early_stopped);
 
     let mut ctx_adapt = ExecutionContext::for_tests(5);
-    ctx_adapt.adaptive_bootstrap = AdaptiveBootstrapBudget {
-        enabled: true,
-        min_replicates: 12,
-        se_rel_epsilon: 0.05,
-    };
+    ctx_adapt.adaptive_bootstrap =
+        AdaptiveBootstrapBudget { enabled: true, min_replicates: 12, se_rel_epsilon: 0.05 };
     let a1 = CausalAnalysis::builder()
         .data(data.clone())
         .graph(dag.clone())
@@ -308,10 +284,7 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
     assert!(ok >= 12 && ok < max_reps, "ok={ok}");
     let adapt_se = a1.estimate.se_bootstrap.expect("adaptive SE");
     let rel = (adapt_se - full_se).abs() / full_se.abs().max(1e-12);
-    assert!(
-        rel < 0.35,
-        "adaptive SE={adapt_se} vs full SE={full_se} rel={rel}"
-    );
+    assert!(rel < 0.35, "adaptive SE={adapt_se} vs full SE={full_se} rel={rel}");
 }
 
 #[test]
@@ -328,9 +301,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
-        .inference(InferenceMode::Bayesian(
-            BayesianConfig::laplace().n_draws(max_draws),
-        ))
+        .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(max_draws)))
         .refute(RefuteSuite::None)
         .build()
         .unwrap()
@@ -353,9 +324,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
-        .inference(InferenceMode::Bayesian(
-            BayesianConfig::laplace().n_draws(max_draws),
-        ))
+        .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(max_draws)))
         .refute(RefuteSuite::None)
         .build()
         .unwrap()
@@ -365,9 +334,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
         .data(data)
         .graph(dag)
         .query(query)
-        .inference(InferenceMode::Bayesian(
-            BayesianConfig::laplace().n_draws(max_draws),
-        ))
+        .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(max_draws)))
         .refute(RefuteSuite::None)
         .build()
         .unwrap()
@@ -383,10 +350,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
     assert!(p1.draws.n_draws >= 32 && p1.draws.n_draws < max_draws, "n={}", p1.draws.n_draws);
     let adapt_width = effect_quantile_width_95(p1);
     let rel = (adapt_width - full_width).abs() / full_width.abs().max(1e-12);
-    assert!(
-        rel < 0.35,
-        "adaptive width={adapt_width} vs full={full_width} rel={rel}"
-    );
+    assert!(rel < 0.35, "adaptive width={adapt_width} vs full={full_width} rel={rel}");
 }
 
 fn effect_quantile_width_95(post: &causal_estimate::CausalPosterior) -> f64 {
@@ -416,10 +380,7 @@ impl StageResultSink for RecordingStageSink {
         match event {
             AnalysisStageEvent::Point { estimate } => {
                 *self.point_ate.lock().unwrap() = Some(estimate.ate);
-                assert!(
-                    estimate.se_bootstrap.is_none(),
-                    "point stage must not carry bootstrap SE"
-                );
+                assert!(estimate.se_bootstrap.is_none(), "point stage must not carry bootstrap SE");
             }
             AnalysisStageEvent::Uncertainty { estimate } => {
                 *self.uncertainty_has_boot.lock().unwrap() = Some(estimate.se_bootstrap.is_some());
@@ -473,4 +434,3 @@ fn progressive_stages_stream_payloads_in_order() {
         "timings={timing_ids:?}"
     );
 }
-

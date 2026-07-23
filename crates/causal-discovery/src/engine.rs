@@ -204,10 +204,7 @@ impl PcmciEngine {
             }
             if let Some(p) = &ctx.progress {
                 #[allow(clippy::cast_precision_loss)]
-                p.report(
-                    cond_size as f64 / (max_cond.max(1) as f64 + 1.0),
-                    "discovery.ci",
-                );
+                p.report(cond_size as f64 / (max_cond.max(1) as f64 + 1.0), "discovery.ci");
             }
             workspace.removed.clear();
             for pi in 0..parents.len() {
