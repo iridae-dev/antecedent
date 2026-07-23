@@ -54,8 +54,11 @@ jobs:
           fi
 
       - name: Install cargo-deny
-        # Pin to a release that still builds on MSRV 1.85 (newer deny needs 1.88+).
-        run: cargo install cargo-deny --locked --version 0.18.3
+        # Advisories use CVSS 4.0; needs cargo-deny >= 0.18.6 (MSRV 1.88).
+        # Install with a newer host toolchain; project builds stay on 1.85.
+        run: |
+          rustup toolchain install 1.88 --profile minimal
+          cargo +1.88 install cargo-deny --locked --version 0.18.9
 
       - name: Release gate
         # Feature gates also smoke Python facades via uv; those live in
