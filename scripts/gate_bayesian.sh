@@ -118,10 +118,16 @@ cargo bench -p causal-prob --bench laplace_glm -- --test
 cargo bench -p causal-estimate --bench posterior_functional -- --test
 
 echo "== Python panel Bayesian facade smoke =="
-(
-  cd python
-  unset CONDA_PREFIX || true
-  uv run pytest tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py -q
-)
+if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
+  echo "SKIP_PYTHON_SMOKE=1; skipping (covered by python-wheels CI)"
+elif ! command -v uv >/dev/null 2>&1; then
+  echo "WARN: uv not on PATH; skipping Python facade smoke (covered by python-wheels CI)"
+else
+  (
+    cd python
+    unset CONDA_PREFIX || true
+    uv run pytest tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py -q
+  )
+fi
 
 echo "Bayesian gate PASSED"

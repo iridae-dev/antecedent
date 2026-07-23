@@ -48,6 +48,10 @@ jobs:
         run: cargo install cargo-deny --locked --version 0.18.3
 
       - name: Release gate
+        # Feature gates also smoke Python facades via uv; those live in
+        # python-wheels. Rust runners do not install the Python toolchain.
+        env:
+          SKIP_PYTHON_SMOKE: "1"
         run: bash scripts/gate_release.sh
 
       - name: DCO check
@@ -196,7 +200,12 @@ jobs:
             "$ROOT/python/tests/test_analyze_ate_estimate.py" \
             "$ROOT/python/tests/test_discover_pcmci.py" \
             "$ROOT/python/tests/test_discover_pcmci_plus.py" \
-            "$ROOT/python/tests/test_gcm_rich_returns.py"
+            "$ROOT/python/tests/test_gcm_rich_returns.py" \
+            "$ROOT/python/tests/test_panel_bayesian.py" \
+            "$ROOT/python/tests/test_temporal_bayesian_pulse.py" \
+            "$ROOT/python/tests/test_prior_bank.py" \
+            "$ROOT/python/tests/test_eventframe_discovery.py" \
+            "$ROOT/python/tests/test_panel_pooled_discovery.py"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
