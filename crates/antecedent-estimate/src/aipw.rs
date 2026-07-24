@@ -478,8 +478,9 @@ fn aipw_psi(
             for (((&t, &y), &e), (&m0, &m1)) in
                 treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
             {
-                let aug = ((1.0 - t) / pi0) * (m1 - m0) + (t / pi0) * ((1.0 - e) / e) * (y - m1)
-                    - ((1.0 - t) / pi0) * (y - m0) / (1.0 - e);
+                let aug = ((1.0 - t) / pi0) * (m1 - m0)
+                    + (t / pi0) * ((1.0 - e) / e) * (y - m1)
+                    - ((1.0 - t) / pi0) * (y - m0);
                 out.push(aug);
             }
         }
@@ -674,6 +675,119 @@ mod tests {
         assert!(
             (att - 2.0).abs() < 0.15,
             "ATT IF mean under μ₁ misspecification should stay near 2; got {att}"
+        );
+    }
+
+    /// Guide MATH-003 deterministic counterexample: correct e, wrong m0 → ATC = 2.
+    #[test]
+    fn atc_if_deterministic_counterexample() {
+        // P(T)=0.5, e=0.5, Y(0)=1, Y(1)=3, m1=3, m0=0 → true ATC = 2.
+        let t = vec![1.0, 1.0, 0.0, 0.0];
+        let y = vec![3.0, 3.0, 1.0, 1.0];
+        let e = vec![0.5, 0.5, 0.5, 0.5];
+        let mu0 = vec![0.0, 0.0, 0.0, 0.0];
+        let mu1 = vec![3.0, 3.0, 3.0, 3.0];
+        let mut psi = Vec::new();
+        aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Untreated, &mut psi).unwrap();
+        let atc = psi.iter().sum::<f64>() / psi.len() as f64;
+        assert!(
+            (atc - 2.0).abs() < 1e-12,
+            "deterministic ATC IF mean should be 2; got {atc}"
+        );
+    }
+
+    /// ATC IF remains unbiased when μ₀ is misspecified but propensity is correct.
+    #[test]
+    fn atc_if_doubly_robust_under_mu0_misspecification() {
+        let n = 4_000usize;
+        let mut rng = ExecutionContext::for_tests(42).rng.stream(0xA7Cu64);
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mut e = vec![0.0; n];
+        let mut mu0 = vec![0.0; n];
+        let mut mu1 = vec![0.0; n];
+        for i in 0..n {
+            let z = standard_normal(&mut rng);
+            let logit = -0.5 + z;
+            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
+            let noise = standard_normal(&mut rng) * 0.5;
+            t[i] = ti;
+            y[i] = 2.0 * ti + z + noise;
+            e[i] = pi_i;
+            // Correct μ₁; deliberately wrong μ₀ (constant 0 instead of z).
+            mu0[i] = 0.0;
+            mu1[i] = 2.0 + z;
+        }
+        let mut psi = Vec::new();
+        aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Untreated, &mut psi).unwrap();
+        let atc = psi.iter().sum::<f64>() / psi.len() as f64;
+        assert!(
+            (atc - 2.0).abs() < 0.15,
+            "ATC IF mean under μ₀ misspecification should stay near 2; got {atc}"
+        );
+    }
+
+    /// ATC IF remains unbiased when propensity is misspecified but outcomes are correct.
+    #[test]
+    fn atc_if_doubly_robust_under_propensity_misspecification() {
+        let n = 4_000usize;
+        let mut rng = ExecutionContext::for_tests(43).rng.stream(0xBEEFu64);
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mut e = vec![0.0; n];
+        let mut mu0 = vec![0.0; n];
+        let mut mu1 = vec![0.0; n];
+        for i in 0..n {
+            let z = standard_normal(&mut rng);
+            let logit = -0.5 + z;
+            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
+            let noise = standard_normal(&mut rng) * 0.5;
+            t[i] = ti;
+            y[i] = 2.0 * ti + z + noise;
+            // Deliberately wrong propensity (constant 0.5).
+            e[i] = 0.5;
+            mu0[i] = z;
+            mu1[i] = 2.0 + z;
+        }
+        let mut psi = Vec::new();
+        aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Untreated, &mut psi).unwrap();
+        let atc = psi.iter().sum::<f64>() / psi.len() as f64;
+        assert!(
+            (atc - 2.0).abs() < 0.15,
+            "ATC IF mean under propensity misspecification should stay near 2; got {atc}"
+        );
+    }
+
+    /// ATC IF unbiased when both propensity and outcome models are correct.
+    #[test]
+    fn atc_if_doubly_robust_when_both_correct() {
+        let n = 4_000usize;
+        let mut rng = ExecutionContext::for_tests(44).rng.stream(0xCAFEu64);
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mut e = vec![0.0; n];
+        let mut mu0 = vec![0.0; n];
+        let mut mu1 = vec![0.0; n];
+        for i in 0..n {
+            let z = standard_normal(&mut rng);
+            let logit = -0.5 + z;
+            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
+            let noise = standard_normal(&mut rng) * 0.5;
+            t[i] = ti;
+            y[i] = 2.0 * ti + z + noise;
+            e[i] = pi_i;
+            mu0[i] = z;
+            mu1[i] = 2.0 + z;
+        }
+        let mut psi = Vec::new();
+        aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Untreated, &mut psi).unwrap();
+        let atc = psi.iter().sum::<f64>() / psi.len() as f64;
+        assert!(
+            (atc - 2.0).abs() < 0.15,
+            "ATC IF mean with both models correct should stay near 2; got {atc}"
         );
     }
 
