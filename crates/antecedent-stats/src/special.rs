@@ -99,14 +99,13 @@ pub fn trigamma(mut z: f64) -> f64 {
     if !(z.is_finite() && z > 0.0) {
         return f64::NAN;
     }
-    let mut result = 0.0;
-    // Reflection: ψ₁(z) + ψ₁(1−z) = π² / sin²(πz).
+    // Reflection: ψ₁(z) + ψ₁(1−z) = π² / sin²(πz) ⇒ ψ₁(z) = π²csc²(πz) − ψ₁(1−z).
     if z < 0.5 {
         let pi = std::f64::consts::PI;
         let s = (pi * z).sin();
-        result += (pi * pi) / (s * s);
-        z = 1.0 - z;
+        return (pi * pi) / (s * s) - trigamma(1.0 - z);
     }
+    let mut result = 0.0;
     while z < 8.0 {
         result += 1.0 / (z * z);
         z += 1.0;
@@ -209,8 +208,18 @@ pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
 /// Survival function P(T > t) for Student-t with `df` degrees of freedom.
 #[must_use]
 pub fn student_t_sf(t: f64, df: f64) -> f64 {
+    if !(df.is_finite() && df > 0.0) || t.is_nan() {
+        return f64::NAN;
+    }
+    if t == f64::INFINITY {
+        return 0.0;
+    }
+    if t == f64::NEG_INFINITY {
+        return 1.0;
+    }
     let x = df / (df + t * t);
-    0.5 * regularized_incomplete_beta(x, df * 0.5, 0.5)
+    let half_tail = 0.5 * regularized_incomplete_beta(x, 0.5 * df, 0.5);
+    if t >= 0.0 { half_tail } else { 1.0 - half_tail }
 }
 
 /// Regularized upper incomplete gamma `Q(a, x)`.
@@ -313,5 +322,78 @@ mod tests {
         let z = 2.3;
         assert!((digamma(z + 1.0) - digamma(z) - 1.0 / z).abs() < 1e-12);
         assert!((trigamma(z + 1.0) - trigamma(z) + 1.0 / (z * z)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn trigamma_golden_values() {
+        // Reference values from scipy.special.polygamma(1, z).
+        let cases = [
+            (0.01, 10_001.621_213_528_313),
+            (0.1, 101.433_299_150_792_76),
+            (0.25, 17.197_329_154_507_113),
+            (0.49, 5.108_092_483_881_403),
+            (0.5, 4.934_802_200_544_68),
+            (1.0, std::f64::consts::PI.powi(2) / 6.0),
+            (5.0, 0.221_322_955_737_115_3),
+        ];
+        for &(z, expected) in &cases {
+            let got = trigamma(z);
+            let rel = (got - expected).abs() / expected.abs().max(1.0);
+            assert!(rel < 1e-10, "trigamma({z}): got={got} expected={expected} rel={rel}");
+        }
+    }
+
+    #[test]
+    fn trigamma_reflection_identity_grid() {
+        let pi = std::f64::consts::PI;
+        let mut z = 0.01;
+        while z < 0.5 {
+            let lhs = trigamma(z) + trigamma(1.0 - z);
+            let s = (pi * z).sin();
+            let rhs = (pi * pi) / (s * s);
+            let rel = (lhs - rhs).abs() / rhs.max(1.0);
+            assert!(rel < 1e-10, "identity fail at z={z}: lhs={lhs} rhs={rhs}");
+            z += 0.01;
+        }
+    }
+
+    #[test]
+    fn student_t_sf_symmetry_and_guards() {
+        for &df in &[1.0, 2.0, 5.0, 30.0] {
+            assert!((student_t_sf(0.0, df) - 0.5).abs() < 1e-12, "sf(0) df={df}");
+            for &t in &[0.5, 1.0, 2.0, 3.5] {
+                let pos = student_t_sf(t, df);
+                let neg = student_t_sf(-t, df);
+                assert!((neg - (1.0 - pos)).abs() < 1e-12, "symmetry t={t} df={df}");
+            }
+            let mut prev = 1.0;
+            for i in -40..=40 {
+                let t = f64::from(i) * 0.25;
+                let s = student_t_sf(t, df);
+                assert!(s <= prev + 1e-12, "not monotone at t={t} df={df}: {s} > {prev}");
+                prev = s;
+            }
+        }
+        assert!((student_t_sf(f64::INFINITY, 5.0) - 0.0).abs() < 1e-15);
+        assert!((student_t_sf(f64::NEG_INFINITY, 5.0) - 1.0).abs() < 1e-15);
+        assert!(student_t_sf(1.0, f64::NAN).is_nan());
+        assert!(student_t_sf(1.0, 0.0).is_nan());
+        assert!(student_t_sf(1.0, -1.0).is_nan());
+        assert!(student_t_sf(f64::NAN, 5.0).is_nan());
+    }
+
+    #[test]
+    fn student_t_sf_golden_values() {
+        // scipy.stats.t.sf(t, df)
+        let cases = [
+            (1.0, 1.0, 0.25),
+            (2.0, 5.0, 0.050_969_739_414_929_14),
+            (0.0, 10.0, 0.5),
+            (-1.0, 1.0, 0.75),
+        ];
+        for &(t, df, expected) in &cases {
+            let got = student_t_sf(t, df);
+            assert!((got - expected).abs() < 1e-8, "t={t} df={df}: got={got} expected={expected}");
+        }
     }
 }

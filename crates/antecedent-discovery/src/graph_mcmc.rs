@@ -113,15 +113,18 @@ pub(crate) fn diagnostics_from_traces(
     refuse_msg: &'static str,
 ) -> Result<InferenceDiagnostics, DiscoveryError> {
     let (n_chains, _, n_draws, _) = schedule.as_usize();
-    let (rhat, ess_bulk) = graph_chain_diagnostics(traces, n_chains, n_draws, n_params);
+    let (rhat, ess_bulk, ess_tail, moved) =
+        graph_chain_diagnostics(traces, n_chains, n_draws, n_params);
     let diagnostics = mcmc_graph_diagnostics(
         schedule.n_chains,
         schedule.n_warmup,
         schedule.n_draws,
         ess_bulk,
+        ess_tail,
         rhat,
         0,
         true,
+        moved,
     );
     publish_graph_posterior(diagnostics, require_gate, refuse_msg)
 }

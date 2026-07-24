@@ -92,6 +92,8 @@ pub struct GlmAdjustmentAte {
     pub cluster_ids: Option<Vec<u32>>,
     /// Optional multiway cluster ids.
     pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Optional panel time labels for panel HAC sandwich SE.
+    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for GlmAdjustmentAte {
@@ -113,6 +115,7 @@ impl GlmAdjustmentAte {
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
             multiway_ids: None,
+            panel_times: None,
         }
     }
 
@@ -291,6 +294,7 @@ impl GlmAdjustmentAte {
                 glm_fit.nb_alpha.unwrap_or(0.0),
                 self.cluster_ids.as_deref(),
                 self.multiway_ids.as_deref(),
+                self.panel_times.as_deref(),
             )?,
         };
 
@@ -533,6 +537,7 @@ fn gcomp_sandwich_se(
     nb_alpha: f64,
     cluster_ids: Option<&[u32]>,
     multiway_ids: Option<&[Vec<u32>]>,
+    panel_times: Option<&[i64]>,
 ) -> Result<f64, EstimationError> {
     let (score_u, fisher_w) =
         glm_score_components(family, x_colmajor, nrows, ncols, coefficients, y, nb_alpha);
@@ -545,6 +550,7 @@ fn gcomp_sandwich_se(
         &fisher_w,
         cluster_ids,
         multiway_ids,
+        panel_times,
     )?;
     let Some(cov) = cov else {
         return Ok(gcomp_delta_method_se(
@@ -579,8 +585,9 @@ fn sandwich_cov_matrix(
     fisher_w: &[f64],
     cluster_ids: Option<&[u32]>,
     multiway_ids: Option<&[Vec<u32>]>,
+    panel_times: Option<&[i64]>,
 ) -> Result<Option<Vec<f64>>, EstimationError> {
-    use crate::se::{require_clusters, require_multiway};
+    use crate::se::{require_clusters, require_multiway, require_panel_times};
     use antecedent_stats::SandwichKind;
     if matches!(kind, AnalyticSeKind::Homoskedastic) {
         return Ok(None);
@@ -632,17 +639,18 @@ fn sandwich_cov_matrix(
         ),
         AnalyticSeKind::PanelClusterHac { lag } => {
             let groups = require_clusters(cluster_ids, nrows)?;
+            let time = require_panel_times(panel_times, nrows)?;
             score_coefficient_covariance(
                 x,
                 nrows,
                 ncols,
                 score_u,
                 fisher_w,
-                SandwichKind::PanelClusterHac { groups, lag },
+                SandwichKind::PanelClusterHac { groups, time, lag },
             )
         }
     };
-    Ok(Some(cov.unwrap_or_else(|_| vec![f64::NAN; ncols * ncols])))
+    Ok(Some(cov?))
 }
 
 /// Per-row GLM score multiplier `u_i` and Fisher weight `w_i`.

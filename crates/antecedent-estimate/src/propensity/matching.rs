@@ -22,13 +22,13 @@ use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity
 
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, gather, gather_rowmajor,
+    clip_of, default_propensity_overlap, gather, gather_optional_row_labels, gather_rowmajor,
     prepare_propensity_problem_with_registry, restrict_to_rows, split_by_treatment, trim_of,
     trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::se::{AnalyticSeKind, influence_se_kind};
 use crate::util::{BootstrapSeResult, bootstrap_se, sample_std, stats_err};
 
@@ -59,6 +59,8 @@ pub struct PropensityMatching {
     pub population_registry: Option<PopulationRegistry>,
     /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
     pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Optional panel time labels for panel HAC.
+    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for PropensityMatching {
@@ -81,6 +83,7 @@ impl PropensityMatching {
             cluster_ids: None,
             population_registry: None,
             multiway_ids: None,
+            panel_times: None,
         }
     }
 
@@ -138,29 +141,18 @@ impl PropensityMatching {
             Some(idx) => idx.iter().map(|&i| w[i]).collect(),
             None => w.to_vec(),
         });
-        let clusters_used = match (&self.cluster_ids, &retained) {
-            (Some(ids), Some(idx)) => {
-                if ids.len() != problem.nrows {
-                    return Err(EstimationError::data_msg(format!(
-                        "cluster_ids length {} != nrows {}",
-                        ids.len(),
-                        problem.nrows
-                    )));
-                }
-                Some(idx.iter().map(|&i| ids[i]).collect::<Vec<_>>())
-            }
-            (Some(ids), None) => {
-                if ids.len() != problem.nrows {
-                    return Err(EstimationError::data_msg(format!(
-                        "cluster_ids length {} != nrows {}",
-                        ids.len(),
-                        problem.nrows
-                    )));
-                }
-                Some(ids.clone())
-            }
-            (None, _) => None,
-        };
+        let clusters_used = gather_optional_row_labels(
+            self.cluster_ids.as_deref(),
+            problem.nrows,
+            retained.as_deref(),
+            "cluster_ids",
+        )?;
+        let times_used = gather_optional_row_labels(
+            self.panel_times.as_deref(),
+            problem.nrows,
+            retained.as_deref(),
+            "panel_times",
+        )?;
         let result = matching_contrast(
             &t_used,
             &y_used,
@@ -174,6 +166,7 @@ impl PropensityMatching {
             clusters_used.as_deref(),
             tw_used.as_deref(),
             self.multiway_ids.as_ref(),
+            times_used.as_deref(),
         )?;
 
         let boot = if self.bootstrap_replicates == 0 {
@@ -182,8 +175,15 @@ impl PropensityMatching {
             Some(self.bootstrap_se(problem, trim, workspace, ctx)?)
         };
 
-        let overlap_report =
-            Some(OverlapReport::from_propensities(&model.fit.scores, None, problem.overlap));
+        let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
+        let overlap_report = Some(OverlapReport::from_propensities(
+            &model.fit.scores,
+            None,
+            problem.overlap,
+            Some(&problem.treatment),
+            ipw_target,
+            problem.target_weights.as_deref(),
+        ));
 
         Ok(EffectEstimate {
             ate: result.ate,
@@ -253,6 +253,7 @@ impl PropensityMatching {
                 self.caliper,
                 workspace,
                 AnalyticSeKind::Homoskedastic,
+                None,
                 None,
                 None,
                 None,
@@ -346,10 +347,16 @@ pub(crate) fn matching_contrast(
     cluster_ids: Option<&[u32]>,
     target_weights: Option<&[f64]>,
     multiway_ids: Option<&Vec<Vec<u32>>>,
+    panel_times: Option<&[i64]>,
 ) -> Result<MatchedEstimate, EstimationError> {
     if let Some(ids) = cluster_ids {
         if ids.len() != treatment.len() {
             return Err(EstimationError::data_msg("matching cluster_ids length != treatment rows"));
+        }
+    }
+    if let Some(times) = panel_times {
+        if times.len() != treatment.len() {
+            return Err(EstimationError::data_msg("matching panel_times length != treatment rows"));
         }
     }
     let (treated_idx, control_idx) = split_by_treatment(treatment);
@@ -488,6 +495,7 @@ pub(crate) fn matching_contrast(
                 treatment.len(),
                 cluster_ids,
                 multiway_ids.map(Vec::as_slice),
+                panel_times,
                 Some(&effect_rows),
             )?
         }
@@ -658,7 +666,7 @@ mod tests {
                     (e - ate) * (1.0 + kd)
                 })
                 .collect();
-            crate::se::cluster_influence_se(&psi, &groups)
+            crate::se::cluster_influence_se(&psi, &groups).unwrap()
         };
         let se_reuse = se(&donors_reuse, 2);
         let se_unique = se(&donors_unique, 4);

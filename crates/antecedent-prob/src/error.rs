@@ -30,7 +30,7 @@ pub enum ProbError {
     /// Missing required diagnostics for a reported posterior.
     MissingDiagnostics {
         /// Context.
-        message: &'static str,
+        message: String,
     },
 }
 

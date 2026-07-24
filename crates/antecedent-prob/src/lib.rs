@@ -28,9 +28,11 @@ pub mod conjugate;
 pub mod diagnostics;
 pub mod error;
 pub mod external_prior;
+pub mod gaussian_target;
 pub mod graph_samples;
 pub mod hmc;
 pub mod laplace;
+pub(crate) mod likelihood_terms;
 pub(crate) mod linalg;
 pub mod mcmc_stats;
 pub mod posterior;
@@ -50,16 +52,24 @@ pub use external_prior::{
     ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
     compose_external_priors_with_alphas,
 };
+pub use gaussian_target::{
+    GaussianInvGammaTarget, GaussianKnownTarget, GaussianTarget, PosteriorTarget,
+    gaussian_target_from_model,
+};
 pub use graph_samples::{GraphEnvelopeSubsample, GraphIdentFlag, WeightedGraphSamples};
 pub use hmc::{HmcGlmBackend, HmcOptions, fit_hmc_glm};
 pub use laplace::{LaplaceGlmBackend, fit_laplace_glm, sample_gaussian_mvn};
-pub use mcmc_stats::{max_split_rhat, min_bulk_ess};
+pub use mcmc_stats::{
+    ParameterMcmcDiagnostics, all_chains_moved, max_split_rhat, min_bulk_ess, min_tail_ess,
+    parameter_mcmc_diagnostics,
+};
 pub use posterior::{
     EffectBatch, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,
     PosteriorSchema, PosteriorSummary,
 };
 pub use prior::{
-    ContrastCoding, EffectPrior, GaussianCoefficientPrior, InvGammaPrior, PriorSet, PriorSpec,
+    ContrastCoding, EffectPrior, GaussianCoefficientPrior, GaussianVarianceModel, InvGammaPrior,
+    PriorSet, PriorSpec,
 };
 pub use transport::{
     POPULATION_TAG_KEY, TRANSPORT_ASSUMPTION_ID, TransportAdjustment, TransportContext,

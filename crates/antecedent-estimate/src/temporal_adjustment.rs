@@ -197,9 +197,12 @@ impl TemporalLinearAdjustment {
         })
     }
 
-    /// Prepare a stacked panel design (no cross-unit lag windows) with unit cluster ids.
+    /// Prepare a stacked panel design (no cross-unit lag windows) with unit cluster ids
+    /// and per-row panel times.
     ///
-    /// Returns `(problem, cluster_ids)` where `cluster_ids[row] = unit_id`.
+    /// Returns `(problem, cluster_ids, panel_times)` where `cluster_ids[row] = unit_id`
+    /// and `panel_times` are consecutive within-unit indices `0..n_unit` for the prepared
+    /// (lag-aligned) rows of each unit.
     ///
     /// # Errors
     ///
@@ -212,7 +215,7 @@ impl TemporalLinearAdjustment {
         indexer: &TemporalIndexer,
         split: Option<&DiscoveryEstimationSplit>,
         policy: &antecedent_core::KernelPolicy,
-    ) -> Result<(PreparedEstimationProblem, Vec<u32>), EstimationError> {
+    ) -> Result<(PreparedEstimationProblem, Vec<u32>, Vec<i64>), EstimationError> {
         if panel.unit_count() == 0 {
             return Err(EstimationError::data_msg("panel needs ≥1 unit"));
         }
@@ -220,6 +223,7 @@ impl TemporalLinearAdjustment {
         let mut all_y = Vec::new();
         let mut all_covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
         let mut cluster_ids = Vec::new();
+        let mut panel_times = Vec::new();
         let mut adj_keys: Vec<VariableId> = Vec::new();
         let mut active = 0.0;
         let mut control = 0.0;
@@ -246,6 +250,12 @@ impl TemporalLinearAdjustment {
                 dest.extend_from_slice(&prep.design.matrix[base..base + nrows]);
             }
             cluster_ids.extend(std::iter::repeat_n(unit.unit_id, n));
+            // Prepared rows are consecutive in calendar time after lag alignment.
+            for t_idx in 0..n {
+                let t_label = i64::try_from(t_idx)
+                    .map_err(|_| EstimationError::data_msg("panel time index does not fit i64"))?;
+                panel_times.push(t_label);
+            }
         }
 
         let cov_refs: Vec<(VariableId, &[f64])> =
@@ -267,6 +277,7 @@ impl TemporalLinearAdjustment {
                 control,
             },
             cluster_ids,
+            panel_times,
         ))
     }
 

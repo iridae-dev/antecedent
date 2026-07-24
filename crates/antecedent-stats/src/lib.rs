@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod ci;
+pub mod cluster;
 pub mod covariance;
 pub mod design;
 pub mod divergence;
@@ -33,6 +34,11 @@ pub use ci::{
     analytic_confidence_level, analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
     nonparametric_permutation_count, pairwise_multivariate_test,
 };
+pub use cluster::{
+    MAX_CLUSTER_DIMENSIONS, bartlett_weight, combine_inclusion_exclusion, effective_nw_lag,
+    intern_cluster_tuples, multiway_subset_masks, multiway_subset_sign, panel_hac_meat_matrix,
+    panel_hac_meat_scalar,
+};
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use design::{
     BasisKind, CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
@@ -58,7 +64,10 @@ pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
     MultinomialFit, NbAlphaPolicy, fit_glm, fit_multinomial_logit,
 };
-pub use gram::{accumulate_xtx, accumulate_xtx_xty_row, form_xtx, invert_square};
+pub use gram::{
+    accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, form_xtx,
+    invert_square,
+};
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
 pub use matching::{

@@ -694,7 +694,9 @@ impl BayesianGComputationAte {
 
         let mut early_stopped = false;
         let mut n_draws = fit.draws.n_draws;
-        let mut coef_draws = fit.draws;
+        // Adaptive MVN sampling uses the β-block covariance only; drop residual-variance
+        // columns so batch merges match `PosteriorSchema::coefficients`.
+        let mut coef_draws = coefficient_only_draws(&fit.draws)?;
 
         if laplace_adaptive {
             let cov = fit.cov.as_ref().ok_or_else(|| {
@@ -1168,6 +1170,40 @@ fn merge_coefficient_draws(
         values[q * n + a.n_draws..(q + 1) * n].copy_from_slice(col_b);
     }
     PosteriorDraws::from_column_major(a.schema.clone(), n, values).map_err(EstimationError::from)
+}
+
+/// Keep coefficient columns only (drop residual-variance / other non-β quantities).
+fn coefficient_only_draws(draws: &PosteriorDraws) -> Result<PosteriorDraws, EstimationError> {
+    let coef_idx: Vec<usize> = draws
+        .schema
+        .quantities
+        .iter()
+        .enumerate()
+        .filter_map(|(i, q)| matches!(q, PosteriorQuantityKind::Coefficient { .. }).then_some(i))
+        .collect();
+    if coef_idx.is_empty() {
+        return Err(EstimationError::stats_msg(
+            "coefficient_only_draws: no coefficient quantities",
+        ));
+    }
+    if coef_idx.len() == draws.schema.quantities.len() {
+        return Ok(draws.clone());
+    }
+    let n = draws.n_draws;
+    let n_q = coef_idx.len();
+    let mut quantities = Vec::with_capacity(n_q);
+    let mut values = vec![0.0; n * n_q];
+    for (dest, &src) in coef_idx.iter().enumerate() {
+        quantities.push(draws.schema.quantities[src].clone());
+        let col = draws.column(src).map_err(EstimationError::from)?;
+        values[dest * n..(dest + 1) * n].copy_from_slice(col);
+    }
+    PosteriorDraws::from_column_major(
+        PosteriorSchema { quantities: Arc::from(quantities) },
+        n,
+        values,
+    )
+    .map_err(EstimationError::from)
 }
 
 /// Build a non-identified posterior artifact that still records priors (exit criterion #2).

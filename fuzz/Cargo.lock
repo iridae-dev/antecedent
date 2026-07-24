@@ -157,14 +157,14 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "antecedent-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "antecedent-data"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-discovery"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -188,7 +188,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-estimate"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -201,7 +201,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-expr"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
 ]
@@ -223,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-graph"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
  "thiserror 2.0.19",
@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-identify"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "antecedent-core",
@@ -264,14 +264,14 @@ dependencies = [
 
 [[package]]
 name = "antecedent-kernels"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
 ]
 
 [[package]]
 name = "antecedent-model"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -284,7 +284,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-prob"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -293,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-stats"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -303,7 +303,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-validate"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",

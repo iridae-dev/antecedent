@@ -3088,7 +3088,7 @@ impl CausalAnalysis {
         let mut estimator = TemporalLinearAdjustment::new();
         estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
         estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
-        let (prep, cluster_ids) = estimator
+        let (prep, cluster_ids, panel_times) = estimator
             .prepare_panel(
                 panel,
                 &estimand,
@@ -3134,6 +3134,7 @@ impl CausalAnalysis {
             }
             InferenceMode::Frequentist => {
                 estimator.inner.cluster_ids = Some(cluster_ids);
+                estimator.inner.panel_times = Some(panel_times);
                 estimator.inner.se_kind = AnalyticSeKind::PanelClusterHac { lag: max_lag };
                 let mut workspace = EstimationWorkspace::default();
                 let estimate = estimator
