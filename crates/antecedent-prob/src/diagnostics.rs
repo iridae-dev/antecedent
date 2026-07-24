@@ -42,10 +42,22 @@ pub struct InferenceDiagnostics {
     pub n_warmup: Option<u32>,
     /// MCMC: minimum bulk ESS across parameters.
     pub ess_bulk_min: Option<f64>,
-    /// MCMC: maximum split-Ř across parameters.
+    /// MCMC: minimum tail ESS across parameters.
+    pub ess_tail_min: Option<f64>,
+    /// MCMC: maximum rank∪folded split-Ř across parameters.
     pub rhat_max: Option<f64>,
-    /// MCMC: leapfrog / trajectory divergence count.
+    /// MCMC: leapfrog / trajectory divergence count (post-warmup; legacy alias).
     pub n_divergences: Option<u32>,
+    /// MCMC: mean Metropolis acceptance probability over all transitions.
+    pub mean_accept_prob: Option<f64>,
+    /// MCMC: divergences during warmup only.
+    pub n_warmup_divergences: Option<u32>,
+    /// MCMC: divergences after warmup (publication uses this).
+    pub n_postwarmup_divergences: Option<u32>,
+    /// MCMC: maximum absolute Hamiltonian energy error observed.
+    pub max_abs_delta_h: Option<f64>,
+    /// MCMC: every chain moved on at least one unconstrained parameter.
+    pub all_chains_moved: Option<bool>,
 }
 
 impl InferenceDiagnostics {
@@ -64,26 +76,27 @@ impl InferenceDiagnostics {
             n_chains: None,
             n_warmup: None,
             ess_bulk_min: None,
+            ess_tail_min: None,
             rhat_max: None,
             n_divergences: None,
+            mean_accept_prob: None,
+            n_warmup_divergences: None,
+            n_postwarmup_divergences: None,
+            max_abs_delta_h: None,
+            all_chains_moved: None,
         }
     }
 
     /// Whether this diagnostic set is sufficient to publish a posterior.
     ///
     /// Narrow Laplace posteriors without convergence + curvature are refused.
-    /// MCMC requires finite Ř < 1.05, ESS > 10, and no hard divergence flood
-    /// (> 10% of total leapfrog proposals is refused via `converged` flag).
+    /// MCMC requires finite Ř ≤ 1.01, bulk and tail ESS ≥ 100, zero post-warmup
+    /// divergences, and movement on every chain.
     #[must_use]
     pub fn allows_posterior(&self) -> bool {
         match self.factorization {
             HessianFactorization::Analytic => true,
-            HessianFactorization::Mcmc => {
-                let rhat_ok = self.rhat_max.is_some_and(|r| r.is_finite() && r < 1.05);
-                let ess_ok = self.ess_bulk_min.is_some_and(|e| e.is_finite() && e > 10.0);
-                let div_ok = self.n_divergences.is_some();
-                self.converged && rhat_ok && ess_ok && div_ok
-            }
+            HessianFactorization::Mcmc => self.converged && self.mcmc_publication_ok(),
             HessianFactorization::Cholesky | HessianFactorization::Ldlt => {
                 self.converged
                     && self.grad_inf_norm.is_finite()
@@ -91,6 +104,32 @@ impl InferenceDiagnostics {
                     && self.hessian_condition > 0.0
             }
         }
+    }
+
+    /// Full MATH-002 MCMC publication predicate (independent of `converged`).
+    #[must_use]
+    pub fn mcmc_publication_ok(&self) -> bool {
+        if self.factorization != HessianFactorization::Mcmc {
+            return false;
+        }
+        let rhat_ok = self.rhat_max.is_some_and(|r| r.is_finite() && r <= 1.01);
+        let ess_bulk_ok = self.ess_bulk_min.is_some_and(|e| e.is_finite() && e >= 100.0);
+        let ess_tail_ok = self.ess_tail_min.is_some_and(|e| e.is_finite() && e >= 100.0);
+        let div_ok = self.n_postwarmup_divergences.is_some_and(|n| n == 0);
+        let moved_ok = self.all_chains_moved == Some(true);
+        let accept_ok = self.mean_accept_prob.is_some_and(f64::is_finite);
+        let delta_ok = self.max_abs_delta_h.is_some_and(f64::is_finite);
+        let chains_ok = self.n_chains.is_some_and(|c| c >= 2);
+        let warmup_ok = self.n_warmup.is_some();
+        rhat_ok
+            && ess_bulk_ok
+            && ess_tail_ok
+            && div_ok
+            && moved_ok
+            && accept_ok
+            && delta_ok
+            && chains_ok
+            && warmup_ok
     }
 }
 
@@ -133,6 +172,30 @@ pub struct ConflictSummary {
 mod tests {
     use super::*;
 
+    fn mcmc_ok_base() -> InferenceDiagnostics {
+        InferenceDiagnostics {
+            converged: true,
+            iterations: 400,
+            grad_inf_norm: 0.0,
+            hessian_condition: f64::NAN,
+            factorization: HessianFactorization::Mcmc,
+            separation_warning: false,
+            notes: Vec::new(),
+            backend_id: Arc::from("hmc"),
+            n_chains: Some(4),
+            n_warmup: Some(100),
+            ess_bulk_min: Some(200.0),
+            ess_tail_min: Some(150.0),
+            rhat_max: Some(1.005),
+            n_divergences: Some(0),
+            mean_accept_prob: Some(0.8),
+            n_warmup_divergences: Some(0),
+            n_postwarmup_divergences: Some(0),
+            max_abs_delta_h: Some(0.1),
+            all_chains_moved: Some(true),
+        }
+    }
+
     #[test]
     fn laplace_requires_convergence() {
         let mut d = InferenceDiagnostics {
@@ -147,8 +210,14 @@ mod tests {
             n_chains: None,
             n_warmup: None,
             ess_bulk_min: None,
+            ess_tail_min: None,
             rhat_max: None,
             n_divergences: None,
+            mean_accept_prob: None,
+            n_warmup_divergences: None,
+            n_postwarmup_divergences: None,
+            max_abs_delta_h: None,
+            all_chains_moved: None,
         };
         assert!(!d.allows_posterior());
         d.converged = true;
@@ -156,25 +225,29 @@ mod tests {
     }
 
     #[test]
-    fn mcmc_requires_rhat_and_ess() {
-        let mut d = InferenceDiagnostics {
-            converged: true,
-            iterations: 100,
-            grad_inf_norm: 0.0,
-            hessian_condition: f64::NAN,
-            factorization: HessianFactorization::Mcmc,
-            separation_warning: false,
-            notes: Vec::new(),
-            backend_id: Arc::from("hmc"),
-            n_chains: Some(4),
-            n_warmup: Some(50),
-            ess_bulk_min: Some(5.0),
-            rhat_max: Some(1.2),
-            n_divergences: Some(0),
-        };
-        assert!(!d.allows_posterior());
+    fn mcmc_requires_full_gate() {
+        let mut d = mcmc_ok_base();
+        assert!(d.allows_posterior());
         d.ess_bulk_min = Some(50.0);
+        assert!(!d.allows_posterior());
+        d.ess_bulk_min = Some(200.0);
+        d.n_postwarmup_divergences = Some(1);
+        assert!(!d.allows_posterior());
+        d.n_postwarmup_divergences = Some(0);
+        d.all_chains_moved = Some(false);
+        assert!(!d.allows_posterior());
+        d.all_chains_moved = Some(true);
+        d.rhat_max = Some(1.02);
+        assert!(!d.allows_posterior());
         d.rhat_max = Some(1.01);
         assert!(d.allows_posterior());
+    }
+
+    #[test]
+    fn mcmc_divergence_presence_is_not_enough() {
+        let mut d = mcmc_ok_base();
+        d.n_postwarmup_divergences = Some(3);
+        d.n_divergences = Some(3);
+        assert!(!d.allows_posterior());
     }
 }
