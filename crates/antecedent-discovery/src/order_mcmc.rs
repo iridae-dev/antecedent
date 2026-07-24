@@ -342,6 +342,8 @@ mod tests {
     #[test]
     fn order_mcmc_chain_signal() {
         let (data, vars) = chain_data(220);
+        // Gate off: short schedules recover edge mass but do not mix enough for
+        // the graph-posterior diagnostics bar under correct multi-chain Geyer ESS.
         let eng = OrderMcmc::new().with_schedule(2, 300, 600, 1).with_diagnostics_gate(false);
         let ctx = ExecutionContext::for_tests(9);
         let mut ws = DiscoveryWorkspace::default();
@@ -351,6 +353,21 @@ mod tests {
         let n = 3;
         let sk01 = post.edge_marginals[1] + post.edge_marginals[n];
         assert!(sk01 > 0.25, "P(A—B)={sk01}");
-        assert!(crate::graph_posterior::allows_graph_posterior(&post.diagnostics));
+        assert!(
+            !crate::graph_posterior::allows_graph_posterior(&post.diagnostics),
+            "short order-MCMC schedule should not clear the diagnostics bar"
+        );
+    }
+
+    #[test]
+    fn order_mcmc_short_schedule_gate_refuses() {
+        let (data, vars) = chain_data(220);
+        let eng = OrderMcmc::new().with_schedule(2, 300, 600, 1).with_diagnostics_gate(true);
+        let ctx = ExecutionContext::for_tests(9);
+        let mut ws = DiscoveryWorkspace::default();
+        let err = eng
+            .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
+            .unwrap_err();
+        assert!(err.to_string().contains("diagnostics gate"), "err={err}");
     }
 }

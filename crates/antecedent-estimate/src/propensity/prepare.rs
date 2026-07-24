@@ -388,6 +388,28 @@ pub(crate) fn restrict_to_rows(
     }
 }
 
+/// Optionally gather row labels aligned to prepared `nrows`, then restrict to `retained`.
+pub(crate) fn gather_optional_row_labels<T: Copy>(
+    labels: Option<&[T]>,
+    nrows: usize,
+    retained: Option<&[usize]>,
+    name: &str,
+) -> Result<Option<Vec<T>>, EstimationError> {
+    let Some(labels) = labels else {
+        return Ok(None);
+    };
+    if labels.len() != nrows {
+        return Err(EstimationError::data_msg(format!(
+            "{name} length {} != nrows {nrows}",
+            labels.len()
+        )));
+    }
+    Ok(Some(match retained {
+        Some(idx) => idx.iter().map(|&i| labels[i]).collect(),
+        None => labels.to_vec(),
+    }))
+}
+
 pub(crate) fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<f64>) {
     match overlap {
         OverlapPolicy::RequireDiagnostics { clip, trim, .. } => (clip, trim),

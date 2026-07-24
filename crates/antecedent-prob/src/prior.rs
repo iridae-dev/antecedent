@@ -266,6 +266,89 @@ impl PriorSpec {
     }
 }
 
+/// Residual-variance model for Gaussian linear targets (HMC / Laplace).
+///
+/// Resolved once from [`PriorSet`] before sampling or optimization. At most one
+/// residual specification may appear in the prior set.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum GaussianVarianceModel {
+    /// Fixed known residual variance for the entire run.
+    Known {
+        /// Residual variance σ² > 0.
+        sigma2: f64,
+    },
+    /// Inverse-gamma prior on σ²; HMC state includes `λ = log(σ²)`.
+    InvGamma {
+        /// Shape α₀ > 0.
+        shape: f64,
+        /// Scale β₀ > 0.
+        scale: f64,
+    },
+}
+
+impl GaussianVarianceModel {
+    /// Resolve the residual model from a validated prior set.
+    ///
+    /// `KnownResidualVariance` → [`Self::Known`]; `ResidualInvGamma` →
+    /// [`Self::InvGamma`]; an omitted residual specification defaults to
+    /// [`InvGammaPrior::weakly_informative`].
+    ///
+    /// # Errors
+    ///
+    /// More than one residual specification, or invalid known / InvGamma params.
+    pub fn from_prior_set(prior: &PriorSet) -> Result<Self, ProbError> {
+        let mut known: Option<f64> = None;
+        let mut inv_gamma: Option<InvGammaPrior> = None;
+        for spec in &prior.specs {
+            match spec {
+                PriorSpec::KnownResidualVariance(v) => {
+                    if known.is_some() || inv_gamma.is_some() {
+                        return Err(ProbError::InvalidPrior {
+                            message: "PriorSet must contain at most one residual variance specification",
+                        });
+                    }
+                    known = Some(*v);
+                }
+                PriorSpec::ResidualInvGamma(p) => {
+                    if known.is_some() || inv_gamma.is_some() {
+                        return Err(ProbError::InvalidPrior {
+                            message: "PriorSet must contain at most one residual variance specification",
+                        });
+                    }
+                    inv_gamma = Some(*p);
+                }
+                PriorSpec::GaussianCoefficients(_) => {}
+            }
+        }
+        if let Some(sigma2) = known {
+            if !(sigma2 > 0.0) || !sigma2.is_finite() {
+                return Err(ProbError::InvalidPrior {
+                    message: "known residual variance must be finite and > 0",
+                });
+            }
+            return Ok(Self::Known { sigma2 });
+        }
+        let ig = inv_gamma.unwrap_or_else(InvGammaPrior::weakly_informative);
+        ig.validate()?;
+        Ok(Self::InvGamma { shape: ig.shape, scale: ig.scale })
+    }
+
+    /// Unconstrained state dimension for coefficients of length `ncols`.
+    #[must_use]
+    pub const fn state_dim(self, ncols: usize) -> usize {
+        match self {
+            Self::Known { .. } => ncols,
+            Self::InvGamma { .. } => ncols.saturating_add(1),
+        }
+    }
+
+    /// Whether draws include a residual-variance column.
+    #[must_use]
+    pub const fn include_sigma2(self) -> bool {
+        matches!(self, Self::InvGamma { .. })
+    }
+}
+
 /// Collection of priors for an inference run.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PriorSet {
@@ -323,12 +406,27 @@ impl PriorSet {
     ///
     /// # Errors
     ///
-    /// Invalid specs or missing contrast.
+    /// Invalid specs, missing contrast, or more than one residual variance spec.
     pub fn validate(&self) -> Result<(), ProbError> {
         for s in &self.specs {
             s.validate()?;
         }
-        self.validate_contrasts()
+        self.validate_contrasts()?;
+        let mut n_residual = 0usize;
+        for s in &self.specs {
+            match s {
+                PriorSpec::ResidualInvGamma(_) | PriorSpec::KnownResidualVariance(_) => {
+                    n_residual = n_residual.saturating_add(1);
+                }
+                PriorSpec::GaussianCoefficients(_) => {}
+            }
+        }
+        if n_residual > 1 {
+            return Err(ProbError::InvalidPrior {
+                message: "PriorSet must contain at most one residual variance specification",
+            });
+        }
+        Ok(())
     }
 
     /// First Gaussian coefficient prior, if any.
@@ -401,5 +499,37 @@ mod tests {
         let p = EffectPrior::from_effect_draws(&[2.5]).unwrap();
         assert!((p.mean - 2.5).abs() < 1e-12);
         assert!(p.sd > 0.0);
+    }
+
+    #[test]
+    fn residual_specs_must_be_unique() {
+        let mut p = PriorSet::new();
+        p.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(1, 1.0)));
+        p.push(PriorSpec::KnownResidualVariance(1.0));
+        p.push(PriorSpec::ResidualInvGamma(InvGammaPrior::weakly_informative()));
+        assert!(p.validate().is_err());
+        assert!(GaussianVarianceModel::from_prior_set(&p).is_err());
+    }
+
+    #[test]
+    fn variance_model_defaults_to_weak_inv_gamma() {
+        let mut p = PriorSet::new();
+        p.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 1.0)));
+        p.validate().unwrap();
+        let model = GaussianVarianceModel::from_prior_set(&p).unwrap();
+        let weak = InvGammaPrior::weakly_informative();
+        assert_eq!(model, GaussianVarianceModel::InvGamma { shape: weak.shape, scale: weak.scale });
+        assert_eq!(model.state_dim(2), 3);
+        assert!(model.include_sigma2());
+    }
+
+    #[test]
+    fn variance_model_known() {
+        let mut p = PriorSet::new();
+        p.push(PriorSpec::KnownResidualVariance(2.5));
+        let model = GaussianVarianceModel::from_prior_set(&p).unwrap();
+        assert_eq!(model, GaussianVarianceModel::Known { sigma2: 2.5 });
+        assert_eq!(model.state_dim(4), 4);
+        assert!(!model.include_sigma2());
     }
 }

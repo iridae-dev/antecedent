@@ -34,7 +34,7 @@ pub use rng::{
     standard_normal_pair, unbiased_index,
 };
 pub use scalar::sanitize_weight;
-pub use special::{erf, erfc, norm_cdf, norm_pdf};
+pub use special::{erf, erfc, norm_cdf, norm_inv, norm_pdf};
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 
 #[cfg(test)]

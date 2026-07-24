@@ -16,7 +16,7 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::util::{BootstrapSeResult, bootstrap_se};
 
 /// Propensity stratification estimator: within-stratum difference of means pooled by size.
@@ -129,7 +129,15 @@ impl PropensityStratification {
             Some(self.bootstrap_se(problem, n_strata, trim, workspace, ctx)?)
         };
 
-        let mut report = OverlapReport::from_propensities(&model.fit.scores, None, problem.overlap);
+        let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
+        let mut report = OverlapReport::from_propensities(
+            &model.fit.scores,
+            None,
+            problem.overlap,
+            Some(&problem.treatment),
+            ipw_target,
+            problem.target_weights.as_deref(),
+        );
         // Strata missing a treatment arm are dropped from the pooled contrast; fold the
         // retained fraction into the support figure so the artifact reflects the population
         // the estimate actually targets.

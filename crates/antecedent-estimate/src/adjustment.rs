@@ -210,6 +210,8 @@ pub struct LinearAdjustmentAte {
     pub cluster_ids: Option<Vec<u32>>,
     /// Optional multiway cluster ids for [`AnalyticSeKind::Multiway`].
     pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Optional panel time labels (length = prepared `nrows`) for panel HAC.
+    pub panel_times: Option<Vec<i64>>,
     /// Linear fit family (default OLS).
     pub fit_kind: LinearFitKind,
 }
@@ -231,6 +233,7 @@ impl LinearAdjustmentAte {
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
             multiway_ids: None,
+            panel_times: None,
             fit_kind: LinearFitKind::Ols,
         }
     }
@@ -337,6 +340,7 @@ impl LinearAdjustmentAte {
             t_col,
             self.cluster_ids.as_deref(),
             self.multiway_ids.as_deref(),
+            self.panel_times.as_deref(),
         )? {
             se
         } else {
@@ -707,6 +711,9 @@ mod tests {
             &ps,
             Some(&ws),
             OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: Some(0.05) },
+            Some(&[0.0, 0.0, 1.0]),
+            Some(crate::overlap::IpwTarget::Ate),
+            None,
         );
         assert!((report.propensity_min - 0.1).abs() < 1e-12);
         assert!((report.propensity_max - 0.9).abs() < 1e-12);

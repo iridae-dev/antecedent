@@ -31,7 +31,7 @@ mod distance;
 mod matching;
 mod prepare;
 mod stratification;
-mod weighting;
+pub(crate) mod weighting;
 
 pub use distance::DistanceMatching;
 pub use matching::PropensityMatching;

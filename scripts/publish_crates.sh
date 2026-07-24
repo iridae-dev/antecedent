@@ -101,8 +101,13 @@ if [[ "$MODE" == "dry-run" ]]; then
     if [[ $status -eq 0 ]]; then
       echo "$out" | tail -n 5
       packaged=$((packaged + 1))
-    elif echo "$out" | grep -q 'no matching package named'; then
-      echo "deps not on crates.io yet; cargo check -p ${crate}"
+    elif echo "$out" | grep -qiE \
+      'no matching package named|failed to select a version for the requirement|candidate versions found which didn.t match'
+    then
+      # Path deps resolve against crates.io when packaging. On a version bump,
+      # leaves package (e.g. core) but dependents need ^X.Y.Z not yet indexed —
+      # treat as expected and fall back to a workspace check.
+      echo "deps not on crates.io at this version yet; cargo check -p ${crate}"
       cargo check -p "$crate" --locked
       checked=$((checked + 1))
     else

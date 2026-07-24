@@ -10,12 +10,13 @@ use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity
 use super::matching::matching_contrast;
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
-    default_propensity_overlap, prepare_propensity_problem_with_registry, restrict_to_rows,
-    to_row_major, trim_of, trim_retained_rows,
+    default_propensity_overlap, gather_optional_row_labels,
+    prepare_propensity_problem_with_registry, restrict_to_rows, to_row_major, trim_of,
+    trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::se::AnalyticSeKind;
 use crate::util::{BootstrapSeResult, bootstrap_se};
 
@@ -46,6 +47,8 @@ pub struct DistanceMatching {
     pub population_registry: Option<PopulationRegistry>,
     /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
     pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Optional panel time labels for panel HAC.
+    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for DistanceMatching {
@@ -68,6 +71,7 @@ impl DistanceMatching {
             cluster_ids: None,
             population_registry: None,
             multiway_ids: None,
+            panel_times: None,
         }
     }
 
@@ -135,29 +139,18 @@ impl DistanceMatching {
             Some(idx) => idx.iter().map(|&i| w[i]).collect(),
             None => w.to_vec(),
         });
-        let clusters_used = match (&self.cluster_ids, &retained) {
-            (Some(ids), Some(idx)) => {
-                if ids.len() != problem.nrows {
-                    return Err(EstimationError::data_msg(format!(
-                        "cluster_ids length {} != nrows {}",
-                        ids.len(),
-                        problem.nrows
-                    )));
-                }
-                Some(idx.iter().map(|&i| ids[i]).collect::<Vec<_>>())
-            }
-            (Some(ids), None) => {
-                if ids.len() != problem.nrows {
-                    return Err(EstimationError::data_msg(format!(
-                        "cluster_ids length {} != nrows {}",
-                        ids.len(),
-                        problem.nrows
-                    )));
-                }
-                Some(ids.clone())
-            }
-            (None, _) => None,
-        };
+        let clusters_used = gather_optional_row_labels(
+            self.cluster_ids.as_deref(),
+            problem.nrows,
+            retained.as_deref(),
+            "cluster_ids",
+        )?;
+        let times_used = gather_optional_row_labels(
+            self.panel_times.as_deref(),
+            problem.nrows,
+            retained.as_deref(),
+            "panel_times",
+        )?;
         let result = matching_contrast(
             &t_used,
             &y_used,
@@ -171,6 +164,7 @@ impl DistanceMatching {
             clusters_used.as_deref(),
             tw_used.as_deref(),
             self.multiway_ids.as_ref(),
+            times_used.as_deref(),
         )?;
 
         let boot = if self.bootstrap_replicates == 0 {
@@ -179,8 +173,15 @@ impl DistanceMatching {
             Some(self.bootstrap_se(problem, dim, &features, trim, workspace, ctx)?)
         };
 
-        let overlap_report =
-            Some(OverlapReport::from_propensities(&diag.fit.scores, None, problem.overlap));
+        let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
+        let overlap_report = Some(OverlapReport::from_propensities(
+            &diag.fit.scores,
+            None,
+            problem.overlap,
+            Some(&problem.treatment),
+            ipw_target,
+            problem.target_weights.as_deref(),
+        ));
 
         Ok(EffectEstimate {
             ate: result.ate,
@@ -258,6 +259,7 @@ impl DistanceMatching {
                 self.caliper,
                 workspace,
                 AnalyticSeKind::Homoskedastic,
+                None,
                 None,
                 None,
                 None,

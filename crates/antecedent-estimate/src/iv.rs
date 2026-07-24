@@ -180,6 +180,8 @@ pub struct WaldIv {
     pub cluster_ids: Option<Vec<u32>>,
     /// Multiway cluster ids.
     pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Optional panel time labels for panel HAC.
+    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for WaldIv {
@@ -198,6 +200,7 @@ impl WaldIv {
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
             multiway_ids: None,
+            panel_times: None,
         }
     }
 
@@ -248,6 +251,7 @@ impl WaldIv {
             problem.nrows,
             self.cluster_ids.as_deref(),
             self.multiway_ids.as_deref(),
+            self.panel_times.as_deref(),
             None,
         )?;
         let se_analytic = se_unit * problem.treatment_delta.abs();
@@ -417,6 +421,8 @@ pub struct TwoStageLeastSquares {
     pub cluster_ids: Option<Vec<u32>>,
     /// Optional multiway cluster ids for [`AnalyticSeKind::Multiway`].
     pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Optional panel time labels for panel HAC.
+    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for TwoStageLeastSquares {
@@ -436,6 +442,7 @@ impl TwoStageLeastSquares {
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
             multiway_ids: None,
+            panel_times: None,
         }
     }
 
@@ -496,6 +503,7 @@ impl TwoStageLeastSquares {
             0,
             self.cluster_ids.as_deref(),
             self.multiway_ids.as_deref(),
+            self.panel_times.as_deref(),
         )? {
             se
         } else {
