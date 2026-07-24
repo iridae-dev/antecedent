@@ -268,8 +268,14 @@ pub fn fit_laplace_glm(
         n_chains: None,
         n_warmup: None,
         ess_bulk_min: None,
+        ess_tail_min: None,
         rhat_max: None,
         n_divergences: None,
+        mean_accept_prob: None,
+        n_warmup_divergences: None,
+        n_postwarmup_divergences: None,
+        max_abs_delta_h: None,
+        all_chains_moved: None,
     };
 
     if !diagnostics.allows_posterior() {
@@ -687,8 +693,14 @@ mod tests {
             n_chains: None,
             n_warmup: None,
             ess_bulk_min: None,
+            ess_tail_min: None,
             rhat_max: None,
             n_divergences: None,
+            mean_accept_prob: None,
+            n_warmup_divergences: None,
+            n_postwarmup_divergences: None,
+            max_abs_delta_h: None,
+            all_chains_moved: None,
         };
         assert!(!d.allows_posterior());
     }

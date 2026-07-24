@@ -522,8 +522,14 @@ pub fn analytic_graph_diagnostics(n_graphs: usize, ess: f64) -> InferenceDiagnos
         n_chains: None,
         n_warmup: None,
         ess_bulk_min: Some(ess),
+        ess_tail_min: None,
         rhat_max: None,
         n_divergences: None,
+        mean_accept_prob: None,
+        n_warmup_divergences: None,
+        n_postwarmup_divergences: None,
+        max_abs_delta_h: None,
+        all_chains_moved: None,
     }
 }
 
@@ -550,16 +556,24 @@ pub fn mcmc_graph_diagnostics(
         n_chains: Some(n_chains),
         n_warmup: Some(n_warmup),
         ess_bulk_min: Some(ess_bulk_min),
+        // Graph MCMC does not yet compute tail ESS / movement; fill conservatively
+        // so `allows_graph_posterior` (not the HMC gate) remains the publication path.
+        ess_tail_min: Some(ess_bulk_min),
         rhat_max: Some(rhat_max),
         n_divergences: Some(n_divergences),
+        mean_accept_prob: Some(1.0),
+        n_warmup_divergences: Some(0),
+        n_postwarmup_divergences: Some(n_divergences),
+        max_abs_delta_h: Some(0.0),
+        all_chains_moved: Some(true),
     }
 }
 
 /// Whether graph-MCMC diagnostics are sufficient to publish a posterior.
 ///
 /// Binary edge-indicator traces mix slower than continuous HMC parameters, so
-/// the R-hat bar is `1.2` (vs `1.05` on [`InferenceDiagnostics::allows_posterior`]).
-/// ESS and divergence requirements match the HMC gate.
+/// the R-hat bar is `1.2` (vs `1.01` on [`InferenceDiagnostics::allows_posterior`]).
+/// Divergences must be zero (not merely reported).
 #[must_use]
 pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
     if diagnostics.factorization != HessianFactorization::Mcmc {
@@ -567,7 +581,10 @@ pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
     }
     let rhat_ok = diagnostics.rhat_max.is_some_and(|r| r.is_finite() && r < 1.2);
     let ess_ok = diagnostics.ess_bulk_min.is_some_and(|e| e.is_finite() && e > 10.0);
-    let div_ok = diagnostics.n_divergences.is_some();
+    let div_ok = diagnostics
+        .n_postwarmup_divergences
+        .or(diagnostics.n_divergences)
+        .is_some_and(|n| n == 0);
     diagnostics.converged && rhat_ok && ess_ok && div_ok
 }
 

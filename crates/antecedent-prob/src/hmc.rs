@@ -32,7 +32,7 @@ use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
 use crate::gaussian_target::{GaussianTarget, PosteriorTarget, gaussian_target_from_model};
 use crate::laplace::{accumulate_likelihood, log_posterior_value, validate_design};
-use crate::mcmc_stats::{max_split_rhat, min_bulk_ess};
+use crate::mcmc_stats::{all_chains_moved, max_split_rhat, min_bulk_ess, min_tail_ess};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, GaussianVarianceModel, PriorSet};
 
@@ -104,12 +104,56 @@ impl InferenceBackend for HmcGlmBackend {
 }
 
 /// Result of one HMC transition.
-struct HmcStepOutcome {
+struct HmcStepResult {
     state: Vec<f64>,
     logp: f64,
     accepted: bool,
     accept_prob: f64,
+    delta_h: f64,
     divergent: bool,
+}
+
+/// Running transition aggregates for publication diagnostics.
+#[derive(Clone, Copy, Debug, Default)]
+struct TransitionStats {
+    n_warmup_divergences: u32,
+    n_postwarmup_divergences: u32,
+    accept_prob_sum: f64,
+    n_transitions: u32,
+    max_abs_delta_h: f64,
+}
+
+impl TransitionStats {
+    fn record(&mut self, step: &HmcStepResult, is_warmup: bool) {
+        self.n_transitions = self.n_transitions.saturating_add(1);
+        self.accept_prob_sum += step.accept_prob;
+        let abs_dh = if step.delta_h.is_finite() {
+            step.delta_h.abs()
+        } else {
+            1_001.0
+        };
+        self.max_abs_delta_h = self.max_abs_delta_h.max(abs_dh);
+        if step.divergent {
+            if is_warmup {
+                self.n_warmup_divergences = self.n_warmup_divergences.saturating_add(1);
+            } else {
+                self.n_postwarmup_divergences = self.n_postwarmup_divergences.saturating_add(1);
+            }
+        }
+    }
+
+    fn mean_accept_prob(self) -> f64 {
+        if self.n_transitions == 0 {
+            return 0.0;
+        }
+        self.accept_prob_sum / f64::from(self.n_transitions)
+    }
+}
+
+fn finalize_energy(delta_h: f64) -> (bool, f64) {
+    let divergent = !delta_h.is_finite() || delta_h.abs() > 1_000.0;
+    let accept_prob = if divergent { 0.0 } else { (-delta_h).min(0.0).exp() };
+    (divergent, accept_prob)
 }
 
 /// Run multi-chain HMC and return columnar post-warmup draws.
@@ -170,7 +214,7 @@ pub fn fit_hmc_glm(
     workspace.prepare(nrows, ncols, total_draws.max(ncols));
 
     let mut chain_samples = vec![0.0; hmc.n_chains * n_keep * ncols];
-    let mut n_divergences = 0u32;
+    let mut stats = TransitionStats::default();
     let mut map = coef_prior.mean.to_vec();
     let mut best_lp = f64::NEG_INFINITY;
 
@@ -179,6 +223,9 @@ pub fn fit_hmc_glm(
             fit_opts.seed ^ ((chain as u64).wrapping_add(1).wrapping_mul(0xD1B5_4A32_D192_ED03)),
         );
         let mut beta = coef_prior.mean.to_vec();
+        for bi in &mut beta {
+            *bi += 0.1 * standard_normal(&mut rng);
+        }
         let mut step_size = hmc.step_size;
         let mut log_eps_bar = step_size.ln();
         let mut h_bar = 0.0;
@@ -208,9 +255,8 @@ pub fn fit_hmc_glm(
                 workspace,
                 &mut rng,
             )?;
-            if step.divergent {
-                n_divergences = n_divergences.saturating_add(1);
-            }
+            let is_warmup = t < hmc.n_warmup;
+            stats.record(&step, is_warmup);
             if step.accepted {
                 beta = step.state;
                 if step.logp > best_lp {
@@ -231,7 +277,7 @@ pub fn fit_hmc_glm(
                     );
                 }
                 std::cmp::Ordering::Equal => {
-                    step_size = log_eps_bar.exp().clamp(1e-6, 2.0);
+                    step_size = dual_average_finalize(log_eps_bar);
                 }
                 std::cmp::Ordering::Greater => {}
             }
@@ -252,7 +298,7 @@ pub fn fit_hmc_glm(
         ncols,
         false,
         map,
-        n_divergences,
+        stats,
     )
 }
 
@@ -273,7 +319,7 @@ fn fit_hmc_gaussian(
     workspace.prepare(nrows, dim.max(ncols), total_draws.max(dim));
 
     let mut chain_samples = vec![0.0; hmc.n_chains * n_keep * dim];
-    let mut n_divergences = 0u32;
+    let mut stats = TransitionStats::default();
     let mut map = coef_prior.mean.to_vec();
     let mut best_lp = f64::NEG_INFINITY;
 
@@ -291,8 +337,11 @@ fn fit_hmc_gaussian(
             fit_opts.seed ^ ((chain as u64).wrapping_add(1).wrapping_mul(0xD1B5_4A32_D192_ED03)),
         );
         let mut q = coef_prior.mean.to_vec();
+        for qi in &mut q {
+            *qi += 0.1 * standard_normal(&mut rng);
+        }
         if let Some(lambda0) = init_lambda {
-            q.push(lambda0);
+            q.push(lambda0 + 0.05 * standard_normal(&mut rng));
         }
         debug_assert_eq!(q.len(), dim);
 
@@ -316,9 +365,8 @@ fn fit_hmc_gaussian(
                 hmc.mass,
                 &mut rng,
             )?;
-            if step.divergent {
-                n_divergences = n_divergences.saturating_add(1);
-            }
+            let is_warmup = t < hmc.n_warmup;
+            stats.record(&step, is_warmup);
             if step.accepted {
                 q = step.state;
                 lp_curr = step.logp;
@@ -340,7 +388,7 @@ fn fit_hmc_gaussian(
                     );
                 }
                 std::cmp::Ordering::Equal => {
-                    step_size = log_eps_bar.exp().clamp(1e-6, 2.0);
+                    step_size = dual_average_finalize(log_eps_bar);
                 }
                 std::cmp::Ordering::Greater => {}
             }
@@ -361,7 +409,7 @@ fn fit_hmc_gaussian(
         ncols,
         include_sigma2,
         map,
-        n_divergences,
+        stats,
     )
 }
 
@@ -377,9 +425,13 @@ fn dual_average_update(
     let eta = 1.0 / (m + 10.0);
     *h_bar = (1.0 - eta) * *h_bar + eta * (hmc.target_accept - accept_prob);
     let log_eps = hmc.step_size.ln() - (m.sqrt() / 0.05) * *h_bar;
-    *step_size = log_eps.exp().clamp(1e-6, 2.0);
+    *step_size = log_eps.exp().clamp(1e-6, 0.5);
     let kappa = m.powf(-0.75);
     *log_eps_bar = kappa * log_eps + (1.0 - kappa) * *log_eps_bar;
+}
+
+fn dual_average_finalize(log_eps_bar: f64) -> f64 {
+    log_eps_bar.exp().clamp(1e-6, 0.5)
 }
 
 fn pack_and_gate_hmc(
@@ -390,7 +442,7 @@ fn pack_and_gate_hmc(
     ncols: usize,
     include_sigma2: bool,
     map: Vec<f64>,
-    n_divergences: u32,
+    stats: TransitionStats,
 ) -> Result<BayesFitResult, ProbError> {
     let total_draws = n_keep.saturating_mul(hmc.n_chains);
     let n_out = if include_sigma2 { ncols + 1 } else { ncols };
@@ -411,11 +463,15 @@ fn pack_and_gate_hmc(
     }
 
     // Diagnostics on unconstrained state (includes λ, not skewed σ²).
-    let ess_min = min_bulk_ess(chain_samples, hmc.n_chains, n_keep, state_dim);
+    let ess_bulk = min_bulk_ess(chain_samples, hmc.n_chains, n_keep, state_dim);
+    let ess_tail = min_tail_ess(chain_samples, hmc.n_chains, n_keep, state_dim);
     let rhat_max = max_split_rhat(chain_samples, hmc.n_chains, n_keep, state_dim);
+    let moved = all_chains_moved(chain_samples, hmc.n_chains, n_keep, state_dim);
+    let mean_accept = stats.mean_accept_prob();
+    let max_dh = stats.max_abs_delta_h;
 
-    let diagnostics = InferenceDiagnostics {
-        converged: rhat_max.is_finite() && rhat_max < 1.05 && ess_min.is_finite() && ess_min > 10.0,
+    let mut diagnostics = InferenceDiagnostics {
+        converged: false,
         iterations: (hmc.n_warmup + n_keep) as u32,
         grad_inf_norm: 0.0,
         hessian_condition: f64::NAN,
@@ -428,10 +484,17 @@ fn pack_and_gate_hmc(
         backend_id: Arc::from("hmc"),
         n_chains: Some(hmc.n_chains as u32),
         n_warmup: Some(hmc.n_warmup as u32),
-        ess_bulk_min: Some(ess_min),
+        ess_bulk_min: Some(ess_bulk),
+        ess_tail_min: Some(ess_tail),
         rhat_max: Some(rhat_max),
-        n_divergences: Some(n_divergences),
+        n_divergences: Some(stats.n_postwarmup_divergences),
+        mean_accept_prob: Some(mean_accept),
+        n_warmup_divergences: Some(stats.n_warmup_divergences),
+        n_postwarmup_divergences: Some(stats.n_postwarmup_divergences),
+        max_abs_delta_h: Some(max_dh),
+        all_chains_moved: Some(moved),
     };
+    diagnostics.converged = diagnostics.mcmc_publication_ok();
 
     if !diagnostics.allows_posterior() {
         return Err(ProbError::MissingDiagnostics {
@@ -461,7 +524,7 @@ fn hmc_step_target(
     leapfrog_steps: u32,
     mass: f64,
     rng: &mut CausalRng,
-) -> Result<HmcStepOutcome, ProbError> {
+) -> Result<HmcStepResult, ProbError> {
     let dim = q0.len();
     let mut q = q0.to_vec();
     let mut p = vec![0.0; dim];
@@ -511,11 +574,12 @@ fn hmc_step_target(
     }
 
     if divergent {
-        return Ok(HmcStepOutcome {
+        return Ok(HmcStepResult {
             state: q0.to_vec(),
             logp: lp_old,
             accepted: false,
             accept_prob: 0.0,
+            delta_h: 1_001.0,
             divergent: true,
         });
     }
@@ -529,23 +593,34 @@ fn hmc_step_target(
     let h_old = -lp_old + p0_energy;
     let h_new = -lp_new + p_new_energy;
     let delta_h = h_new - h_old;
-    let log_accept = (-delta_h).min(0.0);
-    let accept_prob = log_accept.exp();
+    let (divergent, accept_prob) = finalize_energy(delta_h);
+    if divergent {
+        return Ok(HmcStepResult {
+            state: q0.to_vec(),
+            logp: lp_old,
+            accepted: false,
+            accept_prob: 0.0,
+            delta_h,
+            divergent: true,
+        });
+    }
     let accepted = rng.next_f64() < accept_prob;
     if accepted {
-        Ok(HmcStepOutcome {
+        Ok(HmcStepResult {
             state: q,
             logp: lp_new,
             accepted: true,
             accept_prob,
+            delta_h,
             divergent: false,
         })
     } else {
-        Ok(HmcStepOutcome {
+        Ok(HmcStepResult {
             state: q0.to_vec(),
             logp: lp_old,
             accepted: false,
             accept_prob,
+            delta_h,
             divergent: false,
         })
     }
@@ -563,7 +638,7 @@ fn hmc_step_glm(
     lp_old: f64,
     workspace: &mut LaplaceWorkspace,
     rng: &mut CausalRng,
-) -> Result<HmcStepOutcome, ProbError> {
+) -> Result<HmcStepResult, ProbError> {
     let ncols = beta.len();
     let nrows = design.nrows;
     let mut q = beta.to_vec();
@@ -623,11 +698,12 @@ fn hmc_step_glm(
     }
 
     if divergent {
-        return Ok(HmcStepOutcome {
+        return Ok(HmcStepResult {
             state: beta.to_vec(),
             logp: lp_old,
             accepted: false,
             accept_prob: 0.0,
+            delta_h: 1_001.0,
             divergent: true,
         });
     }
@@ -649,23 +725,34 @@ fn hmc_step_glm(
     let h_old = -lp_old + p0_energy;
     let h_new = -lp_new + p_new_energy;
     let delta_h = h_new - h_old;
-    let log_accept = (-delta_h).min(0.0);
-    let accept_prob = log_accept.exp();
+    let (divergent, accept_prob) = finalize_energy(delta_h);
+    if divergent {
+        return Ok(HmcStepResult {
+            state: beta.to_vec(),
+            logp: lp_old,
+            accepted: false,
+            accept_prob: 0.0,
+            delta_h,
+            divergent: true,
+        });
+    }
     let accepted = rng.next_f64() < accept_prob;
     if accepted {
-        Ok(HmcStepOutcome {
+        Ok(HmcStepResult {
             state: q,
             logp: lp_new,
             accepted: true,
             accept_prob,
+            delta_h,
             divergent: false,
         })
     } else {
-        Ok(HmcStepOutcome {
+        Ok(HmcStepResult {
             state: beta.to_vec(),
             logp: lp_old,
             accepted: false,
             accept_prob,
+            delta_h,
             divergent: false,
         })
     }
@@ -742,7 +829,7 @@ mod tests {
         HmcOptions {
             n_chains,
             n_warmup,
-            leapfrog_steps: 10,
+            leapfrog_steps: 12,
             step_size: 0.08,
             target_accept: 0.8,
             mass: 1.0,
@@ -750,21 +837,91 @@ mod tests {
     }
 
     #[test]
+    fn energy_error_above_threshold_is_divergent() {
+        let (div, ap) = finalize_energy(1_001.0);
+        assert!(div);
+        assert_eq!(ap, 0.0);
+        let (div2, ap2) = finalize_energy(0.5);
+        assert!(!div2);
+        assert!((ap2 - (-0.5_f64).exp()).abs() < 1e-12);
+        let (div3, ap3) = finalize_energy(f64::NAN);
+        assert!(div3);
+        assert_eq!(ap3, 0.0);
+    }
+
+    #[test]
+    fn warmup_divergences_do_not_count_as_postwarmup() {
+        let mut stats = TransitionStats::default();
+        let warm = HmcStepResult {
+            state: vec![0.0],
+            logp: 0.0,
+            accepted: false,
+            accept_prob: 0.0,
+            delta_h: 1_001.0,
+            divergent: true,
+        };
+        let ok = HmcStepResult {
+            state: vec![0.0],
+            logp: 0.0,
+            accepted: true,
+            accept_prob: 0.7,
+            delta_h: 0.1,
+            divergent: false,
+        };
+        stats.record(&warm, true);
+        stats.record(&ok, false);
+        assert_eq!(stats.n_warmup_divergences, 1);
+        assert_eq!(stats.n_postwarmup_divergences, 0);
+        assert!((stats.mean_accept_prob() - 0.35).abs() < 1e-12);
+    }
+
+    #[test]
+    fn postwarmup_divergence_fails_publication_gate() {
+        let mut d = InferenceDiagnostics {
+            converged: true,
+            iterations: 400,
+            grad_inf_norm: 0.0,
+            hessian_condition: f64::NAN,
+            factorization: HessianFactorization::Mcmc,
+            separation_warning: false,
+            notes: Vec::new(),
+            backend_id: Arc::from("hmc"),
+            n_chains: Some(4),
+            n_warmup: Some(100),
+            ess_bulk_min: Some(200.0),
+            ess_tail_min: Some(150.0),
+            rhat_max: Some(1.0),
+            n_divergences: Some(1),
+            mean_accept_prob: Some(0.8),
+            n_warmup_divergences: Some(0),
+            n_postwarmup_divergences: Some(1),
+            max_abs_delta_h: Some(0.2),
+            all_chains_moved: Some(true),
+        };
+        assert!(!d.allows_posterior());
+        d.n_postwarmup_divergences = Some(0);
+        d.n_divergences = Some(0);
+        d.converged = d.mcmc_publication_ok();
+        assert!(d.allows_posterior());
+    }
+
+    #[test]
     fn hmc_gaussian_recovers_slope() {
-        let n = 60;
+        let n = 80;
         let mut x = vec![0.0; n * 2];
         let mut y = vec![0.0; n];
         for r in 0..n {
-            let xi = r as f64 * 0.05;
+            let xi = (r as f64 - 40.0) * 0.05;
             x[r] = 1.0;
             x[n + r] = xi;
-            y[r] = 0.5 + 1.5 * xi + ((r % 5) as f64 - 2.0) * 0.05;
+            y[r] = 0.5 + 1.5 * xi + ((r % 5) as f64 - 2.0) * 0.2;
         }
-        // Explicit known σ² keeps this regression coef-only and well-conditioned.
         let prior = PriorSet {
             specs: vec![
-                PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 10.0)),
-                PriorSpec::KnownResidualVariance(0.05),
+                PriorSpec::GaussianCoefficients(
+                    GaussianCoefficientPrior::shared(2, 0.0, 25.0).unwrap(),
+                ),
+                PriorSpec::KnownResidualVariance(1.0),
             ],
             contrast: None,
             categorical: Vec::new(),
@@ -779,22 +936,26 @@ mod tests {
             weights: None,
             offsets: None,
         };
-        let fit_opts = BayesFitOptions { n_draws: 80, seed: 11, max_iter: 50, grad_tol: 1e-8 };
+        let fit_opts = BayesFitOptions { n_draws: 800, seed: 42, max_iter: 50, grad_tol: 1e-8 };
         let hmc = HmcOptions {
-            n_chains: 2,
-            n_warmup: 60,
-            leapfrog_steps: 8,
-            step_size: 0.05,
+            n_chains: 4,
+            n_warmup: 800,
+            leapfrog_steps: 12,
+            step_size: 0.08,
             target_accept: 0.8,
             mass: 1.0,
         };
         let fit =
             fit_hmc_glm(BayesLikelihood::GaussianIdentity, design, &prior, &fit_opts, hmc, &mut ws)
-                .unwrap();
+                .expect("hmc fit");
         assert!(fit.diagnostics.allows_posterior());
-        assert!(fit.diagnostics.rhat_max.unwrap() < 1.2);
-        assert!((fit.map[1] - 1.5).abs() < 0.35, "map slope {}", fit.map[1]);
-        assert_eq!(fit.draws.n_draws, 160);
+        assert!(fit.diagnostics.rhat_max.unwrap() <= 1.01);
+        assert!(fit.diagnostics.ess_bulk_min.unwrap() >= 100.0);
+        assert!(fit.diagnostics.ess_tail_min.unwrap() >= 100.0);
+        assert_eq!(fit.diagnostics.n_postwarmup_divergences, Some(0));
+        assert_eq!(fit.diagnostics.all_chains_moved, Some(true));
+        assert!((fit.map[1] - 1.5).abs() < 0.4, "map slope {}", fit.map[1]);
+        assert_eq!(fit.draws.n_draws, 3200);
         assert_eq!(fit.draws.schema.n_quantities(), 2);
     }
 
@@ -827,9 +988,9 @@ mod tests {
             offsets: None,
         };
         let mut ws = LaplaceWorkspace::default();
-        let fit_opts = BayesFitOptions { n_draws: 300, seed: 5, max_iter: 50, grad_tol: 1e-8 };
+        let fit_opts = BayesFitOptions { n_draws: 600, seed: 5, max_iter: 50, grad_tol: 1e-8 };
         let conj = fit_conjugate_gaussian(design, &prior, &fit_opts, &mut ws).unwrap();
-        let hmc = hmc_opts(150, 4);
+        let hmc = hmc_opts(600, 4);
         let fit =
             fit_hmc_glm(BayesLikelihood::GaussianIdentity, design, &prior, &fit_opts, hmc, &mut ws)
                 .unwrap();
@@ -879,9 +1040,9 @@ mod tests {
             offsets: None,
         };
         let mut ws = LaplaceWorkspace::default();
-        let fit_opts = BayesFitOptions { n_draws: 400, seed: 3, max_iter: 50, grad_tol: 1e-8 };
+        let fit_opts = BayesFitOptions { n_draws: 800, seed: 3, max_iter: 50, grad_tol: 1e-8 };
         let conj = fit_conjugate_gaussian(design, &prior, &fit_opts, &mut ws).unwrap();
-        let hmc = hmc_opts(200, 4);
+        let hmc = hmc_opts(800, 4);
         let fit =
             fit_hmc_glm(BayesLikelihood::GaussianIdentity, design, &prior, &fit_opts, hmc, &mut ws)
                 .unwrap();
@@ -948,13 +1109,13 @@ mod tests {
             offsets: None,
         };
         let mut ws = LaplaceWorkspace::default();
-        let fit_opts = BayesFitOptions { n_draws: 500, seed: 17, max_iter: 50, grad_tol: 1e-8 };
+        let fit_opts = BayesFitOptions { n_draws: 1000, seed: 17, max_iter: 50, grad_tol: 1e-8 };
         let conj = fit_conjugate_gaussian(design, &prior, &fit_opts, &mut ws).unwrap();
         let hmc = HmcOptions {
             n_chains: 4,
-            n_warmup: 300,
-            leapfrog_steps: 12,
-            step_size: 0.05,
+            n_warmup: 1000,
+            leapfrog_steps: 15,
+            step_size: 0.04,
             target_accept: 0.8,
             mass: 1.0,
         };
