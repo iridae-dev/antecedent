@@ -136,6 +136,7 @@ impl PropensityStratification {
             problem.overlap,
             Some(&problem.treatment),
             ipw_target,
+            problem.target_weights.as_deref(),
         );
         // Strata missing a treatment arm are dropped from the pooled contrast; fold the
         // retained fraction into the support figure so the artifact reflects the population

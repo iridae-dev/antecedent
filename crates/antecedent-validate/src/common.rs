@@ -492,6 +492,7 @@ pub(crate) fn diagnostic_overlap_report_with(
         policy,
         Some(&cols.treatment),
         Some(IpwTarget::Ate),
+        None,
     ))
 }
 

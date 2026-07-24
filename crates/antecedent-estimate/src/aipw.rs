@@ -243,6 +243,7 @@ impl AipwAte {
             problem.overlap,
             Some(&problem.treatment),
             IpwTarget::from_population(&problem.target_population).ok(),
+            problem.target_weights.as_deref(),
         ));
         Ok(EffectEstimate {
             ate,
