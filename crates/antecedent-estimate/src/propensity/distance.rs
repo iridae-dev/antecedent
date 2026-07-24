@@ -16,7 +16,7 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::se::AnalyticSeKind;
 use crate::util::{BootstrapSeResult, bootstrap_se};
 
@@ -173,8 +173,14 @@ impl DistanceMatching {
             Some(self.bootstrap_se(problem, dim, &features, trim, workspace, ctx)?)
         };
 
-        let overlap_report =
-            Some(OverlapReport::from_propensities(&diag.fit.scores, None, problem.overlap));
+        let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
+        let overlap_report = Some(OverlapReport::from_propensities(
+            &diag.fit.scores,
+            None,
+            problem.overlap,
+            Some(&problem.treatment),
+            ipw_target,
+        ));
 
         Ok(EffectEstimate {
             ate: result.ate,

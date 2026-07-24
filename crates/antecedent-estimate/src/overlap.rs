@@ -6,6 +6,10 @@
 
 use std::sync::Arc;
 
+use antecedent_core::TargetPopulation;
+
+use crate::error::EstimationError;
+
 /// Overlap / positivity handling .
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OverlapPolicy {
@@ -44,6 +48,10 @@ pub struct ClipSensitivity {
     pub thresholds: Arc<[f64]>,
     /// Kish ESS at each threshold (same order as [`Self::thresholds`]).
     pub ess: Arc<[f64]>,
+    /// Kish ESS among treated units (`T > 0.5`) at each threshold.
+    pub treated_ess: Arc<[f64]>,
+    /// Kish ESS among control units (`T ≤ 0.5`) at each threshold.
+    pub control_ess: Arc<[f64]>,
     /// Extreme-weight counts (`w > 10`) at each threshold.
     pub extreme_weight_counts: Arc<[u32]>,
 }
@@ -76,13 +84,79 @@ pub struct OverlapReport {
     pub clip_sensitivity: Option<ClipSensitivity>,
 }
 
+/// Production IPW estimand for observed-arm weights (shared by estimators and overlap diagnostics).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IpwTarget {
+    /// Average treatment effect on the observed population.
+    Ate,
+    /// Average treatment effect on the treated.
+    Att,
+    /// Average treatment effect on the controls.
+    Atc,
+    /// ATE-style IPW reweighted by `CustomDistribution` observation weights.
+    Custom,
+}
+
+impl IpwTarget {
+    /// Map a [`TargetPopulation`] to the corresponding IPW weight formula.
+    ///
+    /// # Errors
+    ///
+    /// Unsupported target population variants.
+    pub fn from_population(pop: &TargetPopulation) -> Result<Self, EstimationError> {
+        match pop {
+            TargetPopulation::AllObserved | TargetPopulation::Predicate(_) => Ok(Self::Ate),
+            TargetPopulation::CustomDistribution(_) => Ok(Self::Custom),
+            TargetPopulation::Treated => Ok(Self::Att),
+            TargetPopulation::Untreated => Ok(Self::Atc),
+            _ => Err(EstimationError::unsupported(
+                "propensity weighting supports AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
+            )),
+        }
+    }
+
+    /// Observed-arm IPW weight for binary treatment `t` and propensity `e`.
+    #[must_use]
+    pub fn weight(self, t: f64, e: f64) -> f64 {
+        match self {
+            Self::Ate | Self::Custom => {
+                if t > 0.5 {
+                    1.0 / e
+                } else {
+                    1.0 / (1.0 - e)
+                }
+            }
+            Self::Att => {
+                if t > 0.5 {
+                    1.0
+                } else {
+                    e / (1.0 - e)
+                }
+            }
+            Self::Atc => {
+                if t > 0.5 {
+                    (1.0 - e) / e
+                } else {
+                    1.0
+                }
+            }
+        }
+    }
+}
+
 impl OverlapReport {
     /// Build a report from fitted propensities and optional IPW weights.
+    ///
+    /// Clip-sensitivity ESS is computed only when `clip` is set **and** both `treatment` and
+    /// `target` are provided, so diagnostics use the same estimand-specific observed weights as
+    /// production estimators.
     #[must_use]
     pub fn from_propensities(
         propensities: &[f64],
         weights: Option<&[f64]>,
         policy: OverlapPolicy,
+        treatment: Option<&[f64]>,
+        target: Option<IpwTarget>,
     ) -> Self {
         let (clip, trim) = match policy {
             OverlapPolicy::ExplicitOverride => (None, None),
@@ -128,7 +202,12 @@ impl OverlapReport {
             }
             _ => (None, 0),
         };
-        let clip_sensitivity = clip.map(|c| clip_sensitivity_grid(propensities, c));
+        let clip_sensitivity = match (clip, treatment, target) {
+            (Some(c), Some(t), Some(est)) if t.len() == propensities.len() => {
+                Some(clip_sensitivity_grid(propensities, t, est, c))
+            }
+            _ => None,
+        };
         Self {
             propensity_min: min_p,
             propensity_max: max_p,
@@ -152,39 +231,162 @@ fn weight_summary(weights: &[f64]) -> (f64, u32) {
     (ess, u32::try_from(extreme).unwrap_or(u32::MAX))
 }
 
-/// ATE-style IPW weights from propensities at a clip threshold (for sensitivity grids).
-fn ate_ipw_weights_from_propensity(propensities: &[f64], clip: f64) -> Vec<f64> {
+fn arm_ess(weights: &[f64], treatment: &[f64], treated: bool) -> f64 {
+    let mut sum = 0.0;
+    let mut sum_sq = 0.0;
+    for (&w, &t) in weights.iter().zip(treatment) {
+        let is_treated = t > 0.5;
+        if is_treated != treated {
+            continue;
+        }
+        sum += w;
+        sum_sq += w * w;
+    }
+    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+}
+
+/// Rebuild estimand-specific observed-arm weights at a clip threshold.
+pub(crate) fn observed_ipw_weights(
+    treatment: &[f64],
+    propensities: &[f64],
+    target: IpwTarget,
+    clip: f64,
+) -> Vec<f64> {
     let lo = clip.clamp(1e-6, 0.49);
     let hi = 1.0 - lo;
-    propensities
+    treatment
         .iter()
-        .map(|&p_raw| {
-            let p = p_raw.clamp(lo, hi);
-            // Two-arm contribution: treat as treated weight 1/p for sensitivity shape.
-            1.0 / p + 1.0 / (1.0 - p)
+        .zip(propensities)
+        .map(|(&t, &p_raw)| {
+            let e = p_raw.clamp(lo, hi);
+            target.weight(t, e)
         })
         .collect()
 }
 
-fn clip_sensitivity_grid(propensities: &[f64], clip: f64) -> ClipSensitivity {
+fn clip_sensitivity_grid(
+    propensities: &[f64],
+    treatment: &[f64],
+    target: IpwTarget,
+    clip: f64,
+) -> ClipSensitivity {
     let c = clip.clamp(1e-6, 0.49);
     let candidates = [c * 0.5, c, (c * 2.0).min(0.49)];
     let mut thresholds = Vec::with_capacity(3);
     let mut ess_vals = Vec::with_capacity(3);
+    let mut treated_ess = Vec::with_capacity(3);
+    let mut control_ess = Vec::with_capacity(3);
     let mut extreme_counts = Vec::with_capacity(3);
     for &thr in &candidates {
         if thresholds.last().is_some_and(|&prev: &f64| (prev - thr).abs() < 1e-15) {
             continue;
         }
-        let rebuilt = ate_ipw_weights_from_propensity(propensities, thr);
+        let rebuilt = observed_ipw_weights(treatment, propensities, target, thr);
         let (ess, extreme) = weight_summary(&rebuilt);
         thresholds.push(thr);
         ess_vals.push(ess);
+        treated_ess.push(arm_ess(&rebuilt, treatment, true));
+        control_ess.push(arm_ess(&rebuilt, treatment, false));
         extreme_counts.push(extreme);
     }
     ClipSensitivity {
         thresholds: Arc::from(thresholds),
         ess: Arc::from(ess_vals),
+        treated_ess: Arc::from(treated_ess),
+        control_ess: Arc::from(control_ess),
         extreme_weight_counts: Arc::from(extreme_counts),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::propensity::weighting::compute_ipw_weights;
+
+    #[test]
+    fn guide_ate_clip_sensitivity_ess() {
+        let e = [0.01, 0.20, 0.50, 0.80, 0.99];
+        let t = [0.0, 0.0, 0.0, 1.0, 1.0];
+        let report = OverlapReport::from_propensities(
+            &e,
+            None,
+            OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None },
+            Some(&t),
+            Some(IpwTarget::Ate),
+        );
+        let sens = report.clip_sensitivity.as_ref().expect("clip sensitivity");
+        // Threshold list includes the applied clip; find ESS at clip = 0.01.
+        let idx = sens.thresholds.iter().position(|&c| (c - 0.01).abs() < 1e-12).expect("0.01");
+        assert!((sens.ess[idx] - 4.6383).abs() < 5e-4, "ess={}", sens.ess[idx]);
+        assert_eq!(sens.extreme_weight_counts[idx], 0);
+        let w = observed_ipw_weights(&t, &e, IpwTarget::Ate, 0.01);
+        let expected = [1.010_101_010_101_01, 1.25, 2.0, 1.25, 1.010_101_010_101_01];
+        for (got, exp) in w.iter().zip(expected) {
+            assert!((got - exp).abs() < 1e-9, "w={got} expected={exp}");
+        }
+    }
+
+    #[test]
+    fn diagnostic_weights_match_estimator_for_ate_att_atc() {
+        let e = [0.05_f64, 0.2, 0.4, 0.7, 0.95];
+        let t = [0.0, 1.0, 0.0, 1.0, 1.0];
+        let clip = 0.05_f64;
+        for target in [IpwTarget::Ate, IpwTarget::Att, IpwTarget::Atc] {
+            let lo = clip;
+            let hi = 1.0 - clip;
+            let clipped: Vec<f64> = e.iter().map(|&p| p.clamp(lo, hi)).collect();
+            let est = compute_ipw_weights(&t, &clipped, &e, target, None);
+            let diag = observed_ipw_weights(&t, &e, target, clip);
+            assert_eq!(est.len(), diag.len());
+            for (a, b) in est.iter().zip(&diag) {
+                assert!((a - b).abs() < 1e-12, "target={target:?} est={a} diag={b}");
+            }
+        }
+    }
+
+    #[test]
+    fn att_swaps_to_atc_under_label_flip() {
+        let e = [0.1, 0.3, 0.6, 0.85];
+        let t = [0.0, 0.0, 1.0, 1.0];
+        let clip = 0.05;
+        let att = observed_ipw_weights(&t, &e, IpwTarget::Att, clip);
+        let t_flip: Vec<f64> = t.iter().map(|&x| 1.0 - x).collect();
+        let e_flip: Vec<f64> = e.iter().map(|&x| 1.0 - x).collect();
+        let atc = observed_ipw_weights(&t_flip, &e_flip, IpwTarget::Atc, clip);
+        for (a, b) in att.iter().zip(&atc) {
+            assert!((a - b).abs() < 1e-12, "att={a} atc_flipped={b}");
+        }
+        let report_att = OverlapReport::from_propensities(
+            &e,
+            None,
+            OverlapPolicy::RequireDiagnostics { clip: Some(clip), trim: None },
+            Some(&t),
+            Some(IpwTarget::Att),
+        );
+        let report_atc = OverlapReport::from_propensities(
+            &e_flip,
+            None,
+            OverlapPolicy::RequireDiagnostics { clip: Some(clip), trim: None },
+            Some(&t_flip),
+            Some(IpwTarget::Atc),
+        );
+        let sa = report_att.clip_sensitivity.as_ref().unwrap();
+        let sc = report_atc.clip_sensitivity.as_ref().unwrap();
+        for (a, b) in sa.ess.iter().zip(sc.ess.iter()) {
+            assert!((a - b).abs() < 1e-10);
+        }
+    }
+
+    #[test]
+    fn clip_sensitivity_absent_without_treatment() {
+        let ps = [0.1, 0.5, 0.9];
+        let report = OverlapReport::from_propensities(
+            &ps,
+            None,
+            OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: None },
+            None,
+            None,
+        );
+        assert!(report.clip_sensitivity.is_none());
     }
 }
