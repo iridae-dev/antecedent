@@ -206,13 +206,7 @@ impl OverlapReport {
         };
         let clip_sensitivity = match (clip, treatment, target) {
             (Some(c), Some(treat), Some(ipw_target)) if treat.len() == propensities.len() => {
-                Some(clip_sensitivity_grid(
-                    propensities,
-                    treat,
-                    ipw_target,
-                    c,
-                    observation_weights,
-                ))
+                Some(clip_sensitivity_grid(propensities, treat, ipw_target, c, observation_weights))
             }
             _ => None,
         };
