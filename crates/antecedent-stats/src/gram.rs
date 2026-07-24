@@ -50,6 +50,77 @@ pub fn accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f
     }
 }
 
+/// Lower-triangular Cholesky of an SPD matrix (row-major `n×n`).
+///
+/// Returns `None` on a non-positive pivot.
+#[must_use]
+pub fn cholesky_spd(a: &[f64], n: usize) -> Option<Vec<f64>> {
+    if a.len() < n * n {
+        return None;
+    }
+    let mut l = vec![0.0; n * n];
+    for i in 0..n {
+        for j in 0..=i {
+            let mut sum = a[i * n + j];
+            for k in 0..j {
+                sum -= l[i * n + k] * l[j * n + k];
+            }
+            if i == j {
+                if !(sum > 0.0) {
+                    return None;
+                }
+                l[i * n + j] = sum.sqrt();
+            } else {
+                let diag = l[j * n + j];
+                if !(diag > 0.0) {
+                    return None;
+                }
+                l[i * n + j] = sum / diag;
+            }
+        }
+    }
+    Some(l)
+}
+
+/// `log|A| = 2 Σ log Lᵢᵢ` from a Cholesky factor of SPD `A`.
+#[must_use]
+pub fn chol_log_det(chol: &[f64], n: usize) -> f64 {
+    let mut s = 0.0;
+    for i in 0..n {
+        s += chol[i * n + i].ln();
+    }
+    2.0 * s
+}
+
+/// Solve `A x = b` given Cholesky factor `L` of SPD `A = L L'`.
+#[must_use]
+pub fn chol_solve(chol: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
+    if chol.len() < n * n || b.len() < n {
+        return None;
+    }
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        let mut acc = b[i];
+        for j in 0..i {
+            acc -= chol[i * n + j] * y[j];
+        }
+        let diag = chol[i * n + i];
+        if !(diag > 0.0) {
+            return None;
+        }
+        y[i] = acc / diag;
+    }
+    let mut x = vec![0.0; n];
+    for i in (0..n).rev() {
+        let mut acc = y[i];
+        for j in (i + 1)..n {
+            acc -= chol[j * n + i] * x[j];
+        }
+        x[i] = acc / chol[i * n + i];
+    }
+    Some(x)
+}
+
 /// Invert a small dense matrix via Gauss–Jordan; returns `None` on singular pivot.
 #[must_use]
 pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
@@ -115,5 +186,18 @@ mod tests {
         for i in 0..4 {
             assert!((full[i] - row_acc[i]).abs() < 1e-12, "{i}: {} vs {}", full[i], row_acc[i]);
         }
+    }
+
+    #[test]
+    fn chol_log_det_matches_direct_2x2() {
+        // A = [[4, 1], [1, 3]]; det = 11.
+        let a = [4.0, 1.0, 1.0, 3.0];
+        let chol = cholesky_spd(&a, 2).expect("spd");
+        let log_det = chol_log_det(&chol, 2);
+        assert!((log_det - 11.0_f64.ln()).abs() < 1e-12, "log_det={log_det}");
+        let b = [5.0, 4.0];
+        let x = chol_solve(&chol, 2, &b).expect("solve");
+        // A x = b ⇒ [4,1;1,3] x = [5,4] ⇒ x = [1,1]
+        assert!((x[0] - 1.0).abs() < 1e-12 && (x[1] - 1.0).abs() < 1e-12);
     }
 }

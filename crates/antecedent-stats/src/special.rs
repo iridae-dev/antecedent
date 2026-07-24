@@ -208,8 +208,18 @@ pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
 /// Survival function P(T > t) for Student-t with `df` degrees of freedom.
 #[must_use]
 pub fn student_t_sf(t: f64, df: f64) -> f64 {
+    if !(df.is_finite() && df > 0.0) || t.is_nan() {
+        return f64::NAN;
+    }
+    if t == f64::INFINITY {
+        return 0.0;
+    }
+    if t == f64::NEG_INFINITY {
+        return 1.0;
+    }
     let x = df / (df + t * t);
-    0.5 * regularized_incomplete_beta(x, df * 0.5, 0.5)
+    let half_tail = 0.5 * regularized_incomplete_beta(x, 0.5 * df, 0.5);
+    if t >= 0.0 { half_tail } else { 1.0 - half_tail }
 }
 
 /// Regularized upper incomplete gamma `Q(a, x)`.
@@ -344,6 +354,46 @@ mod tests {
             let rel = (lhs - rhs).abs() / rhs.max(1.0);
             assert!(rel < 1e-10, "identity fail at z={z}: lhs={lhs} rhs={rhs}");
             z += 0.01;
+        }
+    }
+
+    #[test]
+    fn student_t_sf_symmetry_and_guards() {
+        for &df in &[1.0, 2.0, 5.0, 30.0] {
+            assert!((student_t_sf(0.0, df) - 0.5).abs() < 1e-12, "sf(0) df={df}");
+            for &t in &[0.5, 1.0, 2.0, 3.5] {
+                let pos = student_t_sf(t, df);
+                let neg = student_t_sf(-t, df);
+                assert!((neg - (1.0 - pos)).abs() < 1e-12, "symmetry t={t} df={df}");
+            }
+            let mut prev = 1.0;
+            for i in -40..=40 {
+                let t = f64::from(i) * 0.25;
+                let s = student_t_sf(t, df);
+                assert!(s <= prev + 1e-12, "not monotone at t={t} df={df}: {s} > {prev}");
+                prev = s;
+            }
+        }
+        assert_eq!(student_t_sf(f64::INFINITY, 5.0), 0.0);
+        assert_eq!(student_t_sf(f64::NEG_INFINITY, 5.0), 1.0);
+        assert!(student_t_sf(1.0, f64::NAN).is_nan());
+        assert!(student_t_sf(1.0, 0.0).is_nan());
+        assert!(student_t_sf(1.0, -1.0).is_nan());
+        assert!(student_t_sf(f64::NAN, 5.0).is_nan());
+    }
+
+    #[test]
+    fn student_t_sf_golden_values() {
+        // scipy.stats.t.sf(t, df)
+        let cases = [
+            (1.0, 1.0, 0.25),
+            (2.0, 5.0, 0.050_969_739_414_929_14),
+            (0.0, 10.0, 0.5),
+            (-1.0, 1.0, 0.75),
+        ];
+        for &(t, df, expected) in &cases {
+            let got = student_t_sf(t, df);
+            assert!((got - expected).abs() < 1e-8, "t={t} df={df}: got={got} expected={expected}");
         }
     }
 }
