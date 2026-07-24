@@ -174,10 +174,7 @@ impl AipwAte {
             &mut workspace.propensity,
             &self.glm_options,
         )?;
-        // Trim on RAW scores (mirrors PropensityWeighting): units outside the common-support
-        // band are excluded from the outcome-model fits and the ψ average — exactly the units
-        // whose T/e and (1−T)/(1−e) terms explode. The estimand becomes the common-support
-        // population, matching what the overlap report below claims.
+        // Trim on raw scores: excluded units match the overlap report's common-support claim.
         let retained = trim_retained_rows(&model.fit.scores, trim_of(problem.overlap))?;
         let ncols = problem.design_ncols;
         let (design_used, t_used, y_used, e_used) = match &retained {
@@ -225,8 +222,7 @@ impl AipwAte {
             &problem.target_population,
             &mut workspace.psi,
         )?;
-        let n = workspace.psi.len() as f64;
-        let ate = workspace.psi.iter().sum::<f64>() / n;
+        let ate = workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64;
         let se_analytic = crate::se::influence_se_kind(
             self.se_kind,
             &workspace.psi,
@@ -236,22 +232,18 @@ impl AipwAte {
             self.panel_times.as_deref(),
             retained.as_deref(),
         )?;
-
         let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
-
-        let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
         let overlap_report = Some(OverlapReport::from_propensities(
             &model.fit.scores,
             None,
             problem.overlap,
             Some(&problem.treatment),
-            ipw_target,
+            IpwTarget::from_population(&problem.target_population).ok(),
         ));
-
         Ok(EffectEstimate {
             ate,
             se_analytic,

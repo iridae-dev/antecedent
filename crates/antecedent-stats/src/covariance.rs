@@ -143,9 +143,7 @@ fn sandwich_from_multipliers(
                 return Ok(bread);
             }
             if nrows <= ncols {
-                return Err(StatsError::Shape {
-                    message: "non-positive residual df".into(),
-                });
+                return Err(StatsError::Shape { message: "non-positive residual df" });
             }
             let rss: f64 = multipliers.iter().map(|e| e * e).sum();
             let sigma2 = rss / (nrows as f64 - ncols as f64);
@@ -253,9 +251,7 @@ fn hc_meat(
     }
     if matches!(kind, SandwichKind::Hc1) {
         if nrows <= ncols {
-            return Err(StatsError::Shape {
-                message: "non-positive residual df".into(),
-            });
+            return Err(StatsError::Shape { message: "non-positive residual df" });
         }
         let scale = nrows as f64 / (nrows as f64 - ncols as f64);
         for v in &mut meat {
@@ -336,13 +332,11 @@ fn cluster_finite_sample(n: usize, p: usize, g: usize) -> Result<f64, StatsError
     // Standard cluster DF correction: (G/(G−1)) · ((n−1)/(n−p)).
     if g < 2 {
         return Err(StatsError::Shape {
-            message: "cluster-robust variance requires at least 2 clusters".into(),
+            message: "cluster-robust variance requires at least 2 clusters",
         });
     }
     if n <= p {
-        return Err(StatsError::Shape {
-            message: "non-positive residual df".into(),
-        });
+        return Err(StatsError::Shape { message: "non-positive residual df" });
     }
     Ok((g as f64 / (g as f64 - 1.0)) * ((n as f64 - 1.0) / (n as f64 - p as f64)))
 }
@@ -653,10 +647,7 @@ mod tests {
         let groups = [0u32, 0, 0];
         let err = coefficient_covariance(&x, 3, 2, &e, SandwichKind::Cluster { groups: &groups })
             .unwrap_err();
-        assert!(
-            err.to_string().contains("at least 2 clusters"),
-            "err={err}"
-        );
+        assert!(err.to_string().contains("at least 2 clusters"), "err={err}");
     }
 
     #[test]

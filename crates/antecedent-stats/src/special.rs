@@ -374,8 +374,8 @@ mod tests {
                 prev = s;
             }
         }
-        assert_eq!(student_t_sf(f64::INFINITY, 5.0), 0.0);
-        assert_eq!(student_t_sf(f64::NEG_INFINITY, 5.0), 1.0);
+        assert!((student_t_sf(f64::INFINITY, 5.0) - 0.0).abs() < 1e-15);
+        assert!((student_t_sf(f64::NEG_INFINITY, 5.0) - 1.0).abs() < 1e-15);
         assert!(student_t_sf(1.0, f64::NAN).is_nan());
         assert!(student_t_sf(1.0, 0.0).is_nan());
         assert!(student_t_sf(1.0, -1.0).is_nan());

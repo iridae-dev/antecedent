@@ -227,9 +227,9 @@ pub(crate) fn cluster_influence_se(psi: &[f64], groups: &[u32]) -> Result<f64, E
             let scale = (g_count as f64 / (g_count as f64 - 1.0)) / (n as f64).powi(2);
             Ok((scale * sum_s2).max(0.0).sqrt())
         }
-        Some((_, g_count)) if g_count < 2 => Err(EstimationError::stats_msg(
-            "cluster-robust variance requires at least 2 clusters",
-        )),
+        Some((_, g_count)) if g_count < 2 => {
+            Err(EstimationError::stats_msg("cluster-robust variance requires at least 2 clusters"))
+        }
         _ => Err(EstimationError::data_msg("cluster influence SE failed to form meat")),
     }
 }
@@ -502,20 +502,15 @@ mod tests {
         let psi = [1.0, -0.5, 0.25, -0.25];
         let groups = [0u32, 0, 0, 0];
         let err_if = cluster_influence_se(&psi, &groups).unwrap_err();
-        assert!(
-            err_if.to_string().contains("at least 2 clusters"),
-            "err={err_if}"
-        );
+        assert!(err_if.to_string().contains("at least 2 clusters"), "err={err_if}");
         let n = psi.len();
         let mean = psi.iter().sum::<f64>() / n as f64;
         let e: Vec<f64> = psi.iter().map(|v| v - mean).collect();
         let x = vec![1.0; n];
-        let err_sw = coefficient_covariance(&x, n, 1, &e, SandwichKind::Cluster { groups: &groups })
-            .unwrap_err();
-        assert!(
-            err_sw.to_string().contains("at least 2 clusters"),
-            "err={err_sw}"
-        );
+        let err_sw =
+            coefficient_covariance(&x, n, 1, &e, SandwichKind::Cluster { groups: &groups })
+                .unwrap_err();
+        assert!(err_sw.to_string().contains("at least 2 clusters"), "err={err_sw}");
     }
 
     #[test]
