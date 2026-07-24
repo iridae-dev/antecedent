@@ -12,7 +12,7 @@
     clippy::needless_range_loop
 )]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::error::StatsError;
 
@@ -90,11 +90,7 @@ pub fn intern_cluster_tuples(
 /// Sign for Cameron–Gelbach–Miller term: `(-1)^{|S|+1}` → `+1` odd, `-1` even.
 #[must_use]
 pub fn multiway_subset_sign(subset_mask: usize) -> f64 {
-    if subset_mask.count_ones() % 2 == 1 {
-        1.0
-    } else {
-        -1.0
-    }
+    if subset_mask.count_ones() % 2 == 1 { 1.0 } else { -1.0 }
 }
 
 /// Iterate nonempty subset masks `1..(1<<d)` with CGM signs.
@@ -149,23 +145,19 @@ pub fn combine_inclusion_exclusion(terms: &[f64]) -> Result<f64, StatsError> {
 fn validate_panel_hac(u: &[f64], clusters: &[u32], time: &[i64]) -> Result<usize, StatsError> {
     let n = u.len();
     if clusters.len() != n || time.len() != n {
-        return Err(StatsError::Shape {
-            message: "panel HAC u/clusters/time length mismatch",
-        });
+        return Err(StatsError::Shape { message: "panel HAC u/clusters/time length mismatch" });
     }
     if n == 0 {
-        return Err(StatsError::Shape {
-            message: "panel HAC needs at least one row",
-        });
+        return Err(StatsError::Shape { message: "panel HAC needs at least one row" });
     }
     if u.iter().any(|v| !v.is_finite()) {
         return Err(StatsError::Shape {
             message: "panel HAC requires finite influence/score values",
         });
     }
-    let mut seen: HashMap<(u32, i64), ()> = HashMap::with_capacity(n);
+    let mut seen: HashSet<(u32, i64)> = HashSet::with_capacity(n);
     for i in 0..n {
-        if seen.insert((clusters[i], time[i]), ()).is_some() {
+        if !seen.insert((clusters[i], time[i])) {
             return Err(StatsError::Shape {
                 message: "panel HAC requires unique (cluster, time) pairs",
             });
@@ -195,54 +187,55 @@ fn panel_max_time_span(clusters: &[u32], time: &[i64]) -> usize {
 
 /// Scalar within-unit panel HAC meat `M` and unit count `G`.
 ///
-/// `u` must already be demeaned (`ψ − ψ̄`). Lag products use explicit integer
-/// time labels within each cluster; missing times do not invent adjacencies.
+/// `demeaned` must already be demeaned (`ψ − ψ̄`). Lag products use explicit
+/// integer time labels within each cluster; missing times do not invent
+/// adjacencies.
 ///
 /// # Errors
 ///
 /// Shape / uniqueness / finiteness validation failures.
 pub fn panel_hac_meat_scalar(
-    u: &[f64],
+    demeaned: &[f64],
     clusters: &[u32],
     time: &[i64],
     max_lag: usize,
 ) -> Result<(f64, usize), StatsError> {
-    let n = validate_panel_hac(u, clusters, time)?;
+    let nrows = validate_panel_hac(demeaned, clusters, time)?;
     let max_span = panel_max_time_span(clusters, time);
     let l_eff = effective_nw_lag(max_lag, max_span);
 
-    let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by_key(|&i| (clusters[i], time[i]));
+    let mut order: Vec<usize> = (0..nrows).collect();
+    order.sort_by_key(|&row| (clusters[row], time[row]));
 
     let mut meat = 0.0;
-    let mut g_count = 0usize;
+    let mut unit_count = 0usize;
     let mut idx = 0usize;
-    while idx < n {
-        let g = clusters[order[idx]];
+    while idx < nrows {
+        let unit_id = clusters[order[idx]];
         let start = idx;
-        while idx < n && clusters[order[idx]] == g {
+        while idx < nrows && clusters[order[idx]] == unit_id {
             idx += 1;
         }
-        g_count += 1;
+        unit_count += 1;
         let rows = &order[start..idx];
-        // time → demeaned u (unique by validation).
+        // time → demeaned value (unique by validation).
         let mut by_time: HashMap<i64, f64> = HashMap::with_capacity(rows.len());
-        for &i in rows {
-            by_time.insert(time[i], u[i]);
-            meat += u[i] * u[i];
+        for &row in rows {
+            by_time.insert(time[row], demeaned[row]);
+            meat += demeaned[row] * demeaned[row];
         }
         for ell in 1..=l_eff {
-            let w = bartlett_weight(ell, l_eff);
+            let weight = bartlett_weight(ell, l_eff);
             let ell_i = i64::try_from(ell).unwrap_or(i64::MAX);
-            for &i in rows {
-                let t = time[i];
-                if let Some(&u_lag) = by_time.get(&(t - ell_i)) {
-                    meat += 2.0 * w * u[i] * u_lag;
+            for &row in rows {
+                let obs_time = time[row];
+                if let Some(&lagged) = by_time.get(&(obs_time - ell_i)) {
+                    meat += 2.0 * weight * demeaned[row] * lagged;
                 }
             }
         }
     }
-    Ok((meat, g_count))
+    Ok((meat, unit_count))
 }
 
 /// Matrix within-unit panel HAC meat (`ncols×ncols` row-major) and unit count `G`.
@@ -263,14 +256,10 @@ pub fn panel_hac_meat_matrix(
     max_lag: usize,
 ) -> Result<(Vec<f64>, usize), StatsError> {
     if residuals.len() != nrows {
-        return Err(StatsError::Shape {
-            message: "panel HAC residual length != nrows",
-        });
+        return Err(StatsError::Shape { message: "panel HAC residual length != nrows" });
     }
     if x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape {
-            message: "panel HAC X buffer too short",
-        });
+        return Err(StatsError::Shape { message: "panel HAC X buffer too short" });
     }
     // Reuse scalar validation on residual finiteness + (c,t) uniqueness.
     let _ = validate_panel_hac(residuals, clusters, time)?;
@@ -278,55 +267,58 @@ pub fn panel_hac_meat_matrix(
     let l_eff = effective_nw_lag(max_lag, max_span);
 
     let mut scores = vec![0.0; nrows * ncols];
-    for i in 0..nrows {
-        let e = residuals[i];
-        for c in 0..ncols {
-            scores[i * ncols + c] = e * x_colmajor[c * nrows + i];
+    for row in 0..nrows {
+        let residual = residuals[row];
+        for col in 0..ncols {
+            scores[row * ncols + col] = residual * x_colmajor[col * nrows + row];
         }
     }
 
     let mut order: Vec<usize> = (0..nrows).collect();
-    order.sort_by_key(|&i| (clusters[i], time[i]));
+    order.sort_by_key(|&row| (clusters[row], time[row]));
 
     let mut meat = vec![0.0; ncols * ncols];
-    let mut g_count = 0usize;
+    let mut unit_count = 0usize;
     let mut idx = 0usize;
     while idx < nrows {
-        let g = clusters[order[idx]];
+        let unit_id = clusters[order[idx]];
         let start = idx;
-        while idx < nrows && clusters[order[idx]] == g {
+        while idx < nrows && clusters[order[idx]] == unit_id {
             idx += 1;
         }
-        g_count += 1;
+        unit_count += 1;
         let rows = &order[start..idx];
         let mut by_time: HashMap<i64, usize> = HashMap::with_capacity(rows.len());
-        for &i in rows {
-            by_time.insert(time[i], i);
-            for a in 0..ncols {
-                for b in 0..ncols {
-                    meat[a * ncols + b] += scores[i * ncols + a] * scores[i * ncols + b];
+        for &row in rows {
+            by_time.insert(time[row], row);
+            for col_a in 0..ncols {
+                for col_b in 0..ncols {
+                    meat[col_a * ncols + col_b] +=
+                        scores[row * ncols + col_a] * scores[row * ncols + col_b];
                 }
             }
         }
         for ell in 1..=l_eff {
-            let w = bartlett_weight(ell, l_eff);
+            let weight = bartlett_weight(ell, l_eff);
             let ell_i = i64::try_from(ell).unwrap_or(i64::MAX);
-            for &i in rows {
-                let t = time[i];
-                let Some(&j) = by_time.get(&(t - ell_i)) else {
+            for &row in rows {
+                let obs_time = time[row];
+                let Some(&lag_row) = by_time.get(&(obs_time - ell_i)) else {
                     continue;
                 };
-                for a in 0..ncols {
-                    for b in 0..ncols {
-                        let g_ab = scores[i * ncols + a] * scores[j * ncols + b];
-                        let g_ba = scores[i * ncols + b] * scores[j * ncols + a];
-                        meat[a * ncols + b] += w * (g_ab + g_ba);
+                for col_a in 0..ncols {
+                    for col_b in 0..ncols {
+                        let gamma_ab =
+                            scores[row * ncols + col_a] * scores[lag_row * ncols + col_b];
+                        let gamma_ba =
+                            scores[row * ncols + col_b] * scores[lag_row * ncols + col_a];
+                        meat[col_a * ncols + col_b] += weight * (gamma_ab + gamma_ba);
                     }
                 }
             }
         }
     }
-    Ok((meat, g_count))
+    Ok((meat, unit_count))
 }
 
 #[cfg(test)]
@@ -336,12 +328,12 @@ mod tests {
     #[test]
     fn intern_distinguishes_packing_collision() {
         // Lossy pack: (1,0) and (0, 1_000_003) both → 1_000_003.
-        let a = [1u32, 0];
-        let b = [0u32, 1_000_003];
-        let dims: [&[u32]; 2] = [&a, &b];
+        let dim_a = [1u32, 0];
+        let dim_b = [0u32, 1_000_003];
+        let dims: [&[u32]; 2] = [&dim_a, &dim_b];
         let mut out = [0u32; 2];
-        let g = intern_cluster_tuples(&dims, 0b11, &mut out).unwrap();
-        assert_eq!(g, 2);
+        let groups = intern_cluster_tuples(&dims, 0b11, &mut out).unwrap();
+        assert_eq!(groups, 2);
         assert_ne!(out[0], out[1]);
     }
 
@@ -360,8 +352,8 @@ mod tests {
     #[test]
     fn ie_clamp_tiny_negative() {
         let terms = [1.0, -1.0 + 1e-18];
-        let v = combine_inclusion_exclusion(&terms).unwrap();
-        assert_eq!(v, 0.0);
+        let combined = combine_inclusion_exclusion(&terms).unwrap();
+        assert!(combined.abs() < 1e-15);
     }
 
     #[test]
@@ -376,139 +368,142 @@ mod tests {
     #[test]
     fn panel_missing_time_skips_lag() {
         // One unit, times 0 and 2 (gap at 1): lag-1 product must be zero.
-        let u = [1.0, -1.0];
+        let demeaned = [1.0, -1.0];
         let clusters = [0u32, 0];
         let time = [0i64, 2];
-        let (m0, g) = panel_hac_meat_scalar(&u, &clusters, &time, 0).unwrap();
-        assert_eq!(g, 1);
-        assert!((m0 - 2.0).abs() < 1e-12);
-        let (m1, _) = panel_hac_meat_scalar(&u, &clusters, &time, 1).unwrap();
+        let (meat0, units) = panel_hac_meat_scalar(&demeaned, &clusters, &time, 0).unwrap();
+        assert_eq!(units, 1);
+        assert!((meat0 - 2.0).abs() < 1e-12);
+        let (meat1, _) = panel_hac_meat_scalar(&demeaned, &clusters, &time, 1).unwrap();
         // L_eff = min(1, 2-0) = 1, but (t=2,t-1=1) missing → no lag term.
-        assert!((m1 - 2.0).abs() < 1e-12);
+        assert!((meat1 - 2.0).abs() < 1e-12);
     }
 
     #[test]
     fn panel_rejects_duplicate_cluster_time() {
-        let u = [1.0, 2.0];
+        let demeaned = [1.0, 2.0];
         let clusters = [0u32, 0];
         let time = [5i64, 5];
-        assert!(panel_hac_meat_scalar(&u, &clusters, &time, 1).is_err());
+        assert!(panel_hac_meat_scalar(&demeaned, &clusters, &time, 1).is_err());
     }
 
     #[test]
     fn panel_relabel_and_permute_units_invariant() {
-        let u = [1.0, -0.5, 0.25, 0.5, -0.5, 0.5];
+        let demeaned = [1.0, -0.5, 0.25, 0.5, -0.5, 0.5];
         let clusters = [10u32, 10, 10, 20, 20, 20];
         let time = [0i64, 1, 2, 0, 1, 2];
-        let (m0, g) = panel_hac_meat_scalar(&u, &clusters, &time, 2).unwrap();
-        assert_eq!(g, 2);
+        let (meat0, units) = panel_hac_meat_scalar(&demeaned, &clusters, &time, 2).unwrap();
+        assert_eq!(units, 2);
 
         // Relabel clusters.
-        let clusters2 = [3u32, 3, 3, 7, 7, 7];
-        let (m2, _) = panel_hac_meat_scalar(&u, &clusters2, &time, 2).unwrap();
-        assert!((m0 - m2).abs() < 1e-12);
+        let clusters_relabel = [3u32, 3, 3, 7, 7, 7];
+        let (meat_relabel, _) =
+            panel_hac_meat_scalar(&demeaned, &clusters_relabel, &time, 2).unwrap();
+        assert!((meat0 - meat_relabel).abs() < 1e-12);
 
         // Swap complete units in row order.
-        let u_swap = [0.5, -0.5, 0.5, 1.0, -0.5, 0.25];
-        let c_swap = [20u32, 20, 20, 10, 10, 10];
-        let (m_swap, _) = panel_hac_meat_scalar(&u_swap, &c_swap, &time, 2).unwrap();
-        assert!((m0 - m_swap).abs() < 1e-12);
+        let demeaned_swap = [0.5, -0.5, 0.5, 1.0, -0.5, 0.25];
+        let clusters_swap = [20u32, 20, 20, 10, 10, 10];
+        let (meat_swap, _) =
+            panel_hac_meat_scalar(&demeaned_swap, &clusters_swap, &time, 2).unwrap();
+        assert!((meat0 - meat_swap).abs() < 1e-12);
 
         // Global row shuffle with explicit (c,t).
         let perm = [5usize, 2, 0, 4, 1, 3];
-        let u_p: Vec<f64> = perm.iter().map(|&i| u[i]).collect();
-        let c_p: Vec<u32> = perm.iter().map(|&i| clusters[i]).collect();
-        let t_p: Vec<i64> = perm.iter().map(|&i| time[i]).collect();
-        let (m_p, _) = panel_hac_meat_scalar(&u_p, &c_p, &t_p, 2).unwrap();
-        assert!((m0 - m_p).abs() < 1e-12);
+        let demeaned_perm: Vec<f64> = perm.iter().map(|&i| demeaned[i]).collect();
+        let clusters_perm: Vec<u32> = perm.iter().map(|&i| clusters[i]).collect();
+        let time_perm: Vec<i64> = perm.iter().map(|&i| time[i]).collect();
+        let (meat_perm, _) =
+            panel_hac_meat_scalar(&demeaned_perm, &clusters_perm, &time_perm, 2).unwrap();
+        assert!((meat0 - meat_perm).abs() < 1e-12);
     }
 
     #[test]
     fn panel_ar1_matches_direct_reference() {
-        // One unit, consecutive times, AR structure in demeaned u.
-        let u = [1.0, 0.5, 0.25, 0.125];
+        // One unit, consecutive times, AR structure in demeaned values.
+        let demeaned = [1.0, 0.5, 0.25, 0.125];
         let clusters = [0u32; 4];
         let time = [0i64, 1, 2, 3];
         let lag = 2usize;
-        let (m, g) = panel_hac_meat_scalar(&u, &clusters, &time, lag).unwrap();
-        assert_eq!(g, 1);
+        let (meat, units) = panel_hac_meat_scalar(&demeaned, &clusters, &time, lag).unwrap();
+        assert_eq!(units, 1);
         // Direct: γ0 + 2 k1 γ1 + 2 k2 γ2 with L_eff=2.
         let l_eff = 2usize;
-        let mut ref_m = 0.0;
-        for &ui in &u {
-            ref_m += ui * ui;
+        let mut reference = 0.0;
+        for &value in &demeaned {
+            reference += value * value;
         }
         for ell in 1..=l_eff {
-            let w = bartlett_weight(ell, l_eff);
-            let mut g_ell = 0.0;
-            for t in ell..u.len() {
-                g_ell += u[t] * u[t - ell];
+            let weight = bartlett_weight(ell, l_eff);
+            let mut gamma = 0.0;
+            for t_idx in ell..demeaned.len() {
+                gamma += demeaned[t_idx] * demeaned[t_idx - ell];
             }
-            ref_m += 2.0 * w * g_ell;
+            reference += 2.0 * weight * gamma;
         }
-        assert!((m - ref_m).abs() < 1e-12);
+        assert!((meat - reference).abs() < 1e-12);
     }
 
     #[test]
     fn three_way_cgm_seven_signed_terms() {
         // Tiny 3-way fixture; verify IE equals hand-built signed one-way meats.
         let psi = [1.0, -1.0, 2.0, -2.0, 0.5, -0.5, 1.5, -1.5];
-        let a = [0u32, 0, 0, 0, 1, 1, 1, 1];
-        let b = [0u32, 0, 1, 1, 0, 0, 1, 1];
-        let c = [0u32, 1, 0, 1, 0, 1, 0, 1];
-        let dims: [&[u32]; 3] = [&a, &b, &c];
-        let mean: f64 = psi.iter().sum::<f64>() / psi.len() as f64;
+        let dim_a = [0u32, 0, 0, 0, 1, 1, 1, 1];
+        let dim_b = [0u32, 0, 1, 1, 0, 0, 1, 1];
+        let dim_c = [0u32, 1, 0, 1, 0, 1, 0, 1];
+        let dims: [&[u32]; 3] = [&dim_a, &dim_b, &dim_c];
+        let psi_mean: f64 = psi.iter().sum::<f64>() / psi.len() as f64;
         let mut combined = [0u32; 8];
         let mut terms = Vec::new();
         for (mask, sign) in multiway_subset_masks(3) {
-            let g = intern_cluster_tuples(&dims, mask, &mut combined).unwrap();
-            assert!(g >= 2);
+            let groups = intern_cluster_tuples(&dims, mask, &mut combined).unwrap();
+            assert!(groups >= 2);
             // Cluster meat with Arellano c_G.
             let mut order: Vec<usize> = (0..8).collect();
-            order.sort_by_key(|&i| combined[i]);
-            let mut m = 0.0;
-            let mut g_count = 0usize;
+            order.sort_by_key(|&row| combined[row]);
+            let mut sum_sq = 0.0;
+            let mut group_count = 0usize;
             let mut idx = 0usize;
             while idx < 8 {
-                let gid = combined[order[idx]];
-                let mut s = 0.0;
-                while idx < 8 && combined[order[idx]] == gid {
-                    s += psi[order[idx]] - mean;
+                let group_id = combined[order[idx]];
+                let mut score = 0.0;
+                while idx < 8 && combined[order[idx]] == group_id {
+                    score += psi[order[idx]] - psi_mean;
                     idx += 1;
                 }
-                m += s * s;
-                g_count += 1;
+                sum_sq += score * score;
+                group_count += 1;
             }
-            let c_g = g_count as f64 / (g_count as f64 - 1.0);
-            terms.push(sign * c_g * m);
+            let correction = group_count as f64 / (group_count as f64 - 1.0);
+            terms.push(sign * correction * sum_sq);
         }
         assert_eq!(terms.len(), 7);
-        let meat = combine_inclusion_exclusion(&terms).unwrap();
-        assert!(meat >= 0.0);
+        let ie_meat = combine_inclusion_exclusion(&terms).unwrap();
+        assert!(ie_meat >= 0.0);
         // Permuting dimensions must leave the IE meat unchanged.
-        let dims2: [&[u32]; 3] = [&c, &a, &b];
-        let mut terms2 = Vec::new();
+        let dims_perm: [&[u32]; 3] = [&dim_c, &dim_a, &dim_b];
+        let mut terms_perm = Vec::new();
         for (mask, sign) in multiway_subset_masks(3) {
-            let _ = intern_cluster_tuples(&dims2, mask, &mut combined).unwrap();
+            let _ = intern_cluster_tuples(&dims_perm, mask, &mut combined).unwrap();
             let mut order: Vec<usize> = (0..8).collect();
-            order.sort_by_key(|&i| combined[i]);
-            let mut m = 0.0;
-            let mut g_count = 0usize;
+            order.sort_by_key(|&row| combined[row]);
+            let mut sum_sq = 0.0;
+            let mut group_count = 0usize;
             let mut idx = 0usize;
             while idx < 8 {
-                let gid = combined[order[idx]];
-                let mut s = 0.0;
-                while idx < 8 && combined[order[idx]] == gid {
-                    s += psi[order[idx]] - mean;
+                let group_id = combined[order[idx]];
+                let mut score = 0.0;
+                while idx < 8 && combined[order[idx]] == group_id {
+                    score += psi[order[idx]] - psi_mean;
                     idx += 1;
                 }
-                m += s * s;
-                g_count += 1;
+                sum_sq += score * score;
+                group_count += 1;
             }
-            let c_g = g_count as f64 / (g_count as f64 - 1.0);
-            terms2.push(sign * c_g * m);
+            let correction = group_count as f64 / (group_count as f64 - 1.0);
+            terms_perm.push(sign * correction * sum_sq);
         }
-        let meat2 = combine_inclusion_exclusion(&terms2).unwrap();
-        assert!((meat - meat2).abs() < 1e-10);
+        let ie_meat_perm = combine_inclusion_exclusion(&terms_perm).unwrap();
+        assert!((ie_meat - ie_meat_perm).abs() < 1e-10);
     }
 }

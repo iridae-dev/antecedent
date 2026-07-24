@@ -482,8 +482,7 @@ fn aipw_psi(
             for (((&t, &y), &e), (&m0, &m1)) in
                 treatment.iter().zip(outcome).zip(propensity).zip(mu0.iter().zip(mu1))
             {
-                let aug = ((1.0 - t) / pi0) * (m1 - m0)
-                    + (t / pi0) * ((1.0 - e) / e) * (y - m1)
+                let aug = ((1.0 - t) / pi0) * (m1 - m0) + (t / pi0) * ((1.0 - e) / e) * (y - m1)
                     - ((1.0 - t) / pi0) * (y - m0);
                 out.push(aug);
             }
@@ -694,10 +693,7 @@ mod tests {
         let mut psi = Vec::new();
         aipw_psi(&t, &y, &e, &mu0, &mu1, &TargetPopulation::Untreated, &mut psi).unwrap();
         let atc = psi.iter().sum::<f64>() / psi.len() as f64;
-        assert!(
-            (atc - 2.0).abs() < 1e-12,
-            "deterministic ATC IF mean should be 2; got {atc}"
-        );
+        assert!((atc - 2.0).abs() < 1e-12, "deterministic ATC IF mean should be 2; got {atc}");
     }
 
     /// ATC IF remains unbiased when μ₀ is misspecified but propensity is correct.

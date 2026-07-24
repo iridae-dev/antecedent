@@ -251,7 +251,11 @@ impl TemporalLinearAdjustment {
             }
             cluster_ids.extend(std::iter::repeat_n(unit.unit_id, n));
             // Prepared rows are consecutive in calendar time after lag alignment.
-            panel_times.extend((0..n).map(|t| t as i64));
+            for t_idx in 0..n {
+                let t_label = i64::try_from(t_idx)
+                    .map_err(|_| EstimationError::data_msg("panel time index does not fit i64"))?;
+                panel_times.push(t_label);
+            }
         }
 
         let cov_refs: Vec<(VariableId, &[f64])> =

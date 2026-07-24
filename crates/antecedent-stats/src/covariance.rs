@@ -570,7 +570,7 @@ mod tests {
         let mut times = vec![0i64; n];
         for u in 0..2usize {
             for i in 0..t {
-                times[u * t + i] = i as i64;
+                times[u * t + i] = i64::try_from(i).expect("panel time index fits i64");
             }
         }
         let panel = coefficient_covariance(
@@ -610,14 +610,9 @@ mod tests {
         let dim_a = [1u32, 0, 2, 3];
         let dim_b = [0u32, 1_000_003, 4, 5];
         let dims: [&[u32]; 2] = [&dim_a, &dim_b];
-        let cov = coefficient_covariance(
-            &x,
-            n,
-            1,
-            &e,
-            SandwichKind::Multiway { dimensions: &dims },
-        )
-        .unwrap();
+        let cov =
+            coefficient_covariance(&x, n, 1, &e, SandwichKind::Multiway { dimensions: &dims })
+                .unwrap();
         assert!(cov[0].is_finite() && cov[0] > 0.0);
 
         // Distinct interned intersection groups: G=4 for the two-way intersection.

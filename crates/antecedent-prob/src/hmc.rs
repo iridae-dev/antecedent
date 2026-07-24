@@ -127,11 +127,7 @@ impl TransitionStats {
     fn record(&mut self, step: &HmcStepResult, is_warmup: bool) {
         self.n_transitions = self.n_transitions.saturating_add(1);
         self.accept_prob_sum += step.accept_prob;
-        let abs_dh = if step.delta_h.is_finite() {
-            step.delta_h.abs()
-        } else {
-            1_001.0
-        };
+        let abs_dh = if step.delta_h.is_finite() { step.delta_h.abs() } else { 1_001.0 };
         self.max_abs_delta_h = self.max_abs_delta_h.max(abs_dh);
         if step.divergent {
             if is_warmup {
@@ -290,16 +286,7 @@ pub fn fit_hmc_glm(
         }
     }
 
-    pack_and_gate_hmc(
-        &chain_samples,
-        hmc,
-        n_keep,
-        ncols,
-        ncols,
-        false,
-        map,
-        stats,
-    )
+    pack_and_gate_hmc(&chain_samples, hmc, n_keep, ncols, ncols, false, map, stats)
 }
 
 fn fit_hmc_gaussian(
@@ -401,16 +388,7 @@ fn fit_hmc_gaussian(
         }
     }
 
-    pack_and_gate_hmc(
-        &chain_samples,
-        hmc,
-        n_keep,
-        dim,
-        ncols,
-        include_sigma2,
-        map,
-        stats,
-    )
+    pack_and_gate_hmc(&chain_samples, hmc, n_keep, dim, ncols, include_sigma2, map, stats)
 }
 
 fn dual_average_update(
@@ -650,15 +628,7 @@ fn hmc_step_glm(
     }
 
     let mut grad = vec![0.0; ncols];
-    neg_log_posterior_grad(
-        likelihood,
-        design,
-        coef_prior,
-        prec,
-        &q,
-        &mut grad,
-        workspace,
-    )?;
+    neg_log_posterior_grad(likelihood, design, coef_prior, prec, &q, &mut grad, workspace)?;
     for i in 0..ncols {
         p[i] -= 0.5 * step_size * grad[i];
     }
@@ -675,15 +645,7 @@ fn hmc_step_glm(
         if divergent {
             break;
         }
-        neg_log_posterior_grad(
-            likelihood,
-            design,
-            coef_prior,
-            prec,
-            &q,
-            &mut grad,
-            workspace,
-        )?;
+        neg_log_posterior_grad(likelihood, design, coef_prior, prec, &q, &mut grad, workspace)?;
         let last = step + 1 == leapfrog_steps;
         let scale = if last { 0.5 } else { 1.0 };
         for i in 0..ncols {
@@ -1067,10 +1029,7 @@ mod tests {
             }
             c_mean /= conj.draws.n_draws as f64;
             let c_var = c_m2 / conj.draws.n_draws as f64 - c_mean * c_mean;
-            assert!(
-                (mean - c_mean).abs() < 0.15,
-                "coef {j} mean hmc={mean} conj={c_mean}"
-            );
+            assert!((mean - c_mean).abs() < 0.15, "coef {j} mean hmc={mean} conj={c_mean}");
             assert!(
                 (var - c_var).abs() / c_var.max(1e-6) < 0.5,
                 "coef {j} var hmc={var} conj={c_var}"
@@ -1123,10 +1082,7 @@ mod tests {
             fit_hmc_glm(BayesLikelihood::GaussianIdentity, design, &prior, &fit_opts, hmc, &mut ws)
                 .unwrap();
         assert_eq!(fit.draws.schema.n_quantities(), 3);
-        assert!(matches!(
-            fit.draws.schema.quantities[2],
-            PosteriorQuantityKind::ResidualVariance
-        ));
+        assert!(matches!(fit.draws.schema.quantities[2], PosteriorQuantityKind::ResidualVariance));
 
         let n_draws = fit.draws.n_draws;
         for j in 0..2 {
@@ -1140,10 +1096,7 @@ mod tests {
                 c_mean += conj.draws.values[j * conj.draws.n_draws + d];
             }
             c_mean /= conj.draws.n_draws as f64;
-            assert!(
-                (mean - c_mean).abs() < 0.25,
-                "coef {j} mean hmc={mean} conj={c_mean}"
-            );
+            assert!((mean - c_mean).abs() < 0.25, "coef {j} mean hmc={mean} conj={c_mean}");
         }
         let mut s_mean = 0.0;
         for d in 0..n_draws {
@@ -1155,10 +1108,7 @@ mod tests {
             c_s += conj.draws.values[2 * conj.draws.n_draws + d];
         }
         c_s /= conj.draws.n_draws as f64;
-        assert!(
-            (s_mean - c_s).abs() / c_s.max(1e-6) < 0.6,
-            "sigma2 mean hmc={s_mean} conj={c_s}"
-        );
+        assert!((s_mean - c_s).abs() / c_s.max(1e-6) < 0.6, "sigma2 mean hmc={s_mean} conj={c_s}");
     }
 
     #[test]

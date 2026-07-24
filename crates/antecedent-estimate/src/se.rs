@@ -464,12 +464,8 @@ mod tests {
         let packed_collide_a = vec![1u32, 0];
         let packed_collide_b = vec![0u32, 1_000_003];
         let mut out = [0u32; 2];
-        let g = intern_cluster_tuples(
-            &[&packed_collide_a, &packed_collide_b],
-            0b11,
-            &mut out,
-        )
-        .unwrap();
+        let g =
+            intern_cluster_tuples(&[&packed_collide_a, &packed_collide_b], 0b11, &mut out).unwrap();
         assert_eq!(g, 2);
         assert_ne!(out[0], out[1]);
     }
@@ -477,18 +473,19 @@ mod tests {
     #[test]
     fn multiway_three_way_is_cgm_not_average() {
         let psi = [1.0, -1.0, 2.0, -2.0, 0.5, -0.5, 1.5, -1.5];
-        let a = vec![0u32, 0, 0, 0, 1, 1, 1, 1];
-        let b = vec![0u32, 0, 1, 1, 0, 0, 1, 1];
-        let c = vec![0u32, 1, 0, 1, 0, 1, 0, 1];
-        let se = multiway_influence_se(&psi, &[a.clone(), b.clone(), c.clone()]).unwrap();
-        let se_a = cluster_influence_se(&psi, &a);
-        let se_b = cluster_influence_se(&psi, &b);
-        let se_c = cluster_influence_se(&psi, &c);
+        let dim_a = vec![0u32, 0, 0, 0, 1, 1, 1, 1];
+        let dim_b = vec![0u32, 0, 1, 1, 0, 0, 1, 1];
+        let dim_c = vec![0u32, 1, 0, 1, 0, 1, 0, 1];
+        let se =
+            multiway_influence_se(&psi, &[dim_a.clone(), dim_b.clone(), dim_c.clone()]).unwrap();
+        let se_a = cluster_influence_se(&psi, &dim_a);
+        let se_b = cluster_influence_se(&psi, &dim_b);
+        let se_c = cluster_influence_se(&psi, &dim_c);
         let avg = ((se_a.powi(2) + se_b.powi(2) + se_c.powi(2)) / 3.0).sqrt();
         // Full CGM must differ from the old average-of-one-ways heuristic.
         assert!((se - avg).abs() > 1e-6, "se={se} avg={avg}");
         // Dimension permutation invariance.
-        let se_perm = multiway_influence_se(&psi, &[c, a, b]).unwrap();
+        let se_perm = multiway_influence_se(&psi, &[dim_c, dim_a, dim_b]).unwrap();
         assert!((se - se_perm).abs() < 1e-12);
     }
 
@@ -512,32 +509,24 @@ mod tests {
             let selected: Vec<Vec<u32>> = dims[..d].to_vec();
             let se_if = multiway_influence_se(&psi, &selected).unwrap();
             let refs: Vec<&[u32]> = selected.iter().map(Vec::as_slice).collect();
-            let cov = coefficient_covariance(
-                &x,
-                n,
-                1,
-                &e,
-                SandwichKind::Multiway { dimensions: &refs },
-            )
-            .unwrap();
+            let cov =
+                coefficient_covariance(&x, n, 1, &e, SandwichKind::Multiway { dimensions: &refs })
+                    .unwrap();
             let se_sw = cov[0].sqrt();
-            assert!(
-                (se_if - se_sw).abs() < 1e-10,
-                "d={d}: if={se_if} sandwich={se_sw}"
-            );
+            assert!((se_if - se_sw).abs() < 1e-10, "d={d}: if={se_if} sandwich={se_sw}");
         }
     }
 
     #[test]
     fn multiway_relabel_invariant() {
         let psi = [1.0, -1.0, 2.0, -2.0, 0.5, -0.5];
-        let a = vec![0u32, 0, 1, 1, 2, 2];
-        let b = vec![0u32, 1, 0, 1, 0, 1];
-        let se = multiway_influence_se(&psi, &[a, b]).unwrap();
+        let dim_a = vec![0u32, 0, 1, 1, 2, 2];
+        let dim_b = vec![0u32, 1, 0, 1, 0, 1];
+        let se = multiway_influence_se(&psi, &[dim_a, dim_b]).unwrap();
         // One-to-one relabel within each dimension.
-        let a2 = vec![10u32, 10, 20, 20, 30, 30];
-        let b2 = vec![7u32, 9, 7, 9, 7, 9];
-        let se2 = multiway_influence_se(&psi, &[a2, b2]).unwrap();
+        let dim_a2 = vec![10u32, 10, 20, 20, 30, 30];
+        let dim_b2 = vec![7u32, 9, 7, 9, 7, 9];
+        let se2 = multiway_influence_se(&psi, &[dim_a2, dim_b2]).unwrap();
         assert!((se - se2).abs() < 1e-12);
     }
 

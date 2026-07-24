@@ -38,9 +38,7 @@ pub fn parameter_mcmc_diagnostics(
     n_draws: usize,
     n_params: usize,
 ) -> Vec<ParameterMcmcDiagnostics> {
-    (0..n_params)
-        .map(|p| diagnostics_one(samples, n_chains, n_draws, n_params, p))
-        .collect()
+    (0..n_params).map(|p| diagnostics_one(samples, n_chains, n_draws, n_params, p)).collect()
 }
 
 /// Maximum rank∪folded R-hat across parameters (`∞` if any fails).
@@ -213,11 +211,7 @@ fn median_sorted(sorted: &[f64]) -> f64 {
     if n == 0 {
         return f64::NAN;
     }
-    if n % 2 == 1 {
-        sorted[n / 2]
-    } else {
-        0.5 * (sorted[n / 2 - 1] + sorted[n / 2])
-    }
+    if n % 2 == 1 { sorted[n / 2] } else { 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]) }
 }
 
 fn empirical_quantiles(x: &[f64], q_lo: f64, q_hi: f64) -> (f64, f64) {
@@ -440,9 +434,9 @@ mod tests {
         let mut samples = vec![0.0; n_chains * n_draws];
         let mut state = seed;
         for v in &mut samples {
-            state = state.wrapping_mul(636_413_622_384_679_3005).wrapping_add(1);
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
             let u1 = ((state >> 33) as f64) / ((1u64 << 31) as f64);
-            state = state.wrapping_mul(636_413_622_384_679_3005).wrapping_add(1);
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
             let u2 = ((state >> 33) as f64) / ((1u64 << 31) as f64);
             let u1 = u1.clamp(1e-12, 1.0 - 1e-12);
             *v = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
