@@ -92,6 +92,8 @@ pub struct AipwAte {
     pub population_registry: Option<PopulationRegistry>,
     /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
     pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Optional panel time labels for [`AnalyticSeKind::PanelClusterHac`].
+    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for AipwAte {
@@ -113,6 +115,7 @@ impl AipwAte {
             cluster_ids: None,
             population_registry: None,
             multiway_ids: None,
+            panel_times: None,
         }
     }
 
@@ -230,6 +233,7 @@ impl AipwAte {
             problem.nrows,
             self.cluster_ids.as_deref(),
             self.multiway_ids.as_deref(),
+            self.panel_times.as_deref(),
             retained.as_deref(),
         )?;
 

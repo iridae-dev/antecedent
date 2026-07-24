@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod ci;
+pub mod cluster;
 pub mod covariance;
 pub mod design;
 pub mod divergence;
@@ -32,6 +33,11 @@ pub use ci::{
     RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
     analytic_confidence_level, analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
     nonparametric_permutation_count, pairwise_multivariate_test,
+};
+pub use cluster::{
+    MAX_CLUSTER_DIMENSIONS, bartlett_weight, combine_inclusion_exclusion, effective_nw_lag,
+    intern_cluster_tuples, multiway_subset_masks, multiway_subset_sign, panel_hac_meat_matrix,
+    panel_hac_meat_scalar,
 };
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use design::{

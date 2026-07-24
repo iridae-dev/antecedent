@@ -183,7 +183,7 @@ pub(crate) fn refit_effect(
     if let Some(panel) = temporal.panel {
         let rebuilt = panel_from_stacked(panel, data)?;
         let prep = if extra_contemporaneous.is_empty() {
-            let (prep, _cluster_ids) = estimator
+            let (prep, _cluster_ids, _panel_times) = estimator
                 .prepare_panel(
                     &rebuilt,
                     estimand,
