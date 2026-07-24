@@ -650,7 +650,7 @@ fn sandwich_cov_matrix(
             )
         }
     };
-    Ok(Some(cov.unwrap_or_else(|_| vec![f64::NAN; ncols * ncols])))
+    Ok(Some(cov?))
 }
 
 /// Per-row GLM score multiplier `u_i` and Fisher weight `w_i`.

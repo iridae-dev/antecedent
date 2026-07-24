@@ -142,8 +142,13 @@ fn sandwich_from_multipliers(
                 // GLM classical SE uses Fisher bread alone (dispersion folded elsewhere).
                 return Ok(bread);
             }
+            if nrows <= ncols {
+                return Err(StatsError::Shape {
+                    message: "non-positive residual df".into(),
+                });
+            }
             let rss: f64 = multipliers.iter().map(|e| e * e).sum();
-            let sigma2 = rss / (nrows as f64 - ncols as f64).max(1.0);
+            let sigma2 = rss / (nrows as f64 - ncols as f64);
             Ok(bread.iter().map(|v| v * sigma2).collect())
         }
         SandwichKind::Hc0 | SandwichKind::Hc1 | SandwichKind::Hc2 | SandwichKind::Hc3 => {
@@ -156,7 +161,7 @@ fn sandwich_from_multipliers(
             }
             let meat = cluster_meat(x_colmajor, nrows, ncols, multipliers, groups)?;
             let g = distinct_count(groups);
-            let scale = cluster_finite_sample(nrows, ncols, g);
+            let scale = cluster_finite_sample(nrows, ncols, g)?;
             let meat: Vec<f64> = meat.iter().map(|v| v * scale).collect();
             Ok(sandwich_product(&bread, &meat, ncols))
         }
@@ -187,7 +192,7 @@ fn sandwich_from_multipliers(
             }
             let (meat, g) =
                 panel_hac_meat_matrix(x_colmajor, nrows, ncols, multipliers, groups, time, lag)?;
-            let scale = cluster_finite_sample(nrows, ncols, g);
+            let scale = cluster_finite_sample(nrows, ncols, g)?;
             let meat: Vec<f64> = meat.iter().map(|v| v * scale).collect();
             Ok(sandwich_product(&bread, &meat, ncols))
         }
@@ -247,7 +252,12 @@ fn hc_meat(
         accumulate_xx(&mut meat, x_colmajor, nrows, ncols, i, adj);
     }
     if matches!(kind, SandwichKind::Hc1) {
-        let scale = nrows as f64 / (nrows as f64 - ncols as f64).max(1.0);
+        if nrows <= ncols {
+            return Err(StatsError::Shape {
+                message: "non-positive residual df".into(),
+            });
+        }
+        let scale = nrows as f64 / (nrows as f64 - ncols as f64);
         for v in &mut meat {
             *v *= scale;
         }
@@ -322,12 +332,19 @@ fn cluster_meat(
     Ok(meat)
 }
 
-fn cluster_finite_sample(n: usize, p: usize, g: usize) -> f64 {
+fn cluster_finite_sample(n: usize, p: usize, g: usize) -> Result<f64, StatsError> {
     // Standard cluster DF correction: (G/(G−1)) · ((n−1)/(n−p)).
-    if g <= 1 {
-        return 1.0;
+    if g < 2 {
+        return Err(StatsError::Shape {
+            message: "cluster-robust variance requires at least 2 clusters".into(),
+        });
     }
-    (g as f64 / (g as f64 - 1.0)) * ((n as f64 - 1.0) / (n as f64 - p as f64).max(1.0))
+    if n <= p {
+        return Err(StatsError::Shape {
+            message: "non-positive residual df".into(),
+        });
+    }
+    Ok((g as f64 / (g as f64 - 1.0)) * ((n as f64 - 1.0) / (n as f64 - p as f64)))
 }
 
 fn multiway_meat(
@@ -347,7 +364,7 @@ fn multiway_meat(
     for (mask, sign) in multiway_subset_masks(d) {
         let g = intern_cluster_tuples(dimensions, mask, &mut combined)?;
         let part = cluster_meat(x_colmajor, nrows, ncols, residuals, &combined)?;
-        let scale = cluster_finite_sample(nrows, ncols, g);
+        let scale = cluster_finite_sample(nrows, ncols, g)?;
         for k in 0..meat.len() {
             meat[k] += sign * scale * part[k];
         }
@@ -627,5 +644,52 @@ mod tests {
             .collect();
         assert_eq!(packed[0], packed[1]);
         assert_ne!(out[0], out[1]);
+    }
+
+    #[test]
+    fn one_cluster_returns_error() {
+        let x = vec![1.0, 1.0, 1.0, 0.0, 1.0, 2.0];
+        let e = vec![0.5, -0.2, 0.1];
+        let groups = [0u32, 0, 0];
+        let err = coefficient_covariance(&x, 3, 2, &e, SandwichKind::Cluster { groups: &groups })
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("at least 2 clusters"),
+            "err={err}"
+        );
+    }
+
+    #[test]
+    fn nonpositive_residual_df_errors_for_homo_and_hc1() {
+        // n = p = 2 → residual df = 0
+        let x = vec![1.0, 1.0, 0.0, 1.0];
+        let e = vec![1.0, -1.0];
+        for kind in [SandwichKind::Homoskedastic, SandwichKind::Hc1] {
+            let err = coefficient_covariance(&x, 2, 2, &e, kind).unwrap_err();
+            assert!(
+                err.to_string().contains("non-positive residual df"),
+                "kind={kind:?} err={err}"
+            );
+        }
+        // HC0 remains defined without residual-DF correction.
+        assert!(coefficient_covariance(&x, 2, 2, &e, SandwichKind::Hc0).is_ok());
+    }
+
+    #[test]
+    fn panel_hac_one_cluster_errors() {
+        let n = 6usize;
+        let x = vec![1.0; n];
+        let e = vec![1.0, -1.0, 0.5, -0.5, 0.25, -0.25];
+        let groups = [0u32; 6];
+        let time = [0i64, 1, 2, 3, 4, 5];
+        let err = coefficient_covariance(
+            &x,
+            n,
+            1,
+            &e,
+            SandwichKind::PanelClusterHac { groups: &groups, time: &time, lag: 1 },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("at least 2 clusters"), "err={err}");
     }
 }
