@@ -149,6 +149,7 @@ impl AipwAte {
     ///
     /// Target population other than ATE/ATT/ATC, empty treated/control arm, or GLM/OLS
     /// backend failure.
+    #[allow(clippy::too_many_lines)]
     pub fn fit(
         &self,
         problem: &PreparedPropensityProblem,

@@ -149,7 +149,7 @@ impl OverlapReport {
     ///
     /// Clip-sensitivity ESS is computed only when `clip` is set **and** both `treatment` and
     /// `target` are provided, so diagnostics use the same estimand-specific observed weights as
-    /// production estimators. When `observation_weights` is set (CustomDistribution), those
+    /// production estimators. When `observation_weights` is set (`CustomDistribution`), those
     /// weights are multiplied into the sensitivity grid the same way as production IPW.
     #[must_use]
     pub fn from_propensities(
@@ -257,7 +257,7 @@ fn arm_ess(weights: &[f64], treatment: &[f64], treated: bool) -> f64 {
 ///
 /// Uses the same clip bounds as production [`crate::propensity::prepare::clamp_scores`]
 /// (no artificial floor/ceiling on `clip`). When `observation_weights` is set, multiplies
-/// each arm weight the same way as CustomDistribution IPW.
+/// each arm weight the same way as `CustomDistribution` IPW.
 pub(crate) fn observed_ipw_weights(
     treatment: &[f64],
     propensities: &[f64],
@@ -460,13 +460,7 @@ mod tests {
         for (w, &o) in est.iter_mut().zip(&ow) {
             *w *= o;
         }
-        let (ess_prod, extreme_prod) = {
-            let sum: f64 = est.iter().sum();
-            let sum_sq: f64 = est.iter().map(|x| x * x).sum();
-            let ess = if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 };
-            let extreme = est.iter().filter(|&&x| x > 10.0).count() as u32;
-            (ess, extreme)
-        };
+        let (ess_prod, extreme_prod) = weight_summary(&est);
         let report = OverlapReport::from_propensities(
             &e,
             Some(&est),
@@ -485,9 +479,7 @@ mod tests {
         assert_eq!(sens.extreme_weight_counts[idx], extreme_prod);
         // Without observation weights the Custom grid would disagree.
         let bare = observed_ipw_weights(&t, &e, IpwTarget::Custom, clip, None);
-        let sum: f64 = bare.iter().sum();
-        let sum_sq: f64 = bare.iter().map(|x| x * x).sum();
-        let ess_bare = (sum * sum) / sum_sq;
+        let (ess_bare, _) = weight_summary(&bare);
         assert!((ess_bare - ess_prod).abs() > 1e-6);
     }
 }
