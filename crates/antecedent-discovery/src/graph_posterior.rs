@@ -22,7 +22,7 @@ use antecedent_graph::algo::is_dag;
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_prob::{
     GraphIdentFlag, HessianFactorization, InferenceDiagnostics, WeightedGraphSamples,
-    max_split_rhat, min_bulk_ess,
+    all_chains_moved, max_split_rhat, min_bulk_ess, min_tail_ess,
 };
 use antecedent_state::GraphScoreFamily;
 
@@ -540,9 +540,11 @@ pub fn mcmc_graph_diagnostics(
     n_warmup: u32,
     n_draws: u32,
     ess_bulk_min: f64,
+    ess_tail_min: f64,
     rhat_max: f64,
     n_divergences: u32,
     converged: bool,
+    chains_moved: bool,
 ) -> InferenceDiagnostics {
     InferenceDiagnostics {
         converged,
@@ -556,16 +558,14 @@ pub fn mcmc_graph_diagnostics(
         n_chains: Some(n_chains),
         n_warmup: Some(n_warmup),
         ess_bulk_min: Some(ess_bulk_min),
-        // Graph MCMC does not yet compute tail ESS / movement; fill conservatively
-        // so `allows_graph_posterior` (not the HMC gate) remains the publication path.
-        ess_tail_min: Some(ess_bulk_min),
+        ess_tail_min: Some(ess_tail_min),
         rhat_max: Some(rhat_max),
         n_divergences: Some(n_divergences),
         mean_accept_prob: Some(1.0),
         n_warmup_divergences: Some(0),
         n_postwarmup_divergences: Some(n_divergences),
         max_abs_delta_h: Some(0.0),
-        all_chains_moved: Some(true),
+        all_chains_moved: Some(chains_moved),
     }
 }
 
@@ -609,15 +609,16 @@ pub fn publish_graph_posterior(
 ///
 /// Zero-variance indicators (never/always present) would otherwise inflate R-hat
 /// to infinity and fail the diagnostics gate spuriously.
+/// Returns `(rhat_max, ess_bulk_min, ess_tail_min, all_chains_moved)`.
 #[must_use]
 pub fn graph_chain_diagnostics(
     traces: &[f64],
     n_chains: usize,
     n_draws: usize,
     n_params: usize,
-) -> (f64, f64) {
+) -> (f64, f64, f64, bool) {
     if n_params == 0 || n_chains == 0 || n_draws == 0 {
-        return (f64::INFINITY, 0.0);
+        return (f64::INFINITY, 0.0, 0.0, false);
     }
     let mut keep = Vec::new();
     for p in 0..n_params {
@@ -636,7 +637,8 @@ pub fn graph_chain_diagnostics(
     }
     if keep.is_empty() {
         // All indicators constant across chains — treat as perfect agreement.
-        return (1.0, (n_chains * n_draws) as f64);
+        let n_total = (n_chains * n_draws) as f64;
+        return (1.0, n_total, n_total, all_chains_moved(traces, n_chains, n_draws, n_params));
     }
     let k = keep.len();
     let mut filtered = vec![0.0; n_chains * n_draws * k];
@@ -670,7 +672,13 @@ pub fn graph_chain_diagnostics(
         }
         rhat = if any_finite { finite_max } else { f64::INFINITY };
     }
-    (rhat, min_bulk_ess(&filtered, n_chains, n_draws, k))
+    let moved = all_chains_moved(&filtered, n_chains, n_draws, k);
+    (
+        rhat,
+        min_bulk_ess(&filtered, n_chains, n_draws, k),
+        min_tail_ess(&filtered, n_chains, n_draws, k),
+        moved,
+    )
 }
 
 #[cfg(test)]

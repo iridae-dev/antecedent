@@ -349,7 +349,8 @@ fn geyer_ess_split(seg_major: &[f64], m: usize, n: usize) -> f64 {
             pairs[i] = pairs[i - 1];
         }
     }
-    let mut tau = 1.0;
+    // Stan/Vehtari: τ̂ = −1 + 2 Σ P_t' with P_t' = ρ̂_{2t'} + ρ̂_{2t'+1}.
+    let mut tau = -1.0;
     for &p in &pairs {
         tau += 2.0 * p;
     }
@@ -448,13 +449,44 @@ mod tests {
     fn iid_chains_rhat_near_one_ess_near_n() {
         let n_chains = 4;
         let n_draws = 200;
+        let n_total = (n_chains * n_draws) as f64;
         let samples = fill_iid_normal(n_chains, n_draws, 7);
         let r = max_split_rhat(&samples, n_chains, n_draws, 1);
         let ess = min_bulk_ess(&samples, n_chains, n_draws, 1);
         let ess_t = min_tail_ess(&samples, n_chains, n_draws, 1);
         assert!(r < 1.05, "rhat={r}");
-        assert!(ess > 0.25 * (n_chains * n_draws) as f64, "ess={ess}");
-        assert!(ess_t > 50.0, "tail ess={ess_t}");
+        // With τ̂ = −1 + 2ΣP, IID should recover nearly full sample size.
+        assert!(ess > 0.7 * n_total, "ess={ess} vs N={n_total}");
+        assert!(ess_t > 0.4 * n_total, "tail ess={ess_t}");
+    }
+
+    fn fill_ar1(n_chains: usize, n_draws: usize, rho: f64, seed: u64) -> Vec<f64> {
+        let innov = fill_iid_normal(n_chains, n_draws, seed);
+        let mut samples = vec![0.0; n_chains * n_draws];
+        let scale = (1.0 - rho * rho).sqrt();
+        for c in 0..n_chains {
+            let base = c * n_draws;
+            samples[base] = innov[base];
+            for d in 1..n_draws {
+                samples[base + d] = rho * samples[base + d - 1] + scale * innov[base + d];
+            }
+        }
+        samples
+    }
+
+    #[test]
+    fn ar1_chains_ess_near_analytic() {
+        let n_chains = 4;
+        let n_draws = 500;
+        let rho = 0.5;
+        let s = (n_chains * n_draws) as f64;
+        let expected = s * (1.0 - rho) / (1.0 + rho);
+        let samples = fill_ar1(n_chains, n_draws, rho, 41);
+        let ess = min_bulk_ess(&samples, n_chains, n_draws, 1);
+        assert!(
+            (ess - expected).abs() < 0.35 * expected,
+            "ess={ess} expected≈{expected}"
+        );
     }
 
     #[test]

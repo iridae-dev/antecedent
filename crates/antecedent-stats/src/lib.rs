@@ -64,7 +64,10 @@ pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
     MultinomialFit, NbAlphaPolicy, fit_glm, fit_multinomial_logit,
 };
-pub use gram::{accumulate_xtx, accumulate_xtx_xty_row, form_xtx, invert_square};
+pub use gram::{
+    accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, form_xtx,
+    invert_square,
+};
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
 pub use matching::{
