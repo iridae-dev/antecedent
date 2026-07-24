@@ -12,6 +12,9 @@
     clippy::unnecessary_wraps
 )]
 
+use crate::cluster::{
+    MAX_CLUSTER_DIMENSIONS, intern_cluster_tuples, multiway_subset_masks, panel_hac_meat_matrix,
+};
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};
 
@@ -45,11 +48,14 @@ pub enum SandwichKind<'a> {
     },
     /// Panel cluster + within-unit temporal HAC (Arellano-style).
     ///
-    /// Rows within each unit must be time-ordered. Cross-unit lag products are
-    /// never formed. Finite-sample cluster DF correction uses `G = #units`.
+    /// Lag products use explicit integer `time` labels within each unit.
+    /// Cross-unit lag products are never formed. Finite-sample cluster DF
+    /// correction uses `G = #units`.
     PanelClusterHac {
         /// Unit id per row (length `nrows`).
         groups: &'a [u32],
+        /// Calendar / index time per row (length `nrows`); unique with `groups`.
+        time: &'a [i64],
         /// Bartlett max lag within each unit.
         lag: usize,
     },
@@ -172,12 +178,15 @@ fn sandwich_from_multipliers(
             let meat = newey_west_meat(x_colmajor, nrows, ncols, multipliers, lag)?;
             Ok(sandwich_product(&bread, &meat, ncols))
         }
-        SandwichKind::PanelClusterHac { groups, lag } => {
+        SandwichKind::PanelClusterHac { groups, time, lag } => {
             if groups.len() != nrows {
                 return Err(StatsError::Shape { message: "panel HAC groups length != nrows" });
             }
-            let meat = panel_cluster_hac_meat(x_colmajor, nrows, ncols, multipliers, groups, lag)?;
-            let g = distinct_count(groups);
+            if time.len() != nrows {
+                return Err(StatsError::Shape { message: "panel HAC time length != nrows" });
+            }
+            let (meat, g) =
+                panel_hac_meat_matrix(x_colmajor, nrows, ncols, multipliers, groups, time, lag)?;
             let scale = cluster_finite_sample(nrows, ncols, g);
             let meat: Vec<f64> = meat.iter().map(|v| v * scale).collect();
             Ok(sandwich_product(&bread, &meat, ncols))
@@ -330,27 +339,15 @@ fn multiway_meat(
 ) -> Result<Vec<f64>, StatsError> {
     // Two-way: V1 + V2 − V12. General: inclusion–exclusion over non-empty subsets.
     let d = dimensions.len();
-    if d > 4 {
-        return Err(StatsError::Shape { message: "multiway supports at most 4 dimensions" });
+    if d == 0 || d > MAX_CLUSTER_DIMENSIONS {
+        return Err(StatsError::Shape { message: "multiway supports 1..=4 dimensions" });
     }
     let mut meat = vec![0.0; ncols * ncols];
-    let n_sub = 1usize << d;
-    for mask in 1..n_sub {
-        let mut combined = vec![0u32; nrows];
-        let mut bit = 0u32;
-        for (dim_i, groups) in dimensions.iter().enumerate() {
-            if (mask & (1 << dim_i)) != 0 {
-                // Pack dimension labels into a composite key.
-                for r in 0..nrows {
-                    combined[r] = combined[r].wrapping_mul(1_000_003).wrapping_add(groups[r] + 1);
-                }
-                bit += 1;
-            }
-        }
+    let mut combined = vec![0u32; nrows];
+    for (mask, sign) in multiway_subset_masks(d) {
+        let g = intern_cluster_tuples(dimensions, mask, &mut combined)?;
         let part = cluster_meat(x_colmajor, nrows, ncols, residuals, &combined)?;
-        let g = distinct_count(&combined);
         let scale = cluster_finite_sample(nrows, ncols, g);
-        let sign = if bit % 2 == 1 { 1.0 } else { -1.0 };
         for k in 0..meat.len() {
             meat[k] += sign * scale * part[k];
         }
@@ -411,34 +408,6 @@ fn newey_west_meat_on_rows(
                 let g_ba = gamma[b * ncols + a];
                 meat[a * ncols + b] += w * (g_ab + g_ba);
             }
-        }
-    }
-    Ok(meat)
-}
-
-fn panel_cluster_hac_meat(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    residuals: &[f64],
-    groups: &[u32],
-    lag: usize,
-) -> Result<Vec<f64>, StatsError> {
-    // Preserve relative order within each unit (caller must time-order rows).
-    let mut order: Vec<usize> = (0..nrows).collect();
-    order.sort_by_key(|&i| groups[i]);
-    let mut meat = vec![0.0; ncols * ncols];
-    let mut idx = 0usize;
-    while idx < nrows {
-        let g = groups[order[idx]];
-        let start = idx;
-        while idx < nrows && groups[order[idx]] == g {
-            idx += 1;
-        }
-        let rows = &order[start..idx];
-        let part = newey_west_meat_on_rows(x_colmajor, nrows, ncols, residuals, rows, lag)?;
-        for k in 0..meat.len() {
-            meat[k] += part[k];
         }
     }
     Ok(meat)
@@ -598,12 +567,18 @@ mod tests {
         }
         let homo = coefficient_covariance(&x, n, 2, &e, SandwichKind::Homoskedastic).unwrap();
         let nw = coefficient_covariance(&x, n, 2, &e, SandwichKind::NeweyWest { lag: 4 }).unwrap();
+        let mut times = vec![0i64; n];
+        for u in 0..2usize {
+            for i in 0..t {
+                times[u * t + i] = i as i64;
+            }
+        }
         let panel = coefficient_covariance(
             &x,
             n,
             2,
             &e,
-            SandwichKind::PanelClusterHac { groups: &groups, lag: 4 },
+            SandwichKind::PanelClusterHac { groups: &groups, time: &times, lag: 4 },
         )
         .unwrap();
         let se_h = homo[0].sqrt();
@@ -624,5 +599,38 @@ mod tests {
         for (u, v) in a.iter().zip(b.iter()) {
             assert!((u - v).abs() < 1e-12, "a={a:?} b={b:?}");
         }
+    }
+
+    #[test]
+    fn multiway_packing_collision_changes_meat() {
+        // Two rows with labels that collide under ×1_000_003 packing.
+        let n = 4usize;
+        let x = vec![1.0; n];
+        let e = [1.0, -1.0, 2.0, -2.0];
+        let dim_a = [1u32, 0, 2, 3];
+        let dim_b = [0u32, 1_000_003, 4, 5];
+        let dims: [&[u32]; 2] = [&dim_a, &dim_b];
+        let cov = coefficient_covariance(
+            &x,
+            n,
+            1,
+            &e,
+            SandwichKind::Multiway { dimensions: &dims },
+        )
+        .unwrap();
+        assert!(cov[0].is_finite() && cov[0] > 0.0);
+
+        // Distinct interned intersection groups: G=4 for the two-way intersection.
+        let mut out = [0u32; 4];
+        let g = crate::cluster::intern_cluster_tuples(&dims, 0b11, &mut out).unwrap();
+        assert_eq!(g, 4);
+        // Lossy pack would map first two rows to the same key.
+        let packed: Vec<u32> = dim_a
+            .iter()
+            .zip(dim_b.iter())
+            .map(|(&a, &b)| a.wrapping_mul(1_000_003).wrapping_add(b))
+            .collect();
+        assert_eq!(packed[0], packed[1]);
+        assert_ne!(out[0], out[1]);
     }
 }

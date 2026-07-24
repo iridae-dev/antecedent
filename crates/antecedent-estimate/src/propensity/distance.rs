@@ -46,6 +46,8 @@ pub struct DistanceMatching {
     pub population_registry: Option<PopulationRegistry>,
     /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
     pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Optional panel time labels for panel HAC.
+    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for DistanceMatching {
@@ -68,6 +70,7 @@ impl DistanceMatching {
             cluster_ids: None,
             population_registry: None,
             multiway_ids: None,
+            panel_times: None,
         }
     }
 
@@ -158,6 +161,29 @@ impl DistanceMatching {
             }
             (None, _) => None,
         };
+        let times_used = match (&self.panel_times, &retained) {
+            (Some(times), Some(idx)) => {
+                if times.len() != problem.nrows {
+                    return Err(EstimationError::data_msg(format!(
+                        "panel_times length {} != nrows {}",
+                        times.len(),
+                        problem.nrows
+                    )));
+                }
+                Some(idx.iter().map(|&i| times[i]).collect::<Vec<_>>())
+            }
+            (Some(times), None) => {
+                if times.len() != problem.nrows {
+                    return Err(EstimationError::data_msg(format!(
+                        "panel_times length {} != nrows {}",
+                        times.len(),
+                        problem.nrows
+                    )));
+                }
+                Some(times.clone())
+            }
+            (None, _) => None,
+        };
         let result = matching_contrast(
             &t_used,
             &y_used,
@@ -171,6 +197,7 @@ impl DistanceMatching {
             clusters_used.as_deref(),
             tw_used.as_deref(),
             self.multiway_ids.as_ref(),
+            times_used.as_deref(),
         )?;
 
         let boot = if self.bootstrap_replicates == 0 {
@@ -258,6 +285,7 @@ impl DistanceMatching {
                 self.caliper,
                 workspace,
                 AnalyticSeKind::Homoskedastic,
+                None,
                 None,
                 None,
                 None,

@@ -59,6 +59,8 @@ pub struct PropensityMatching {
     pub population_registry: Option<PopulationRegistry>,
     /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
     pub multiway_ids: Option<Vec<Vec<u32>>>,
+    /// Optional panel time labels for panel HAC.
+    pub panel_times: Option<Vec<i64>>,
 }
 
 impl Default for PropensityMatching {
@@ -81,6 +83,7 @@ impl PropensityMatching {
             cluster_ids: None,
             population_registry: None,
             multiway_ids: None,
+            panel_times: None,
         }
     }
 
@@ -161,6 +164,29 @@ impl PropensityMatching {
             }
             (None, _) => None,
         };
+        let times_used = match (&self.panel_times, &retained) {
+            (Some(times), Some(idx)) => {
+                if times.len() != problem.nrows {
+                    return Err(EstimationError::data_msg(format!(
+                        "panel_times length {} != nrows {}",
+                        times.len(),
+                        problem.nrows
+                    )));
+                }
+                Some(idx.iter().map(|&i| times[i]).collect::<Vec<_>>())
+            }
+            (Some(times), None) => {
+                if times.len() != problem.nrows {
+                    return Err(EstimationError::data_msg(format!(
+                        "panel_times length {} != nrows {}",
+                        times.len(),
+                        problem.nrows
+                    )));
+                }
+                Some(times.clone())
+            }
+            (None, _) => None,
+        };
         let result = matching_contrast(
             &t_used,
             &y_used,
@@ -174,6 +200,7 @@ impl PropensityMatching {
             clusters_used.as_deref(),
             tw_used.as_deref(),
             self.multiway_ids.as_ref(),
+            times_used.as_deref(),
         )?;
 
         let boot = if self.bootstrap_replicates == 0 {
@@ -253,6 +280,7 @@ impl PropensityMatching {
                 self.caliper,
                 workspace,
                 AnalyticSeKind::Homoskedastic,
+                None,
                 None,
                 None,
                 None,
@@ -346,10 +374,16 @@ pub(crate) fn matching_contrast(
     cluster_ids: Option<&[u32]>,
     target_weights: Option<&[f64]>,
     multiway_ids: Option<&Vec<Vec<u32>>>,
+    panel_times: Option<&[i64]>,
 ) -> Result<MatchedEstimate, EstimationError> {
     if let Some(ids) = cluster_ids {
         if ids.len() != treatment.len() {
             return Err(EstimationError::data_msg("matching cluster_ids length != treatment rows"));
+        }
+    }
+    if let Some(times) = panel_times {
+        if times.len() != treatment.len() {
+            return Err(EstimationError::data_msg("matching panel_times length != treatment rows"));
         }
     }
     let (treated_idx, control_idx) = split_by_treatment(treatment);
@@ -488,6 +522,7 @@ pub(crate) fn matching_contrast(
                 treatment.len(),
                 cluster_ids,
                 multiway_ids.map(Vec::as_slice),
+                panel_times,
                 Some(&effect_rows),
             )?
         }
