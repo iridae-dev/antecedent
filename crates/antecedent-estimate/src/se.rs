@@ -297,9 +297,7 @@ pub(crate) fn multiway_influence_se(
         ));
     }
     if psi.len() < 2 {
-        return Err(EstimationError::data_msg(
-            "multiway influence SE requires n >= 2",
-        ));
+        return Err(EstimationError::data_msg("multiway influence SE requires n >= 2"));
     }
     let d = dimensions.len();
     if d > MAX_CLUSTER_DIMENSIONS {
@@ -324,9 +322,7 @@ pub(crate) fn multiway_influence_se(
         let _g = intern_cluster_tuples(&refs, mask, &mut combined)
             .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
         let Some((m_s, g_s)) = cluster_meat_scalar(psi, &combined, mean) else {
-            return Err(EstimationError::data_msg(
-                "multiway influence SE failed to form meat",
-            ));
+            return Err(EstimationError::data_msg("multiway influence SE failed to form meat"));
         };
         if g_s < 2 {
             return Err(EstimationError::stats_msg(
@@ -388,14 +384,10 @@ pub(crate) fn panel_cluster_hac_influence_se(
     }
     let n = psi.len();
     if n < 2 {
-        return Err(EstimationError::data_msg(
-            "panel HAC influence SE requires n >= 2",
-        ));
+        return Err(EstimationError::data_msg("panel HAC influence SE requires n >= 2"));
     }
     if groups.len() != n || time.len() != n {
-        return Err(EstimationError::data_msg(
-            "panel HAC groups/time length must match n",
-        ));
+        return Err(EstimationError::data_msg("panel HAC groups/time length must match n"));
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
     let u: Vec<f64> = psi.iter().map(|v| v - mean).collect();

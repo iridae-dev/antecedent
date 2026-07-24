@@ -517,10 +517,7 @@ mod tests {
             }
         }
         let ess = min_bulk_ess(&samples, n_chains, n_draws, 1);
-        assert!(
-            ess < 0.25 * n_total,
-            "disagreeing chains ess={ess} should be ≪ N={n_total}"
-        );
+        assert!(ess < 0.25 * n_total, "disagreeing chains ess={ess} should be ≪ N={n_total}");
     }
 
     #[test]
