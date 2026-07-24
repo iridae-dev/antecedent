@@ -13,7 +13,8 @@
 )]
 
 use crate::cluster::{
-    MAX_CLUSTER_DIMENSIONS, intern_cluster_tuples, multiway_subset_masks, panel_hac_meat_matrix,
+    MAX_CLUSTER_DIMENSIONS, bartlett_weight, effective_nw_lag, intern_cluster_tuples,
+    multiway_subset_masks, panel_hac_meat_matrix,
 };
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};
@@ -188,6 +189,14 @@ fn sandwich_from_multipliers(
             if time.len() != nrows {
                 return Err(StatsError::Shape { message: "panel HAC time length != nrows" });
             }
+            // lag = 0 is Arellano/cluster meat (Σ_g s_g s_g'), not White Σ u_it².
+            if lag == 0 {
+                let meat = cluster_meat(x_colmajor, nrows, ncols, multipliers, groups)?;
+                let g = distinct_count(groups);
+                let scale = cluster_finite_sample(nrows, ncols, g)?;
+                let meat: Vec<f64> = meat.iter().map(|v| v * scale).collect();
+                return Ok(sandwich_product(&bread, &meat, ncols));
+            }
             let (meat, g) =
                 panel_hac_meat_matrix(x_colmajor, nrows, ncols, multipliers, groups, time, lag)?;
             let scale = cluster_finite_sample(nrows, ncols, g)?;
@@ -354,6 +363,7 @@ fn multiway_meat(
         return Err(StatsError::Shape { message: "multiway supports 1..=4 dimensions" });
     }
     let mut meat = vec![0.0; ncols * ncols];
+    let mut abs_diag = vec![0.0; ncols];
     let mut combined = vec![0u32; nrows];
     for (mask, sign) in multiway_subset_masks(d) {
         let g = intern_cluster_tuples(dimensions, mask, &mut combined)?;
@@ -361,6 +371,23 @@ fn multiway_meat(
         let scale = cluster_finite_sample(nrows, ncols, g)?;
         for k in 0..meat.len() {
             meat[k] += sign * scale * part[k];
+        }
+        for j in 0..ncols {
+            abs_diag[j] += (sign * scale * part[j * ncols + j]).abs();
+        }
+    }
+    // Fail closed on material negative diagonal (same tolerance as scalar IE).
+    for j in 0..ncols {
+        let v = meat[j * ncols + j];
+        if v < 0.0 {
+            let tol = 64.0 * f64::EPSILON * abs_diag[j];
+            if (-v) <= tol {
+                meat[j * ncols + j] = 0.0;
+            } else {
+                return Err(StatsError::NonPositiveVariance {
+                    message: "multiway inclusion-exclusion meat is materially negative",
+                });
+            }
         }
     }
     Ok(meat)
@@ -402,9 +429,9 @@ fn newey_west_meat_on_rows(
             }
         }
     }
-    let l_max = lag.min(t_len.saturating_sub(1));
+    let l_max = effective_nw_lag(lag, t_len.saturating_sub(1));
     for ell in 1..=l_max {
-        let w = 1.0 - (ell as f64) / ((lag as f64) + 1.0);
+        let w = bartlett_weight(ell, l_max);
         let mut gamma = vec![0.0; ncols * ncols];
         for t in ell..t_len {
             for a in 0..ncols {
@@ -682,5 +709,58 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.to_string().contains("at least 2 clusters"), "err={err}");
+    }
+
+    #[test]
+    fn newey_west_oversized_lag_matches_capped_leff() {
+        // Weights must use L_eff = min(lag, T−1), not the requested lag.
+        let n = 5usize;
+        let x = vec![1.0; n];
+        let e = vec![1.0, -0.5, 0.25, -0.75, 0.1];
+        let capped =
+            coefficient_covariance(&x, n, 1, &e, SandwichKind::NeweyWest { lag: n - 1 }).unwrap();
+        let oversized =
+            coefficient_covariance(&x, n, 1, &e, SandwichKind::NeweyWest { lag: 10 }).unwrap();
+        assert!(
+            (capped[0] - oversized[0]).abs() < 1e-12,
+            "capped={} oversized={}",
+            capped[0],
+            oversized[0]
+        );
+    }
+
+    #[test]
+    fn multiway_singleton_dimension_errors() {
+        let n = 4usize;
+        let x = vec![1.0; n];
+        let e = vec![1.0, -1.0, 0.5, -0.5];
+        let dim_a = [0u32, 0, 1, 1];
+        let dim_b = [0u32, 0, 0, 0];
+        let dims: [&[u32]; 2] = [&dim_a, &dim_b];
+        let err =
+            coefficient_covariance(&x, n, 1, &e, SandwichKind::Multiway { dimensions: &dims })
+                .unwrap_err();
+        assert!(err.to_string().contains("at least 2 clusters"), "err={err}");
+    }
+
+    #[test]
+    fn panel_hac_lag_zero_matches_cluster() {
+        let n = 8usize;
+        let x = vec![1.0; n];
+        let e = vec![1.0, 0.5, 0.25, -1.0, -0.5, -0.25, 0.75, 0.4];
+        let groups = [0u32, 0, 0, 0, 1, 1, 1, 1];
+        let time = [0i64, 1, 2, 3, 0, 1, 2, 3];
+        let panel = coefficient_covariance(
+            &x,
+            n,
+            1,
+            &e,
+            SandwichKind::PanelClusterHac { groups: &groups, time: &time, lag: 0 },
+        )
+        .unwrap();
+        let cluster =
+            coefficient_covariance(&x, n, 1, &e, SandwichKind::Cluster { groups: &groups })
+                .unwrap();
+        assert!((panel[0] - cluster[0]).abs() < 1e-12);
     }
 }

@@ -394,9 +394,10 @@ fn split_autocovariances(seg_major: &[f64], m: usize, n: usize) -> (f64, Vec<f64
     let var_hat = ((nf - 1.0) / nf) * w + b / nf;
 
     // Mean autocovariance across chains at each lag (unbiased within-chain).
+    // Stan/Vehtari: Â_0 = var̂⁺, Â_t = var̂⁺ − W + ā_t for t>0, so
+    // ρ̂_t = 1 − (W − ā_t)/var̂⁺ (not ā_t/var̂⁺, which ignores between-chain).
     let max_lag = n.saturating_sub(1);
     let mut acov = vec![0.0; max_lag + 1];
-    // Lag 0 uses var_hat (includes between-chain).
     acov[0] = var_hat;
     for lag in 1..=max_lag {
         let mut acc = 0.0;
@@ -409,7 +410,8 @@ fn split_autocovariances(seg_major: &[f64], m: usize, n: usize) -> (f64, Vec<f64
             }
             acc += num / (nf - 1.0);
         }
-        acov[lag] = acc / m as f64;
+        let a_bar = acc / m as f64;
+        acov[lag] = var_hat - w + a_bar;
     }
     (var_hat, acov)
 }
@@ -498,6 +500,27 @@ mod tests {
         }
         let d = diagnostics_one(&samples, n_chains, n_draws, 1, 0);
         assert!(d.rhat_rank > 1.1, "rhat_rank={}", d.rhat_rank);
+    }
+
+    #[test]
+    fn disagreeing_chains_keep_ess_far_below_n() {
+        // Near-IID within each chain, but chain means differ: Stan/Vehtari ESS
+        // must stay ≪ N (ρ̂_t ≈ 1 − W/var̂⁺ for t>0), not collapse to ~N.
+        let n_chains = 4;
+        let n_draws = 200;
+        let n_total = (n_chains * n_draws) as f64;
+        let mut samples = fill_iid_normal(n_chains, n_draws, 31);
+        for c in 0..n_chains {
+            let shift = (c as f64) * 5.0;
+            for d in 0..n_draws {
+                samples[c * n_draws + d] += shift;
+            }
+        }
+        let ess = min_bulk_ess(&samples, n_chains, n_draws, 1);
+        assert!(
+            ess < 0.25 * n_total,
+            "disagreeing chains ess={ess} should be ≪ N={n_total}"
+        );
     }
 
     #[test]
