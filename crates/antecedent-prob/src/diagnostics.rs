@@ -112,6 +112,7 @@ impl InferenceDiagnostics {
         if self.factorization != HessianFactorization::Mcmc {
             return false;
         }
+        // Stan/Vehtari: rank-normalized / folded R̂ ≤ 1.01.
         let rhat_ok = self.rhat_max.is_some_and(|r| r.is_finite() && r <= 1.01);
         let ess_bulk_ok = self.ess_bulk_min.is_some_and(|e| e.is_finite() && e >= 100.0);
         let ess_tail_ok = self.ess_tail_min.is_some_and(|e| e.is_finite() && e >= 100.0);

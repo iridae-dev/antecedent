@@ -287,7 +287,8 @@ pub fn fit_laplace_glm(
 
     if !diagnostics.allows_posterior() {
         return Err(ProbError::MissingDiagnostics {
-            message: "Laplace posterior refused without convergence and curvature diagnostics",
+            message: "Laplace posterior refused without convergence and curvature diagnostics"
+                .into(),
         });
     }
 
@@ -436,7 +437,8 @@ fn fit_gaussian_laplace_known(
     };
     if !diagnostics.allows_posterior() {
         return Err(ProbError::MissingDiagnostics {
-            message: "Laplace posterior refused without convergence and curvature diagnostics",
+            message: "Laplace posterior refused without convergence and curvature diagnostics"
+                .into(),
         });
     }
     let draws_vals = sample_gaussian_mvn(&map, &cov, options.n_draws, options.seed, workspace)?;
@@ -546,7 +548,8 @@ fn fit_gaussian_laplace_inv_gamma(
     };
     if !diagnostics.allows_posterior() {
         return Err(ProbError::MissingDiagnostics {
-            message: "Laplace posterior refused without convergence and curvature diagnostics",
+            message: "Laplace posterior refused without convergence and curvature diagnostics"
+                .into(),
         });
     }
 

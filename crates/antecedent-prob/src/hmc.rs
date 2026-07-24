@@ -476,7 +476,15 @@ fn pack_and_gate_hmc(
 
     if !diagnostics.allows_posterior() {
         return Err(ProbError::MissingDiagnostics {
-            message: "HMC posterior refused without ESS/R-hat/divergence diagnostics",
+            message: format!(
+                "HMC posterior refused: rhat={:?} ess_bulk={:?} ess_tail={:?} postwarmup_div={:?} moved={:?} accept={:?}",
+                diagnostics.rhat_max,
+                diagnostics.ess_bulk_min,
+                diagnostics.ess_tail_min,
+                diagnostics.n_postwarmup_divergences,
+                diagnostics.all_chains_moved,
+                diagnostics.mean_accept_prob
+            ),
         });
     }
 
@@ -964,13 +972,15 @@ mod tests {
             weights: None,
             offsets: None,
         };
-        let fit_opts = BayesFitOptions { n_draws: 800, seed: 42, max_iter: 50, grad_tol: 1e-8 };
+        let fit_opts = BayesFitOptions { n_draws: 2000, seed: 42, max_iter: 50, grad_tol: 1e-8 };
+        // Longer schedule + milder steps: R̂≤1.01 is tight on 2-parameter
+        // Gaussian HMC and was flaking on Linux CI around 1.012.
         let hmc = HmcOptions {
             n_chains: 4,
-            n_warmup: 800,
-            leapfrog_steps: 12,
-            step_size: 0.08,
-            target_accept: 0.8,
+            n_warmup: 1500,
+            leapfrog_steps: 16,
+            step_size: 0.04,
+            target_accept: 0.85,
             mass: 1.0,
         };
         let fit =
@@ -983,7 +993,7 @@ mod tests {
         assert_eq!(fit.diagnostics.n_postwarmup_divergences, Some(0));
         assert_eq!(fit.diagnostics.all_chains_moved, Some(true));
         assert!((fit.map[1] - 1.5).abs() < 0.4, "map slope {}", fit.map[1]);
-        assert_eq!(fit.draws.n_draws, 3200);
+        assert_eq!(fit.draws.n_draws, 8000);
         assert_eq!(fit.draws.schema.n_quantities(), 2);
     }
 
