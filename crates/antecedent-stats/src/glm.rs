@@ -1312,6 +1312,46 @@ mod tests {
     }
 
     #[test]
+    fn negbin_nested_mle_recovers_alpha_above_two() {
+        // Heavy overdispersion so NestedMle Newton enters θ = 1/α < 0.5 (trigamma reflection).
+        let n = 500usize;
+        let x = vec![1.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            // Mean ~4 with extreme spikes ⇒ α ≫ 2.
+            y[i] = if i % 5 == 0 { 30.0 } else { 1.0 };
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let opts = GlmOptions {
+            nb_alpha: NbAlphaPolicy::NestedMle { max_outer: 30, tol_alpha: 1e-6 },
+            ..GlmOptions::new(100, 1e-8)
+        };
+        let fit = fit_glm(
+            GlmFamily::NegativeBinomial,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 1, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &opts,
+        )
+        .unwrap();
+        assert!(fit.converged);
+        let alpha = fit.nb_alpha.expect("nb alpha");
+        assert!(alpha > 2.0, "expected alpha > 2 for trigamma reflection path, got {alpha}");
+        // MoM should also land in the same high-α regime.
+        let mom = fit_glm(
+            GlmFamily::NegativeBinomial,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 1, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(100, 1e-8),
+        )
+        .unwrap();
+        let mom_a = mom.nb_alpha.unwrap();
+        assert!(mom_a > 2.0, "mom alpha={mom_a}");
+        assert!((alpha - mom_a).abs() / mom_a.max(1e-6) < 2.0, "nested={alpha} mom={mom_a}");
+    }
+
+    #[test]
     fn ridge_on_separation_clears_separated_flag() {
         let n = 60usize;
         let mut x = vec![0.0; n * 2];

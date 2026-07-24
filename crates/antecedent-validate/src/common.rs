@@ -13,8 +13,8 @@ use antecedent_data::{
     TimeSeriesData, ValidityBitmap,
 };
 use antecedent_estimate::{
-    EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy, OverlapReport,
-    TemporalLinearAdjustment,
+    EffectEstimate, EstimationWorkspace, IpwTarget, LinearAdjustmentAte, OverlapPolicy,
+    OverlapReport, TemporalLinearAdjustment,
 };
 use antecedent_identify::IdentifiedEstimand;
 use antecedent_kernels::erfc;
@@ -486,7 +486,13 @@ pub(crate) fn diagnostic_overlap_report_with(
             if t > 0.5 { 1.0 / p } else { 1.0 / (1.0 - p) }
         })
         .collect();
-    Ok(OverlapReport::from_propensities(&cols.scores, Some(&weights), policy))
+    Ok(OverlapReport::from_propensities(
+        &cols.scores,
+        Some(&weights),
+        policy,
+        Some(&cols.treatment),
+        Some(IpwTarget::Ate),
+    ))
 }
 
 /// Linear adjustment with nested bootstrap disabled (refuters / sensitivity grids).

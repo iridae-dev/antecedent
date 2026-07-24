@@ -28,7 +28,7 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::se::{AnalyticSeKind, influence_se_kind};
 use crate::util::{BootstrapSeResult, bootstrap_se, sample_std, stats_err};
 
@@ -175,8 +175,14 @@ impl PropensityMatching {
             Some(self.bootstrap_se(problem, trim, workspace, ctx)?)
         };
 
-        let overlap_report =
-            Some(OverlapReport::from_propensities(&model.fit.scores, None, problem.overlap));
+        let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
+        let overlap_report = Some(OverlapReport::from_propensities(
+            &model.fit.scores,
+            None,
+            problem.overlap,
+            Some(&problem.treatment),
+            ipw_target,
+        ));
 
         Ok(EffectEstimate {
             ate: result.ate,

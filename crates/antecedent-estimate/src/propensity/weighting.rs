@@ -4,9 +4,7 @@
 
 #![allow(clippy::many_single_char_names)]
 
-use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
-};
+use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry};
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions, fit_propensity};
@@ -17,7 +15,7 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::util::{BootstrapSeResult, bootstrap_se};
 
 /// Inverse-probability weighting estimator (ATE/ATT/ATC via `TargetPopulation`).
@@ -132,6 +130,8 @@ impl PropensityWeighting {
             &model.fit.scores,
             Some(&weights),
             problem.overlap,
+            Some(&problem.treatment),
+            Some(target),
         ));
 
         Ok(EffectEstimate {
@@ -203,61 +203,8 @@ impl PropensityWeighting {
     }
 }
 
-// ---------------------------------------------------------------------------------------------
-// Stratification
-// ---------------------------------------------------------------------------------------------
-
 // IPW weights + Hajek estimator (shared by `PropensityWeighting`)
 // ---------------------------------------------------------------------------------------------
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum IpwTarget {
-    Ate,
-    Att,
-    Atc,
-    /// ATE-style IPW reweighted by `CustomDistribution` observation weights.
-    Custom,
-}
-
-impl IpwTarget {
-    fn from_population(pop: &TargetPopulation) -> Result<Self, EstimationError> {
-        match pop {
-            TargetPopulation::AllObserved | TargetPopulation::Predicate(_) => Ok(Self::Ate),
-            TargetPopulation::CustomDistribution(_) => Ok(Self::Custom),
-            TargetPopulation::Treated => Ok(Self::Att),
-            TargetPopulation::Untreated => Ok(Self::Atc),
-            _ => Err(EstimationError::unsupported(
-                "propensity weighting supports AllObserved, Treated, Untreated, Predicate, or CustomDistribution",
-            )),
-        }
-    }
-
-    fn weight(self, t: f64, e: f64) -> f64 {
-        match self {
-            Self::Ate | Self::Custom => {
-                if t > 0.5 {
-                    1.0 / e
-                } else {
-                    1.0 / (1.0 - e)
-                }
-            }
-            Self::Att => {
-                if t > 0.5 {
-                    1.0
-                } else {
-                    e / (1.0 - e)
-                }
-            }
-            Self::Atc => {
-                if t > 0.5 {
-                    (1.0 - e) / e
-                } else {
-                    1.0
-                }
-            }
-        }
-    }
-}
 
 fn apply_target_weights(weights: &mut [f64], target_weights: Option<&[f64]>) {
     let Some(tw) = target_weights else {

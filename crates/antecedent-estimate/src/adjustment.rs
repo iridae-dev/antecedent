@@ -711,6 +711,8 @@ mod tests {
             &ps,
             Some(&ws),
             OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: Some(0.05) },
+            Some(&[0.0, 0.0, 1.0]),
+            Some(crate::overlap::IpwTarget::Ate),
         );
         assert!((report.propensity_min - 0.1).abs() < 1e-12);
         assert!((report.propensity_max - 0.9).abs() < 1e-12);

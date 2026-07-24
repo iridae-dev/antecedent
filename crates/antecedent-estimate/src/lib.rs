@@ -66,7 +66,7 @@ pub use functional_distribution::{
 };
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
-pub use overlap::{ClipSensitivity, OverlapPolicy, OverlapReport, PropensityInterval};
+pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};
 pub use prediction::TemporalLinearPredictor;
 pub use propensity::{
     DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,

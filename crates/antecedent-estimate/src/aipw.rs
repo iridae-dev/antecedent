@@ -41,7 +41,7 @@ use antecedent_stats::{
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::propensity::{
     PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
     gather, prepare_propensity_problem_with_registry, split_by_treatment, trim_of,
@@ -243,8 +243,14 @@ impl AipwAte {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
-        let overlap_report =
-            Some(OverlapReport::from_propensities(&model.fit.scores, None, problem.overlap));
+        let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
+        let overlap_report = Some(OverlapReport::from_propensities(
+            &model.fit.scores,
+            None,
+            problem.overlap,
+            Some(&problem.treatment),
+            ipw_target,
+        ));
 
         Ok(EffectEstimate {
             ate,

@@ -99,14 +99,13 @@ pub fn trigamma(mut z: f64) -> f64 {
     if !(z.is_finite() && z > 0.0) {
         return f64::NAN;
     }
-    let mut result = 0.0;
-    // Reflection: ψ₁(z) + ψ₁(1−z) = π² / sin²(πz).
+    // Reflection: ψ₁(z) + ψ₁(1−z) = π² / sin²(πz) ⇒ ψ₁(z) = π²csc²(πz) − ψ₁(1−z).
     if z < 0.5 {
         let pi = std::f64::consts::PI;
         let s = (pi * z).sin();
-        result += (pi * pi) / (s * s);
-        z = 1.0 - z;
+        return (pi * pi) / (s * s) - trigamma(1.0 - z);
     }
+    let mut result = 0.0;
     while z < 8.0 {
         result += 1.0 / (z * z);
         z += 1.0;
@@ -313,5 +312,38 @@ mod tests {
         let z = 2.3;
         assert!((digamma(z + 1.0) - digamma(z) - 1.0 / z).abs() < 1e-12);
         assert!((trigamma(z + 1.0) - trigamma(z) + 1.0 / (z * z)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn trigamma_golden_values() {
+        // Reference values from scipy.special.polygamma(1, z).
+        let cases = [
+            (0.01, 10_001.621_213_528_313),
+            (0.1, 101.433_299_150_792_76),
+            (0.25, 17.197_329_154_507_113),
+            (0.49, 5.108_092_483_881_403),
+            (0.5, 4.934_802_200_544_68),
+            (1.0, std::f64::consts::PI.powi(2) / 6.0),
+            (5.0, 0.221_322_955_737_115_3),
+        ];
+        for &(z, expected) in &cases {
+            let got = trigamma(z);
+            let rel = (got - expected).abs() / expected.abs().max(1.0);
+            assert!(rel < 1e-10, "trigamma({z}): got={got} expected={expected} rel={rel}");
+        }
+    }
+
+    #[test]
+    fn trigamma_reflection_identity_grid() {
+        let pi = std::f64::consts::PI;
+        let mut z = 0.01;
+        while z < 0.5 {
+            let lhs = trigamma(z) + trigamma(1.0 - z);
+            let s = (pi * z).sin();
+            let rhs = (pi * pi) / (s * s);
+            let rel = (lhs - rhs).abs() / rhs.max(1.0);
+            assert!(rel < 1e-10, "identity fail at z={z}: lhs={lhs} rhs={rhs}");
+            z += 0.01;
+        }
     }
 }
