@@ -199,3 +199,34 @@ impl ConditionalIndependenceTest for PartialCorrelation {
         Ok(CiBatchResult { results })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn analytic_result_is_invariant_to_conditioning_offset() {
+        let n = 80usize;
+        let z: Vec<_> = (0..n).map(|i| (i as f64 * 0.19).sin() - 2.0).collect();
+        let z_shifted: Vec<_> = z.iter().map(|v| v + 1_000.0).collect();
+        let x: Vec<_> = (0..n).map(|i| 1.2 * z[i] + (i as f64 * 0.37).cos()).collect();
+        let y: Vec<_> = (0..n).map(|i| -0.8 * z[i] + (i as f64 * 0.29).sin()).collect();
+        let test = PartialCorrelation::new();
+        let ctx = ExecutionContext::for_tests(17);
+        let mut workspace = CiWorkspace::default();
+        let base = test
+            .test_one(&[&x, &y, &z], &[2], SignificanceMethod::Analytic, &mut workspace, &ctx)
+            .unwrap();
+        let shifted = test
+            .test_one(
+                &[&x, &y, &z_shifted],
+                &[2],
+                SignificanceMethod::Analytic,
+                &mut workspace,
+                &ctx,
+            )
+            .unwrap();
+        assert!((base.statistic - shifted.statistic).abs() <= 1e-12);
+        assert!((base.p_value - shifted.p_value).abs() <= 1e-12);
+    }
+}

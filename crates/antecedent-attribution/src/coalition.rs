@@ -6,7 +6,18 @@ use std::collections::HashMap;
 
 use antecedent_core::CachePolicy;
 
+use crate::error::AttributionError;
 use crate::result::CacheStats;
+
+/// Full coalition bitmask for up to 64 players.
+pub(crate) fn full_coalition_mask(n_players: usize) -> Result<u64, AttributionError> {
+    match n_players {
+        0 => Ok(0),
+        1..=63 => Ok((1u64 << n_players) - 1),
+        64 => Ok(u64::MAX),
+        requested => Err(AttributionError::SizeLimit { kind: "components", requested, max: 64 }),
+    }
+}
 
 /// Key for a coalition / substitution evaluation.
 ///
@@ -120,5 +131,16 @@ mod tests {
         let mut d = CoalitionCache::disabled();
         d.insert(k, 2.0);
         assert!(d.get(k).is_none());
+    }
+
+    #[test]
+    fn full_mask_handles_u64_boundary_without_shifting_by_width() {
+        assert_eq!(full_coalition_mask(0).unwrap(), 0);
+        assert_eq!(full_coalition_mask(3).unwrap(), 0b111);
+        assert_eq!(full_coalition_mask(64).unwrap(), u64::MAX);
+        assert!(matches!(
+            full_coalition_mask(65),
+            Err(AttributionError::SizeLimit { requested: 65, max: 64, .. })
+        ));
     }
 }

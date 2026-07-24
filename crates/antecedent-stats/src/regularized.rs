@@ -136,26 +136,24 @@ pub fn fit_lasso(
         return Err(StatsError::Shape { message: "lasso needs positive dimensions" });
     }
 
-    let unpenalize0 = col_is_constant(x_colmajor, nrows, 0);
-    let y_bar = y.iter().sum::<f64>() / nrows as f64;
+    let intercept_scale = constant_nonzero_first_col(x_colmajor, nrows);
+    let has_intercept = intercept_scale.is_some();
+    let y_bar = if has_intercept { y.iter().sum::<f64>() / nrows as f64 } else { 0.0 };
 
-    // Center columns (skip intercept); store means and column norms².
+    // Center only when the model actually contains an intercept. Without one,
+    // coordinate descent must optimize the original, uncentered objective.
     let mut means = vec![0.0; ncols];
     let mut col_ss = vec![0.0; ncols];
     let mut xc = vec![0.0; nrows * ncols];
     for c in 0..ncols {
-        if c == 0 && unpenalize0 {
-            for r in 0..nrows {
-                xc[c * nrows + r] = 1.0;
-            }
-            col_ss[c] = nrows as f64;
+        if c == 0 && has_intercept {
             continue;
         }
-        let mut m = 0.0;
-        for r in 0..nrows {
-            m += x_colmajor[c * nrows + r];
-        }
-        m /= nrows as f64;
+        let m = if has_intercept {
+            x_colmajor[c * nrows..(c + 1) * nrows].iter().sum::<f64>() / nrows as f64
+        } else {
+            0.0
+        };
         means[c] = m;
         let mut ss = 0.0;
         for r in 0..nrows {
@@ -175,7 +173,7 @@ pub fn fit_lasso(
         iterations = iter;
         let mut max_delta = 0.0_f64;
         for c in 0..ncols {
-            if c == 0 && unpenalize0 {
+            if c == 0 && has_intercept {
                 continue;
             }
             // Add back current coordinate contribution.
@@ -204,12 +202,12 @@ pub fn fit_lasso(
         }
     }
 
-    if unpenalize0 {
+    if let Some(scale) = intercept_scale {
         let mut intercept = y_bar;
         for c in 1..ncols {
             intercept -= means[c] * beta[c];
         }
-        beta[0] = intercept;
+        beta[0] = intercept / scale;
     }
 
     Ok(LassoFit {
@@ -237,6 +235,14 @@ fn col_is_constant(x_colmajor: &[f64], nrows: usize, col: usize) -> bool {
     let base = col * nrows;
     let v0 = x_colmajor[base];
     x_colmajor[base..base + nrows].iter().all(|&v| (v - v0).abs() < 1e-12)
+}
+
+fn constant_nonzero_first_col(x_colmajor: &[f64], nrows: usize) -> Option<f64> {
+    if nrows == 0 || !col_is_constant(x_colmajor, nrows, 0) {
+        return None;
+    }
+    let scale = x_colmajor[0];
+    (scale != 0.0).then_some(scale)
 }
 
 #[cfg(test)]
@@ -293,5 +299,87 @@ mod tests {
         assert!(fit.converged);
         assert!(fit.coefficients[2].abs() < 0.05, "noise coef={}", fit.coefficients[2]);
         assert!((fit.coefficients[1] - 2.0).abs() < 0.5, "slope={}", fit.coefficients[1]);
+    }
+
+    #[test]
+    fn lasso_without_intercept_matches_closed_form_at_zero_penalty() {
+        let fit = fit_lasso(&[1.0, 2.0], 2, 1, &[2.0, 3.0], 0.0, &LassoOptions::default()).unwrap();
+        assert!((fit.coefficients[0] - 1.6).abs() <= 1e-12);
+    }
+
+    #[test]
+    fn lasso_restores_arbitrary_constant_column_scale() {
+        let fit = fit_lasso(&[2.0, 2.0], 2, 1, &[4.0, 4.0], 0.0, &LassoOptions::default()).unwrap();
+        assert!((fit.coefficients[0] - 2.0).abs() <= 1e-12);
+        for x in [2.0, 2.0] {
+            assert!((x * fit.coefficients[0] - 4.0).abs() <= 1e-12);
+        }
+    }
+
+    #[test]
+    fn lasso_zero_first_column_is_not_an_intercept() {
+        // Column-major: an all-zero predictor followed by x=[1,2,3].
+        let x = [0.0, 0.0, 0.0, 1.0, 2.0, 3.0];
+        let y = [2.0, 4.0, 6.0];
+        let fit = fit_lasso(&x, 3, 2, &y, 0.0, &LassoOptions::default()).unwrap();
+        assert_eq!(fit.coefficients[0], 0.0);
+        assert!((fit.coefficients[1] - 2.0).abs() <= 1e-12);
+    }
+
+    #[test]
+    fn zero_penalty_lasso_matches_ols_with_and_without_intercept() {
+        let n = 40usize;
+        let options = LassoOptions { max_iter: 10_000, tol: 1e-12 };
+        for with_intercept in [false, true] {
+            let mut x = vec![0.0; n * 3];
+            let mut y = vec![0.0; n];
+            for r in 0..n {
+                let t = r as f64 - 19.5;
+                x[r] = if with_intercept { 1.0 } else { 0.4 + 0.03 * t };
+                x[n + r] = (r as f64 * 0.37).sin() + 0.02 * t;
+                x[2 * n + r] = (r as f64 * 0.23).cos() - 0.01 * t;
+                y[r] = 1.7 * x[r] - 0.8 * x[n + r] + 0.45 * x[2 * n + r];
+            }
+            let mut ws = LeastSquaresWorkspace::default();
+            let ols = FaerBackend.least_squares(&x, n, 3, &y, &mut ws).unwrap();
+            let lasso = fit_lasso(&x, n, 3, &y, 0.0, &options).unwrap();
+            assert!(lasso.converged);
+            for (actual, expected) in lasso.coefficients.iter().zip(&ols.coefficients) {
+                assert!((actual - expected).abs() <= 1e-8, "{actual} vs {expected}");
+            }
+        }
+    }
+
+    #[test]
+    fn lasso_no_intercept_satisfies_coordinate_kkt_conditions() {
+        let n = 25usize;
+        let p = 3usize;
+        let mut x = vec![0.0; n * p];
+        let mut y = vec![0.0; n];
+        for r in 0..n {
+            let t = r as f64 - 12.0;
+            x[r] = 0.2 * t + 0.3;
+            x[n + r] = (r as f64 * 0.7).sin();
+            x[2 * n + r] = (r as f64 * 0.31).cos() - 0.2;
+            y[r] = 1.4 * x[r] - 0.8 * x[n + r] + 0.05 * (r as f64).sin();
+        }
+        let lambda = 0.4;
+        let fit = fit_lasso(&x, n, p, &y, lambda, &LassoOptions { max_iter: 10_000, tol: 1e-12 })
+            .unwrap();
+        assert!(fit.converged);
+        for c in 0..p {
+            let grad = (0..n)
+                .map(|r| {
+                    let pred = (0..p).map(|j| x[j * n + r] * fit.coefficients[j]).sum::<f64>();
+                    x[c * n + r] * (y[r] - pred)
+                })
+                .sum::<f64>();
+            if fit.coefficients[c].abs() > 1e-9 {
+                let expected = lambda * fit.coefficients[c].signum();
+                assert!((grad - expected).abs() <= 1e-7, "c={c} grad={grad}");
+            } else {
+                assert!(grad.abs() <= lambda + 1e-7, "c={c} grad={grad}");
+            }
+        }
     }
 }
