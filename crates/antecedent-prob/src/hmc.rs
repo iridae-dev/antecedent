@@ -107,10 +107,10 @@ impl InferenceBackend for HmcGlmBackend {
 struct HmcStepResult {
     state: Vec<f64>,
     logp: f64,
-    accepted: bool,
+    pub(crate) accepted: bool,
     accept_prob: f64,
     delta_h: f64,
-    divergent: bool,
+    pub(crate) divergent: bool,
 }
 
 /// Running transition aggregates for publication diagnostics.
@@ -627,8 +627,21 @@ fn hmc_step_glm(
         p0_energy += 0.5 * p[i] * p[i] / mass;
     }
 
+    let reject_divergent = || HmcStepResult {
+        state: beta.to_vec(),
+        logp: lp_old,
+        accepted: false,
+        accept_prob: 0.0,
+        delta_h: 1_001.0,
+        divergent: true,
+    };
+
     let mut grad = vec![0.0; ncols];
-    neg_log_posterior_grad(likelihood, design, coef_prior, prec, &q, &mut grad, workspace)?;
+    match neg_log_posterior_grad(likelihood, design, coef_prior, prec, &q, &mut grad, workspace) {
+        Ok(()) => {}
+        Err(ProbError::Numerical { .. }) => return Ok(reject_divergent()),
+        Err(e) => return Err(e),
+    }
     for i in 0..ncols {
         p[i] -= 0.5 * step_size * grad[i];
     }
@@ -645,7 +658,15 @@ fn hmc_step_glm(
         if divergent {
             break;
         }
-        neg_log_posterior_grad(likelihood, design, coef_prior, prec, &q, &mut grad, workspace)?;
+        match neg_log_posterior_grad(likelihood, design, coef_prior, prec, &q, &mut grad, workspace)
+        {
+            Ok(()) => {}
+            Err(ProbError::Numerical { .. }) => {
+                divergent = true;
+                break;
+            }
+            Err(e) => return Err(e),
+        }
         let last = step + 1 == leapfrog_steps;
         let scale = if last { 0.5 } else { 1.0 };
         for i in 0..ncols {
@@ -660,17 +681,10 @@ fn hmc_step_glm(
     }
 
     if divergent {
-        return Ok(HmcStepResult {
-            state: beta.to_vec(),
-            logp: lp_old,
-            accepted: false,
-            accept_prob: 0.0,
-            delta_h: 1_001.0,
-            divergent: true,
-        });
+        return Ok(reject_divergent());
     }
 
-    let lp_new = log_posterior_value(
+    let lp_new = match log_posterior_value(
         likelihood,
         design,
         &q,
@@ -678,7 +692,11 @@ fn hmc_step_glm(
         prec,
         &mut workspace.eta[..nrows],
         1.0,
-    )?;
+    ) {
+        Ok(v) => v,
+        Err(ProbError::Numerical { .. }) => return Ok(reject_divergent()),
+        Err(e) => return Err(e),
+    };
     let mut p_new_energy = 0.0;
     for i in 0..ncols {
         p_new_energy += 0.5 * p[i] * p[i] / mass;
@@ -809,6 +827,54 @@ mod tests {
         let (div3, ap3) = finalize_energy(f64::NAN);
         assert!(div3);
         assert_eq!(ap3, 0.0);
+    }
+
+    #[test]
+    fn poisson_overflow_trajectory_is_divergent() {
+        let n = 4;
+        let x = vec![1.0; n];
+        let y = vec![1.0; n];
+        let prior = PriorSet::weakly_informative(1);
+        let coef = prior.gaussian_coefficients().unwrap().clone();
+        let prec = coef.precision();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let mut ws = LaplaceWorkspace::default();
+        ws.prepare(n, 1, 8);
+        let mut rng = CausalRng::from_seed(9);
+        let beta = [0.0_f64];
+        let lp_old = log_posterior_value(
+            BayesLikelihood::PoissonLog,
+            design,
+            &beta,
+            &coef,
+            &prec,
+            &mut ws.eta[..n],
+            1.0,
+        )
+        .unwrap();
+        let step = hmc_step_glm(
+            BayesLikelihood::PoissonLog,
+            design,
+            &coef,
+            &prec,
+            &beta,
+            50.0,
+            20,
+            1.0,
+            lp_old,
+            &mut ws,
+            &mut rng,
+        )
+        .unwrap();
+        assert!(step.divergent);
+        assert!(!step.accepted);
     }
 
     #[test]

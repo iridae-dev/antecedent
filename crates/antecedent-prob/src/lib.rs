@@ -32,6 +32,7 @@ pub mod gaussian_target;
 pub mod graph_samples;
 pub mod hmc;
 pub mod laplace;
+pub(crate) mod likelihood_terms;
 pub(crate) mod linalg;
 pub mod mcmc_stats;
 pub mod posterior;

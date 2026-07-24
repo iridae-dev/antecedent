@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext};
-use antecedent_kernels::{norm_cdf, standard_normal};
+use antecedent_kernels::standard_normal;
 
 use crate::backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
@@ -25,7 +25,10 @@ use crate::backend::{
 use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
 use crate::gaussian_target::{
-    PosteriorTarget, prior_quadratic, rss_and_xtwr, gaussian_target_from_model,
+    PosteriorTarget, gaussian_target_from_model, prior_quadratic, rss_and_xtwr,
+};
+use crate::likelihood_terms::{
+    LikelihoodTerms, gaussian_terms, logit_terms, poisson_terms, probit_terms,
 };
 use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd, ldlt_decompose, solve_spd};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
@@ -139,11 +142,20 @@ pub fn fit_laplace_glm(
         let mut step_scale = 1.0;
         let beta_old = workspace.beta[..ncols].to_vec();
         let mut accepted = false;
+        let old_obj = log_posterior_value(
+            likelihood,
+            design,
+            &beta_old,
+            &coef_prior,
+            &prec,
+            &mut workspace.eta[..nrows],
+            1.0,
+        )?;
         for _ in 0..8 {
             for i in 0..ncols {
                 workspace.beta[i] = beta_old[i] + step_scale * workspace.step[i];
             }
-            let new_obj = log_posterior_value(
+            match log_posterior_value(
                 likelihood,
                 design,
                 &workspace.beta[..ncols],
@@ -151,21 +163,16 @@ pub fn fit_laplace_glm(
                 &prec,
                 &mut workspace.eta[..nrows],
                 1.0,
-            )?;
-            let old_obj = log_posterior_value(
-                likelihood,
-                design,
-                &beta_old,
-                &coef_prior,
-                &prec,
-                &mut workspace.eta[..nrows],
-                1.0,
-            )?;
-            if new_obj >= old_obj - 1e-12 {
-                accepted = true;
-                break;
+            ) {
+                Ok(new_obj) if new_obj >= old_obj - 1e-12 => {
+                    accepted = true;
+                    break;
+                }
+                Ok(_) | Err(ProbError::Numerical { .. }) => {
+                    step_scale *= 0.5;
+                }
+                Err(e) => return Err(e),
             }
-            step_scale *= 0.5;
         }
         if !accepted {
             for i in 0..ncols {
@@ -614,57 +621,26 @@ pub(crate) fn accumulate_likelihood(
         let w_obs = design.weights.map_or(1.0, |w| w[r]);
         let y = design.y[r];
 
-        let (mu, var_w, sep) = match likelihood {
-            BayesLikelihood::GaussianIdentity => {
-                // Working weight for −Hessian ≈ X' (w/σ²) X
-                (e, inv_sigma2, false)
+        let terms = glm_observation_terms(likelihood, y, e, w_obs, inv_sigma2)?;
+        if matches!(likelihood, BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit)
+        {
+            let mu = if matches!(likelihood, BayesLikelihood::BernoulliLogit) {
+                1.0 / (1.0 + (-e).exp())
+            } else {
+                antecedent_kernels::norm_cdf(e)
+            };
+            if mu < 1e-8 || mu > 1.0 - 1e-8 {
+                separation = true;
             }
-            BayesLikelihood::BernoulliLogit => {
-                let mu = 1.0 / (1.0 + (-e).exp());
-                if mu < 1e-8 || mu > 1.0 - 1e-8 {
-                    separation = true;
-                }
-                let v = mu * (1.0 - mu);
-                (mu, v.max(1e-12), mu < 1e-8 || mu > 1.0 - 1e-8)
-            }
-            BayesLikelihood::BernoulliProbit => {
-                let mu = norm_cdf(e);
-                if mu < 1e-8 || mu > 1.0 - 1e-8 {
-                    separation = true;
-                }
-                let dens = norm_pdf(e);
-                // Working weight ≈ φ(η)² / (Φ(1-Φ))
-                let v = (dens * dens) / (mu * (1.0 - mu)).max(1e-12);
-                (mu, v.max(1e-12), mu < 1e-8 || mu > 1.0 - 1e-8)
-            }
-            BayesLikelihood::PoissonLog => {
-                let mu = e.exp().min(1e6);
-                (mu, mu.max(1e-12), false)
-            }
-        };
-        separation |= sep;
-        work_w[r] = w_obs * var_w;
-
-        let resid = y - mu;
-
-        // Score contribution: for GLM, ∂ℓ/∂β = X' W_working^{-1/2} stuff;
-        // use standard GLM score X'(y−μ) for canonical / working forms.
-        let score_scale = match likelihood {
-            BayesLikelihood::GaussianIdentity => w_obs * resid * inv_sigma2,
-            BayesLikelihood::BernoulliLogit => w_obs * resid,
-            BayesLikelihood::BernoulliProbit => {
-                // ∂ℓ/∂η = (y-μ) φ / (μ(1-μ))
-                let dens = norm_pdf(e);
-                w_obs * resid * dens / (mu * (1.0 - mu)).max(1e-12)
-            }
-            BayesLikelihood::PoissonLog => w_obs * resid,
-        };
+        }
+        work_w[r] = terms.neg_hessian_eta;
+        let score_scale = terms.score_eta;
 
         for c in 0..ncols {
             let x = design.x_colmajor[c * nrows + r];
             grad[c] += x * score_scale;
         }
-        // −Hessian ≈ X' diag(w) X
+        // −Hessian = X' diag(−ℓ'') X
         for c1 in 0..ncols {
             let x1 = design.x_colmajor[c1 * nrows + r];
             for c2 in c1..ncols {
@@ -683,6 +659,21 @@ pub(crate) fn accumulate_likelihood(
         ginf = ginf.max(g.abs());
     }
     Ok((ginf, separation))
+}
+
+fn glm_observation_terms(
+    likelihood: BayesLikelihood,
+    y: f64,
+    eta: f64,
+    weight: f64,
+    inv_sigma2: f64,
+) -> Result<LikelihoodTerms, ProbError> {
+    match likelihood {
+        BayesLikelihood::GaussianIdentity => Ok(gaussian_terms(y, eta, weight, inv_sigma2)),
+        BayesLikelihood::BernoulliLogit => Ok(logit_terms(y, eta, weight)),
+        BayesLikelihood::BernoulliProbit => probit_terms(y, eta, weight),
+        BayesLikelihood::PoissonLog => poisson_terms(y, eta, weight),
+    }
 }
 
 pub(crate) fn log_posterior_value(
@@ -707,24 +698,7 @@ pub(crate) fn log_posterior_value(
         eta[r] = e;
         let w = design.weights.map_or(1.0, |ww| ww[r]);
         let y = design.y[r];
-        ll += w * match likelihood {
-            BayesLikelihood::GaussianIdentity => {
-                let r = y - e;
-                -0.5 * inv_sigma2 * r * r
-            }
-            BayesLikelihood::BernoulliLogit => {
-                // y*η - softplus(η)
-                y * e - softplus(e)
-            }
-            BayesLikelihood::BernoulliProbit => {
-                let p = norm_cdf(e).clamp(1e-12, 1.0 - 1e-12);
-                y * p.ln() + (1.0 - y) * (1.0 - p).ln()
-            }
-            BayesLikelihood::PoissonLog => {
-                let mu = e.exp();
-                y * e - mu
-            }
-        };
+        ll += glm_observation_terms(likelihood, y, e, w, inv_sigma2)?.log_value;
     }
     let mut lp = 0.0;
     for i in 0..ncols {
@@ -732,15 +706,6 @@ pub(crate) fn log_posterior_value(
         lp -= 0.5 * prec[i] * d * d;
     }
     Ok(ll + lp)
-}
-
-fn softplus(x: f64) -> f64 {
-    if x > 20.0 { x } else { (1.0 + x.exp()).ln() }
-}
-
-fn norm_pdf(x: f64) -> f64 {
-    const INV_SQRT_2PI: f64 = 0.398_942_280_401_432_7;
-    INV_SQRT_2PI * (-0.5 * x * x).exp()
 }
 
 /// Draw `n_draws` samples from `N(mean, cov)` (Cholesky).
@@ -1168,6 +1133,169 @@ mod tests {
         for i in 0..2 {
             assert!((g1[i] - g2[i]).abs() < 1e-12);
         }
+    }
+
+    #[test]
+    fn poisson_laplace_and_hmc_agree_on_value_and_score() {
+        let n = 20;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for r in 0..n {
+            let xi = (r as f64) * 0.1;
+            x[r] = 1.0;
+            x[n + r] = xi;
+            y[r] = if r % 3 == 0 { 2.0 } else { 1.0 };
+        }
+        let prior = PriorSet::weakly_informative(2);
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let beta = [0.2_f64, 0.1];
+        let coef = prior.gaussian_coefficients().unwrap();
+        let prec = coef.precision();
+        let ws = LaplaceWorkspace::default();
+        let mut grad = vec![0.0; 2];
+        let mut hess = vec![0.0; 4];
+        let mut eta = vec![0.0; n];
+        let mut work_w = vec![0.0; n];
+        accumulate_likelihood(
+            BayesLikelihood::PoissonLog,
+            design,
+            &beta,
+            &mut grad,
+            &mut hess,
+            &mut eta,
+            &mut work_w,
+            1.0,
+        )
+        .unwrap();
+        for i in 0..2 {
+            let diff = beta[i] - coef.mean[i];
+            grad[i] -= prec[i] * diff;
+        }
+        let lp = log_posterior_value(
+            BayesLikelihood::PoissonLog,
+            design,
+            &beta,
+            coef,
+            &prec,
+            &mut eta,
+            1.0,
+        )
+        .unwrap();
+        // Rebuild independently from poisson_terms.
+        let mut lp2 = 0.0;
+        let mut g2 = [0.0; 2];
+        for r in 0..n {
+            let e = beta[0] + beta[1] * x[n + r];
+            let t = crate::likelihood_terms::poisson_terms(y[r], e, 1.0).unwrap();
+            lp2 += t.log_value;
+            g2[0] += t.score_eta;
+            g2[1] += t.score_eta * x[n + r];
+        }
+        for i in 0..2 {
+            let diff = beta[i] - coef.mean[i];
+            lp2 -= 0.5 * prec[i] * diff * diff;
+            g2[i] -= prec[i] * diff;
+        }
+        assert!((lp - lp2).abs() < 1e-10);
+        assert!((grad[0] - g2[0]).abs() < 1e-10);
+        assert!((grad[1] - g2[1]).abs() < 1e-10);
+        let _ = ws;
+    }
+
+    #[test]
+    fn poisson_newton_backtracks_on_overflow_trial() {
+        // Huge step from a sane point should overflow and be rejected, not abort.
+        let n = 8;
+        let x = vec![1.0; n];
+        let y = vec![1.0; n];
+        let prior = PriorSet::weakly_informative(1);
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let mut ws = LaplaceWorkspace::default();
+        let opts = BayesFitOptions { n_draws: 20, seed: 3, max_iter: 30, grad_tol: 1e-8 };
+        let fit =
+            fit_laplace_glm(BayesLikelihood::PoissonLog, design, &prior, &opts, &mut ws).unwrap();
+        assert!(fit.diagnostics.converged || fit.map[0].is_finite());
+        assert!(fit.map[0].abs() < 50.0, "map exploded: {}", fit.map[0]);
+    }
+
+    #[test]
+    fn probit_laplace_cov_matches_observed_hessian_at_map() {
+        let n = 40;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for r in 0..n {
+            let xi = (r as f64 - 20.0) * 0.15;
+            x[r] = 1.0;
+            x[n + r] = xi;
+            let p = antecedent_kernels::norm_cdf(0.2 + 0.8 * xi);
+            y[r] = if p > 0.5 { 1.0 } else { 0.0 };
+        }
+        let prior = PriorSet::weakly_informative(2);
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let mut ws = LaplaceWorkspace::default();
+        let opts = BayesFitOptions { n_draws: 50, seed: 5, max_iter: 80, grad_tol: 1e-10 };
+        let fit =
+            fit_laplace_glm(BayesLikelihood::BernoulliProbit, design, &prior, &opts, &mut ws)
+                .unwrap();
+        assert!(fit.diagnostics.converged);
+        let coef = prior.gaussian_coefficients().unwrap();
+        let prec = coef.precision();
+        let mut grad = vec![0.0; 2];
+        let mut hess = vec![0.0; 4];
+        let mut eta = vec![0.0; n];
+        let mut work_w = vec![0.0; n];
+        accumulate_likelihood(
+            BayesLikelihood::BernoulliProbit,
+            design,
+            &fit.map,
+            &mut grad,
+            &mut hess,
+            &mut eta,
+            &mut work_w,
+            1.0,
+        )
+        .unwrap();
+        for i in 0..2 {
+            hess[i * 2 + i] += prec[i];
+        }
+        let cov_ref = invert_spd(&hess, 2).unwrap();
+        let cov = fit.cov.as_ref().unwrap();
+        for i in 0..4 {
+            assert!((cov[i] - cov_ref[i]).abs() < 1e-8, "cov[{i}]={} ref={}", cov[i], cov_ref[i]);
+        }
+        // Observed curvature differs from Fisher at the MAP for this unbalanced design.
+        let mut fisher_w = 0.0;
+        let mut obs_w = 0.0;
+        for r in 0..n {
+            let e = eta[r];
+            let t = crate::likelihood_terms::probit_terms(y[r], e, 1.0).unwrap();
+            obs_w += t.neg_hessian_eta;
+            let mu = antecedent_kernels::norm_cdf(e).clamp(1e-12, 1.0 - 1e-12);
+            let dens = antecedent_kernels::norm_pdf(e);
+            fisher_w += (dens * dens) / (mu * (1.0 - mu));
+        }
+        assert!((obs_w - fisher_w).abs() > 1e-3, "obs={obs_w} fisher={fisher_w}");
     }
 
     #[test]

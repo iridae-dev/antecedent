@@ -156,13 +156,13 @@ pub(crate) fn residual_sandwich_coef_se(
     }
     let se = match kind {
         AnalyticSeKind::Homoskedastic => unreachable!(),
-        AnalyticSeKind::Hc0 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc0, t_col),
-        AnalyticSeKind::Hc1 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc1, t_col),
-        AnalyticSeKind::Hc2 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc2, t_col),
-        AnalyticSeKind::Hc3 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc3, t_col),
+        AnalyticSeKind::Hc0 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc0, t_col)?,
+        AnalyticSeKind::Hc1 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc1, t_col)?,
+        AnalyticSeKind::Hc2 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc2, t_col)?,
+        AnalyticSeKind::Hc3 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc3, t_col)?,
         AnalyticSeKind::Cluster => {
             let groups = require_clusters(cluster_ids, nrows)?;
-            sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Cluster { groups }, t_col)
+            sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Cluster { groups }, t_col)?
         }
         AnalyticSeKind::Multiway => {
             let dims = require_multiway(multiway_ids, nrows)?;
@@ -174,10 +174,10 @@ pub(crate) fn residual_sandwich_coef_se(
                 residuals,
                 SandwichKind::Multiway { dimensions: &refs },
                 t_col,
-            )
+            )?
         }
         AnalyticSeKind::NeweyWest { lag } => {
-            sandwich_diag(x, nrows, ncols, residuals, SandwichKind::NeweyWest { lag }, t_col)
+            sandwich_diag(x, nrows, ncols, residuals, SandwichKind::NeweyWest { lag }, t_col)?
         }
         AnalyticSeKind::PanelClusterHac { lag } => {
             let groups = require_clusters(cluster_ids, nrows)?;
@@ -189,7 +189,7 @@ pub(crate) fn residual_sandwich_coef_se(
                 residuals,
                 SandwichKind::PanelClusterHac { groups, time, lag },
                 t_col,
-            )
+            )?
         }
     };
     Ok(Some(se))
@@ -202,29 +202,35 @@ fn sandwich_diag(
     residuals: &[f64],
     kind: SandwichKind<'_>,
     t_col: usize,
-) -> f64 {
-    match coefficient_covariance(x, nrows, ncols, residuals, kind) {
-        Ok(cov) => cov[t_col * ncols + t_col].max(0.0).sqrt(),
-        Err(_) => f64::NAN,
-    }
+) -> Result<f64, EstimationError> {
+    let cov = coefficient_covariance(x, nrows, ncols, residuals, kind)?;
+    Ok(cov[t_col * ncols + t_col].max(0.0).sqrt())
 }
 
 /// Cluster-robust SE for a scalar influence/score sequence (Arellano DF).
 ///
 /// `Var = (G/(G−1)) · (1/n²) · Σ_g s_g²` with `s_g = Σ_{i∈g}(ψ_i − ψ̄)`.
-#[must_use]
-pub(crate) fn cluster_influence_se(psi: &[f64], groups: &[u32]) -> f64 {
+///
+/// # Errors
+///
+/// Fewer than two clusters, or length mismatch.
+pub(crate) fn cluster_influence_se(psi: &[f64], groups: &[u32]) -> Result<f64, EstimationError> {
     let n = psi.len();
     if n < 2 || groups.len() != n {
-        return f64::NAN;
+        return Err(EstimationError::data_msg(
+            "cluster influence SE requires n >= 2 and matching group labels",
+        ));
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
     match cluster_meat_scalar(psi, groups, mean) {
         Some((sum_s2, g_count)) if g_count > 1 => {
             let scale = (g_count as f64 / (g_count as f64 - 1.0)) / (n as f64).powi(2);
-            (scale * sum_s2).max(0.0).sqrt()
+            Ok((scale * sum_s2).max(0.0).sqrt())
         }
-        _ => f64::NAN,
+        Some((_, g_count)) if g_count < 2 => Err(EstimationError::stats_msg(
+            "cluster-robust variance requires at least 2 clusters",
+        )),
+        _ => Err(EstimationError::data_msg("cluster influence SE failed to form meat")),
     }
 }
 
@@ -372,7 +378,9 @@ pub(crate) fn panel_cluster_hac_influence_se(
     let (meat, g) = panel_hac_meat_scalar(&u, groups, time, lag)
         .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
     if g <= 1 {
-        return Ok(f64::NAN);
+        return Err(EstimationError::stats_msg(
+            "cluster-robust variance requires at least 2 clusters",
+        ));
     }
     let c_g = g as f64 / (g as f64 - 1.0);
     Ok((c_g * meat).max(0.0).sqrt() / n as f64)
@@ -411,7 +419,7 @@ pub(crate) fn influence_se_kind(
         AnalyticSeKind::Cluster => {
             let groups_full = require_clusters(cluster_ids, nrows)?;
             let g = gather_ids(groups_full);
-            cluster_influence_se(psi, &g)
+            cluster_influence_se(psi, &g)?
         }
         AnalyticSeKind::Multiway => {
             let dims = require_multiway(multiway_ids, nrows)?;
@@ -478,15 +486,36 @@ mod tests {
         let dim_c = vec![0u32, 1, 0, 1, 0, 1, 0, 1];
         let se =
             multiway_influence_se(&psi, &[dim_a.clone(), dim_b.clone(), dim_c.clone()]).unwrap();
-        let se_a = cluster_influence_se(&psi, &dim_a);
-        let se_b = cluster_influence_se(&psi, &dim_b);
-        let se_c = cluster_influence_se(&psi, &dim_c);
+        let se_a = cluster_influence_se(&psi, &dim_a).unwrap();
+        let se_b = cluster_influence_se(&psi, &dim_b).unwrap();
+        let se_c = cluster_influence_se(&psi, &dim_c).unwrap();
         let avg = ((se_a.powi(2) + se_b.powi(2) + se_c.powi(2)) / 3.0).sqrt();
         // Full CGM must differ from the old average-of-one-ways heuristic.
         assert!((se - avg).abs() > 1e-6, "se={se} avg={avg}");
         // Dimension permutation invariance.
         let se_perm = multiway_influence_se(&psi, &[dim_c, dim_a, dim_b]).unwrap();
         assert!((se - se_perm).abs() < 1e-12);
+    }
+
+    #[test]
+    fn one_cluster_influence_and_sandwich_both_error() {
+        let psi = [1.0, -0.5, 0.25, -0.25];
+        let groups = [0u32, 0, 0, 0];
+        let err_if = cluster_influence_se(&psi, &groups).unwrap_err();
+        assert!(
+            err_if.to_string().contains("at least 2 clusters"),
+            "err={err_if}"
+        );
+        let n = psi.len();
+        let mean = psi.iter().sum::<f64>() / n as f64;
+        let e: Vec<f64> = psi.iter().map(|v| v - mean).collect();
+        let x = vec![1.0; n];
+        let err_sw = coefficient_covariance(&x, n, 1, &e, SandwichKind::Cluster { groups: &groups })
+            .unwrap_err();
+        assert!(
+            err_sw.to_string().contains("at least 2 clusters"),
+            "err={err_sw}"
+        );
     }
 
     #[test]

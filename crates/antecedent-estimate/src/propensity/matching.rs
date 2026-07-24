@@ -665,7 +665,7 @@ mod tests {
                     (e - ate) * (1.0 + kd)
                 })
                 .collect();
-            crate::se::cluster_influence_se(&psi, &groups)
+            crate::se::cluster_influence_se(&psi, &groups).unwrap()
         };
         let se_reuse = se(&donors_reuse, 2);
         let se_unique = se(&donors_unique, 4);
