@@ -29,9 +29,7 @@ pub struct LikelihoodTerms {
 pub fn poisson_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, ProbError> {
     let mu = eta.exp();
     if !mu.is_finite() {
-        return Err(ProbError::Numerical {
-            message: "Poisson rate overflow".into(),
-        });
+        return Err(ProbError::Numerical { message: "Poisson rate overflow".into() });
     }
     Ok(LikelihoodTerms {
         log_value: weight * (y * eta - mu),
@@ -119,9 +117,7 @@ pub fn probit_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, Pr
         || !terms.score_eta.is_finite()
         || !terms.neg_hessian_eta.is_finite()
     {
-        return Err(ProbError::Numerical {
-            message: "non-finite probit likelihood terms".into(),
-        });
+        return Err(ProbError::Numerical { message: "non-finite probit likelihood terms".into() });
     }
     Ok(terms)
 }
@@ -203,7 +199,7 @@ mod tests {
                 // FD score check on the interior (Hastings Φ limits Hessian FD accuracy).
                 if eta.abs() <= 2.0 {
                     let f = |e: f64| probit_terms(y, e, 1.0).unwrap().log_value;
-                    let s_fd = fd_score(&f, eta);
+                    let s_fd = fd_score(f, eta);
                     assert!(
                         (t.score_eta - s_fd).abs() < 2e-3 * (1.0 + t.score_eta.abs()),
                         "score y={y} eta={eta}: got={} fd={s_fd}",

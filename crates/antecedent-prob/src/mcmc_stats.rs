@@ -483,10 +483,7 @@ mod tests {
         let expected = s * (1.0 - rho) / (1.0 + rho);
         let samples = fill_ar1(n_chains, n_draws, rho, 41);
         let ess = min_bulk_ess(&samples, n_chains, n_draws, 1);
-        assert!(
-            (ess - expected).abs() < 0.35 * expected,
-            "ess={ess} expected≈{expected}"
-        );
+        assert!((ess - expected).abs() < 0.35 * expected, "ess={ess} expected≈{expected}");
     }
 
     #[test]

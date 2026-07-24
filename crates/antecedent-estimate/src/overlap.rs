@@ -203,8 +203,8 @@ impl OverlapReport {
             _ => (None, 0),
         };
         let clip_sensitivity = match (clip, treatment, target) {
-            (Some(c), Some(t), Some(est)) if t.len() == propensities.len() => {
-                Some(clip_sensitivity_grid(propensities, t, est, c))
+            (Some(c), Some(treat), Some(ipw_target)) if treat.len() == propensities.len() => {
+                Some(clip_sensitivity_grid(propensities, treat, ipw_target, c))
             }
             _ => None,
         };
@@ -349,29 +349,29 @@ mod tests {
         let e = [0.1, 0.3, 0.6, 0.85];
         let t = [0.0, 0.0, 1.0, 1.0];
         let clip = 0.05;
-        let att = observed_ipw_weights(&t, &e, IpwTarget::Att, clip);
+        let weights_treated = observed_ipw_weights(&t, &e, IpwTarget::Att, clip);
         let t_flip: Vec<f64> = t.iter().map(|&x| 1.0 - x).collect();
         let e_flip: Vec<f64> = e.iter().map(|&x| 1.0 - x).collect();
-        let atc = observed_ipw_weights(&t_flip, &e_flip, IpwTarget::Atc, clip);
-        for (a, b) in att.iter().zip(&atc) {
+        let weights_control_flip = observed_ipw_weights(&t_flip, &e_flip, IpwTarget::Atc, clip);
+        for (a, b) in weights_treated.iter().zip(&weights_control_flip) {
             assert!((a - b).abs() < 1e-12, "att={a} atc_flipped={b}");
         }
-        let report_att = OverlapReport::from_propensities(
+        let overlap_treated = OverlapReport::from_propensities(
             &e,
             None,
             OverlapPolicy::RequireDiagnostics { clip: Some(clip), trim: None },
             Some(&t),
             Some(IpwTarget::Att),
         );
-        let report_atc = OverlapReport::from_propensities(
+        let overlap_control_flip = OverlapReport::from_propensities(
             &e_flip,
             None,
             OverlapPolicy::RequireDiagnostics { clip: Some(clip), trim: None },
             Some(&t_flip),
             Some(IpwTarget::Atc),
         );
-        let sa = report_att.clip_sensitivity.as_ref().unwrap();
-        let sc = report_atc.clip_sensitivity.as_ref().unwrap();
+        let sa = overlap_treated.clip_sensitivity.as_ref().unwrap();
+        let sc = overlap_control_flip.clip_sensitivity.as_ref().unwrap();
         for (a, b) in sa.ess.iter().zip(sc.ess.iter()) {
             assert!((a - b).abs() < 1e-10);
         }

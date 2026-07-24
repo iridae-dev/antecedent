@@ -209,7 +209,7 @@ impl ConditionalIndependenceTest for PosteriorPredictiveCi {
             let mut extreme = 1u32; // +1 continuity
             let y_rep = &mut workspace.shuffled[..n];
             for _ in 0..self.n_sims {
-                draw_m0_replicate(&nig0, &prepared_cols.x0, n, &mut rng, y_rep)?;
+                draw_m0_replicate(&nig0, &prepared_cols.x0, n, &mut rng, y_rep);
                 // Full pipeline: re-standardize y_rep, keep x/Z standardization fixed.
                 standardize_inplace(y_rep)?;
                 let r_rep =
@@ -257,7 +257,10 @@ struct PreparedQuery {
     p1: usize,
 }
 
-fn prepare_standardized(request: &CiBatchRequest<'_>, q: CiQuery) -> Result<PreparedQuery, StatsError> {
+fn prepare_standardized(
+    request: &CiBatchRequest<'_>,
+    q: CiQuery,
+) -> Result<PreparedQuery, StatsError> {
     let n = request.nrows()?;
     if q.x >= request.columns.len() || q.y >= request.columns.len() {
         return Err(StatsError::Shape { message: "CI query column out of range" });
@@ -327,7 +330,7 @@ fn standardize_col(col: &[f64]) -> Result<Vec<f64>, StatsError> {
         var += d * d;
     }
     var /= nf; // sample variance with /n (matches unit-variance standardization)
-    if !(var > 0.0) {
+    if var.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         return Err(StatsError::Shape { message: "zero-variance column in Bayesian CI" });
     }
     let s = var.sqrt();
@@ -351,7 +354,7 @@ fn standardize_inplace(col: &mut [f64]) -> Result<(), StatsError> {
         var += d * d;
     }
     var /= nf;
-    if !(var > 0.0) {
+    if var.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         return Err(StatsError::Shape { message: "zero-variance column in Bayesian CI" });
     }
     let s = var.sqrt();
@@ -414,7 +417,7 @@ fn log_marginal_nig(
     }
     let alpha_n = ALPHA0 + 0.5 * (n as f64);
     let beta_n = BETA0 + 0.5 * (yty - m_lam_m);
-    if !(beta_n > 0.0) {
+    if beta_n.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         return Err(StatsError::Backend("invalid NIG scale βn".into()));
     }
     let nf = n as f64;
@@ -436,7 +439,7 @@ fn draw_m0_replicate(
     n: usize,
     rng: &mut CausalRng,
     y_rep: &mut [f64],
-) -> Result<(), StatsError> {
+) {
     let sigma2 = sample_inv_gamma(nig.alpha_n, nig.beta_n, rng);
     let sigma = sigma2.sqrt();
     // β = m + σ L^{-T} z, z ~ N(0, I)
@@ -464,10 +467,14 @@ fn draw_m0_replicate(
         }
         y_rep[r] = mean + sigma * standard_normal(rng);
     }
-    Ok(())
 }
 
-fn abs_residual_corr_owned(x: &[f64], y: &[f64], z_cols: &[Vec<f64>], n: usize) -> Result<f64, StatsError> {
+fn abs_residual_corr_owned(
+    x: &[f64],
+    y: &[f64],
+    z_cols: &[Vec<f64>],
+    n: usize,
+) -> Result<f64, StatsError> {
     // OLS residualize x,y on [1,Z] then Pearson |r|.
     let p0 = 1 + z_cols.len();
     let x0 = design_intercept_z(n, z_cols);
@@ -633,8 +640,7 @@ fn log_bf_simple_regression_reference(rx: &[f64], ry: &[f64]) -> f64 {
     let alpha_n = ALPHA0 + 0.5 * (n as f64);
     let beta_n0 = BETA0 + 0.5 * yty;
     let nf = n as f64;
-    let log_m0 = -0.5 * nf * (2.0 * std::f64::consts::PI).ln()
-        + ALPHA0 * BETA0.ln()
+    let log_m0 = -0.5 * nf * (2.0 * std::f64::consts::PI).ln() + ALPHA0 * BETA0.ln()
         - alpha_n * beta_n0.ln()
         + ln_gamma(alpha_n)
         - ln_gamma(ALPHA0);
@@ -797,10 +803,7 @@ mod tests {
         let out = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         let xref = log_bf_empty_z_direct(&x, &y);
         let got = out.results[0].statistic;
-        assert!(
-            (got - xref).abs() < 1e-8,
-            "full={got} direct={xref}"
-        );
+        assert!((got - xref).abs() < 1e-8, "full={got} direct={xref}");
         // Also: intercept-free simple regression agrees in sign / magnitude order.
         let simple = log_bf_simple_regression_reference(&x, &y);
         assert!(got > 0.0 && simple > 0.0);
@@ -813,7 +816,7 @@ mod tests {
         let (x, y) = cols_indep(n);
         // Irrelevant Z columns independent of both.
         let z1: Vec<f64> = (0..n).map(|i| ((i as f64) * 2.414).sin()).collect();
-        let z2: Vec<f64> = (0..n).map(|i| ((i as f64) * 3.141).cos()).collect();
+        let z2: Vec<f64> = (0..n).map(|i| ((i as f64) * 3.7).cos()).collect();
         let cols: [&[f64]; 4] = [&x, &y, &z1, &z2];
         let q0 = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
         let qz = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 2 }];
@@ -883,9 +886,7 @@ mod tests {
         let mut prev = f64::NEG_INFINITY;
         for &(n, noise) in &[(40usize, 2.0), (40, 0.5), (120, 0.5)] {
             let x: Vec<f64> = (0..n).map(|i| i as f64).collect();
-            let y: Vec<f64> = (0..n)
-                .map(|i| i as f64 + noise * ((i as f64) * 0.7).sin())
-                .collect();
+            let y: Vec<f64> = (0..n).map(|i| i as f64 + noise * ((i as f64) * 0.7).sin()).collect();
             let cols: [&[f64]; 2] = [&x, &y];
             let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
             let req = CiBatchRequest {
@@ -897,10 +898,7 @@ mod tests {
             };
             let mut ws = CiWorkspace::default();
             let ctx = ExecutionContext::for_tests(9);
-            let bf = BayesFactorCi::new()
-                .test_batch_adhoc(&req, &mut ws, &ctx)
-                .unwrap()
-                .results[0]
+            let bf = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
                 .statistic;
             assert!(bf > prev, "bf={bf} prev={prev} n={n} noise={noise}");
             prev = bf;

@@ -321,10 +321,10 @@ fn fit_gaussian_laplace(
     let model = GaussianVarianceModel::from_prior_set(prior)?;
     match model {
         GaussianVarianceModel::Known { sigma2 } => {
-            fit_gaussian_laplace_known(design, coef_prior, sigma2, options, workspace)
+            fit_gaussian_laplace_known(design, &coef_prior, sigma2, options, workspace)
         }
         GaussianVarianceModel::InvGamma { shape, scale } => {
-            fit_gaussian_laplace_inv_gamma(design, coef_prior, shape, scale, options, workspace)
+            fit_gaussian_laplace_inv_gamma(design, &coef_prior, shape, scale, options, workspace)
         }
     }
 }
@@ -383,14 +383,14 @@ fn solve_map_from_normal_eq(
 
 fn fit_gaussian_laplace_known(
     design: BayesDesignRef<'_>,
-    coef_prior: GaussianCoefficientPrior,
+    coef_prior: &GaussianCoefficientPrior,
     sigma2: f64,
     options: &BayesFitOptions,
     workspace: &mut LaplaceWorkspace,
 ) -> Result<BayesFitResult, ProbError> {
     let ncols = design.ncols;
     workspace.prepare(design.nrows, ncols, options.n_draws);
-    let (a_beta, b_beta) = gaussian_normal_equations(design, &coef_prior)?;
+    let (a_beta, b_beta) = gaussian_normal_equations(design, coef_prior)?;
     let map = solve_map_from_normal_eq(&a_beta, &b_beta, ncols)?;
     let a_inv = invert_spd(&a_beta, ncols)?;
     let mut cov = vec![0.0; ncols * ncols];
@@ -405,9 +405,11 @@ fn fit_gaussian_laplace_known(
     )?;
     let mut grad = vec![0.0; ncols];
     let _lp = target.logp_and_grad(&map, &mut grad)?;
+    // Score is scaled by 1/σ²; normalize so tiny σ² does not inflate float residuals.
+    let inv_s2 = 1.0 / sigma2;
     let mut grad_inf = 0.0_f64;
     for &g in &grad {
-        grad_inf = grad_inf.max(g.abs());
+        grad_inf = grad_inf.max(g.abs() / inv_s2.max(1e-300));
     }
     let chol = cholesky_spd(&a_beta, ncols)?;
     let condition = condition_from_chol(&chol, ncols);
@@ -448,7 +450,7 @@ fn fit_gaussian_laplace_known(
 
 fn fit_gaussian_laplace_inv_gamma(
     design: BayesDesignRef<'_>,
-    coef_prior: GaussianCoefficientPrior,
+    coef_prior: &GaussianCoefficientPrior,
     shape: f64,
     scale: f64,
     options: &BayesFitOptions,
@@ -459,14 +461,14 @@ fn fit_gaussian_laplace_inv_gamma(
     let dim = ncols + 1;
     workspace.prepare(nrows, dim.max(ncols), options.n_draws.max(dim));
 
-    let (a_beta, b_beta) = gaussian_normal_equations(design, &coef_prior)?;
+    let (a_beta, b_beta) = gaussian_normal_equations(design, coef_prior)?;
     let beta_map = solve_map_from_normal_eq(&a_beta, &b_beta, ncols)?;
 
     let mut xtwr = vec![0.0; ncols];
     let mut p_diff = vec![0.0; ncols];
     let rss = rss_and_xtwr(design, &beta_map, &mut xtwr)?;
     let prec = coef_prior.precision();
-    let quad = prior_quadratic(&coef_prior, &prec, &beta_map, &mut p_diff)?;
+    let quad = prior_quadratic(coef_prior, &prec, &beta_map, &mut p_diff)?;
     let mut n_eff = 0.0;
     for r in 0..nrows {
         n_eff += design.weights.map_or(1.0, |w| w[r]);
@@ -506,10 +508,13 @@ fn fit_gaussian_laplace_inv_gamma(
     )?;
     let mut grad = vec![0.0; dim];
     let _lp = target.logp_and_grad(&joint_mean, &mut grad)?;
+    // β-block of ∇logπ is scaled by e^{-λ}; normalize so tiny σ² MAP modes (near-perfect
+    // fits) do not refuse publication on amplified floating-point score residuals.
     let mut grad_inf = 0.0_f64;
-    for &g in &grad {
-        grad_inf = grad_inf.max(g.abs());
+    for &g in &grad[..ncols] {
+        grad_inf = grad_inf.max(g.abs() / exp_neg_l.max(1e-300));
     }
+    grad_inf = grad_inf.max(grad[ncols].abs());
 
     let mut h_bb = vec![0.0; ncols * ncols];
     for i in 0..ncols * ncols {
@@ -555,9 +560,8 @@ fn fit_gaussian_laplace_inv_gamma(
         let lambda = joint_draws[ncols * options.n_draws + d];
         values[ncols * options.n_draws + d] = lambda.exp();
     }
-    let mut quantities: Vec<_> = (0..ncols)
-        .map(|i| PosteriorQuantityKind::Coefficient { index: i, name: None })
-        .collect();
+    let mut quantities: Vec<_> =
+        (0..ncols).map(|i| PosteriorQuantityKind::Coefficient { index: i, name: None }).collect();
     quantities.push(PosteriorQuantityKind::ResidualVariance);
     let schema = PosteriorSchema { quantities: Arc::from(quantities) };
     let draws = PosteriorDraws::from_column_major(schema, options.n_draws, values)?;
@@ -923,13 +927,14 @@ mod tests {
         let fit =
             fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws)
                 .unwrap();
-        let conj = crate::conjugate::fit_conjugate_gaussian(design, &prior, &opts, &mut ws).unwrap();
+        let conj =
+            crate::conjugate::fit_conjugate_gaussian(design, &prior, &opts, &mut ws).unwrap();
         assert!((fit.map[0] - conj.map[0]).abs() < 1e-9);
         assert!((fit.map[1] - conj.map[1]).abs() < 1e-9);
         let cov = fit.cov.as_ref().expect("cov");
         // Analytic Cov = σ² A^{-1}; rebuild A and compare.
-        let (a_beta, b_beta) = gaussian_normal_equations(design, prior.gaussian_coefficients().unwrap())
-            .unwrap();
+        let (a_beta, b_beta) =
+            gaussian_normal_equations(design, prior.gaussian_coefficients().unwrap()).unwrap();
         let map_ref = solve_map_from_normal_eq(&a_beta, &b_beta, 2).unwrap();
         let a_inv = invert_spd(&a_beta, 2).unwrap();
         for i in 0..2 {
@@ -940,6 +945,45 @@ mod tests {
         }
         assert!(fit.diagnostics.grad_inf_norm < 1e-8);
         assert_eq!(fit.draws.schema.n_quantities(), 2);
+    }
+
+    #[test]
+    fn laplace_gaussian_noiseless_bench_design_publishes() {
+        // Mirrors benches/laplace_glm.rs: default weak InvGamma + noiseless cubic design.
+        let n = 500usize;
+        let mut x = vec![0.0; n * 3];
+        let mut y = vec![0.0; n];
+        for r in 0..n {
+            let z = (r as f64) * 0.01;
+            x[r] = 1.0;
+            x[n + r] = z;
+            x[2 * n + r] = z * z;
+            y[r] = 0.2 + 0.5 * z - 0.1 * z * z;
+        }
+        let prior = PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
+                3, 10.0,
+            ))],
+            contrast: None,
+            categorical: Vec::new(),
+            restrictions: Vec::new(),
+        };
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 3,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let opts = BayesFitOptions { n_draws: 256, seed: 1, max_iter: 40, grad_tol: 1e-8 };
+        let mut ws = LaplaceWorkspace::default();
+        let fit =
+            fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws)
+                .expect("noiseless InvGamma Laplace must publish");
+        assert!(fit.diagnostics.allows_posterior());
+        assert!(fit.diagnostics.grad_inf_norm < 1e-8, "grad={}", fit.diagnostics.grad_inf_norm);
+        assert!(fit.diagnostics.hessian_condition.is_finite());
     }
 
     #[test]
@@ -980,15 +1024,16 @@ mod tests {
             fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws)
                 .unwrap();
 
-        let (a_beta, b_beta) = gaussian_normal_equations(design, prior.gaussian_coefficients().unwrap())
-            .unwrap();
+        let (a_beta, b_beta) =
+            gaussian_normal_equations(design, prior.gaussian_coefficients().unwrap()).unwrap();
         let beta_ref = solve_map_from_normal_eq(&a_beta, &b_beta, 2).unwrap();
         let mut xtwr = vec![0.0; 2];
         let mut p_diff = vec![0.0; 2];
         let rss = rss_and_xtwr(design, &beta_ref, &mut xtwr).unwrap();
         let prec = prior.gaussian_coefficients().unwrap().precision();
-        let quad = prior_quadratic(prior.gaussian_coefficients().unwrap(), &prec, &beta_ref, &mut p_diff)
-            .unwrap();
+        let quad =
+            prior_quadratic(prior.gaussian_coefficients().unwrap(), &prec, &beta_ref, &mut p_diff)
+                .unwrap();
         let a_const = shape + 0.5 * (n as f64 + 2.0);
         let b_at = scale + 0.5 * (rss + quad);
         let lambda_ref = (b_at / a_const).ln();
@@ -1067,8 +1112,8 @@ mod tests {
         let fit =
             fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws)
                 .unwrap();
-        let (a_beta, b_beta) = gaussian_normal_equations(design, prior.gaussian_coefficients().unwrap())
-            .unwrap();
+        let (a_beta, b_beta) =
+            gaussian_normal_equations(design, prior.gaussian_coefficients().unwrap()).unwrap();
         let map_ref = solve_map_from_normal_eq(&a_beta, &b_beta, 1).unwrap();
         // Strong pull toward 0: MAP far below OLS (~5).
         assert!(fit.map[0] < 1.0, "map={}", fit.map[0]);
@@ -1119,12 +1164,9 @@ mod tests {
             GaussianVarianceModel::Known { sigma2: 1.5 },
         )
         .unwrap();
-        let mut t2 = gaussian_target_from_model(
-            design,
-            coef,
-            GaussianVarianceModel::Known { sigma2: 1.5 },
-        )
-        .unwrap();
+        let mut t2 =
+            gaussian_target_from_model(design, coef, GaussianVarianceModel::Known { sigma2: 1.5 })
+                .unwrap();
         let mut g1 = vec![0.0; 2];
         let mut g2 = vec![0.0; 2];
         let lp1 = t1.logp_and_grad(&fit.map, &mut g1).unwrap();
@@ -1255,9 +1297,8 @@ mod tests {
         };
         let mut ws = LaplaceWorkspace::default();
         let opts = BayesFitOptions { n_draws: 50, seed: 5, max_iter: 80, grad_tol: 1e-10 };
-        let fit =
-            fit_laplace_glm(BayesLikelihood::BernoulliProbit, design, &prior, &opts, &mut ws)
-                .unwrap();
+        let fit = fit_laplace_glm(BayesLikelihood::BernoulliProbit, design, &prior, &opts, &mut ws)
+            .unwrap();
         assert!(fit.diagnostics.converged);
         let coef = prior.gaussian_coefficients().unwrap();
         let prec = coef.precision();

@@ -34,8 +34,8 @@ fn bench_laplace(c: &mut Criterion) {
     let opts = BayesFitOptions { n_draws: 256, seed: 1, max_iter: 40, grad_tol: 1e-8 };
 
     let mut ws = LaplaceWorkspace::default();
-    // Warm-up prepare so timed loop measures reuse, not first allocation.
-    ws.prepare(n, 3, opts.n_draws);
+    // Warm-up for joint (β, λ) state under the default InvGamma residual model (dim = p+1).
+    ws.prepare(n, 4, opts.n_draws);
     let grow_before = ws.grow_count;
 
     c.bench_function("laplace_gaussian_n500_p3", |b| {

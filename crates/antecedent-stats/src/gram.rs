@@ -66,13 +66,13 @@ pub fn cholesky_spd(a: &[f64], n: usize) -> Option<Vec<f64>> {
                 sum -= l[i * n + k] * l[j * n + k];
             }
             if i == j {
-                if !(sum > 0.0) {
+                if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
                     return None;
                 }
                 l[i * n + j] = sum.sqrt();
             } else {
                 let diag = l[j * n + j];
-                if !(diag > 0.0) {
+                if diag.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
                     return None;
                 }
                 l[i * n + j] = sum / diag;
@@ -105,7 +105,7 @@ pub fn chol_solve(chol: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
             acc -= chol[i * n + j] * y[j];
         }
         let diag = chol[i * n + i];
-        if !(diag > 0.0) {
+        if diag.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return None;
         }
         y[i] = acc / diag;
