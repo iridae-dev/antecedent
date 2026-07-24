@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Causal identification (backdoor and related)"
+description = "Causal identification for the Antecedent engine: backdoor, front-door, IV, ID/IDC, and temporal strategies; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

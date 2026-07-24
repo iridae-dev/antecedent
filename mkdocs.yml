@@ -2,7 +2,7 @@
 # Python API: pdoc HTML merged into the RTD site at /python/ (see .readthedocs.yaml).
 # Rust API: docs.rs/antecedent.
 site_name: Antecedent
-site_description: Explicit causal inference for Python and Rust
+site_description: Identification-first causal inference for Python and Rust — from causal structure through estimation, interventions, and counterfactuals under structural uncertainty
 site_url: https://antecedent.readthedocs.io/
 repo_url: https://github.com/iridae-dev/antecedent
 edit_uri: edit/main/docs/
@@ -30,6 +30,8 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Capabilities: capabilities.md
+  - Comparison: comparison.md
   - Python API: python-api.md
   - Architecture: architecture.md
   - Development: development.md

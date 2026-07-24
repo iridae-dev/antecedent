@@ -1,5 +1,10 @@
 //! Unified static/temporal `CausalAnalysis` facade (identify → estimate → refute).
 //!
+//! Antecedent is an identification-first causal inference engine: identification
+//! is evaluated before estimation, refuters run against the estimate, and
+//! uncertainty about causal structure (equivalence classes, graph posteriors) is
+//! retained rather than silently resolved.
+//!
 //! # Quick start
 //!
 //! ```

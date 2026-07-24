@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Experiment/measurement design, EIG ranking, and decision utilities"
+description = "Experimental-design ranking (expected information gain, identification probability) and decision utilities for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

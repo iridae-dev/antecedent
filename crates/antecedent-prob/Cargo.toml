@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Probability distributions, columnar posteriors, priors, and inference backends"
+description = "Probability distributions, columnar posteriors, priors, and inference backends for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

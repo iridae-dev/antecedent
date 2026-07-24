@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Library-owned causal data views and Arrow-backed adapters"
+description = "Causal data views and Arrow-backed adapters for the Antecedent causal inference engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

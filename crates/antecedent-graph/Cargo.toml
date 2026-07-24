@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Causal graph types, dense indexes, and traversal workspaces"
+description = "Causal graph types (DAG, ADMG, CPDAG, PAG, temporal), separation queries, and traversal workspaces for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Effect refuters and validation diagnostics"
+description = "Effect refuters, sensitivity analysis, and validation diagnostics for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]
