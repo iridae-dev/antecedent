@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Core identifiers, schemas, assumptions, provenance, and execution policy for Antecedent"
+description = "Identifiers, schemas, assumptions, provenance, and execution policy shared across the Antecedent causal inference engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

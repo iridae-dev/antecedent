@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "antecedent"
 version = "0.1.0"
-description = "Antecedent — explicit causal inference for Python and Rust"
+description = "Identification-first causal inference: discovery, identification, estimation, interventions, and counterfactuals under structural uncertainty"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT OR Apache-2.0" }
@@ -25,7 +25,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/iridae-dev/antecedent"
 Repository = "https://github.com/iridae-dev/antecedent"
-Documentation = "https://github.com/iridae-dev/antecedent#readme"
+Documentation = "https://antecedent.readthedocs.io/"
 "Release notes" = "https://github.com/iridae-dev/antecedent/blob/main/CHANGELOG.md"
 
 [tool.maturin]

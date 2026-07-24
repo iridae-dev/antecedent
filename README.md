@@ -1,14 +1,20 @@
 # Antecedent
 
-Antecedent is a causal inference library written in Rust with a Python API.
+Antecedent is an identification-first causal inference engine for Python and Rust. It takes an analysis from causal structure through estimation, diagnostics, interventions, and counterfactuals — without silently treating discovered graphs as ground truth.
 
-It provides a single workflow for causal discovery, identification, estimation, Bayesian inference, interventions, counterfactuals, attribution, validation, experimental design, and incremental causal state.
+Most causal tooling asks you to supply the true DAG and then conditions every downstream number on it, even though the graph is usually the least certain input you have. Antecedent is built for **causal inference under structural uncertainty**: discovered structure — a CPDAG, a PAG, a posterior over graphs — is treated as evidence about the causal graph, and that uncertainty is propagated into identification, estimation, and effect intervals rather than resolved by fiat.
 
-The library is built around three rules:
+Three rules are enforced throughout:
 
 * identification is evaluated before estimation;
 * priors and parametric assumptions do not upgrade nonparametric identification;
 * uncertainty about causal structure is retained rather than silently resolved.
+
+Everything else in the library supports that position:
+
+* **One engine, whole workflow.** Discovery, identification, estimation, Bayesian inference, interventions, counterfactuals, attribution, validation, and experimental design share one API and one set of guarantees — assumptions are not lost at the seams between libraries.
+* **Temporal and online analysis.** Temporal graphs with their own semantics, PCMCI-family discovery, temporal identification and estimation, and incremental `CausalState` for streaming workflows.
+* **A Rust core.** The scientific engine is written in Rust with a first-class Python API, so the same computation runs in notebooks and in production.
 
 ## Quick start
 
@@ -16,21 +22,33 @@ The library is built around three rules:
 pip install antecedent
 ```
 
+Paste this block and run it. It simulates a confounded dataset, checks that the effect is identified, estimates it, and runs refuters against the estimate:
+
 ```python
+import numpy as np
 from antecedent import AverageEffect, analyze
 
+rng = np.random.default_rng(0)
+n = 2000
+season = rng.normal(size=n)                               # confounder
+price = 0.7 * season + rng.normal(size=n)                 # treatment
+sales = 1.5 * price + 2.0 * season + rng.normal(size=n)   # outcome, true effect = 1.5
+
 result = analyze(
-    data=data,
-    graph=graph,
-    query=AverageEffect(
-        treatment="treatment",
-        outcome="outcome",
-    ),
+    data={"season": season, "price": price, "sales": sales},
+    graph=[("season", "price"), ("season", "sales"), ("price", "sales")],
+    query=AverageEffect(treatment="price", outcome="sales"),
 )
 
 print(result.identification)
 print(result.estimate)
 print(result.validation)
+```
+
+```text
+IdentificationView(status='NonparametricallyIdentified', method='backdoor.adjustment', adjustment_set=['season'], assumption_count=1, derivation_step_count=2)
+EstimateView(ate=1.4809859501787295, se_analytic=0.0222..., se_bootstrap=0.0215..., estimator_id='linear.adjustment.ate', method='backdoor.adjustment', ...)
+ValidationView(passed=True, ran=True, count=2, ...)
 ```
 
 The corresponding Rust interface uses `CausalAnalysis::builder()`:
@@ -58,6 +76,113 @@ An analysis can include:
 * uncertainty across compatible graphs;
 * diagnostics, refuters, and sensitivity analyses;
 * provenance and serialized artifacts.
+
+## See it work
+
+### Estimate an intervention effect from tabular data
+
+Treatment assignment depends on a confounder, so the naive contrast is biased. Adjusting for the graph recovers the true effect of 2:
+
+```python
+import numpy as np
+from antecedent import AverageEffect, analyze
+
+rng = np.random.default_rng(11)
+n = 1200
+severity = rng.normal(size=n)                                   # confounder
+treated = (rng.random(n) < 1 / (1 + np.exp(0.4 - 0.9 * severity))).astype(float)
+recovery = 2.0 * treated + severity + 0.4 * rng.normal(size=n)  # true effect = 2
+
+result = analyze(
+    data={"treated": treated, "recovery": recovery, "severity": severity},
+    graph=[("severity", "treated"), ("severity", "recovery"), ("treated", "recovery")],
+    query=AverageEffect(treatment="treated", outcome="recovery"),
+    estimator="propensity.weighting",
+    seed=11,
+)
+naive = recovery[treated == 1].mean() - recovery[treated == 0].mean()
+print(f"naive difference in means: {naive:.2f}")
+print(f"adjusted causal effect:    {result.ate:.2f}  (se {result.estimate.se_bootstrap:.2f})")
+```
+
+```text
+naive difference in means: 2.73
+adjusted causal effect:    2.02  (se 0.03)
+```
+
+### Discover a graph while retaining structural uncertainty
+
+On linear-Gaussian data, PC recovers the skeleton but cannot orient a single edge — every DAG in the equivalence class fits equally well. Antecedent will not pick an orientation for you. Either review the graph explicitly (`AcceptedGraph`), or propagate the uncertainty through a posterior over graphs:
+
+```python
+import numpy as np
+import antecedent
+from antecedent import AverageEffect, Bayesian, ExactDagPosterior, analyze
+
+rng = np.random.default_rng(7)
+n = 2000
+z = rng.normal(size=n)
+t = 0.8 * z + rng.normal(size=n)
+y = 1.5 * t + z + rng.normal(size=n)
+data = {"z": z, "t": t, "y": y}
+
+pc = antecedent.discover_pc(data, alpha=0.05)
+print(f"edges oriented by PC: {pc.cpdag_directed_edges} directed, {pc.cpdag_undirected_edges} undirected")
+
+result = analyze(
+    data=data,
+    discovery=ExactDagPosterior(),
+    query=AverageEffect(treatment="t", outcome="y"),
+    inference=Bayesian(n_draws=200, backend="conjugate"),
+    seed=7,
+)
+p = result.posterior
+print(f"effect posterior over compatible graphs: {p.effect_mean:.2f} ± {p.effect_sd:.2f}")
+print(f"posterior mass on graphs where the effect is unidentified: {p.unidentified_mass:.2f}")
+```
+
+```text
+edges oriented by PC: 0 directed, 3 undirected
+effect posterior over compatible graphs: 1.83 ± 0.02
+posterior mass on graphs where the effect is unidentified: 0.50
+```
+
+Half of the structure posterior cannot identify this effect at all. That mass is reported alongside the estimate rather than renormalized away — the number tells you how much of what you believe about the structure the estimate silently ignores.
+
+### Diagnose a temporal mechanism
+
+A manufacturing line where pressure drives the defect rate one step later. The temporal graph uses lagged edges, identification goes through the unfolded temporal backdoor, and the query asks what a one-step pressure pulse does to defects:
+
+```python
+import numpy as np
+from antecedent import PulseEffect, analyze
+
+rng = np.random.default_rng(42)
+n = 400
+pressure = rng.normal(size=n)
+defect = np.zeros(n)
+for t in range(1, n):
+    defect[t] = 0.9 * pressure[t - 1] + 0.1 * rng.normal()
+
+result = analyze(
+    data={"pressure": pressure, "defect": defect},
+    graph=[("pressure", 1, "defect", 0)],   # pressure at lag 1 → defect now
+    query=PulseEffect(
+        treatment="pressure", outcome="defect",
+        treatment_lag=1, horizon_steps=1, active_level=1.0,
+    ),
+    seed=42,
+)
+print(result.identification)
+print(f"one-step effect of a pressure pulse on defect rate: {result.ate:.3f}")
+```
+
+```text
+IdentificationView(status='NonparametricallyIdentified', method='temporal.backdoor.unfolded', adjustment_set=[], assumption_count=2, derivation_step_count=3)
+one-step effect of a pressure pulse on defect rate: 0.895
+```
+
+Longer, runnable versions of these and more live in [`python/examples/`](python/examples/) — discover-once-then-estimate-many with `AcceptedGraph`, sequential Bayesian analysis with prior transfer, propensity weighting with overlap diagnostics, experimental-design ranking, and streaming `CausalState` workflows — and in [`crates/antecedent/examples/`](crates/antecedent/examples/) for Rust.
 
 ## Workflow
 
@@ -95,301 +220,45 @@ Antecedent uses typed causal queries rather than a string query language.
 | Counterfactual queries       | Nested and unit-level counterfactuals          |
 | Attribution queries          | Anomaly, mechanism, path, and unit attribution |
 
-## Graphs
-
-Supported graph classes include:
-
-* DAG;
-* ADMG;
-* CPDAG;
-* PAG;
-* temporal DAG;
-* temporal CPDAG;
-* temporal PAG.
-
-Graph operations include:
-
-* d-separation;
-* m-separation;
-* districts;
-* latent projection;
-* Markov-equivalence completions;
-* definite-status separation;
-* temporal unfolding;
-* intervention overlays.
-
-Static and temporal graphs have separate semantics. A static graph is not interpreted as temporal by default.
-
-Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned CBOR artifacts.
-
-## Discovery
-
-### Static
-
-* PC
-* FCI
-* RFCI
-* GES
-* DirectLiNGAM
-* NOTEARS
-
-### Temporal and multi-context
-
-* PCMCI
-* PCMCI+
-* LPCMCI
-* J-PCMCI+
-* regime-specific RPCMCI workflows
-
-### Bayesian structure learning
-
-* exact DAG posterior;
-* order MCMC;
-* structure MCMC;
-* CI-screened graph posterior;
-* DBN posterior.
-
-Posterior graph samples can be propagated into downstream effect analyses.
-
-### Conditional independence tests
-
-Supported tests include:
-
-* partial correlation;
-* weighted and robust partial correlation;
-* regression CI;
-* k-nearest-neighbour CI;
-* mixed k-nearest-neighbour CI;
-* symbolic conditional mutual information;
-* GPDC;
-* G²;
-* oracle tests;
-* Bayesian CI tests.
-
-Multiplicity corrections include BH, BY, Bonferroni, and Holm.
-
-Discovery stability tools include block bootstrap, lag and threshold sensitivity, orientation stability, environment holdout, synthetic-null checks, and permutation or phase-randomized surrogates.
-
-## Identification
-
-Antecedent reports whether a query is:
-
-* nonparametrically identified;
-* partially identified;
-* graph-dependent;
-* not identified.
-
-Implemented identification strategies include:
-
-* backdoor adjustment;
-* efficient backdoor adjustment;
-* front-door identification;
-* instrumental variables;
-* sharp regression discontinuity;
-* ID and IDC for DAGs and ADMGs;
-* hedge certificates;
-* nonparametric path-specific identification;
-* generalized adjustment for partial graphs;
-* unfolded temporal backdoor;
-* temporal mediation.
-
-`AutoIdentifier` reports applicable strategies. It does not silently choose an estimator.
-
-For PAGs, Antecedent uses identification envelopes or explicit graph completions. Full PAG-native ID and IDC are outside the supported scope.
-
-## Estimation
-
-### Frequentist
-
-* linear and generalized-linear outcome regression;
-* g-computation;
-* inverse probability weighting;
-* propensity matching;
-* covariate-distance matching;
-* stratification;
-* AIPW;
-* front-door two-stage estimation;
-* Wald estimation;
-* 2SLS;
-* sharp local-linear regression discontinuity;
-* linear conditional effect models;
-* temporal adjustment;
-* temporal mediation;
-* functional plug-in estimation.
-
-### Bayesian
-
-* Bayesian g-computation;
-* temporal Bayesian g-computation;
-* conjugate Gaussian models;
-* Laplace GLM approximation;
-* HMC GLMs;
-* graph-by-effect posterior envelopes;
-* same-design prior transfer;
-* effect-level and mapped prior transfer;
-* prior catalogs and compatibility filtering;
-* power-prior mixtures;
-* conflict-sensitive prior weighting;
-* transport policies across compatible designs.
-
-Unidentified graph-posterior mass is retained rather than silently renormalized away.
-
-## Interventions and counterfactuals
-
-Antecedent includes a structural causal model layer.
-
-Supported mechanisms include:
-
-* linear-Gaussian models;
-* constant mechanisms;
-* discrete mechanisms;
-* hierarchical linear and generalized-linear models;
-* Minnesota BVAR;
-* linear Gaussian state-space models;
-* Gaussian-process mechanisms.
-
-Supported interventions include:
-
-* hard interventions;
-* soft interventions;
-* stochastic interventions;
-* sequenced interventions;
-* temporal policies;
-* dynamic policies;
-* mechanism overrides.
-
-Do-sampling methods include weighting, KDE, and MCMC.
-
-Counterfactual support includes:
-
-* abduction–action–prediction;
-* nested counterfactuals;
-* temporal trajectories;
-* unit-level counterfactual analysis.
-
-## Attribution and diagnostics
-
-Antecedent can analyze:
-
-* anomalous outcomes;
-* distribution shifts;
-* structural changes;
-* mechanism changes;
-* change points;
-* unit-level change;
-* path contributions;
-* arrow strength;
-* feature relevance;
-* root-cause rankings.
-
-Implemented techniques include:
-
-* likelihood-ratio tests;
-* mean-difference tests;
-* classifier-based tests;
-* MMD;
-* Gaussian KL divergence;
-* CUSUM-style scans;
-* Shapley attribution;
-* coalition caching.
-
-## Validation and sensitivity
-
-Estimate validation includes:
-
-* placebo refuters;
-* random common-cause refuters;
-* unobserved common-cause refuters;
-* bootstrap refuters;
-* data-subset refuters;
-* dummy-outcome refuters;
-* overlap diagnostics;
-* E-values;
-* graph refutation.
-
-Sensitivity methods include:
-
-* linear sensitivity;
-* partial-linear sensitivity;
-* nonparametric sensitivity;
-* Reisz sensitivity.
-
-Bayesian validation includes:
-
-* prior predictive checks;
-* prior sensitivity;
-* MCMC diagnostics;
-* simulation-based calibration hooks.
-
-Resampling support includes:
-
-* IID bootstrap;
-* Bayesian bootstrap;
-* moving-block bootstrap;
-* circular-block bootstrap;
-* column permutation;
-* phase-randomized surrogates.
-
-## Experimental design
-
-Antecedent can rank candidate actions such as:
-
-* measuring a variable;
-* intervening on a variable;
-* observing an environment;
-* changing a sampling plan.
-
-Ranking criteria include:
-
-* expected information gain;
-* probability of identification;
-* expected effect-interval width;
-* decision utility.
-
-The design layer supports batched Monte Carlo evaluation, common random numbers, and early stopping.
-
-## Incremental state
-
-`CausalState` supports stateful and online workflows.
-
-Available components include:
-
-* explicit invalidation;
-* incremental OLS;
-* streaming covariance;
-* particle-filter state-space models;
-* local score caches;
-* rolling mechanism diagnostics;
-* configurable cache budgets;
-* prepared analyses;
-* progressive and cancellable execution;
-* adaptive resampling.
-
-Invalidation does not automatically rerun an analysis.
-
-## Data support
-
-Antecedent supports:
-
-* tabular data;
-* time series;
-* panel data;
-* multi-environment data;
-* event data converted into temporal frames.
-
-Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
-
-## Artifacts
-
-Versioned artifacts include:
-
-* graphs;
-* graph posteriors;
-* model bundles;
-* analysis traces;
-* causal state.
-
-Artifacts use schema-versioned CBOR containers with optional Zstandard-compressed sections, selective reads, and memory-mapped access.
+## Capabilities
+
+The full inventory — every graph class, algorithm, estimator, refuter, and
+mechanism — lives in [docs/capabilities.md](docs/capabilities.md) (also on
+[Read the Docs](https://antecedent.readthedocs.io/en/latest/capabilities/)).
+The highlights:
+
+* **Graphs.** DAG, ADMG, CPDAG, PAG, and their temporal variants, with
+  d-/m-separation, latent projection, and Markov-equivalence operations.
+  Static and temporal semantics are distinct. Interchange via NetworkX, DOT,
+  JSON, GML, and versioned CBOR.
+* **Discovery.** PC, FCI, RFCI, GES, DirectLiNGAM, NOTEARS; the temporal
+  PCMCI family (PCMCI, PCMCI+, LPCMCI, J-PCMCI+, regime-specific RPCMCI);
+  Bayesian structure posteriors that propagate into downstream effect
+  analyses; discovery stability validators.
+* **Identification.** Backdoor, front-door, IV, sharp RD, ID/IDC on DAGs and
+  ADMGs, generalized adjustment for partial graphs, and temporal strategies.
+  Every query is reported as identified, partially identified,
+  graph-dependent, or not identified.
+* **Estimation.** Regression, g-computation, IPW, matching, AIPW, 2SLS, RD,
+  and temporal estimators on the frequentist side; Bayesian g-computation,
+  HMC GLMs, prior transfer, and graph-by-effect posterior envelopes on the
+  Bayesian side.
+* **Interventions and counterfactuals.** An SCM layer with hard, soft,
+  stochastic, sequenced, and policy interventions; abduction–action–prediction
+  counterfactuals, nested counterfactuals, and temporal trajectories.
+* **Attribution and diagnostics.** Anomaly, distribution-shift, change-point,
+  and unit-level attribution; Shapley-based root-cause ranking.
+* **Validation and sensitivity.** Placebo, common-cause, bootstrap, and
+  data-subset refuters; overlap diagnostics; E-values; linear through
+  nonparametric sensitivity; Bayesian predictive checks.
+* **Experimental design.** Rank measure/intervene/observe actions by expected
+  information gain, probability of identification, or decision utility.
+* **Incremental state.** `CausalState` for online workflows: streaming
+  sufficient statistics, particle filters, prepared analyses, and explicit
+  invalidation that never silently reruns an analysis.
+* **Data and artifacts.** NumPy, pandas, and Arrow in Python; tabular,
+  time-series, panel, and multi-environment data; schema-versioned CBOR
+  artifacts with memory-mapped access.
 
 ## Scientific scope
 
@@ -405,41 +274,20 @@ Antecedent follows several explicit constraints:
 
 ## Platform support
 
-Python wheels are provided for:
-
-* CPython 3.11–3.14;
-* Linux;
-* macOS;
-* Windows.
-
-The scientific engine and native API are written in Rust. No additional language bindings are currently provided.
-
-Python: `pip install antecedent` (PyPI; also GitHub Release wheels). Rust: `cargo add antecedent` (crates.io) — see [docs/development.md](docs/development.md).
+Python wheels cover CPython 3.11–3.14 on Linux, macOS, and Windows:
+`pip install antecedent` (PyPI; also GitHub Release wheels). The scientific
+engine and native API are written in Rust: `cargo add antecedent` (crates.io) —
+see [docs/development.md](docs/development.md). No other language bindings are
+currently provided.
 
 ## Documentation
 
-The documentation covers:
+Narrative docs and the Python API reference are on
+[Read the Docs](https://antecedent.readthedocs.io/) ([Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html));
+the Rust API is on [docs.rs/antecedent](https://docs.rs/antecedent). Locally:
+`mkdocs serve`, `cargo doc -p antecedent --open`.
 
-* installation;
-* typed queries;
-* graph construction;
-* discovery;
-* identification;
-* estimation;
-* Bayesian inference;
-* temporal and panel analysis;
-* interventions;
-* counterfactuals;
-* attribution;
-* validation;
-* experimental design;
-* artifacts;
-* Rust API;
-* Python API.
-
-Docs: [Read the Docs](https://antecedent.readthedocs.io/) (narrative + [Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html)). Rust: [docs.rs/antecedent](https://docs.rs/antecedent). Locally: `mkdocs serve`, `cargo doc -p antecedent --open`.
-
-Also: [Architecture](docs/architecture.md) · [Development](docs/development.md) · [API naming](docs/api_naming.md) · [ADRs](adr/README.md) · [Examples](crates/antecedent/examples/) · [Python examples](python/examples/).
+Also: [Full capabilities](docs/capabilities.md) · [Comparison with DoWhy, EconML, Tigramite, causal-learn](docs/comparison.md) · [Architecture](docs/architecture.md) · [Development](docs/development.md) · [API naming](docs/api_naming.md) · [ADRs](adr/README.md) · [Examples](crates/antecedent/examples/) · [Python examples](python/examples/).
 
 ## Contributing
 

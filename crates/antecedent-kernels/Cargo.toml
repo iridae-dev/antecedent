@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Low-level borrowed views and scalar/optimized numerical kernels"
+description = "Low-level borrowed views and scalar/optimized numerical kernels for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

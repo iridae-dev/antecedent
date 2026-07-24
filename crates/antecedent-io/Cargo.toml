@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Versioned artifact container and wire types for Antecedent"
+description = "Versioned artifact containers and wire types (graphs, posteriors, model bundles) for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

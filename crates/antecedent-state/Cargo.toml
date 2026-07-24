@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Incremental causal state, invalidation, and sufficient statistics"
+description = "Incremental causal state, invalidation, and sufficient statistics for online analysis in the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

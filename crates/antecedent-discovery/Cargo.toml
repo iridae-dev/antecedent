@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Causal discovery algorithms (PCMCI family, static PC/GES/LiNGAM/NOTEARS, Bayesian graph posterior)"
+description = "Causal discovery for the Antecedent engine: PC, GES, LiNGAM, NOTEARS, FCI, the PCMCI family, and Bayesian graph posteriors; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

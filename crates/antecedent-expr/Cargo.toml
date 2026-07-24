@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Arena-backed symbolic causal-functional IR"
+description = "Arena-backed symbolic IR for causal functionals (estimands) in the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

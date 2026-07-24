@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Estimators for identified causal functionals"
+description = "Frequentist and Bayesian estimators for identified causal effects in the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]

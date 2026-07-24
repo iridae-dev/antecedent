@@ -10,7 +10,7 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Anomaly, distribution-change, and Shapley attribution"
+description = "Anomaly, distribution-change, root-cause, and Shapley attribution for the Antecedent causal inference engine; start with the `antecedent` crate"
 readme = "README.md"
 
 [lints]
