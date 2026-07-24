@@ -285,13 +285,21 @@ pub(crate) fn hetero_influence_se(psi: &[f64]) -> f64 {
 ///
 /// # Errors
 ///
-/// Interning / dimension limits, or materially negative IE residual.
+/// Empty / mismatched dimensions, any CGM subset with `G < 2`, interning /
+/// dimension limits, or materially negative IE residual.
 pub(crate) fn multiway_influence_se(
     psi: &[f64],
     dimensions: &[Vec<u32>],
 ) -> Result<f64, EstimationError> {
-    if dimensions.is_empty() || psi.len() < 2 {
-        return Ok(f64::NAN);
+    if dimensions.is_empty() {
+        return Err(EstimationError::data_msg(
+            "multiway influence SE requires at least one clustering dimension",
+        ));
+    }
+    if psi.len() < 2 {
+        return Err(EstimationError::data_msg(
+            "multiway influence SE requires n >= 2",
+        ));
     }
     let d = dimensions.len();
     if d > MAX_CLUSTER_DIMENSIONS {
@@ -302,7 +310,10 @@ pub(crate) fn multiway_influence_se(
     let n = psi.len();
     for dim in dimensions {
         if dim.len() != n {
-            return Ok(f64::NAN);
+            return Err(EstimationError::data_msg(format!(
+                "multiway dimension length {} != n {n}",
+                dim.len()
+            )));
         }
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
@@ -313,10 +324,14 @@ pub(crate) fn multiway_influence_se(
         let _g = intern_cluster_tuples(&refs, mask, &mut combined)
             .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
         let Some((m_s, g_s)) = cluster_meat_scalar(psi, &combined, mean) else {
-            return Ok(f64::NAN);
+            return Err(EstimationError::data_msg(
+                "multiway influence SE failed to form meat",
+            ));
         };
-        if g_s <= 1 {
-            return Ok(f64::NAN);
+        if g_s < 2 {
+            return Err(EstimationError::stats_msg(
+                "cluster-robust variance requires at least 2 clusters",
+            ));
         }
         let c_s = g_s as f64 / (g_s as f64 - 1.0);
         // Accumulate signed `c_S M_S`; divide by `n²` after IE.
@@ -359,25 +374,34 @@ pub(crate) fn newey_west_influence_se(psi: &[f64], lag: usize) -> f64 {
 ///
 /// # Errors
 ///
-/// Missing / invalid `(cluster, time)` labels or non-finite ψ.
+/// Missing / invalid `(cluster, time)` labels, fewer than two clusters, or
+/// non-finite ψ.
 pub(crate) fn panel_cluster_hac_influence_se(
     psi: &[f64],
     groups: &[u32],
     time: &[i64],
     lag: usize,
 ) -> Result<f64, EstimationError> {
+    // lag = 0 is Arellano/cluster meat, matching SandwichKind::PanelClusterHac.
+    if lag == 0 {
+        return cluster_influence_se(psi, groups);
+    }
     let n = psi.len();
     if n < 2 {
-        return Ok(f64::NAN);
+        return Err(EstimationError::data_msg(
+            "panel HAC influence SE requires n >= 2",
+        ));
     }
     if groups.len() != n || time.len() != n {
-        return Ok(f64::NAN);
+        return Err(EstimationError::data_msg(
+            "panel HAC groups/time length must match n",
+        ));
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
     let u: Vec<f64> = psi.iter().map(|v| v - mean).collect();
     let (meat, g) = panel_hac_meat_scalar(&u, groups, time, lag)
         .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
-    if g <= 1 {
+    if g < 2 {
         return Err(EstimationError::stats_msg(
             "cluster-robust variance requires at least 2 clusters",
         ));
@@ -575,5 +599,45 @@ mod tests {
         .unwrap();
         let se_sw = cov[0].sqrt();
         assert!((se_if - se_sw).abs() < 1e-10, "if={se_if} sandwich={se_sw}");
+    }
+
+    #[test]
+    fn multiway_singleton_dimension_errors() {
+        let psi = [1.0, -0.5, 0.25, -0.25];
+        let dim_ok = vec![0u32, 0, 1, 1];
+        let dim_singleton = vec![0u32, 0, 0, 0];
+        let err = multiway_influence_se(&psi, &[dim_ok, dim_singleton]).unwrap_err();
+        assert!(err.to_string().contains("at least 2 clusters"), "err={err}");
+        assert!(multiway_influence_se(&psi, &[]).is_err());
+        assert!(multiway_influence_se(&psi, &[vec![0u32, 1]]).is_err());
+    }
+
+    #[test]
+    fn panel_hac_lag_zero_matches_cluster() {
+        let psi = [1.0, 0.5, 0.25, -1.0, -0.5, -0.25, 0.75, 0.4];
+        let n = psi.len();
+        let groups = [0u32, 0, 0, 0, 1, 1, 1, 1];
+        let time = [0i64, 1, 2, 3, 0, 1, 2, 3];
+        let se_panel = panel_cluster_hac_influence_se(&psi, &groups, &time, 0).unwrap();
+        let se_cluster = cluster_influence_se(&psi, &groups).unwrap();
+        assert!(
+            (se_panel - se_cluster).abs() < 1e-12,
+            "panel lag0={se_panel} cluster={se_cluster}"
+        );
+        let mean = psi.iter().sum::<f64>() / n as f64;
+        let e: Vec<f64> = psi.iter().map(|v| v - mean).collect();
+        let x = vec![1.0; n];
+        let cov_panel = coefficient_covariance(
+            &x,
+            n,
+            1,
+            &e,
+            SandwichKind::PanelClusterHac { groups: &groups, time: &time, lag: 0 },
+        )
+        .unwrap();
+        let cov_cluster =
+            coefficient_covariance(&x, n, 1, &e, SandwichKind::Cluster { groups: &groups })
+                .unwrap();
+        assert!((cov_panel[0] - cov_cluster[0]).abs() < 1e-12);
     }
 }
