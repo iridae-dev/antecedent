@@ -39,14 +39,17 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --deepen=50 origin "${{ github.base_ref }}" || true
-          RANGE="origin/${{ github.base_ref }}...HEAD"
+          # pull_request checkout is the ephemeral merge commit into the base;
+          # that merge has no Signed-off-by. Check only non-merge commits on
+          # the branch side of the two-dot range.
+          RANGE="origin/${{ github.base_ref }}..HEAD"
           while IFS= read -r commit; do
             if ! git log -1 --format=%B "$commit" | grep -qE '^Signed-off-by: .+ <.+@.+>$'; then
               echo "Missing DCO on $commit"
               git log -1 --format=%B "$commit"
               exit 1
             fi
-          done < <(git rev-list "$RANGE")
+          done < <(git rev-list --no-merges "$RANGE")
 
       - name: Format
         run: cargo fmt --all -- --check
