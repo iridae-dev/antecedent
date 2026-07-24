@@ -52,5 +52,41 @@ if n != 1:
     sys.exit("python/pyproject.toml: version not updated")
 pyproject.write_text(py_new)
 
+# Path-dep version pins must match for crates.io packaging.
+path_pat = re.compile(
+    r'(antecedent-[a-z0-9-]+\s*=\s*\{\s*version\s*=\s*")[^"]+(")'
+)
+for path in sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]:
+    if not path.is_file():
+        continue
+    t = path.read_text()
+    t2, n = path_pat.subn(rf"\g<1>{version}\2", t)
+    if n:
+        path.write_text(t2)
+
+init = root / "python" / "antecedent" / "__init__.py"
+init_text = init.read_text()
+init_new, n = re.subn(
+    r'(__version__\s*=\s*")[^"]+(")',
+    rf"\g<1>{version}\2",
+    init_text,
+    count=1,
+)
+if n != 1:
+    sys.exit("python/antecedent/__init__.py: fallback __version__ not updated")
+init.write_text(init_new)
+
+uv = root / "python" / "uv.lock"
+if uv.is_file():
+    uv_text = uv.read_text()
+    uv_new, n = re.subn(
+        r'(name = "antecedent"\nversion = ")[^"]+(")',
+        rf"\g<1>{version}\2",
+        uv_text,
+        count=1,
+    )
+    if n == 1:
+        uv.write_text(uv_new)
+
 print(f"set version to {version}")
 PY
