@@ -61,6 +61,8 @@ pub enum QueryError {
     },
     /// Sequential allocation order is empty.
     EmptyAllocationOrder,
+    /// Sequential allocation order contains the same component more than once.
+    DuplicateAllocationComponent,
     /// Shapley exact component limit must be ≥ 1.
     NonPositiveShapleyLimit,
     /// Approximate Shapley sample / permutation count must be ≥ 1.
@@ -156,6 +158,9 @@ impl core::fmt::Display for QueryError {
                 write!(f, "invalid population time range [{start}, {end})")
             }
             Self::EmptyAllocationOrder => write!(f, "sequential allocation order is empty"),
+            Self::DuplicateAllocationComponent => {
+                write!(f, "sequential allocation order contains duplicate components")
+            }
             Self::NonPositiveShapleyLimit => {
                 write!(f, "Shapley max_exact_components must be >= 1")
             }

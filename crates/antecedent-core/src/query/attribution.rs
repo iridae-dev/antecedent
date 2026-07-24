@@ -256,7 +256,15 @@ impl AllocationMethod {
     pub fn validate(&self) -> Result<(), QueryError> {
         match self {
             Self::Sequential { order } if order.is_empty() => Err(QueryError::EmptyAllocationOrder),
-            Self::Sequential { .. } | Self::PathBased => Ok(()),
+            Self::Sequential { order } => {
+                for (i, component) in order.iter().enumerate() {
+                    if order[..i].contains(component) {
+                        return Err(QueryError::DuplicateAllocationComponent);
+                    }
+                }
+                Ok(())
+            }
+            Self::PathBased => Ok(()),
             Self::Shapley { approximation } => approximation.validate(),
         }
     }
@@ -472,5 +480,18 @@ impl UnitChangeQuery {
         }
         self.allocation.validate()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ComponentId;
+
+    #[test]
+    fn sequential_allocation_rejects_duplicate_components() {
+        let component = ComponentId::from_raw(7);
+        let allocation = AllocationMethod::Sequential { order: Arc::from([component, component]) };
+        assert_eq!(allocation.validate(), Err(QueryError::DuplicateAllocationComponent));
     }
 }

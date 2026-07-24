@@ -113,10 +113,12 @@ fn constant_column(css: f64, mean: f64, nf: f64) -> bool {
 }
 
 fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) {
-    // No intercept: matches pinned baseline ParCorr `numpy.linalg.lstsq` on Z only.
     for (j, z) in z_cols.iter().enumerate() {
         let base = j * n;
-        design[base..base + n].copy_from_slice(z);
+        let mean = z.iter().sum::<f64>() / n as f64;
+        for r in 0..n {
+            design[base + r] = z[r] - mean;
+        }
     }
 }
 
@@ -137,11 +139,12 @@ fn form_gram(design: &[f64], n: usize, ncols: usize, gram: &mut [f64]) {
 }
 
 fn form_xty(design: &[f64], y: &[f64], n: usize, ncols: usize, out: &mut [f64]) {
+    let y_mean = y.iter().sum::<f64>() / n as f64;
     for c in 0..ncols {
         let mut acc = 0.0;
         let col = &design[c * n..(c + 1) * n];
         for r in 0..n {
-            acc += col[r] * y[r];
+            acc += col[r] * (y[r] - y_mean);
         }
         out[c] = acc;
     }
@@ -252,12 +255,13 @@ fn residualize_into_scalar(
     if !solve_normal_equations(design, y, n, ncols, gram, beta) {
         return false;
     }
+    let y_mean = y.iter().sum::<f64>() / n as f64;
     for r in 0..n {
         let mut pred = 0.0;
         for c in 0..ncols {
             pred += design[c * n + r] * beta[c];
         }
-        out[r] = y[r] - pred;
+        out[r] = (y[r] - y_mean) - pred;
     }
     true
 }
@@ -353,12 +357,13 @@ fn residual_from_beta(
     ncols: usize,
     out: &mut [f64],
 ) {
+    let y_mean = y.iter().sum::<f64>() / n as f64;
     for r in 0..n {
         let mut pred = 0.0;
         for c in 0..ncols {
             pred += design[c * n + r] * beta[c];
         }
-        out[r] = y[r] - pred;
+        out[r] = (y[r] - y_mean) - pred;
     }
 }
 
@@ -517,8 +522,6 @@ mod tests {
 
     #[test]
     fn parcorr_removes_confounder() {
-        // Mean-zero confounder: without an intercept column (pinned baseline parity),
-        // residualization matches classical ParCorr on centered series.
         let n = 200usize;
         let z: Vec<f64> = (0..n).map(|i| ((i as f64) - 99.5) / 50.0).collect();
         let x: Vec<f64> = (0..n).map(|i| z[i] + ((i % 3) as f64 - 1.0) * 0.1).collect();
@@ -528,6 +531,93 @@ mod tests {
         let partial = partial_correlation_scalar(&x, &y, &[&z], &mut ws).unwrap();
         assert!(raw > 0.9);
         assert!(partial.abs() < 0.2, "partial={partial}");
+    }
+
+    fn one_z_intercept_oracle(x: &[f64], y: &[f64], z: &[f64]) -> f64 {
+        let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+        let mx = mean(x);
+        let my = mean(y);
+        let mz = mean(z);
+        let z_ss = z.iter().map(|v| (v - mz).powi(2)).sum::<f64>();
+        let bx = x.iter().zip(z).map(|(a, b)| (a - mx) * (b - mz)).sum::<f64>() / z_ss;
+        let by = y.iter().zip(z).map(|(a, b)| (a - my) * (b - mz)).sum::<f64>() / z_ss;
+        let rx: Vec<_> = x.iter().zip(z).map(|(a, b)| (a - mx) - bx * (b - mz)).collect();
+        let ry: Vec<_> = y.iter().zip(z).map(|(a, b)| (a - my) - by * (b - mz)).collect();
+        pearson(&rx, &ry).unwrap()
+    }
+
+    #[test]
+    fn parcorr_is_translation_invariant_and_matches_intercept_oracle() {
+        let x =
+            [-0.427007, -1.147988, 1.561491, -1.892812, 1.154907, 0.455615, -1.952965, 0.823206];
+        let y = [
+            -2.391322, -2.619455, -1.515701, -3.279834, -1.518526, -2.738805, -2.950828, -2.147493,
+        ];
+        let z =
+            [-0.704669, -1.396603, 0.603738, -1.710255, 0.143528, -0.537244, -1.768004, 0.029743];
+        let z_shifted: Vec<_> = z.iter().map(|v| v + 100.0).collect();
+        let oracle = one_z_intercept_oracle(&x, &y, &z);
+        let mut ws_scalar = ParCorrWorkspace::default();
+        let mut ws_portable = ParCorrWorkspace::default();
+        let scalar = partial_correlation_scalar(&x, &y, &[&z], &mut ws_scalar).unwrap();
+        let translated = partial_correlation_scalar(&x, &y, &[&z_shifted], &mut ws_scalar).unwrap();
+        let portable =
+            partial_correlation_portable(&x, &y, &[&z_shifted], &mut ws_portable).unwrap();
+        assert!((scalar - translated).abs() <= 1e-12, "{scalar} vs {translated}");
+        assert!((scalar - oracle).abs() <= 1e-12, "{scalar} vs {oracle}");
+        assert!((portable - oracle).abs() <= 1e-12, "{portable} vs {oracle}");
+    }
+
+    #[test]
+    fn parcorr_batch_is_translation_invariant() {
+        let n = 100usize;
+        let z: Vec<_> = (0..n).map(|i| (i as f64 * 0.17).sin() + 3.0).collect();
+        let z_shifted: Vec<_> = z.iter().map(|v| v - 10_000.0).collect();
+        let x: Vec<_> = (0..n).map(|i| 1.5 * z[i] + (i as f64 * 0.31).cos()).collect();
+        let y: Vec<_> = (0..n).map(|i| -0.7 * z[i] + (i as f64 * 0.23).sin()).collect();
+        let queries = [ParCorrQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let mut base = [None];
+        let mut shifted = [None];
+        let mut ws = ParCorrWorkspace::default();
+        partial_correlation_batch(
+            &[&x, &y, &z],
+            &queries,
+            &z_flat,
+            &mut base,
+            &mut ws,
+            ParCorrMode::Native,
+        );
+        partial_correlation_batch(
+            &[&x, &y, &z_shifted],
+            &queries,
+            &z_flat,
+            &mut shifted,
+            &mut ws,
+            ParCorrMode::Portable,
+        );
+        assert!((base[0].unwrap() - shifted[0].unwrap()).abs() <= 1e-10);
+    }
+
+    #[test]
+    fn parcorr_is_invariant_across_seeded_random_offsets() {
+        let n = 96usize;
+        let z: Vec<_> = (0..n).map(|i| (i as f64 * 0.19).sin() + 0.01 * i as f64).collect();
+        let x: Vec<_> = (0..n).map(|i| 0.8 * z[i] + (i as f64 * 0.37).cos() - 2.0).collect();
+        let y: Vec<_> = (0..n).map(|i| -1.2 * z[i] + (i as f64 * 0.29).sin() + 4.0).collect();
+        let mut ws = ParCorrWorkspace::default();
+        let reference = partial_correlation_scalar(&x, &y, &[&z], &mut ws).unwrap();
+        let mut state = 0x5eed_cafe_f00d_beefu64;
+        for _ in 0..100 {
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            let unit = (state >> 11) as f64 / (1u64 << 53) as f64;
+            let offset = -10_000.0 + 20_000.0 * unit;
+            let shifted: Vec<_> = z.iter().map(|value| value + offset).collect();
+            let scalar = partial_correlation_scalar(&x, &y, &[&shifted], &mut ws).unwrap();
+            let portable = partial_correlation_portable(&x, &y, &[&shifted], &mut ws).unwrap();
+            assert!((scalar - reference).abs() <= 1e-10, "offset={offset}");
+            assert!((portable - reference).abs() <= 1e-10, "offset={offset}");
+        }
     }
 
     #[test]

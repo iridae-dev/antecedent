@@ -17,6 +17,7 @@ use antecedent_model::{
 };
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
+use crate::coalition::full_coalition_mask;
 use crate::distribution_change::{PlayerKind, hybrid_mechanisms, mechanism_players};
 use crate::error::AttributionError;
 use crate::prep::{
@@ -105,7 +106,7 @@ pub fn distribution_change_robust(
         };
         payoff.fit()?;
         let v0 = payoff.value(0)?;
-        let full = (1u64 << players.len()) - 1;
+        let full = full_coalition_mask(players.len())?;
         let v_full = payoff.value(full)?;
         let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
         (v0, v_full, estimate)
@@ -121,7 +122,7 @@ pub fn distribution_change_robust(
             ws: MechanismWorkspace::default(),
         };
         let v0 = payoff.value(0)?;
-        let full = (1u64 << players.len()) - 1;
+        let full = full_coalition_mask(players.len())?;
         let v_full = payoff.value(full)?;
         let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
         (v0, v_full, estimate)

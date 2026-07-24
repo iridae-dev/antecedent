@@ -22,6 +22,7 @@ use antecedent_model::{
 use antecedent_stats::mean_var;
 
 use crate::change_common::{ChangeOptions, measure_value, run_change_allocation, total_change};
+use crate::coalition::full_coalition_mask;
 use crate::distribution_change::{DifferenceMeasure, hybrid_mechanisms};
 use crate::error::AttributionError;
 use crate::prep::{
@@ -104,7 +105,7 @@ pub fn structure_change(
     };
 
     let v0 = payoff.value(0)?;
-    let full_mask = (1u64 << players.len()) - 1;
+    let full_mask = full_coalition_mask(players.len())?;
     let v_full = payoff.value(full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
