@@ -10,8 +10,9 @@ use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity
 use super::matching::matching_contrast;
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
-    default_propensity_overlap, prepare_propensity_problem_with_registry, restrict_to_rows,
-    to_row_major, trim_of, trim_retained_rows,
+    default_propensity_overlap, gather_optional_row_labels,
+    prepare_propensity_problem_with_registry, restrict_to_rows, to_row_major, trim_of,
+    trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -138,52 +139,18 @@ impl DistanceMatching {
             Some(idx) => idx.iter().map(|&i| w[i]).collect(),
             None => w.to_vec(),
         });
-        let clusters_used = match (&self.cluster_ids, &retained) {
-            (Some(ids), Some(idx)) => {
-                if ids.len() != problem.nrows {
-                    return Err(EstimationError::data_msg(format!(
-                        "cluster_ids length {} != nrows {}",
-                        ids.len(),
-                        problem.nrows
-                    )));
-                }
-                Some(idx.iter().map(|&i| ids[i]).collect::<Vec<_>>())
-            }
-            (Some(ids), None) => {
-                if ids.len() != problem.nrows {
-                    return Err(EstimationError::data_msg(format!(
-                        "cluster_ids length {} != nrows {}",
-                        ids.len(),
-                        problem.nrows
-                    )));
-                }
-                Some(ids.clone())
-            }
-            (None, _) => None,
-        };
-        let times_used = match (&self.panel_times, &retained) {
-            (Some(times), Some(idx)) => {
-                if times.len() != problem.nrows {
-                    return Err(EstimationError::data_msg(format!(
-                        "panel_times length {} != nrows {}",
-                        times.len(),
-                        problem.nrows
-                    )));
-                }
-                Some(idx.iter().map(|&i| times[i]).collect::<Vec<_>>())
-            }
-            (Some(times), None) => {
-                if times.len() != problem.nrows {
-                    return Err(EstimationError::data_msg(format!(
-                        "panel_times length {} != nrows {}",
-                        times.len(),
-                        problem.nrows
-                    )));
-                }
-                Some(times.clone())
-            }
-            (None, _) => None,
-        };
+        let clusters_used = gather_optional_row_labels(
+            self.cluster_ids.as_deref(),
+            problem.nrows,
+            retained.as_deref(),
+            "cluster_ids",
+        )?;
+        let times_used = gather_optional_row_labels(
+            self.panel_times.as_deref(),
+            problem.nrows,
+            retained.as_deref(),
+            "panel_times",
+        )?;
         let result = matching_contrast(
             &t_used,
             &y_used,

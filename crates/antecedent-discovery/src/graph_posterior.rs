@@ -581,10 +581,8 @@ pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
     }
     let rhat_ok = diagnostics.rhat_max.is_some_and(|r| r.is_finite() && r < 1.2);
     let ess_ok = diagnostics.ess_bulk_min.is_some_and(|e| e.is_finite() && e > 10.0);
-    let div_ok = diagnostics
-        .n_postwarmup_divergences
-        .or(diagnostics.n_divergences)
-        .is_some_and(|n| n == 0);
+    let div_ok =
+        diagnostics.n_postwarmup_divergences.or(diagnostics.n_divergences).is_some_and(|n| n == 0);
     diagnostics.converged && rhat_ok && ess_ok && div_ok
 }
 

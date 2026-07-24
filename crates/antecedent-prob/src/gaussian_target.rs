@@ -7,11 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::needless_range_loop
-)]
+#![allow(clippy::cast_precision_loss, clippy::many_single_char_names, clippy::needless_range_loop)]
 
 use crate::backend::BayesDesignRef;
 use crate::error::ProbError;
@@ -289,9 +285,7 @@ impl PosteriorTarget for GaussianInvGammaTarget<'_> {
     fn logp_and_grad(&mut self, q: &[f64], grad: &mut [f64]) -> Result<f64, ProbError> {
         let p = self.stats.p;
         if q.len() != p + 1 || grad.len() != p + 1 {
-            return Err(ProbError::Shape {
-                message: "InvGamma target state/grad length != p + 1",
-            });
+            return Err(ProbError::Shape { message: "InvGamma target state/grad length != p + 1" });
         }
         let beta = &q[..p];
         let lambda = q[p];

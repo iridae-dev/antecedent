@@ -36,6 +36,9 @@ def allowed(path: Path) -> bool:
     # Domain inventories / README may cite baseline pin *paths* only.
     if s in {"parity/estimate.toml", "parity/discovery.toml", "parity/README.md"}:
         return True
+    # Positioning / comparison docs intentionally name upstream libraries.
+    if s in {"README.md", "docs/comparison.md", "docs/index.md"}:
+        return True
     return False
 
 skip_dirs = {
