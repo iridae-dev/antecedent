@@ -180,6 +180,7 @@ impl DistanceMatching {
             problem.overlap,
             Some(&problem.treatment),
             ipw_target,
+            problem.target_weights.as_deref(),
         ));
 
         Ok(EffectEstimate {

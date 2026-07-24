@@ -132,6 +132,7 @@ impl PropensityWeighting {
             problem.overlap,
             Some(&problem.treatment),
             Some(target),
+            problem.target_weights.as_deref(),
         ));
 
         Ok(EffectEstimate {
