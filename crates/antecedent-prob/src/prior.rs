@@ -136,9 +136,7 @@ impl GaussianCoefficientPrior {
             return Err(ProbError::InvalidPrior { message: "mean must be finite" });
         }
         if !(variance > 0.0) || !variance.is_finite() {
-            return Err(ProbError::InvalidPrior {
-                message: "variance must be finite and > 0",
-            });
+            return Err(ProbError::InvalidPrior { message: "variance must be finite and > 0" });
         }
         Ok(Self {
             mean: Arc::from(vec![mean; n_coef]),
@@ -183,9 +181,7 @@ impl GaussianCoefficientPrior {
         }
         for &v in self.variance.iter() {
             if !(v > 0.0) || !v.is_finite() {
-                return Err(ProbError::InvalidPrior {
-                    message: "variance must be finite and > 0",
-                });
+                return Err(ProbError::InvalidPrior { message: "variance must be finite and > 0" });
             }
         }
         Ok(())

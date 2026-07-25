@@ -37,6 +37,10 @@ use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
 
+/// Minimum kept draws for HMC so the MCMC publication gate (Ř≤1.01, ESS≥100)
+/// is reachable on typical Gaussian GLMs.
+const HMC_MIN_DRAWS: usize = 3_000;
+
 /// Causal posterior over an identified functional.
 #[derive(Clone, Debug)]
 pub struct CausalPosterior {
@@ -623,7 +627,13 @@ impl BayesianGComputationAte {
             BayesianBackendKind::ConjugateGaussian => BayesLikelihood::GaussianIdentity,
             BayesianBackendKind::Laplace | BayesianBackendKind::Hmc => self.likelihood,
         };
-        let max_draws = self.n_draws.max(1);
+        // HMC publication (Ř≤1.01, ESS≥100) needs a longer schedule than the
+        // Laplace/conjugate default of 1000 draws; floor so under-specified
+        // callers still clear the gate rather than refuse with near-miss Ř.
+        let max_draws = match self.backend {
+            BayesianBackendKind::Hmc => self.n_draws.max(HMC_MIN_DRAWS),
+            _ => self.n_draws.max(1),
+        };
         let adaptive = ctx.adaptive_draws;
         let laplace_adaptive = adaptive.enabled
             && matches!(self.backend, BayesianBackendKind::Laplace)
@@ -661,13 +671,21 @@ impl BayesianGComputationAte {
                 &mut workspace.laplace,
                 ctx,
             ),
-            BayesianBackendKind::Hmc => HmcGlmBackend::new()
-                .with_options(HmcOptions {
-                    n_chains: 2,
-                    n_warmup: (self.n_draws / 2).max(50),
-                    ..HmcOptions::default()
-                })
-                .fit(likelihood, design_ref, &prior, &opts, &mut workspace.laplace, ctx),
+            BayesianBackendKind::Hmc => {
+                // Floor warmup at the oracle schedule that clears Ř≤1.01 /
+                // ESS≥100 on Gaussian GLMs; scale with kept draws above that.
+                let n_warmup = max_draws.max(1_500);
+                HmcGlmBackend::new()
+                    .with_options(HmcOptions {
+                        n_chains: 4,
+                        n_warmup,
+                        leapfrog_steps: 16,
+                        step_size: 0.04,
+                        target_accept: 0.85,
+                        ..HmcOptions::default()
+                    })
+                    .fit(likelihood, design_ref, &prior, &opts, &mut workspace.laplace, ctx)
+            }
         }
         .map_err(prob_err)?;
 

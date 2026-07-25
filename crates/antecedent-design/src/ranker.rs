@@ -815,11 +815,12 @@ mod tests {
             cost: DesignCost::zero(),
             tag: 50,
         });
-        let mut rng = CausalRng::from_seed(2_026_07_25);
+        let mut rng = CausalRng::from_seed(20_260_725);
         let mut saw_negative = false;
         for _ in 0..20_000 {
             let graph_idx = (rng.next_u64() as usize) % graphs.n_samples;
-            let delta = eig_graph_entropy(&candidate, &graphs, graph_idx, Some(&features), &mut rng);
+            let delta =
+                eig_graph_entropy(&candidate, &graphs, graph_idx, Some(&features), &mut rng);
             assert!(delta.is_finite());
             if delta < -1e-15 {
                 saw_negative = true;

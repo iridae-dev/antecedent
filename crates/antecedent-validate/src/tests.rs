@@ -392,7 +392,7 @@ fn linear_sensitivity_reports_a_bounded_robustness_value() {
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.comparison > 0.0);
     assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
-    assert_eq!(report.replicates as u64, fixture["expected"]["replicates"].as_u64().unwrap());
+    assert_eq!(u64::from(report.replicates), fixture["expected"]["replicates"].as_u64().unwrap());
 }
 
 #[test]

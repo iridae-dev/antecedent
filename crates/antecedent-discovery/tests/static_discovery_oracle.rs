@@ -1,4 +1,4 @@
-//! Frozen causal-learn FCI/GES and Python DirectLiNGAM parity matrix.
+//! Frozen causal-learn FCI/GES and Python `DirectLiNGAM` parity matrix.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -200,7 +200,7 @@ fn direct_lingam_matches_external_orders_edges_and_coefficients() {
             let mut workspace = DiscoveryWorkspace::default();
             let result = DirectLingam::new()
                 .with_prune_threshold(0.05)
-                .run(&data, &variables, &mut workspace, &ExecutionContext::for_tests(0x11_64))
+                .run(&data, &variables, &mut workspace, &ExecutionContext::for_tests(0x1164))
                 .unwrap();
             let native: BTreeMap<(String, String), f64> = result
                 .evidence

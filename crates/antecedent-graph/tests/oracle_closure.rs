@@ -85,7 +85,12 @@ fn latent_projection_oracle() {
 fn pag_completion_oracle() {
     let expected =
         fixture(include_str!("../../../conformance/graph/pag_mag_completion/expected.json"));
-    let expected_count = expected["cases"][0]["valid_completion_count"].as_u64().unwrap() as usize;
+    let expected_count = usize::try_from(
+        expected["cases"][0]["valid_completion_count"]
+            .as_u64()
+            .expect("valid_completion_count is u64"),
+    )
+    .expect("valid_completion_count fits usize");
     let [a, b, c] = [0, 1, 2].map(DenseNodeId::from_raw);
     let mut one_edge = Pag::with_variables(2);
     one_edge.insert_circle_circle(a, b).unwrap();

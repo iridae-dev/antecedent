@@ -33,7 +33,7 @@ impl Utility<f64, f64> for ProductUtility {
 struct FixedSatisfaction(Arc<[f64]>);
 
 impl DecisionConstraint<f64, f64> for FixedSatisfaction {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "fixture"
     }
 
@@ -132,7 +132,9 @@ fn decision_enumeration_matches_exact_feasibility_contract() {
 
         assert_eq!(
             actual.chosen_action,
-            case["chosen_action"].as_u64().map(|value| value as usize),
+            case["chosen_action"]
+                .as_u64()
+                .map(|value| usize::try_from(value).expect("chosen action fits usize")),
             "{name}"
         );
         assert!(
@@ -196,9 +198,12 @@ fn candidate_ranking_replays_and_calibrates_across_seed_grid() {
     let candidates = fixture_candidates();
     let eval = evaluation_context(&graphs);
     let config = DesignRankConfig {
-        min_batches: acceptance["adaptive_min_batches"].as_u64().expect("min") as u32,
-        max_batches: acceptance["adaptive_max_batches"].as_u64().expect("max") as u32,
-        batch_size: acceptance["adaptive_batch_size"].as_u64().expect("batch") as u32,
+        min_batches: u32::try_from(acceptance["adaptive_min_batches"].as_u64().expect("min"))
+            .expect("min batches fit u32"),
+        max_batches: u32::try_from(acceptance["adaptive_max_batches"].as_u64().expect("max"))
+            .expect("max batches fit u32"),
+        batch_size: u32::try_from(acceptance["adaptive_batch_size"].as_u64().expect("batch"))
+            .expect("batch size fits u32"),
         rank_uncertainty_threshold: acceptance["adaptive_rank_threshold"]
             .as_f64()
             .expect("threshold"),

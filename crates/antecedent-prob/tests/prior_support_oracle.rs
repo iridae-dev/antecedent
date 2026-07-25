@@ -1,4 +1,4 @@
-//! Prior-domain validation against frozen SciPy support/normalization evidence.
+//! Prior-domain validation against frozen `SciPy` support/normalization evidence.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
