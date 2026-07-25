@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "kind": "closed_form_linear_scm",
+    "generator": "temporary clean-room harness (deleted after artifact import)",
+    "formula": "For Y=2X and reference X-bar=1, the sole input contribution is 2(X-X-bar)."
+  },
+  "unit_case": {
+    "x": [0.0, 1.0, 2.0],
+    "reference_mean": 1.0,
+    "contributions": [-2.0, 0.0, 2.0],
+    "mean_contribution": 0.0
+  },
+  "mechanism_detection": {
+    "baseline": "Y=1+2X",
+    "comparison": "Y=6+2X",
+    "changed": ["y"],
+    "unchanged": ["x"]
+  },
+  "tolerance": {"absolute": 1e-10}
+}

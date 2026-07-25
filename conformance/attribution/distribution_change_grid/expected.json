@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "kind": "closed_form_linear_scm",
+    "generator": "temporary clean-room harness (deleted after artifact import)",
+    "formula": "For identical X distributions and Y=a+bX, changing only a by delta changes E[Y] by delta and assigns the exact mechanism Shapley contribution to Y."
+  },
+  "cases": [
+    {
+      "id": "y_intercept_plus_five",
+      "baseline_intercept": 1.0,
+      "comparison_intercept": 6.0,
+      "slope": 2.0,
+      "total_change": 5.0,
+      "component_contributions": {"x": 0.0, "y": 5.0}
+    },
+    {
+      "id": "null_change",
+      "baseline_intercept": 1.0,
+      "comparison_intercept": 1.0,
+      "slope": 2.0,
+      "total_change": 0.0,
+      "component_contributions": {"x": 0.0, "y": 0.0}
+    }
+  ],
+  "comparison": {
+    "deterministic_absolute_tolerance": 1e-8,
+    "sampled_absolute_tolerance": 0.15
+  }
+}

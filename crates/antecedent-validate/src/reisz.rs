@@ -253,6 +253,11 @@ mod tests {
 
     #[test]
     fn reisz_reports_positive_robustness() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/validate/reisz_sensitivity/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["balanced_case"]["alpha_l2"].as_f64().unwrap(), 2.0);
         let (data, estimand) = toy();
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
@@ -272,6 +277,13 @@ mod tests {
         let report = ReiszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(report.refuter.as_ref(), "sensitivity.reisz");
         assert!(report.comparison > 0.0, "comparison={}", report.comparison);
+        assert!(
+            fixture["delta_grid"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|delta| delta.as_f64() == Some(report.comparison))
+        );
         assert!(report.informative);
     }
 }

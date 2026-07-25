@@ -81,6 +81,7 @@ for path in [
     "conformance/bayesian/prior_bank_conflict_shrink/expected.json",
     "conformance/bayesian/prior_bank_transport/expected.json",
     "conformance/bayesian/prior_bank_alpha_sensitivity/expected.json",
+    "conformance/validate/bayesian_checks/expected.json",
     "crates/antecedent-prob/benches/laplace_glm.rs",
     "crates/antecedent-estimate/benches/posterior_functional.rs",
 ]:
