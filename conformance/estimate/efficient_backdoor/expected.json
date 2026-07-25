@@ -5,16 +5,16 @@
   "estimator": "propensity.weighting",
   "notes": "efficient backdoor + IPW",
   "generation": {
-    "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/dowhy.toml",
-    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py"
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
   },
   "reference": {
     "project": "dowhy",
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
     "note": "black-box execution only; no source translation",
     "outputs": {
       "method": "backdoor.linear_regression",

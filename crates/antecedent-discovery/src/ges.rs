@@ -27,7 +27,7 @@ use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::orientation::{
-    MeekR1, MeekR2, MeekR3, MeekR4, OrientationState, StaticOrientationRule,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientationRule, OrientationState,
     run_static_orientation_to_fixed_point,
 };
 use crate::pc::{Pc, StaticCpdagDiscoveryResult, collect_float_columns};
@@ -464,7 +464,10 @@ fn required_pair(
 }
 
 fn na_yx(cpdag: &Cpdag, y: DenseNodeId, x: DenseNodeId) -> Vec<DenseNodeId> {
-    cpdag.undirected_neighbors(y).into_iter().filter(|&n| cpdag.has_edge(n, x)).collect()
+    let mut out: Vec<_> =
+        cpdag.undirected_neighbors(y).into_iter().filter(|&n| cpdag.has_edge(n, x)).collect();
+    out.sort_unstable_by_key(|node| node.raw());
+    out
 }
 
 fn is_clique(cpdag: &Cpdag, nodes: &[DenseNodeId]) -> bool {
@@ -560,7 +563,10 @@ fn delete_valid(cpdag: &Cpdag, x: DenseNodeId, y: DenseNodeId, h: &[DenseNodeId]
 }
 
 fn parents_u32(cpdag: &Cpdag, y: DenseNodeId) -> Vec<u32> {
-    cpdag.parents(y).into_iter().map(antecedent_graph::DenseNodeId::raw).collect()
+    let mut out: Vec<_> =
+        cpdag.parents(y).into_iter().map(antecedent_graph::DenseNodeId::raw).collect();
+    out.sort_unstable();
+    out
 }
 
 fn insert_delta(
@@ -607,6 +613,7 @@ fn delete_delta(
         .collect();
     let mut pa = parents_u32(cpdag, y);
     let mut with_x = pa.clone();
+    with_x.push(x.raw());
     with_x.extend_from_slice(&na_rest);
     with_x.sort_unstable();
     with_x.dedup();
@@ -688,8 +695,9 @@ fn best_insert(
             }
             // T ⊆ Ne(Y) \ adj(X)
             let adj_x: HashSet<DenseNodeId> = cpdag.adjacent(x).into_iter().collect();
-            let candidates: Vec<DenseNodeId> =
+            let mut candidates: Vec<DenseNodeId> =
                 cpdag.undirected_neighbors(y).into_iter().filter(|n| !adj_x.contains(n)).collect();
+            candidates.sort_unstable_by_key(|node| node.raw());
             let mut subsets: Vec<Vec<DenseNodeId>> = Vec::new();
             for_each_subset(&candidates, max_subset, |t| subsets.push(t.to_vec()));
             for t in subsets {
@@ -719,7 +727,9 @@ fn best_delete(
     variables: &[VariableId],
 ) -> Result<Option<OpCand>, DiscoveryError> {
     let mut best: Option<OpCand> = None;
-    for e in cpdag.edges() {
+    let mut edges = cpdag.edges();
+    edges.sort_unstable_by_key(|edge| (edge.a.raw(), edge.b.raw()));
+    for e in edges {
         // Consider both orientations for undirected; directed as parent→child.
         let pairs: Vec<(DenseNodeId, DenseNodeId)> = if e.is_undirected() {
             vec![(e.a, e.b), (e.b, e.a)]
@@ -760,7 +770,9 @@ fn best_reverse(
     variables: &[VariableId],
 ) -> Result<Option<ReverseCand>, DiscoveryError> {
     let mut best: Option<ReverseCand> = None;
-    for e in cpdag.edges() {
+    let mut edges = cpdag.edges();
+    edges.sort_unstable_by_key(|edge| (edge.a.raw(), edge.b.raw()));
+    for e in edges {
         let Some((x, y)) = e.parent_child() else {
             continue;
         };
@@ -785,8 +797,9 @@ fn best_reverse(
             apply_delete(&mut tmp, x, y, &h)?;
             // Insert opposite Y → X
             let adj_y: HashSet<DenseNodeId> = tmp.adjacent(y).into_iter().collect();
-            let candidates: Vec<DenseNodeId> =
+            let mut candidates: Vec<DenseNodeId> =
                 tmp.undirected_neighbors(x).into_iter().filter(|n| !adj_y.contains(n)).collect();
+            candidates.sort_unstable_by_key(|node| node.raw());
             let mut t_subsets: Vec<Vec<DenseNodeId>> = Vec::new();
             for_each_subset(&candidates, max_subset, |t| t_subsets.push(t.to_vec()));
             for t in t_subsets {
@@ -871,7 +884,9 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
         // Select x ∈ remaining: no directed edge out of x to remaining,
         // and undirected neighbors (in remaining) form a clique.
         let mut selected = None;
-        for &x in &remaining {
+        let mut candidates: Vec<_> = remaining.iter().copied().collect();
+        candidates.sort_unstable_by_key(|node| node.raw());
+        for x in candidates {
             let out_to_remaining = work.children(x).into_iter().any(|c| remaining.contains(&c));
             if out_to_remaining {
                 continue;
@@ -903,10 +918,12 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
             // Fallback: orient remaining undirected arbitrarily in a topo-safe way.
             return pdag_to_dag_fallback(&work, &dag, &remaining);
         };
-        for n in work.undirected_neighbors(x) {
+        let mut neighbors = work.undirected_neighbors(x);
+        neighbors.sort_unstable_by_key(|node| node.raw());
+        for n in neighbors {
             if remaining.contains(&n) {
-                work.orient_undirected(x, n)?;
-                let _ = dag.insert_directed(x, n);
+                work.orient_undirected(n, x)?;
+                let _ = dag.insert_directed(n, x);
             }
         }
         remaining.remove(&x);
@@ -992,7 +1009,8 @@ fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
         }
     }
     let mut state = OrientationState::default();
-    let rules: [&dyn StaticOrientationRule; 4] = [&MeekR1, &MeekR2, &MeekR3, &MeekR4];
+    let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 4] =
+        [&MeekR1, &MeekR2, &MeekR3, &MeekR4];
     let _ = run_static_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
     Ok(cpdag)
 }

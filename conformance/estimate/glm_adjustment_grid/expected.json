@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "statsmodels",
+    "versions": {"python": "3.12.7", "numpy": "2.1.3", "scipy": "1.14.1", "pandas": "2.2.3", "statsmodels": "0.14.4"},
+    "installed_metadata_sha256": {
+      "numpy": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8",
+      "pandas": "f05423139806d0d75d527aba42689260084dc7a2dad1f4f32b16770f97d1f70f",
+      "scipy": "dd4e8542e7e319158dfab943b04eb811ee99566a1911241f1a3226e07bfbae57",
+      "statsmodels": "1f93f27342fb62aef002c7f9ef6bf7f85a94bf7b99459176d156223c33238aaa"
+    },
+    "api": "statsmodels.api.GLM(..., family=Binomial()).fit(); empirical g-computation",
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 --with pandas==2.2.3 --with statsmodels==0.14.4 python /tmp/antecedent_estimation_closure_oracle.py",
+    "generation_location": "temporary external harness; deleted after artifact import"
+  },
+  "data": {
+    "columns": ["treatment", "outcome", "z"],
+    "cells": [
+      {"z": 0, "treatment": 0, "successes": 20, "failures": 80},
+      {"z": 0, "treatment": 1, "successes": 50, "failures": 50},
+      {"z": 1, "treatment": 0, "successes": 40, "failures": 60},
+      {"z": 1, "treatment": 1, "successes": 70, "failures": 30}
+    ]
+  },
+  "reference": {
+    "coefficients_intercept_t_z": [-1.3432557240904686, 1.315353250920263, 0.908640648285924],
+    "all_observed_ate": 0.29999999999972665
+  },
+  "acceptance": {"coefficient_atol": 2e-7, "ate_atol": 2e-7}
+}

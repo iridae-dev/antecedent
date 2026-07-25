@@ -22,6 +22,7 @@ use antecedent_model::{
 use antecedent_stats::mean_var;
 
 use crate::change_common::{ChangeOptions, measure_value, run_change_allocation, total_change};
+use crate::coalition::full_coalition_mask;
 use crate::distribution_change::{DifferenceMeasure, hybrid_mechanisms};
 use crate::error::AttributionError;
 use crate::prep::{
@@ -104,7 +105,7 @@ pub fn structure_change(
     };
 
     let v0 = payoff.value(0)?;
-    let full_mask = (1u64 << players.len()) - 1;
+    let full_mask = full_coalition_mask(players.len())?;
     let v_full = payoff.value(full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
@@ -339,6 +340,7 @@ mod tests {
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::DenseNodeId;
+    use serde::Deserialize;
 
     /// Baseline X→Y vs comparison Z→Y; Y intercept/slope differ across periods.
     fn parent_swap_fixture() -> (CompiledCausalModel, CompiledCausalModel, TabularData) {
@@ -400,6 +402,28 @@ mod tests {
 
     #[test]
     fn attributes_parent_set_change_to_y() {
+        #[derive(Deserialize)]
+        struct Fixture {
+            cases: Vec<Case>,
+            comparison: Comparison,
+        }
+        #[derive(Deserialize)]
+        struct Case {
+            id: String,
+            #[serde(default)]
+            changed_players: Vec<String>,
+            #[serde(default)]
+            unidentified: Vec<String>,
+        }
+        #[derive(Deserialize)]
+        struct Comparison {
+            absolute_tolerance: f64,
+        }
+        let fixture: Fixture = serde_json::from_str(include_str!(
+            "../../../conformance/attribution/structure_change_grid/expected.json"
+        ))
+        .unwrap();
+        let expected = fixture.cases.iter().find(|case| case.id == "single_parent_swap").unwrap();
         let (baseline, comparison, data) = parent_swap_fixture();
         let query = ChangeAttributionQuery::new(
             VariableId::from_raw(2),
@@ -422,15 +446,15 @@ mod tests {
             .iter()
             .find(|c| c.component.variable() == VariableId::from_raw(2))
             .expect("y player");
-        assert_eq!(result.contributions.len(), 1);
+        assert_eq!(result.contributions.len(), expected.changed_players.len());
         assert!(
-            (y.contribution - result.total_change).abs() < 1e-6
+            (y.contribution - result.total_change).abs() < fixture.comparison.absolute_tolerance
                 || ToleranceClass::MonteCarlo.close(y.contribution, result.total_change),
             "y={} total={}",
             y.contribution,
             result.total_change
         );
-        assert!(result.unidentified.is_empty());
+        assert_eq!(result.unidentified.len(), expected.unidentified.len());
     }
 
     #[test]

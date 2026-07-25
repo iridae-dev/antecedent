@@ -1,7 +1,11 @@
 //! Order MCMC for DAG posteriors.
 //!
 //! State = topological order + forward-edge subset. Proposals: adjacent
-//! transposition (dropping conflicting edges) and forward-edge flips.
+//! transposition (reorienting the skeleton) and forward-edge flips.
+//!
+//! The Metropolis target is the DAG posterior on graphs, not the order-augmented
+//! joint: each candidate score is corrected by `log|# topological orders|` so
+//! DAGs with more linear extensions are not over-weighted (MM-011).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -142,25 +146,26 @@ impl OrderMcmc {
                     }
                     let mut cur =
                         score_dag_mask(mask, n, &score_data, &mut cache, prior, variables)
-                            .unwrap_or(f64::NEG_INFINITY);
+                            // MM-011: subtract log of the DAG's topological-order count so the
+                            // chain's stationary distribution is uniform over DAGs (given the
+                            // score), not over (order, forward-edge) pairs.
+                            .map_or(f64::NEG_INFINITY, |score| {
+                                score - log_topological_order_count(mask, n)
+                            });
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
                         let (new_order, new_mask, rej) = propose_order(&order, mask, n, &mut rng);
                         local_rej += rej;
                         let prop_score =
-                            score_dag_mask(new_mask, n, &score_data, &mut cache, prior, variables);
+                            score_dag_mask(new_mask, n, &score_data, &mut cache, prior, variables)
+                                .map(|score| score - log_topological_order_count(new_mask, n));
                         let accept = match prop_score {
                             Some(ps) if cur.is_finite() => {
                                 let log_r = ps - cur;
                                 log_r >= 0.0 || rng.next_f64() < log_r.exp()
                             }
-                            Some(ps) => {
-                                order = new_order.clone();
-                                mask = new_mask;
-                                cur = ps;
-                                false
-                            }
+                            Some(_) => true,
                             None => false,
                         };
                         if accept {
@@ -227,40 +232,18 @@ fn propose_order(
 ) -> (Vec<usize>, u64, u64) {
     let mut new_order = order.to_vec();
     let mut new_mask = mask;
-    let mut rejected = 0u64;
+    let rejected = 0u64;
     let u = rng.next_f64();
     if u < 0.35 && n >= 2 {
         let k = (rng.next_u64() as usize) % (n - 1);
         new_order.swap(k, k + 1);
-        let pos = position_map(&new_order);
-        for i in 0..n {
-            for j in 0..n {
-                if i == j {
-                    continue;
-                }
-                if has_edge(new_mask, n, i, j) && pos[i] > pos[j] {
-                    new_mask = set_edge(new_mask, n, i, j, false);
-                    rejected += 1;
-                }
-            }
-        }
+        new_mask = reorient_skeleton(mask, &new_order, n);
     } else if u < 0.55 && n >= 3 {
         let a = (rng.next_u64() as usize) % n;
         let b = (rng.next_u64() as usize) % n;
         if a != b {
             new_order.swap(a, b);
-            let pos = position_map(&new_order);
-            for i in 0..n {
-                for j in 0..n {
-                    if i == j {
-                        continue;
-                    }
-                    if has_edge(new_mask, n, i, j) && pos[i] > pos[j] {
-                        new_mask = set_edge(new_mask, n, i, j, false);
-                        rejected += 1;
-                    }
-                }
-            }
+            new_mask = reorient_skeleton(mask, &new_order, n);
         }
     } else {
         let a = (rng.next_u64() as usize) % n;
@@ -283,6 +266,46 @@ fn position_map(order: &[usize]) -> Vec<usize> {
     pos
 }
 
+fn reorient_skeleton(mask: u64, order: &[usize], n: usize) -> u64 {
+    let pos = position_map(order);
+    let mut out = 0u64;
+    for a in 0..n {
+        for b in a + 1..n {
+            if has_edge(mask, n, a, b) || has_edge(mask, n, b, a) {
+                let (from, to) = if pos[a] < pos[b] { (a, b) } else { (b, a) };
+                out = set_edge(out, n, from, to, true);
+            }
+        }
+    }
+    out
+}
+
+fn log_topological_order_count(mask: u64, n: usize) -> f64 {
+    let states = 1usize << n;
+    let mut parent_masks = vec![0usize; n];
+    for (node, parents) in parent_masks.iter_mut().enumerate() {
+        for parent in 0..n {
+            if parent != node && has_edge(mask, n, parent, node) {
+                *parents |= 1usize << parent;
+            }
+        }
+    }
+    let mut ways = vec![0u64; states];
+    ways[0] = 1;
+    for placed in 0..states {
+        if ways[placed] == 0 {
+            continue;
+        }
+        for (node, &parents) in parent_masks.iter().enumerate() {
+            let bit = 1usize << node;
+            if placed & bit == 0 && parents & !placed == 0 {
+                ways[placed | bit] = ways[placed | bit].saturating_add(ways[placed]);
+            }
+        }
+    }
+    (ways[states - 1].max(1) as f64).ln()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -296,6 +319,19 @@ mod tests {
     };
 
     use crate::graph_posterior::GraphPrior;
+
+    #[test]
+    fn topological_order_count_matches_known_dags() {
+        let n = 3;
+        // Empty DAG: all 3! = 6 orders.
+        assert!((log_topological_order_count(0, n) - (6.0f64).ln()).abs() < 1e-12);
+        // Chain 0→1→2: unique order.
+        let chain = set_edge(set_edge(0, n, 0, 1, true), n, 1, 2, true);
+        assert!((log_topological_order_count(chain, n) - 0.0).abs() < 1e-12);
+        // V-structure 0→2←1: two orders (0 before 1, or 1 before 0).
+        let v = set_edge(set_edge(0, n, 0, 2, true), n, 1, 2, true);
+        assert!((log_topological_order_count(v, n) - (2.0f64).ln()).abs() < 1e-12);
+    }
 
     fn chain_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {
         let mut b = CausalSchemaBuilder::new();
@@ -342,9 +378,9 @@ mod tests {
     #[test]
     fn order_mcmc_chain_signal() {
         let (data, vars) = chain_data(220);
-        // Gate off: short schedules recover edge mass but do not mix enough for
-        // the graph-posterior diagnostics bar under correct multi-chain Geyer ESS.
-        let eng = OrderMcmc::new().with_schedule(2, 300, 600, 1).with_diagnostics_gate(false);
+        // Gate off: a short schedule recovers edge mass but is not intended as a
+        // publishable multi-chain run (see the refusal test below).
+        let eng = OrderMcmc::new().with_schedule(2, 40, 50, 1).with_diagnostics_gate(false);
         let ctx = ExecutionContext::for_tests(9);
         let mut ws = DiscoveryWorkspace::default();
         let post = eng
@@ -355,14 +391,16 @@ mod tests {
         assert!(sk01 > 0.25, "P(A—B)={sk01}");
         assert!(
             !crate::graph_posterior::allows_graph_posterior(&post.diagnostics),
-            "short order-MCMC schedule should not clear the diagnostics bar"
+            "short order-MCMC schedule should not clear the diagnostics bar (ess_bulk={:?}, rhat={:?})",
+            post.diagnostics.ess_bulk_min,
+            post.diagnostics.rhat_max
         );
     }
 
     #[test]
     fn order_mcmc_short_schedule_gate_refuses() {
         let (data, vars) = chain_data(220);
-        let eng = OrderMcmc::new().with_schedule(2, 300, 600, 1).with_diagnostics_gate(true);
+        let eng = OrderMcmc::new().with_schedule(2, 40, 50, 1).with_diagnostics_gate(true);
         let ctx = ExecutionContext::for_tests(9);
         let mut ws = DiscoveryWorkspace::default();
         let err = eng

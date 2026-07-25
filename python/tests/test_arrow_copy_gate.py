@@ -14,9 +14,7 @@ import pytest
 pytest.importorskip("antecedent")
 import antecedent
 
-FIXTURE = (
-    Path(__file__).resolve().parents[2] / "conformance" / "gates" / "arrow_copy_fixture.json"
-)
+FIXTURE = Path(__file__).resolve().parents[2] / "conformance" / "gates" / "arrow_copy_fixture.json"
 
 
 def test_arrow_load_reports_measured_copy():

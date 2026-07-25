@@ -104,12 +104,15 @@ impl BayesianConfig {
     }
 
     /// Native HMC defaults.
+    ///
+    /// Draw count is sized for the MCMC publication gate (Ř ≤ 1.01, bulk/tail
+    /// ESS ≥ 100). Smaller schedules routinely refuse under that bar.
     #[must_use]
     pub fn hmc() -> Self {
         Self {
             backend: BayesianBackendKind::Hmc,
             likelihood: BayesLikelihood::GaussianIdentity,
-            n_draws: 200,
+            n_draws: 4_000,
             prior_scale: 10.0,
             prior: None,
             prior_artifact: None,

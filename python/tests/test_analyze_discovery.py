@@ -118,6 +118,7 @@ def test_analyze_discovery_pc_smoke():
     except Exception as exc:  # noqa: BLE001
         assert str(exc), "expected a non-empty error from the wired path"
 
+
 def test_analyze_ate_enriched_fields():
     n = 200
     rng = np.random.default_rng(1)

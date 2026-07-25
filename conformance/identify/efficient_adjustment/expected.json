@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "oracle": {"project": "DAGitty criterion plus exhaustive valid-set enumeration", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "cases": [
+    {"id": "single_confounder", "edges": ["Z->T", "Z->Y", "T->Y"], "treatment": "T", "outcome": "Y", "optimal_set": ["Z"]},
+    {"id": "outcome_parent_preferred", "edges": ["W->T", "T->Y", "Q->Y"], "optimal_set": ["Q"]},
+    {"id": "no_backdoor", "edges": ["T->Y"], "optimal_set": []}
+  ]
+}

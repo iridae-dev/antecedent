@@ -22,9 +22,7 @@ def _gcm_linear(n: int = 200, seed: int = 3):
 
 def test_counterfactual_ite_returns_unit_effects():
     names, cols, edges = _gcm_linear()
-    result = antecedent.counterfactual_ite(
-        names, cols, edges, "t", "y", 1.0, 0.0, seed=1
-    )
+    result = antecedent.counterfactual_ite(names, cols, edges, "t", "y", 1.0, 0.0, seed=1)
     assert result.n_units == len(cols[0])
     assert result.unit_effects.shape == (result.n_units,)
     assert np.isclose(result.unit_effects.mean(), result.mean_ite, rtol=1e-9)
@@ -35,9 +33,7 @@ def test_counterfactual_ite_returns_unit_effects():
 def test_sample_do_returns_draws():
     names, cols, edges = _gcm_linear(n=80)
     n_draws = 50
-    result = antecedent.sample_do(
-        names, cols, edges, "t", 1.0, n_draws, seed=2
-    )
+    result = antecedent.sample_do(names, cols, edges, "t", 1.0, n_draws, seed=2)
     assert result.n_draws == n_draws
     assert result.draws.shape == (result.n_nodes, n_draws)
     means = result.draws.mean(axis=1)

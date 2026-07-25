@@ -9,9 +9,8 @@ transferred into a new target survey. Requires a built extension
 
 from __future__ import annotations
 
-import numpy as np
-
 import antecedent
+import numpy as np
 
 
 def _survey(
@@ -180,8 +179,7 @@ def main() -> None:
     ppc = target.validation.prior_predictive
     print(f"prior_ppc p={ppc.p_value:.3f} observed={ppc.observed:.3f}")
     print(
-        f"target effect_mean={target.posterior.effect_mean:.4f} "
-        f"sd={target.posterior.effect_sd:.4f}"
+        f"target effect_mean={target.posterior.effect_mean:.4f} sd={target.posterior.effect_sd:.4f}"
     )
     print(f"alpha_sensitivity alphas={sens.alphas} means={sens.effect_means}")
 

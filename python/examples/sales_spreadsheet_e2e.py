@@ -16,9 +16,8 @@ from __future__ import annotations
 
 import math
 
-import numpy as np
-
 import antecedent
+import numpy as np
 
 
 def _sales_static(n: int = 400, seed: int = 7):
@@ -95,9 +94,7 @@ def main() -> None:
     assert math.isfinite(path.total_change)
     print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")
 
-    ite = antecedent.counterfactual_ite(
-        names, cols, edges, "t", "y", 1.0, 0.0, seed=7
-    )
+    ite = antecedent.counterfactual_ite(names, cols, edges, "t", "y", 1.0, 0.0, seed=7)
     assert ite.n_units == len(cols[0])
     assert math.isfinite(ite.mean_ite)
     print(f"ITE mean={ite.mean_ite:.4f} n={ite.n_units}")

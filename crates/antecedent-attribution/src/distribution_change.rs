@@ -21,6 +21,7 @@ use antecedent_model::{
 use antecedent_stats::mean_var;
 
 use crate::change_common::{ChangeOptions, measure_value, run_change_allocation, total_change};
+use crate::coalition::full_coalition_mask;
 use crate::error::AttributionError;
 use crate::prep::{require_mechanism_or_joint, resolve_change_populations, resolve_outcome_dense};
 use crate::result::ChangeAttributionResult;
@@ -110,7 +111,7 @@ pub fn distribution_change(
     };
 
     let v0 = payoff.value(0)?;
-    let full_mask = (1u64 << players.len()) - 1;
+    let full_mask = full_coalition_mask(players.len())?;
     let v_full = payoff.value(full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
@@ -341,6 +342,7 @@ mod tests {
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::{Dag, DenseNodeId};
     use antecedent_model::{MechanismRegistry, SelectionPolicy};
+    use serde::Deserialize;
 
     fn two_period_chain() -> (CompiledCausalModel, TabularData) {
         // X → Y; baseline Y = X; comparison Y = X + 5 (mechanism change on Y only).
@@ -396,6 +398,26 @@ mod tests {
 
     #[test]
     fn attributes_mechanism_shift_to_y() {
+        #[derive(Deserialize)]
+        struct Fixture {
+            cases: Vec<Case>,
+            comparison: Comparison,
+        }
+        #[derive(Deserialize)]
+        struct Case {
+            id: String,
+            total_change: f64,
+        }
+        #[derive(Deserialize)]
+        struct Comparison {
+            sampled_absolute_tolerance: f64,
+        }
+        let fixture: Fixture = serde_json::from_str(include_str!(
+            "../../../conformance/attribution/distribution_change_grid/expected.json"
+        ))
+        .unwrap();
+        let expected =
+            fixture.cases.iter().find(|case| case.id == "y_intercept_plus_five").unwrap();
         let (model, data) = two_period_chain();
         let query = ChangeAttributionQuery::new(
             VariableId::from_raw(1),
@@ -411,7 +433,13 @@ mod tests {
             seed: 3,
         };
         let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
-        assert!(result.total_change > 3.0, "total={}", result.total_change);
+        assert!(
+            (result.total_change - expected.total_change).abs()
+                <= fixture.comparison.sampled_absolute_tolerance,
+            "total={} expected={}",
+            result.total_change,
+            expected.total_change
+        );
         let y_contrib = result
             .contributions
             .iter()

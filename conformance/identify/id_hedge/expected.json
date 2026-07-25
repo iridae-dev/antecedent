@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "oracle": {"project": "Shpitser-Pearl ID recursion and Ananke-compatible graph semantics", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "cases": [
+    {"id": "backdoor_dag", "edges": ["Z->T", "Z->Y", "T->Y"], "status": "identified"},
+    {"id": "bow_arc_hedge", "edges": ["T->Y", "T<->Y"], "status": "not_identified", "certificate": "hedge"},
+    {"id": "frontdoor_admg", "edges": ["T->M", "M->Y", "T<->Y"], "status": "identified"}
+  ]
+}

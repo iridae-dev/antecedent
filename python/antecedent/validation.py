@@ -7,20 +7,54 @@ environment holdout, regime stability).
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 from ._data import as_columns, as_multi_env_columns
 from ._native import (
     validate_environment_holdout as _validate_environment_holdout,
+)
+from ._native import (
     validate_pcmci_alpha_sensitivity as _validate_pcmci_alpha_sensitivity,
+)
+from ._native import (
     validate_pcmci_block_bootstrap as _validate_pcmci_block_bootstrap,
+)
+from ._native import (
     validate_pcmci_ci_sensitivity as _validate_pcmci_ci_sensitivity,
+)
+from ._native import (
     validate_pcmci_false_positive as _validate_pcmci_false_positive,
+)
+from ._native import (
     validate_pcmci_lag_sensitivity as _validate_pcmci_lag_sensitivity,
+)
+from ._native import (
     validate_pcmci_plus_orientation as _validate_pcmci_plus_orientation,
+)
+from ._native import (
     validate_regime_stability as _validate_regime_stability,
+)
+from ._native import (
     validate_synthetic_null_calibration as _validate_synthetic_null_calibration,
 )
+
+
+def _with_columns(
+    fn: Callable[..., dict[str, Any]],
+    data: Mapping[str, Any] | Any,
+    *args: Any,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    names, columns = as_columns(data)
+    return fn(names, columns, *args, **kwargs)
+
+
+def _with_multi_env(
+    fn: Callable[..., dict[str, Any]], data: Sequence[Mapping[str, Any] | Any], **kwargs: Any
+) -> dict[str, Any]:
+    names, env_columns = as_multi_env_columns(data)
+    return fn(names, env_columns, **kwargs)
 
 
 def validate_pcmci_block_bootstrap(
@@ -35,10 +69,9 @@ def validate_pcmci_block_bootstrap(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]:
-    names, columns = as_columns(data)
-    return _validate_pcmci_block_bootstrap(
-        names,
-        columns,
+    return _with_columns(
+        _validate_pcmci_block_bootstrap,
+        data,
         max_lag=max_lag,
         alpha=alpha,
         fdr=fdr,
@@ -62,10 +95,9 @@ def validate_pcmci_false_positive(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]:
-    names, columns = as_columns(data)
-    return _validate_pcmci_false_positive(
-        names,
-        columns,
+    return _with_columns(
+        _validate_pcmci_false_positive,
+        data,
         max_lag=max_lag,
         alpha=alpha,
         fdr=fdr,
@@ -87,10 +119,9 @@ def validate_pcmci_alpha_sensitivity(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]:
-    names, columns = as_columns(data)
-    return _validate_pcmci_alpha_sensitivity(
-        names,
-        columns,
+    return _with_columns(
+        _validate_pcmci_alpha_sensitivity,
+        data,
         list(alphas),
         max_lag=max_lag,
         fdr=fdr,
@@ -110,10 +141,9 @@ def validate_pcmci_lag_sensitivity(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]:
-    names, columns = as_columns(data)
-    return _validate_pcmci_lag_sensitivity(
-        names,
-        columns,
+    return _with_columns(
+        _validate_pcmci_lag_sensitivity,
+        data,
         [int(m) for m in max_lags],
         alpha=alpha,
         fdr=fdr,
@@ -133,10 +163,9 @@ def validate_pcmci_ci_sensitivity(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]:
-    names, columns = as_columns(data)
-    return _validate_pcmci_ci_sensitivity(
-        names,
-        columns,
+    return _with_columns(
+        _validate_pcmci_ci_sensitivity,
+        data,
         list(ci_names),
         max_lag=max_lag,
         alpha=alpha,
@@ -158,10 +187,9 @@ def validate_pcmci_plus_orientation(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]:
-    names, columns = as_columns(data)
-    return _validate_pcmci_plus_orientation(
-        names,
-        columns,
+    return _with_columns(
+        _validate_pcmci_plus_orientation,
+        data,
         max_lag=max_lag,
         alpha=alpha,
         fdr=fdr,
@@ -209,10 +237,9 @@ def validate_environment_holdout(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]:
-    names, env_columns = as_multi_env_columns(data)
-    return _validate_environment_holdout(
-        names,
-        env_columns,
+    return _with_multi_env(
+        _validate_environment_holdout,
+        data,
         max_lag=max_lag,
         alpha=alpha,
         fdr=fdr,
@@ -236,10 +263,9 @@ def validate_regime_stability(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]:
-    names, columns = as_columns(data)
-    return _validate_regime_stability(
-        names,
-        columns,
+    return _with_columns(
+        _validate_regime_stability,
+        data,
         [int(r) for r in regimes],
         max_lag=max_lag,
         alpha=alpha,

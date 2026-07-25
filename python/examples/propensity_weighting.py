@@ -15,7 +15,6 @@ import math
 import random
 
 import numpy as np
-
 from antecedent import AverageEffect, analyze
 
 

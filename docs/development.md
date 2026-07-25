@@ -27,6 +27,7 @@ bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
 bash scripts/gate_calibration.sh   # SE coverage / CI Type I — weekly / pre-release
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
+bash scripts/gate_python_lint.sh   # ruff + mypy on python/ (local only; not wheel CI)
 ```
 
 Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
@@ -34,6 +35,28 @@ Mark a `parity/*.toml` capability `done` only with conformance under `conformanc
 command when black-box comparison applies.
 
 Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
+
+## Python lint / types (local)
+
+`scripts/gate_python_lint.sh` runs **ruff** (check + format) and **mypy** over
+`python/antecedent` (including hand-written `.pyi` stubs for `_native`). It is a
+**local / pre-merge** gate for Python and PyO3 binding changes — it is **not**
+part of the wheel-matrix CI job.
+
+```bash
+cd python
+uv sync --group dev
+# If CONDA_PREFIX and VIRTUAL_ENV are both set, unset CONDA_PREFIX first.
+bash ../scripts/gate_python_lint.sh
+```
+
+Or individually:
+
+```bash
+cd python && uv run ruff check antecedent tests examples
+uv run ruff format --check antecedent tests examples
+uv run mypy
+```
 
 ## Tests that matter
 
@@ -83,7 +106,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **0.2.0**).
+Workspace and Python package version are kept in sync (currently **0.3.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -108,15 +131,15 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 0.2.0
+bash scripts/set_version.sh 0.3.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml CHANGELOG.md
-git commit -m "chore: bump version to 0.2.0"
+git commit -m "chore: bump version to 0.3.0"
 
 # Tag current (or just-bumped) version and push
-bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 0.2.0
-git push origin v0.2.0
+bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 0.3.0
+git push origin v0.3.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](../.github/workflows/publish-release.yml)

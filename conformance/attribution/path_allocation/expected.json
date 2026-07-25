@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "kind": "closed_form_linear_sem",
+    "generator": "temporary clean-room harness (deleted after artifact import)",
+    "formula": "Each directed path contributes the signed product of its edge coefficients; total_change is the sum over paths."
+  },
+  "cases": [
+    {
+      "id": "chain",
+      "edge_coefficients": [2.0, 3.0],
+      "path_contributions": [6.0],
+      "total_change": 6.0
+    },
+    {
+      "id": "parallel_canceling_paths",
+      "edge_coefficients_by_path": [[2.0, 3.0], [-1.0, 4.0]],
+      "path_contributions": [6.0, -4.0],
+      "total_change": 2.0
+    }
+  ],
+  "tolerance": {"absolute": 1e-12}
+}

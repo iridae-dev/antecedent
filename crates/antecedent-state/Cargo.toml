@@ -17,12 +17,13 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "0.2.0", path = "../antecedent-core" }
-antecedent-stats = { version = "0.2.0", path = "../antecedent-stats" }
+antecedent-core = { version = "0.3.0", path = "../antecedent-core" }
+antecedent-stats = { version = "0.3.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
+serde_json = { workspace = true }
 
 [[bench]]
 name = "state_append"

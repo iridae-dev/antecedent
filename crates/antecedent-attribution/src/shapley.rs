@@ -78,6 +78,13 @@ pub fn check_shapley_size(
             max: 64,
         });
     }
+    if matches!(config.mode, ShapleyMode::Exact) && n_components >= 64 {
+        return Err(AttributionError::SizeLimit {
+            kind: "exact Shapley components",
+            requested: n_components,
+            max: 63,
+        });
+    }
     if matches!(config.mode, ShapleyMode::Exact)
         && n_components > config.max_exact_components
         && !config.allow_exact_override
@@ -264,9 +271,23 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
     let mut values = Vec::with_capacity(order.len());
     let mut interactions = Vec::new();
     let mut prev_component: Option<(ComponentId, usize)> = None;
+    let mut seen = 0u64;
     for &comp in order {
         let idx = player_index(comp).ok_or(AttributionError::UnknownPlayer)?;
+        if idx >= 64 {
+            return Err(AttributionError::SizeLimit {
+                kind: "components",
+                requested: idx + 1,
+                max: 64,
+            });
+        }
         let bit = 1u64 << idx;
+        if seen & bit != 0 {
+            return Err(AttributionError::invalid_input(
+                "sequential allocation order contains duplicate components",
+            ));
+        }
+        seen |= bit;
         let s_mask = mask; // coalition before adding `comp`
         let v_s = v_prev;
         mask |= bit;
@@ -359,6 +380,33 @@ mod tests {
     }
 
     #[test]
+    fn exact_rejects_64_before_payoff_evaluation() {
+        struct PanickingPayoff;
+        impl CoalitionPayoff for PanickingPayoff {
+            fn value(&mut self, _mask: u64) -> Result<f64, AttributionError> {
+                panic!("payoff must not be evaluated");
+            }
+        }
+        let players: Vec<_> = (0..64).map(ComponentId::from_raw).collect();
+        let mut payoff = PanickingPayoff;
+        let cfg = ShapleyConfig::exact().with_exact_override(true);
+        let err = estimate_shapley(&players, &cfg, &mut payoff, &ExecutionContext::for_tests(1))
+            .unwrap_err();
+        assert!(matches!(err, AttributionError::SizeLimit { requested: 64, max: 63, .. }));
+    }
+
+    #[test]
+    fn monte_carlo_supports_64_players() {
+        let players: Vec<_> = (0..64).map(ComponentId::from_raw).collect();
+        let mut payoff = AdditivePayoff { weights: vec![1.0; 64] };
+        let cfg = ShapleyConfig::monte_carlo(2).with_seed(9);
+        let estimate =
+            estimate_shapley(&players, &cfg, &mut payoff, &ExecutionContext::for_tests(1)).unwrap();
+        assert_eq!(estimate.values.len(), 64);
+        assert!((estimate.values.iter().sum::<f64>() - 64.0).abs() <= 1e-12);
+    }
+
+    #[test]
     fn monte_carlo_reports_stderr() {
         let players: Vec<_> = (0..4).map(ComponentId::from_raw).collect();
         let mut payoff = AdditivePayoff { weights: vec![1.0, 1.0, 1.0, 1.0] };
@@ -392,6 +440,48 @@ mod tests {
         assert_eq!(est.interactions.len(), 2);
         for term in &est.interactions {
             assert!(term.value.abs() < 1e-12, "residual={}", term.value);
+        }
+    }
+
+    #[test]
+    fn sequential_rejects_duplicate_player() {
+        let players: Vec<_> = (0..2).map(ComponentId::from_raw).collect();
+        let order = [players[0], players[0]];
+        let mut payoff = AdditivePayoff { weights: vec![1.0, 2.0] };
+        let err = sequential_allocate(
+            &order,
+            &|c| players.iter().position(|&p| p == c),
+            &mut payoff,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+        assert!(matches!(err, AttributionError::InvalidInput { .. }));
+    }
+
+    #[test]
+    fn sequential_is_efficient_for_every_three_player_permutation() {
+        struct InteractivePayoff;
+        impl CoalitionPayoff for InteractivePayoff {
+            fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+                let additive = f64::from((mask & 0b001).count_ones())
+                    + 2.0 * f64::from((mask & 0b010).count_ones())
+                    + 3.0 * f64::from((mask & 0b100).count_ones());
+                let interaction = if mask & 0b011 == 0b011 { 4.0 } else { 0.0 };
+                Ok(additive + interaction)
+            }
+        }
+        let players: Vec<_> = (0..3).map(ComponentId::from_raw).collect();
+        let permutations = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+        for permutation in permutations {
+            let order: Vec<_> = permutation.iter().map(|&i| players[i]).collect();
+            let estimate = sequential_allocate(
+                &order,
+                &|c| players.iter().position(|&p| p == c),
+                &mut InteractivePayoff,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+            assert!((estimate.values.iter().sum::<f64>() - 10.0).abs() <= 1e-12);
         }
     }
 

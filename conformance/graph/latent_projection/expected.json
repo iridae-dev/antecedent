@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "oracle": {"kind": "independent latent-only path enumeration", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "cases": [
+    {"id": "latent_chain", "dag": ["X->L", "L->Y"], "observed": ["X", "Y"], "projection": ["X->Y"]},
+    {"id": "latent_fork", "dag": ["L->X", "L->Y"], "observed": ["X", "Y"], "projection": ["X<->Y"]},
+    {"id": "observed_internal_blocks_shortcut", "dag": ["X->M", "M->L", "L->Y"], "observed": ["X", "M", "Y"], "projection": ["X->M", "M->Y"]}
+  ]
+}

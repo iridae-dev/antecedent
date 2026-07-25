@@ -167,7 +167,7 @@ pub fn fit_hmc_glm(
 ) -> Result<BayesFitResult, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    validate_design(design)?;
+    validate_design(likelihood, design)?;
     if hmc.n_chains < 2 {
         return Err(ProbError::Inference {
             message: "HMC requires at least 2 chains for R-hat / ESS",

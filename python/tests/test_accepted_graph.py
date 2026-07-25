@@ -37,13 +37,10 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
         calls["n"] += 1
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(causal, "discover_pc", spy)
-    monkeypatch.setattr("antecedent.accepted_graph.discover_pc", spy)
+    monkeypatch.setattr(antecedent, "discover_pc", spy)
     monkeypatch.setattr("antecedent.discovery.discover_pc", spy)
 
-    result = antecedent.discover_pc(
-        data, alpha=0.5, fdr=False, max_cond_size=0, seed=1
-    )
+    result = antecedent.discover_pc(data, alpha=0.5, fdr=False, max_cond_size=0, seed=1)
     assert calls["n"] == 1
     accepted = antecedent.AcceptedGraph.from_discovery(result, algorithm_id="pc")
     assert accepted.version == 1
@@ -71,9 +68,7 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
 
 def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
     data = _confounded_scm(seed=23)
-    dag = antecedent.Dag.from_edges(
-        ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]
-    )
+    dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id=None)
     calls = {"n": 0}
 
@@ -81,8 +76,8 @@ def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
         calls["n"] += 1
         raise AssertionError("discovery must not run on estimate knobs")
 
-    monkeypatch.setattr("antecedent.accepted_graph.discover_pc", boom)
-    monkeypatch.setattr(causal, "discover_pc", boom)
+    monkeypatch.setattr("antecedent.discovery.discover_pc", boom)
+    monkeypatch.setattr(antecedent, "discover_pc", boom)
 
     q = antecedent.AverageEffect(treatment="t", outcome="y")
     a = accepted.analyze(data, query=q, seed=1, bootstrap=0)
@@ -94,9 +89,7 @@ def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
 
 def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):
     data = _confounded_scm(seed=29)
-    dag = antecedent.Dag.from_edges(
-        ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]
-    )
+    dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
     calls = {"n": 0}
     real = antecedent.discover_pc
@@ -105,7 +98,7 @@ def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):
         calls["n"] += 1
         return real(*args, **kwargs)
 
-    monkeypatch.setattr("antecedent.accepted_graph.discover_pc", spy)
+    monkeypatch.setattr("antecedent.discovery.discover_pc", spy)
 
     refreshed = accepted.rediscover(
         data, antecedent.PC(alpha=0.5, fdr=False, max_cond_size=0), seed=1
@@ -115,6 +108,7 @@ def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):
     assert refreshed.algorithm_id == "pc"
     assert accepted.version == 1  # original handle unchanged
     assert isinstance(refreshed.graph, (antecedent.Dag, antecedent.Cpdag))
+
 
 def test_analyze_rejects_discovery_kwarg():
     data = _confounded_scm(n=200, seed=3)
@@ -130,9 +124,7 @@ def test_analyze_rejects_discovery_kwarg():
 
 
 def test_json_roundtrip_preserves_version_and_edges():
-    dag = antecedent.Dag.from_edges(
-        ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]
-    )
+    dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="pc", version=3)
     restored = antecedent.AcceptedGraph.from_json(accepted.to_json())
     assert restored.version == 3
@@ -174,8 +166,7 @@ def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
         calls["n"] += 1
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(causal, "discover_pcmci", spy)
-    monkeypatch.setattr("antecedent.accepted_graph.discover_pcmci", spy)
+    monkeypatch.setattr(antecedent, "discover_pcmci", spy)
     monkeypatch.setattr("antecedent.discovery.discover_pcmci", spy)
 
     result = antecedent.discover_pcmci(data=data, max_lag=2, alpha=0.05, fdr=False, seed=9)
@@ -187,15 +178,11 @@ def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
 
     # Estimate clicks on a known TemporalDag; spy proves rediscovery does not run.
     estimate_handle = antecedent.AcceptedGraph.from_graph(
-        antecedent.TemporalDag.from_lagged_edges(
-            ["x", "y"], [("x", 1, "y", 0)]
-        ),
+        antecedent.TemporalDag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)]),
         algorithm_id=accepted.algorithm_id,
         version=accepted.version,
     )
-    q = antecedent.PulseEffect(
-        treatment="x", outcome="y", treatment_lag=1, horizon_steps=1
-    )
+    q = antecedent.PulseEffect(treatment="x", outcome="y", treatment_lag=1, horizon_steps=1)
     first = estimate_handle.analyze(data, query=q, seed=1, bootstrap=0, refute=False)
     second = estimate_handle.analyze(data, query=q, seed=1, bootstrap=10, refute=False)
     assert calls["n"] == 1, "temporal estimate clicks must not re-enter discover_pcmci"
@@ -215,9 +202,11 @@ def test_temporal_rediscover_bumps_version(monkeypatch):
         calls["n"] += 1
         return real(*args, **kwargs)
 
-    monkeypatch.setattr("antecedent.accepted_graph.discover_pcmci", spy)
+    monkeypatch.setattr("antecedent.discovery.discover_pcmci", spy)
 
-    refreshed = accepted.rediscover(data, antecedent.PCMCI(max_lag=2, alpha=0.05, fdr=False), seed=1)
+    refreshed = accepted.rediscover(
+        data, antecedent.PCMCI(max_lag=2, alpha=0.05, fdr=False), seed=1
+    )
     assert calls["n"] == 1
     assert refreshed.version == accepted.version + 1
     assert refreshed.algorithm_id == "pcmci"

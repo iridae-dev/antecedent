@@ -180,10 +180,25 @@ mod tests {
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::{Dag, DenseNodeId};
     use antecedent_model::{MechanismRegistry, SelectionPolicy};
+    use serde::Deserialize;
 
     #[test]
     fn unit_change_attributes_parent() {
-        let n = 20usize;
+        #[derive(Deserialize)]
+        struct Fixture {
+            unit_case: UnitCase,
+        }
+        #[derive(Deserialize)]
+        struct UnitCase {
+            x: Vec<f64>,
+            contributions: Vec<f64>,
+            mean_contribution: f64,
+        }
+        let fixture: Fixture = serde_json::from_str(include_str!(
+            "../../../conformance/attribution/mechanism_unit_change/expected.json"
+        ))
+        .unwrap();
+        let n = fixture.unit_case.x.len();
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
             "x",
@@ -204,7 +219,7 @@ mod tests {
         )
         .unwrap();
         let schema = b.build().unwrap();
-        let xv: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let xv = fixture.unit_case.x.clone();
         let yv: Vec<f64> = xv.iter().map(|x| 2.0 * x).collect();
         let validity = ValidityBitmap::all_valid(n);
         let cols = vec![
@@ -229,8 +244,12 @@ mod tests {
             .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
         let result = unit_change(&model, &data, &q, &ExecutionContext::for_tests(1)).unwrap();
         assert_eq!(result.components.len(), 1);
-        // Extreme unit should have large absolute contribution vs mean reference.
-        let last = result.contributions[result.contributions.len() - 1].abs();
-        assert!(last > 1.0, "last unit contrib={last}");
+        assert_eq!(result.contributions.len(), fixture.unit_case.contributions.len());
+        for (actual, expected) in
+            result.contributions.iter().zip(fixture.unit_case.contributions.iter())
+        {
+            assert!((actual - expected).abs() < 1e-10, "actual={actual} expected={expected}");
+        }
+        assert!((result.mean_contributions[0] - fixture.unit_case.mean_contribution).abs() < 1e-10);
     }
 }

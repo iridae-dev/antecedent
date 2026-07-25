@@ -38,7 +38,14 @@ def test_discover_pcmci_weighted_parcorr_accepts_weights():
     names, cols = _series(200)
     w = np.ones(200, dtype=np.float64)
     result = antecedent.discover_pcmci(
-        names, cols, max_lag=1, alpha=0.05, fdr=False, seed=2, ci="weighted_parcorr", weights=w.tolist()
+        names,
+        cols,
+        max_lag=1,
+        alpha=0.05,
+        fdr=False,
+        seed=2,
+        ci="weighted_parcorr",
+        weights=w.tolist(),
     )
     assert result.ci_name == "weighted_parcorr"
     assert result.ci_tests >= 0

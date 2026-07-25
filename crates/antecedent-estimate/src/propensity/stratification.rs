@@ -270,6 +270,11 @@ pub(crate) fn stratified_ate(
         if cnt1[s] == 0 || cnt0[s] == 0 {
             continue;
         }
+        if cnt1[s] < 2 || cnt0[s] < 2 {
+            return Err(EstimationError::data_msg(
+                "analytic stratification uncertainty requires at least two treated and two control observations per retained stratum",
+            ));
+        }
         let n1 = cnt1[s] as f64;
         let n0 = cnt0[s] as f64;
         let mean1 = sum1[s] / n1;
@@ -299,11 +304,44 @@ pub(crate) fn stratified_ate(
     Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction })
 }
 
-/// Unbiased sample variance from `Σy²`, the mean, and the count (`NaN` when `count < 2`).
+/// Unbiased sample variance from `Σy²`, the mean, and a count of at least two.
 fn sample_variance_from_moments(sum_sq: f64, mean: f64, count: usize) -> f64 {
-    if count < 2 {
-        return f64::NAN;
-    }
+    debug_assert!(count >= 2);
     let n = count as f64;
     ((sum_sq - n * mean * mean) / (n - 1.0)).max(0.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stratification_rejects_singleton_arm_uncertainty() {
+        let err = match stratified_ate(
+            &[0.0, 1.0],
+            &[0.0, 1.0],
+            &[0, 0],
+            1,
+            &TargetPopulation::AllObserved,
+        ) {
+            Ok(_) => panic!("singleton arms must be rejected"),
+            Err(err) => err,
+        };
+        assert!(matches!(err, EstimationError::Data(_)));
+    }
+
+    #[test]
+    fn stratification_two_per_arm_matches_closed_form_se() {
+        let result = stratified_ate(
+            &[1.0, 1.0, 0.0, 0.0],
+            &[1.0, 3.0, 0.0, 2.0],
+            &[0, 0, 0, 0],
+            1,
+            &TargetPopulation::AllObserved,
+        )
+        .unwrap();
+        assert!((result.ate - 1.0).abs() <= 1e-12);
+        assert!((result.se_analytic - 2.0_f64.sqrt()).abs() <= 1e-12);
+        assert!(result.se_analytic.is_finite());
+    }
 }

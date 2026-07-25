@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "clean-room scalar Kalman and Rauch-Tung-Striebel recursion",
+    "pin": "fixture-algorithm-v1",
+    "generation_location": "temporary standard-library harness; deleted after artifact import"
+  },
+  "parameters": {"a": 0.8, "process_variance": 0.09, "observation_variance": 0.16, "initial_mean": 0.1, "initial_variance": 0.5},
+  "observations": [0.2, -0.1, 0.5, 0.7, -0.2],
+  "reference": {
+    "filtered_mean": [0.17575757575757578, 0.017520814061054588, 0.24285242286705833, 0.42867133427718807, 0.09203884879330732],
+    "filtered_variance": [0.12121212121212122, 0.08185013876040705, 0.07533946081280678, 0.07415654333331376, 0.07393806278724288],
+    "predicted_mean": [0.1, 0.14060606060606062, 0.014016651248843671, 0.19428193829364668, 0.34293706742175045],
+    "predicted_variance": [0.5, 0.1675757575757576, 0.1423840888066605, 0.13821725492019635, 0.1374601877333208],
+    "smoothed_mean": [0.18006386031029717, 0.14804785859873226, 0.29784290039433753, 0.3203883765494283, 0.09203884879330732],
+    "smoothed_variance": [0.0867369646579711, 0.06461859790126452, 0.060908366224587646, 0.062324763440104985, 0.07393806278724288],
+    "lag_one_covariance": [0.0, 0.037392317049556326, 0.02801076029736256, 0.02717758546470529, 0.031910278881333756]
+  },
+  "acceptance": {"atol": 2e-14, "innovation_pack_atol": 2e-6}
+}

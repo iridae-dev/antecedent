@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-import antecedent
 
 
 def _ate_data(n: int = 200, seed: int = 0):

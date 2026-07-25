@@ -67,7 +67,7 @@ pub fn fit_laplace_glm(
 ) -> Result<BayesFitResult, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    validate_design(design)?;
+    validate_design(likelihood, design)?;
     workspace.prepare(nrows, ncols, options.n_draws);
 
     if likelihood == BayesLikelihood::GaussianIdentity {
@@ -572,7 +572,10 @@ fn fit_gaussian_laplace_inv_gamma(
     Ok(BayesFitResult { draws, map: beta_map, diagnostics, cov: Some(cov_beta) })
 }
 
-pub(crate) fn validate_design(design: BayesDesignRef<'_>) -> Result<(), ProbError> {
+pub(crate) fn validate_design(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+) -> Result<(), ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
     if design.y.len() != nrows {
@@ -584,14 +587,58 @@ pub(crate) fn validate_design(design: BayesDesignRef<'_>) -> Result<(), ProbErro
     if nrows == 0 || ncols == 0 {
         return Err(ProbError::Shape { message: "empty design" });
     }
+    let x_len = nrows.saturating_mul(ncols);
+    for &v in &design.x_colmajor[..x_len] {
+        if !v.is_finite() {
+            return Err(ProbError::Shape { message: "X must be finite" });
+        }
+    }
+    for &yi in design.y {
+        match likelihood {
+            BayesLikelihood::GaussianIdentity => {
+                if !yi.is_finite() {
+                    return Err(ProbError::Shape { message: "y must be finite" });
+                }
+            }
+            BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit => {
+                if !(yi == 0.0 || yi == 1.0) {
+                    return Err(ProbError::Shape { message: "Bernoulli outcomes must be 0 or 1" });
+                }
+            }
+            BayesLikelihood::PoissonLog => {
+                if !(yi.is_finite() && yi >= 0.0) {
+                    return Err(ProbError::Shape {
+                        message: "Poisson outcomes must be finite and non-negative",
+                    });
+                }
+            }
+        }
+    }
     if let Some(w) = design.weights {
         if w.len() != nrows {
             return Err(ProbError::Shape { message: "weights length != nrows" });
+        }
+        let mut mass = 0.0;
+        for &wr in w {
+            if !(wr.is_finite() && wr >= 0.0) {
+                return Err(ProbError::Shape {
+                    message: "weights must be finite and non-negative",
+                });
+            }
+            mass += wr;
+        }
+        if !(mass > 0.0) || !mass.is_finite() {
+            return Err(ProbError::Shape { message: "weights must have positive total mass" });
         }
     }
     if let Some(o) = design.offsets {
         if o.len() != nrows {
             return Err(ProbError::Shape { message: "offsets length != nrows" });
+        }
+        for &oi in o {
+            if !oi.is_finite() {
+                return Err(ProbError::Shape { message: "offsets must be finite" });
+            }
         }
     }
     Ok(())
@@ -1340,6 +1387,83 @@ mod tests {
             fisher_w += (dens * dens) / (mu * (1.0 - mu));
         }
         assert!((obs_w - fisher_w).abs() > 1e-3, "obs={obs_w} fisher={fisher_w}");
+    }
+
+    #[test]
+    fn validate_design_rejects_nonfinite_and_invalid_outcomes() {
+        let x = [1.0, f64::NAN];
+        let y = [0.0, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 2,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        assert!(validate_design(BayesLikelihood::BernoulliLogit, design).is_err());
+
+        let x = [1.0, 1.0];
+        let y = [0.0, 2.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 2,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        assert!(validate_design(BayesLikelihood::BernoulliLogit, design).is_err());
+        assert!(validate_design(BayesLikelihood::PoissonLog, design).is_ok());
+
+        let y = [1.0, -1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 2,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        assert!(validate_design(BayesLikelihood::PoissonLog, design).is_err());
+    }
+
+    #[test]
+    fn validate_design_allows_zero_weights_with_positive_mass() {
+        let x = [1.0, 1.0, 1.0];
+        let y = [0.0, 1.0, 0.0];
+        let w_ok = [1.0, 0.0, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 3,
+            ncols: 1,
+            y: &y,
+            weights: Some(&w_ok),
+            offsets: None,
+        };
+        assert!(validate_design(BayesLikelihood::BernoulliLogit, design).is_ok());
+
+        let w_bad = [1.0, -0.1, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 3,
+            ncols: 1,
+            y: &y,
+            weights: Some(&w_bad),
+            offsets: None,
+        };
+        assert!(validate_design(BayesLikelihood::BernoulliLogit, design).is_err());
+
+        let w_zero = [0.0, 0.0, 0.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 3,
+            ncols: 1,
+            y: &y,
+            weights: Some(&w_zero),
+            offsets: None,
+        };
+        assert!(validate_design(BayesLikelihood::BernoulliLogit, design).is_err());
     }
 
     #[test]

@@ -326,6 +326,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn effective_nw_lag_and_bartlett_golden_weights() {
+        // L_eff = min(requested, max_span); weights use capped denominator.
+        assert_eq!(effective_nw_lag(2, 4), 2);
+        assert_eq!(effective_nw_lag(4, 4), 4);
+        assert_eq!(effective_nw_lag(10, 4), 4);
+        assert_eq!(effective_nw_lag(0, 4), 0);
+        assert_eq!(effective_nw_lag(3, 0), 0);
+
+        let l_eff = 4usize;
+        assert!((bartlett_weight(1, l_eff) - 0.8).abs() < 1e-15);
+        assert!((bartlett_weight(2, l_eff) - 0.6).abs() < 1e-15);
+        assert!((bartlett_weight(3, l_eff) - 0.4).abs() < 1e-15);
+        assert!((bartlett_weight(4, l_eff) - 0.2).abs() < 1e-15);
+        // Oversized requested lag must not change weights once L_eff is capped.
+        assert!((bartlett_weight(1, effective_nw_lag(10, 4)) - 0.8).abs() < 1e-15);
+        assert!((bartlett_weight(0, l_eff) - 0.0).abs() < 1e-15);
+        assert!((bartlett_weight(1, 0) - 0.0).abs() < 1e-15);
+    }
+
+    #[test]
     fn intern_distinguishes_packing_collision() {
         // Lossy pack: (1,0) and (0, 1_000_003) both → 1_000_003.
         let dim_a = [1u32, 0];

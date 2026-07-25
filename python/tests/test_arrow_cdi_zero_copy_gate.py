@@ -10,9 +10,8 @@ import pytest
 pytest.importorskip("pyarrow")
 pytest.importorskip("antecedent")
 
-import pyarrow as pa
-
 import antecedent
+import pyarrow as pa
 
 
 def test_arrow_c_zero_copy_acceptance():

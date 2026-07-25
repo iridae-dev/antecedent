@@ -17,6 +17,8 @@ def allowed(path: Path) -> bool:
     s = path.as_posix()
     if s.startswith("parity/baselines/"):
         return True
+    if s == "parity/oracle_closure.toml":
+        return True
     if s.startswith("provenance/"):
         return True
     if s.startswith("adr/0009"):
@@ -27,8 +29,8 @@ def allowed(path: Path) -> bool:
     # Fixture pointer TOMLs may cite baseline_pin path containing project name.
     if s.startswith("parity/fixtures/") and s.endswith(".toml"):
         return True
-    # Black-box oracle generators must name the upstream tool they invoke.
-    if s.startswith("scripts/conformance/"):
+    # Native frozen-oracle tests must identify their baseline source.
+    if s.startswith("crates/") and "/tests/" in s and "oracle" in Path(s).name:
         return True
     # The allowlist gate itself must mention the pattern.
     if s == "scripts/gate_upstream_names.sh":

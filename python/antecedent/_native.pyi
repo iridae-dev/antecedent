@@ -1,8 +1,9 @@
-"""Type stubs for the native extension module ``causal._native``."""
+"""Type stubs for the native extension module ``antecedent._native``."""
 
 from __future__ import annotations
 
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -26,12 +27,14 @@ class CausalStateError(CausalError): ...
 class CausalSerializationError(CausalError): ...
 class CausalCompileError(CausalError): ...
 class CausalResourceError(CausalError): ...
+
 class CausalReviewError(CausalError):
     kind: str
     algorithm: str | None
     pending_edge_count: int
     hint: str
     message: str
+
 class CausalUnsupportedError(CausalError): ...
 class CausalCancelledError(CausalError): ...
 
@@ -99,6 +102,16 @@ class AteAnalysisResult:
     cancelled: bool
     early_stopped: bool
     stage_timings: list[tuple[str, int]]
+    prior_ppc_p_value: float | None
+    prior_ppc_observed: float | None
+    prior_ppc_predictive_mean: float | None
+    prior_ppc_predictive_sd: float | None
+    prior_ppc_n_sims: int | None
+    posterior_ppc_p_value: float | None
+    posterior_ppc_observed: float | None
+    posterior_ppc_predictive_mean: float | None
+    posterior_ppc_predictive_sd: float | None
+    posterior_ppc_n_sims: int | None
 
 class PosteriorArtifact:
     n_draws: int
@@ -197,6 +210,18 @@ class AnalysisResult:
     refutation_count: int
     worker_threads: int
     expected_python_crossings: int
+    posterior_effect_mean: float | None
+    posterior_effect_sd: float | None
+    posterior_q025: float | None
+    posterior_q975: float | None
+    posterior_n_draws: int | None
+    posterior_p_below_zero: float | None
+    posterior_backend: str | None
+    posterior_artifact: bytes | None
+    posterior_unidentified_mass: float | None
+    mediation_total: float | None
+    mediation_direct: float | None
+    mediation_mediated: float | None
 
 TemporalAnalysisResult = AnalysisResult
 
@@ -218,7 +243,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int | None = 50,
         threads: int = 1,
         latency: str | None = None,
     ) -> PreparedAnalysis: ...
@@ -434,17 +459,28 @@ def fit_gcm(
     *,
     threads: int = 1,
 ) -> FittedGcm: ...
-
 def load_float64_columns(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
 ) -> ArrowLoadInfo: ...
-
 def load_float64_arrow_c_columns(
     names: list[str],
     columns: Sequence[object],
 ) -> ArrowLoadInfo: ...
-
+def analyze_ate_many(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    queries: list[tuple[str, str, float, float]],
+    *,
+    identifier: str | None = None,
+    estimator: str | None = None,
+    refute: bool | str | None = None,
+    seed: int = 1,
+    bootstrap: int | None = 50,
+    threads: int = 1,
+    latency: str | None = None,
+) -> list[AteAnalysisResult]: ...
 def analyze_ate(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -468,7 +504,7 @@ def analyze_ate(
     cutoff: float | None = None,
     bandwidth: float | None = None,
     seed: int = 1,
-    bootstrap: int = 50,
+    bootstrap: int | None = 50,
     threads: int = 1,
     target_population: dict[str, Any] | None = None,
     population_predicates: dict[str, list[int]] | None = None,
@@ -479,7 +515,6 @@ def analyze_ate(
     on_stage: Callable[[str, dict[str, Any]], Any] | None = None,
     return_posterior_artifact: bool = False,
 ) -> AteAnalysisResult: ...
-
 def analyze_ate_arrow_c(
     names: list[str],
     columns: Sequence[Any],
@@ -503,14 +538,13 @@ def analyze_ate_arrow_c(
     cutoff: float | None = None,
     bandwidth: float | None = None,
     seed: int = 1,
-    bootstrap: int = 50,
+    bootstrap: int | None = 50,
     threads: int = 1,
     latency: str | None = None,
     cancel: CancellationToken | None = None,
     on_progress: Callable[[float, str], Any] | None = None,
     return_posterior_artifact: bool = False,
 ) -> AteAnalysisResult: ...
-
 def analyze(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -522,11 +556,18 @@ def analyze(
     horizon_steps: int = 1,
     active_level: float = 1.0,
     policy: str = "pulse",
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    prior_mapping: dict[str, Any] | None = None,
+    composed_prior: dict[str, Any] | None = None,
+    refute: bool | str = True,
+    validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
-    bootstrap: int = 0,
+    bootstrap: int | None = 0,
     threads: int = 1,
 ) -> AnalysisResult: ...
-
 def analyze_temporal_pag(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -538,11 +579,18 @@ def analyze_temporal_pag(
     horizon_steps: int = 1,
     active_level: float = 1.0,
     policy: str = "pulse",
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    prior_mapping: dict[str, Any] | None = None,
+    composed_prior: dict[str, Any] | None = None,
+    refute: bool | str = True,
+    validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
-    bootstrap: int = 0,
+    bootstrap: int | None = 0,
     threads: int = 1,
 ) -> AnalysisResult: ...
-
 def analyze_events(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -563,7 +611,7 @@ def analyze_events(
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
-    bootstrap: int = 0,
+    bootstrap: int | None = 0,
     threads: int = 1,
     algorithm: str | None = None,
     max_lag: int = 1,
@@ -577,7 +625,6 @@ def analyze_events(
     force_mcmc: bool = False,
     ci: CiArg = None,
 ) -> AnalysisResult: ...
-
 def analyze_panel(
     names: list[str],
     unit_columns: Sequence[Sequence[NDArray[np.float64]]],
@@ -597,10 +644,9 @@ def analyze_panel(
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
-    bootstrap: int = 0,
+    bootstrap: int | None = 0,
     threads: int = 1,
 ) -> AnalysisResult: ...
-
 def analyze_panel_discover(
     names: list[str],
     unit_columns: Sequence[Sequence[NDArray[np.float64]]],
@@ -624,7 +670,7 @@ def analyze_panel_discover(
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
-    bootstrap: int = 0,
+    bootstrap: int | None = 0,
     threads: int = 1,
     context_names: list[str] | None = None,
     include_space_dummy: bool = True,
@@ -633,7 +679,6 @@ def analyze_panel_discover(
     time_dummy_encoding: str = "integer",
     time_dummy_ci: bool = False,
 ) -> AnalysisResult: ...
-
 def analyze_distribution(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -645,7 +690,6 @@ def analyze_distribution(
     seed: int = 1,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
-
 def analyze_path_specific(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -659,11 +703,9 @@ def analyze_path_specific(
     max_paths: int = 64,
     max_len: int = 16,
     seed: int = 1,
-    bootstrap: int = 50,
+    bootstrap: int | None = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
-
-
 def analyze_conditional(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -677,10 +719,9 @@ def analyze_conditional(
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
-    bootstrap: int = 50,
+    bootstrap: int | None = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
-
 def analyze_mediation(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -694,10 +735,9 @@ def analyze_mediation(
     active_level: float = 1.0,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int = 0,
+    bootstrap: int | None = 0,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
-
 def identify_ate(
     names: list[str],
     edges: list[tuple[str, str]],
@@ -706,7 +746,6 @@ def identify_ate(
     *,
     identifier: str | None = None,
 ) -> tuple[str, str, list[str]]: ...
-
 def analyze_temporal_mediation(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -719,11 +758,9 @@ def analyze_temporal_mediation(
     control_level: float = 0.0,
     active_level: float = 1.0,
     seed: int = 1,
-    bootstrap: int = 0,
+    bootstrap: int | None = 0,
     threads: int = 1,
 ) -> AnalysisResult: ...
-
-
 def analyze_ate_discover(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -746,17 +783,25 @@ def analyze_ate_discover(
     inference: str | None = None,
     n_draws: int = 1000,
     prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    prior_mapping: dict[str, Any] | None = None,
+    composed_prior: dict[str, Any] | None = None,
     refute: bool | str = True,
     validators: list[Callable[..., Any]] | None = None,
     ci: CiArg = None,
+    n_chains: int = 2,
+    n_warmup: int = 100,
+    mcmc_draws: int = 200,
+    thin: int = 1,
+    soft_weight: str = "none",
+    require_diagnostics_gate: bool = True,
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
     seed: int = 1,
-    bootstrap: int = 50,
+    bootstrap: int | None = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
-
 def analyze_temporal_discover(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -772,10 +817,20 @@ def analyze_temporal_discover(
     horizon_steps: int = 1,
     active_level: float = 1.0,
     policy: str = "pulse",
+    inference: str | None = None,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    prior_artifact: bytes | None = None,
+    prior_mapping: dict[str, Any] | None = None,
+    composed_prior: dict[str, Any] | None = None,
+    n_chains: int = 2,
+    n_warmup: int = 100,
+    mcmc_draws: int = 200,
+    force_mcmc: bool = False,
     seed: int = 1,
-    bootstrap: int = 0,
+    bootstrap: int | None = 0,
     threads: int = 1,
-    env_columns: list[Sequence[NDArray[np.float64]]] | None = None,
+    env_columns: Sequence[Sequence[NDArray[np.float64]]] | None = None,
     regimes: list[int] | None = None,
     context_names: list[str] | None = None,
     include_space_dummy: bool = True,
@@ -785,7 +840,6 @@ def analyze_temporal_discover(
     time_dummy_ci: str = "scalar",
     ci: CiArg = None,
 ) -> AnalysisResult: ...
-
 def discover_pcmci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -798,7 +852,6 @@ def discover_pcmci(
     weights: list[float] | None = None,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
-
 def discover_pcmci_plus(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -811,7 +864,6 @@ def discover_pcmci_plus(
     weights: list[float] | None = None,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
-
 def discover_pc(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -823,7 +875,6 @@ def discover_pc(
     max_cond_size: int = 2,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
-
 def discover_ges(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -837,7 +888,6 @@ def discover_ges(
     screen_pc: bool = False,
     max_subset: int | None = None,
 ) -> PcmciDiscoveryResult: ...
-
 def discover_lingam(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -847,7 +897,6 @@ def discover_lingam(
     max_cond_size: int = 8,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
-
 def discover_notears(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -859,7 +908,6 @@ def discover_notears(
     max_cond_size: int = 8,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
-
 def discover_fci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -871,7 +919,6 @@ def discover_fci(
     max_cond_size: int = 2,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
-
 def discover_rfci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -883,7 +930,6 @@ def discover_rfci(
     max_cond_size: int = 2,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
-
 def discover_lpcmci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -896,7 +942,6 @@ def discover_lpcmci(
     weights: list[float] | None = None,
     threads: int = 1,
 ) -> PcmciDiscoveryResult: ...
-
 def discover_jpcmci_plus(
     names: list[str],
     env_columns: list[Sequence[NDArray[np.float64]]],
@@ -915,7 +960,6 @@ def discover_jpcmci_plus(
     time_dummy_encoding: str = "integer",
     time_dummy_ci: str = "scalar",
 ) -> PcmciDiscoveryResult: ...
-
 def discover_rpcmci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -929,9 +973,7 @@ def discover_rpcmci(
     weights: list[float] | None = None,
     threads: int = 1,
 ) -> RpcmciDiscoverySummary: ...
-
 def two_regime_half_split(series_len: int) -> list[int]: ...
-
 def discover_exact_dag_posterior(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -939,7 +981,6 @@ def discover_exact_dag_posterior(
     seed: int = 1,
     threads: int = 1,
 ) -> GraphPosterior: ...
-
 def discover_order_mcmc(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -952,7 +993,6 @@ def discover_order_mcmc(
     seed: int = 1,
     threads: int = 1,
 ) -> GraphPosterior: ...
-
 def discover_structure_mcmc(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -964,7 +1004,6 @@ def discover_structure_mcmc(
     seed: int = 1,
     threads: int = 1,
 ) -> GraphPosterior: ...
-
 def discover_ci_screened_posterior(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -981,7 +1020,6 @@ def discover_ci_screened_posterior(
     seed: int = 1,
     threads: int = 1,
 ) -> GraphPosterior: ...
-
 def discover_dbn_posterior(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -995,7 +1033,6 @@ def discover_dbn_posterior(
     seed: int = 1,
     threads: int = 1,
 ) -> GraphPosterior: ...
-
 def mediation_effects_summary(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1006,7 +1043,6 @@ def mediation_effects_summary(
     seed: int = 1,
     threads: int = 1,
 ) -> MediationEffectsSummary: ...
-
 def predict_intervened_summary(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1016,7 +1052,6 @@ def predict_intervened_summary(
     parent_lag: int = 1,
     level: float = 1.0,
 ) -> PredictSummary: ...
-
 def counterfactual_ite(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1029,7 +1064,6 @@ def counterfactual_ite(
     seed: int = 0,
     threads: int = 1,
 ) -> GcmIteResult: ...
-
 def sample_do(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1042,7 +1076,6 @@ def sample_do(
     threads: int = 1,
     mechanism_wrappers: dict[str, Any] | None = None,
 ) -> GcmSampleResult: ...
-
 def sample_interventional_distribution(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1055,7 +1088,6 @@ def sample_interventional_distribution(
     seed: int = 0,
     threads: int = 1,
 ) -> GcmSampleResult: ...
-
 def attribute_path_specific(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1069,7 +1101,6 @@ def attribute_path_specific(
     seed: int = 0,
     threads: int = 1,
 ) -> ChangeAttributionResult: ...
-
 def attribute_paths(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1082,7 +1113,6 @@ def attribute_paths(
     seed: int = 0,
     threads: int = 1,
 ) -> ChangeAttributionResult: ...
-
 def attribute_distribution_change(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1097,7 +1127,6 @@ def attribute_distribution_change(
     seed: int = 0,
     threads: int = 1,
 ) -> ChangeAttributionResult: ...
-
 def attribute_distribution_change_robust(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1112,7 +1141,6 @@ def attribute_distribution_change_robust(
     seed: int = 0,
     threads: int = 1,
 ) -> ChangeAttributionResult: ...
-
 def attribute_structure_change(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1128,7 +1156,6 @@ def attribute_structure_change(
     seed: int = 0,
     threads: int = 1,
 ) -> ChangeAttributionResult: ...
-
 def anomaly_attribution(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1137,7 +1164,6 @@ def anomaly_attribution(
     *,
     max_units: int = 0,
 ) -> list[AnomalyScores]: ...
-
 def attribute_unit_change(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1148,7 +1174,6 @@ def attribute_unit_change(
     seed: int = 0,
     threads: int = 1,
 ) -> ChangeAttributionResult: ...
-
 def attribute_feature_relevance(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1160,7 +1185,6 @@ def attribute_feature_relevance(
     seed: int = 0,
     threads: int = 1,
 ) -> list[FeatureRelevance]: ...
-
 def mechanism_change_detection(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1173,14 +1197,12 @@ def mechanism_change_detection(
     seed: int = 0,
     threads: int = 1,
 ) -> list[MechanismChangeDetection]: ...
-
 def rank_root_causes(
     attribution: ChangeAttributionResult,
     *,
     seed: int = 0,
     threads: int = 1,
 ) -> list[Contribution]: ...
-
 def rank_designs(
     graph_weights: list[float],
     identified: list[int],
@@ -1206,15 +1228,14 @@ def rank_designs(
     seed: int = 0,
     threads: int = 1,
 ) -> DesignRanking: ...
-
 def evaluate_decision_py(
     actions: list[float],
     outcomes: list[float],
     utility: Callable[..., Any],
 ) -> DecisionEvaluation: ...
-
 def decode_posterior_artifact(bytes: list[int] | bytes) -> PosteriorArtifact: ...
 def encode_posterior_artifact(artifact: PosteriorArtifact) -> bytes: ...
+
 class Dag:
     @classmethod
     def from_edges(cls, names: list[str], edges: list[tuple[str, str]]) -> Dag: ...
@@ -1238,9 +1259,7 @@ class Dag:
     @classmethod
     def from_networkx_adjacency(cls, json: str) -> Dag: ...
     def to_networkx_adjacency(self) -> str: ...
-    def d_separated(
-        self, x: str, y: str, z: list[str] | None = None
-    ) -> bool: ...
+    def d_separated(self, x: str, y: str, z: list[str] | None = None) -> bool: ...
     def latent_project(self, observed: list[str]) -> Admg: ...
 
 class Cpdag:
@@ -1335,9 +1354,7 @@ class Admg:
     @classmethod
     def from_networkx_node_link(cls, json: str) -> Admg: ...
     def to_networkx_node_link(self) -> str: ...
-    def m_separated(
-        self, x: str, y: str, z: list[str] | None = None
-    ) -> bool: ...
+    def m_separated(self, x: str, y: str, z: list[str] | None = None) -> bool: ...
 
 class TemporalDag:
     @classmethod
@@ -1372,7 +1389,7 @@ class TemporalPag:
 
 def analyze_ate_pag(
     names: list[str],
-    columns: list[object],
+    columns: Sequence[Any],
     graph: Pag,
     treatment: str,
     outcome: str,
@@ -1390,12 +1407,12 @@ def analyze_ate_pag(
     cutoff: float | None = None,
     bandwidth: float | None = None,
     seed: int = 1,
-    bootstrap: int = 50,
+    bootstrap: int | None = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_cpdag(
     names: list[str],
-    columns: list[object],
+    columns: Sequence[Any],
     graph: Cpdag,
     treatment: str,
     outcome: str,
@@ -1413,12 +1430,12 @@ def analyze_ate_cpdag(
     cutoff: float | None = None,
     bandwidth: float | None = None,
     seed: int = 1,
-    bootstrap: int = 50,
+    bootstrap: int | None = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_admg(
     names: list[str],
-    columns: list[object],
+    columns: Sequence[Any],
     graph: Admg,
     treatment: str,
     outcome: str,
@@ -1436,10 +1453,9 @@ def analyze_ate_admg(
     cutoff: float | None = None,
     bandwidth: float | None = None,
     seed: int = 1,
-    bootstrap: int = 50,
+    bootstrap: int | None = 50,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
-
 def dag_from_dot(dot: str) -> tuple[int, list[tuple[int, int]]]: ...
 def dag_to_dot(node_count: int, edges: list[tuple[int, int]]) -> str: ...
 def dag_from_json(json: str) -> tuple[int, list[tuple[int, int]], list[str] | None]: ...
@@ -1458,6 +1474,7 @@ def dag_to_networkx_adjacency(
     edges: list[tuple[int, int]],
     variable_names: list[str] | None = None,
 ) -> str: ...
+
 class CausalState:
     def __init__(self, cache_bytes: int = 1_048_576) -> None: ...
     @property
@@ -1477,21 +1494,15 @@ class CausalState:
         names: list[str] | None = None,
         columns: Sequence[NDArray[np.float64]] | None = None,
     ) -> int: ...
-    def get_batch(
-        self, batch_id: str
-    ) -> tuple[list[str], list[NDArray[np.float64]]]: ...
+    def get_batch(self, batch_id: str) -> tuple[list[str], list[NDArray[np.float64]]]: ...
     def batch_nrows(self, batch_id: str) -> int: ...
-    def add_graph_evidence(
-        self, evidence_id: str, fingerprint: int, bytes: int
-    ) -> int: ...
+    def add_graph_evidence(self, evidence_id: str, fingerprint: int, bytes: int) -> int: ...
     def graph_evidence(self) -> list[tuple[str, int, int]]: ...
     def add_constraint(self, constraint_id: str, fingerprint: int) -> int: ...
     def remove_constraint(self, constraint_id: str) -> int: ...
     def constraints(self) -> list[tuple[str, int]]: ...
     def update_assumption(self, kind: str) -> int: ...
-    def register_average_effect(
-        self, treatment: int, outcome: int
-    ) -> tuple[int, int]: ...
+    def register_average_effect(self, treatment: int, outcome: int) -> tuple[int, int]: ...
     def record_intervention(self, intervention_id: str, fingerprint: int) -> int: ...
     def refresh_results(self, entries: list[tuple[int, int, int]]) -> None: ...
     def ols_ensure(self, key: str, ncols: int) -> None: ...
@@ -1519,7 +1530,6 @@ def encode_model_bundle(
     edges: list[tuple[int, int]],
     mechanisms: list[tuple[str, float | None, list[float] | None, float | None]],
 ) -> bytes: ...
-
 def validate_pcmci_block_bootstrap(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1533,7 +1543,6 @@ def validate_pcmci_block_bootstrap(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]: ...
-
 def validate_pcmci_false_positive(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1547,7 +1556,6 @@ def validate_pcmci_false_positive(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]: ...
-
 def validate_pcmci_alpha_sensitivity(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1559,7 +1567,6 @@ def validate_pcmci_alpha_sensitivity(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]: ...
-
 def validate_pcmci_lag_sensitivity(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1571,7 +1578,6 @@ def validate_pcmci_lag_sensitivity(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]: ...
-
 def validate_pcmci_ci_sensitivity(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1583,7 +1589,6 @@ def validate_pcmci_ci_sensitivity(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]: ...
-
 def validate_pcmci_plus_orientation(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1597,7 +1602,6 @@ def validate_pcmci_plus_orientation(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]: ...
-
 def validate_synthetic_null_calibration(
     *,
     max_lag: int = 1,
@@ -1610,7 +1614,6 @@ def validate_synthetic_null_calibration(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]: ...
-
 def validate_environment_holdout(
     names: list[str],
     env_columns: list[list[NDArray[np.float64]]],
@@ -1623,7 +1626,6 @@ def validate_environment_holdout(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]: ...
-
 def validate_regime_stability(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -1638,4 +1640,38 @@ def validate_regime_stability(
     seed: int = 1,
     threads: int = 1,
 ) -> dict[str, Any]: ...
-def decode_model_bundle(bytes: list[int] | bytes) -> tuple[list[str], list[tuple[int, int]], int]: ...
+def decode_model_bundle(
+    bytes: list[int] | bytes,
+) -> tuple[list[str], list[tuple[int, int]], int]: ...
+def prior_catalog_filter(
+    sources: list[dict[str, Any]],
+    target: dict[str, Any],
+) -> list[dict[str, Any]]: ...
+def prior_catalog_rank(
+    reports: list[dict[str, Any]],
+    scores: dict[str, float],
+) -> list[dict[str, Any]]: ...
+def encode_prior_source_meta(meta: dict[str, Any]) -> bytes: ...
+def decode_prior_source_meta(bytes: bytes | list[int]) -> dict[str, Any]: ...
+def compose_external_priors(
+    sources: list[dict[str, Any]],
+    baseline_mean: list[float],
+    baseline_variance: list[float],
+    *,
+    conflict: dict[str, Any] | None = None,
+    conflict_signals: list[dict[str, Any]] | None = None,
+    transport: str | None = None,
+    target_population: str | None = None,
+    source_populations: list[str | None] | None = None,
+    unit_effects: list[float] | None = None,
+    transport_weights: list[float] | None = None,
+    coef_index: int | None = None,
+) -> dict[str, Any]: ...
+def conflict_shrink_alpha(
+    alpha: float,
+    *,
+    p_value: float | None = None,
+    kl: float | None = None,
+    p_min: float = 0.05,
+    kl_scale: float = 1.0,
+) -> float: ...

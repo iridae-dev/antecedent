@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "sensemakr/DoWhy semantics plus closed-form partial-R2 loading",
+    "version": "sensemakr 0.1.4; DoWhy 0.14",
+    "generator": "temporary pinned environment and clean-room formula harness (deleted after artifact import)",
+    "formula": "loading scale=sqrt(r2/(1-r2)); robustness is the first sorted grid value that explains away the signed effect."
+  },
+  "partial_r2_grid": [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5],
+  "expected": {
+    "result_is_grid_member": true,
+    "scale_invariant": true,
+    "empty_grid_is_not_applicable": true,
+    "replicates": 7
+  }
+}

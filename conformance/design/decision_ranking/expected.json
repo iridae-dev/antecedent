@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "clean-room brute-force expected-utility enumeration",
+    "algorithm": "enumerate action/outcome utility and constraint matrices; maximize expected utility over feasible actions only",
+    "pin": "fixture-algorithm-v1",
+    "python": "3.12.7",
+    "command": "python3 /tmp/antecedent_design_oracle.py",
+    "generation_location": "temporary external harness; deleted after artifact import",
+    "dependencies": "Python standard library only"
+  },
+  "normalization": {
+    "tie_break": "lowest action index",
+    "feasible": "minimum constraint satisfaction plus 1e-12 is at least chance_threshold",
+    "empty_action_set": "no chosen action, zero expected utility, zero regret",
+    "empty_outcomes": "recorded separately as an undocumented native boundary; excluded from validation"
+  },
+  "cases": [
+    {
+      "name": "unconstrained_linear",
+      "actions": [1.0, 2.0],
+      "outcomes": [1.0, 2.0],
+      "utility": "action_times_outcome",
+      "satisfaction": [1.0, 1.0],
+      "threshold": 1.0,
+      "chosen_action": 1,
+      "expected_utility": 3.0,
+      "regret": 0.0
+    },
+    {
+      "name": "constraint_excludes_utility_maximum",
+      "actions": [1.0, 2.0],
+      "outcomes": [1.0, 2.0],
+      "utility": "action_times_outcome",
+      "satisfaction": [1.0, 0.5],
+      "threshold": 0.75,
+      "chosen_action": 0,
+      "expected_utility": 1.5,
+      "regret": 1.5
+    },
+    {
+      "name": "all_actions_infeasible",
+      "actions": [1.0, 2.0],
+      "outcomes": [1.0, 2.0],
+      "utility": "action_times_outcome",
+      "satisfaction": [0.5, 0.25],
+      "threshold": 0.75,
+      "chosen_action": null,
+      "expected_utility": 0.0,
+      "regret": 3.0
+    },
+    {
+      "name": "utility_tie",
+      "actions": [1.0, 1.0],
+      "outcomes": [2.0, 4.0],
+      "utility": "action_times_outcome",
+      "satisfaction": [1.0, 1.0],
+      "threshold": 1.0,
+      "chosen_action": 0,
+      "expected_utility": 3.0,
+      "regret": 0.0
+    }
+  ]
+}

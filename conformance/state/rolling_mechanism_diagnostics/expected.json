@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "clean-room closed-form two-predictor batch OLS",
+    "algorithm": "rebuild each trailing window; solve the 2x2 normal equations analytically; recompute residual summaries directly",
+    "pin": "fixture-algorithm-v1",
+    "python": "3.12.7",
+    "command": "python3 /tmp/antecedent_rolling_diagnostics_oracle.py",
+    "generation_location": "temporary external harness; deleted after artifact import",
+    "dependencies": "Python standard library only"
+  },
+  "data": {
+    "n_rows": 150,
+    "row": "[1, ((i mod 23)-11)/7 + 0.15*sin(0.19*i)]",
+    "response": "1.5 - 0.7*x + 0.4*I(i>=90) + 0.2*sin(0.37*i) + 0.05*cos(0.11*i)"
+  },
+  "acceptance": {
+    "absolute_tolerance": 1e-9,
+    "batch_and_row_append_must_match": true,
+    "checkpoints_span_internal_rebuild_boundary": [63, 64, 127]
+  },
+  "cases": [
+    {
+      "name": "stable_shift",
+      "window": 17,
+      "checkpoints": [
+        {"row": 3, "n": 4, "beta": [2.103513391550946, -0.35196489430537603], "sse": 0.0002018162892050121, "residual_variance": 0.00010090814460250605, "mean_absolute_residual": 0.0070449239501281236, "max_absolute_cusum": 0.00748876529798978},
+        {"row": 16, "n": 17, "beta": [1.4675983033107352, -0.8780740062631291], "sse": 0.15259489639881016, "residual_variance": 0.01017299309325401, "mean_absolute_residual": 0.08064295488219107, "max_absolute_cusum": 0.30423660561646704},
+        {"row": 63, "n": 17, "beta": [1.5440721785955163, -0.6934102330131184], "sse": 0.37023003345986105, "residual_variance": 0.024682002230657404, "mean_absolute_residual": 0.13260730341673738, "max_absolute_cusum": 0.6056891288712348},
+        {"row": 64, "n": 17, "beta": [1.5290810767044147, -0.7584108741403567], "sse": 0.3388452727046834, "residual_variance": 0.022589684846978892, "mean_absolute_residual": 0.12551769679660665, "max_absolute_cusum": 0.6067279800829773},
+        {"row": 127, "n": 17, "beta": [1.929030913395802, -0.7293414549990275], "sse": 0.27991954309376277, "residual_variance": 0.018661302872917517, "mean_absolute_residual": 0.11018577247365602, "max_absolute_cusum": 0.9272259999223186},
+        {"row": 149, "n": 17, "beta": [1.8522795793378004, -0.7632606256418413], "sse": 0.25164479948200263, "residual_variance": 0.016776319965466843, "mean_absolute_residual": 0.10722626242039196, "max_absolute_cusum": 0.7941291495760429}
+      ]
+    },
+    {
+      "name": "short_boundary",
+      "window": 4,
+      "checkpoints": [
+        {"row": 3, "n": 4, "beta": [2.103513391550946, -0.35196489430537603], "sse": 0.0002018162892050121, "residual_variance": 0.00010090814460250605, "mean_absolute_residual": 0.0070449239501281236, "max_absolute_cusum": 0.00748876529798978},
+        {"row": 4, "n": 4, "beta": [1.9746967079557616, -0.45544038684978927], "sse": 0.0004523329548069061, "residual_variance": 0.00022616647740345306, "mean_absolute_residual": 0.010614363266742977, "max_absolute_cusum": 0.010995697053100995},
+        {"row": 11, "n": 4, "beta": [1.4209826064425717, -1.217260659975983], "sse": 0.00004935844794987893, "residual_variance": 0.000024679223974939464, "mean_absolute_residual": 0.0033495395172171883, "max_absolute_cusum": 0.0038989944483092303}
+      ]
+    },
+    {
+      "name": "large_window",
+      "window": 80,
+      "checkpoints": [
+        {"row": 79, "n": 80, "beta": [1.511691611432958, -0.7170960976036124], "sse": 1.6781345149979894, "residual_variance": 0.02151454506407679, "mean_absolute_residual": 0.12751418450896307, "max_absolute_cusum": 1.2238683651285256},
+        {"row": 80, "n": 80, "beta": [1.5084627430613902, -0.7173870431057954], "sse": 1.7372103555415033, "residual_variance": 0.022271927635147477, "mean_absolute_residual": 0.13047249623349713, "max_absolute_cusum": 1.2363340780169454},
+        {"row": 127, "n": 80, "beta": [1.7070745697124967, -0.7245177585937924], "sse": 5.139269017589553, "residual_variance": 0.06588806432807119, "mean_absolute_residual": 0.210777661465292, "max_absolute_cusum": 8.27071119533631},
+        {"row": 149, "n": 80, "beta": [1.792485568866404, -0.719392423582365], "sse": 4.130579932876645, "residual_variance": 0.05295615298559802, "mean_absolute_residual": 0.18394585265468744, "max_absolute_cusum": 5.967767659533055}
+      ]
+    }
+  ]
+}

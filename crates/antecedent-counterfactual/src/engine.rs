@@ -625,6 +625,7 @@ pub fn nested_hard_counterfactual(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{CounterfactualTrajectoryRequest, TrajectoryArm, evaluate_trajectories};
     use antecedent_core::{
         CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec, RoleHint,
         SequencedIntervention, SmallRoleSet, TemporalPolicy, ToleranceClass, Value, ValueType,
@@ -944,8 +945,7 @@ mod tests {
         assert!(mean.is_finite(), "overlapping simultaneous should nest, got {mean}");
     }
 
-    #[test]
-    fn nested_hard_allows_overlapping_treatment_with_mediator_freeze() {
+    fn nested_hard_fixture_engine() -> (CounterfactualEngine, TabularData, VariableId, VariableId) {
         // T -> M -> Y, Y also <- T. Nested Y_{x=1, M_{x=0}} should freeze M at do(T=0).
         let n = 40usize;
         let mut b = CausalSchemaBuilder::new();
@@ -1009,16 +1009,26 @@ mod tests {
                 },
                 MechanismSlot::LinearGaussian {
                     intercept: 0.0,
-                    coeffs: Arc::from([0.5, 1.5]),
+                    // Compiled parent order is M, T for this graph.
+                    coeffs: Arc::from([1.5, 0.5]),
                     sigma: 0.05,
                 },
             ]),
         };
         let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
+        (engine, data, VariableId::from_raw(0), VariableId::from_raw(2))
+    }
+
+    #[test]
+    fn nested_hard_allows_overlapping_treatment_with_mediator_freeze() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/gcm/nested_temporal_counterfactual/expected.json"
+        ))
+        .unwrap();
+        let tolerance = fixture["acceptance"]["atol"].as_f64().unwrap();
+        let (engine, data, t, y) = nested_hard_fixture_engine();
         let mut ws = MechanismWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let t = VariableId::from_raw(0);
-        let y = VariableId::from_raw(2);
         // Y_{1, M_0}: outer do(T=0), inner do(T=1) with M frozen.
         let nested = nested_hard_counterfactual(
             &engine,
@@ -1030,7 +1040,8 @@ mod tests {
             &ctx,
         )
         .unwrap();
-        assert!(nested.is_finite(), "nested={nested}");
+        let nested_target = fixture["reference"]["nested_y_t1_m_t0_mean"].as_f64().unwrap();
+        assert!((nested - nested_target).abs() <= tolerance, "nested={nested}");
         // Pure do(T=1) should differ when M responds to T.
         let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
         let world = CounterfactualWorld {
@@ -1041,10 +1052,45 @@ mod tests {
             .predict(&exo, &[world], &[y], true, &mut ws, &ctx)
             .unwrap()
             .streaming_outcome_mean(0, DenseNodeId::from_raw(2));
+        let pure_target = fixture["reference"]["pure_do_t1_mean"].as_f64().unwrap();
+        assert!((pure - pure_target).abs() <= tolerance, "pure={pure}");
         assert!(
-            (nested - pure).abs() > 1e-3,
-            "nested={nested} should differ from pure do(T=1)={pure}"
+            (nested - pure - fixture["reference"]["difference"].as_f64().unwrap()).abs()
+                <= tolerance
         );
+
+        let request = CounterfactualTrajectoryRequest {
+            arms: Arc::from([
+                TrajectoryArm {
+                    schedule: Arc::from([
+                        Arc::from([Intervention::set(t, Value::f64(0.0))]),
+                        Arc::from([Intervention::set(t, Value::f64(0.0))]),
+                    ]),
+                },
+                TrajectoryArm {
+                    schedule: Arc::from([
+                        Arc::from([Intervention::set(t, Value::f64(1.0))]),
+                        Arc::from([Intervention::set(t, Value::f64(1.0))]),
+                    ]),
+                },
+            ]),
+            outcome: y,
+        };
+        let trajectories = evaluate_trajectories(&engine, &exo, &request, &mut ws, &ctx).unwrap();
+        for time in 0..2 {
+            assert!(
+                (trajectories.mean_at(time, 0)
+                    - fixture["reference"]["trajectory_do_t0_mean"].as_f64().unwrap())
+                .abs()
+                    <= tolerance
+            );
+            assert!(
+                (trajectories.mean_at(time, 1)
+                    - fixture["reference"]["trajectory_do_t1_mean"].as_f64().unwrap())
+                .abs()
+                    <= tolerance
+            );
+        }
     }
 
     /// Streaming ≡ retained under random unit counts and multi-world intervention sets.

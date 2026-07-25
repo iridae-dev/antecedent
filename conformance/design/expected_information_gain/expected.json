@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "clean-room exact discrete-channel enumeration",
+    "algorithm": "sum_g p(g) sum_y p(y|g,d) [H(G)-H(G|y,d)]",
+    "pin": "fixture-algorithm-v1",
+    "python": "3.12.7",
+    "command": "python3 /tmp/antecedent_design_oracle.py",
+    "generation_location": "temporary external harness; deleted after artifact import",
+    "dependencies": "Python standard library only"
+  },
+  "normalization": {
+    "entropy": "natural logarithm",
+    "graph_weights": "normalized to unit mass",
+    "categories": "sorted unique feature labels",
+    "off_category_probability": "(1-reliability)/(category_count-1)",
+    "information_gain": "expectation is taken before any non-negativity check; individual entropy reductions are not clipped"
+  },
+  "posterior": {
+    "weights": [0.5, 0.3, 0.2],
+    "features": [0, 1, 2],
+    "prior_entropy": 1.0296530140645737
+  },
+  "cases": [
+    {
+      "name": "measure_one",
+      "candidate": "measure",
+      "amount": 1,
+      "reliability": 0.5276334472589853,
+      "expected_information_gain": 0.0736929868888847
+    },
+    {
+      "name": "measure_two",
+      "candidate": "measure",
+      "amount": 2,
+      "reliability": 0.7768698398515702,
+      "expected_information_gain": 0.3826550217889961
+    },
+    {
+      "name": "intervene_one",
+      "candidate": "intervene",
+      "amount": 1,
+      "reliability": 0.6321205588285577,
+      "expected_information_gain": 0.1719455582574009
+    },
+    {
+      "name": "observe_fifty",
+      "candidate": "observe",
+      "amount": 50,
+      "reliability": 0.5,
+      "expected_information_gain": 0.05212203882242212
+    },
+    {
+      "name": "sample_one",
+      "candidate": "sample",
+      "amount": 1,
+      "reliability": 0.05,
+      "expected_information_gain": 0.22862135572357684
+    },
+    {
+      "name": "sample_one_hundred",
+      "candidate": "sample",
+      "amount": 100,
+      "reliability": 0.6666666666666667,
+      "expected_information_gain": 0.21382040404557492
+    }
+  ],
+  "acceptance": {
+    "fixed_budget_samples": 100000,
+    "score_atol": 0.006,
+    "seeds": [1701, 1702, 1703],
+    "adaptive_min_batches": 8,
+    "adaptive_max_batches": 256,
+    "adaptive_batch_size": 32,
+    "adaptive_rank_threshold": 0.025
+  }
+}

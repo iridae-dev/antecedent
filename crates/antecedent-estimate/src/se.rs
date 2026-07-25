@@ -13,8 +13,9 @@
 )]
 
 use antecedent_stats::{
-    MAX_CLUSTER_DIMENSIONS, SandwichKind, coefficient_covariance, combine_inclusion_exclusion,
-    intern_cluster_tuples, multiway_subset_masks, panel_hac_meat_scalar,
+    MAX_CLUSTER_DIMENSIONS, SandwichKind, bartlett_weight, coefficient_covariance,
+    combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples, multiway_subset_masks,
+    panel_hac_meat_scalar,
 };
 
 use crate::error::EstimationError;
@@ -353,15 +354,14 @@ pub(crate) fn newey_west_influence_se(psi: &[f64], lag: usize) -> f64 {
     }
     gamma0 /= n as f64;
     let mut hac = gamma0;
-    let l = lag.min(n.saturating_sub(1));
-    for k in 1..=l {
+    let l_eff = effective_nw_lag(lag, n.saturating_sub(1));
+    for k in 1..=l_eff {
         let mut g = 0.0;
         for i in k..n {
             g += d[i] * d[i - k];
         }
         g /= n as f64;
-        let w = 1.0 - (k as f64) / ((l + 1) as f64);
-        hac += 2.0 * w * g;
+        hac += 2.0 * bartlett_weight(k, l_eff) * g;
     }
     (hac.max(0.0) / n as f64).sqrt()
 }
@@ -631,5 +631,60 @@ mod tests {
             coefficient_covariance(&x, n, 1, &e, SandwichKind::Cluster { groups: &groups })
                 .unwrap();
         assert!((cov_panel[0] - cov_cluster[0]).abs() < 1e-12);
+    }
+
+    #[test]
+    fn newey_west_scalar_and_coefficient_agree_across_lag_caps() {
+        // Intercept-only sandwich vs scalar IF NW must share L_eff / Bartlett weights.
+        let psi = [1.0, -0.5, 0.25, -0.75, 0.5, -0.25, 0.1];
+        let n = psi.len();
+        let mean = psi.iter().sum::<f64>() / n as f64;
+        let e: Vec<f64> = psi.iter().map(|v| v - mean).collect();
+        let x = vec![1.0; n];
+        for lag in [0usize, 1, 2, n - 2, n - 1, n, n + 5] {
+            let se_if = newey_west_influence_se(&psi, lag);
+            let cov =
+                coefficient_covariance(&x, n, 1, &e, SandwichKind::NeweyWest { lag }).unwrap();
+            let se_sw = cov[0].sqrt();
+            assert!((se_if - se_sw).abs() < 1e-12, "lag={lag}: if={se_if} sandwich={se_sw}");
+        }
+    }
+
+    #[test]
+    fn newey_west_lag_zero_is_hc0_meat() {
+        let psi = [1.0, -0.5, 0.25, -0.75, 0.5];
+        let n = psi.len();
+        let mean = psi.iter().sum::<f64>() / n as f64;
+        let e: Vec<f64> = psi.iter().map(|v| v - mean).collect();
+        let x = vec![1.0; n];
+        let se_nw = newey_west_influence_se(&psi, 0);
+        let cov_nw =
+            coefficient_covariance(&x, n, 1, &e, SandwichKind::NeweyWest { lag: 0 }).unwrap();
+        let cov_hc0 = coefficient_covariance(&x, n, 1, &e, SandwichKind::Hc0).unwrap();
+        assert!((cov_nw[0] - cov_hc0[0]).abs() < 1e-12);
+        assert!((se_nw - cov_hc0[0].sqrt()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn newey_west_one_unit_panel_matches_series_weights() {
+        // One unit with consecutive times: panel meat = series NW meat × n.
+        // Mean-zero so panel (expects demeaned) and scalar IF (re-demeans) agree.
+        let demeaned = [1.0, -0.5, 0.25, -0.75, 0.0];
+        let n = demeaned.len();
+        assert!((demeaned.iter().sum::<f64>()).abs() < 1e-15);
+        let clusters = [0u32; 5];
+        let time = [0i64, 1, 2, 3, 4];
+        for lag in [0usize, 1, 2, 4, 10] {
+            let (panel_meat, units) =
+                panel_hac_meat_scalar(&demeaned, &clusters, &time, lag).unwrap();
+            assert_eq!(units, 1);
+            let se = newey_west_influence_se(&demeaned, lag);
+            // SE = √(hac / n), hac = meat / n  ⇒  meat = se² · n²
+            let series_meat = se * se * (n as f64) * (n as f64);
+            assert!(
+                (panel_meat - series_meat).abs() < 1e-10,
+                "lag={lag}: panel={panel_meat} series={series_meat}"
+            );
+        }
     }
 }

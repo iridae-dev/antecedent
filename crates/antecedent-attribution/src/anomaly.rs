@@ -321,7 +321,11 @@ mod tests {
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::{Dag, DenseNodeId};
-    use antecedent_model::{MechanismRegistry, SelectionPolicy};
+    use antecedent_model::{
+        CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
+        SelectionPolicy,
+    };
+    use serde::Deserialize;
 
     #[test]
     fn anomaly_and_arrow_strength() {
@@ -392,5 +396,54 @@ mod tests {
         let arrows = arrow_strengths(&model).unwrap();
         assert!(!arrows.is_empty());
         assert!(arrows.iter().any(|a| a.strength > 0.5), "arrows={arrows:?}");
+    }
+
+    #[derive(Deserialize)]
+    struct ArrowFixture {
+        edges: Vec<ExpectedEdge>,
+    }
+
+    #[derive(Deserialize)]
+    struct ExpectedEdge {
+        parent_raw: u32,
+        child_raw: u32,
+        coefficient: f64,
+        strength: f64,
+    }
+
+    #[test]
+    fn arrow_strength_matches_absolute_linear_coefficients() {
+        let fixture: ArrowFixture = serde_json::from_str(include_str!(
+            "../../../conformance/attribution/arrow_strength/expected.json"
+        ))
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(graph).unwrap();
+        let coefficients: Vec<f64> = fixture.edges.iter().map(|edge| edge.coefficient).collect();
+        let model = compiled.with_mechanisms(CompiledMechanismStore {
+            slots: Arc::from([
+                MechanismSlot::Constant { value: 0.0 },
+                MechanismSlot::Constant { value: 0.0 },
+                MechanismSlot::LinearGaussian {
+                    intercept: 1.0,
+                    coeffs: Arc::from(coefficients),
+                    sigma: 0.0,
+                },
+            ]),
+        });
+        let actual = arrow_strengths(&model).unwrap();
+        assert_eq!(actual.len(), fixture.edges.len());
+        for expected in &fixture.edges {
+            let got = actual
+                .iter()
+                .find(|edge| {
+                    edge.parent == VariableId::from_raw(expected.parent_raw)
+                        && edge.child == VariableId::from_raw(expected.child_raw)
+                })
+                .unwrap();
+            assert!((got.strength - expected.strength).abs() < 1e-12);
+        }
     }
 }

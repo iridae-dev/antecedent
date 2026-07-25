@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "statsmodels covariance fixtures plus routing identity checks",
+    "pin": "statsmodels==0.14.4 and fixture-algorithm-v1",
+    "numeric_source": "../../stats/sandwich_covariance/expected.json",
+    "generation_location": "composed frozen artifacts; no generator retained"
+  },
+  "routes": [
+    {"kind": "Homoskedastic", "required_metadata": [], "target": "estimator classical or IID influence formula"},
+    {"kind": "Hc0", "required_metadata": [], "target": "HC0"},
+    {"kind": "Hc1", "required_metadata": [], "target": "HC1 or documented robust influence formula"},
+    {"kind": "Hc2", "required_metadata": [], "target": "HC2"},
+    {"kind": "Hc3", "required_metadata": [], "target": "HC3"},
+    {"kind": "Cluster", "required_metadata": ["cluster_ids"], "target": "one-way cluster"},
+    {"kind": "Multiway", "required_metadata": ["multiway_ids"], "target": "Cameron-Gelbach-Miller inclusion-exclusion"},
+    {"kind": "NeweyWest", "required_metadata": ["lag"], "target": "Bartlett HAC"},
+    {"kind": "PanelClusterHac", "required_metadata": ["cluster_ids", "panel_times", "lag"], "target": "within-panel Bartlett HAC"}
+  ],
+  "acceptance": {
+    "numeric_tolerances": "inherit conformance/stats/sandwich_covariance/expected.json",
+    "missing_required_metadata": "structured error",
+    "estimand_scaling": "the same treatment contrast multiplier applies to point estimate and SE"
+  }
+}

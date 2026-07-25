@@ -224,7 +224,7 @@ pub struct RecordedSmooth {
     pub basis: BasisKind,
     /// Knot sequence used at expansion (including boundary knots).
     pub knots: Arc<[f64]>,
-    /// Ridge penalty λ applied to basis coefficients within this smooth.
+    /// Second-difference roughness penalty λ for this smooth (`P = D₂'D₂`).
     pub lambda: f64,
     /// Half-open column range `[start, end)` into the design matrix.
     pub column_range: (usize, usize),

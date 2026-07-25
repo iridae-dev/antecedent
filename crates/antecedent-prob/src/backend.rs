@@ -34,6 +34,9 @@ pub struct BayesDesignRef<'a> {
     /// Outcome.
     pub y: &'a [f64],
     /// Optional observation weights (length `nrows`).
+    ///
+    /// Weights must be finite and ≥ 0. Zero is allowed and drops that row from
+    /// the likelihood contribution; the total weight mass must still be > 0.
     pub weights: Option<&'a [f64]>,
     /// Optional offsets (length `nrows`).
     pub offsets: Option<&'a [f64]>,

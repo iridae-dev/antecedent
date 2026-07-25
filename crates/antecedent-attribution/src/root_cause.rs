@@ -183,3 +183,46 @@ pub fn contribution_posterior_from_rows(
     let schema = PosteriorSchema { quantities: Arc::from(quantities) };
     Ok(PosteriorDraws::from_column_major(schema, n_draws, values_colmajor)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    struct Fixture {
+        posterior_draws_colmajor: Vec<f64>,
+        n_draws: usize,
+        expected_ranking: Vec<ExpectedRank>,
+    }
+
+    #[derive(Deserialize)]
+    struct ExpectedRank {
+        component_raw: u32,
+        score: f64,
+        graph_std: f64,
+    }
+
+    #[test]
+    fn posterior_ranking_matches_closed_form_moments() {
+        let fixture: Fixture = serde_json::from_str(include_str!(
+            "../../../conformance/attribution/anomaly_root_cause/expected.json"
+        ))
+        .unwrap();
+        let components = [ComponentId::from_raw(0), ComponentId::from_raw(1)];
+        let draws = contribution_posterior_from_rows(
+            components.len(),
+            fixture.n_draws,
+            &fixture.posterior_draws_colmajor,
+        )
+        .unwrap();
+        for block_size in [1, 2, 3, 8] {
+            let actual = posterior_contribution_ranks(&draws, &components, block_size).unwrap();
+            for (got, expected) in actual.iter().zip(fixture.expected_ranking.iter()) {
+                assert_eq!(got.component, ComponentId::from_raw(expected.component_raw));
+                assert!((got.score - expected.score).abs() < 1e-12);
+                assert!((got.graph_std.unwrap() - expected.graph_std).abs() < 1e-12);
+            }
+        }
+    }
+}

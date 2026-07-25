@@ -81,6 +81,7 @@ for path in [
     "conformance/bayesian/prior_bank_conflict_shrink/expected.json",
     "conformance/bayesian/prior_bank_transport/expected.json",
     "conformance/bayesian/prior_bank_alpha_sensitivity/expected.json",
+    "conformance/validate/bayesian_checks/expected.json",
     "crates/antecedent-prob/benches/laplace_glm.rs",
     "crates/antecedent-estimate/benches/posterior_functional.rs",
 ]:
@@ -98,12 +99,14 @@ PY
 
 echo "== cargo test antecedent-prob / estimate bayesian / io posterior / bayesian conformance =="
 cargo test -p antecedent-prob --lib
+cargo test -p antecedent-prob --test prior_support_oracle
 cargo test -p antecedent-discovery --lib graph_posterior::
 cargo test -p antecedent-discovery --lib exact_enumeration::
 cargo test -p antecedent-discovery --lib structure_mcmc::
 cargo test -p antecedent-discovery --lib order_mcmc::
 cargo test -p antecedent-discovery --lib ci_screened_posterior::
 cargo test -p antecedent-discovery --lib dbn_posterior::
+cargo test -p antecedent-discovery --test graph_mcmc_oracle
 cargo test -p antecedent-estimate --lib bayesian
 cargo test -p antecedent-estimate --lib envelope
 cargo test -p antecedent-validate --lib bayesian_checks

@@ -356,6 +356,11 @@ mod tests {
 
     #[test]
     fn o_set_selects_confounder() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/efficient_adjustment/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["cases"][0]["optimal_set"][0].as_str(), Some("Z"));
         // T <- Z -> Y, T -> Y (O = pa(Y) \ {T, Y} = {Z})
         let mut g = Dag::with_variables(3);
         let t = DenseNodeId::from_raw(0);

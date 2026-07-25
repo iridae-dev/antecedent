@@ -433,8 +433,11 @@ where
     }
 }
 
-/// Expected information gain via one posterior-simulation draw:
-/// sample observation `y ~ P(y | G★, design)`, then `H(prior) − H(p(G|y))`.
+/// One Monte Carlo draw of information gain for the discrete observation channel:
+/// sample `y ~ P(y | G★, design)`, then return the signed reduction `H(prior) − H(p(G|y))`.
+///
+/// Individual draws may be negative when an observation increases posterior entropy;
+/// expectation is taken over draws without pointwise clipping (MM-012).
 fn eig_graph_entropy(
     candidate: &CandidateDesign,
     graphs: &WeightedGraphSamples,
@@ -490,7 +493,7 @@ fn eig_graph_entropy(
         *w *= lik;
     }
     let post_h = shannon_entropy(&post);
-    (prior_h - post_h).max(0.0)
+    prior_h - post_h
 }
 
 /// Deterministic observation reliability for the discrete graph-feature channel.
@@ -783,8 +786,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::candidate::{DesignCost, MeasurementPlan, SamplingPlan};
-    use antecedent_core::VariableId;
+    use crate::candidate::{DesignCost, EnvironmentPlan, MeasurementPlan, SamplingPlan};
+    use antecedent_core::{CausalRng, EnvironmentId, VariableId};
     use antecedent_prob::GraphIdentFlag;
 
     fn toy_graphs() -> WeightedGraphSamples {
@@ -798,6 +801,36 @@ mod tests {
             vec![10, 20, 30],
         )
         .expect("graphs")
+    }
+
+    /// MM-012: a mismatched soft observation can raise posterior entropy; the draw
+    /// must keep the signed reduction rather than clipping at zero.
+    #[test]
+    fn eig_draw_keeps_negative_entropy_reduction() {
+        let graphs = toy_graphs();
+        let features = [0_u32, 1, 2];
+        let candidate = CandidateDesign::ObserveEnvironment(EnvironmentPlan {
+            environment: EnvironmentId::from_raw(0),
+            additional_rows: 50, // reliability = 0.5
+            cost: DesignCost::zero(),
+            tag: 50,
+        });
+        let mut rng = CausalRng::from_seed(20_260_725);
+        let mut saw_negative = false;
+        for _ in 0..20_000 {
+            let graph_idx = (rng.next_u64() as usize) % graphs.n_samples;
+            let delta =
+                eig_graph_entropy(&candidate, &graphs, graph_idx, Some(&features), &mut rng);
+            assert!(delta.is_finite());
+            if delta < -1e-15 {
+                saw_negative = true;
+                break;
+            }
+        }
+        assert!(
+            saw_negative,
+            "expected a negative signed entropy reduction under the soft channel"
+        );
     }
 
     #[test]

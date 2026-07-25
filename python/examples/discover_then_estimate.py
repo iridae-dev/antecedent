@@ -13,9 +13,8 @@ from __future__ import annotations
 import math
 import random
 
-import numpy as np
-
 import antecedent
+import numpy as np
 
 
 def _confounded_scm(n: int = 500, seed: int = 7):
@@ -45,9 +44,7 @@ def main() -> None:
 
     # Structure-ready click (once).
     antecedent.discover_pc = counted_discover  # type: ignore[method-assign]
-    result = antecedent.discover_pc(
-        data, alpha=0.5, fdr=False, max_cond_size=0, seed=1
-    )
+    result = antecedent.discover_pc(data, alpha=0.5, fdr=False, max_cond_size=0, seed=1)
     evidence = antecedent.AcceptedGraph.from_discovery(result, algorithm_id="pc")
     assert discovery_calls["n"] == 1
     assert isinstance(evidence.graph, (antecedent.Dag, antecedent.Cpdag))
