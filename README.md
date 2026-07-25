@@ -1,6 +1,6 @@
 # Antecedent
 
-[![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://zenodo.org/badge/1310219847.svg)](https://doi.org/10.5281/zenodo.21556247)
+[![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21556248.svg)](https://doi.org/10.5281/zenodo.21556247)
 
 Antecedent is an identification-first causal inference engine for Python and Rust. It takes an analysis from causal structure through estimation, diagnostics, interventions, and counterfactuals — without silently treating discovered graphs as ground truth.
 
