@@ -9,11 +9,13 @@ use crate::linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
 
 /// Fit weighted least squares by row-scaling with `sqrt(weight)`.
 ///
-/// `weights` length = `nrows`. Zero or negative weights are treated as 0 (row dropped via 0 scale).
+/// `weights` length = `nrows`. Weights must be finite and non-negative.
+/// Zero is allowed and drops that row (scale factor 0); negatives and non-finite
+/// values are rejected as upstream errors rather than coerced.
 ///
 /// # Errors
 ///
-/// Shape mismatch or backend failure.
+/// Shape mismatch, invalid weights, or backend failure.
 pub fn fit_wls(
     x_colmajor: &[f64],
     nrows: usize,
@@ -32,7 +34,13 @@ pub fn fit_wls(
     let mut x_w = vec![0.0; nrows * ncols];
     let mut y_w = vec![0.0; nrows];
     for r in 0..nrows {
-        let w = weights[r].max(0.0).sqrt();
+        let wr = weights[r];
+        if !(wr.is_finite() && wr >= 0.0) {
+            return Err(StatsError::Shape {
+                message: "WLS weights must be finite and non-negative",
+            });
+        }
+        let w = wr.sqrt();
         y_w[r] = y[r] * w;
         for c in 0..ncols {
             x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
@@ -154,6 +162,50 @@ mod tests {
         let mut ws = LeastSquaresWorkspace::default();
         let ols = FaerBackend.least_squares(&x, n, 2, &y, &mut ws).unwrap();
         let wls = fit_wls(&x, n, 2, &y, &w, &FaerBackend, &mut ws).unwrap();
+        assert!((ols.coefficients[0] - wls.coefficients[0]).abs() < 1e-10);
+        assert!((ols.coefficients[1] - wls.coefficients[1]).abs() < 1e-10);
+    }
+
+    #[test]
+    fn wls_rejects_negative_and_nonfinite_weights() {
+        let n = 4usize;
+        let x = vec![1.0; n * 2];
+        let y = vec![1.0, 2.0, 3.0, 4.0];
+        let mut ws = LeastSquaresWorkspace::default();
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -1.0] {
+            let mut w = vec![1.0; n];
+            w[1] = bad;
+            let err = fit_wls(&x, n, 2, &y, &w, &FaerBackend, &mut ws).unwrap_err();
+            assert_eq!(
+                err,
+                StatsError::Shape { message: "WLS weights must be finite and non-negative" }
+            );
+        }
+    }
+
+    #[test]
+    fn wls_zero_weight_drops_row() {
+        // Zero weight is an explicit drop-row policy: omitting the zero-weight
+        // observation must match fitting on the complementary subset with unit weights.
+        let n = 4usize;
+        let mut x_full = vec![0.0; n * 2];
+        let y_full = [1.0, 10.0, 3.0, 4.0];
+        for i in 0..n {
+            x_full[i] = 1.0;
+            x_full[n + i] = i as f64;
+        }
+        let w = [1.0, 0.0, 1.0, 1.0];
+        let mut ws = LeastSquaresWorkspace::default();
+        let wls = fit_wls(&x_full, n, 2, &y_full, &w, &FaerBackend, &mut ws).unwrap();
+
+        let n_sub = 3usize;
+        let mut x_sub = vec![0.0; n_sub * 2];
+        let y_sub = [1.0, 3.0, 4.0];
+        for (j, i) in [0usize, 2, 3].into_iter().enumerate() {
+            x_sub[j] = 1.0;
+            x_sub[n_sub + j] = i as f64;
+        }
+        let ols = FaerBackend.least_squares(&x_sub, n_sub, 2, &y_sub, &mut ws).unwrap();
         assert!((ols.coefficients[0] - wls.coefficients[0]).abs() < 1e-10);
         assert!((ols.coefficients[1] - wls.coefficients[1]).abs() < 1e-10);
     }
