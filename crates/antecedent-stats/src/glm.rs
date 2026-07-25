@@ -186,6 +186,79 @@ pub fn fit_glm(
     }
 }
 
+/// Linear predictor `X β` for one row of a column-major design.
+#[inline]
+fn eta_at(x_colmajor: &[f64], nrows: usize, ncols: usize, beta: &[f64], row: usize) -> f64 {
+    let mut eta = 0.0;
+    for c in 0..ncols {
+        eta += x_colmajor[c * nrows + row] * beta[c];
+    }
+    eta
+}
+
+/// Poisson deviance at `β` (log link).
+fn poisson_deviance_at(design: GlmDesignRef<'_>, beta: &[f64]) -> f64 {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    let mut deviance = 0.0;
+    for r in 0..nrows {
+        let mu = eta_at(x_colmajor, nrows, ncols, beta, r).exp().max(1e-12);
+        let yi = y[r];
+        if yi > 0.0 {
+            deviance += 2.0 * (yi * (yi / mu).ln() - (yi - mu));
+        } else {
+            deviance += 2.0 * mu;
+        }
+    }
+    deviance
+}
+
+/// Binomial (Bernoulli) deviance and separation flag at `β`.
+fn binomial_diagnostics_at(
+    family: GlmFamily,
+    design: GlmDesignRef<'_>,
+    beta: &[f64],
+) -> (f64, bool) {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    let mut deviance = 0.0;
+    let mut separated = false;
+    for r in 0..nrows {
+        let eta = eta_at(x_colmajor, nrows, ncols, beta, r);
+        let mu = match family {
+            GlmFamily::BinomialLogit => 1.0 / (1.0 + (-eta).exp()),
+            GlmFamily::BinomialProbit => norm_cdf(eta),
+            _ => unreachable!("binomial diagnostics require a binomial family"),
+        };
+        if !(1e-8..=1.0 - 1e-8).contains(&mu) {
+            separated = true;
+        }
+        let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
+        if y[r] > 0.0 {
+            deviance += -2.0 * mu_clamped.ln();
+        } else {
+            deviance += -2.0 * (1.0 - mu_clamped).ln();
+        }
+    }
+    (deviance, separated)
+}
+
+/// NB2 deviance at `β` with fixed dispersion `α` (log link).
+fn negbin_deviance_at(design: GlmDesignRef<'_>, beta: &[f64], alpha: f64) -> f64 {
+    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    let theta = 1.0 / alpha;
+    let mut deviance = 0.0;
+    for r in 0..nrows {
+        let mu = eta_at(x_colmajor, nrows, ncols, beta, r).exp().max(1e-12);
+        let yi = y[r];
+        if yi > 0.0 {
+            deviance +=
+                2.0 * (yi * (yi / mu).ln() - (yi + theta) * ((yi + theta) / (mu + theta)).ln());
+        } else {
+            deviance += 2.0 * theta * ((theta + mu) / theta).ln();
+        }
+    }
+    deviance
+}
+
 fn fit_gaussian(
     design: GlmDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
@@ -236,12 +309,10 @@ fn fit_poisson(
     let mut z = vec![0.0; nrows];
     let mut converged = false;
     let mut iterations = 0u32;
-    let mut deviance = f64::INFINITY;
 
     for iter in 1..=options.max_iter {
         iterations = iter;
         let mut max_delta = 0.0_f64;
-        deviance = 0.0;
         for r in 0..nrows {
             // Standard IRLS initialization: start from the data (eta0 = ln(y + 0.5))
             // rather than beta = 0, which diverges for ordinary count magnitudes.
@@ -261,11 +332,6 @@ fn fit_poisson(
             for c in 0..ncols {
                 x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
             }
-            if yi > 0.0 {
-                deviance += 2.0 * (yi * (yi / mu).ln() - (yi - mu));
-            } else {
-                deviance += 2.0 * mu;
-            }
         }
         let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
         for c in 0..ncols {
@@ -277,6 +343,9 @@ fn fit_poisson(
             break;
         }
     }
+
+    // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
+    let deviance = poisson_deviance_at(design, &beta);
 
     Ok(GlmFit {
         coefficients: beta,
@@ -312,24 +381,17 @@ fn fit_logistic(
     let mut x_w = vec![0.0; nrows * ncols];
     let mut z = vec![0.0; nrows];
     let mut converged = false;
-    let mut separated = false;
     let mut iterations = 0u32;
-    let mut deviance = f64::INFINITY;
 
     for iter in 1..=options.max_iter {
         iterations = iter;
         let mut max_delta = 0.0_f64;
-        deviance = 0.0;
         for r in 0..nrows {
             let mut eta = 0.0;
             for c in 0..ncols {
                 eta += x_colmajor[c * nrows + r] * beta[c];
             }
             let mu = 1.0 / (1.0 + (-eta).exp());
-            // Soft clamp masks the MLE under separation; flag when μ hits the band.
-            if !(1e-8..=1.0 - 1e-8).contains(&mu) {
-                separated = true;
-            }
             let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
             let w = (mu_clamped * (1.0 - mu_clamped)).sqrt();
             let yi = y[r];
@@ -337,11 +399,6 @@ fn fit_logistic(
             z[r] *= w;
             for c in 0..ncols {
                 x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
-            }
-            if yi > 0.0 {
-                deviance += -2.0 * mu_clamped.ln();
-            } else {
-                deviance += -2.0 * (1.0 - mu_clamped).ln();
             }
         }
 
@@ -355,6 +412,9 @@ fn fit_logistic(
             break;
         }
     }
+
+    // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
+    let (deviance, separated) = binomial_diagnostics_at(GlmFamily::BinomialLogit, design, &beta);
 
     if separated {
         if let Some(lambda) = options.ridge_on_separation {
@@ -405,23 +465,17 @@ fn fit_probit(
     let mut x_w = vec![0.0; nrows * ncols];
     let mut z = vec![0.0; nrows];
     let mut converged = false;
-    let mut separated = false;
     let mut iterations = 0u32;
-    let mut deviance = f64::INFINITY;
 
     for iter in 1..=options.max_iter {
         iterations = iter;
         let mut max_delta = 0.0_f64;
-        deviance = 0.0;
         for r in 0..nrows {
             let mut eta = 0.0;
             for c in 0..ncols {
                 eta += x_colmajor[c * nrows + r] * beta[c];
             }
             let mu = norm_cdf(eta);
-            if !(1e-8..=1.0 - 1e-8).contains(&mu) {
-                separated = true;
-            }
             let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
             let phi = norm_pdf(eta).max(1e-12);
             let denom = (mu_clamped * (1.0 - mu_clamped)).max(1e-12);
@@ -431,11 +485,6 @@ fn fit_probit(
             z[r] = (eta + (yi - mu_clamped) / phi) * w;
             for c in 0..ncols {
                 x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
-            }
-            if yi > 0.0 {
-                deviance += -2.0 * mu_clamped.ln();
-            } else {
-                deviance += -2.0 * (1.0 - mu_clamped).ln();
             }
         }
 
@@ -449,6 +498,9 @@ fn fit_probit(
             break;
         }
     }
+
+    // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
+    let (deviance, separated) = binomial_diagnostics_at(GlmFamily::BinomialProbit, design, &beta);
 
     if separated {
         if let Some(lambda) = options.ridge_on_separation {
@@ -620,12 +672,10 @@ fn fit_negbin_fixed_alpha(
     let mut z = vec![0.0; nrows];
     let mut converged = false;
     let mut iterations = 0u32;
-    let mut deviance = f64::INFINITY;
 
     for iter in 1..=options.max_iter {
         iterations = iter;
         let mut max_delta = 0.0_f64;
-        deviance = 0.0;
         for r in 0..nrows {
             let eta = if iter == 1 {
                 (y[r] + 0.5).ln()
@@ -644,13 +694,6 @@ fn fit_negbin_fixed_alpha(
             for c in 0..ncols {
                 x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
             }
-            let theta = 1.0 / alpha;
-            if yi > 0.0 {
-                deviance +=
-                    2.0 * (yi * (yi / mu).ln() - (yi + theta) * ((yi + theta) / (mu + theta)).ln());
-            } else {
-                deviance += 2.0 * theta * ((theta + mu) / theta).ln();
-            }
         }
         let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
         for c in 0..ncols {
@@ -662,6 +705,9 @@ fn fit_negbin_fixed_alpha(
             break;
         }
     }
+
+    // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
+    let deviance = negbin_deviance_at(design, &beta, alpha);
 
     Ok(GlmFit {
         coefficients: beta,
@@ -689,12 +735,10 @@ fn fit_binomial_ridge(
     let mut xtwz = vec![0.0; ncols];
     let mut converged = false;
     let mut iterations = 0u32;
-    let mut deviance = f64::INFINITY;
 
     for iter in 1..=options.max_iter {
         iterations = iter;
         let mut max_delta = 0.0_f64;
-        deviance = 0.0;
         xtwx.fill(0.0);
         xtwz.fill(0.0);
         for r in 0..nrows {
@@ -702,7 +746,7 @@ fn fit_binomial_ridge(
             for c in 0..ncols {
                 eta += x_colmajor[c * nrows + r] * beta[c];
             }
-            let (mu, w_fisher, working) = match family {
+            let (_mu, w_fisher, working) = match family {
                 GlmFamily::BinomialLogit => {
                     let mu = (1.0 / (1.0 + (-eta).exp())).clamp(1e-9, 1.0 - 1e-9);
                     let w = mu * (1.0 - mu);
@@ -724,11 +768,6 @@ fn fit_binomial_ridge(
                 for j in 0..ncols {
                     xtwx[i * ncols + j] += xi * w_fisher * x_colmajor[j * nrows + r];
                 }
-            }
-            if y[r] > 0.0 {
-                deviance += -2.0 * mu.ln();
-            } else {
-                deviance += -2.0 * (1.0 - mu).ln();
             }
         }
         let unpenalize0 = col_is_constant(x_colmajor, nrows, 0);
@@ -756,6 +795,10 @@ fn fit_binomial_ridge(
             break;
         }
     }
+
+    // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
+    // Ridge fits clear the separation flag by construction (penalized MLE).
+    let (deviance, _) = binomial_diagnostics_at(family, design, &beta);
 
     Ok(GlmFit {
         coefficients: beta,
@@ -959,16 +1002,14 @@ fn fit_multinomial_fisher(
     let mut pi = vec![0.0; k];
     let mut eta = vec![0.0; k];
     let mut converged = false;
-    let mut separated = false;
     let mut iterations = 0u32;
-    let mut deviance = f64::INFINITY;
     let mut prev_deviance = f64::INFINITY;
 
     for iter in 1..=options.max_iter {
         iterations = iter;
         h.fill(0.0);
         score.fill(0.0);
-        deviance = 0.0;
+        let mut loop_deviance = 0.0;
 
         for r in 0..nrows {
             // η_0 = 0; η_j = x·β_j for j = 1..K-1
@@ -994,12 +1035,10 @@ fn fit_multinomial_fisher(
             let inv_z = 1.0 / zsum.max(f64::EPSILON);
             for j in 0..k {
                 pi[j] *= inv_z;
-                if pi[j] < 1e-8 || pi[j] > 1.0 - 1e-8 {
-                    separated = true;
-                }
             }
             let yi = y_category[r] as usize;
-            deviance += -2.0 * pi[yi].max(1e-300).ln();
+            // In-loop deviance is for convergence only; final diagnostics recomputed below.
+            loop_deviance += -2.0 * pi[yi].max(1e-300).ln();
 
             // Score and Fisher information over free categories 1..K-1.
             for j in 1..k {
@@ -1048,16 +1087,19 @@ fn fit_multinomial_fisher(
         for i in 0..m {
             beta_free[i] += scale * delta[i];
         }
-        let dev_delta = (prev_deviance - deviance).abs();
-        prev_deviance = deviance;
+        let dev_delta = (prev_deviance - loop_deviance).abs();
+        prev_deviance = loop_deviance;
         if max_delta * scale < options.tol
             || score_norm < options.tol
-            || (iter > 2 && dev_delta < options.tol * (1.0 + deviance.abs()))
+            || (iter > 2 && dev_delta < options.tol * (1.0 + loop_deviance.abs()))
         {
             converged = true;
             break;
         }
     }
+
+    // Diagnostics at the returned coefficients (not the pre-update scoring iterate).
+    let (deviance, separated) = multinomial_diagnostics_at(design, &beta_free);
 
     let mut coefficients = vec![0.0; k * ncols];
     for j in 1..k {
@@ -1077,11 +1119,55 @@ fn fit_multinomial_fisher(
     })
 }
 
+/// Multinomial deviance and separation at free coefficients (reference category 0 pinned).
+fn multinomial_diagnostics_at(
+    design: MultinomialDesignRef<'_>,
+    beta_free: &[f64],
+) -> (f64, bool) {
+    let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } = design;
+    let mut deviance = 0.0;
+    let mut separated = false;
+    let mut pi = vec![0.0; k];
+    let mut eta = vec![0.0; k];
+    for r in 0..nrows {
+        eta[0] = 0.0;
+        let mut max_eta = 0.0_f64;
+        for j in 1..k {
+            let mut acc = 0.0;
+            let base = (j - 1) * ncols;
+            for c in 0..ncols {
+                acc += x_colmajor[c * nrows + r] * beta_free[base + c];
+            }
+            eta[j] = acc;
+            if acc > max_eta {
+                max_eta = acc;
+            }
+        }
+        let mut zsum = 0.0;
+        for j in 0..k {
+            let e = (eta[j] - max_eta).exp();
+            pi[j] = e;
+            zsum += e;
+        }
+        let inv_z = 1.0 / zsum.max(f64::EPSILON);
+        for j in 0..k {
+            pi[j] *= inv_z;
+            if pi[j] < 1e-8 || pi[j] > 1.0 - 1e-8 {
+                separated = true;
+            }
+        }
+        let yi = y_category[r] as usize;
+        deviance += -2.0 * pi[yi].max(1e-300).ln();
+    }
+    (deviance, separated)
+}
+
 #[cfg(test)]
 #[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
     use crate::faer_backend::FaerBackend;
+    use antecedent_kernels::norm_cdf;
 
     #[test]
     fn logistic_separates_simple_signal() {
@@ -1518,5 +1604,120 @@ mod tests {
         let p2 = (eta2 - m).exp();
         let z = p0 + p1 + p2;
         assert!(p2 / z > p0 / z && p2 / z > p1 / z, "p={:?}", [p0 / z, p1 / z, p2 / z]);
+    }
+
+    /// With `max_iter = 1`, IRLS returns after a single coefficient update. Reported
+    /// deviance must match a direct recalculation from those returned coefficients
+    /// (not the pre-update iterate used inside the working-response pass).
+    #[test]
+    fn glm_deviance_matches_returned_coefficients_at_max_iter_one() {
+        let n = 40usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y_bin = vec![0.0; n];
+        let mut y_count = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            y_bin[i] = if i % 7 == 0 { 1.0 - t } else { t };
+            y_count[i] = if t < 0.5 { 2.0 } else { 5.0 };
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let opts = GlmOptions {
+            max_iter: 1,
+            tol: 0.0, // force a full update even if delta is tiny
+            ridge_on_separation: None,
+            ..GlmOptions::default()
+        };
+        let design_bin = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y_bin };
+        let design_count = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y_count };
+
+        let poisson = fit_glm(GlmFamily::PoissonLog, design_count, &FaerBackend, &mut ws, &opts)
+            .unwrap();
+        assert_eq!(poisson.iterations, 1);
+        let mut poisson_re = 0.0;
+        for r in 0..n {
+            let eta = poisson.coefficients[0] + x[n + r] * poisson.coefficients[1];
+            let mu = eta.exp().max(1e-12);
+            let yi = y_count[r];
+            if yi > 0.0 {
+                poisson_re += 2.0 * (yi * (yi / mu).ln() - (yi - mu));
+            } else {
+                poisson_re += 2.0 * mu;
+            }
+        }
+        assert!(
+            (poisson.deviance - poisson_re).abs() < 1e-12,
+            "poisson deviance {} vs recomputed {}",
+            poisson.deviance,
+            poisson_re
+        );
+
+        let logit = fit_glm(GlmFamily::BinomialLogit, design_bin, &FaerBackend, &mut ws, &opts)
+            .unwrap();
+        assert_eq!(logit.iterations, 1);
+        let mut logit_re = 0.0;
+        for r in 0..n {
+            let eta = logit.coefficients[0] + x[n + r] * logit.coefficients[1];
+            let mu = (1.0 / (1.0 + (-eta).exp())).clamp(1e-9, 1.0 - 1e-9);
+            if y_bin[r] > 0.0 {
+                logit_re += -2.0 * mu.ln();
+            } else {
+                logit_re += -2.0 * (1.0 - mu).ln();
+            }
+        }
+        assert!(
+            (logit.deviance - logit_re).abs() < 1e-12,
+            "logit deviance {} vs recomputed {}",
+            logit.deviance,
+            logit_re
+        );
+
+        let probit = fit_glm(GlmFamily::BinomialProbit, design_bin, &FaerBackend, &mut ws, &opts)
+            .unwrap();
+        assert_eq!(probit.iterations, 1);
+        let mut probit_re = 0.0;
+        for r in 0..n {
+            let eta = probit.coefficients[0] + x[n + r] * probit.coefficients[1];
+            let mu = norm_cdf(eta).clamp(1e-9, 1.0 - 1e-9);
+            if y_bin[r] > 0.0 {
+                probit_re += -2.0 * mu.ln();
+            } else {
+                probit_re += -2.0 * (1.0 - mu).ln();
+            }
+        }
+        assert!(
+            (probit.deviance - probit_re).abs() < 1e-12,
+            "probit deviance {} vs recomputed {}",
+            probit.deviance,
+            probit_re
+        );
+
+        let nb_opts = GlmOptions {
+            nb_alpha: NbAlphaPolicy::Fixed(0.5),
+            ..opts
+        };
+        let nb = fit_glm(GlmFamily::NegativeBinomial, design_count, &FaerBackend, &mut ws, &nb_opts)
+            .unwrap();
+        assert_eq!(nb.iterations, 1);
+        let theta = 2.0; // 1 / 0.5
+        let mut nb_re = 0.0;
+        for r in 0..n {
+            let eta = nb.coefficients[0] + x[n + r] * nb.coefficients[1];
+            let mu = eta.exp().max(1e-12);
+            let yi = y_count[r];
+            if yi > 0.0 {
+                nb_re += 2.0
+                    * (yi * (yi / mu).ln() - (yi + theta) * ((yi + theta) / (mu + theta)).ln());
+            } else {
+                nb_re += 2.0 * theta * ((theta + mu) / theta).ln();
+            }
+        }
+        assert!(
+            (nb.deviance - nb_re).abs() < 1e-12,
+            "negbin deviance {} vs recomputed {}",
+            nb.deviance,
+            nb_re
+        );
     }
 }
