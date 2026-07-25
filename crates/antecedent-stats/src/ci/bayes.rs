@@ -686,9 +686,9 @@ mod tests {
         let near_zero = logistic_from_log_bf(-1000.0);
         let half = logistic_from_log_bf(0.0);
         let near_one = logistic_from_log_bf(1000.0);
-        assert!(near_zero.is_finite() && near_zero >= 0.0 && near_zero < 1e-15);
+        assert!(near_zero.is_finite() && (0.0..1e-15).contains(&near_zero));
         assert!((half - 0.5).abs() < 1e-15);
-        assert!(near_one.is_finite() && near_one <= 1.0 && near_one > 1.0 - 1e-15);
+        assert!(near_one.is_finite() && ((1.0 - 1e-15)..=1.0).contains(&near_one));
     }
 
     #[test]

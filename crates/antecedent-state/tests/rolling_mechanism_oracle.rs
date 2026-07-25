@@ -6,9 +6,17 @@ use serde_json::Value;
 const FIXTURE: &str =
     include_str!("../../../conformance/state/rolling_mechanism_diagnostics/expected.json");
 
+fn idx_f64(i: usize) -> f64 {
+    f64::from(u32::try_from(i).expect("test index fits u32"))
+}
+
+fn json_usize(value: &Value, label: &str) -> usize {
+    usize::try_from(value.as_u64().expect(label)).expect("fits usize")
+}
+
 fn row(index: usize) -> ([f64; 2], f64) {
-    let i = index as f64;
-    let x = ((index % 23) as f64 - 11.0) / 7.0 + 0.15 * (0.19 * i).sin();
+    let i = idx_f64(index);
+    let x = (idx_f64(index % 23) - 11.0) / 7.0 + 0.15 * (0.19 * i).sin();
     let shift = if index >= 90 { 0.4 } else { 0.0 };
     let y = 1.5 - 0.7 * x + shift + 0.2 * (0.37 * i).sin() + 0.05 * (0.11 * i).cos();
     ([1.0, x], y)
@@ -28,13 +36,13 @@ fn rolling_summaries_match_independent_batch_windows() {
 
     for case in fixture["cases"].as_array().expect("cases") {
         let name = case["name"].as_str().expect("case name");
-        let window = case["window"].as_u64().expect("window") as usize;
+        let window = json_usize(&case["window"], "window");
         let checkpoints = case["checkpoints"].as_array().expect("checkpoints");
-        let last = checkpoints.last().expect("last checkpoint")["row"].as_u64().expect("row");
+        let last = json_usize(&checkpoints.last().expect("last checkpoint")["row"], "row");
         let mut diagnostics = RollingMechanismDiagnostics::new(2, window).expect("diagnostics");
         let mut checkpoint_index = 0;
 
-        for index in 0..=last as usize {
+        for index in 0..=last {
             let (design, response) = row(index);
             diagnostics.append_row(&design, response).expect("append");
             if index as u64 != checkpoints[checkpoint_index]["row"].as_u64().expect("row") {

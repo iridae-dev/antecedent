@@ -75,7 +75,7 @@ fn routing_links(routing: &JsonValue) -> Vec<ScoredLink> {
                 target: VariableId::from_raw(index as u32 + 20),
                 target_lag: Lag::CONTEMPORANEOUS,
             },
-            statistic: index as f64,
+            statistic: f64::from(u32::try_from(index).expect("index fits u32")),
             p_value: p.as_f64().unwrap(),
             adjusted_p_value: None,
         })

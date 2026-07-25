@@ -303,8 +303,7 @@ fn contemporaneous_mark_snapshot(
                 continue;
             };
             if let Some(e) = pag.edge_between(a, b) {
-                let (at_a, at_b) =
-                    if e.a == a { (e.at_a, e.at_b) } else { (e.at_b, e.at_a) };
+                let (at_a, at_b) = if e.a == a { (e.at_a, e.at_b) } else { (e.at_b, e.at_a) };
                 out.push((a, b, at_a, at_b, e.middle));
             }
         }
@@ -363,10 +362,8 @@ fn collect_parents(pag: &TemporalPag, idx: &NodeIndex, variables: &[VariableId])
     // Remember-only-parents: retain definite parents (tail→arrow) that still exist.
     let mut mem = ParentMemory::new();
     for &v in variables {
-        let set = known_parents_of(pag, idx, v)
-            .into_iter()
-            .map(|(u, l)| (u.raw(), l.raw()))
-            .collect();
+        let set =
+            known_parents_of(pag, idx, v).into_iter().map(|(u, l)| (u.raw(), l.raw())).collect();
         mem.insert(v.raw(), set);
     }
     mem
@@ -470,15 +467,8 @@ fn ancestral_removal_phase(
                     (Option<(Vec<(VariableId, Lag)>, f64, f64)>, u64),
                     DiscoveryError,
                 > {
-                    let mut s_def =
-                        shifted_known_parents(pag, idx, target, target_lag, max_lag);
-                    s_def.extend(shifted_known_parents(
-                        pag,
-                        idx,
-                        other,
-                        other_lag,
-                        max_lag,
-                    ));
+                    let mut s_def = shifted_known_parents(pag, idx, target, target_lag, max_lag);
+                    s_def.extend(shifted_known_parents(pag, idx, other, other_lag, max_lag));
                     s_def.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
                     s_def.dedup();
                     s_def.retain(|node| {
@@ -507,14 +497,7 @@ fn ancestral_removal_phase(
                         }
                         cond.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
                         let (stat, p) = engine.ci_statistic(
-                            frame,
-                            other,
-                            other_lag,
-                            target,
-                            target_lag,
-                            &cond,
-                            workspace,
-                            ctx,
+                            frame, other, other_lag, target, target_lag, &cond, workspace, ctx,
                         )?;
                         tests += 1;
                         // break_once_separated: first independence after stable combo order.
@@ -563,16 +546,8 @@ fn ancestral_removal_phase(
                     }
                 }
                 if sep_cond.is_none() && test_x {
-                    let (separation, tests) = try_side(
-                        engine,
-                        pag,
-                        idx,
-                        x,
-                        x_lag,
-                        y,
-                        Lag::CONTEMPORANEOUS,
-                        workspace,
-                    )?;
+                    let (separation, tests) =
+                        try_side(engine, pag, idx, x, x_lag, y, Lag::CONTEMPORANEOUS, workspace)?;
                     ci_tests += tests;
                     if let Some((cond, stat, p)) = separation {
                         sep_cond = Some(cond);
@@ -615,10 +590,8 @@ fn ancestral_removal_phase(
                 ci_tests += 1;
                 let sep_arc: Arc<[LaggedParent]> = Arc::from(wm.clone().into_boxed_slice());
                 sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), sep_arc);
-                let sep_nodes: Vec<DenseNodeId> = wm
-                    .iter()
-                    .filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied())
-                    .collect();
+                let sep_nodes: Vec<DenseNodeId> =
+                    wm.iter().filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied()).collect();
                 store_weakly_minimal_sepset(state, xid, yid, Arc::from(sep_nodes));
                 to_remove.push((x, x_lag, y, wm));
             }
@@ -647,7 +620,8 @@ fn ancestral_removal_phase(
     // End-of-phase: force middle marks to `!`, then full orientation including contemporaneous
     // (`prelim_with_collider_rules` / `_rules_all` with `only_lagged=False`).
     force_ambiguous_middles_to_both(pag);
-    let _ = run_lpcmci_orientation(pag, &default_lpcmci_rules(), state).map_err(DiscoveryError::from)?;
+    let _ = run_lpcmci_orientation(pag, &default_lpcmci_rules(), state)
+        .map_err(DiscoveryError::from)?;
     Ok(ci_tests)
 }
 

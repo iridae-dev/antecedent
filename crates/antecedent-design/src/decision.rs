@@ -223,7 +223,7 @@ mod tests {
         problem.chance_threshold = 0.75;
         let ev = evaluate_decision(&problem, &[1.0, 2.0]);
         assert_eq!(ev.chosen_action, None);
-        assert_eq!(ev.expected_utility, 0.0);
+        assert!((ev.expected_utility - 0.0).abs() < 1e-15);
         assert!((ev.posterior_regret - 3.0).abs() < 1e-12);
         assert!(ev.chance_constraint_probs.is_empty());
     }

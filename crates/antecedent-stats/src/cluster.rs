@@ -341,8 +341,8 @@ mod tests {
         assert!((bartlett_weight(4, l_eff) - 0.2).abs() < 1e-15);
         // Oversized requested lag must not change weights once L_eff is capped.
         assert!((bartlett_weight(1, effective_nw_lag(10, 4)) - 0.8).abs() < 1e-15);
-        assert_eq!(bartlett_weight(0, l_eff), 0.0);
-        assert_eq!(bartlett_weight(1, 0), 0.0);
+        assert!((bartlett_weight(0, l_eff) - 0.0).abs() < 1e-15);
+        assert!((bartlett_weight(1, 0) - 0.0).abs() < 1e-15);
     }
 
     #[test]

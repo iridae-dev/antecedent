@@ -17,6 +17,14 @@ use antecedent_model::{
 };
 use serde_json::Value as JsonValue;
 
+fn idx_f64(i: usize) -> f64 {
+    f64::from(u32::try_from(i).expect("test index fits u32"))
+}
+
+fn json_usize(value: &JsonValue, label: &str) -> usize {
+    usize::try_from(value.as_u64().expect(label)).expect("fits usize")
+}
+
 fn fixture(path: &str) -> JsonValue {
     let raw = match path {
         "mechanisms" => {
@@ -53,7 +61,7 @@ fn table(names: &[&str], columns: Vec<Vec<f64>>) -> TabularData {
         .map(|(index, values)| {
             OwnedColumn::Float64(
                 Float64Column::new(
-                    VariableId::from_raw(index as u32),
+                    VariableId::from_raw(u32::try_from(index).expect("fit")),
                     Arc::from(values),
                     ValidityBitmap::all_valid(n),
                 )
@@ -81,7 +89,7 @@ fn chain_model(data: &TabularData, family: MechanismFamily) -> CompiledCausalMod
 #[test]
 fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
     let expected = fixture("mechanisms");
-    let n = expected["data"]["n"].as_u64().unwrap() as usize;
+    let n = json_usize(&expected["data"]["n"], "n");
     let mut x = vec![0.0; n];
     let mut y = vec![0.0; n];
     for index in 0..n {
@@ -131,12 +139,12 @@ fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
 #[test]
 fn minnesota_bvar_matches_independent_augmented_ridge_solve() {
     let expected = fixture("bvar");
-    let n = expected["data"]["n"].as_u64().unwrap() as usize;
+    let n = json_usize(&expected["data"]["n"], "n");
     let mut x1 = Vec::with_capacity(n);
     let mut x2 = Vec::with_capacity(n);
     let mut y = Vec::with_capacity(n);
     for index in 0..n {
-        let i = index as f64;
+        let i = idx_f64(index);
         let first = (0.13 * i).sin();
         let second = (0.07 * i).cos();
         x1.push(first);
@@ -218,9 +226,9 @@ fn analytic_do_model() -> CompiledCausalModel {
 }
 
 fn moments(values: &[f64]) -> (f64, f64) {
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
-    let variance =
-        values.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / values.len() as f64;
+    let n = idx_f64(values.len());
+    let mean = values.iter().sum::<f64>() / n;
+    let variance = values.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / n;
     (mean, variance)
 }
 
@@ -241,7 +249,7 @@ fn do_samplers_calibrate_to_analytic_linear_gaussian_target() {
             &model,
             &intervention,
             VariableId::from_raw(1),
-            expected["acceptance"]["ancestral_draws"].as_u64().unwrap() as usize,
+            json_usize(&expected["acceptance"]["ancestral_draws"], "ancestral_draws"),
             &mut rng,
             &mut workspace,
             &ctx,
@@ -257,7 +265,7 @@ fn do_samplers_calibrate_to_analytic_linear_gaussian_target() {
             .sample(
                 &model,
                 &intervention,
-                expected["acceptance"]["kde_draws"].as_u64().unwrap() as usize,
+                json_usize(&expected["acceptance"]["kde_draws"], "kde_draws"),
                 &mut rng,
                 &mut workspace,
                 &ctx,
@@ -278,7 +286,7 @@ fn do_samplers_calibrate_to_analytic_linear_gaussian_target() {
             .sample(
                 &model,
                 &intervention,
-                expected["acceptance"]["mcmc_draws"].as_u64().unwrap() as usize,
+                json_usize(&expected["acceptance"]["mcmc_draws"], "mcmc_draws"),
                 &mut rng,
                 &mut workspace,
                 &ctx,

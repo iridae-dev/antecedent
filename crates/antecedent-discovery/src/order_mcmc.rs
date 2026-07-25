@@ -144,33 +144,22 @@ impl OrderMcmc {
                             }
                         }
                     }
-                    let mut cur = score_dag_mask(
-                        mask,
-                        n,
-                        &score_data,
-                        &mut cache,
-                        prior,
-                        variables,
-                    )
-                    // MM-011: subtract log of the DAG's topological-order count so the
-                    // chain's stationary distribution is uniform over DAGs (given the
-                    // score), not over (order, forward-edge) pairs.
-                    .map(|score| score - log_topological_order_count(mask, n))
-                    .unwrap_or(f64::NEG_INFINITY);
+                    let mut cur =
+                        score_dag_mask(mask, n, &score_data, &mut cache, prior, variables)
+                            // MM-011: subtract log of the DAG's topological-order count so the
+                            // chain's stationary distribution is uniform over DAGs (given the
+                            // score), not over (order, forward-edge) pairs.
+                            .map_or(f64::NEG_INFINITY, |score| {
+                                score - log_topological_order_count(mask, n)
+                            });
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
                         let (new_order, new_mask, rej) = propose_order(&order, mask, n, &mut rng);
                         local_rej += rej;
-                        let prop_score = score_dag_mask(
-                            new_mask,
-                            n,
-                            &score_data,
-                            &mut cache,
-                            prior,
-                            variables,
-                        )
-                        .map(|score| score - log_topological_order_count(new_mask, n));
+                        let prop_score =
+                            score_dag_mask(new_mask, n, &score_data, &mut cache, prior, variables)
+                                .map(|score| score - log_topological_order_count(new_mask, n));
                         let accept = match prop_score {
                             Some(ps) if cur.is_finite() => {
                                 let log_r = ps - cur;

@@ -37,7 +37,7 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
         calls["n"] += 1
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(causal, "discover_pc", spy)
+    monkeypatch.setattr(antecedent, "discover_pc", spy)
     monkeypatch.setattr("antecedent.accepted_graph.discover_pc", spy)
     monkeypatch.setattr("antecedent.discovery.discover_pc", spy)
 
@@ -82,7 +82,7 @@ def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
         raise AssertionError("discovery must not run on estimate knobs")
 
     monkeypatch.setattr("antecedent.accepted_graph.discover_pc", boom)
-    monkeypatch.setattr(causal, "discover_pc", boom)
+    monkeypatch.setattr(antecedent, "discover_pc", boom)
 
     q = antecedent.AverageEffect(treatment="t", outcome="y")
     a = accepted.analyze(data, query=q, seed=1, bootstrap=0)
@@ -174,7 +174,7 @@ def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
         calls["n"] += 1
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(causal, "discover_pcmci", spy)
+    monkeypatch.setattr(antecedent, "discover_pcmci", spy)
     monkeypatch.setattr("antecedent.accepted_graph.discover_pcmci", spy)
     monkeypatch.setattr("antecedent.discovery.discover_pcmci", spy)
 

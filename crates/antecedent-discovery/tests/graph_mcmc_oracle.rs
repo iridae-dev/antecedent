@@ -230,9 +230,8 @@ fn order_mcmc_named_marginals_invariant_to_column_relabeling() {
     let perm = [2usize, 0, 1];
     let (data, variables, names) = case_data_permuted(case, &perm);
     let mut workspace = DiscoveryWorkspace::default();
-    let order = OrderMcmc::new()
-        .with_schedule(chains, warmup, draws, thin)
-        .with_diagnostics_gate(false);
+    let order =
+        OrderMcmc::new().with_schedule(chains, warmup, draws, thin).with_diagnostics_gate(false);
     let post = order
         .run(
             &data,
@@ -244,10 +243,7 @@ fn order_mcmc_named_marginals_invariant_to_column_relabeling() {
         )
         .unwrap();
     let error = max_error(&named_marginals(&post, &names), &target);
-    assert!(
-        error <= band,
-        "relabeled order MCMC error {error} > {band} (names={names:?})"
-    );
+    assert!(error <= band, "relabeled order MCMC error {error} > {band} (names={names:?})");
 }
 
 #[test]

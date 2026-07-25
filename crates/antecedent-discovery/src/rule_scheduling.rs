@@ -1092,15 +1092,7 @@ pub fn default_fci_rules() -> [&'static dyn FciOrientationRule; 8] {
 /// memory and latent-fork skeleton recovery.
 #[must_use]
 pub fn prelim_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 7] {
-    [
-        &LpcmciApr,
-        &LpcmciR8,
-        &LpcmciR2,
-        &LpcmciR1,
-        &LpcmciR9,
-        &LpcmciR10,
-        &LpcmciMmr,
-    ]
+    [&LpcmciApr, &LpcmciR8, &LpcmciR2, &LpcmciR1, &LpcmciR9, &LpcmciR10, &LpcmciMmr]
 }
 
 /// Final LPCMCI orientation rule list (collider + R1–R4 + R8–R10 + APR + MMR).

@@ -51,14 +51,15 @@ def test_bayesian_hmc_smoke():
         data,
         graph=edges,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        # Enough draws for ESS/R-hat gates on the native HMC backend.
-        inference=antecedent.Bayesian(n_draws=120, backend="hmc"),
+        # Publication-gate schedule (Ř≤1.01, ESS≥100); Rust floors HMC draws
+        # at 3000 when callers ask for less.
+        inference=antecedent.Bayesian(n_draws=4000, backend="hmc"),
         refute=False,
         seed=2,
     )
     assert result.posterior is not None
     assert np.isfinite(result.posterior.effect_mean)
-    assert result.posterior.n_draws is not None and result.posterior.n_draws >= 120
+    assert result.posterior.n_draws is not None and result.posterior.n_draws >= 4000
     assert "hmc" in (result.posterior.backend or "").lower() or result.posterior.backend
 
 

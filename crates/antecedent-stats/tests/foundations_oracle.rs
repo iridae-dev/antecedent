@@ -188,8 +188,8 @@ fn family_and_options(name: &str) -> (GlmFamily, GlmOptions) {
 fn glm_families_match_frozen_statsmodels_outputs() {
     let expected = fixture("glm_irls");
     assert_eq!(expected["reference"]["available"].as_bool(), Some(true));
-    let coefficient_atol = expected["coefficient_atol"].as_f64().unwrap();
-    let coefficient_rtol = expected["coefficient_rtol"].as_f64().unwrap();
+    let coef_abs_tol = expected["coefficient_atol"].as_f64().unwrap();
+    let coef_rel_tol = expected["coefficient_rtol"].as_f64().unwrap();
     let fitted_atol = expected["fitted_atol"].as_f64().unwrap();
     let deviance_atol = expected["deviance_atol"].as_f64().unwrap();
     let mut workspace = LeastSquaresWorkspace::default();
@@ -214,8 +214,8 @@ fn glm_families_match_frozen_statsmodels_outputs() {
         assert_slice_close(
             &fit.coefficients,
             &floats(&case["coefficients"]),
-            coefficient_atol,
-            coefficient_rtol,
+            coef_abs_tol,
+            coef_rel_tol,
             name,
         );
         let fitted: Vec<f64> = rows
@@ -292,7 +292,8 @@ fn rng_stream_and_gaussian_sampler_match_frozen_scipy_battery() {
 
     let mut bins = [0usize; 20];
     for &u in &uniforms {
-        bins[((u * 20.0) as usize).min(19)] += 1;
+        let bin = ((u * 20.0).floor() as i32).clamp(0, 19);
+        bins[usize::try_from(bin).expect("bin in 0..20")] += 1;
     }
     let oracle_bins: Vec<usize> = expected["uniform"]["bin20_counts"]
         .as_array()
@@ -437,8 +438,8 @@ fn update_gam_oracle_fixture() {
         Some("1"),
         "refusing to rewrite fixture without UPDATE_GAM_ORACLE=1"
     );
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../conformance/stats/gam/expected.json");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/stats/gam/expected.json");
     let raw = fs::read_to_string(&path).expect("read oracle fixture");
     let mut root: Value = serde_json::from_str(&raw).expect("parse oracle fixture");
     let mut workspace = GamWorkspace::default();

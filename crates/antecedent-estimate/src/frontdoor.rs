@@ -280,15 +280,18 @@ impl FrontDoorTwoStage {
                 coefs[STAGE1_TREATMENT_COL] * stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
         }
         let ate = path_sum * problem.treatment_delta;
-        let se_analytic = stacked_path_sum_se(
-            &x1,
-            &stage1_resid,
-            &stage1_coefs,
-            &x2,
+        let stages = StackedStageViews {
+            x1: &x1,
+            stage1_resid: &stage1_resid,
+            stage1_coefs: &stage1_coefs,
+            x2: &x2,
             stage2_ncols,
-            &stage2_resid,
-            &stage2.coefficients,
-            problem.treatment_delta,
+            stage2_resid: &stage2_resid,
+            stage2_coefs: &stage2.coefficients,
+            treatment_delta: problem.treatment_delta,
+        };
+        let se_analytic = stacked_path_sum_se(
+            &stages,
             self.se_kind,
             self.cluster_ids.as_deref(),
             CrossStagePolicy::Empirical,
@@ -392,44 +395,38 @@ enum CrossStagePolicy {
     IndependentPaths,
 }
 
-fn stacked_path_sum_se(
-    x1: &[f64],
-    stage1_resid: &[Vec<f64>],
-    stage1_coefs: &[Vec<f64>],
-    x2: &[f64],
+/// Shared stage-1 / stage-2 views for stacked front-door sandwich SE.
+#[derive(Clone, Copy, Debug)]
+struct StackedStageViews<'a> {
+    x1: &'a [f64],
+    stage1_resid: &'a [Vec<f64>],
+    stage1_coefs: &'a [Vec<f64>],
+    x2: &'a [f64],
     stage2_ncols: usize,
-    stage2_resid: &[f64],
-    stage2_coefs: &[f64],
+    stage2_resid: &'a [f64],
+    stage2_coefs: &'a [f64],
     treatment_delta: f64,
+}
+
+fn stacked_path_sum_se(
+    stages: &StackedStageViews<'_>,
     se_kind: AnalyticSeKind,
     cluster_ids: Option<&[u32]>,
     cross_stage: CrossStagePolicy,
 ) -> Result<f64, EstimationError> {
-    let (cov, grad) = stacked_theta_cov_and_grad(
-        x1,
-        stage1_resid,
-        stage1_coefs,
-        x2,
-        stage2_ncols,
-        stage2_resid,
-        stage2_coefs,
-        treatment_delta,
-        se_kind,
-        cluster_ids,
-        cross_stage,
-    )?;
-    let p = grad.len();
-    let mut tmp = vec![0.0; p];
-    for i in 0..p {
-        let mut s = 0.0;
-        for j in 0..p {
-            s += cov[i * p + j] * grad[j];
+    let (cov, grad) = stacked_theta_cov_and_grad(stages, se_kind, cluster_ids, cross_stage)?;
+    let n_params = grad.len();
+    let mut tmp = vec![0.0; n_params];
+    for row in 0..n_params {
+        let mut sum = 0.0;
+        for col in 0..n_params {
+            sum += cov[row * n_params + col] * grad[col];
         }
-        tmp[i] = s;
+        tmp[row] = sum;
     }
     let mut var = 0.0;
-    for i in 0..p {
-        var += grad[i] * tmp[i];
+    for (row, &g) in grad.iter().enumerate() {
+        var += g * tmp[row];
     }
     if !var.is_finite() {
         return Ok(f64::NAN);
@@ -438,64 +435,58 @@ fn stacked_path_sum_se(
 }
 
 fn stacked_theta_cov_and_grad(
-    x1: &[f64],
-    stage1_resid: &[Vec<f64>],
-    stage1_coefs: &[Vec<f64>],
-    x2: &[f64],
-    stage2_ncols: usize,
-    stage2_resid: &[f64],
-    stage2_coefs: &[f64],
-    treatment_delta: f64,
+    stages: &StackedStageViews<'_>,
     se_kind: AnalyticSeKind,
     cluster_ids: Option<&[u32]>,
     cross_stage: CrossStagePolicy,
 ) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
-    let k = stage1_resid.len();
-    if k == 0 || stage1_coefs.len() != k {
+    let n_mediators = stages.stage1_resid.len();
+    if n_mediators == 0 || stages.stage1_coefs.len() != n_mediators {
         return Err(EstimationError::unsupported("stacked front-door SE needs ≥1 mediator"));
     }
-    let n = stage2_resid.len();
-    if x1.len() < n * STAGE1_NCOLS || x2.len() < n * stage2_ncols {
+    let n_rows = stages.stage2_resid.len();
+    if stages.x1.len() < n_rows * STAGE1_NCOLS || stages.x2.len() < n_rows * stages.stage2_ncols {
         return Err(EstimationError::data_msg("stacked front-door design buffer too short"));
     }
-    for resid in stage1_resid {
-        if resid.len() != n {
+    for resid in stages.stage1_resid {
+        if resid.len() != n_rows {
             return Err(EstimationError::data_msg("stage-1 residual length mismatch"));
         }
     }
-    let p = k * STAGE1_NCOLS + stage2_ncols;
+    let n_params = n_mediators * STAGE1_NCOLS + stages.stage2_ncols;
 
     // Block-diagonal bread A = diag(X1'X1, …, X1'X1, X2'X2).
-    let mut bread = vec![0.0; p * p];
+    let mut bread = vec![0.0; n_params * n_params];
     let mut xtx1 = vec![0.0; STAGE1_NCOLS * STAGE1_NCOLS];
-    form_xtx(x1, n, STAGE1_NCOLS, &mut xtx1);
-    for j in 0..k {
-        let off = j * STAGE1_NCOLS;
-        for r in 0..STAGE1_NCOLS {
-            for c in 0..STAGE1_NCOLS {
-                bread[(off + r) * p + (off + c)] = xtx1[r * STAGE1_NCOLS + c];
+    form_xtx(stages.x1, n_rows, STAGE1_NCOLS, &mut xtx1);
+    for mediator_idx in 0..n_mediators {
+        let off = mediator_idx * STAGE1_NCOLS;
+        for row in 0..STAGE1_NCOLS {
+            for col in 0..STAGE1_NCOLS {
+                bread[(off + row) * n_params + (off + col)] = xtx1[row * STAGE1_NCOLS + col];
             }
         }
     }
-    let mut xtx2 = vec![0.0; stage2_ncols * stage2_ncols];
-    form_xtx(x2, n, stage2_ncols, &mut xtx2);
-    let off2 = k * STAGE1_NCOLS;
-    for r in 0..stage2_ncols {
-        for c in 0..stage2_ncols {
-            bread[(off2 + r) * p + (off2 + c)] = xtx2[r * stage2_ncols + c];
+    let mut xtx2 = vec![0.0; stages.stage2_ncols * stages.stage2_ncols];
+    form_xtx(stages.x2, n_rows, stages.stage2_ncols, &mut xtx2);
+    let stage2_off = n_mediators * STAGE1_NCOLS;
+    for row in 0..stages.stage2_ncols {
+        for col in 0..stages.stage2_ncols {
+            bread[(stage2_off + row) * n_params + (stage2_off + col)] =
+                xtx2[row * stages.stage2_ncols + col];
         }
     }
-    let bread_inv = invert_square(&bread, p)
+    let bread_inv = invert_square(&bread, n_params)
         .ok_or_else(|| EstimationError::stats_msg("singular stacked front-door bread"))?;
 
     let meat = match se_kind {
         AnalyticSeKind::Homoskedastic | AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 => {
-            let mut meat = stacked_hc_meat(x1, stage1_resid, x2, stage2_ncols, stage2_resid, cross_stage);
+            let mut meat = stacked_hc_meat(stages, cross_stage);
             if matches!(se_kind, AnalyticSeKind::Hc1) {
-                if n <= p {
+                if n_rows <= n_params {
                     return Err(EstimationError::stats_msg("non-positive residual df for HC1"));
                 }
-                let scale = n as f64 / (n as f64 - p as f64);
+                let scale = n_rows as f64 / (n_rows as f64 - n_params as f64);
                 for v in &mut meat {
                     *v *= scale;
                 }
@@ -503,16 +494,8 @@ fn stacked_theta_cov_and_grad(
             meat
         }
         AnalyticSeKind::Cluster => {
-            let groups = require_clusters(cluster_ids, n)?;
-            stacked_cluster_meat(
-                x1,
-                stage1_resid,
-                x2,
-                stage2_ncols,
-                stage2_resid,
-                groups,
-                cross_stage,
-            )?
+            let groups = require_clusters(cluster_ids, n_rows)?;
+            stacked_cluster_meat(stages, groups, cross_stage)?
         }
         AnalyticSeKind::Hc2
         | AnalyticSeKind::Hc3
@@ -526,157 +509,140 @@ fn stacked_theta_cov_and_grad(
     };
 
     // Σ = A⁻¹ B A⁻¹
-    let mut tmp = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..p {
-            let mut s = 0.0;
-            for t in 0..p {
-                s += bread_inv[i * p + t] * meat[t * p + j];
+    let mut tmp = vec![0.0; n_params * n_params];
+    for row in 0..n_params {
+        for col in 0..n_params {
+            let mut sum = 0.0;
+            for mid in 0..n_params {
+                sum += bread_inv[row * n_params + mid] * meat[mid * n_params + col];
             }
-            tmp[i * p + j] = s;
+            tmp[row * n_params + col] = sum;
         }
     }
-    let mut cov = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..p {
-            let mut s = 0.0;
-            for t in 0..p {
-                s += tmp[i * p + t] * bread_inv[t * p + j];
+    let mut cov = vec![0.0; n_params * n_params];
+    for row in 0..n_params {
+        for col in 0..n_params {
+            let mut sum = 0.0;
+            for mid in 0..n_params {
+                sum += tmp[row * n_params + mid] * bread_inv[mid * n_params + col];
             }
-            cov[i * p + j] = s;
+            cov[row * n_params + col] = sum;
         }
     }
 
-    // ∇g for g = Δ Σⱼ aⱼ bⱼ
-    let mut grad = vec![0.0; p];
-    for j in 0..k {
-        let a = stage1_coefs[j][STAGE1_TREATMENT_COL];
-        let b = stage2_coefs[STAGE2_FIRST_MEDIATOR_COL + j];
-        grad[j * STAGE1_NCOLS + STAGE1_TREATMENT_COL] = treatment_delta * b;
-        grad[off2 + STAGE2_FIRST_MEDIATOR_COL + j] = treatment_delta * a;
+    // ∇g for g = Δ Σⱼ β_{T→Mⱼ} β_{Mⱼ→Y}
+    let mut grad = vec![0.0; n_params];
+    for mediator_idx in 0..n_mediators {
+        let beta_t_to_m = stages.stage1_coefs[mediator_idx][STAGE1_TREATMENT_COL];
+        let beta_m_to_y = stages.stage2_coefs[STAGE2_FIRST_MEDIATOR_COL + mediator_idx];
+        grad[mediator_idx * STAGE1_NCOLS + STAGE1_TREATMENT_COL] =
+            stages.treatment_delta * beta_m_to_y;
+        grad[stage2_off + STAGE2_FIRST_MEDIATOR_COL + mediator_idx] =
+            stages.treatment_delta * beta_t_to_m;
     }
     Ok((cov, grad))
 }
 
-fn fill_row_score(
-    score: &mut [f64],
-    x1: &[f64],
-    stage1_resid: &[Vec<f64>],
-    x2: &[f64],
-    stage2_ncols: usize,
-    stage2_resid: &[f64],
-    row: usize,
-    n: usize,
-) {
-    let k = stage1_resid.len();
+fn fill_row_score(score: &mut [f64], stages: &StackedStageViews<'_>, row: usize, n_rows: usize) {
+    let n_mediators = stages.stage1_resid.len();
     score.fill(0.0);
-    for j in 0..k {
-        let e = stage1_resid[j][row];
-        let off = j * STAGE1_NCOLS;
-        for c in 0..STAGE1_NCOLS {
-            score[off + c] = e * x1[c * n + row];
+    for (mediator_idx, resid) in stages.stage1_resid.iter().enumerate() {
+        let e1 = resid[row];
+        let off = mediator_idx * STAGE1_NCOLS;
+        for col in 0..STAGE1_NCOLS {
+            score[off + col] = e1 * stages.x1[col * n_rows + row];
         }
     }
-    let e2 = stage2_resid[row];
-    let off2 = k * STAGE1_NCOLS;
-    for c in 0..stage2_ncols {
-        score[off2 + c] = e2 * x2[c * n + row];
+    let e2 = stages.stage2_resid[row];
+    let stage2_off = n_mediators * STAGE1_NCOLS;
+    for col in 0..stages.stage2_ncols {
+        score[stage2_off + col] = e2 * stages.x2[col * n_rows + row];
     }
 }
 
-fn zero_cross_blocks(meat: &mut [f64], p: usize, k: usize, stage2_ncols: usize) {
+fn zero_cross_blocks(meat: &mut [f64], n_params: usize, n_mediators: usize, stage2_ncols: usize) {
     // Zero every off-diagonal stage block (independent-path Sobel).
     let blocks: Vec<(usize, usize)> = {
-        let mut b = Vec::with_capacity(k + 1);
-        for j in 0..k {
-            b.push((j * STAGE1_NCOLS, STAGE1_NCOLS));
+        let mut block_specs = Vec::with_capacity(n_mediators + 1);
+        for mediator_idx in 0..n_mediators {
+            block_specs.push((mediator_idx * STAGE1_NCOLS, STAGE1_NCOLS));
         }
-        b.push((k * STAGE1_NCOLS, stage2_ncols));
-        b
+        block_specs.push((n_mediators * STAGE1_NCOLS, stage2_ncols));
+        block_specs
     };
     for (bi, &(o1, n1)) in blocks.iter().enumerate() {
         for (bj, &(o2, n2)) in blocks.iter().enumerate() {
             if bi == bj {
                 continue;
             }
-            for r in 0..n1 {
-                for c in 0..n2 {
-                    meat[(o1 + r) * p + (o2 + c)] = 0.0;
+            for row in 0..n1 {
+                for col in 0..n2 {
+                    meat[(o1 + row) * n_params + (o2 + col)] = 0.0;
                 }
             }
         }
     }
 }
 
-fn stacked_hc_meat(
-    x1: &[f64],
-    stage1_resid: &[Vec<f64>],
-    x2: &[f64],
-    stage2_ncols: usize,
-    stage2_resid: &[f64],
-    cross_stage: CrossStagePolicy,
-) -> Vec<f64> {
-    let k = stage1_resid.len();
-    let n = stage2_resid.len();
-    let p = k * STAGE1_NCOLS + stage2_ncols;
-    let mut meat = vec![0.0; p * p];
-    let mut score = vec![0.0; p];
-    for r in 0..n {
-        fill_row_score(&mut score, x1, stage1_resid, x2, stage2_ncols, stage2_resid, r, n);
-        for a in 0..p {
-            for b in 0..p {
-                meat[a * p + b] += score[a] * score[b];
+fn stacked_hc_meat(stages: &StackedStageViews<'_>, cross_stage: CrossStagePolicy) -> Vec<f64> {
+    let n_mediators = stages.stage1_resid.len();
+    let n_rows = stages.stage2_resid.len();
+    let n_params = n_mediators * STAGE1_NCOLS + stages.stage2_ncols;
+    let mut meat = vec![0.0; n_params * n_params];
+    let mut score = vec![0.0; n_params];
+    for row in 0..n_rows {
+        fill_row_score(&mut score, stages, row, n_rows);
+        for i in 0..n_params {
+            for j in 0..n_params {
+                meat[i * n_params + j] += score[i] * score[j];
             }
         }
     }
     if cross_stage == CrossStagePolicy::IndependentPaths {
-        zero_cross_blocks(&mut meat, p, k, stage2_ncols);
+        zero_cross_blocks(&mut meat, n_params, n_mediators, stages.stage2_ncols);
     }
     meat
 }
 
 fn stacked_cluster_meat(
-    x1: &[f64],
-    stage1_resid: &[Vec<f64>],
-    x2: &[f64],
-    stage2_ncols: usize,
-    stage2_resid: &[f64],
+    stages: &StackedStageViews<'_>,
     groups: &[u32],
     cross_stage: CrossStagePolicy,
 ) -> Result<Vec<f64>, EstimationError> {
-    let k = stage1_resid.len();
-    let n = stage2_resid.len();
-    let p = k * STAGE1_NCOLS + stage2_ncols;
+    let n_mediators = stages.stage1_resid.len();
+    let n_rows = stages.stage2_resid.len();
+    let n_params = n_mediators * STAGE1_NCOLS + stages.stage2_ncols;
     let mut totals: std::collections::BTreeMap<u32, Vec<f64>> = std::collections::BTreeMap::new();
-    let mut score = vec![0.0; p];
-    for r in 0..n {
-        fill_row_score(&mut score, x1, stage1_resid, x2, stage2_ncols, stage2_resid, r, n);
-        let entry = totals.entry(groups[r]).or_insert_with(|| vec![0.0; p]);
-        for c in 0..p {
-            entry[c] += score[c];
+    let mut score = vec![0.0; n_params];
+    for (row, &group_id) in groups.iter().enumerate().take(n_rows) {
+        fill_row_score(&mut score, stages, row, n_rows);
+        let entry = totals.entry(group_id).or_insert_with(|| vec![0.0; n_params]);
+        for (col, &s) in score.iter().enumerate() {
+            entry[col] += s;
         }
     }
-    let g = totals.len();
-    if g < 2 {
+    let n_clusters = totals.len();
+    if n_clusters < 2 {
         return Err(EstimationError::stats_msg(
             "cluster-robust variance requires at least 2 clusters",
         ));
     }
-    if n <= p {
+    if n_rows <= n_params {
         return Err(EstimationError::stats_msg("non-positive residual df for cluster SE"));
     }
-    let mut meat = vec![0.0; p * p];
+    let mut meat = vec![0.0; n_params * n_params];
     for score_g in totals.values() {
-        for a in 0..p {
-            for b in 0..p {
-                meat[a * p + b] += score_g[a] * score_g[b];
+        for i in 0..n_params {
+            for j in 0..n_params {
+                meat[i * n_params + j] += score_g[i] * score_g[j];
             }
         }
     }
     if cross_stage == CrossStagePolicy::IndependentPaths {
-        zero_cross_blocks(&mut meat, p, k, stage2_ncols);
+        zero_cross_blocks(&mut meat, n_params, n_mediators, stages.stage2_ncols);
     }
-    let scale = (g as f64 / (g as f64 - 1.0)) * ((n as f64 - 1.0) / (n as f64 - p as f64));
+    let scale = (n_clusters as f64 / (n_clusters as f64 - 1.0))
+        * ((n_rows as f64 - 1.0) / (n_rows as f64 - n_params as f64));
     for v in &mut meat {
         *v *= scale;
     }
@@ -960,70 +926,58 @@ mod tests {
         let x1 = stage1_matrix(&prep.treatment);
         let s1 = est.fit_stage1(&prep.treatment, &prep.mediators[0], &mut ws).unwrap();
         let mut r1 = vec![0.0; n];
-        for r in 0..n {
-            r1[r] = prep.mediators[0][r]
+        for (row, residual) in r1.iter_mut().enumerate() {
+            *residual = prep.mediators[0][row]
                 - s1.coefficients[0]
-                - s1.coefficients[STAGE1_TREATMENT_COL] * prep.treatment[r];
+                - s1.coefficients[STAGE1_TREATMENT_COL] * prep.treatment[row];
         }
-        let s2 = est
-            .fit_stage2(&prep.treatment, &prep.mediators, &prep.outcome, &mut ws)
-            .unwrap();
+        let s2 = est.fit_stage2(&prep.treatment, &prep.mediators, &prep.outcome, &mut ws).unwrap();
         let x2 = stage2_matrix(&prep.treatment, &prep.mediators);
         let mut r2 = vec![0.0; n];
-        for r in 0..n {
+        for (row, residual) in r2.iter_mut().enumerate() {
             let mut pred = 0.0;
             for c in 0..(2 + prep.mediators.len()) {
-                pred += x2[c * n + r] * s2.coefficients[c];
+                pred += x2[c * n + row] * s2.coefficients[c];
             }
-            r2[r] = prep.outcome[r] - pred;
+            *residual = prep.outcome[row] - pred;
         }
+        let stage1_resid = [r1];
+        let stage1_coefs = [s1.coefficients.clone()];
+        let stages = StackedStageViews {
+            x1: &x1,
+            stage1_resid: &stage1_resid,
+            stage1_coefs: &stage1_coefs,
+            x2: &x2,
+            stage2_ncols: 3,
+            stage2_resid: &r2,
+            stage2_coefs: &s2.coefficients,
+            treatment_delta: prep.treatment_delta,
+        };
         let (cov, _) = stacked_theta_cov_and_grad(
-            &x1,
-            &[r1.clone()],
-            &[s1.coefficients.clone()],
-            &x2,
-            3,
-            &r2,
-            &s2.coefficients,
-            prep.treatment_delta,
+            &stages,
             AnalyticSeKind::Hc0,
             None,
             CrossStagePolicy::Empirical,
         )
         .unwrap();
         // Indices: a at stage1 col 1 (index 1), b at stage2 mediator col (index 4).
-        let cov_ab = cov[1 * 5 + 4];
-        let var_a = cov[1 * 5 + 1];
-        let var_b = cov[4 * 5 + 4];
+        let n_theta = 5usize;
+        let idx_a = STAGE1_TREATMENT_COL;
+        let idx_b = STAGE1_NCOLS + STAGE2_FIRST_MEDIATOR_COL;
+        let cov_ab = cov[idx_a * n_theta + idx_b];
+        let var_a = cov[idx_a * n_theta + idx_a];
+        let var_b = cov[idx_b * n_theta + idx_b];
         assert!(
             cov_ab.is_finite() && cov_ab.abs() > 0.0,
             "expected nonzero cross-stage Cov(a,b), got {cov_ab}"
         );
         assert!(var_a > 0.0 && var_b > 0.0);
 
-        let se_full = stacked_path_sum_se(
-            &x1,
-            &[r1.clone()],
-            &[s1.coefficients.clone()],
-            &x2,
-            3,
-            &r2,
-            &s2.coefficients,
-            prep.treatment_delta,
-            AnalyticSeKind::Hc0,
-            None,
-            CrossStagePolicy::Empirical,
-        )
-        .unwrap();
+        let se_full =
+            stacked_path_sum_se(&stages, AnalyticSeKind::Hc0, None, CrossStagePolicy::Empirical)
+                .unwrap();
         let se_indep = stacked_path_sum_se(
-            &x1,
-            &[r1],
-            &[s1.coefficients.clone()],
-            &x2,
-            3,
-            &r2,
-            &s2.coefficients,
-            prep.treatment_delta,
+            &stages,
             AnalyticSeKind::Hc0,
             None,
             CrossStagePolicy::IndependentPaths,
@@ -1037,13 +991,7 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         let boot = effect.se_bootstrap.expect("bootstrap SE");
         let rel = (effect.se_analytic - boot).abs() / boot.max(1e-8);
-        assert!(
-            rel < 0.25,
-            "analytic={} boot={} rel={}",
-            effect.se_analytic,
-            boot,
-            rel
-        );
+        assert!(rel < 0.25, "analytic={} boot={} rel={}", effect.se_analytic, boot, rel);
     }
 
     #[test]
@@ -1131,13 +1079,7 @@ mod tests {
         assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
         let boot = effect.se_bootstrap.expect("bootstrap SE");
         let rel = (effect.se_analytic - boot).abs() / boot.max(1e-8);
-        assert!(
-            rel < 0.3,
-            "analytic={} boot={} rel={}",
-            effect.se_analytic,
-            boot,
-            rel
-        );
+        assert!(rel < 0.3, "analytic={} boot={} rel={}", effect.se_analytic, boot, rel);
     }
 
     #[test]
@@ -1150,34 +1092,37 @@ mod tests {
         let x1 = stage1_matrix(&prep.treatment);
         let s1 = est.fit_stage1(&prep.treatment, &prep.mediators[0], &mut ws).unwrap();
         let mut r1 = vec![0.0; n];
-        for r in 0..n {
-            r1[r] = prep.mediators[0][r]
+        for (row, residual) in r1.iter_mut().enumerate() {
+            *residual = prep.mediators[0][row]
                 - s1.coefficients[0]
-                - s1.coefficients[STAGE1_TREATMENT_COL] * prep.treatment[r];
+                - s1.coefficients[STAGE1_TREATMENT_COL] * prep.treatment[row];
         }
-        let s2 = est
-            .fit_stage2(&prep.treatment, &prep.mediators, &prep.outcome, &mut ws)
-            .unwrap();
+        let s2 = est.fit_stage2(&prep.treatment, &prep.mediators, &prep.outcome, &mut ws).unwrap();
         let x2 = stage2_matrix(&prep.treatment, &prep.mediators);
         let mut r2 = vec![0.0; n];
-        for r in 0..n {
+        for (row, residual) in r2.iter_mut().enumerate() {
             let mut pred = 0.0;
             for c in 0..3 {
-                pred += x2[c * n + r] * s2.coefficients[c];
+                pred += x2[c * n + row] * s2.coefficients[c];
             }
-            r2[r] = prep.outcome[r] - pred;
+            *residual = prep.outcome[row] - pred;
         }
         let a = s1.coefficients[STAGE1_TREATMENT_COL];
         let b = s2.coefficients[STAGE2_FIRST_MEDIATOR_COL];
+        let stage1_resid = [r1];
+        let stage1_coefs = [s1.coefficients.clone()];
+        let stages = StackedStageViews {
+            x1: &x1,
+            stage1_resid: &stage1_resid,
+            stage1_coefs: &stage1_coefs,
+            x2: &x2,
+            stage2_ncols: 3,
+            stage2_resid: &r2,
+            stage2_coefs: &s2.coefficients,
+            treatment_delta: prep.treatment_delta,
+        };
         let se_indep = stacked_path_sum_se(
-            &x1,
-            &[r1.clone()],
-            &[s1.coefficients.clone()],
-            &x2,
-            3,
-            &r2,
-            &s2.coefficients,
-            prep.treatment_delta,
+            &stages,
             AnalyticSeKind::Hc0,
             None,
             CrossStagePolicy::IndependentPaths,
@@ -1185,22 +1130,18 @@ mod tests {
         .unwrap();
         // Ordinary independent-path delta on HC0 marginal variances of a and b.
         let (cov, _) = stacked_theta_cov_and_grad(
-            &x1,
-            &[r1],
-            &[s1.coefficients.clone()],
-            &x2,
-            3,
-            &r2,
-            &s2.coefficients,
-            prep.treatment_delta,
+            &stages,
             AnalyticSeKind::Hc0,
             None,
             CrossStagePolicy::IndependentPaths,
         )
         .unwrap();
-        let var_a = cov[1 * 5 + 1];
-        let var_b = cov[4 * 5 + 4];
-        let cov_ab = cov[1 * 5 + 4];
+        let n_theta = 5usize;
+        let idx_a = STAGE1_TREATMENT_COL;
+        let idx_b = STAGE1_NCOLS + STAGE2_FIRST_MEDIATOR_COL;
+        let var_a = cov[idx_a * n_theta + idx_a];
+        let var_b = cov[idx_b * n_theta + idx_b];
+        let cov_ab = cov[idx_a * n_theta + idx_b];
         assert!(cov_ab.abs() < 1e-12, "cross-stage block should be zeroed, got {cov_ab}");
         let d = prep.treatment_delta;
         let var_ref = (b * b * var_a + a * a * var_b) * d * d;
@@ -1233,10 +1174,7 @@ mod tests {
             ..FrontDoorTwoStage::new()
         };
         let se2 = est2.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().se_analytic;
-        assert!(
-            (se1 - se2).abs() < 1e-12,
-            "relabel changed SE: {se1} vs {se2}"
-        );
+        assert!((se1 - se2).abs() < 1e-12, "relabel changed SE: {se1} vs {se2}");
         assert!(se1.is_finite() && se1 > 0.0);
     }
 

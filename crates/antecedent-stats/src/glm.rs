@@ -829,7 +829,9 @@ pub fn fit_glm_ridge(
     lambda: f64,
 ) -> Result<GlmFit, StatsError> {
     if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
-        return Err(StatsError::Shape { message: "ridge GLM currently requires a binomial family" });
+        return Err(StatsError::Shape {
+            message: "ridge GLM currently requires a binomial family",
+        });
     }
     if design.y.len() != design.nrows {
         return Err(StatsError::Shape { message: "y length != nrows" });
@@ -1120,10 +1122,7 @@ fn fit_multinomial_fisher(
 }
 
 /// Multinomial deviance and separation at free coefficients (reference category 0 pinned).
-fn multinomial_diagnostics_at(
-    design: MultinomialDesignRef<'_>,
-    beta_free: &[f64],
-) -> (f64, bool) {
+fn multinomial_diagnostics_at(design: MultinomialDesignRef<'_>, beta_free: &[f64]) -> (f64, bool) {
     let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } = design;
     let mut deviance = 0.0;
     let mut separated = false;
@@ -1632,8 +1631,8 @@ mod tests {
         let design_bin = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y_bin };
         let design_count = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y_count };
 
-        let poisson = fit_glm(GlmFamily::PoissonLog, design_count, &FaerBackend, &mut ws, &opts)
-            .unwrap();
+        let poisson =
+            fit_glm(GlmFamily::PoissonLog, design_count, &FaerBackend, &mut ws, &opts).unwrap();
         assert_eq!(poisson.iterations, 1);
         let mut poisson_re = 0.0;
         for r in 0..n {
@@ -1653,8 +1652,8 @@ mod tests {
             poisson_re
         );
 
-        let logit = fit_glm(GlmFamily::BinomialLogit, design_bin, &FaerBackend, &mut ws, &opts)
-            .unwrap();
+        let logit =
+            fit_glm(GlmFamily::BinomialLogit, design_bin, &FaerBackend, &mut ws, &opts).unwrap();
         assert_eq!(logit.iterations, 1);
         let mut logit_re = 0.0;
         for r in 0..n {
@@ -1673,8 +1672,8 @@ mod tests {
             logit_re
         );
 
-        let probit = fit_glm(GlmFamily::BinomialProbit, design_bin, &FaerBackend, &mut ws, &opts)
-            .unwrap();
+        let probit =
+            fit_glm(GlmFamily::BinomialProbit, design_bin, &FaerBackend, &mut ws, &opts).unwrap();
         assert_eq!(probit.iterations, 1);
         let mut probit_re = 0.0;
         for r in 0..n {
@@ -1693,12 +1692,10 @@ mod tests {
             probit_re
         );
 
-        let nb_opts = GlmOptions {
-            nb_alpha: NbAlphaPolicy::Fixed(0.5),
-            ..opts
-        };
-        let nb = fit_glm(GlmFamily::NegativeBinomial, design_count, &FaerBackend, &mut ws, &nb_opts)
-            .unwrap();
+        let nb_opts = GlmOptions { nb_alpha: NbAlphaPolicy::Fixed(0.5), ..opts };
+        let nb =
+            fit_glm(GlmFamily::NegativeBinomial, design_count, &FaerBackend, &mut ws, &nb_opts)
+                .unwrap();
         assert_eq!(nb.iterations, 1);
         let theta = 2.0; // 1 / 0.5
         let mut nb_re = 0.0;
@@ -1707,8 +1704,8 @@ mod tests {
             let mu = eta.exp().max(1e-12);
             let yi = y_count[r];
             if yi > 0.0 {
-                nb_re += 2.0
-                    * (yi * (yi / mu).ln() - (yi + theta) * ((yi + theta) / (mu + theta)).ln());
+                nb_re +=
+                    2.0 * (yi * (yi / mu).ln() - (yi + theta) * ((yi + theta) / (mu + theta)).ln());
             } else {
                 nb_re += 2.0 * theta * ((theta + mu) / theta).ln();
             }

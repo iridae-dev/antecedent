@@ -395,13 +395,8 @@ pub fn fit_gam(
             }
 
             if iter == 1 {
-                edf_approx += roughness_edf(
-                    basis,
-                    nrows,
-                    spec.n_basis,
-                    lambda,
-                    &mut workspace.gram,
-                )?;
+                edf_approx +=
+                    roughness_edf(basis, nrows, spec.n_basis, lambda, &mut workspace.gram)?;
             }
         }
         selected_lambda = true;
@@ -672,9 +667,7 @@ fn eval_cubic_bspline(
 /// Second-difference matrix `D₂` of size `(K-2)×K` with rows `[1, -2, 1]`.
 fn second_difference_matrix(n_basis: usize) -> Result<Vec<f64>, StatsError> {
     if n_basis < 3 {
-        return Err(StatsError::Shape {
-            message: "second-difference penalty needs n_basis ≥ 3",
-        });
+        return Err(StatsError::Shape { message: "second-difference penalty needs n_basis ≥ 3" });
     }
     let rows = n_basis - 2;
     let mut d2 = vec![0.0; rows * n_basis];
@@ -980,8 +973,7 @@ mod tests {
         let (basis, _) = expand_bspline(&x1, 12, None).unwrap();
         let mut gram = vec![0.0; 12 * 12];
         let mut rhs = vec![0.0; 12];
-        let beta_r =
-            roughness_basis_solve(&basis, n, 12, &y, 1.0, &mut gram, &mut rhs).unwrap();
+        let beta_r = roughness_basis_solve(&basis, n, 12, &y, 1.0, &mut gram, &mut rhs).unwrap();
         // Identity ridge baseline (local to this test).
         form_xtx(&basis, n, 12, &mut gram);
         for c in 0..12 {
@@ -995,7 +987,7 @@ mod tests {
             rhs[c] = s;
         }
         let inv = invert_square(&gram[..144], 12).unwrap();
-        let mut beta_i = vec![0.0; 12];
+        let mut beta_i = [0.0; 12];
         for i in 0..12 {
             let mut s = 0.0;
             for j in 0..12 {
@@ -1022,10 +1014,7 @@ mod tests {
             curv_err_r += (pr - truth).abs();
             curv_err_i += (pi - truth).abs();
         }
-        assert!(
-            rss_r < rss_i,
-            "roughness RSS={rss_r} should beat identity ridge RSS={rss_i}"
-        );
+        assert!(rss_r < rss_i, "roughness RSS={rss_r} should beat identity ridge RSS={rss_i}");
         assert!(curv_err_r < curv_err_i);
     }
 
@@ -1054,7 +1043,8 @@ mod tests {
     fn intercept_remains_unpenalized_under_large_lambda() {
         let n = 60usize;
         let x1 = linspace(n, 0.0, 1.0);
-        let y: Vec<f64> = x1.iter().map(|&v| 5.0 + 0.2 * (2.0 * std::f64::consts::PI * v).sin()).collect();
+        let y: Vec<f64> =
+            x1.iter().map(|&v| 5.0 + 0.2 * (2.0 * std::f64::consts::PI * v).sin()).collect();
         let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
         let specs = [SmoothSpec::new(0, 8, 1e8)];
         let mut ws = GamWorkspace::default();

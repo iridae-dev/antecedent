@@ -602,9 +602,7 @@ pub(crate) fn validate_design(
             }
             BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit => {
                 if !(yi == 0.0 || yi == 1.0) {
-                    return Err(ProbError::Shape {
-                        message: "Bernoulli outcomes must be 0 or 1",
-                    });
+                    return Err(ProbError::Shape { message: "Bernoulli outcomes must be 0 or 1" });
                 }
             }
             BayesLikelihood::PoissonLog => {
@@ -630,9 +628,7 @@ pub(crate) fn validate_design(
             mass += wr;
         }
         if !(mass > 0.0) || !mass.is_finite() {
-            return Err(ProbError::Shape {
-                message: "weights must have positive total mass",
-            });
+            return Err(ProbError::Shape { message: "weights must have positive total mass" });
         }
     }
     if let Some(o) = design.offsets {

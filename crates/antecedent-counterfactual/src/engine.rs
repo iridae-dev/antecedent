@@ -625,6 +625,7 @@ pub fn nested_hard_counterfactual(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{CounterfactualTrajectoryRequest, TrajectoryArm, evaluate_trajectories};
     use antecedent_core::{
         CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec, RoleHint,
         SequencedIntervention, SmallRoleSet, TemporalPolicy, ToleranceClass, Value, ValueType,
@@ -944,13 +945,7 @@ mod tests {
         assert!(mean.is_finite(), "overlapping simultaneous should nest, got {mean}");
     }
 
-    #[test]
-    fn nested_hard_allows_overlapping_treatment_with_mediator_freeze() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../conformance/gcm/nested_temporal_counterfactual/expected.json"
-        ))
-        .unwrap();
-        let tolerance = fixture["acceptance"]["atol"].as_f64().unwrap();
+    fn nested_hard_fixture_engine() -> (CounterfactualEngine, TabularData, VariableId, VariableId) {
         // T -> M -> Y, Y also <- T. Nested Y_{x=1, M_{x=0}} should freeze M at do(T=0).
         let n = 40usize;
         let mut b = CausalSchemaBuilder::new();
@@ -1021,10 +1016,19 @@ mod tests {
             ]),
         };
         let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
+        (engine, data, VariableId::from_raw(0), VariableId::from_raw(2))
+    }
+
+    #[test]
+    fn nested_hard_allows_overlapping_treatment_with_mediator_freeze() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/gcm/nested_temporal_counterfactual/expected.json"
+        ))
+        .unwrap();
+        let tolerance = fixture["acceptance"]["atol"].as_f64().unwrap();
+        let (engine, data, t, y) = nested_hard_fixture_engine();
         let mut ws = MechanismWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let t = VariableId::from_raw(0);
-        let y = VariableId::from_raw(2);
         // Y_{1, M_0}: outer do(T=0), inner do(T=1) with M frozen.
         let nested = nested_hard_counterfactual(
             &engine,
@@ -1055,7 +1059,6 @@ mod tests {
                 <= tolerance
         );
 
-        use crate::{CounterfactualTrajectoryRequest, TrajectoryArm, evaluate_trajectories};
         let request = CounterfactualTrajectoryRequest {
             arms: Arc::from([
                 TrajectoryArm {

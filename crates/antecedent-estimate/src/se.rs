@@ -646,10 +646,7 @@ mod tests {
             let cov =
                 coefficient_covariance(&x, n, 1, &e, SandwichKind::NeweyWest { lag }).unwrap();
             let se_sw = cov[0].sqrt();
-            assert!(
-                (se_if - se_sw).abs() < 1e-12,
-                "lag={lag}: if={se_if} sandwich={se_sw}"
-            );
+            assert!((se_if - se_sw).abs() < 1e-12, "lag={lag}: if={se_if} sandwich={se_sw}");
         }
     }
 
