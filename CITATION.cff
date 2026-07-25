@@ -11,6 +11,7 @@ authors:
   - family-names: Hinshaw
     given-names: Charles
     orcid: "https://orcid.org/0009-0000-2421-4351"
+  - name: Antecedent Contributors
 version: 0.3.0
 doi: 10.5281/zenodo.21556247
 date-released: "2026-07-25"
