@@ -571,6 +571,11 @@ mod tests {
 
     #[test]
     fn auto_finds_backdoor_on_chain() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/auto_envelopes/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["cases"][0]["expected_method_family"].as_str(), Some("backdoor"));
         let mut dag = Dag::with_variables(3);
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();

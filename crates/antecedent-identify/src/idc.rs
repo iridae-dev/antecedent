@@ -365,6 +365,10 @@ mod tests {
 
     #[test]
     fn unconditional_matches_id() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../../conformance/identify/idc/expected.json"))
+                .unwrap();
+        assert_eq!(fixture["cases"][0]["status"].as_str(), Some("identified"));
         let mut dag = Dag::with_variables(3);
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();

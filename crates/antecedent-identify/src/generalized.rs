@@ -383,6 +383,11 @@ mod tests {
 
     #[test]
     fn directed_edge_identifies_with_empty_z() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/generalized_adjustment/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["cases"][0]["adjustment_set"].as_array().unwrap().len(), 0);
         let mut pag = Pag::with_variables(2);
         pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let id = GeneralizedAdjustmentIdentifier::new();

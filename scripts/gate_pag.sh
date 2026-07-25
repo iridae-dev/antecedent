@@ -57,6 +57,17 @@ for c in caps(text):
         missing.append(f"{c['id']} evidence missing: {ev}")
 
 for path in [
+    "conformance/graph/cpdag_operations/expected.json",
+    "conformance/graph/pag_operations/expected.json",
+    "conformance/graph/definite_status_separation/expected.json",
+    "conformance/graph/latent_projection/expected.json",
+    "conformance/graph/pag_mag_completion/expected.json",
+    "conformance/identify/efficient_adjustment/expected.json",
+    "conformance/identify/id_hedge/expected.json",
+    "conformance/identify/idc/expected.json",
+    "conformance/identify/generalized_adjustment/expected.json",
+    "conformance/identify/path_specific/expected.json",
+    "conformance/identify/auto_envelopes/expected.json",
     "conformance/pag/lpcmci_chain/expected.json",
     "conformance/pag/latent_projection_msep/expected.json",
     "conformance/pag/envelope_unidentified_mass/expected.json",
