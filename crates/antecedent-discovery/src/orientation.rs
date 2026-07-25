@@ -394,8 +394,8 @@ pub struct RuleDelta {
     pub fixed_point: bool,
 }
 
-/// Named orientation transform on a [`TemporalCpdag`].
-pub trait OrientationRule {
+/// Named orientation transform on any [`CpdagOps`] graph (static or temporal CPDAG).
+pub trait OrientationRule<G: CpdagOps> {
     /// Rule id for diagnostics.
     fn name(&self) -> &'static str;
 
@@ -406,25 +406,7 @@ pub trait OrientationRule {
     /// Graph mutation or precondition failures.
     fn apply(
         &self,
-        graph: &mut TemporalCpdag,
-        state: &mut OrientationState,
-        queue: &mut OrientationQueue,
-    ) -> Result<RuleDelta, OrientationError>;
-}
-
-/// Named orientation transform on a static [`Cpdag`].
-pub trait StaticOrientationRule {
-    /// Rule id for diagnostics.
-    fn name(&self) -> &'static str;
-
-    /// Apply the rule on a static CPDAG.
-    ///
-    /// # Errors
-    ///
-    /// Graph mutation or precondition failures.
-    fn apply(
-        &self,
-        graph: &mut Cpdag,
+        graph: &mut G,
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError>;
@@ -498,29 +480,14 @@ fn apply_meek_r1<G: CpdagOps>(
     Ok(delta)
 }
 
-impl OrientationRule for MeekR1 {
+impl<G: CpdagOps> OrientationRule<G> for MeekR1 {
     fn name(&self) -> &'static str {
         "meek.r1"
     }
 
     fn apply(
         &self,
-        graph: &mut TemporalCpdag,
-        state: &mut OrientationState,
-        queue: &mut OrientationQueue,
-    ) -> Result<RuleDelta, OrientationError> {
-        apply_meek_r1(graph, state, queue)
-    }
-}
-
-impl StaticOrientationRule for MeekR1 {
-    fn name(&self) -> &'static str {
-        "meek.r1"
-    }
-
-    fn apply(
-        &self,
-        graph: &mut Cpdag,
+        graph: &mut G,
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
@@ -566,29 +533,14 @@ fn apply_meek_r2<G: CpdagOps>(
     Ok(delta)
 }
 
-impl OrientationRule for MeekR2 {
+impl<G: CpdagOps> OrientationRule<G> for MeekR2 {
     fn name(&self) -> &'static str {
         "meek.r2"
     }
 
     fn apply(
         &self,
-        graph: &mut TemporalCpdag,
-        state: &mut OrientationState,
-        queue: &mut OrientationQueue,
-    ) -> Result<RuleDelta, OrientationError> {
-        apply_meek_r2(graph, state, queue)
-    }
-}
-
-impl StaticOrientationRule for MeekR2 {
-    fn name(&self) -> &'static str {
-        "meek.r2"
-    }
-
-    fn apply(
-        &self,
-        graph: &mut Cpdag,
+        graph: &mut G,
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
@@ -644,29 +596,14 @@ fn apply_meek_r3<G: CpdagOps>(
     Ok(delta)
 }
 
-impl OrientationRule for MeekR3 {
+impl<G: CpdagOps> OrientationRule<G> for MeekR3 {
     fn name(&self) -> &'static str {
         "meek.r3"
     }
 
     fn apply(
         &self,
-        graph: &mut TemporalCpdag,
-        state: &mut OrientationState,
-        queue: &mut OrientationQueue,
-    ) -> Result<RuleDelta, OrientationError> {
-        apply_meek_r3(graph, state, queue)
-    }
-}
-
-impl StaticOrientationRule for MeekR3 {
-    fn name(&self) -> &'static str {
-        "meek.r3"
-    }
-
-    fn apply(
-        &self,
-        graph: &mut Cpdag,
+        graph: &mut G,
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
@@ -725,29 +662,14 @@ fn apply_meek_r4<G: CpdagOps>(
     Ok(delta)
 }
 
-impl OrientationRule for MeekR4 {
+impl<G: CpdagOps> OrientationRule<G> for MeekR4 {
     fn name(&self) -> &'static str {
         "meek.r4"
     }
 
     fn apply(
         &self,
-        graph: &mut TemporalCpdag,
-        state: &mut OrientationState,
-        queue: &mut OrientationQueue,
-    ) -> Result<RuleDelta, OrientationError> {
-        apply_meek_r4(graph, state, queue)
-    }
-}
-
-impl StaticOrientationRule for MeekR4 {
-    fn name(&self) -> &'static str {
-        "meek.r4"
-    }
-
-    fn apply(
-        &self,
-        graph: &mut Cpdag,
+        graph: &mut G,
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
@@ -766,7 +688,7 @@ fn is_contemporaneous_node(graph: &TemporalCpdag, id: DenseNodeId) -> bool {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContempMeekR1;
 
-impl OrientationRule for ContempMeekR1 {
+impl OrientationRule<TemporalCpdag> for ContempMeekR1 {
     fn name(&self) -> &'static str {
         "meek.r1.contemp"
     }
@@ -814,7 +736,7 @@ impl OrientationRule for ContempMeekR1 {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContempMeekR2;
 
-impl OrientationRule for ContempMeekR2 {
+impl OrientationRule<TemporalCpdag> for ContempMeekR2 {
     fn name(&self) -> &'static str {
         "meek.r2.contemp"
     }
@@ -862,7 +784,7 @@ impl OrientationRule for ContempMeekR2 {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContempMeekR3;
 
-impl OrientationRule for ContempMeekR3 {
+impl OrientationRule<TemporalCpdag> for ContempMeekR3 {
     fn name(&self) -> &'static str {
         "meek.r3.contemp"
     }
@@ -928,7 +850,7 @@ impl OrientationRule for ContempMeekR3 {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContempMeekR4;
 
-impl OrientationRule for ContempMeekR4 {
+impl OrientationRule<TemporalCpdag> for ContempMeekR4 {
     fn name(&self) -> &'static str {
         "meek.r4.contemp"
     }
@@ -1069,29 +991,14 @@ fn apply_orient_collider<G: CpdagOps>(
     Ok(delta)
 }
 
-impl OrientationRule for OrientCollider {
+impl<G: CpdagOps> OrientationRule<G> for OrientCollider {
     fn name(&self) -> &'static str {
         "orient.collider"
     }
 
     fn apply(
         &self,
-        graph: &mut TemporalCpdag,
-        state: &mut OrientationState,
-        queue: &mut OrientationQueue,
-    ) -> Result<RuleDelta, OrientationError> {
-        apply_orient_collider(graph, state, queue)
-    }
-}
-
-impl StaticOrientationRule for OrientCollider {
-    fn name(&self) -> &'static str {
-        "orient.collider"
-    }
-
-    fn apply(
-        &self,
-        graph: &mut Cpdag,
+        graph: &mut G,
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
@@ -1111,9 +1018,9 @@ enum LegKind {
 /// # Errors
 ///
 /// Propagates rule failures.
-pub fn run_orientation_to_fixed_point(
-    graph: &mut TemporalCpdag,
-    rules: &[&dyn OrientationRule],
+pub fn run_orientation_to_fixed_point<G: CpdagOps>(
+    graph: &mut G,
+    rules: &[&dyn OrientationRule<G>],
     state: &mut OrientationState,
 ) -> Result<RuleDelta, OrientationError> {
     let mut queue = OrientationQueue::new();
@@ -1161,44 +1068,10 @@ pub fn run_orientation_to_fixed_point(
 /// Propagates rule failures.
 pub fn run_static_orientation_to_fixed_point(
     graph: &mut Cpdag,
-    rules: &[&dyn StaticOrientationRule],
+    rules: &[&dyn OrientationRule<Cpdag>],
     state: &mut OrientationState,
 ) -> Result<RuleDelta, OrientationError> {
-    let mut queue = OrientationQueue::new();
-    for i in 0..graph.node_count() {
-        queue.push(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
-    }
-    let mut total = RuleDelta::default();
-    let mut guard = 0u32;
-    loop {
-        guard += 1;
-        if guard > 10_000 {
-            return Err(OrientationError::Precondition {
-                message: "orientation did not reach fixed point within iteration budget",
-            });
-        }
-        let mut any = false;
-        for rule in rules {
-            let d = rule.apply(graph, state, &mut queue)?;
-            total.edges_changed += d.edges_changed;
-            total.conflicts += d.conflicts;
-            total.enqueued += d.enqueued;
-            total.premises.extend(d.premises);
-            if d.edges_changed > 0 {
-                any = true;
-            }
-        }
-        if !any && queue.is_empty() {
-            total.fixed_point = true;
-            break;
-        }
-        if !any {
-            while queue.pop().is_some() {}
-            total.fixed_point = true;
-            break;
-        }
-    }
-    Ok(total)
+    run_orientation_to_fixed_point(graph, rules, state)
 }
 
 #[cfg(test)]

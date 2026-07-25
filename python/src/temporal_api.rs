@@ -28,15 +28,9 @@ fn mediation_effects_summary(
     drop(columns);
     detach_catch(py, move || {
         let (series, _) = series_from_batch(&batch)?;
-        let id = |nm: &str| {
-            series
-                .schema()
-                .id_of(nm)
-                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
-        };
-        let t = id(&treatment)?;
-        let m = id(&mediator)?;
-        let y = id(&outcome)?;
+        let t = schema_var_id(series.schema(), &treatment)?;
+        let m = schema_var_id(series.schema(), &mediator)?;
+        let y = schema_var_id(series.schema(), &outcome)?;
         let q = MediationQuery::binary(t, y, [m], MediationContrast::Total);
         let mut arena = CausalExprArena::new();
         let functional = arena.frontdoor_ate(t, y, &[m], Value::f64(1.0), Value::f64(0.0));
@@ -45,7 +39,7 @@ fn mediation_effects_summary(
         let ctx = py_execution_context(seed, threads);
         let surface = TemporalMediationEstimator::new()
             .effect_surface(&series, &estimand, &q, &ctx)
-            .map_err(py_estimate)?;
+            .map_err(py_err)?;
         Ok(MediationEffectsSummary {
             total: surface.total,
             direct: surface.direct,
@@ -70,14 +64,8 @@ fn predict_intervened_summary(
     drop(columns);
     detach_catch(py, move || {
         let (series, _) = series_from_batch(&batch)?;
-        let id = |nm: &str| {
-            series
-                .schema()
-                .id_of(nm)
-                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
-        };
-        let y = id(&target)?;
-        let x = id(&parent)?;
+        let y = schema_var_id(series.schema(), &target)?;
+        let x = schema_var_id(series.schema(), &parent)?;
         let policy = KernelPolicy::default_policy();
         let pred = TemporalLinearPredictor::fit(
             &series,
@@ -85,8 +73,8 @@ fn predict_intervened_summary(
             [antecedent_data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
             &policy,
         )
-        .map_err(py_estimate)?;
-        let yhat = pred.predict_intervened(&series, x, level, &policy).map_err(py_estimate)?;
+        .map_err(py_err)?;
+        let yhat = pred.predict_intervened(&series, x, level, &policy).map_err(py_err)?;
         let mean = yhat.iter().sum::<f64>() / yhat.len().max(1) as f64;
         Ok(PredictSummary { mean_prediction: mean, n: yhat.len() as u64 })
     })
@@ -259,30 +247,12 @@ fn analyze(
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let tabular = loaded.data;
-        let n = tabular.row_count();
-        let series = TimeSeriesData::try_new(
-            tabular.storage().clone(),
-            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
-        )
-        .map_err(py_err)?;
+        let series = series_from_tabular(tabular)?;
 
-        let name_to_id = |nm: &str| -> PyResult<VariableId> {
-            series
-                .schema()
-                .id_of(nm)
-                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
-        };
-        let t_id = name_to_id(&treatment)?;
-        let y_id = name_to_id(&outcome)?;
+        let t_id = schema_var_id(series.schema(), &treatment)?;
+        let y_id = schema_var_id(series.schema(), &outcome)?;
 
-        let mut g = TemporalDag::empty();
-        for (src, slag, tgt, tlag) in &edges {
-            let s =
-                ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
-            let t =
-                ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
-            g.insert_directed(s, t).map_err(py_err)?;
-        }
+        let g = temporal_dag_from_schema_edges(series.schema(), &edges)?;
 
         let q = temporal_query_from_policy(
             &policy,
@@ -367,21 +337,10 @@ fn analyze_temporal_pag(
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let tabular = loaded.data;
-        let n = tabular.row_count();
-        let series = TimeSeriesData::try_new(
-            tabular.storage().clone(),
-            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
-        )
-        .map_err(py_err)?;
+        let series = series_from_tabular(tabular)?;
 
-        let name_to_id = |nm: &str| -> PyResult<VariableId> {
-            series
-                .schema()
-                .id_of(nm)
-                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
-        };
-        let t_id = name_to_id(&treatment)?;
-        let y_id = name_to_id(&outcome)?;
+        let t_id = schema_var_id(series.schema(), &treatment)?;
+        let y_id = schema_var_id(series.schema(), &outcome)?;
         let q = temporal_query_from_policy(
             &policy,
             t_id,
@@ -498,14 +457,8 @@ fn analyze_events(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let event = EventData::try_new(loaded.data.storage().clone(), Arc::from(event_times_ns))
             .map_err(py_err)?;
-        let schema = event.schema().clone();
-        let name_to_id = |nm: &str| {
-            schema
-                .id_of(nm)
-                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
-        };
-        let t_id = name_to_id(&treatment)?;
-        let y_id = name_to_id(&outcome)?;
+        let t_id = schema_var_id(event.schema(), &treatment)?;
+        let y_id = schema_var_id(event.schema(), &outcome)?;
         let q = temporal_query_from_policy(
             &policy,
             t_id,
@@ -515,15 +468,7 @@ fn analyze_events(
             active_level,
         )?;
         let graph = if algorithm.is_none() {
-            let mut g = TemporalDag::empty();
-            for (src, slag, tgt, tlag) in &edges {
-                let s = ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag))
-                    .map_err(py_err)?;
-                let t = ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag))
-                    .map_err(py_err)?;
-                g.insert_directed(s, t).map_err(py_err)?;
-            }
-            Some(g)
+            Some(temporal_dag_from_schema_edges(event.schema(), &edges)?)
         } else {
             None
         };
@@ -645,22 +590,9 @@ fn analyze_panel(
             units.push(PanelUnit { unit_id, series });
         }
         let panel = PanelData::try_new(Arc::from(units)).map_err(py_err)?;
-        let name_to_id = |nm: &str| {
-            panel
-                .schema()
-                .id_of(nm)
-                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
-        };
-        let t_id = name_to_id(&treatment)?;
-        let y_id = name_to_id(&outcome)?;
-        let mut g = TemporalDag::empty();
-        for (src, slag, tgt, tlag) in &edges {
-            let s =
-                ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
-            let t =
-                ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
-            g.insert_directed(s, t).map_err(py_err)?;
-        }
+        let t_id = schema_var_id(panel.schema(), &treatment)?;
+        let y_id = schema_var_id(panel.schema(), &outcome)?;
+        let g = temporal_dag_from_schema_edges(panel.schema(), &edges)?;
         let q = temporal_query_from_policy(
             &policy,
             t_id,
@@ -780,14 +712,8 @@ fn analyze_panel_discover(
             units.push(PanelUnit { unit_id, series });
         }
         let panel = PanelData::try_new(Arc::from(units)).map_err(py_err)?;
-        let name_to_id = |nm: &str| {
-            panel
-                .schema()
-                .id_of(nm)
-                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
-        };
-        let t_id = name_to_id(&treatment)?;
-        let y_id = name_to_id(&outcome)?;
+        let t_id = schema_var_id(panel.schema(), &treatment)?;
+        let y_id = schema_var_id(panel.schema(), &outcome)?;
         let q = temporal_query_from_policy(
             &policy,
             t_id,
@@ -902,43 +828,7 @@ fn temporal_multi_env_dummy_modes(
     time_dummy_encoding: &str,
     time_dummy_ci: &str,
 ) -> PyResult<(SpaceDummyCiMode, TimeDummyEncoding, TimeDummyCiMode)> {
-    let space_mode = match space_dummy_ci {
-        "scalar" | "scalar_one_hot" | "one_hot" => SpaceDummyCiMode::ScalarOneHot,
-        "multivariate" | "multivariate_block" | "block" => SpaceDummyCiMode::MultivariateBlock,
-        other => {
-            return Err(PyValueError::new_err(format!(
-                "space_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
-            )));
-        }
-    };
-    let time_enc = match time_dummy_encoding {
-        "integer" | "integer_index" | "index" => TimeDummyEncoding::IntegerIndex,
-        "one_hot" | "onehot" | "oh" => TimeDummyEncoding::OneHot,
-        other => {
-            return Err(PyValueError::new_err(format!(
-                "time_dummy_encoding must be 'integer' or 'one_hot', got '{other}'"
-            )));
-        }
-    };
-    let time_mode = match time_dummy_ci {
-        "scalar" | "scalar_one_hot" | "one_hot" => TimeDummyCiMode::ScalarOneHot,
-        "multivariate" | "multivariate_block" | "block" => TimeDummyCiMode::MultivariateBlock,
-        other => {
-            return Err(PyValueError::new_err(format!(
-                "time_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
-            )));
-        }
-    };
-    Ok((space_mode, time_enc, time_mode))
-}
-
-fn series_from_tabular(tabular: TabularData) -> PyResult<TimeSeriesData> {
-    let n = tabular.row_count();
-    TimeSeriesData::try_new(
-        tabular.storage().clone(),
-        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
-    )
-    .map_err(py_err)
+    parse_dummy_ci_modes(space_dummy_ci, time_dummy_encoding, time_dummy_ci)
 }
 
 fn run_temporal_analysis(
@@ -1534,7 +1424,7 @@ fn analysis_result_from_run(
     ) = if let Some(post) = result.posterior.as_ref() {
         let eq = post.effect_column().unwrap_or(0);
         let artifact = None;
-        let p_below = post.probability_below(0.0).map_err(py_estimate)?;
+        let p_below = post.probability_below(0.0).map_err(py_err)?;
         (
             Some(post.summaries.mean[eq]),
             Some(post.summaries.sd[eq]),
@@ -1669,15 +1559,9 @@ fn analyze_temporal_mediation(
     drop(columns);
     detach_catch(py, move || {
         let (series, _) = series_from_batch(&batch)?;
-        let name_to_id = |nm: &str| {
-            series
-                .schema()
-                .id_of(nm)
-                .map_err(|e| CausalDataError::new_err(format!("unknown variable {nm}: {e}")))
-        };
-        let t_id = name_to_id(&treatment)?;
-        let m_id = name_to_id(&mediator)?;
-        let y_id = name_to_id(&outcome)?;
+        let t_id = schema_var_id(series.schema(), &treatment)?;
+        let m_id = schema_var_id(series.schema(), &mediator)?;
+        let y_id = schema_var_id(series.schema(), &outcome)?;
         let contrast = match contrast.to_ascii_lowercase().as_str() {
             "total" => MediationContrast::Total,
             "direct" => MediationContrast::Direct,
@@ -1691,14 +1575,7 @@ fn analyze_temporal_mediation(
         let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
-        let mut g = TemporalDag::empty();
-        for (src, slag, tgt, tlag) in &edges {
-            let s =
-                ensure_lagged(&mut g, name_to_id(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
-            let t =
-                ensure_lagged(&mut g, name_to_id(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
-            g.insert_directed(s, t).map_err(py_err)?;
-        }
+        let g = temporal_dag_from_schema_edges(series.schema(), &edges)?;
         let analysis = CausalAnalysis::builder()
             .series(series)
             .temporal_graph(g)

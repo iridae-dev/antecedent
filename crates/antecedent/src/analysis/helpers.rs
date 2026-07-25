@@ -598,3 +598,41 @@ pub(crate) fn projection_diagnostic(full_cols: usize, projected_cols: usize) -> 
         format!("projected {full_cols} → {projected_cols} columns after identification"),
     ))
 }
+
+/// Full-suite prior sensitivity: α-grid when external compose is present, else isotropic scale.
+pub(crate) fn evaluate_bayesian_prior_sensitivity(
+    cfg: &crate::inference::BayesianConfig,
+    est: &antecedent_estimate::BayesianGComputationAte,
+    prep: &antecedent_estimate::PreparedBayesianProblem,
+    status: antecedent_identify::IdentificationStatus,
+    posterior: &CausalPosterior,
+    ws: &mut antecedent_estimate::BayesianGCompWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<
+    (antecedent_prob::PriorSensitivitySummary, antecedent_validate::PriorSensitivity),
+    CausalError,
+> {
+    use antecedent_validate::{ExternalAlphaSensitivity, PriorSensitivity};
+    if let Some(ext) = cfg.external_compose.as_ref() {
+        let alphas_applied: Arc<[f64]> = posterior.conflict_summary.as_ref().map_or_else(
+            || Arc::clone(&ext.composed.alphas_applied),
+            |cs| Arc::clone(&cs.alphas_applied),
+        );
+        let sens = PriorSensitivity::standard_alpha_grid();
+        let (summary, _) = sens
+            .evaluate_external_alpha(
+                est,
+                prep,
+                status,
+                ws,
+                ctx,
+                ExternalAlphaSensitivity { sources: &ext.sources, alphas_applied: &alphas_applied },
+            )
+            .map_err(CausalError::from)?;
+        Ok((summary, sens))
+    } else {
+        let sens = PriorSensitivity::standard_grid();
+        let (summary, _) = sens.evaluate(est, prep, status, ws, ctx).map_err(CausalError::from)?;
+        Ok((summary, sens))
+    }
+}

@@ -23,6 +23,7 @@ mod callbacks;
 mod design_api;
 mod discovery_api;
 mod gcm_api;
+mod graph_build;
 mod graph_io;
 mod graphs;
 mod prepared_api;
@@ -36,6 +37,11 @@ pub(crate) use ate_api::{
 };
 pub(crate) use discovery_api::{
     DiscoveredLink, PcmciDiscoveryResult, series_from_batch, tabular_from_batch,
+};
+pub(crate) use graph_build::{
+    dag_from_named_edges, parse_dummy_ci_modes, parse_time_dummy_encoding, schema_var_id,
+    series_from_tabular, space_dummy_ci_from_bool, temporal_dag_from_lagged_edges,
+    temporal_dag_from_schema_edges, time_dummy_ci_from_bool,
 };
 pub(crate) use temporal_api::{
     AnalysisResult, GcmIteResult, GcmSampleResult, MediationEffectsSummary, PredictSummary,
@@ -99,14 +105,13 @@ use antecedent_core::{
 };
 use antecedent_data::TimeDummyEncoding;
 use antecedent_data::{
-    ArrowCColumn, DataError, EventData, MultiEnvironmentData, PanelData, PanelUnit,
-    SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
-    tabular_from_arrow_c_columns, tabular_from_record_batch,
+    ArrowCColumn, DataError, EventData, MultiEnvironmentData, PanelData, PanelUnit, TableView,
+    TimeSeriesData, tabular_from_arrow_c_columns, tabular_from_record_batch,
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use antecedent_graph::{
     Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark, NodeRef, Pag,
-    TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged,
+    TemporalCpdag, TemporalPag,
 };
 use antecedent_io::{
     CausalPosteriorWire, IoError, PosteriorQuantityWire,
@@ -177,13 +182,9 @@ pub(crate) fn py_err<E: IntoCausalPyErr>(e: E) -> PyErr {
     e.into_antecedent_py_err()
 }
 
-/// Fallback for domain errors not re-exported at the binding crate boundary.
+/// Fallback for domain errors not covered by [`IntoCausalPyErr`].
 pub(crate) fn py_msg(e: impl ToString) -> PyErr {
     CausalError::new_err(e.to_string())
-}
-
-fn py_estimate(e: impl ToString) -> PyErr {
-    CausalEstimateError::new_err(e.to_string())
 }
 
 /// Convert a Rust panic payload into a typed Python error so panics never cross FFI.
@@ -292,6 +293,36 @@ impl IntoCausalPyErr for SchemaError {
 impl IntoCausalPyErr for arrow_schema::ArrowError {
     fn into_antecedent_py_err(self) -> PyErr {
         CausalDataError::new_err(self.to_string())
+    }
+}
+
+impl IntoCausalPyErr for antecedent_validate::ValidationError {
+    fn into_antecedent_py_err(self) -> PyErr {
+        RustCausalError::from(self).into_antecedent_py_err()
+    }
+}
+
+impl IntoCausalPyErr for antecedent::state::StateError {
+    fn into_antecedent_py_err(self) -> PyErr {
+        RustCausalError::from(self).into_antecedent_py_err()
+    }
+}
+
+impl IntoCausalPyErr for antecedent::estimate::EstimationError {
+    fn into_antecedent_py_err(self) -> PyErr {
+        RustCausalError::from(self).into_antecedent_py_err()
+    }
+}
+
+impl IntoCausalPyErr for antecedent::gcm::ModelError {
+    fn into_antecedent_py_err(self) -> PyErr {
+        RustCausalError::from(self).into_antecedent_py_err()
+    }
+}
+
+impl IntoCausalPyErr for antecedent::design::DesignError {
+    fn into_antecedent_py_err(self) -> PyErr {
+        RustCausalError::from(self).into_antecedent_py_err()
     }
 }
 

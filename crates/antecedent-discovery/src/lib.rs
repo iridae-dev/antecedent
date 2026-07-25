@@ -97,8 +97,8 @@ pub use notears::{Notears, NotearsDiscoveryResult};
 pub use order_mcmc::OrderMcmc;
 pub use orientation::{
     MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationError, OrientationQueue,
-    OrientationRule, OrientationState, PagOps, RuleDelta, StaticOrientationRule,
-    run_orientation_to_fixed_point, run_static_orientation_to_fixed_point,
+    OrientationRule, OrientationState, PagOps, RuleDelta, run_orientation_to_fixed_point,
+    run_static_orientation_to_fixed_point,
 };
 pub use pc::{Pc, StaticCpdagDiscoveryResult};
 pub use pcmci::Pcmci;

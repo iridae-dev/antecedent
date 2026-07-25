@@ -181,15 +181,44 @@ pub(crate) fn series_from_batch(
     batch: &RecordBatch,
 ) -> PyResult<(TimeSeriesData, Vec<VariableId>)> {
     let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
-    let tabular = loaded.data;
-    let n = tabular.row_count();
-    let series = TimeSeriesData::try_new(
-        tabular.storage().clone(),
-        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
-    )
-    .map_err(py_err)?;
+    let series = series_from_tabular(loaded.data)?;
     let variables: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
     Ok((series, variables))
+}
+
+type SharedCi = std::sync::Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>;
+
+/// Shared NumPy→series discovery preamble (CI resolve + GIL release).
+fn run_series_discovery<F>(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    seed: u64,
+    ci: Option<Bound<'_, PyAny>>,
+    weights: Option<Vec<f64>>,
+    threads: u32,
+    f: F,
+) -> PyResult<PcmciDiscoveryResult>
+where
+    F: FnOnce(
+            &TimeSeriesData,
+            &[VariableId],
+            SharedCi,
+            String,
+            &antecedent_core::ExecutionContext,
+            &[String],
+        ) -> PyResult<PcmciDiscoveryResult>
+        + Send,
+{
+    let batch = columns_to_batch(&names, &columns)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
+    drop(columns);
+    let threads = if is_callback { 1 } else { threads };
+    detach_catch(py, move || {
+        let (series, variables) = series_from_batch(&batch)?;
+        let ctx = py_execution_context(seed, threads);
+        f(&series, &variables, ci_impl, ci_name, &ctx, &names)
+    })
 }
 
 pub(crate) fn tabular_from_batch(
@@ -302,36 +331,38 @@ fn discover_pcmci(
     weights: Option<Vec<f64>>,
     threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
-    drop(columns);
-    let threads = if is_callback { 1 } else { threads };
-
-    detach_catch(py, move || {
-        let (series, variables) = series_from_batch(&batch)?;
-        let params = DiscoverParams {
-            max_lag,
-            alpha,
-            fdr: fdr.then(FdrAdjustment::bh),
-            ci: ci_impl,
-            multi_dataset: MultiDatasetConstraints::default(),
-        };
-        let ctx = py_execution_context(seed, threads);
-        let result = facade_discover_pcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
-        Ok(discovery_result_fields(
-            &names,
-            &result.evidence.links,
-            result.algorithm.id.as_ref(),
-            result.algorithm.config.as_ref(),
-            &result.performance,
-            result.review.pending_edges.len() as u64,
-            ci_name,
-            0,
-            0,
-            0,
-            Vec::new(),
-        ))
-    })
+    run_series_discovery(
+        py,
+        names,
+        columns,
+        seed,
+        ci,
+        weights,
+        threads,
+        |series, variables, ci_impl, ci_name, ctx, names| {
+            let params = DiscoverParams {
+                max_lag,
+                alpha,
+                fdr: fdr.then(FdrAdjustment::bh),
+                ci: ci_impl,
+                multi_dataset: MultiDatasetConstraints::default(),
+            };
+            let result = facade_discover_pcmci(series, variables, &params, ctx).map_err(py_err)?;
+            Ok(discovery_result_fields(
+                names,
+                &result.evidence.links,
+                result.algorithm.id.as_ref(),
+                result.algorithm.config.as_ref(),
+                &result.performance,
+                result.review.pending_edges.len() as u64,
+                ci_name,
+                0,
+                0,
+                0,
+                Vec::new(),
+            ))
+        },
+    )
 }
 
 /// Run static PC discovery over tabular (non-temporal) columns.
@@ -650,45 +681,45 @@ fn discover_pcmci_plus(
     weights: Option<Vec<f64>>,
     threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
-    drop(columns);
-    let threads = if is_callback { 1 } else { threads };
-
-    detach_catch(py, move || {
-        let (series, variables) = series_from_batch(&batch)?;
-        let params = DiscoverParams {
-            max_lag,
-            alpha,
-            fdr: fdr.then(FdrAdjustment::bh),
-            ci: ci_impl,
-            multi_dataset: MultiDatasetConstraints::default(),
-        };
-        let ctx = py_execution_context(seed, threads);
-        let result =
-            facade_discover_pcmci_plus(&series, &variables, &params, &ctx).map_err(py_err)?;
-
-        let cpdag = &result.evidence.graph;
-        let directed = cpdag.directed_edge_count() as u64;
-        let undirected = cpdag.undirected_edge_count() as u64;
-        let pending = result.review.pending_edges.len() as u64
-            + result.review.pending_undirected.len() as u64;
-        let graph_edges = cpdag_graph_edges(&names, cpdag);
-
-        Ok(discovery_result_fields(
-            &names,
-            &result.evidence.links,
-            result.algorithm.id.as_ref(),
-            result.algorithm.config.as_ref(),
-            &result.performance,
-            pending,
-            ci_name,
-            cpdag.node_count() as u64,
-            directed,
-            undirected,
-            graph_edges,
-        ))
-    })
+    run_series_discovery(
+        py,
+        names,
+        columns,
+        seed,
+        ci,
+        weights,
+        threads,
+        |series, variables, ci_impl, ci_name, ctx, names| {
+            let params = DiscoverParams {
+                max_lag,
+                alpha,
+                fdr: fdr.then(FdrAdjustment::bh),
+                ci: ci_impl,
+                multi_dataset: MultiDatasetConstraints::default(),
+            };
+            let result =
+                facade_discover_pcmci_plus(series, variables, &params, ctx).map_err(py_err)?;
+            let cpdag = &result.evidence.graph;
+            let directed = cpdag.directed_edge_count() as u64;
+            let undirected = cpdag.undirected_edge_count() as u64;
+            let pending = result.review.pending_edges.len() as u64
+                + result.review.pending_undirected.len() as u64;
+            let graph_edges = cpdag_graph_edges(names, cpdag);
+            Ok(discovery_result_fields(
+                names,
+                &result.evidence.links,
+                result.algorithm.id.as_ref(),
+                result.algorithm.config.as_ref(),
+                &result.performance,
+                pending,
+                ci_name,
+                cpdag.node_count() as u64,
+                directed,
+                undirected,
+                graph_edges,
+            ))
+        },
+    )
 }
 
 /// Run LPCMCI discovery returning links plus temporal PAG summary (no per-edge GIL).
@@ -706,42 +737,42 @@ fn discover_lpcmci(
     weights: Option<Vec<f64>>,
     threads: u32,
 ) -> PyResult<PcmciDiscoveryResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
-    drop(columns);
-    let threads = if is_callback { 1 } else { threads };
-
-    detach_catch(py, move || {
-        let (series, variables) = series_from_batch(&batch)?;
-        let params = DiscoverParams {
-            max_lag,
-            alpha,
-            fdr: fdr.then(FdrAdjustment::bh),
-            ci: ci_impl,
-            multi_dataset: MultiDatasetConstraints::default(),
-        };
-        let ctx = py_execution_context(seed, threads);
-        let result = facade_discover_lpcmci(&series, &variables, &params, &ctx).map_err(py_err)?;
-
-        let pag = &result.evidence.graph;
-        let pending = result.review.pending_circles.len() as u64;
-        let directed = pag_definite_directed_edge_count(pag);
-        let graph_edges = pag_graph_edges(&names, pag);
-
-        Ok(discovery_result_fields(
-            &names,
-            &result.evidence.links,
-            result.algorithm.id.as_ref(),
-            result.algorithm.config.as_ref(),
-            &result.performance,
-            pending,
-            ci_name,
-            pag.node_count() as u64,
-            directed,
-            pending, // undirected field reused as circle-pending count
-            graph_edges,
-        ))
-    })
+    run_series_discovery(
+        py,
+        names,
+        columns,
+        seed,
+        ci,
+        weights,
+        threads,
+        |series, variables, ci_impl, ci_name, ctx, names| {
+            let params = DiscoverParams {
+                max_lag,
+                alpha,
+                fdr: fdr.then(FdrAdjustment::bh),
+                ci: ci_impl,
+                multi_dataset: MultiDatasetConstraints::default(),
+            };
+            let result = facade_discover_lpcmci(series, variables, &params, ctx).map_err(py_err)?;
+            let pag = &result.evidence.graph;
+            let pending = result.review.pending_circles.len() as u64;
+            let directed = pag_definite_directed_edge_count(pag);
+            let graph_edges = pag_graph_edges(names, pag);
+            Ok(discovery_result_fields(
+                names,
+                &result.evidence.links,
+                result.algorithm.id.as_ref(),
+                result.algorithm.config.as_ref(),
+                &result.performance,
+                pending,
+                ci_name,
+                pag.node_count() as u64,
+                directed,
+                pending, // undirected field reused as circle-pending count
+                graph_edges,
+            ))
+        },
+    )
 }
 
 /// J-PCMCI+ over multiple environments (one GIL crossing).
@@ -827,33 +858,8 @@ fn discover_jpcmci_plus(
             ));
         }
 
-        let space_dummy_ci = match space_dummy_ci {
-            "scalar" | "scalar_one_hot" | "one_hot" => SpaceDummyCiMode::ScalarOneHot,
-            "multivariate" | "multivariate_block" | "block" => SpaceDummyCiMode::MultivariateBlock,
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "space_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
-                )));
-            }
-        };
-        let time_dummy_encoding = match time_dummy_encoding {
-            "integer" | "integer_index" | "index" => TimeDummyEncoding::IntegerIndex,
-            "one_hot" | "onehot" | "oh" => TimeDummyEncoding::OneHot,
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "time_dummy_encoding must be 'integer' or 'one_hot', got '{other}'"
-                )));
-            }
-        };
-        let time_dummy_ci = match time_dummy_ci {
-            "scalar" | "scalar_one_hot" | "one_hot" => TimeDummyCiMode::ScalarOneHot,
-            "multivariate" | "multivariate_block" | "block" => TimeDummyCiMode::MultivariateBlock,
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "time_dummy_ci must be 'scalar' or 'multivariate', got '{other}'"
-                )));
-            }
-        };
+        let (space_dummy_ci, time_dummy_encoding, time_dummy_ci) =
+            parse_dummy_ci_modes(space_dummy_ci, time_dummy_encoding, time_dummy_ci)?;
         let params = DiscoverParams {
             max_lag,
             alpha,

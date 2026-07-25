@@ -27,16 +27,15 @@ use antecedent_core::{
     PopulationSelector, ShapleyConfig, UnitChangeQuery, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData, tabular_from_record_batch};
-use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_graph::Dag;
 use antecedent_model::{CompiledCausalModel, ValueBatch};
 use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray1};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
 use crate::{
-    GcmIteResult, GcmSampleResult, columns_to_batch, detach_catch, py_err, py_execution_context,
-    py_msg,
+    GcmIteResult, GcmSampleResult, columns_to_batch, dag_from_named_edges, detach_catch, py_err,
+    py_execution_context,
 };
 
 fn var_name(names: &[String], id: VariableId) -> String {
@@ -48,16 +47,7 @@ fn component_name(names: &[String], id: ComponentId) -> String {
 }
 
 fn dag_from_edges(data: &TabularData, edges: &[(String, String)]) -> PyResult<Dag> {
-    let n_vars = u32::try_from(data.schema().len())
-        .map_err(|_| PyValueError::new_err("too many variables"))?;
-    let mut g = Dag::with_variables(n_vars);
-    for (from, to) in edges {
-        let from_id = data.schema().id_of(from).map_err(py_err)?;
-        let to_id = data.schema().id_of(to).map_err(py_err)?;
-        g.insert_directed(DenseNodeId::from_raw(from_id.raw()), DenseNodeId::from_raw(to_id.raw()))
-            .map_err(py_err)?;
-    }
-    Ok(g)
+    dag_from_named_edges(data.schema(), edges)
 }
 
 fn path_breakdown_names(
@@ -650,7 +640,7 @@ impl PyFittedGcm {
             let baseline = &inner.model;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let g1 = dag_from_edges(&data, &comparison_edges)?;
-            let comparison = CompiledCausalModel::compile(g1).map_err(py_msg)?;
+            let comparison = CompiledCausalModel::compile(g1).map_err(py_err)?;
             let query = ChangeAttributionQuery::new(
                 y_id,
                 PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },

@@ -27,7 +27,7 @@ use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::orientation::{
-    MeekR1, MeekR2, MeekR3, MeekR4, OrientationState, StaticOrientationRule,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientationRule, OrientationState,
     run_static_orientation_to_fixed_point,
 };
 use crate::pc::{Pc, StaticCpdagDiscoveryResult, collect_float_columns};
@@ -1009,7 +1009,8 @@ fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
         }
     }
     let mut state = OrientationState::default();
-    let rules: [&dyn StaticOrientationRule; 4] = [&MeekR1, &MeekR2, &MeekR3, &MeekR4];
+    let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 4] =
+        [&MeekR1, &MeekR2, &MeekR3, &MeekR4];
     let _ = run_static_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
     Ok(cpdag)
 }

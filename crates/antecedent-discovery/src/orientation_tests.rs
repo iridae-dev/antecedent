@@ -16,7 +16,7 @@ fn meek_r1_cycle_records_conflict_and_continues() {
     g.insert_directed(c, d).unwrap();
     g.insert_directed(d, a).unwrap();
     let mut state = OrientationState::default();
-    let rules: [&dyn OrientationRule; 1] = [&MeekR1];
+    let rules: [&dyn OrientationRule<antecedent_graph::TemporalCpdag>; 1] = [&MeekR1];
     let delta = run_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
     assert!(state.conflicts >= 1, "conflicts={}", state.conflicts);
     assert!(delta.conflicts >= 1);
@@ -35,7 +35,13 @@ fn collider_opposite_direction_records_conflict() {
     let mut state = OrientationState::default();
     state.set_sepset(a, b, Arc::from([]));
     let mut queue = OrientationQueue::new();
-    let d = OrientationRule::apply(&OrientCollider, &mut g, &mut state, &mut queue).unwrap();
+    let d = OrientationRule::<antecedent_graph::TemporalCpdag>::apply(
+        &OrientCollider,
+        &mut g,
+        &mut state,
+        &mut queue,
+    )
+    .unwrap();
     assert!(state.conflicts >= 1 || d.conflicts >= 1);
     assert!(
         g.edge_between(c, a).unwrap().is_conflict(),
@@ -56,7 +62,10 @@ fn meek_r1_orients_chain() {
     let mut state = OrientationState::default();
     let mut queue = OrientationQueue::new();
     queue.push(b);
-    let d = OrientationRule::apply(&MeekR1, &mut g, &mut state, &mut queue).unwrap();
+    let d = OrientationRule::<antecedent_graph::TemporalCpdag>::apply(
+        &MeekR1, &mut g, &mut state, &mut queue,
+    )
+    .unwrap();
     assert!(d.edges_changed >= 1);
     assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
     assert!(d.enqueued > 0);
@@ -75,7 +84,13 @@ fn collider_with_sepset() {
     // Sep(a,b) empty ⇒ c not in sepset ⇒ collider
     state.set_sepset(a, b, Arc::from([]));
     let mut queue = OrientationQueue::new();
-    let d = OrientationRule::apply(&OrientCollider, &mut g, &mut state, &mut queue).unwrap();
+    let d = OrientationRule::<antecedent_graph::TemporalCpdag>::apply(
+        &OrientCollider,
+        &mut g,
+        &mut state,
+        &mut queue,
+    )
+    .unwrap();
     assert!(d.edges_changed >= 2);
     assert_eq!(g.edge_between(a, c).unwrap().parent_child(), Some((a, c)));
     assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
@@ -94,7 +109,8 @@ fn collider_fires_on_triple_with_directed_lagged_leg() {
     g.insert_undirected(k, j).unwrap();
     let mut state = OrientationState::default();
     state.set_sepset(x1, j, Arc::from([]));
-    let rules: [&dyn OrientationRule; 5] = [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
+    let rules: [&dyn OrientationRule<antecedent_graph::TemporalCpdag>; 5] =
+        [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
     run_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
     assert_eq!(g.edge_between(j, k).unwrap().parent_child(), Some((j, k)));
 }
@@ -114,7 +130,10 @@ fn meek_r3_orients_diagonal() {
     g.insert_directed(d, b).unwrap();
     let mut state = OrientationState::default();
     let mut queue = OrientationQueue::new();
-    let delta = OrientationRule::apply(&MeekR3, &mut g, &mut state, &mut queue).unwrap();
+    let delta = OrientationRule::<antecedent_graph::TemporalCpdag>::apply(
+        &MeekR3, &mut g, &mut state, &mut queue,
+    )
+    .unwrap();
     assert!(delta.edges_changed >= 1);
     assert_eq!(g.edge_between(a, b).unwrap().parent_child(), Some((a, b)));
 }
@@ -128,7 +147,7 @@ fn static_meek_r1_orients_chain() {
     g.insert_directed(a, b).unwrap();
     g.insert_undirected(b, c).unwrap();
     let mut state = OrientationState::default();
-    let rules: [&dyn StaticOrientationRule; 1] = [&MeekR1];
+    let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 1] = [&MeekR1];
     let d = run_static_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
     assert!(d.edges_changed >= 1);
     assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
@@ -198,7 +217,8 @@ fn fixed_point_runner() {
     g.insert_directed(a, b).unwrap();
     g.insert_undirected(b, c).unwrap();
     let mut state = OrientationState::default();
-    let rules: [&dyn OrientationRule; 4] = [&MeekR1, &MeekR2, &MeekR3, &MeekR4];
+    let rules: [&dyn OrientationRule<antecedent_graph::TemporalCpdag>; 4] =
+        [&MeekR1, &MeekR2, &MeekR3, &MeekR4];
     let d = run_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
     assert!(d.fixed_point);
     assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));

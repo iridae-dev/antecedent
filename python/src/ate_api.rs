@@ -174,7 +174,7 @@ fn posterior_summary_from_result(
         } else {
             None
         };
-        let p_below = post.probability_below(0.0).map_err(py_estimate)?;
+        let p_below = post.probability_below(0.0).map_err(py_err)?;
         Ok((
             Some(post.summaries.mean[eq]),
             Some(post.summaries.sd[eq]),
@@ -232,23 +232,9 @@ pub(crate) fn panel_multi_dataset_constraints(
     time_dummy_encoding: &str,
     time_dummy_ci: bool,
 ) -> PyResult<MultiDatasetConstraints> {
-    let encoding = match time_dummy_encoding {
-        "integer" | "integer_index" | "index" => TimeDummyEncoding::IntegerIndex,
-        "one_hot" | "onehot" | "oh" => TimeDummyEncoding::OneHot,
-        other => {
-            return Err(PyValueError::new_err(format!("unknown time_dummy_encoding {other:?}")));
-        }
-    };
-    let space_mode = if space_dummy_ci {
-        SpaceDummyCiMode::MultivariateBlock
-    } else {
-        SpaceDummyCiMode::ScalarOneHot
-    };
-    let time_mode = if time_dummy_ci {
-        TimeDummyCiMode::MultivariateBlock
-    } else {
-        TimeDummyCiMode::ScalarOneHot
-    };
+    let encoding = parse_time_dummy_encoding(time_dummy_encoding)?;
+    let space_mode = space_dummy_ci_from_bool(space_dummy_ci);
+    let time_mode = time_dummy_ci_from_bool(time_dummy_ci);
     let mut context_ids = Vec::new();
     for cname in context_names {
         context_ids.push(panel.schema().id_of(&cname).map_err(py_err)?);
@@ -467,24 +453,7 @@ fn analyze_ate(
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
 
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut dag = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data
-                .schema()
-                .id_of(from)
-                .map_err(|e| CausalDataError::new_err(format!("edge from: {e}")))?;
-            let to_id = data
-                .schema()
-                .id_of(to)
-                .map_err(|e| CausalDataError::new_err(format!("edge to: {e}")))?;
-            dag.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
 
         let mut query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
         if let Some(pop) = pop_spec {
@@ -626,24 +595,7 @@ fn analyze_ate_arrow_c(
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
 
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut dag = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data
-                .schema()
-                .id_of(from)
-                .map_err(|e| CausalDataError::new_err(format!("edge from: {e}")))?;
-            let to_id = data
-                .schema()
-                .id_of(to)
-                .map_err(|e| CausalDataError::new_err(format!("edge to: {e}")))?;
-            dag.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
 
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
 
@@ -734,24 +686,7 @@ fn analyze_ate_many(
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut dag = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data
-                .schema()
-                .id_of(from)
-                .map_err(|e| CausalDataError::new_err(format!("edge from: {e}")))?;
-            let to_id = data
-                .schema()
-                .id_of(to)
-                .map_err(|e| CausalDataError::new_err(format!("edge to: {e}")))?;
-            dag.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
         let mut ate_queries = Vec::with_capacity(queries.len());
         for (treatment, outcome, control, active) in &queries {
             let t_id = data.schema().id_of(treatment).map_err(py_err)?;
@@ -1302,31 +1237,6 @@ fn analyze_ate_discover(
     })
 }
 
-fn build_static_dag(
-    data: &antecedent_data::TabularData,
-    edges: &[(String, String)],
-) -> PyResult<Dag> {
-    let n_vars = u32::try_from(data.schema().len())
-        .map_err(|_| PyValueError::new_err("too many variables"))?;
-    let mut dag = Dag::with_variables(n_vars);
-    for (from, to) in edges {
-        let from_id = data
-            .schema()
-            .id_of(from)
-            .map_err(|e| CausalDataError::new_err(format!("edge from: {e}")))?;
-        let to_id = data
-            .schema()
-            .id_of(to)
-            .map_err(|e| CausalDataError::new_err(format!("edge to: {e}")))?;
-        dag.insert_directed(
-            DenseNodeId::from_raw(from_id.raw()),
-            DenseNodeId::from_raw(to_id.raw()),
-        )
-        .map_err(py_err)?;
-    }
-    Ok(dag)
-}
-
 /// Interventional distribution via ID/IDC + functional distribution estimator.
 #[pyfunction]
 #[pyo3(signature = (
@@ -1371,7 +1281,7 @@ fn analyze_distribution(
             }
             query = query.with_conditioning(z);
         }
-        let dag = build_static_dag(&data, &edges)?;
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
@@ -1440,7 +1350,7 @@ fn analyze_path_specific(
             }
             query = query.with_path_nodes(ids);
         }
-        let dag = build_static_dag(&data, &edges)?;
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
@@ -1654,7 +1564,7 @@ fn analyze_conditional(
             .with_effect_modifiers([w_id]);
         let cq = ConditionalEffectQuery::try_new(inner)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
-        let dag = build_static_dag(&data, &edges)?;
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
@@ -1719,7 +1629,7 @@ fn analyze_mediation(
         let mut q = MediationQuery::binary(t_id, y_id, med_ids, contrast);
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
-        let dag = build_static_dag(&data, &edges)?;
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
         let analysis = CausalAnalysis::builder()
             .data(data)
             .graph(dag)
@@ -1752,7 +1662,7 @@ fn identify_ate(
         let data = antecedent_data::TabularData::from_f64_columns(pairs).map_err(py_err)?;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let dag = build_static_dag(&data, &edges)?;
+        let dag = dag_from_named_edges(data.schema(), &edges)?;
         let mut builder = CausalAnalysis::builder()
             .data(data)
             .graph(dag)

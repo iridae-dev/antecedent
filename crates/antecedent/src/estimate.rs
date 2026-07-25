@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::{
-    CausalPosterior, ConditionalLinearAdjustment, EffectEstimate, OverlapPolicy,
+    CausalPosterior, ConditionalLinearAdjustment, EffectEstimate, EstimationError, OverlapPolicy,
     TemporalEffectSurface, TemporalLinearPredictor, TemporalMediationEstimator,
 };
 
