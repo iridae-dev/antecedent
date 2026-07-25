@@ -90,6 +90,13 @@ intend to keep honest.
 
 #### Bayesian inference / MCMC / Laplace
 
+- Coefficient priors require **finite means and variances**; `PriorSet`
+  rejects duplicate coefficient priors and simultaneous known-σ² /
+  InvGamma residual specs.
+- Laplace / HMC / conjugate designs reject nonfinite `X` / `y` /
+  offsets, negative or nonfinite weights, non-binary Bernoulli
+  outcomes, and negative Poisson outcomes. Zero observation weights
+  are allowed (row dropped) when total weight mass is positive.
 - **Gaussian HMC** targets a fixed prior-driven posterior: known `σ²`
   or joint `(β, log σ²)` under InvGamma — no state-dependent plug-in
   residual variance that broke detailed balance.

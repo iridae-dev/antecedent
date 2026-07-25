@@ -127,13 +127,18 @@ impl GaussianCoefficientPrior {
     ///
     /// # Errors
     ///
-    /// Non-positive variance or zero coefficients.
+    /// Non-finite mean, non-positive / non-finite variance, or zero coefficients.
     pub fn shared(n_coef: usize, mean: f64, variance: f64) -> Result<Self, ProbError> {
         if n_coef == 0 {
             return Err(ProbError::InvalidPrior { message: "n_coef must be > 0" });
         }
-        if !(variance > 0.0) {
-            return Err(ProbError::InvalidPrior { message: "variance must be > 0" });
+        if !mean.is_finite() {
+            return Err(ProbError::InvalidPrior { message: "mean must be finite" });
+        }
+        if !(variance > 0.0) || !variance.is_finite() {
+            return Err(ProbError::InvalidPrior {
+                message: "variance must be finite and > 0",
+            });
         }
         Ok(Self {
             mean: Arc::from(vec![mean; n_coef]),
@@ -159,11 +164,11 @@ impl GaussianCoefficientPrior {
         self.variance.iter().map(|&v| 1.0 / v).collect()
     }
 
-    /// Validate lengths match.
+    /// Validate lengths match and all mean / variance entries are finite.
     ///
     /// # Errors
     ///
-    /// Length mismatch or non-positive variance.
+    /// Length mismatch, empty prior, non-finite mean, or non-positive / non-finite variance.
     pub fn validate(&self) -> Result<(), ProbError> {
         if self.mean.len() != self.variance.len() {
             return Err(ProbError::InvalidPrior { message: "mean and variance length mismatch" });
@@ -171,12 +176,16 @@ impl GaussianCoefficientPrior {
         if self.mean.is_empty() {
             return Err(ProbError::InvalidPrior { message: "empty coefficient prior" });
         }
-        for &v in self.variance.iter() {
-            if !(v > 0.0) && v.is_finite() {
-                return Err(ProbError::InvalidPrior { message: "variance must be > 0" });
+        for &m in self.mean.iter() {
+            if !m.is_finite() {
+                return Err(ProbError::InvalidPrior { message: "mean must be finite" });
             }
-            if !v.is_finite() {
-                return Err(ProbError::InvalidPrior { message: "variance must be finite" });
+        }
+        for &v in self.variance.iter() {
+            if !(v > 0.0) || !v.is_finite() {
+                return Err(ProbError::InvalidPrior {
+                    message: "variance must be finite and > 0",
+                });
             }
         }
         Ok(())
@@ -203,11 +212,15 @@ impl InvGammaPrior {
     ///
     /// # Errors
     ///
-    /// Non-positive shape or scale.
+    /// Non-positive or non-finite shape or scale.
     pub fn validate(self) -> Result<(), ProbError> {
-        if !(self.shape > 0.0) || !(self.scale > 0.0) {
+        if !(self.shape > 0.0)
+            || !(self.scale > 0.0)
+            || !self.shape.is_finite()
+            || !self.scale.is_finite()
+        {
             return Err(ProbError::InvalidPrior {
-                message: "InvGamma shape and scale must be > 0",
+                message: "InvGamma shape and scale must be finite and > 0",
             });
         }
         Ok(())
@@ -406,20 +419,30 @@ impl PriorSet {
     ///
     /// # Errors
     ///
-    /// Invalid specs, missing contrast, or more than one residual variance spec.
+    /// Invalid specs, missing contrast, more than one coefficient prior, or more
+    /// than one residual variance specification (known σ² and InvGamma cannot
+    /// both appear).
     pub fn validate(&self) -> Result<(), ProbError> {
         for s in &self.specs {
             s.validate()?;
         }
         self.validate_contrasts()?;
+        let mut n_coef = 0usize;
         let mut n_residual = 0usize;
         for s in &self.specs {
             match s {
+                PriorSpec::GaussianCoefficients(_) => {
+                    n_coef = n_coef.saturating_add(1);
+                }
                 PriorSpec::ResidualInvGamma(_) | PriorSpec::KnownResidualVariance(_) => {
                     n_residual = n_residual.saturating_add(1);
                 }
-                PriorSpec::GaussianCoefficients(_) => {}
             }
+        }
+        if n_coef > 1 {
+            return Err(ProbError::InvalidPrior {
+                message: "PriorSet must contain at most one coefficient prior",
+            });
         }
         if n_residual > 1 {
             return Err(ProbError::InvalidPrior {
@@ -509,6 +532,24 @@ mod tests {
         p.push(PriorSpec::ResidualInvGamma(InvGammaPrior::weakly_informative()));
         assert!(p.validate().is_err());
         assert!(GaussianVarianceModel::from_prior_set(&p).is_err());
+    }
+
+    #[test]
+    fn coefficient_priors_must_be_unique() {
+        let mut p = PriorSet::new();
+        p.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(1, 1.0)));
+        p.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(1, 2.0)));
+        assert!(p.validate().is_err());
+    }
+
+    #[test]
+    fn coefficient_prior_rejects_nonfinite_mean() {
+        let prior = GaussianCoefficientPrior {
+            mean: Arc::from(vec![f64::NAN]),
+            variance: Arc::from(vec![1.0]),
+        };
+        assert!(prior.validate().is_err());
+        assert!(GaussianCoefficientPrior::shared(1, f64::INFINITY, 1.0).is_err());
     }
 
     #[test]
