@@ -913,45 +913,6 @@ fn fit_gaussian_process(
     })
 }
 
-#[cfg(feature = "gaussian-process")]
-fn solve_dense(a: &[f64], n: usize, b: &[f64]) -> Result<Vec<f64>, ModelError> {
-    let mut m = a.to_vec();
-    let mut x = b.to_vec();
-    for col in 0..n {
-        let mut piv = col;
-        for r in (col + 1)..n {
-            if m[r * n + col].abs() > m[piv * n + col].abs() {
-                piv = r;
-            }
-        }
-        if m[piv * n + col].abs() < 1e-12 {
-            return Err(ModelError::Numerical { message: "singular GP kernel".into() });
-        }
-        if piv != col {
-            for c in 0..n {
-                m.swap(col * n + c, piv * n + c);
-            }
-            x.swap(col, piv);
-        }
-        let diag = m[col * n + col];
-        for r in (col + 1)..n {
-            let f = m[r * n + col] / diag;
-            for c in col..n {
-                m[r * n + c] -= f * m[col * n + c];
-            }
-            x[r] -= f * x[col];
-        }
-    }
-    for col in (0..n).rev() {
-        let mut acc = x[col];
-        for c in (col + 1)..n {
-            acc -= m[col * n + c] * x[c];
-        }
-        x[col] = acc / m[col * n + col];
-    }
-    Ok(x)
-}
-
 // Keep the old LinearGaussian arm body removed — already handled above.
 
 fn residual_mse(
