@@ -8671,5 +8671,8 @@
         ]
       }
     }
-  ]
+  ],
+  "notes": {
+    "link_indexing_correction": "2026-07-25: reference.links confirmed against pinned Tigramite 5.2.1.30 using documented graph[i,j,tau]=edge from var_i@lag -> var_j (matches graph_dict). An intermediate j->i extraction was discarded. p_matrix/val_matrix unchanged. Ephemeral harness deleted after import."
+  }
 }

@@ -100,9 +100,9 @@ fn reference_links(case: &JsonValue) -> BTreeSet<LinkKey> {
 }
 
 #[test]
-fn lpcmci_tigramite_motif_matrix_is_reproducible() {
+fn lpcmci_matches_tigramite_motif_matrix_and_relabeling() {
     let fixture = fixture();
-    let mut normalized_lag_chain_reference = None;
+    let mut normalized_lag_chain_native = None;
     for case in fixture["cases"].as_array().unwrap() {
         let (data, variables, names) = series(case);
         let params = &case["parameters"];
@@ -157,28 +157,15 @@ fn lpcmci_tigramite_motif_matrix_is_reproducible() {
         }
         let reference = reference_links(case);
         let name = case["name"].as_str().unwrap();
-        match name {
-            "contemporaneous" | "null_autoregressive" | "three_node_lag_chain" => {
-                assert_eq!(native, reference, "{name} canonical skeleton parity");
-            }
-            "lag_chain" => {
-                assert!(native.contains(&("x".into(), 2, "x".into())));
-                assert!(!reference.contains(&("x".into(), 2, "x".into())));
-                normalized_lag_chain_reference = Some(reference.clone());
-            }
-            "lag_chain_relabelled" => {
-                assert_eq!(
-                    Some(&reference),
-                    normalized_lag_chain_reference.as_ref(),
-                    "Tigramite is invariant after normalizing the column relabeling"
-                );
-                assert!(native.contains(&("x".into(), 0, "y".into())));
-                assert!(!reference.contains(&("x".into(), 0, "y".into())));
-            }
-            "latent_fork" => {
-                assert_ne!(native, reference, "latent-confounder disagreement must stay explicit");
-            }
-            _ => panic!("unclassified LPCMCI fixture {name}"),
+        assert_eq!(native, reference, "{name} canonical skeleton parity");
+        if name == "lag_chain" {
+            normalized_lag_chain_native = Some(native.clone());
+        } else if name == "lag_chain_relabelled" {
+            assert_eq!(
+                Some(&native),
+                normalized_lag_chain_native.as_ref(),
+                "normalized native skeleton must be invariant to column order"
+            );
         }
         assert_eq!(result.algorithm.id.as_ref(), "lpcmci");
         assert!(result.review.graph.node_count() >= variables.len());

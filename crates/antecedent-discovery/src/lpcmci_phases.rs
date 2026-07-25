@@ -30,7 +30,7 @@ use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, LaggedParent,
     PagDiscoveryResult, PcSepsets, ScoredLink,
 };
-use crate::rule_scheduling::{default_lpcmci_rules, run_lpcmci_orientation};
+use crate::rule_scheduling::{default_lpcmci_rules, prelim_lpcmci_rules, run_lpcmci_orientation};
 use crate::weakly_minimal::{make_sepset_weakly_minimal, store_weakly_minimal_sepset};
 
 /// Map `(variable, lag)` → dense node id in a temporal PAG.
@@ -91,13 +91,14 @@ fn known_parents_of(
         return Vec::new();
     };
     let mut out = Vec::new();
-    for (n, at_n, at_t) in pag.neighbors(tgt) {
-        if matches!(at_n, Endpoint::Tail) && matches!(at_t, Endpoint::Arrow) {
+    for (n, at_target, at_neighbor) in pag.neighbors(tgt) {
+        if matches!(at_neighbor, Endpoint::Tail) && matches!(at_target, Endpoint::Arrow) {
             if let Some(pair) = node_key(pag, n) {
                 out.push(pair);
             }
         }
     }
+    out.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
     out
 }
 
@@ -106,16 +107,15 @@ fn known_non_ancestors(pag: &TemporalPag, idx: &NodeIndex, of: VariableId) -> Ha
         return HashSet::new();
     };
     let mut out = HashSet::new();
-    for (n, at_n, at_of) in pag.neighbors(node) {
-        // Arrow into `of` from n with Tail at of would mean of → n; arrow at of means n is non-ancestor claim.
-        if matches!(at_of, Endpoint::Arrow) && matches!(at_n, Endpoint::Arrow) {
+    for (n, at_of, at_neighbor) in pag.neighbors(node) {
+        if matches!(at_of, Endpoint::Arrow) && matches!(at_neighbor, Endpoint::Arrow) {
             // bidirected: mutual non-ancestorship in MAG sense for both
             if let Some((v, l)) = node_key(pag, n) {
                 out.insert((v.raw(), l.raw()));
             }
-        } else if matches!(at_of, Endpoint::Arrow) && matches!(at_n, Endpoint::Tail) {
+        } else if matches!(at_of, Endpoint::Arrow) && matches!(at_neighbor, Endpoint::Tail) {
             // n → of: n is ancestor, not non-ancestor
-        } else if matches!(at_of, Endpoint::Tail) && matches!(at_n, Endpoint::Arrow) {
+        } else if matches!(at_of, Endpoint::Tail) && matches!(at_neighbor, Endpoint::Arrow) {
             // of → n: n is non-ancestor of of
             if let Some((v, l)) = node_key(pag, n) {
                 out.insert((v.raw(), l.raw()));
@@ -148,6 +148,83 @@ fn potential_parents(
         }
         // Skip definite empty-middle edges that are not parents? Keep all adjacencies for search.
         out.push((v, l));
+    }
+    out.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
+    out
+}
+
+fn shifted_known_parents(
+    pag: &TemporalPag,
+    idx: &NodeIndex,
+    target: VariableId,
+    target_lag: Lag,
+    max_lag: u32,
+) -> Vec<(VariableId, Lag)> {
+    known_parents_of(pag, idx, target)
+        .into_iter()
+        .filter_map(|(variable, lag)| {
+            let shifted = lag.raw().saturating_add(target_lag.raw());
+            (shifted <= max_lag).then_some((variable, Lag::from_raw(shifted)))
+        })
+        .collect()
+}
+
+fn potential_parents_at(
+    pag: &TemporalPag,
+    idx: &NodeIndex,
+    target: VariableId,
+    target_lag: Lag,
+    exclude: (VariableId, Lag),
+    max_lag: u32,
+) -> Vec<(VariableId, Lag)> {
+    let Some(&target_now) = idx.get(&(target.raw(), 0)) else {
+        return Vec::new();
+    };
+    let non_anc = known_non_ancestors(pag, idx, target);
+    let auto_link = exclude.0 == target;
+    let mut out = Vec::new();
+    for (neighbor, _, _) in pag.neighbors(target_now) {
+        let Some((variable, lag)) = node_key(pag, neighbor) else {
+            continue;
+        };
+        if non_anc.contains(&(variable.raw(), lag.raw())) && !auto_link {
+            continue;
+        }
+        let shifted = lag.raw().saturating_add(target_lag.raw());
+        if shifted <= max_lag {
+            let candidate = (variable, Lag::from_raw(shifted));
+            if candidate != exclude {
+                out.push(candidate);
+            }
+        }
+    }
+    out.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
+    out.dedup();
+    out
+}
+
+fn combinations<T: Copy>(items: &[T], k: usize) -> Vec<Vec<T>> {
+    if k == 0 {
+        return vec![Vec::new()];
+    }
+    if k > items.len() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    let mut indices: Vec<usize> = (0..k).collect();
+    loop {
+        out.push(indices.iter().map(|&index| items[index]).collect());
+        let mut position = k;
+        while position > 0 && indices[position - 1] == position - 1 + items.len() - k {
+            position -= 1;
+        }
+        if position == 0 {
+            break;
+        }
+        indices[position - 1] += 1;
+        for next in position..k {
+            indices[next] = indices[next - 1] + 1;
+        }
     }
     out
 }
@@ -211,14 +288,121 @@ fn apply_remembered_parents(pag: &mut TemporalPag, idx: &NodeIndex, parents: &Pa
     }
 }
 
+fn contemporaneous_mark_snapshot(
+    pag: &TemporalPag,
+    idx: &NodeIndex,
+    variables: &[VariableId],
+) -> Vec<(DenseNodeId, DenseNodeId, Endpoint, Endpoint, MiddleMark)> {
+    let mut out = Vec::new();
+    for (i, &vi) in variables.iter().enumerate() {
+        for &vj in &variables[i + 1..] {
+            let Some(&a) = idx.get(&(vi.raw(), 0)) else {
+                continue;
+            };
+            let Some(&b) = idx.get(&(vj.raw(), 0)) else {
+                continue;
+            };
+            if let Some(e) = pag.edge_between(a, b) {
+                let (at_a, at_b) =
+                    if e.a == a { (e.at_a, e.at_b) } else { (e.at_b, e.at_a) };
+                out.push((a, b, at_a, at_b, e.middle));
+            }
+        }
+    }
+    out
+}
+
+fn restore_contemporaneous_marks(
+    pag: &mut TemporalPag,
+    snap: &[(DenseNodeId, DenseNodeId, Endpoint, Endpoint, MiddleMark)],
+) {
+    for &(a, b, at_a, at_b, mid) in snap {
+        if !pag.has_edge(a, b) {
+            continue;
+        }
+        let _ = pag.set_marks(a, b, at_a, at_b);
+        let _ = pag.set_middle(a, b, mid);
+    }
+}
+
+/// Tigramite end-of-phase: force remaining ambiguous middle marks to `!` (Both).
+fn force_ambiguous_middles_to_both(pag: &mut TemporalPag) {
+    let n = pag.node_count();
+    for a_raw in 0..n {
+        let a = DenseNodeId::from_raw(a_raw as u32);
+        let nbrs: Vec<_> = pag.neighbors(a).map(|(x, _, _)| x).collect();
+        for b in nbrs {
+            if a.raw() > b.raw() {
+                continue;
+            }
+            let Some(e) = pag.edge_between(a, b) else {
+                continue;
+            };
+            if matches!(e.middle, MiddleMark::Empty | MiddleMark::Both) {
+                continue;
+            }
+            let _ = pag.set_middle(a, b, MiddleMark::Both);
+        }
+    }
+}
+
+fn orient_lagged_only(
+    pag: &mut TemporalPag,
+    idx: &NodeIndex,
+    variables: &[VariableId],
+    rules: &[&dyn crate::rule_scheduling::LpcmciOrientationRule],
+    state: &mut OrientationState,
+) -> Result<crate::orientation::RuleDelta, DiscoveryError> {
+    let snap = contemporaneous_mark_snapshot(pag, idx, variables);
+    let delta = run_lpcmci_orientation(pag, rules, state).map_err(DiscoveryError::from)?;
+    restore_contemporaneous_marks(pag, &snap);
+    Ok(delta)
+}
+
 fn collect_parents(pag: &TemporalPag, idx: &NodeIndex, variables: &[VariableId]) -> ParentMemory {
+    // Tigramite `remember_only_parents`: retain definite parents (tail→arrow) that still exist.
     let mut mem = ParentMemory::new();
     for &v in variables {
-        let pa = known_parents_of(pag, idx, v);
-        let set = pa.into_iter().map(|(u, l)| (u.raw(), l.raw())).collect();
+        let set = known_parents_of(pag, idx, v)
+            .into_iter()
+            .map(|(u, l)| (u.raw(), l.raw()))
+            .collect();
         mem.insert(v.raw(), set);
     }
     mem
+}
+
+/// Priority link batches matching Tigramite `auto_first` ancestral removal:
+/// autos first, then contemporaneous, then increasing positive lag.
+fn ancestral_link_batches(
+    variables: &[VariableId],
+    max_lag: u32,
+) -> Vec<Vec<(VariableId, Lag, VariableId)>> {
+    let mut batches = Vec::new();
+    // Auto-lags: larger lag first, variables in order (product(N, -tau_max..0)).
+    let mut autos = Vec::new();
+    for &v in variables {
+        for tau in (1..=max_lag).rev() {
+            autos.push((v, Lag::from_raw(tau), v));
+        }
+    }
+    batches.push(autos);
+    for tau in 0..=max_lag {
+        let mut batch = Vec::new();
+        for &y in variables {
+            for &x in variables {
+                if tau == 0 && x.raw() >= y.raw() {
+                    continue;
+                }
+                if tau > 0 && x == y {
+                    continue;
+                }
+                batch.push((x, Lag::from_raw(tau), y));
+            }
+        }
+        batches.push(batch);
+    }
+    batches
 }
 
 /// One ancestral removal phase (Algorithm S2).
@@ -238,186 +422,232 @@ fn ancestral_removal_phase(
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let mut ci_tests = 0u64;
-    let rules = default_lpcmci_rules();
+    let rules = prelim_lpcmci_rules();
+    let batches = ancestral_link_batches(variables, max_lag);
 
-    for p_pc in 0..=max_p {
+    // Tigramite: while over p_pc, restart at 0 after an orientation update.
+    let mut p_pc = 0usize;
+    let mut guard = 0usize;
+    while p_pc <= max_p && guard < 10_000 {
+        guard += 1;
         let mut any_removal = false;
-        // Auto-lags first, then by increasing lag.
-        let mut pairs: Vec<(VariableId, Lag, VariableId)> = Vec::new();
-        for &y in variables {
-            for &x in variables {
-                for tau in 1..=max_lag {
-                    if x == y {
-                        pairs.push((x, Lag::from_raw(tau), y));
-                    }
-                }
-            }
-        }
-        for tau in 0..=max_lag {
-            for &y in variables {
-                for &x in variables {
-                    if tau == 0 && x.raw() >= y.raw() {
-                        continue;
-                    }
-                    if tau > 0 && x == y {
-                        continue; // already in auto list
-                    }
-                    pairs.push((x, Lag::from_raw(tau), y));
-                }
-            }
-        }
+        let mut has_converged = true;
 
-        for (x, x_lag, y) in pairs {
-            let Some(&xid) = idx.get(&(x.raw(), x_lag.raw())) else {
-                continue;
-            };
-            let Some(&yid) = idx.get(&(y.raw(), 0)) else {
-                continue;
-            };
-            if !pag.has_edge(xid, yid) {
-                continue;
-            }
-            let mid = pag.middle_between(xid, yid).unwrap_or(MiddleMark::Empty);
-            if mid.is_definite() {
-                continue; // definite adjacency
-            }
-            // Middle-mark search restrictions.
-            let test_y = !matches!(mid, MiddleMark::Right | MiddleMark::Both);
-            let test_x =
-                x_lag.is_contemporaneous() && !matches!(mid, MiddleMark::Left | MiddleMark::Both);
+        for batch in &batches {
+            // Defer removals until the end of the batch so co-tested links remain
+            // available as conditioning candidates (Tigramite `to_remove`).
+            let mut to_remove: Vec<(VariableId, Lag, VariableId, Vec<(VariableId, Lag)>)> =
+                Vec::new();
 
-            let try_side = |engine: &PcmciEngine,
-                            pag: &TemporalPag,
-                            idx: &NodeIndex,
-                            target: VariableId,
-                            other: VariableId,
-                            other_lag: Lag,
-                            other_id: DenseNodeId,
-                            workspace: &mut DiscoveryWorkspace|
-             -> Result<
-                Option<(Vec<(VariableId, Lag)>, f64, f64)>,
-                DiscoveryError,
-            > {
-                let s_def = known_parents_of(pag, idx, target);
-                let mut search = potential_parents(pag, idx, target, other_id);
-                search.retain(|p| !s_def.contains(p) && *p != (other, other_lag));
-                if search.len() < p_pc {
-                    return Ok(None);
+            for &(x, x_lag, y) in batch {
+                let Some(&xid) = idx.get(&(x.raw(), x_lag.raw())) else {
+                    continue;
+                };
+                let Some(&yid) = idx.get(&(y.raw(), 0)) else {
+                    continue;
+                };
+                if !pag.has_edge(xid, yid) {
+                    continue;
                 }
-                let combo: Vec<_> = search.into_iter().take(p_pc).collect();
-                let mut cond = s_def.clone();
-                for c in &combo {
-                    if !cond.contains(c) {
-                        cond.push(*c);
+                let mid = pag.middle_between(xid, yid).unwrap_or(MiddleMark::Empty);
+                if mid.is_definite() && !(x == y && x_lag.raw() > 0) {
+                    continue;
+                }
+                let test_y = !matches!(mid, MiddleMark::Right | MiddleMark::Both);
+                // max_cond_px=0 pin: lagged links are tested from the Y side only.
+                let test_x = x_lag.is_contemporaneous()
+                    && !matches!(mid, MiddleMark::Left | MiddleMark::Both);
+
+                let try_side = |engine: &PcmciEngine,
+                                pag: &TemporalPag,
+                                idx: &NodeIndex,
+                                target: VariableId,
+                                target_lag: Lag,
+                                other: VariableId,
+                                other_lag: Lag,
+                                workspace: &mut DiscoveryWorkspace|
+                 -> Result<
+                    (Option<(Vec<(VariableId, Lag)>, f64, f64)>, u64),
+                    DiscoveryError,
+                > {
+                    let mut s_def =
+                        shifted_known_parents(pag, idx, target, target_lag, max_lag);
+                    s_def.extend(shifted_known_parents(
+                        pag,
+                        idx,
+                        other,
+                        other_lag,
+                        max_lag,
+                    ));
+                    s_def.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
+                    s_def.dedup();
+                    s_def.retain(|node| {
+                        *node != (target, target_lag) && *node != (other, other_lag)
+                    });
+                    let mut search = potential_parents_at(
+                        pag,
+                        idx,
+                        target,
+                        target_lag,
+                        (other, other_lag),
+                        max_lag,
+                    );
+                    search.retain(|p| !s_def.contains(p));
+                    if search.len() < p_pc {
+                        return Ok((None, 0));
+                    }
+                    let mut best: Option<(Vec<(VariableId, Lag)>, f64, f64)> = None;
+                    let mut tests = 0u64;
+                    for combo in combinations(&search, p_pc) {
+                        let mut cond = s_def.clone();
+                        for c in &combo {
+                            if !cond.contains(c) {
+                                cond.push(*c);
+                            }
+                        }
+                        cond.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
+                        let (stat, p) = engine.ci_statistic(
+                            frame,
+                            other,
+                            other_lag,
+                            target,
+                            target_lag,
+                            &cond,
+                            workspace,
+                            ctx,
+                        )?;
+                        tests += 1;
+                        // break_once_separated: first independence after stable combo order.
+                        if p > alpha {
+                            best = Some((cond, stat, p));
+                            break;
+                        }
+                    }
+                    Ok((best, tests))
+                };
+
+                let mut sep_cond: Option<Vec<(VariableId, Lag)>> = None;
+                let mut last_stat = 0.0;
+                let mut last_p = 1.0;
+                if test_y {
+                    let search = potential_parents_at(
+                        pag,
+                        idx,
+                        y,
+                        Lag::CONTEMPORANEOUS,
+                        (x, x_lag),
+                        max_lag,
+                    );
+                    let s_def = known_parents_of(pag, idx, y);
+                    let n_search = search.iter().filter(|p| !s_def.contains(p)).count();
+                    if n_search < p_pc {
+                        let _ = pag.apply_middle(xid, yid, MiddleMark::Right);
+                    } else {
+                        has_converged = false;
+                        let (separation, tests) = try_side(
+                            engine,
+                            pag,
+                            idx,
+                            y,
+                            Lag::CONTEMPORANEOUS,
+                            x,
+                            x_lag,
+                            workspace,
+                        )?;
+                        ci_tests += tests;
+                        if let Some((cond, stat, p)) = separation {
+                            sep_cond = Some(cond);
+                            last_stat = stat;
+                            last_p = p;
+                        }
                     }
                 }
-                let (stat, p) = engine.ci_statistic(
+                if sep_cond.is_none() && test_x {
+                    let (separation, tests) = try_side(
+                        engine,
+                        pag,
+                        idx,
+                        x,
+                        x_lag,
+                        y,
+                        Lag::CONTEMPORANEOUS,
+                        workspace,
+                    )?;
+                    ci_tests += tests;
+                    if let Some((cond, stat, p)) = separation {
+                        sep_cond = Some(cond);
+                        last_stat = stat;
+                        last_p = p;
+                    }
+                }
+
+                let Some(cond) = sep_cond else {
+                    scored.push(ScoredLink {
+                        link: LaggedLink {
+                            source: x,
+                            source_lag: x_lag,
+                            target: y,
+                            target_lag: Lag::CONTEMPORANEOUS,
+                        },
+                        statistic: last_stat,
+                        p_value: last_p,
+                        adjusted_p_value: None,
+                    });
+                    continue;
+                };
+
+                let ancs: Vec<_> = known_parents_of(pag, idx, x)
+                    .into_iter()
+                    .chain(known_parents_of(pag, idx, y))
+                    .collect();
+                let wm = make_sepset_weakly_minimal(
+                    engine,
                     frame,
-                    other,
-                    other_lag,
-                    target,
+                    x,
+                    x_lag,
+                    y,
                     Lag::CONTEMPORANEOUS,
                     &cond,
+                    &ancs,
                     workspace,
                     ctx,
                 )?;
-                if p > alpha { Ok(Some((cond, stat, p))) } else { Ok(None) }
-            };
+                ci_tests += 1;
+                let sep_arc: Arc<[LaggedParent]> = Arc::from(wm.clone().into_boxed_slice());
+                sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), sep_arc);
+                let sep_nodes: Vec<DenseNodeId> = wm
+                    .iter()
+                    .filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied())
+                    .collect();
+                store_weakly_minimal_sepset(state, xid, yid, Arc::from(sep_nodes));
+                to_remove.push((x, x_lag, y, wm));
+            }
 
-            let mut sep_cond: Option<Vec<(VariableId, Lag)>> = None;
-            let mut last_stat = 0.0;
-            let mut last_p = 1.0;
-            if test_y {
-                if let Some((cond, stat, p)) =
-                    try_side(engine, pag, idx, y, x, x_lag, xid, workspace)?
-                {
-                    ci_tests += 1;
-                    sep_cond = Some(cond);
-                    last_stat = stat;
-                    last_p = p;
-                } else {
-                    ci_tests += 1;
+            for (x, x_lag, y, _) in to_remove {
+                for (a, b) in homologous_pairs(idx, x, x_lag, y, Lag::CONTEMPORANEOUS, max_lag) {
+                    let _ = pag.remove_edge(a, b);
                 }
+                any_removal = true;
             }
-            if sep_cond.is_none() && test_x {
-                if let Some((cond, stat, p)) =
-                    try_side(engine, pag, idx, x, y, Lag::CONTEMPORANEOUS, yid, workspace)?
-                {
-                    ci_tests += 1;
-                    sep_cond = Some(cond);
-                    last_stat = stat;
-                    last_p = p;
-                } else {
-                    ci_tests += 1;
-                }
-            }
-
-            // MMR when search set too small.
-            if test_y {
-                let search = potential_parents(pag, idx, y, xid);
-                let s_def = known_parents_of(pag, idx, y);
-                let n_search = search.iter().filter(|p| !s_def.contains(p)).count();
-                if n_search < p_pc {
-                    let _ = pag.apply_middle(xid, yid, MiddleMark::Right);
-                }
-            }
-
-            let Some(cond) = sep_cond else {
-                scored.push(ScoredLink {
-                    link: LaggedLink {
-                        source: x,
-                        source_lag: x_lag,
-                        target: y,
-                        target_lag: Lag::CONTEMPORANEOUS,
-                    },
-                    statistic: last_stat,
-                    p_value: last_p,
-                    adjusted_p_value: None,
-                });
-                continue;
-            };
-
-            // Refine to weakly minimal.
-            let ancs: Vec<_> = known_parents_of(pag, idx, x)
-                .into_iter()
-                .chain(known_parents_of(pag, idx, y))
-                .collect();
-            let wm = make_sepset_weakly_minimal(
-                engine,
-                frame,
-                x,
-                x_lag,
-                y,
-                Lag::CONTEMPORANEOUS,
-                &cond,
-                &ancs,
-                workspace,
-                ctx,
-            )?;
-            ci_tests += 1;
-
-            let sep_arc: Arc<[LaggedParent]> = Arc::from(wm.clone().into_boxed_slice());
-            sepsets_out.insert((x, x_lag, y, Lag::CONTEMPORANEOUS), sep_arc);
-
-            let sep_nodes: Vec<DenseNodeId> =
-                wm.iter().filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied()).collect();
-            store_weakly_minimal_sepset(state, xid, yid, Arc::from(sep_nodes));
-
-            for (a, b) in homologous_pairs(idx, x, x_lag, y, Lag::CONTEMPORANEOUS, max_lag) {
-                let _ = pag.remove_edge(a, b);
-            }
-            any_removal = true;
         }
 
+        let delta = orient_lagged_only(pag, idx, variables, &rules, state)?;
         if any_removal {
-            let _ = run_lpcmci_orientation(pag, &rules, state).map_err(DiscoveryError::from)?;
-        } else if p_pc > 0 {
-            // No removals at this cardinality and beyond likely stall — still try one orient pass.
-            let _ = run_lpcmci_orientation(pag, &rules, state).map_err(DiscoveryError::from)?;
+            if delta.edges_changed > 0 {
+                p_pc = 0;
+            } else {
+                p_pc += 1;
+            }
+        } else if has_converged {
             break;
+        } else {
+            p_pc += 1;
         }
     }
-    let _ = run_lpcmci_orientation(pag, &rules, state).map_err(DiscoveryError::from)?;
+    // End-of-phase: force middle marks to `!`, then full orientation including contemporaneous
+    // (Tigramite `prelim_with_collider_rules` / `_rules_all` with `only_lagged=False`).
+    force_ambiguous_middles_to_both(pag);
+    let _ = run_lpcmci_orientation(pag, &default_lpcmci_rules(), state).map_err(DiscoveryError::from)?;
     Ok(ci_tests)
 }
 
@@ -437,10 +667,12 @@ fn non_ancestral_removal_phase(
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let mut ci_tests = 0u64;
-    let rules = default_lpcmci_rules();
+    let rules = prelim_lpcmci_rules();
 
     for p_pc in 0..=max_p {
         let mut any_removal = false;
+        let phase_pag = pag.clone();
+        let mut to_remove: Vec<(VariableId, Lag, VariableId, Vec<(VariableId, Lag)>)> = Vec::new();
         for &y in variables {
             for &x in variables {
                 for tau in 0..=max_lag {
@@ -454,24 +686,25 @@ fn non_ancestral_removal_phase(
                     let Some(&yid) = idx.get(&(y.raw(), 0)) else {
                         continue;
                     };
-                    if !pag.has_edge(xid, yid) {
+                    if !phase_pag.has_edge(xid, yid) {
                         continue;
                     }
-                    let mid = pag.middle_between(xid, yid).unwrap_or(MiddleMark::Empty);
-                    if mid.is_definite() {
+                    let mid = phase_pag.middle_between(xid, yid).unwrap_or(MiddleMark::Empty);
+                    if mid.is_definite() && !(x == y && x_lag.raw() > 0) {
                         continue;
                     }
                     // Search among union of adjacencies minus known non-ancestors.
-                    let mut search = potential_parents(pag, idx, y, xid);
+                    let mut search = potential_parents(&phase_pag, idx, y, xid);
                     if tau == 0 {
-                        for p in potential_parents(pag, idx, x, yid) {
+                        for p in potential_parents(&phase_pag, idx, x, yid) {
                             if !search.contains(&p) {
                                 search.push(p);
                             }
                         }
                     }
-                    let s_def_y = known_parents_of(pag, idx, y);
-                    let s_def_x = if tau == 0 { known_parents_of(pag, idx, x) } else { Vec::new() };
+                    let s_def_y = known_parents_of(&phase_pag, idx, y);
+                    let s_def_x =
+                        if tau == 0 { known_parents_of(&phase_pag, idx, x) } else { Vec::new() };
                     let mut cond = s_def_y.clone();
                     for p in &s_def_x {
                         if !cond.contains(p) {
@@ -482,25 +715,31 @@ fn non_ancestral_removal_phase(
                     if search.len() < p_pc {
                         continue;
                     }
-                    let combo: Vec<_> = search.into_iter().take(p_pc).collect();
-                    for c in &combo {
-                        cond.push(*c);
+                    let mut best: Option<(Vec<(VariableId, Lag)>, f64, f64)> = None;
+                    for combo in combinations(&search, p_pc) {
+                        let mut candidate_cond = cond.clone();
+                        candidate_cond.extend_from_slice(&combo);
+                        candidate_cond
+                            .sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
+                        let (stat, p) = engine.ci_statistic(
+                            frame,
+                            x,
+                            x_lag,
+                            y,
+                            Lag::CONTEMPORANEOUS,
+                            &candidate_cond,
+                            workspace,
+                            ctx,
+                        )?;
+                        ci_tests += 1;
+                        if p > alpha {
+                            best = Some((candidate_cond, stat, p));
+                            break;
+                        }
                     }
-                    let (stat, p) = engine.ci_statistic(
-                        frame,
-                        x,
-                        x_lag,
-                        y,
-                        Lag::CONTEMPORANEOUS,
-                        &cond,
-                        workspace,
-                        ctx,
-                    )?;
-                    ci_tests += 1;
-                    let _ = stat;
-                    if p <= alpha {
+                    let Some((cond, _stat, _p)) = best else {
                         continue;
-                    }
+                    };
                     let ancs: Vec<_> = s_def_x.into_iter().chain(s_def_y).collect();
                     let wm = make_sepset_weakly_minimal(
                         engine,
@@ -520,19 +759,18 @@ fn non_ancestral_removal_phase(
                         .filter_map(|&(v, l)| idx.get(&(v.raw(), l.raw())).copied())
                         .collect();
                     store_weakly_minimal_sepset(state, xid, yid, Arc::from(sep_nodes));
-                    for (a, b) in homologous_pairs(idx, x, x_lag, y, Lag::CONTEMPORANEOUS, max_lag)
-                    {
-                        let _ = pag.remove_edge(a, b);
-                    }
-                    any_removal = true;
+                    to_remove.push((x, x_lag, y, wm));
                 }
             }
         }
-        if any_removal {
-            let _ = run_lpcmci_orientation(pag, &rules, state).map_err(DiscoveryError::from)?;
-        } else {
-            break;
+        for (x, x_lag, y, _) in to_remove {
+            for (a, b) in homologous_pairs(idx, x, x_lag, y, Lag::CONTEMPORANEOUS, max_lag) {
+                let _ = pag.remove_edge(a, b);
+            }
+            any_removal = true;
         }
+        let _ = run_lpcmci_orientation(pag, &rules, state).map_err(DiscoveryError::from)?;
+        let _ = any_removal;
     }
     let _ = run_lpcmci_orientation(pag, &rules, state).map_err(DiscoveryError::from)?;
     Ok(ci_tests)
