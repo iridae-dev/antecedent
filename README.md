@@ -299,7 +299,7 @@ If you use Antecedent in research, please cite it. Citation metadata is in
 
 ```bibtex
 @software{hinshaw_antecedent_2026,
-  author       = {Hinshaw, Charles},
+  author       = {Hinshaw, Charles and Antecedent Contributors},
   title        = {Antecedent},
   version      = {0.3.0},
   year         = {2026},
