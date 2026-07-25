@@ -1083,19 +1083,41 @@ pub fn default_fci_rules() -> [&'static dyn FciOrientationRule; 8] {
     ]
 }
 
-/// Default LPCMCI orientation rule list (collider + R1–R4 + R8–R10 + APR + MMR).
+/// Preliminary LPCMCI orientation rules (Tigramite `_rules_prelim_final`).
+///
+/// Collider / ER-00 family rules are intentionally excluded: during ancestral and
+/// non-ancestral removal, Tigramite only applies APR, ER-08, ER-02, ER-01, ER-09,
+/// and ER-10 (plus middle-mark updates). Running colliders here orients
+/// contemporaneous edges to ↔ before ER-01 can place tails, which breaks parent
+/// memory and latent-fork skeleton recovery.
+#[must_use]
+pub fn prelim_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 7] {
+    [
+        &LpcmciApr,
+        &LpcmciR8,
+        &LpcmciR2,
+        &LpcmciR1,
+        &LpcmciR9,
+        &LpcmciR10,
+        &LpcmciMmr,
+    ]
+}
+
+/// Final LPCMCI orientation rule list (collider + R1–R4 + R8–R10 + APR + MMR).
+///
+/// Order matches Tigramite's full list: ER-01-style rules before ER-00 colliders.
 #[must_use]
 pub fn default_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 10] {
     [
-        &LpcmciOrientCollider,
-        &LpcmciR1,
+        &LpcmciApr,
+        &LpcmciR8,
         &LpcmciR2,
+        &LpcmciR1,
+        &LpcmciOrientCollider,
         &LpcmciR3,
         &LpcmciDiscriminatingPathRule,
-        &LpcmciR8,
         &LpcmciR9,
         &LpcmciR10,
-        &LpcmciApr,
         &LpcmciMmr,
     ]
 }
