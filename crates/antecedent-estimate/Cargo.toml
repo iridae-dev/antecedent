@@ -29,6 +29,7 @@ thiserror = { workspace = true }
 antecedent-graph = { version = "0.2.0", path = "../antecedent-graph" }
 antecedent-identify = { version = "0.2.0", path = "../antecedent-identify" }
 criterion = { workspace = true }
+serde_json = { workspace = true }
 
 [[bench]]
 name = "propensity_bootstrap"

@@ -317,10 +317,12 @@ mod tests {
         let mut t = vec![0.0; n];
         let mut m = vec![0.0; n];
         let mut y = vec![0.0; n];
+        for (i, value) in t.iter_mut().enumerate() {
+            *value = (0.071 * i as f64).sin() + 0.35 * (0.137 * i as f64).cos();
+        }
         for i in 1..n {
-            t[i] = 0.3 * t[i - 1] + 0.1 * (i as f64).sin();
-            m[i] = 0.8 * t[i - 1] + 0.05 * (i as f64).cos();
-            y[i] = 0.5 * m[i] + 0.2 * t[i - 1] + 0.02 * (i as f64).sin();
+            m[i] = 0.8 * t[i - 1] + 0.12 * (0.43 * i as f64).sin();
+            y[i] = 0.25 * t[i - 1] + 0.55 * m[i] + 0.09 * (0.29 * i as f64).cos();
         }
         let cols = vec![
             OwnedColumn::Float64(
@@ -378,17 +380,24 @@ mod tests {
 
     #[test]
     fn recovers_positive_mediated_effect() {
-        let (data, q, estimand) = mediated_series(300);
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/temporal_mediation_grid/expected.json"
+        ))
+        .unwrap();
+        let (data, q, estimand) = mediated_series(fixture["data"]["n"].as_u64().unwrap() as usize);
         let est = TemporalMediationEstimator::new()
             .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(1))
             .unwrap();
-        assert!(est.mediated.unwrap() > 0.1);
-        assert!((est.total.unwrap() - est.direct.unwrap() - est.mediated.unwrap()).abs() < 0.15);
-        assert!(
-            est.effect.se_analytic.is_finite() && est.effect.se_analytic > 0.0,
-            "se={}",
-            est.effect.se_analytic
-        );
+        let tolerance = fixture["acceptance"]["atol"].as_f64().unwrap();
+        for (actual, field) in [
+            (est.total.unwrap(), "total"),
+            (est.direct.unwrap(), "direct"),
+            (est.mediated.unwrap(), "mediated"),
+            (est.effect.se_analytic, "se_mediated_sobel"),
+        ] {
+            let expected = fixture["reference"][field].as_f64().unwrap();
+            assert!((actual - expected).abs() <= tolerance, "{field}: {actual} != {expected}");
+        }
     }
 
     #[test]

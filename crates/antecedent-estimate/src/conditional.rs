@@ -326,4 +326,88 @@ mod tests {
             .unwrap();
         assert!(est.se_analytic.is_finite() && est.se_analytic > 0.0, "se={}", est.se_analytic);
     }
+
+    #[test]
+    fn conditional_effect_matches_pinned_statsmodels_oracle() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/conditional_effects/expected.json"
+        ))
+        .unwrap();
+        let n = fixture["data"]["n"].as_u64().unwrap() as usize;
+        let mut builder = CausalSchemaBuilder::new();
+        for name in ["t", "y", "w"] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::Context),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let w: Vec<f64> = (0..n).map(|i| (i % 7) as f64 - 3.0).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                let ti = t[i];
+                let wi = w[i];
+                1.2 + 1.8 * ti - 0.4 * wi
+                    + 0.65 * ti * wi
+                    + 0.25 * (0.31 * i as f64).sin()
+                    + 0.1 * (0.17 * i as f64).cos()
+            })
+            .collect();
+        let columns = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(w),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap());
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_effect_modifiers([VariableId::from_raw(2)]);
+        let conditional = ConditionalEffectQuery::try_new(query).unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([]),
+            antecedent_expr::ExprId::from_raw(0),
+        );
+        let actual = ConditionalLinearAdjustment::new()
+            .estimate(&data, &estimand, &conditional, &ExecutionContext::for_tests(2))
+            .unwrap();
+        let tolerance = fixture["acceptance"]["atol"].as_f64().unwrap();
+        assert!(
+            (actual.ate - fixture["reference"]["ate_at_modifier_mean"].as_f64().unwrap()).abs()
+                <= tolerance
+        );
+        assert!(
+            (actual.se_analytic - fixture["reference"]["analytic_se"].as_f64().unwrap()).abs()
+                <= tolerance
+        );
+    }
 }

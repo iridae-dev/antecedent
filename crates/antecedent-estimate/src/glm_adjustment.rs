@@ -859,6 +859,113 @@ mod tests {
         ExecutionContext::for_tests(11)
     }
 
+    fn oracle_cell_table() -> (TabularData, IdentifiedEstimand) {
+        let mut t = Vec::with_capacity(400);
+        let mut z = Vec::with_capacity(400);
+        let mut y = Vec::with_capacity(400);
+        for (zi, ti, successes) in [(0.0, 0.0, 20), (0.0, 1.0, 50), (1.0, 0.0, 40), (1.0, 1.0, 70)]
+        {
+            t.extend(std::iter::repeat_n(ti, 100));
+            z.extend(std::iter::repeat_n(zi, 100));
+            y.extend(std::iter::repeat_n(1.0, successes));
+            y.extend(std::iter::repeat_n(0.0, 100 - successes));
+        }
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, role) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("z", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(role),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let columns = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(400),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(400),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(400),
+                )
+                .unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap());
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        (data, estimand)
+    }
+
+    #[test]
+    fn glm_adjustment_matches_pinned_statsmodels_oracle() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/glm_adjustment_grid/expected.json"
+        ))
+        .unwrap();
+        let (data, estimand) = oracle_cell_table();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let estimator = GlmAdjustmentAte { bootstrap_replicates: 0, ..GlmAdjustmentAte::new() };
+        let problem = estimator.prepare(&data, &estimand, &query).unwrap();
+        let mut workspace = GlmAdjustmentWorkspace::default();
+        let effect = estimator.fit(&problem, &mut workspace, &ctx(), AssumptionSet::new()).unwrap();
+        let ate_target = fixture["reference"]["all_observed_ate"].as_f64().unwrap();
+        let ate_tolerance = fixture["acceptance"]["ate_atol"].as_f64().unwrap();
+        assert!((effect.ate - ate_target).abs() <= ate_tolerance);
+
+        let mut direct_workspace = LeastSquaresWorkspace::default();
+        let fit = fit_glm(
+            GlmFamily::BinomialLogit,
+            GlmDesignRef {
+                x_colmajor: &problem.design.matrix,
+                nrows: problem.design.nrows,
+                ncols: problem.design.ncols,
+                y: &problem.design.outcome,
+            },
+            &FaerBackend,
+            &mut direct_workspace,
+            &GlmOptions::default(),
+        )
+        .unwrap();
+        fit.require_ok().unwrap();
+        let coefficient_tolerance = fixture["acceptance"]["coefficient_atol"].as_f64().unwrap();
+        for (actual, expected) in fit
+            .coefficients
+            .iter()
+            .zip(fixture["reference"]["coefficients_intercept_t_z"].as_array().unwrap())
+        {
+            assert!((*actual - expected.as_f64().unwrap()).abs() <= coefficient_tolerance);
+        }
+    }
+
     #[test]
     fn recovers_positive_ate_on_binary_outcome() {
         let (data, estimand) = binary_scm(4000, 1);
