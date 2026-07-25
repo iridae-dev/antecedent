@@ -14,9 +14,8 @@ import pytest
 pytest.importorskip("pyarrow")
 pytest.importorskip("antecedent")
 
-import pyarrow as pa
-
 import antecedent
+import pyarrow as pa
 
 
 def _confounded_scm(n: int = 600, seed: int = 7):

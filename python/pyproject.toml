@@ -36,7 +36,53 @@ module-name = "antecedent._native"
 [dependency-groups]
 dev = [
     "maturin>=1.14.1",
+    "mypy>=1.17.0",
     "numpy>=2.4.6",
     "pyarrow>=25.0.0",
     "pytest>=9.1.1",
+    "ruff>=0.12.0",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["antecedent", "tests", "examples"]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort
+  "UP",  # pyupgrade
+  "B",   # bugbear
+  "SIM", # simplify
+]
+ignore = [
+  "E501", # line length handled by formatter / existing style
+]
+
+[tool.ruff.lint.per-file-ignores]
+"antecedent/**/*.pyi" = [
+  "F401", # re-export stubs
+  "F403", # star-import stubs
+]
+"examples/**" = [
+  "B",
+  "SIM",
+]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "."
+files = ["antecedent"]
+explicit_package_bases = true
+warn_unused_configs = true
+warn_unused_ignores = true
+no_implicit_optional = true
+# Binding / orchestration layer: catch stub/API mismatches; full annotation
+# of every private helper is follow-up work.
+check_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_defs = false
+warn_return_any = false
+show_error_codes = true

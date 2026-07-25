@@ -99,9 +99,7 @@ def test_analyze_iv_2sls_smoke():
     n = 800
     z = np.array([rng.gauss(0, 1) for _ in range(n)], dtype=np.float64)
     u = np.array([rng.gauss(0, 1) for _ in range(n)], dtype=np.float64)
-    t = (0.8 * z + 0.5 * u + np.array([rng.gauss(0, 0.3) for _ in range(n)]) > 0).astype(
-        np.float64
-    )
+    t = (0.8 * z + 0.5 * u + np.array([rng.gauss(0, 0.3) for _ in range(n)]) > 0).astype(np.float64)
     y = 1.5 * t + u + np.array([rng.gauss(0, 0.3) for _ in range(n)], dtype=np.float64)
     result = antecedent.analyze(
         {"t": t, "y": y, "z": z},

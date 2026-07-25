@@ -11,7 +11,6 @@ graph/design (index-aligned coefficient hydrate).
 from __future__ import annotations
 
 import numpy as np
-
 from antecedent import AverageEffect, Bayesian, analyze
 
 

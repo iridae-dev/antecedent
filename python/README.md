@@ -63,6 +63,12 @@ maturin develop
 pytest
 ```
 
+Lint and types (local gate only — not part of wheel CI):
+
+```bash
+bash ../scripts/gate_python_lint.sh   # ruff check/format + mypy
+```
+
 ## Public API
 
 Primary entry point is the OO facade:
