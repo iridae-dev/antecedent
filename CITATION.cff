@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: Antecedent
+abstract: >-
+  Antecedent is an identification-first causal inference engine for Python and
+  Rust. It takes an analysis from causal structure through estimation,
+  diagnostics, interventions, and counterfactuals — without silently treating
+  discovered graphs as ground truth.
+authors:
+  - family-names: Hinshaw
+    given-names: Charles
+    orcid: "https://orcid.org/0009-0000-2421-4351"
+version: 0.3.0
+doi: 10.5281/zenodo.21556247
+date-released: "2026-07-25"
+url: "https://github.com/iridae-dev/antecedent"
+repository-code: "https://github.com/iridae-dev/antecedent"
+license: "MIT OR Apache-2.0"
+keywords:
+  - causal inference
+  - identification
+  - Bayesian inference
+  - graph discovery
+  - counterfactuals
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21556247
+    description: Concept DOI (always resolves to the latest version)
+  - type: doi
+    value: 10.5281/zenodo.21556248
+    description: Version DOI for v0.3.0
