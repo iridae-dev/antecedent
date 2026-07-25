@@ -148,7 +148,6 @@ fn cpdag_edges(graph: &antecedent_graph::Cpdag, names: &[String]) -> BTreeSet<Ma
 fn fci_and_ges_match_causal_learn_across_motifs_and_all_permutations() {
     let fixture = fixture();
     for case in fixture["static_cases"].as_array().unwrap() {
-        let mut ges_chain_disagreements = 0usize;
         for reference in case["reference_by_permutation"].as_array().unwrap() {
             let permutation: Vec<usize> = reference["permutation"]
                 .as_array()
@@ -175,31 +174,10 @@ fn fci_and_ges_match_causal_learn_across_motifs_and_all_permutations() {
                 .unwrap();
             let native_ges = cpdag_edges(&ges_result.evidence.graph, &names);
             let oracle_ges = reference_edges(&reference["ges"]);
-            if case["name"] == "chain" && native_ges != oracle_ges {
-                ges_chain_disagreements += 1;
-                let extras: BTreeSet<_> = native_ges.difference(&oracle_ges).cloned().collect();
-                assert_eq!(
-                    extras,
-                    BTreeSet::from([(
-                        "x".to_owned(),
-                        "TAIL".to_owned(),
-                        "y".to_owned(),
-                        "TAIL".to_owned()
-                    )]),
-                    "GES chain disagreement should be the recorded spurious endpoint edge"
-                );
-            } else {
-                assert_eq!(
-                    native_ges, oracle_ges,
-                    "GES {} permutation {permutation:?}",
-                    case["name"]
-                );
-            }
-        }
-        if case["name"] == "chain" {
             assert!(
-                ges_chain_disagreements >= 1,
-                "at least one GES chain permutation must expose MM-010"
+                native_ges == oracle_ges,
+                "GES {} permutation {permutation:?}: native={native_ges:?} oracle={oracle_ges:?}",
+                case["name"]
             );
         }
     }
