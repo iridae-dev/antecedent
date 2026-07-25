@@ -99,9 +99,13 @@ fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
         panic!("conditional discrete slot");
     };
     let unpenalized = expected["reference"]["unpenalized_logit_coefficients"].as_array().unwrap();
-    assert!((coefficients[2] - unpenalized[0].as_f64().unwrap()).abs() <= tolerance);
-    assert!((coefficients[3] - unpenalized[1].as_f64().unwrap()).abs() <= tolerance);
+    let unpen_intercept = unpenalized[0].as_f64().unwrap();
+    let unpen_slope = unpenalized[1].as_f64().unwrap();
+    assert!((coefficients[2] - unpen_intercept).abs() <= tolerance);
+    assert!((coefficients[3] - unpen_slope).abs() <= tolerance);
 
+    // MM-014: EB λ must shrink the slope on non-separated data via always-on ridge,
+    // not only as a separation fallback.
     let hierarchical = chain_model(&data, MechanismFamily::HierarchicalGlm);
     let MechanismSlot::Discrete { logit_coeffs: Some(coefficients), .. } =
         hierarchical.mechanisms.get(DenseNodeId::from_raw(1))
@@ -109,8 +113,19 @@ fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
         panic!("hierarchical GLM slot");
     };
     let ridge = expected["reference"]["ridge_logit_coefficients"].as_array().unwrap();
-    assert!((coefficients[2] - ridge[0].as_f64().unwrap()).abs() <= tolerance);
-    assert!((coefficients[3] - ridge[1].as_f64().unwrap()).abs() <= tolerance);
+    let ridge_intercept = ridge[0].as_f64().unwrap();
+    let ridge_slope = ridge[1].as_f64().unwrap();
+    assert!((coefficients[2] - ridge_intercept).abs() <= tolerance);
+    assert!((coefficients[3] - ridge_slope).abs() <= tolerance);
+    assert!(
+        (ridge_slope - unpen_slope).abs() > 0.1,
+        "fixture must keep a clear EB-ridge vs unpenalized gap"
+    );
+    assert!(
+        (coefficients[3] - unpen_slope).abs() > 0.1,
+        "HierarchicalGlm must apply EB ridge on ordinary data (got slope {})",
+        coefficients[3]
+    );
 }
 
 #[test]

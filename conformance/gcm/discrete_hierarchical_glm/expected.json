@@ -19,7 +19,6 @@
   },
   "acceptance": {
     "coefficient_atol": 2e-7,
-    "ridge_disagreement_min": 0.1,
     "categorical_probability_sum_atol": 1e-12
   }
 }

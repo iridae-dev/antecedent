@@ -513,9 +513,11 @@ fn fit_hierarchical_linear(
     }
 }
 
-/// Hierarchical Bernoulli logit with EB ridge (and optional `UnitId` demeaning of the
-/// linear predictor target via frequency offsets — here: ridge λ from OLS proxy on
-/// working residuals).
+/// Hierarchical Bernoulli logit with always-on empirical-Bayes ridge.
+///
+/// EB λ is estimated from linear-probability OLS moments and passed to
+/// [`fit_glm_ridge`], which applies the penalty on ordinary (non-separated) data
+/// as well as separated cases (MM-014). Intercept is left unpenalized.
 fn fit_hierarchical_glm(
     gather: &ParentGatherPlan,
     model: &CompiledCausalModel,
