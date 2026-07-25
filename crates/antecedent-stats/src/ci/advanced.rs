@@ -468,6 +468,11 @@ fn symbolic_mi_on_rows(columns: &[&[f64]], x: usize, y: usize, rows: &[usize]) -
 }
 
 /// Native GPDC: RBF-GP residualization (ridge) + distance-correlation on residuals.
+///
+/// Residualization centers the response, factors `K+λI` once with Cholesky, and
+/// predicts with the unregularized kernel (MM-008). The earlier Jacobi-on-raw-`y`
+/// path rejected conditional nulls and missed two-conditioner alternatives against
+/// pinned Tigramite.
 #[derive(Clone, Debug)]
 pub struct Gpdc {
     /// RBF length scale.
@@ -574,8 +579,7 @@ fn gp_residual(
         for j in 0..n {
             pred[i] += k[i * n + j] * alpha[j];
         }
-        // Prediction uses the unregularized kernel, while the factorization
-        // uses K + λI.
+        // MM-008: `α` solves (K+λI)α = y_c; mean prediction uses Kα = y_c − λα.
         pred[i] -= gp.ridge * alpha[i];
     }
     Ok((0..n).map(|i| centered[i] - pred[i]).collect())
