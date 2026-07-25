@@ -106,7 +106,7 @@ echo "== cargo test antecedent-model / counterfactual / attribution / facade GCM
 cargo test -p antecedent-model --lib
 cargo test -p antecedent-model --test scm_oracle
 cargo test -p antecedent-model --features gaussian-process --lib \
-  gaussian_process_reproduces_exact_logdet_oracle_disagreement
+  gaussian_process_matches_exact_logdet_oracle
 cargo test -p antecedent-counterfactual --lib
 cargo test -p antecedent-attribution --lib
 cargo test -p antecedent --test gcm

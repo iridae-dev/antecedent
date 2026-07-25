@@ -840,6 +840,12 @@ fn fit_linear_gaussian(
 }
 
 #[cfg(feature = "gaussian-process")]
+/// Grid-search RBF GP hyperparameters by exact Cholesky NLML.
+///
+/// For each `(ℓ, σ)` cell, form `K = k_RBF + σ²I`, factor once with
+/// [`cholesky_spd`], reuse that factor for both `log|K|` ([`chol_log_det`]) and
+/// `α = K⁻¹y` ([`chol_solve`]). Do not proxy the determinant by `Σ log Kᵢᵢ`
+/// (MM-015).
 fn fit_gaussian_process(
     gather: &ParentGatherPlan,
     model: &CompiledCausalModel,
@@ -1247,7 +1253,10 @@ mod tests {
         let MechanismSlot::GaussianProcess { length_scale, noise_std, .. } = slot else {
             panic!("GP slot");
         };
+        // MM-015: exact `log|K|` from Cholesky selects ℓ=1.0; the old Σlog Kᵢᵢ proxy
+        // preferred ℓ=0.5 on this fixture.
         assert_eq!(length_scale, fixture["reference"]["length_scale"].as_f64().unwrap());
         assert_eq!(noise_std, fixture["reference"]["noise_std"].as_f64().unwrap());
+        assert_ne!(length_scale, 0.5, "must not select the diagonal-proxy length scale");
     }
 }
