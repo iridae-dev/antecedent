@@ -5,6 +5,105 @@ All notable changes to Antecedent are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-07-25
+
+Second correctness cut after `0.2.0`, plus a maintainability pass on the
+facade and Python bindings. Re-running analyses can still change discovery
+graphs, structure-MCMC weights, GP fits, hierarchical GLM shrinkage, WLS /
+Newey–West SEs, and whether Bayesian designs publish — treat the upgrade as
+a behavior bump.
+
+### Why this release
+
+`0.2.0` closed sandwich / AIPW / HMC publication gaps. This release closes
+the next ledger: **order-invariant GES**, **Tigramite-aligned LPCMCI**,
+**Order MCMC topological weights**, GP / HierarchicalGlm / design math
+edges, and a frozen **oracle fixture** suite so regressions fail in CI
+instead of in production.
+
+### Added
+
+- Frozen **oracle / conformance fixtures** across stats, CI, graph /
+  identification, discovery (including MCMC), estimation, GCM /
+  counterfactuals, attribution / validation, and design / state / priors,
+  with regenerated conformance docs.
+- Local Python **ruff + mypy** gate (`scripts/gate_python_lint.sh`) wired
+  into the binding split work.
+
+### Fixed
+
+#### Discovery
+
+- **GES CPDAG search** is order-invariant (variable permutation no longer
+  changes the returned equivalence class for the same score).
+- **LPCMCI** aligned to the pinned Tigramite reference behavior (MM-009).
+- **Order MCMC** weights by topological-order count (MM-011).
+- **GPDC** residualization documented / contracted as centered Cholesky
+  (MM-008).
+- **ParCorr** and related CI / attribution math edges hardened against
+  nonfinite and degenerate inputs.
+
+#### Estimation / models
+
+- **GP** hyperparameters selected with exact Cholesky NLML (MM-015);
+  unused dense GP solver helper removed.
+- **HierarchicalGlm** empirical-Bayes ridge applied on ordinary (unscaled)
+  data (MM-014).
+- **Lasso** uses an explicit intercept and standardization contract.
+- **WLS** rejects negative and nonfinite weights.
+- **GLM diagnostics** evaluated at the returned coefficients (not a stale
+  working fit).
+- Scalar **Newey–West** SEs share Bartlett helpers with panel / IF paths.
+- **Front-door** SEs stack correctly; **GAM** roughness penalties applied
+  as intended.
+
+#### Bayesian / design / decision
+
+- Invalid Bayesian **priors and designs fail closed** (no silent publish).
+- **HMC** hardened further for the publication gate (clippy/fmt + sampler
+  edges).
+- Stable logistic coverage for extreme log Bayes factors.
+- Design: keep **signed EIG** draws without pointwise clipping (MM-012);
+  return `None` when no decision action is feasible (MM-013).
+
+### Changed
+
+- **`CausalAnalysis` execute path** split into modality modules
+  (`static` / `bayesian` / `temporal` / `panel` / `pag` / `attribution`)
+  instead of a single multi-thousand-line dispatcher — same public facade
+  API, clearer ownership per path.
+- Discovery **orientation rules** unified on a generic
+  `OrientationRule<G: CpdagOps>` (static and temporal CPDAG ops share one
+  trait shape).
+- Graph JSON helpers in `antecedent-io` DRY’d via shared macros.
+- **Python / PyO3 bindings** modularized (`ate_api`, `discovery_api`,
+  `temporal_api`, `attribution_api`, `graph_build`, analyze handlers) with
+  a shared graph-construction and exception bridge so Rust and Python
+  raise the same error kinds for schema / name resolution.
+
+### Known limitations
+
+- Same experimental surfaces as `0.2.0` (graph MCMC gate looser than HMC;
+  discovery / temporal / attribution still evolving).
+- Artifact container format remains
+  `FormatVersion { major: 0, minor: 2 }` (no container bump in this
+  release).
+- `0.3.x` may still introduce breaking API or behavior changes before a
+  1.0 freeze.
+
+### Feedback we want
+
+- Discovery graphs that **flip under column permutation** after upgrade
+  (should be rare now for GES; report if not).
+- Structure-MCMC or LPCMCI outputs that disagree with a pinned Tigramite /
+  reference notebook on the same seed and data.
+- Bayesian / design runs that **used to publish and now error** — was the
+  refusal correct?
+
+File issues at
+[github.com/iridae-dev/antecedent](https://github.com/iridae-dev/antecedent)
+with a minimal repro.
+
 ## [0.2.0] — 2026-07-24
 
 Antecedent is an identification-first causal engine for Rust and Python: it
@@ -181,5 +280,6 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
+[0.3.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.3.0
 [0.2.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.2.0
 [0.1.0]: https://github.com/iridae-dev/antecedent/releases/tag/v0.1.0

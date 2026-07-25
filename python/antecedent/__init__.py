@@ -432,4 +432,4 @@ __all__ = [
 try:
     from ._native import __version__ as __version__
 except ImportError:  # pragma: no cover - extension not built
-    __version__ = "0.2.0"
+    __version__ = "0.3.0"
