@@ -20,9 +20,7 @@ def test_fit_gcm_discovered_lingam_smoke():
     t = 0.8 * z + e_t
     y = 1.5 * t + 0.6 * z + e_y
     data = {"z": z, "t": t, "y": y}
-    fitted, edges = antecedent.fit_gcm_discovered(
-        data, discovery=antecedent.LiNGAM(), seed=1
-    )
+    fitted, edges = antecedent.fit_gcm_discovered(data, discovery=antecedent.LiNGAM(), seed=1)
     assert edges
     assert fitted is not None
 

@@ -1,11 +1,10 @@
-""" slow-path Python callback extensibility."""
+"""slow-path Python callback extensibility."""
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-import antecedent
 from antecedent._native import (
     analyze_ate,
     discover_pcmci,

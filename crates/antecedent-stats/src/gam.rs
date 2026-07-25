@@ -1,7 +1,9 @@
 //! Generalized additive models — cubic B-splines + backfitting.
 //!
-//! Gaussian identity additive model `Y = β₀ + Σ fⱼ(Xⱼ) + ε`. Analytic standard
-//! errors are not returned; use resampling / bootstrap for uncertainty.
+//! Gaussian identity additive model `Y = β₀ + Σ fⱼ(Xⱼ) + ε`. Each smooth is
+//! fit with a second-difference roughness penalty `P = D₂'D₂` (discrete
+//! curvature), not coefficient ridge. Analytic standard errors are not
+//! returned; use resampling / bootstrap for uncertainty.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -36,8 +38,10 @@ pub struct SmoothSpec {
     pub raw_col: usize,
     /// Number of cubic B-spline basis columns.
     pub n_basis: usize,
-    /// Ridge penalty λ on basis coefficients (must be ≥ 0).
+    /// Second-difference roughness penalty λ (≥ 0). Ignored when [`Self::auto_lambda`].
     pub lambda: f64,
+    /// When true, choose λ on a log-spaced grid by minimizing GCV for this smooth.
+    pub auto_lambda: bool,
     /// Optional full knot vector (length `n_basis + 4` for cubic). When `None`,
     /// interior knots are placed at sample quantiles of the column.
     pub knots: Option<Arc<[f64]>>,
@@ -46,10 +50,16 @@ pub struct SmoothSpec {
 }
 
 impl SmoothSpec {
-    /// Smooth on `raw_col` with `n_basis` bases and penalty `lambda`.
+    /// Smooth on `raw_col` with `n_basis` bases and roughness penalty `lambda`.
     #[must_use]
     pub fn new(raw_col: usize, n_basis: usize, lambda: f64) -> Self {
-        Self { raw_col, n_basis, lambda, knots: None, variable: None }
+        Self { raw_col, n_basis, lambda, auto_lambda: false, knots: None, variable: None }
+    }
+
+    /// Smooth whose λ is selected by GCV on a log-spaced grid.
+    #[must_use]
+    pub fn auto(raw_col: usize, n_basis: usize) -> Self {
+        Self { raw_col, n_basis, lambda: 0.0, auto_lambda: true, knots: None, variable: None }
     }
 
     /// Attach a variable id for [`RecordedSmooth`] provenance.
@@ -95,7 +105,7 @@ pub struct GamWorkspace {
     pub gram: Vec<f64>,
     /// Scratch right-hand side / coefficients.
     pub rhs: Vec<f64>,
-    /// Nested least-squares workspace (unused by ridge path; reserved for callers).
+    /// Nested least-squares workspace (unused by the roughness path; reserved for callers).
     pub ls: LeastSquaresWorkspace,
     grow_count: u32,
 }
@@ -136,7 +146,7 @@ pub struct GamFit {
     pub fitted: Vec<f64>,
     /// Residuals `y − fitted`.
     pub residuals: Vec<f64>,
-    /// Approximate effective degrees of freedom (ridge trace formula + intercept).
+    /// Approximate effective degrees of freedom (roughness-penalty trace + intercept).
     pub edf_approx: f64,
     /// Backfitting iterations used.
     pub iterations: u32,
@@ -251,7 +261,12 @@ pub fn compile_additive_design(
     Ok((matrix, map, smooths))
 }
 
-/// Fit a Gaussian identity GAM by backfitting penalized cubic B-spline smooths.
+/// Fit a Gaussian identity GAM by backfitting roughness-penalized cubic B-spline smooths.
+///
+/// Each smooth uses the second-difference penalty `P = D₂'D₂` in
+/// `(B'B + λP)β = B'y`. The intercept (and any future parametric columns) are
+/// unpenalized. When [`SmoothSpec::auto_lambda`] is set, λ is chosen by GCV on a
+/// log-spaced grid for that smooth's partial residuals.
 ///
 /// # Errors
 ///
@@ -274,7 +289,7 @@ pub fn fit_gam(
     }
     validate_raw_layout(x_colmajor, nrows, n_raw_cols, specs)?;
     for s in specs {
-        if !(s.lambda.is_finite() && s.lambda >= 0.0) {
+        if !(s.auto_lambda || (s.lambda.is_finite() && s.lambda >= 0.0)) {
             return Err(StatsError::Shape { message: "smooth lambda must be finite and ≥ 0" });
         }
         if s.n_basis < CUBIC_ORDER {
@@ -289,6 +304,7 @@ pub fn fit_gam(
     let mut bases: Vec<Arc<[f64]>> = Vec::with_capacity(specs.len());
     let mut smooth_meta: Vec<RecordedSmooth> = Vec::with_capacity(specs.len());
     let mut coef_offsets = Vec::with_capacity(specs.len());
+    let mut chosen_lambda = Vec::with_capacity(specs.len());
     let mut total_coefs = 0usize;
     let mut col_cursor = 1usize; // expanded-design column after intercept
     for spec in specs {
@@ -298,6 +314,7 @@ pub fn fit_gam(
         total_coefs += spec.n_basis;
         let start = col_cursor;
         let end = col_cursor + spec.n_basis;
+        chosen_lambda.push(spec.lambda);
         smooth_meta.push(RecordedSmooth {
             variable: spec.variable.or(Some(VariableId::from_raw(spec.raw_col as u32))),
             basis: BasisKind::CubicBSpline,
@@ -319,8 +336,9 @@ pub fn fit_gam(
     workspace.fitted.fill(intercept);
     let mut converged = false;
     let mut iterations = 0u32;
-    let mut edf_approx = 1.0; // intercept
+    let mut edf_approx = 1.0; // intercept (unpenalized)
     let mut prev_rss = f64::INFINITY;
+    let mut selected_lambda = false;
 
     for iter in 1..=options.max_iter {
         iterations = iter;
@@ -337,19 +355,31 @@ pub fn fit_gam(
                 workspace.partial[r] = y[r] - other;
             }
             let basis = bases[j].as_ref();
-            let beta = ridge_basis_solve(
+            if !selected_lambda && spec.auto_lambda {
+                chosen_lambda[j] = select_lambda_gcv(
+                    basis,
+                    nrows,
+                    spec.n_basis,
+                    &workspace.partial[..nrows],
+                    &mut workspace.gram,
+                    &mut workspace.rhs,
+                )?;
+                smooth_meta[j].lambda = chosen_lambda[j];
+            }
+            let lambda = chosen_lambda[j];
+            let beta = roughness_basis_solve(
                 basis,
                 nrows,
                 spec.n_basis,
                 &workspace.partial[..nrows],
-                spec.lambda,
+                lambda,
                 &mut workspace.gram,
                 &mut workspace.rhs,
             )?;
             let off = coef_offsets[j];
             coefficients[off..off + spec.n_basis].copy_from_slice(&beta);
 
-            // f_j = B β, then center.
+            // f_j = B β, then center (identifiability; intercept absorbs the mean).
             for r in 0..nrows {
                 let mut pred = 0.0;
                 for b in 0..spec.n_basis {
@@ -366,9 +396,10 @@ pub fn fit_gam(
 
             if iter == 1 {
                 edf_approx +=
-                    ridge_edf(basis, nrows, spec.n_basis, spec.lambda, &mut workspace.gram)?;
+                    roughness_edf(basis, nrows, spec.n_basis, lambda, &mut workspace.gram)?;
             }
         }
+        selected_lambda = true;
         // Refresh intercept: mean(y - Σ f_j)
         let mut sum = 0.0;
         for r in 0..nrows {
@@ -633,7 +664,51 @@ fn eval_cubic_bspline(
     }
 }
 
-fn ridge_basis_solve(
+/// Second-difference matrix `D₂` of size `(K-2)×K` with rows `[1, -2, 1]`.
+fn second_difference_matrix(n_basis: usize) -> Result<Vec<f64>, StatsError> {
+    if n_basis < 3 {
+        return Err(StatsError::Shape { message: "second-difference penalty needs n_basis ≥ 3" });
+    }
+    let rows = n_basis - 2;
+    let mut d2 = vec![0.0; rows * n_basis];
+    for i in 0..rows {
+        d2[i * n_basis + i] = 1.0;
+        d2[i * n_basis + i + 1] = -2.0;
+        d2[i * n_basis + i + 2] = 1.0;
+    }
+    Ok(d2)
+}
+
+/// Roughness penalty `P = D₂'D₂` (`K×K` row-major).
+fn second_difference_penalty(n_basis: usize) -> Result<Vec<f64>, StatsError> {
+    let d2 = second_difference_matrix(n_basis)?;
+    let rows = n_basis - 2;
+    let mut p = vec![0.0; n_basis * n_basis];
+    for i in 0..n_basis {
+        for j in i..n_basis {
+            let mut acc = 0.0;
+            for r in 0..rows {
+                acc += d2[r * n_basis + i] * d2[r * n_basis + j];
+            }
+            p[i * n_basis + j] = acc;
+            if i != j {
+                p[j * n_basis + i] = acc;
+            }
+        }
+    }
+    Ok(p)
+}
+
+fn add_scaled_penalty(gram: &mut [f64], penalty: &[f64], n_basis: usize, lambda: f64) {
+    if lambda == 0.0 {
+        return;
+    }
+    for i in 0..n_basis * n_basis {
+        gram[i] += lambda * penalty[i];
+    }
+}
+
+fn roughness_basis_solve(
     basis: &[f64],
     nrows: usize,
     n_basis: usize,
@@ -645,10 +720,9 @@ fn ridge_basis_solve(
     if gram.len() < n_basis * n_basis || rhs.len() < n_basis {
         return Err(StatsError::Backend("GAM workspace too small".into()));
     }
+    let penalty = second_difference_penalty(n_basis)?;
     form_xtx(basis, nrows, n_basis, gram);
-    for c in 0..n_basis {
-        gram[c * n_basis + c] += lambda;
-    }
+    add_scaled_penalty(gram, &penalty, n_basis, lambda);
     for c in 0..n_basis {
         let mut s = 0.0;
         let col = &basis[c * nrows..(c + 1) * nrows];
@@ -658,7 +732,7 @@ fn ridge_basis_solve(
         rhs[c] = s;
     }
     let Some(inv) = invert_square(&gram[..n_basis * n_basis], n_basis) else {
-        return Err(StatsError::Backend("GAM: singular B'B+λI".into()));
+        return Err(StatsError::Backend("GAM: singular B'B+λP".into()));
     };
     let mut beta = vec![0.0; n_basis];
     for i in 0..n_basis {
@@ -671,27 +745,68 @@ fn ridge_basis_solve(
     Ok(beta)
 }
 
-fn ridge_edf(
+fn roughness_edf(
     basis: &[f64],
     nrows: usize,
     n_basis: usize,
     lambda: f64,
     gram: &mut [f64],
 ) -> Result<f64, StatsError> {
+    let penalty = second_difference_penalty(n_basis)?;
     form_xtx(basis, nrows, n_basis, gram);
-    let mut penalized = gram[..n_basis * n_basis].to_vec();
-    for c in 0..n_basis {
-        penalized[c * n_basis + c] += lambda;
-    }
+    let xtx = gram[..n_basis * n_basis].to_vec();
+    let mut penalized = xtx.clone();
+    add_scaled_penalty(&mut penalized, &penalty, n_basis, lambda);
     let Some(inv) = invert_square(&penalized, n_basis) else {
-        return Err(StatsError::Backend("GAM: singular B'B+λI for EDF".into()));
+        return Err(StatsError::Backend("GAM: singular B'B+λP for EDF".into()));
     };
-    // edf = tr((B'B+λI)^{-1} B'B) = n_basis - λ tr((B'B+λI)^{-1})
-    let mut tr_inv = 0.0;
+    // edf = tr((B'B+λP)^{-1} B'B)
+    let mut edf = 0.0;
     for i in 0..n_basis {
-        tr_inv += inv[i * n_basis + i];
+        let mut s = 0.0;
+        for j in 0..n_basis {
+            s += inv[i * n_basis + j] * xtx[j * n_basis + i];
+        }
+        edf += s;
     }
-    Ok(n_basis as f64 - lambda * tr_inv)
+    Ok(edf)
+}
+
+const GCV_LAMBDA_GRID: [f64; 25] = [
+    1e-6, 3e-6, 1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0,
+    100.0, 300.0, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6,
+];
+
+fn select_lambda_gcv(
+    basis: &[f64],
+    nrows: usize,
+    n_basis: usize,
+    y: &[f64],
+    gram: &mut [f64],
+    rhs: &mut [f64],
+) -> Result<f64, StatsError> {
+    let mut best_lambda = GCV_LAMBDA_GRID[0];
+    let mut best_gcv = f64::INFINITY;
+    for &lambda in &GCV_LAMBDA_GRID {
+        let beta = roughness_basis_solve(basis, nrows, n_basis, y, lambda, gram, rhs)?;
+        let mut rss = 0.0;
+        for r in 0..nrows {
+            let mut pred = 0.0;
+            for b in 0..n_basis {
+                pred += basis[b * nrows + r] * beta[b];
+            }
+            let e = y[r] - pred;
+            rss += e * e;
+        }
+        let edf = roughness_edf(basis, nrows, n_basis, lambda, gram)?;
+        let denom = (nrows as f64 - edf).max(1e-8);
+        let gcv = (nrows as f64) * rss / (denom * denom);
+        if gcv < best_gcv {
+            best_gcv = gcv;
+            best_lambda = lambda;
+        }
+    }
+    Ok(best_lambda)
 }
 
 #[cfg(test)]
@@ -763,8 +878,9 @@ mod tests {
     }
 
     #[test]
-    fn high_lambda_smooth_approaches_constant_plus_intercept() {
-        // Very large λ → nearly constant smooth (after centering ≈ 0) so fit ≈ mean(y).
+    fn high_lambda_smooth_approaches_linear_null_space() {
+        // Large second-difference λ → null space of D₂ (degree ≤ 1). For a nearly
+        // constant signal the centered smooth stays near zero.
         let n = 80usize;
         let x1 = linspace(n, -1.0, 1.0);
         let y: Vec<f64> = x1.iter().map(|&v| 3.0 + 0.01 * v).collect();
@@ -778,6 +894,184 @@ mod tests {
         let max_abs_smooth: f64 =
             fit.fitted.iter().map(|&f| (f - fit.intercept).abs()).fold(0.0, f64::max);
         assert!(max_abs_smooth < 0.05, "max_abs_smooth={max_abs_smooth}");
+    }
+
+    #[test]
+    fn linear_signal_has_near_zero_second_difference_penalty() {
+        // Null space of D₂: coefficient sequences that are linear in the basis index.
+        for k in [4usize, 6, 10] {
+            let p = second_difference_penalty(k).unwrap();
+            let beta: Vec<f64> = (0..k).map(|i| 2.0 + 0.75 * i as f64).collect();
+            let mut quad = 0.0;
+            for i in 0..k {
+                for j in 0..k {
+                    quad += beta[i] * p[i * k + j] * beta[j];
+                }
+            }
+            assert!(quad.abs() < 1e-12, "K={k} β'Pβ={quad}");
+        }
+        // Fitted values on an exact line also have tiny discrete curvature.
+        let n = 120usize;
+        let x1 = linspace(n, -1.0, 1.0);
+        let y: Vec<f64> = x1.iter().map(|&v| 1.5 + 2.0 * v).collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone()]);
+        let specs = [SmoothSpec::new(0, 8, 1e-4)];
+        let mut ws = GamWorkspace::default();
+        let fit =
+            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
+                .unwrap();
+        let mut max_d2 = 0.0_f64;
+        for r in 1..n - 1 {
+            let d2 = fit.fitted[r - 1] - 2.0 * fit.fitted[r] + fit.fitted[r + 1];
+            max_d2 = max_d2.max(d2.abs());
+        }
+        assert!(max_d2 < 1e-4, "max discrete curvature={max_d2}");
+    }
+
+    #[test]
+    fn increasing_lambda_monotonically_reduces_edf() {
+        let n = 100usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let y: Vec<f64> =
+            x1.iter().map(|&v| (2.0 * std::f64::consts::PI * v).sin() + 0.05 * v).collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
+        let mut ws = GamWorkspace::default();
+        let mut prev = f64::INFINITY;
+        for &lambda in &[0.01, 0.1, 1.0, 10.0, 100.0, 1e4] {
+            let specs = [SmoothSpec::new(0, 10, lambda)];
+            let fit = fit_gam(
+                &x,
+                nrows,
+                ncols,
+                &y,
+                &specs,
+                &GamOptions::default(),
+                &FaerBackend,
+                &mut ws,
+            )
+            .unwrap();
+            assert!(
+                fit.edf_approx <= prev + 1e-9,
+                "edf rose with λ={lambda}: {} > {prev}",
+                fit.edf_approx
+            );
+            prev = fit.edf_approx;
+        }
+    }
+
+    #[test]
+    fn roughness_penalty_beats_identity_ridge_on_curved_signal() {
+        // Compare RSS under equal λ: D₂'D₂ should recover a smooth curve better than λI
+        // when both are applied to the same B-spline expansion of a noisy sinusoid.
+        let n = 200usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let mut y = Vec::with_capacity(n);
+        for (i, &v) in x1.iter().enumerate() {
+            let noise = 0.15 * (((i * 17) % 10) as f64 / 10.0 - 0.5);
+            y.push((2.0 * std::f64::consts::PI * v).sin() + noise);
+        }
+        let (basis, _) = expand_bspline(&x1, 12, None).unwrap();
+        let mut gram = vec![0.0; 12 * 12];
+        let mut rhs = vec![0.0; 12];
+        let beta_r = roughness_basis_solve(&basis, n, 12, &y, 1.0, &mut gram, &mut rhs).unwrap();
+        // Identity ridge baseline (local to this test).
+        form_xtx(&basis, n, 12, &mut gram);
+        for c in 0..12 {
+            gram[c * 12 + c] += 1.0;
+        }
+        for c in 0..12 {
+            let mut s = 0.0;
+            for r in 0..n {
+                s += basis[c * n + r] * y[r];
+            }
+            rhs[c] = s;
+        }
+        let inv = invert_square(&gram[..144], 12).unwrap();
+        let mut beta_i = [0.0; 12];
+        for i in 0..12 {
+            let mut s = 0.0;
+            for j in 0..12 {
+                s += inv[i * 12 + j] * rhs[j];
+            }
+            beta_i[i] = s;
+        }
+        let mut rss_r = 0.0;
+        let mut rss_i = 0.0;
+        let mut curv_err_r = 0.0;
+        let mut curv_err_i = 0.0;
+        for r in 0..n {
+            let truth = (2.0 * std::f64::consts::PI * x1[r]).sin();
+            let mut pr = 0.0;
+            let mut pi = 0.0;
+            for b in 0..12 {
+                pr += basis[b * n + r] * beta_r[b];
+                pi += basis[b * n + r] * beta_i[b];
+            }
+            // Center both for fair comparison with mean-zero sinusoid.
+            // (absolute level absorbed by intercept in GAM; here compare shape RSS to truth.)
+            rss_r += (pr - truth) * (pr - truth);
+            rss_i += (pi - truth) * (pi - truth);
+            curv_err_r += (pr - truth).abs();
+            curv_err_i += (pi - truth).abs();
+        }
+        assert!(rss_r < rss_i, "roughness RSS={rss_r} should beat identity ridge RSS={rss_i}");
+        assert!(curv_err_r < curv_err_i);
+    }
+
+    #[test]
+    fn second_difference_penalty_matches_direct_d2t_d2() {
+        for k in [4usize, 6, 8, 12] {
+            let p = second_difference_penalty(k).unwrap();
+            let d2 = second_difference_matrix(k).unwrap();
+            let rows = k - 2;
+            for i in 0..k {
+                for j in 0..k {
+                    let mut acc = 0.0;
+                    for r in 0..rows {
+                        acc += d2[r * k + i] * d2[r * k + j];
+                    }
+                    assert!(
+                        (p[i * k + j] - acc).abs() < 1e-14,
+                        "P mismatch at ({i},{j}) for K={k}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn intercept_remains_unpenalized_under_large_lambda() {
+        let n = 60usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let y: Vec<f64> =
+            x1.iter().map(|&v| 5.0 + 0.2 * (2.0 * std::f64::consts::PI * v).sin()).collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
+        let specs = [SmoothSpec::new(0, 8, 1e8)];
+        let mut ws = GamWorkspace::default();
+        let fit =
+            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
+                .unwrap();
+        // Mean level lives in the intercept; large roughness λ must not shrink it to 0.
+        assert!((fit.intercept - 5.0).abs() < 0.15, "intercept={}", fit.intercept);
+    }
+
+    #[test]
+    fn auto_lambda_gcv_selects_finite_penalty() {
+        let n = 100usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let y: Vec<f64> = x1
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| (2.0 * std::f64::consts::PI * v).sin() + 0.05 * (i as f64).sin())
+            .collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
+        let specs = [SmoothSpec::auto(0, 10)];
+        let mut ws = GamWorkspace::default();
+        let fit =
+            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
+                .unwrap();
+        assert!(fit.smooths[0].lambda.is_finite() && fit.smooths[0].lambda > 0.0);
+        assert!(fit.converged);
     }
 
     #[test]

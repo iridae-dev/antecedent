@@ -57,6 +57,18 @@ for c in caps(text):
         missing.append(f"{c['id']} evidence missing: {ev}")
 
 for path in [
+    "conformance/graph/cpdag_operations/expected.json",
+    "conformance/graph/pag_operations/expected.json",
+    "conformance/graph/definite_status_separation/expected.json",
+    "conformance/graph/latent_projection/expected.json",
+    "conformance/graph/pag_mag_completion/expected.json",
+    "conformance/identify/efficient_adjustment/expected.json",
+    "conformance/identify/id_hedge/expected.json",
+    "conformance/identify/idc/expected.json",
+    "conformance/identify/generalized_adjustment/expected.json",
+    "conformance/identify/path_specific/expected.json",
+    "conformance/identify/auto_envelopes/expected.json",
+    "conformance/discovery/rfci/expected.json",
     "conformance/pag/lpcmci_chain/expected.json",
     "conformance/pag/latent_projection_msep/expected.json",
     "conformance/pag/envelope_unidentified_mass/expected.json",
@@ -96,6 +108,8 @@ PY
 echo "== cargo test graph / discovery LPCMCI / identify / facade pag =="
 cargo test -p antecedent-graph --lib
 cargo test -p antecedent-discovery --lib
+cargo test -p antecedent-discovery --test static_discovery_oracle
+cargo test -p antecedent-discovery --test lpcmci_oracle_matrix
 cargo test -p antecedent-identify --lib
 cargo test -p antecedent --test pag
 cargo test -p antecedent --lib refuses_dag_only

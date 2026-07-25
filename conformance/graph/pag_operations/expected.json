@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "oracle": {"kind": "endpoint algebra and ancestral-graph constraints", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "cases": [
+    {"id": "circle_arrow", "edge": "0o->1", "marks": ["circle", "arrow"]},
+    {"id": "circle_circle", "edge": "0o-o1", "marks": ["circle", "circle"]},
+    {"id": "directed_cycle_rejected", "input": ["0->1", "1->2"], "operation": "insert 2->0", "error": "cycle"},
+    {"id": "self_loop_rejected", "operation": "insert 0o-o0", "error": "invalid_endpoints"}
+  ]
+}

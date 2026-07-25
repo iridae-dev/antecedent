@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "oracle": {"kind": "exhaustive endpoint enumeration with MAG validity filter", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "cases": [
+    {"id": "single_circle_circle", "input": ["0o-o1"], "valid_completion_count": 3, "outputs": ["0->1", "1->0", "0<->1"]},
+    {"id": "directed_no_circles", "input": ["0->1"], "valid_completion_count": 1},
+    {"id": "almost_directed_cycle", "input": ["0->1", "1->2", "0<->2"], "is_mag": false}
+  ],
+  "limits": {"maximum_circle_endpoints": 63}
+}

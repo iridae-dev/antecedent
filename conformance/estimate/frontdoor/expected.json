@@ -5,16 +5,16 @@
   "estimator": "frontdoor.two_stage",
   "notes": "synthetic SCM; clean-room; U->T->M->Y with U->Y confounding and no direct T->Y edge (U unmeasured, absent from the graph); M=1*T+noise, Y=2*M+U+noise; two-stage product-of-coefficients recovers effect=1*2=2",
   "generation": {
-    "script": "scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/dowhy.toml",
-    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py"
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
   },
   "reference": {
     "project": "dowhy",
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_estimate_oracles.py",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
     "note": "black-box execution only; no source translation",
     "outputs": {
       "method": "frontdoor.two_stage_regression",

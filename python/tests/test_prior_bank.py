@@ -69,9 +69,7 @@ def test_catalog_filter_accept_reject_partial():
     assert any(n == "intercept" or n.startswith("coef_") for n in names)
     assert "ate" in names
     # Fitting path should emit durable names, not only coef_{i}.
-    assert "intercept" in names or any(
-        n.startswith("coef_") and not n[5:].isdigit() for n in names
-    )
+    assert "intercept" in names or any(n.startswith("coef_") and not n[5:].isdigit() for n in names)
 
     matching = antecedent.PriorSource(meta=_meta("match"), artifact=artifact)
     wrong = antecedent.PriorSource(meta=_meta("wrong", outcome="other_y"))
@@ -137,7 +135,6 @@ def test_effect_prior_transfer_shrinks_toward_source():
         inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
         refute=False,
         seed=3,
-    
         return_posterior_artifact=True,
     )
     assert source.posterior is not None
@@ -159,7 +156,6 @@ def test_effect_prior_transfer_shrinks_toward_source():
         inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
         refute=False,
         seed=5,
-    
         return_posterior_artifact=True,
     )
     assert baseline.posterior is not None
@@ -177,7 +173,6 @@ def test_effect_prior_transfer_shrinks_toward_source():
         ),
         refute=False,
         seed=5,
-    
         return_posterior_artifact=True,
     )
     assert mapped.posterior is not None
@@ -198,14 +193,13 @@ def test_effect_prior_transfer_shrinks_toward_source():
         ),
         refute=False,
         seed=5,
-    
         return_posterior_artifact=True,
     )
     assert auto.posterior is not None
     auto_mean = float(auto.posterior.effect_mean)
     assert abs(auto_mean - source_mean) < abs(baseline_mean - source_mean)
 
-    with pytest.raises(Exception):
+    with pytest.raises(antecedent.CausalError):
         antecedent.analyze(
             data_b,
             graph=edges_b,
@@ -218,9 +212,8 @@ def test_effect_prior_transfer_shrinks_toward_source():
             ),
             refute=False,
             seed=5,
-        
-        return_posterior_artifact=True,
-    )
+            return_posterior_artifact=True,
+        )
 
 
 def test_compose_weight_and_conflict():
@@ -304,17 +297,19 @@ def test_compose_weight_and_conflict():
         ),
         refute=False,
         seed=7,
-    
         return_posterior_artifact=True,
     )
     assert result.posterior is not None
     assert composed2.alphas_applied[0] == 1.0
     assert composed2.alphas_applied[1] == 0.0
     # Assumption restriction id from composition is recorded on the estimate.
-    assert any(
-        "external_composed_prior" in str(a) or "external" in str(a).lower()
-        for a in getattr(result, "assumptions", []) or []
-    ) or result.posterior is not None
+    assert (
+        any(
+            "external_composed_prior" in str(a) or "external" in str(a).lower()
+            for a in getattr(result, "assumptions", []) or []
+        )
+        or result.posterior is not None
+    )
 
 
 def test_transport_required_when_populations_differ():
@@ -344,9 +339,7 @@ def test_transport_from_prior_source_tags():
     prior_src = antecedent.PriorSource(
         meta=antecedent.PriorSourceMeta(
             artifact_id="us_study",
-            estimand=antecedent.EstimandFingerprint(
-                query_kind="ate", treatment="t", outcome="y"
-            ),
+            estimand=antecedent.EstimandFingerprint(query_kind="ate", treatment="t", outcome="y"),
             identification="NonparametricallyIdentified",
             tags={"population": "us"},
         ),
@@ -449,7 +442,6 @@ def test_alpha_prior_sensitivity_on_composed_prior():
         ),
         refute="full",
         seed=31,
-    
         return_posterior_artifact=True,
     )
     assert result.posterior is not None

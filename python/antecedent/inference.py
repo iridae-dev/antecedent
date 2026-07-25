@@ -1,4 +1,4 @@
-"""Inference-mode configuration for ``causal.analyze``."""
+"""Inference-mode configuration for ``antecedent.analyze``."""
 
 from __future__ import annotations
 
@@ -39,6 +39,9 @@ class Bayesian:
         heterogeneous designs. Ignored when ``prior_from`` is a ``ComposedPrior``.
     backend:
         Inference backend: ``laplace`` (default), ``conjugate``, or ``hmc``.
+        The ``hmc`` backend needs several thousand draws to clear the native
+        MCMC publication gate (Ř ≤ 1.01, bulk/tail ESS ≥ 100); under-specified
+        draw counts are floored in Rust.
     """
 
     n_draws: int = 1000

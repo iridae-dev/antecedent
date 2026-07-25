@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -58,9 +59,7 @@ def event(
     if times.ndim != 1:
         raise ValueError(f"event_times_ns must be 1-d, got shape {times.shape}")
     if len(times) != len(columns[0]):
-        raise ValueError(
-            f"event_times_ns length {len(times)} != column length {len(columns[0])}"
-        )
+        raise ValueError(f"event_times_ns length {len(times)} != column length {len(columns[0])}")
     return EventFrame(
         names=names,
         columns=columns,
@@ -74,7 +73,8 @@ def panel(
 ) -> PanelFrame:
     """Build a [`PanelFrame`] from a sequence of unit frames or ``{unit_id: frame}``."""
     if isinstance(units, Mapping):
-        ids = [int(k) for k in units.keys()]
+        ids = [int(k) for k in units]
+
         frames = list(units.values())
     else:
         frames = list(units)
@@ -86,9 +86,7 @@ def panel(
     for i, frame in enumerate(frames[1:], start=1):
         n, cols = as_columns(frame)
         if n != names:
-            raise ValueError(
-                f"unit {i} column names {n!r} do not match unit 0 {names!r}"
-            )
+            raise ValueError(f"unit {i} column names {n!r} do not match unit 0 {names!r}")
         unit_columns.append(cols)
     return PanelFrame(names=names, unit_columns=unit_columns, unit_ids=ids)
 

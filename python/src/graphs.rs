@@ -33,7 +33,7 @@ use antecedent::io::{
 use antecedent_core::{Lag, VariableId};
 use antecedent_graph::{
     Dag as RustDag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef,
-    TemporalDag as RustTemporalDag, ensure_lagged,
+    TemporalDag as RustTemporalDag,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -731,7 +731,6 @@ impl TemporalDag {
         names: Vec<String>,
         edges: Vec<(String, u32, String, u32)>,
     ) -> PyResult<Self> {
-        let mut g = RustTemporalDag::empty();
         let var_of = |nm: &str| -> PyResult<VariableId> {
             names
                 .iter()
@@ -739,11 +738,7 @@ impl TemporalDag {
                 .map(|i| VariableId::from_raw(u32::try_from(i).expect("var index fits u32")))
                 .ok_or_else(|| unknown_node(nm))
         };
-        for (src, slag, tgt, tlag) in &edges {
-            let s = ensure_lagged(&mut g, var_of(src)?, Lag::from_raw(*slag)).map_err(py_err)?;
-            let t = ensure_lagged(&mut g, var_of(tgt)?, Lag::from_raw(*tlag)).map_err(py_err)?;
-            g.insert_directed(s, t).map_err(py_err)?;
-        }
+        let g = crate::temporal_dag_from_lagged_edges(var_of, &edges)?;
         Ok(Self { dag: g, names })
     }
 

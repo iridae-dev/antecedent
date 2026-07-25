@@ -62,7 +62,7 @@ pub use gam::{
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
-    MultinomialFit, NbAlphaPolicy, fit_glm, fit_multinomial_logit,
+    MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_multinomial_logit,
 };
 pub use gram::{
     accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, form_xtx,
@@ -77,7 +77,9 @@ pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
     predict_propensity,
 };
-pub use regularized::{LassoFit, LassoOptions, fit_lasso, fit_ridge};
+pub use regularized::{
+    LassoFit, LassoOptions, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
+};
 pub use special::{
     digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_sf, trigamma,
 };

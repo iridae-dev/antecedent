@@ -31,7 +31,7 @@ fn chain_cpdag(n: usize) -> TemporalCpdag {
 /// Naive baseline: re-seed the full node set into the queue every rule application.
 fn run_orientation_global_rescan(
     graph: &mut TemporalCpdag,
-    rules: &[&dyn OrientationRule],
+    rules: &[&dyn OrientationRule<antecedent_graph::TemporalCpdag>],
     state: &mut OrientationState,
 ) -> RuleDelta {
     let mut total = RuleDelta::default();
@@ -58,7 +58,8 @@ fn run_orientation_global_rescan(
 }
 
 fn bench_orientation(c: &mut Criterion) {
-    let rules: [&dyn OrientationRule; 5] = [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
+    let rules: [&dyn OrientationRule<antecedent_graph::TemporalCpdag>; 5] =
+        [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
     let mut group = c.benchmark_group("orientation");
     for n in [16usize, 64, 128] {
         group.bench_function(format!("local_delta_n{n}"), |b| {

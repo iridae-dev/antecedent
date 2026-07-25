@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "DoWhy",
+    "version": "0.14",
+    "generator": "temporary pinned Python environment and harness (deleted after artifact import)",
+    "normalization": "Compare refuter semantics and deterministic seeded bands, not package-specific prose."
+  },
+  "scm": "Z->T, Z->Y, T->Y; true linear ATE=2",
+  "expected": {
+    "original_ate": 2.0,
+    "placebo_abs_max": 0.35,
+    "dummy_outcome_abs_max": 0.25,
+    "random_common_cause_abs_delta_max": 0.15,
+    "subset_abs_delta_max": 0.30,
+    "bootstrap_contains_original": true
+  }
+}

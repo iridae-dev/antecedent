@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
-
 import antecedent
+import numpy as np
 
 
 def test_rd_sharp_via_analyze():

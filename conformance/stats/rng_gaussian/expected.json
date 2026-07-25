@@ -1,0 +1,84 @@
+{
+  "acceptance": {
+    "absolute_lag1_correlation_max": 0.03,
+    "absolute_mean_max": 0.03,
+    "normal_ks_p_min": 0.01,
+    "normaltest_p_min": 0.01,
+    "uniform_bin20_p_min": 0.01,
+    "uniform_ks_p_min": 0.01,
+    "uniform_pair_p_min": 0.001,
+    "variance_error_max": 0.04
+  },
+  "generation": {
+    "algorithm": "repository SplitMix64 stream and Box-Muller pair export",
+    "n": 20000,
+    "normal_seed": 3735928559,
+    "uniform_seed": 1592642302
+  },
+  "normal": {
+    "absolute_tail_counts": {
+      "gt_1": 6376,
+      "gt_2": 874,
+      "gt_3": 60
+    },
+    "excess_kurtosis": 0.01751108630098308,
+    "ks_p_value": 0.5987061178497095,
+    "ks_statistic": 0.005414913604983362,
+    "mean": 0.005361816079910763,
+    "normaltest_p_value": 0.8594972158434486,
+    "normaltest_statistic": 0.30281538687823506,
+    "population_variance": 0.9962181892583994,
+    "skew": -0.00272239616080385
+  },
+  "reference": {
+    "available": true,
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 python /tmp/antecedent-oracle-rng/analyze.py",
+    "generation_location": "temporary external harness; not retained",
+    "installed_metadata_sha256": {
+      "numpy": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8",
+      "scipy": "dd4e8542e7e319158dfab943b04eb811ee99566a1911241f1a3226e07bfbae57"
+    },
+    "project": "SciPy statistical battery",
+    "versions": {
+      "numpy": "2.1.3",
+      "python": "3.12.7",
+      "scipy": "1.14.1"
+    }
+  },
+  "tolerance_class": "Statistical",
+  "uniform": {
+    "bin20_chi_square": 31.580000000000002,
+    "bin20_counts": [
+      957,
+      1042,
+      959,
+      939,
+      966,
+      969,
+      1037,
+      1058,
+      942,
+      1074,
+      979,
+      983,
+      986,
+      1032,
+      1018,
+      1012,
+      982,
+      982,
+      1028,
+      1055
+    ],
+    "bin20_p_value": 0.03483034568933892,
+    "ks_p_value": 0.11059680848006481,
+    "ks_statistic": 0.008498767413680663,
+    "lag1_correlation": -0.004046405341664386,
+    "max": 0.999990643798533,
+    "mean": 0.5038307630524126,
+    "min": 0.00020055205353853,
+    "pair_10x10_chi_square": 113.54,
+    "pair_10x10_p_value": 0.15068305460346798,
+    "population_variance": 0.08332499756148812
+  }
+}

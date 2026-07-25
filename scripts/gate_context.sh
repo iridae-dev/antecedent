@@ -104,6 +104,8 @@ PY
 echo "== cargo test data / discovery / estimate / identify / facade context =="
 cargo test -p antecedent-data --lib
 cargo test -p antecedent-discovery --lib
+cargo test -p antecedent-discovery --test jpcmci_plus_oracle_matrix
+cargo test -p antecedent-discovery --test rpcmci_fixed_regime_oracle
 cargo test -p antecedent-estimate --lib
 cargo test -p antecedent-identify --lib temporal_mediation::
 cargo test -p antecedent --test context_effects

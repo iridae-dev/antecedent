@@ -16,7 +16,7 @@ use antecedent_data::{
 use antecedent_discovery::{DiscoveryWorkspace, Pc};
 use antecedent_graph::DenseNodeId;
 
-fn gaussian_chain(n: usize, seed: u64) -> TabularData {
+fn gaussian_chain(n: usize, seed: u64, middle_offset: f64) -> TabularData {
     // X0 → X1 → X2 linear Gaussian.
     let mut b = CausalSchemaBuilder::new();
     for name in ["x0", "x1", "x2"] {
@@ -47,6 +47,9 @@ fn gaussian_chain(n: usize, seed: u64) -> TabularData {
         x0[i] = next_gauss();
         x1[i] = 0.9 * x0[i] + 0.1 * next_gauss();
         x2[i] = 0.9 * x1[i] + 0.1 * next_gauss();
+    }
+    for value in &mut x1 {
+        *value += middle_offset;
     }
     let cols = vec![
         OwnedColumn::Float64(
@@ -80,7 +83,7 @@ fn gaussian_chain(n: usize, seed: u64) -> TabularData {
 
 #[test]
 fn parcorr_recovers_chain_skeleton() {
-    let data = gaussian_chain(2000, 7);
+    let data = gaussian_chain(2000, 7, 0.0);
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
     let constraints = antecedent_discovery::DiscoveryConstraints {
         alpha: 0.05,
@@ -99,4 +102,21 @@ fn parcorr_recovers_chain_skeleton() {
         "0—2 should be removed given 1; edges={:?}",
         g.edges()
     );
+}
+
+#[test]
+fn pc_graph_is_invariant_to_conditioning_column_offset() {
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let constraints = antecedent_discovery::DiscoveryConstraints {
+        alpha: 0.05,
+        max_cond_size: 2,
+        ..Default::default()
+    };
+    let pc = Pc::new().with_fdr(false).with_constraints(constraints);
+    let ctx = ExecutionContext::for_tests(7);
+    let mut base_ws = DiscoveryWorkspace::default();
+    let mut shifted_ws = DiscoveryWorkspace::default();
+    let base = pc.run(&gaussian_chain(2000, 7, 0.0), &vars, &mut base_ws, &ctx).unwrap();
+    let shifted = pc.run(&gaussian_chain(2000, 7, 10_000.0), &vars, &mut shifted_ws, &ctx).unwrap();
+    assert_eq!(base.evidence.graph.edges(), shifted.evidence.graph.edges());
 }

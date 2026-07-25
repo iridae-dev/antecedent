@@ -23,6 +23,7 @@ use crate::backend::{
 };
 use crate::diagnostics::InferenceDiagnostics;
 use crate::error::ProbError;
+use crate::laplace::validate_design;
 use crate::linalg::{cholesky_spd, invert_spd};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, InvGammaPrior, PriorSet};
@@ -64,25 +65,7 @@ pub fn fit_conjugate_gaussian(
 ) -> Result<BayesFitResult, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    if design.y.len() != nrows {
-        return Err(ProbError::Shape { message: "y length != nrows" });
-    }
-    if design.x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(ProbError::Shape { message: "X buffer too short" });
-    }
-    if nrows == 0 || ncols == 0 {
-        return Err(ProbError::Shape { message: "empty design" });
-    }
-    if let Some(w) = design.weights {
-        if w.len() != nrows {
-            return Err(ProbError::Shape { message: "weights length != nrows" });
-        }
-    }
-    if let Some(o) = design.offsets {
-        if o.len() != nrows {
-            return Err(ProbError::Shape { message: "offsets length != nrows" });
-        }
-    }
+    validate_design(BayesLikelihood::GaussianIdentity, design)?;
 
     workspace.prepare(nrows, ncols, options.n_draws);
 

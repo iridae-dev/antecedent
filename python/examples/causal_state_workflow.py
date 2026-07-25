@@ -15,9 +15,8 @@ many times.
 
 from __future__ import annotations
 
-import numpy as np
-
 import antecedent
+import numpy as np
 
 rng = np.random.default_rng(1)
 # Bound retained result bytes; over-budget refresh refuses instead of silent drop.

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Mapping, Sequence
 
 
 @dataclass
@@ -24,19 +24,19 @@ class PopulationRegistry:
         self.distributions[int(distribution_id)] = [float(w) for w in weights]
 
 
-def target_all() -> dict[str, str]:
+def target_all() -> dict[str, object]:
     return {"kind": "all"}
 
 
-def target_treated() -> dict[str, str]:
+def target_treated() -> dict[str, object]:
     return {"kind": "treated"}
 
 
-def target_untreated() -> dict[str, str]:
+def target_untreated() -> dict[str, object]:
     return {"kind": "untreated"}
 
 
-def target_named(name: str) -> dict[str, str]:
+def target_named(name: str) -> dict[str, object]:
     return {"kind": "named", "name": str(name)}
 
 
@@ -75,14 +75,16 @@ def coerce_target_population(spec) -> dict[str, object] | None:
         if kind == "named":
             return target_named(str(spec["name"]))
         if kind == "rows":
-            return target_rows(spec["rows"])  # type: ignore[arg-type]
+            return target_rows(spec["rows"])
         if kind in {"custom_distribution", "custom"}:
-            return target_custom_distribution(int(spec["id"]))  # type: ignore[arg-type]
+            return target_custom_distribution(int(spec["id"]))
         raise ValueError(f"unknown target_population mapping {spec!r}")
     raise TypeError(f"unsupported target_population type: {type(spec)!r}")
 
 
-def registry_wire(registry: PopulationRegistry | None) -> tuple[dict[str, list[int]], dict[int, list[float]]]:
+def registry_wire(
+    registry: PopulationRegistry | None,
+) -> tuple[dict[str, list[int]], dict[int, list[float]]]:
     if registry is None:
         return {}, {}
     return dict(registry.predicates), dict(registry.distributions)

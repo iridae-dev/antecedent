@@ -59,6 +59,16 @@ for c in caps(text):
         missing.append(f"{c['id']} evidence missing: {ev}")
 
 for path in [
+    "conformance/attribution/path_allocation/expected.json",
+    "conformance/attribution/distribution_change_grid/expected.json",
+    "conformance/attribution/structure_change_grid/expected.json",
+    "conformance/attribution/mechanism_unit_change/expected.json",
+    "conformance/attribution/anomaly_root_cause/expected.json",
+    "conformance/attribution/arrow_strength/expected.json",
+    "conformance/validate/refuters/expected.json",
+    "conformance/validate/confounding_sensitivity/expected.json",
+    "conformance/validate/reisz_sensitivity/expected.json",
+    "conformance/validate/overlap_graph_refutation/expected.json",
     "conformance/attribution/distribution_change_y_shift/expected.json",
     "conformance/attribution/structure_change_parent_swap/expected.json",
     "conformance/attribution/mechanism_change_detect/expected.json",

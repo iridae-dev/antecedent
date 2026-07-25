@@ -19,8 +19,8 @@ use antecedent_estimate::{
 use antecedent_identify::IdentificationStatus;
 use antecedent_kernels::{PosteriorReduceOp, reduce_posterior_draws, standard_normal};
 use antecedent_prob::{
-    BayesDesignRef, BayesFitOptions, BayesLikelihood, ExternalPriorSource, InferenceBackend,
-    LaplaceGlmBackend, LaplaceWorkspace, PriorSensitivitySummary, PriorSet,
+    BayesDesignRef, BayesFitOptions, BayesLikelihood, ExternalPriorSource, HessianFactorization,
+    InferenceBackend, LaplaceGlmBackend, LaplaceWorkspace, PriorSensitivitySummary, PriorSet,
     compose_external_priors_with_alphas,
 };
 use antecedent_stats::GlmFamily;
@@ -505,6 +505,7 @@ mod tests {
     use antecedent_estimate::{BayesianBackendKind, BayesianGComputationAte};
     use antecedent_expr::{ExprId, IdentifiedEstimand};
     use antecedent_identify::IdentificationStatus;
+    use antecedent_prob::{ExternalPriorWeight, GaussianCoefficientPrior, PriorSpec};
 
     fn toy() -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
         let n = 60usize;
@@ -641,9 +642,15 @@ mod tests {
 
     #[test]
     fn prior_sensitivity_external_alpha_pulls_toward_source() {
-        use antecedent_prob::{
-            ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSpec,
-        };
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/validate/bayesian_checks/expected.json"
+        ))
+        .unwrap();
+        assert!(
+            fixture["contracts"]["prior_sensitivity_full_trust_moves_toward_source"]
+                .as_bool()
+                .unwrap()
+        );
 
         let (data, estimand, query) = toy();
         // Data ATE ≈ 2; bank a tight prior with treatment coef mean = 8.
@@ -731,7 +738,6 @@ impl McmcDiagnosticsCheck {
     /// Returns `None` when the posterior is not MCMC (caller should emit `NotApplicable`).
     #[must_use]
     pub fn check(&self, posterior: &CausalPosterior) -> Option<RefutationReport> {
-        use antecedent_prob::HessianFactorization;
         let d = &posterior.diagnostics;
         if d.factorization != HessianFactorization::Mcmc {
             return None;

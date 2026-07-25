@@ -82,7 +82,8 @@ pub struct DecisionEvaluation {
     pub posterior_regret: f64,
     /// Per-constraint satisfaction probabilities for the chosen action.
     pub chance_constraint_probs: Arc<[f64]>,
-    /// Index of chosen action, if any feasible.
+    /// Index of the chosen feasible action, or `None` when every action violates
+    /// the chance threshold (never falls back to an infeasible optimum).
     pub chosen_action: Option<usize>,
 }
 
@@ -126,19 +127,17 @@ where
     }
     let mut best_feas = None;
     let mut best_eu = f64::NEG_INFINITY;
-    let mut best_any = None;
     let mut best_any_eu = f64::NEG_INFINITY;
     for (a, &u) in eu.iter().enumerate() {
         if u > best_any_eu {
             best_any_eu = u;
-            best_any = Some(a);
         }
         if sat[a] + 1e-12 >= problem.chance_threshold && u > best_eu {
             best_eu = u;
             best_feas = Some(a);
         }
     }
-    let chosen = best_feas.or(best_any);
+    let chosen = best_feas;
     let chosen_eu = chosen.map_or(0.0, |a| eu[a]);
     let oracle = best_any_eu.max(chosen_eu);
     let regret = (oracle - chosen_eu).max(0.0);
@@ -195,5 +194,37 @@ mod tests {
         let ev = evaluate_decision(&problem, &[1.0, 2.0]);
         assert_eq!(ev.chosen_action, Some(1));
         assert!((ev.expected_utility - 3.0).abs() < 1e-12);
+    }
+
+    /// MM-013: when no action meets the chance threshold, choose none and report
+    /// full regret against the unconstrained optimum — never fall back to an
+    /// infeasible action.
+    struct FixedChance(f64);
+    impl DecisionConstraint<f64, f64> for FixedChance {
+        fn name(&self) -> &str {
+            "fixed"
+        }
+        fn satisfaction_batch(&self, actions: &[f64], _outcomes: &[f64], out: &mut [f64]) {
+            // Action 0: 0.5, action 1: 0.25 — both below threshold 0.75.
+            let vals = [0.5, 0.25];
+            for (i, _) in actions.iter().enumerate() {
+                out[i] = vals.get(i).copied().unwrap_or(self.0);
+            }
+        }
+    }
+
+    #[test]
+    fn all_infeasible_returns_none_with_full_regret() {
+        let mut problem = DecisionProblem::new(
+            vec![1.0, 2.0],
+            Arc::new(LinearUtil),
+            vec![Arc::new(FixedChance(0.0))],
+        );
+        problem.chance_threshold = 0.75;
+        let ev = evaluate_decision(&problem, &[1.0, 2.0]);
+        assert_eq!(ev.chosen_action, None);
+        assert!((ev.expected_utility - 0.0).abs() < 1e-15);
+        assert!((ev.posterior_regret - 3.0).abs() < 1e-12);
+        assert!(ev.chance_constraint_probs.is_empty());
     }
 }

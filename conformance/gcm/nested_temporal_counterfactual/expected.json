@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "clean-room structural-equation substitution",
+    "pin": "fixture-algorithm-v1",
+    "generation_location": "analytical artifact; no generator retained"
+  },
+  "model": {
+    "rows": 40,
+    "treatment": "alternating 1,0",
+    "mediator": "0.7*T+0.05*i",
+    "outcome": "0.5*T+1.5*M+0.01*i"
+  },
+  "reference": {
+    "nested_y_t1_m_t0_mean": 2.1575,
+    "pure_do_t1_mean": 3.2075,
+    "difference": -1.05,
+    "trajectory_do_t0_mean": 1.6575,
+    "trajectory_do_t1_mean": 3.2075
+  },
+  "acceptance": {"atol": 2e-12, "shared_noise": true, "invalid_schedule": "structured error"}
+}

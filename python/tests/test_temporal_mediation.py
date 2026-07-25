@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
-
 import antecedent
+import numpy as np
 
 
 def test_temporal_mediation_decomposition():
@@ -38,6 +37,6 @@ def test_temporal_mediation_decomposition():
         and result.mediation.direct is not None
         and result.mediation.mediated is not None
     ):
-        assert abs(
-            result.mediation.total - result.mediation.direct - result.mediation.mediated
-        ) < 0.15
+        assert (
+            abs(result.mediation.total - result.mediation.direct - result.mediation.mediated) < 0.15
+        )

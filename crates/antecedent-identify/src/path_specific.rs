@@ -280,6 +280,11 @@ mod tests {
 
     #[test]
     fn mediated_only_path_identifies() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/path_specific/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["cases"][0]["method"].as_str(), Some("path_specific.natural"));
         let dag = chain_with_direct();
         let id = PathSpecificIdentifier::new();
         let prep = id.prepare_dag(&dag).unwrap();

@@ -80,34 +80,48 @@ fn admg_kind() -> String {
     "admg".into()
 }
 
+fn json_from_str<T: for<'de> Deserialize<'de>>(json: &str) -> Result<T, IoError> {
+    serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))
+}
+
+fn json_to_pretty<T: Serialize>(doc: &T) -> Result<String, IoError> {
+    serde_json::to_string_pretty(doc).map_err(|e| IoError::Convert(format!("json: {e}")))
+}
+
+/// Emit JSON for a graph after wire conversion (shared pag/cpdag/admg path).
+macro_rules! graph_to_json {
+    ($name:ident, $Graph:ty, $to_wire:ident, $Json:ident, $kind:expr, { $($field:ident),+ $(,)? }) => {
+        /// Serialize to JSON.
+        ///
+        /// # Errors
+        ///
+        /// Wire / JSON failures.
+        pub fn $name(graph: &$Graph, names: Option<&[String]>) -> Result<String, IoError> {
+            let wire = $to_wire(graph)?;
+            check_optional_names(names, wire.node_count)?;
+            let doc = $Json {
+                kind: $kind,
+                node_count: wire.node_count,
+                $($field: wire.$field,)+
+                variable_names: names.map(<[String]>::to_vec),
+            };
+            json_to_pretty(&doc)
+        }
+    };
+}
+
 /// Parse JSON into a [`Pag`].
 ///
 /// # Errors
 ///
 /// JSON / structure errors.
 pub fn pag_from_json(json: &str) -> Result<Pag, IoError> {
-    let doc: PagJson =
-        serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
+    let doc: PagJson = json_from_str(json)?;
     check_optional_names(doc.variable_names.as_deref(), doc.node_count)?;
     pag_from_wire(&PagWire { node_count: doc.node_count, edges: doc.edges })
 }
 
-/// Serialize a [`Pag`] to JSON.
-///
-/// # Errors
-///
-/// Wire / JSON failures.
-pub fn pag_to_json(pag: &Pag, names: Option<&[String]>) -> Result<String, IoError> {
-    let wire = pag_to_wire(pag)?;
-    check_optional_names(names, wire.node_count)?;
-    let doc = PagJson {
-        kind: pag_kind(),
-        node_count: wire.node_count,
-        edges: wire.edges,
-        variable_names: names.map(<[String]>::to_vec),
-    };
-    serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
-}
+graph_to_json!(pag_to_json, Pag, pag_to_wire, PagJson, pag_kind(), { edges });
 
 /// Parse JSON into a [`Cpdag`].
 ///
@@ -115,8 +129,7 @@ pub fn pag_to_json(pag: &Pag, names: Option<&[String]>) -> Result<String, IoErro
 ///
 /// JSON / structure errors.
 pub fn cpdag_from_json(json: &str) -> Result<Cpdag, IoError> {
-    let doc: CpdagJson =
-        serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
+    let doc: CpdagJson = json_from_str(json)?;
     check_optional_names(doc.variable_names.as_deref(), doc.node_count)?;
     cpdag_from_wire(&CpdagWire {
         node_count: doc.node_count,
@@ -125,23 +138,14 @@ pub fn cpdag_from_json(json: &str) -> Result<Cpdag, IoError> {
     })
 }
 
-/// Serialize a [`Cpdag`] to JSON.
-///
-/// # Errors
-///
-/// Wire / JSON failures.
-pub fn cpdag_to_json(cpdag: &Cpdag, names: Option<&[String]>) -> Result<String, IoError> {
-    let wire = cpdag_to_wire(cpdag)?;
-    check_optional_names(names, wire.node_count)?;
-    let doc = CpdagJson {
-        kind: cpdag_kind(),
-        node_count: wire.node_count,
-        directed: wire.directed,
-        undirected: wire.undirected,
-        variable_names: names.map(<[String]>::to_vec),
-    };
-    serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
-}
+graph_to_json!(
+    cpdag_to_json,
+    Cpdag,
+    cpdag_to_wire,
+    CpdagJson,
+    cpdag_kind(),
+    { directed, undirected }
+);
 
 /// Parse JSON into an [`Admg`].
 ///
@@ -149,8 +153,7 @@ pub fn cpdag_to_json(cpdag: &Cpdag, names: Option<&[String]>) -> Result<String, 
 ///
 /// JSON / structure errors.
 pub fn admg_from_json(json: &str) -> Result<Admg, IoError> {
-    let doc: AdmgJson =
-        serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
+    let doc: AdmgJson = json_from_str(json)?;
     check_optional_names(doc.variable_names.as_deref(), doc.node_count)?;
     admg_from_wire(&AdmgWire {
         node_count: doc.node_count,
@@ -159,23 +162,14 @@ pub fn admg_from_json(json: &str) -> Result<Admg, IoError> {
     })
 }
 
-/// Serialize an [`Admg`] to JSON.
-///
-/// # Errors
-///
-/// Wire / JSON failures.
-pub fn admg_to_json(admg: &Admg, names: Option<&[String]>) -> Result<String, IoError> {
-    let wire = admg_to_wire(admg)?;
-    check_optional_names(names, wire.node_count)?;
-    let doc = AdmgJson {
-        kind: admg_kind(),
-        node_count: wire.node_count,
-        directed: wire.directed,
-        bidirected: wire.bidirected,
-        variable_names: names.map(<[String]>::to_vec),
-    };
-    serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
-}
+graph_to_json!(
+    admg_to_json,
+    Admg,
+    admg_to_wire,
+    AdmgJson,
+    admg_kind(),
+    { directed, bidirected }
+);
 
 fn check_optional_names(names: Option<&[String]>, node_count: u32) -> Result<(), IoError> {
     if let Some(n) = names {

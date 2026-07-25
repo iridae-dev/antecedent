@@ -7,6 +7,7 @@ use std::sync::Arc;
 use antecedent_core::{AllocationMethod, ComponentId, ExecutionContext, VariableId};
 use antecedent_stats::gaussian_kl;
 
+use crate::coalition::full_coalition_mask;
 use crate::error::AttributionError;
 use crate::result::ChangeAttributionResult;
 use crate::shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley, sequential_allocate};
@@ -94,6 +95,24 @@ pub(crate) fn run_change_allocation<P: CoalitionPayoff>(
             Ok(pack_change_result(outcome, total_change, estimate, unidentified, Arc::from([])))
         }
         AllocationMethod::Sequential { order } => {
+            if order.len() != players.len() {
+                return Err(AttributionError::invalid_input(
+                    "sequential allocation order must contain every player exactly once",
+                ));
+            }
+            let mut seen = vec![false; players.len()];
+            for &component in order.iter() {
+                let index = players
+                    .iter()
+                    .position(|&player| player == component)
+                    .ok_or(AttributionError::UnknownPlayer)?;
+                if seen[index] {
+                    return Err(AttributionError::invalid_input(
+                        "sequential allocation order contains duplicate components",
+                    ));
+                }
+                seen[index] = true;
+            }
             let index_of = |c: ComponentId| players.iter().position(|&p| p == c);
             let estimate = sequential_allocate(order, &index_of, payoff, ctx)?;
             Ok(pack_change_result(outcome, total_change, estimate, unidentified, Arc::from([])))
@@ -132,7 +151,7 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
 
     let outcome_dense =
         model.dense_of(outcome).ok_or_else(|| AttributionError::missing_var("outcome", outcome))?;
-    let full = if players.is_empty() { 0 } else { (1u64 << players.len()) - 1 };
+    let full = full_coalition_mask(players.len())?;
     let v_full = payoff.value(full)?;
     let mut path_breakdown: Vec<PathContribution> = Vec::new();
     let mut contributions: Vec<ComponentContribution> = Vec::new();
@@ -224,5 +243,57 @@ fn pack_change_result(
         monte_carlo_stderr: mc_stderr,
         component_mc_stderr: component_mc,
         cache_stats,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct AdditivePayoff;
+
+    impl CoalitionPayoff for AdditivePayoff {
+        fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+            Ok(f64::from(mask.count_ones()))
+        }
+    }
+
+    #[test]
+    fn sequential_order_must_cover_all_players() {
+        let players = [ComponentId::from_raw(1), ComponentId::from_raw(2)];
+        let allocation =
+            AllocationMethod::Sequential { order: Arc::from([ComponentId::from_raw(1)]) };
+        let err = run_change_allocation(
+            VariableId::from_raw(9),
+            &players,
+            &allocation,
+            &mut AdditivePayoff,
+            2.0,
+            Arc::from([]),
+            &ExecutionContext::for_tests(1),
+            None,
+        )
+        .unwrap_err();
+        assert!(matches!(err, AttributionError::InvalidInput { .. }));
+    }
+
+    #[test]
+    fn sequential_order_rejects_unknown_player() {
+        let players = [ComponentId::from_raw(1), ComponentId::from_raw(2)];
+        let allocation = AllocationMethod::Sequential {
+            order: Arc::from([ComponentId::from_raw(1), ComponentId::from_raw(3)]),
+        };
+        let err = run_change_allocation(
+            VariableId::from_raw(9),
+            &players,
+            &allocation,
+            &mut AdditivePayoff,
+            2.0,
+            Arc::from([]),
+            &ExecutionContext::for_tests(1),
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(err, AttributionError::UnknownPlayer);
     }
 }

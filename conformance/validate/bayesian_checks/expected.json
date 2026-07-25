@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "ArviZ rank diagnostics and exact conjugate Gaussian targets",
+    "version": "arviz 0.20.0, numpy 2.1.3, scipy 1.14.1",
+    "generator": "temporary pinned Python environment and harness (deleted after artifact import)"
+  },
+  "contracts": {
+    "sbc_rank_support_inclusive": [0, 100],
+    "calibrated_mean_rank_fraction": 0.5,
+    "accepted_mean_rank_fraction": [0.35, 0.65],
+    "mcmc_max_rhat": 1.05,
+    "mcmc_min_bulk_ess": 10.0,
+    "prior_sensitivity_full_trust_moves_toward_source": true
+  },
+  "limits": "Recorded checks validate scalar conjugate-Gaussian and diagnostic-routing cases, not universal SBC calibration for all backends."
+}

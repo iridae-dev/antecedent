@@ -153,6 +153,7 @@ mod tests {
         CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
         SelectionPolicy,
     };
+    use serde::Deserialize;
 
     #[test]
     fn path_share_on_chain() {
@@ -213,6 +214,22 @@ mod tests {
     /// Pinned linear SEM X→M→Y with β=2,3: path product = 6 and Σ path shares = `total_change`.
     #[test]
     fn path_product_pins_and_sums_to_total_change() {
+        #[derive(Deserialize)]
+        struct Fixture {
+            cases: Vec<Case>,
+        }
+        #[derive(Deserialize)]
+        struct Case {
+            id: String,
+            path_contributions: Vec<f64>,
+            total_change: f64,
+        }
+        let fixture: Fixture = serde_json::from_str(include_str!(
+            "../../../conformance/attribution/path_allocation/expected.json"
+        ))
+        .unwrap();
+        let expected = fixture.cases.iter().find(|case| case.id == "chain").unwrap();
+
         let mut g = Dag::with_variables(3);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
@@ -242,9 +259,9 @@ mod tests {
             &ExecutionContext::for_tests(1),
         )
         .unwrap();
-        assert_eq!(result.path_breakdown.len(), 1);
+        assert_eq!(result.path_breakdown.len(), expected.path_contributions.len());
         assert!(
-            (result.path_breakdown[0].contribution - 6.0).abs() < 1e-12,
+            (result.path_breakdown[0].contribution - expected.path_contributions[0]).abs() < 1e-12,
             "path product={}",
             result.path_breakdown[0].contribution
         );
@@ -254,7 +271,7 @@ mod tests {
             "sum(path)={path_sum} total={}",
             result.total_change
         );
-        assert!((result.total_change - 6.0).abs() < 1e-12);
+        assert!((result.total_change - expected.total_change).abs() < 1e-12);
     }
 
     fn chain_model() -> CompiledCausalModel {

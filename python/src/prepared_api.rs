@@ -2,18 +2,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::{BayesianConfig, CausalAnalysis, Dag, InferenceMode, PreparedAnalysis};
+use antecedent::{BayesianConfig, CausalAnalysis, InferenceMode, PreparedAnalysis};
 use antecedent_core::AverageEffectQuery;
 use antecedent_data::{TableView, tabular_from_record_batch};
-use antecedent_graph::DenseNodeId;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
 use crate::{
-    AteAnalysisResult, ate_result_from_analysis, columns_to_batch, detach_catch, py_err,
-    py_execution_context_ext, suite_from_refute,
+    AteAnalysisResult, ate_result_from_analysis, columns_to_batch, dag_from_named_edges,
+    detach_catch, py_err, py_execution_context_ext, suite_from_refute,
 };
 
 /// Durable prepare-once / estimate-many handle for static ATE on a supplied DAG.
@@ -87,18 +86,7 @@ impl PyPreparedAnalysis {
             let data = loaded.data;
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let n_vars = u32::try_from(data.schema().len())
-                .map_err(|_| PyValueError::new_err("too many variables"))?;
-            let mut dag = Dag::with_variables(n_vars);
-            for (from, to) in &edges {
-                let from_id = data.schema().id_of(from).map_err(py_err)?;
-                let to_id = data.schema().id_of(to).map_err(py_err)?;
-                dag.insert_directed(
-                    DenseNodeId::from_raw(from_id.raw()),
-                    DenseNodeId::from_raw(to_id.raw()),
-                )
-                .map_err(py_err)?;
-            }
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
             let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
             let mut builder = CausalAnalysis::builder()
                 .data(data)

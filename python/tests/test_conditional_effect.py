@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-import antecedent
 
 
 def test_conditional_effect_recovers_interaction():

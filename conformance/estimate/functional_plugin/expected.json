@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "clean-room discrete g-formula enumeration",
+    "pin": "fixture-algorithm-v1",
+    "generation_location": "analytical artifact; no generator retained"
+  },
+  "case": {
+    "name": "binary_confounding_table",
+    "formula": "sum_z P(Y=1|T=1,Z=z) P(Z=z)",
+    "z_mass": [0.5, 0.5],
+    "conditional_outcome_probability": [0.8, 0.6],
+    "interventional_mean": 0.7,
+    "atom_probability_sum": 1.0
+  },
+  "acceptance": {"atol": 1e-12, "bootstrap_scope": "finite-positive-only"}
+}

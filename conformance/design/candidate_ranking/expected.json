@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "exact target plus fixed-budget Monte Carlo calibration",
+    "pin": "fixture-algorithm-v1",
+    "source": "../expected_information_gain/expected.json",
+    "generation_location": "temporary external harness; deleted after artifact import"
+  },
+  "claim_scope": {
+    "shared_random_numbers": "the graph-posterior draw is shared across candidates; observation draws are consumed sequentially and are not shared",
+    "fixed_budget": "sample mean and reported standard error target the native per-draw score",
+    "adaptive": "ranking is calibrated over the recorded seed grid; no universal sequential-error guarantee is claimed",
+    "determinism": "same seed, candidate order, and configuration must replay bit-for-bit"
+  },
+  "expected_native_order": [
+    "measure_two",
+    "sample_one",
+    "sample_one_hundred",
+    "intervene_one",
+    "measure_one",
+    "observe_fifty"
+  ],
+  "acceptance": {
+    "fixed_budget_samples": 100000,
+    "score_atol": 0.006,
+    "seeds": [1701, 1702, 1703],
+    "adaptive_top_candidate": "measure_two",
+    "adaptive_min_batches": 8,
+    "adaptive_max_batches": 256,
+    "adaptive_batch_size": 32,
+    "adaptive_rank_threshold": 0.025
+  }
+}

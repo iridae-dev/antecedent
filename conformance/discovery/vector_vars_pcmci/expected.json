@@ -20,7 +20,7 @@
   ],
   "scm": "x0 white; x1=0.5*x0+noise; y=0.8*x0_{t-1}+noise; seed=0",
   "generation": {
-    "script": "scripts/conformance/generate_tigramite_vector_vars_pcmci.py",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/tigramite.toml",
     "env": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30"
   },

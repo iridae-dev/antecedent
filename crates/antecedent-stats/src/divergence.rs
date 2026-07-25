@@ -66,17 +66,22 @@ pub fn sample_std(values: &[f64]) -> f64 {
 ///
 /// Empty samples.
 pub fn mean_diff_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsError> {
-    if a.is_empty() || b.is_empty() {
+    if a.len() < 2 || b.len() < 2 {
         return Err(StatsError::Shape {
-            message: "mean_diff_two_sample requires non-empty samples",
+            message: "mean_diff_two_sample requires at least two observations per sample",
+        });
+    }
+    if !a.iter().chain(b).all(|v| v.is_finite()) {
+        return Err(StatsError::Shape {
+            message: "mean_diff_two_sample requires finite observations",
         });
     }
     let (ma, _) = mean_var(a);
     let (mb, _) = mean_var(b);
     let sa = sample_std(a);
     let sb = sample_std(b);
-    let va = if sa.is_finite() { sa * sa } else { 0.0 };
-    let vb = if sb.is_finite() { sb * sb } else { 0.0 };
+    let va = sa * sa;
+    let vb = sb * sb;
     let se = (va / a.len() as f64 + vb / b.len() as f64).sqrt().max(1e-12);
     let z = (ma - mb).abs() / se;
     let p = antecedent_kernels::erfc(z / std::f64::consts::SQRT_2);
@@ -98,18 +103,23 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
             message: "classifier_two_sample requires non-empty samples",
         });
     }
+    if !a.iter().chain(b).all(|v| v.is_finite()) {
+        return Err(StatsError::Shape {
+            message: "classifier_two_sample requires finite observations",
+        });
+    }
     let na = a.len() as f64;
     let nb = b.len() as f64;
     // Rank all observations; average ranks for ties.
     let mut all: Vec<(f64, u8)> = Vec::with_capacity(a.len() + b.len());
     all.extend(a.iter().copied().map(|v| (v, 0)));
     all.extend(b.iter().copied().map(|v| (v, 1)));
-    all.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(std::cmp::Ordering::Equal));
+    all.sort_by(|x, y| x.0.partial_cmp(&y.0).expect("finite values are comparable"));
     let mut ranks = vec![0.0; all.len()];
     let mut i = 0;
     while i < all.len() {
         let mut j = i + 1;
-        while j < all.len() && all[j].0.to_bits() == all[i].0.to_bits() {
+        while j < all.len() && all[j].0 == all[i].0 {
             j += 1;
         }
         let avg = (i + j + 1) as f64 / 2.0; // 1-based average rank
@@ -134,7 +144,7 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
     let mut i = 0usize;
     while i < all.len() {
         let mut j = i + 1;
-        while j < all.len() && all[j].0.to_bits() == all[i].0.to_bits() {
+        while j < all.len() && all[j].0 == all[i].0 {
             j += 1;
         }
         let t = (j - i) as f64;
@@ -146,7 +156,11 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
     let var_u = (na * nb / 12.0) * ((n + 1.0) - tie_sum / (n * (n - 1.0).max(1.0)));
     let sigma = var_u.max(0.0).sqrt().max(1e-12);
     let z = (u_a - mu).abs() / sigma;
-    let p = antecedent_kernels::erfc(z / std::f64::consts::SQRT_2).clamp(0.0, 1.0);
+    let p = if z == 0.0 {
+        1.0
+    } else {
+        antecedent_kernels::erfc(z / std::f64::consts::SQRT_2).clamp(0.0, 1.0)
+    };
     Ok((stat, p))
 }
 
@@ -396,6 +410,27 @@ mod tests {
     }
 
     #[test]
+    fn mean_diff_rejects_samples_with_undefined_variance() {
+        assert!(mean_diff_two_sample(&[0.0], &[1.0]).is_err());
+        assert!(mean_diff_two_sample(&[0.0], &[1.0, 2.0]).is_err());
+        assert!(mean_diff_two_sample(&[0.0, 1.0], &[2.0]).is_err());
+    }
+
+    #[test]
+    fn mean_diff_matches_direct_welch_normal_formula() {
+        let (stat, p) = mean_diff_two_sample(&[0.0, 2.0], &[1.0, 3.0]).unwrap();
+        let expected = antecedent_kernels::erfc(0.5);
+        assert!((stat - 1.0).abs() <= 1e-12);
+        assert!((p - expected).abs() <= 1e-12);
+    }
+
+    #[test]
+    fn mean_diff_rejects_non_finite_observations() {
+        assert!(mean_diff_two_sample(&[0.0, f64::NAN], &[1.0, 2.0]).is_err());
+        assert!(mean_diff_two_sample(&[0.0, 1.0], &[2.0, f64::INFINITY]).is_err());
+    }
+
+    #[test]
     fn gaussian_kl_zero_for_same() {
         assert!(gaussian_kl(0.0, 1.0, 0.0, 1.0).unwrap().abs() < 1e-12);
     }
@@ -430,6 +465,26 @@ mod tests {
         let (stat, p) = classifier_two_sample(&a, &b).unwrap();
         assert!(stat > 0.4, "stat={stat}");
         assert!(p < 0.01, "p={p}");
+    }
+
+    #[test]
+    fn classifier_treats_signed_zero_as_a_tie() {
+        let (stat, p) = classifier_two_sample(&[0.0], &[-0.0]).unwrap();
+        assert_eq!(stat, 0.0);
+        assert_eq!(p, 1.0);
+    }
+
+    #[test]
+    fn classifier_assigns_average_ranks_to_numeric_ties() {
+        let (stat, p) = classifier_two_sample(&[1.0, 2.0], &[2.0, 3.0]).unwrap();
+        assert!((stat - 0.375).abs() <= 1e-12);
+        assert!(p.is_finite() && (0.0..=1.0).contains(&p));
+    }
+
+    #[test]
+    fn classifier_rejects_non_finite_scores() {
+        assert!(classifier_two_sample(&[0.0, f64::NAN], &[1.0]).is_err());
+        assert!(classifier_two_sample(&[0.0], &[f64::NEG_INFINITY]).is_err());
     }
 
     #[test]

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "oracle": {"kind": "independent path-status enumeration", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "cases": [
+    {"id": "noncollider_chain_open", "edges": ["0->1", "1->2"], "conditioned": [], "separated": false},
+    {"id": "noncollider_chain_blocked", "edges": ["0->1", "1->2"], "conditioned": [1], "separated": true},
+    {"id": "collider_closed", "edges": ["0->1", "2->1"], "conditioned": [], "separated": true},
+    {"id": "collider_open", "edges": ["0->1", "2->1"], "conditioned": [1], "separated": false}
+  ]
+}

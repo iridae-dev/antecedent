@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "oracle": {"kind": "exhaustive small-DAG MEC enumeration", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "cases": [
+    {"id": "three_node_undirected_chain", "edges": ["0--1", "1--2"], "mec_size": 3},
+    {"id": "orient_first_edge", "input": ["0--1", "1--2"], "operation": "orient 0->1", "output": ["0->1", "1--2"]},
+    {"id": "cycle_rejected", "input": ["0->1", "1->2"], "operation": "insert 2->0", "error": "cycle"}
+  ]
+}
