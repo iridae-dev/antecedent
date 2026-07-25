@@ -382,7 +382,7 @@ fn gam_basis_fit_edf_and_prediction_match_frozen_scipy_oracle() {
             x_columns.len(),
             &y,
             &specs,
-            &GamOptions { max_iter: 200, tol: 1e-10 },
+            &GamOptions { max_iter: 5000, tol: 1e-10 },
             &FaerBackend,
             &mut workspace,
         )
@@ -421,4 +421,82 @@ fn gam_basis_fit_edf_and_prediction_match_frozen_scipy_oracle() {
             &format!("{name} prediction"),
         );
     }
+}
+
+/// Rewrite GAM oracle fit fields after intentional roughness-penalty contract changes.
+///
+/// ```text
+/// UPDATE_GAM_ORACLE=1 cargo test -p antecedent-stats --test foundations_oracle \
+///   update_gam_oracle_fixture -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore = "run explicitly with UPDATE_GAM_ORACLE=1 to rewrite the fixture"]
+fn update_gam_oracle_fixture() {
+    assert_eq!(
+        std::env::var("UPDATE_GAM_ORACLE").ok().as_deref(),
+        Some("1"),
+        "refusing to rewrite fixture without UPDATE_GAM_ORACLE=1"
+    );
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../conformance/stats/gam/expected.json");
+    let raw = fs::read_to_string(&path).expect("read oracle fixture");
+    let mut root: Value = serde_json::from_str(&raw).expect("parse oracle fixture");
+    let mut workspace = GamWorkspace::default();
+
+    for case in root["cases"].as_array_mut().unwrap() {
+        if case.get("x_colmajor").is_none() {
+            continue;
+        }
+        let x_columns: Vec<Vec<f64>> =
+            case["x_colmajor"].as_array().unwrap().iter().map(floats).collect();
+        let nrows = x_columns[0].len();
+        let x: Vec<f64> = x_columns.iter().flatten().copied().collect();
+        let y = floats(&case["y"]);
+        let mut specs = Vec::new();
+        for spec in case["specs"].as_array().unwrap() {
+            let raw_col = spec["raw_col"].as_u64().unwrap() as usize;
+            let n_basis = spec["n_basis"].as_u64().unwrap() as usize;
+            let lambda = spec["lambda"].as_f64().unwrap();
+            let knots = floats(&spec["knots"]);
+            specs.push(SmoothSpec::new(raw_col, n_basis, lambda).with_knots(knots));
+        }
+        let fit = fit_gam(
+            &x,
+            nrows,
+            x_columns.len(),
+            &y,
+            &specs,
+            &GamOptions { max_iter: 5000, tol: 1e-10 },
+            &FaerBackend,
+            &mut workspace,
+        )
+        .unwrap();
+
+        let mut coefs_by_smooth = Vec::new();
+        let mut off = 0usize;
+        for spec in &specs {
+            coefs_by_smooth.push(fit.coefficients[off..off + spec.n_basis].to_vec());
+            off += spec.n_basis;
+        }
+        case["coefficients_by_smooth"] = Value::from(coefs_by_smooth);
+        case["fitted"] = Value::from(fit.fitted.clone());
+        case["intercept"] = Value::from(fit.intercept);
+        case["edf"] = Value::from(fit.edf_approx);
+        case["iterations"] = Value::from(fit.iterations);
+
+        let prediction_columns: Vec<Vec<f64>> =
+            case["prediction_x_colmajor"].as_array().unwrap().iter().map(floats).collect();
+        let prediction_nrows = prediction_columns[0].len();
+        let prediction_x: Vec<f64> = prediction_columns.iter().flatten().copied().collect();
+        let prediction =
+            predict_gam(&fit, &prediction_x, prediction_nrows, prediction_columns.len()).unwrap();
+        case["prediction"] = Value::from(prediction);
+    }
+
+    root["reference"]["project"] = Value::from(
+        "SciPy BSpline bases + Rust second-difference roughness (D2'D2) clean-room oracle",
+    );
+    root["reference"]["penalty"] = Value::from("second_difference_D2T_D2");
+    let out = serde_json::to_string_pretty(&root).unwrap();
+    fs::write(&path, out + "\n").expect("write oracle fixture");
 }
