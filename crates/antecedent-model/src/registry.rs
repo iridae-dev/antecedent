@@ -23,8 +23,10 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    MultinomialDesignRef, fit_glm, fit_multinomial_logit,
+    MultinomialDesignRef, fit_glm_ridge, fit_multinomial_logit,
 };
+#[cfg(feature = "gaussian-process")]
+use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 
 use crate::batch::ParentBatch;
 use crate::compile::{
@@ -552,13 +554,14 @@ fn fit_hierarchical_glm(
         let base = (1 + pi) * n;
         x[base..base + n].copy_from_slice(&col[..n]);
     }
-    let opts = GlmOptions { ridge_on_separation: Some(lambda), ..Default::default() };
-    let fit = fit_glm(
+    let opts = GlmOptions::default();
+    let fit = fit_glm_ridge(
         GlmFamily::BinomialLogit,
         GlmDesignRef { x_colmajor: &x, nrows: n, ncols, y },
         &backend,
         ls_ws,
         &opts,
+        lambda,
     )
     .map_err(|e| ModelError::Numerical { message: e.to_string() })?;
     if !fit.converged {
@@ -877,16 +880,19 @@ fn fit_gaussian_process(
                 }
                 k[i * n + i] += noise_std * noise_std;
             }
-            let Ok(alpha) = solve_dense(&k, n, y) else {
+            let Some(chol) = cholesky_spd(&k, n) else {
                 continue;
             };
-            // Approximate NLML ∝ y'α + log|K| via diagonal of Cholesky-free proxy: sum log diag after GE.
+            let Some(alpha) = chol_solve(&chol, n, y) else {
+                continue;
+            };
             let mut y_alpha = 0.0;
             for i in 0..n {
                 y_alpha += y[i] * alpha[i];
             }
-            let logdet_proxy: f64 = (0..n).map(|i| k[i * n + i].abs().max(1e-12).ln()).sum();
-            let nlml = 0.5 * y_alpha + 0.5 * logdet_proxy;
+            let nlml = 0.5 * y_alpha
+                + 0.5 * chol_log_det(&chol, n)
+                + 0.5 * n as f64 * (2.0 * std::f64::consts::PI).ln();
             match &best {
                 Some((best_nlml, ..)) if nlml >= *best_nlml => {}
                 _ => best = Some((nlml, length_scale, noise_std, alpha)),
@@ -1220,5 +1226,65 @@ mod tests {
         assert!(logits[0].abs() < 1e-12 && logits[1].abs() < 1e-12);
         // Positive slope for the higher class vs reference.
         assert!(logits[3] > 0.5, "slope={}", logits[3]);
+    }
+
+    #[cfg(feature = "gaussian-process")]
+    #[test]
+    fn gaussian_process_matches_exact_logdet_oracle() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/gcm/gaussian_process/expected.json"
+        ))
+        .unwrap();
+        let n = fixture["data"]["n"].as_u64().unwrap() as usize;
+        let mut builder = CausalSchemaBuilder::new();
+        for name in ["x", "y"] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::Context),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let x: Vec<f64> = (0..n).map(|i| -2.4 + 4.8 * i as f64 / (n - 1) as f64).collect();
+        let y: Vec<f64> =
+            x.iter().map(|value| (1.3 * value).sin() + 0.18 * (3.1 * value).cos()).collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let columns = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(x), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap());
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let compiled = CompiledCausalModel::compile(graph).unwrap();
+        let gather = compiled.gather_for(DenseNodeId::from_raw(1)).unwrap();
+        let outcome = data.float64_values(VariableId::from_raw(1)).unwrap();
+        let mut workspace = LeastSquaresWorkspace::default();
+        let slot = fit_family(
+            MechanismFamily::GaussianProcess,
+            gather,
+            &compiled,
+            &data,
+            &outcome,
+            FaerBackend,
+            &mut workspace,
+        )
+        .unwrap();
+        let MechanismSlot::GaussianProcess { length_scale, noise_std, .. } = slot else {
+            panic!("GP slot");
+        };
+        assert_eq!(length_scale, fixture["reference"]["length_scale"].as_f64().unwrap());
+        assert_eq!(noise_std, fixture["reference"]["noise_std"].as_f64().unwrap());
     }
 }

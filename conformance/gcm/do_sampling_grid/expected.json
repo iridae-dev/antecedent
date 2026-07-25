@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "analytic linear-Gaussian SCM intervention",
+    "pin": "fixture-algorithm-v1",
+    "generation_location": "analytical artifact; no generator retained"
+  },
+  "model": {
+    "treatment": "N(0,1)",
+    "outcome": "1+2*T+0.5*epsilon",
+    "intervention": "do(T=1)",
+    "outcome_mean": 3.0,
+    "outcome_variance": 0.25
+  },
+  "acceptance": {
+    "ancestral_draws": 20000,
+    "kde_draws": 10000,
+    "mcmc_draws": 6000,
+    "seeds": [2601, 2602, 2603],
+    "mean_atol": {"ancestral": 0.025, "kde": 0.035, "mcmc": 0.12},
+    "variance_atol": {"ancestral": 0.025, "kde": 0.04},
+    "mcmc_accept_rate": [0.1, 0.95],
+    "deterministic_replay": true
+  }
+}
