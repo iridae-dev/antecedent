@@ -682,6 +682,16 @@ mod tests {
     }
 
     #[test]
+    fn logistic_from_log_bf_stays_finite_at_extremes() {
+        let near_zero = logistic_from_log_bf(-1000.0);
+        let half = logistic_from_log_bf(0.0);
+        let near_one = logistic_from_log_bf(1000.0);
+        assert!(near_zero.is_finite() && near_zero >= 0.0 && near_zero < 1e-15);
+        assert!((half - 0.5).abs() < 1e-15);
+        assert!(near_one.is_finite() && near_one <= 1.0 && near_one > 1.0 - 1e-15);
+    }
+
+    #[test]
     fn bayes_factor_flags_dependence() {
         let n = 80usize;
         let (x, y) = cols_dep(n);
