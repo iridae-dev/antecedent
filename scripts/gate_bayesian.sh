@@ -99,6 +99,7 @@ PY
 
 echo "== cargo test antecedent-prob / estimate bayesian / io posterior / bayesian conformance =="
 cargo test -p antecedent-prob --lib
+cargo test -p antecedent-prob --test prior_support_oracle
 cargo test -p antecedent-discovery --lib graph_posterior::
 cargo test -p antecedent-discovery --lib exact_enumeration::
 cargo test -p antecedent-discovery --lib structure_mcmc::

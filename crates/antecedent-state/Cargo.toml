@@ -23,6 +23,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
+serde_json = { workspace = true }
 
 [[bench]]
 name = "state_append"

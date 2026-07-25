@@ -490,7 +490,7 @@ fn eig_graph_entropy(
         *w *= lik;
     }
     let post_h = shannon_entropy(&post);
-    (prior_h - post_h).max(0.0)
+    prior_h - post_h
 }
 
 /// Deterministic observation reliability for the discrete graph-feature channel.
