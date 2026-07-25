@@ -21,7 +21,7 @@
   "n": 500,
   "scm": "x_t ~ N(0,1); y_t = 0.8*x_{t-1} + 0.5*x_t + 0.2*N(0,1); seed=0",
   "generation": {
-    "script": "scripts/conformance/generate_tigramite_pcmci_plus_lag0.py",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/tigramite.toml",
     "env": "uv run --python 3.12 --with numpy --with tigramite==5.2.1.30"
   },

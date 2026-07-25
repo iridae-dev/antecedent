@@ -1,0 +1,836 @@
+# Oracle-fixture closure ledger for the method-by-method mathematical audit.
+#
+# Oracle generation is an external audit operation. Temporary harnesses are
+# deleted after generation; this repository retains only frozen artifacts,
+# provenance, conformance tests, and gate wiring.
+
+schema_version = 1
+audit_base_commit = "29336cf06d0925aa33b94398c87ae19ef65b9907"
+audit_readme = "docs/audit/method-math/README.md"
+plan = "docs/audit/method-math/oracle-closure-plan.md"
+target_rows = 60
+
+[case_profiles.numeric]
+required = [
+  "closed_form",
+  "ordinary_grid",
+  "boundary_or_error",
+  "permutation_or_rescaling",
+  "ill_conditioned_when_relevant",
+]
+
+[case_profiles.graph]
+required = [
+  "positive_motif",
+  "negative_motif",
+  "node_permutations",
+  "bounded_exhaustive_pack",
+  "invalid_or_unsupported",
+]
+
+[case_profiles.statistical]
+required = [
+  "fixed_seed_parity",
+  "null_calibration",
+  "power_bias_or_coverage",
+  "boundary_sample_size",
+  "monte_carlo_error",
+]
+
+[case_profiles.mcmc]
+required = [
+  "exact_small_target",
+  "multiple_seeds",
+  "support_and_relabeling",
+  "convergence",
+  "failed_convergence",
+]
+
+[case_profiles.semantic]
+required = [
+  "canonical_positive",
+  "canonical_negative",
+  "defining_invariants",
+  "boundary_contract",
+  "permutation_or_symmetry",
+]
+
+[[method]]
+id = "foundations.rng_gaussian"
+audit_stage = 2
+audit_row = "RNG and Gaussian sampling"
+oracle_project = "SciPy statistical battery"
+oracle_pin = "numpy==2.1.3, scipy==1.14.1"
+fixture_dir = "conformance/stats/rng_gaussian"
+comparison = "statistical"
+case_profile = "statistical"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "foundations.ols_wls"
+audit_stage = 2
+audit_row = "OLS/WLS least squares"
+oracle_project = "statsmodels"
+oracle_pin = "numpy==2.1.3, scipy==1.14.1, pandas==2.2.3, statsmodels==0.14.4"
+fixture_dir = "conformance/stats/ols_wls"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "foundations.sandwich_covariance"
+audit_stage = 2
+audit_row = "HC/cluster/HAC sandwich covariance"
+oracle_project = "statsmodels"
+oracle_pin = "numpy==2.1.3, scipy==1.14.1, pandas==2.2.3, statsmodels==0.14.4"
+fixture_dir = "conformance/stats/sandwich_covariance"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "foundations.descriptive"
+audit_stage = 2
+audit_row = "Descriptive mean/variance/std"
+oracle_project = "NumPy and SciPy"
+oracle_pin = "numpy==2.1.3, scipy==1.14.1"
+fixture_dir = "conformance/stats/descriptive"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "foundations.glm_irls"
+audit_stage = 2
+audit_row = "GLM IRLS"
+oracle_project = "statsmodels"
+oracle_pin = "numpy==2.1.3, scipy==1.14.1, pandas==2.2.3, statsmodels==0.14.4"
+fixture_dir = "conformance/stats/glm_irls"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "foundations.gam"
+audit_stage = 2
+audit_row = "GAM penalized smooth fit"
+oracle_project = "SciPy BSpline and NumPy clean-room ridge oracle"
+oracle_pin = "numpy==2.1.3, scipy==1.14.1"
+fixture_dir = "conformance/stats/gam"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "ci.symbolic_cmi"
+audit_stage = 3
+audit_row = "Symbolic CMI"
+oracle_project = "Tigramite"
+oracle_pin = "5.2.1.30"
+fixture_dir = "conformance/discovery/advanced_ci"
+comparison = "statistical"
+case_profile = "statistical"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "ci.gpdc"
+audit_stage = 3
+audit_row = "GPDC CI"
+oracle_project = "Tigramite"
+oracle_pin = "5.2.1.30"
+fixture_dir = "conformance/discovery/advanced_ci"
+comparison = "statistical"
+case_profile = "statistical"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "defective"
+status = "oracle_disagreement"
+
+[[method]]
+id = "ci.bayesian"
+audit_stage = 3
+audit_row = "Bayesian CI"
+oracle_project = "SciPy/NumPy clean-room conjugate NIG oracle"
+oracle_pin = "numpy==2.1.3, scipy==1.14.1"
+fixture_dir = "conformance/discovery/bayesian_ci"
+comparison = "numeric"
+case_profile = "statistical"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "discovery.multiplicity"
+audit_stage = 3
+audit_row = "Multiplicity routing in discovery"
+oracle_project = "statsmodels"
+oracle_pin = "statsmodels==0.14.4, numpy==2.1.3, scipy==1.14.1"
+fixture_dir = "conformance/discovery/multiplicity"
+comparison = "exact-and-numeric"
+case_profile = "numeric"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "discovery.fci"
+audit_stage = 3
+audit_row = "FCI"
+oracle_project = "causal-learn"
+oracle_pin = "causal-learn==0.1.4.3"
+fixture_dir = "conformance/discovery/static_oracle_matrix"
+comparison = "graph-semantic"
+case_profile = "graph"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "discovery.rfci"
+audit_stage = 3
+audit_row = "RFCI"
+oracle_project = "Colombo-Maathuis RFCI semantics plus independent oracle-CI motif enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/discovery/rfci"
+comparison = "graph-semantic"
+case_profile = "graph"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "discovery.ges"
+audit_stage = 3
+audit_row = "GES"
+oracle_project = "causal-learn"
+oracle_pin = "causal-learn==0.1.4.3"
+fixture_dir = "conformance/discovery/static_oracle_matrix"
+comparison = "graph-semantic"
+case_profile = "graph"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "defective"
+status = "oracle_disagreement"
+
+[[method]]
+id = "discovery.direct_lingam"
+audit_stage = 3
+audit_row = "DirectLiNGAM"
+oracle_project = "lingam"
+oracle_pin = "lingam==1.9.1"
+fixture_dir = "conformance/discovery/static_oracle_matrix"
+comparison = "numeric-and-order"
+case_profile = "statistical"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "discovery.lpcmci"
+audit_stage = 3
+audit_row = "LPCMCI"
+oracle_project = "Tigramite"
+oracle_pin = "5.2.1.30"
+fixture_dir = "conformance/discovery/lpcmci_matrix"
+comparison = "graph-semantic"
+case_profile = "statistical"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "defective"
+status = "oracle_disagreement"
+
+[[method]]
+id = "discovery.jpcmci_plus"
+audit_stage = 3
+audit_row = "J-PCMCI+"
+oracle_project = "Tigramite"
+oracle_pin = "5.2.9.7"
+fixture_dir = "conformance/discovery/jpcmci_plus_matrix"
+comparison = "graph-semantic"
+case_profile = "statistical"
+gate = "scripts/gate_context.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "discovery.rpcmci"
+audit_stage = 3
+audit_row = "RPCMCI workflow"
+oracle_project = "Tigramite"
+oracle_pin = "5.2.9.7"
+fixture_dir = "conformance/discovery/rpcmci_fixed_regime_matrix"
+comparison = "graph-semantic"
+case_profile = "statistical"
+gate = "scripts/gate_context.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "discovery.order_mcmc"
+audit_stage = 3
+audit_row = "Order MCMC"
+oracle_project = "independent exact enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/discovery/graph_mcmc_exact"
+comparison = "distributional"
+case_profile = "mcmc"
+gate = "scripts/gate_bayesian.sh"
+exit_disposition = "defective"
+status = "oracle_disagreement"
+
+[[method]]
+id = "discovery.structure_mcmc"
+audit_stage = 3
+audit_row = "Structure MCMC"
+oracle_project = "independent exact enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/discovery/graph_mcmc_exact"
+comparison = "distributional"
+case_profile = "mcmc"
+gate = "scripts/gate_bayesian.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "discovery.ci_screened_posterior"
+audit_stage = 3
+audit_row = "CI-screened posterior"
+oracle_project = "independent exact enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/discovery/graph_mcmc_exact"
+comparison = "distributional"
+case_profile = "mcmc"
+gate = "scripts/gate_bayesian.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "graph.cpdag_operations"
+audit_stage = 4
+audit_row = "CPDAG endpoint and consistency operations"
+oracle_project = "pcalg plus exhaustive enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/graph/cpdag_operations"
+comparison = "graph-semantic"
+case_profile = "graph"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "graph.pag_operations"
+audit_stage = 4
+audit_row = "PAG endpoint operations"
+oracle_project = "pcalg plus exhaustive enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/graph/pag_operations"
+comparison = "graph-semantic"
+case_profile = "graph"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "graph.definite_status_separation"
+audit_stage = 4
+audit_row = "Definite-status/PAG separation"
+oracle_project = "pcalg plus independent path enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/graph/definite_status_separation"
+comparison = "exact"
+case_profile = "graph"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "graph.latent_projection"
+audit_stage = 4
+audit_row = "Latent projection"
+oracle_project = "Ananke plus independent path enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/graph/latent_projection"
+comparison = "graph-semantic"
+case_profile = "graph"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "graph.pag_mag_completion"
+audit_stage = 4
+audit_row = "PAG/MAG completion sampling"
+oracle_project = "pcalg plus exhaustive enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/graph/pag_mag_completion"
+comparison = "set-semantic"
+case_profile = "graph"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "identify.efficient_adjustment"
+audit_stage = 4
+audit_row = "Efficient adjustment"
+oracle_project = "DAGitty"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/identify/efficient_adjustment"
+comparison = "set-semantic"
+case_profile = "graph"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "identify.id_hedge"
+audit_stage = 4
+audit_row = "ID with hedge certificate"
+oracle_project = "causaleffect and Ananke"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/identify/id_hedge"
+comparison = "functional-ast"
+case_profile = "graph"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "identify.idc"
+audit_stage = 4
+audit_row = "IDC"
+oracle_project = "causaleffect and Ananke"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/identify/idc"
+comparison = "functional-ast"
+case_profile = "graph"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "identify.generalized_adjustment"
+audit_stage = 4
+audit_row = "Generalized adjustment for CPDAG/PAG"
+oracle_project = "DAGitty and pcalg"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/identify/generalized_adjustment"
+comparison = "set-semantic"
+case_profile = "graph"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "identify.path_specific"
+audit_stage = 4
+audit_row = "Path-specific identification"
+oracle_project = "Ananke plus canonical literature cases"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/identify/path_specific"
+comparison = "functional-ast"
+case_profile = "graph"
+gate = "scripts/gate_gcm.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "identify.auto_envelopes"
+audit_stage = 4
+audit_row = "Automatic strategy/envelopes"
+oracle_project = "composed frozen identification fixtures"
+oracle_pin = "fixture-composition-v1"
+fixture_dir = "conformance/identify/auto_envelopes"
+comparison = "set-semantic"
+case_profile = "semantic"
+gate = "scripts/gate_pag.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "estimate.glm_adjustment"
+audit_stage = 5
+audit_row = "GLM adjustment"
+oracle_project = "statsmodels and DoWhy"
+oracle_pin = "pending-generation"
+fixture_dir = "conformance/estimate/glm_adjustment_grid"
+comparison = "numeric"
+case_profile = "statistical"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "estimate.conditional_effects"
+audit_stage = 5
+audit_row = "Conditional effect models"
+oracle_project = "statsmodels"
+oracle_pin = "pending-generation"
+fixture_dir = "conformance/estimate/conditional_effects"
+comparison = "numeric"
+case_profile = "statistical"
+gate = "scripts/gate_context.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "estimate.temporal_adjustment"
+audit_stage = 5
+audit_row = "Temporal adjustment"
+oracle_project = "independent matrix functional"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/estimate/temporal_adjustment"
+comparison = "numeric"
+case_profile = "statistical"
+gate = "scripts/gate_context.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "estimate.temporal_mediation"
+audit_stage = 5
+audit_row = "Temporal mediation"
+oracle_project = "independent matrix functional"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/estimate/temporal_mediation_grid"
+comparison = "numeric"
+case_profile = "statistical"
+gate = "scripts/gate_context.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "estimate.functional_plugin"
+audit_stage = 5
+audit_row = "Functional distribution/plugin"
+oracle_project = "independent analytic functionals"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/estimate/functional_plugin"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_bayesian.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "estimate.uncertainty_routing"
+audit_stage = 5
+audit_row = "Analytic, HC, cluster, HAC uncertainty routing"
+oracle_project = "statsmodels"
+oracle_pin = "pending-generation"
+fixture_dir = "conformance/estimate/uncertainty_routing"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_estimate_ci.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "bayesian.prior_validation"
+audit_stage = 6
+audit_row = "Prior validation and coefficient/variance priors"
+oracle_project = "SciPy and independent quadrature"
+oracle_pin = "numpy==2.1.3, scipy==1.14.1"
+fixture_dir = "conformance/bayesian/prior_support"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_bayesian.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "scm.discrete_hierarchical_glm"
+audit_stage = 6
+audit_row = "Discrete and hierarchical GLM mechanisms"
+oracle_project = "statsmodels and PyMC"
+oracle_pin = "pending-generation"
+fixture_dir = "conformance/gcm/discrete_hierarchical_glm"
+comparison = "numeric-and-statistical"
+case_profile = "statistical"
+gate = "scripts/gate_gcm.sh"
+exit_disposition = "defective"
+status = "oracle_disagreement"
+
+[[method]]
+id = "scm.minnesota_bvar"
+audit_stage = 6
+audit_row = "Minnesota BVAR mechanism"
+oracle_project = "pinned BVAR reference"
+oracle_pin = "pending-generation"
+fixture_dir = "conformance/gcm/minnesota_bvar"
+comparison = "numeric-and-statistical"
+case_profile = "statistical"
+gate = "scripts/gate_gcm.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "scm.lgssm"
+audit_stage = 6
+audit_row = "Linear Gaussian state-space mechanism"
+oracle_project = "statsmodels state space"
+oracle_pin = "pending-generation"
+fixture_dir = "conformance/gcm/lgssm"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_gcm.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "scm.gaussian_process"
+audit_stage = 6
+audit_row = "Gaussian-process mechanism"
+oracle_project = "scikit-learn"
+oracle_pin = "pending-generation"
+fixture_dir = "conformance/gcm/gaussian_process"
+comparison = "numeric-and-statistical"
+case_profile = "statistical"
+gate = "scripts/gate_gcm.sh"
+exit_disposition = "defective"
+status = "oracle_disagreement"
+
+[[method]]
+id = "scm.do_sampling"
+audit_stage = 6
+audit_row = "Do-sampling by weighting/KDE/MCMC"
+oracle_project = "analytic SCM interventional targets"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/gcm/do_sampling_grid"
+comparison = "statistical"
+case_profile = "statistical"
+gate = "scripts/gate_gcm.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "counterfactual.nested_temporal"
+audit_stage = 6
+audit_row = "Nested and temporal counterfactual trajectories"
+oracle_project = "independent SCM evaluator"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/gcm/nested_temporal_counterfactual"
+comparison = "numeric"
+case_profile = "semantic"
+gate = "scripts/gate_gcm.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "attribution.path_allocation"
+audit_stage = 7
+audit_row = "Path allocation/decomposition"
+oracle_project = "independent path enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/attribution/path_allocation"
+comparison = "numeric-and-semantic"
+case_profile = "semantic"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "attribution.distribution_change"
+audit_stage = 7
+audit_row = "Distribution-change attribution"
+oracle_project = "exact coalition enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/attribution/distribution_change_grid"
+comparison = "numeric-and-semantic"
+case_profile = "semantic"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "attribution.structure_change"
+audit_stage = 7
+audit_row = "Structure-change attribution"
+oracle_project = "exact coalition enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/attribution/structure_change_grid"
+comparison = "numeric-and-semantic"
+case_profile = "semantic"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "attribution.mechanism_unit_change"
+audit_stage = 7
+audit_row = "Mechanism/unit change attribution"
+oracle_project = "independent SCM plus coalition enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/attribution/mechanism_unit_change"
+comparison = "numeric-and-semantic"
+case_profile = "semantic"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "attribution.anomaly_root_cause"
+audit_stage = 7
+audit_row = "Anomaly/root-cause/feature relevance"
+oracle_project = "independently simulated SCM ground truth"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/attribution/anomaly_root_cause"
+comparison = "statistical-and-ranking"
+case_profile = "statistical"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "attribution.arrow_strength"
+audit_stage = 7
+audit_row = "Arrow strength/robust attribution"
+oracle_project = "independent leave-edge-out SCM"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/attribution/arrow_strength"
+comparison = "numeric-and-ranking"
+case_profile = "semantic"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "validate.refuters"
+audit_stage = 7
+audit_row = "Placebo/random-common-cause/bootstrap/subset/dummy refuters"
+oracle_project = "DoWhy"
+oracle_pin = "0.14"
+fixture_dir = "conformance/validate/refuters"
+comparison = "statistical"
+case_profile = "statistical"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "validate.confounding_sensitivity"
+audit_stage = 7
+audit_row = "Unobserved-common-cause and linear/partial-linear sensitivity"
+oracle_project = "sensemakr and DoWhy"
+oracle_pin = "pending-generation"
+fixture_dir = "conformance/validate/confounding_sensitivity"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "validate.reisz_sensitivity"
+audit_stage = 7
+audit_row = "Reisz/nonparametric sensitivity"
+oracle_project = "independent convex optimization"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/validate/reisz_sensitivity"
+comparison = "numeric-and-statistical"
+case_profile = "statistical"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "validate.overlap_graph_refutation"
+audit_stage = 7
+audit_row = "Overlap and graph refutation"
+oracle_project = "DoWhy plus direct overlap formulas"
+oracle_pin = "0.14"
+fixture_dir = "conformance/validate/overlap_graph_refutation"
+comparison = "numeric-and-semantic"
+case_profile = "semantic"
+gate = "scripts/gate_attribution.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "validate.bayesian_checks"
+audit_stage = 7
+audit_row = "Prior predictive, posterior predictive, prior sensitivity, SBC hooks"
+oracle_project = "ArviZ and exact conjugate targets"
+oracle_pin = "pending-generation"
+fixture_dir = "conformance/validate/bayesian_checks"
+comparison = "statistical"
+case_profile = "statistical"
+gate = "scripts/gate_bayesian.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "design.expected_information_gain"
+audit_stage = 7
+audit_row = "Expected information gain and design objectives"
+oracle_project = "clean-room exact discrete-channel enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/design/expected_information_gain"
+comparison = "numeric-and-statistical"
+case_profile = "statistical"
+gate = "scripts/gate_design_state.sh"
+exit_disposition = "defective"
+status = "oracle_disagreement"
+
+[[method]]
+id = "design.decision_ranking"
+audit_stage = 7
+audit_row = "Decision ranking/chance constraints"
+oracle_project = "brute-force expected utility enumeration"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/design/decision_ranking"
+comparison = "numeric-and-semantic"
+case_profile = "semantic"
+gate = "scripts/gate_design_state.sh"
+exit_disposition = "defective"
+status = "oracle_disagreement"
+
+[[method]]
+id = "design.candidate_ranking"
+audit_stage = 7
+audit_row = "Candidate ranking with CRN/early stopping"
+oracle_project = "fixed-budget exhaustive Monte Carlo"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/design/candidate_ranking"
+comparison = "statistical-and-ranking"
+case_profile = "statistical"
+gate = "scripts/gate_design_state.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "state.particle_filter"
+audit_stage = 7
+audit_row = "Particle filter"
+oracle_project = "exact Kalman target"
+oracle_pin = "numpy==2.1.3, clean-room scalar Kalman recursion"
+fixture_dir = "conformance/design_state/particle_filter_kalman"
+comparison = "statistical"
+case_profile = "statistical"
+gate = "scripts/gate_design_state.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"
+
+[[method]]
+id = "state.rolling_mechanism_diagnostics"
+audit_stage = 7
+audit_row = "Rolling mechanism diagnostics"
+oracle_project = "independent batch recomputation"
+oracle_pin = "fixture-algorithm-v1"
+fixture_dir = "conformance/state/rolling_mechanism_diagnostics"
+comparison = "numeric"
+case_profile = "numeric"
+gate = "scripts/gate_design_state.sh"
+exit_disposition = "validated_with_limits"
+status = "closed"

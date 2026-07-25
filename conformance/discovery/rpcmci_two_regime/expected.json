@@ -6,7 +6,7 @@
   "tolerance_class": "Exact",
   "notes": "Honest multi-regime structure pin; full tigramite equality blocked on P4.5 (RPCMCI masking).",
   "generation": {
-    "script": "scripts/conformance/generate_tigramite_rpcmci_two_regime.py",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/tigramite.toml",
     "env": "uv run --python 3.10 --with numpy --with tigramite==5.2.1.30"
   },

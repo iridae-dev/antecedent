@@ -36,7 +36,7 @@
   ],
   "scm": "4-var VAR; a\u2192b@1, b\u2192c@1, a\u2192d@2; seed=3",
   "generation": {
-    "script": "scripts/conformance/generate_tigramite_pcmci_multivar.py",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/tigramite.toml",
     "env": "uv run --python 3.12 --with numpy --with tigramite==5.2.1.30"
   },

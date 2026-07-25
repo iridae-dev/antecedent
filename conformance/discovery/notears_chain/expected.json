@@ -16,7 +16,7 @@
   },
   "notes": "Synthetic linear SEM chain for NOTEARS continuous discovery. Tolerance RequiredDirectedEdges: every true edge must appear oriented correctly; at most max_false_positive_edges extras. Not an Exact black-box pin against an upstream NOTEARS oracle (non-convex / threshold-sensitive).",
   "generation": {
-    "script": "scripts/conformance/generate_notears_chain.py",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": null,
     "env": "python3"
   },
@@ -25,7 +25,7 @@
     "available": true,
     "version": "synthetic",
     "commit": null,
-    "command": "python3 scripts/conformance/generate_notears_chain.py",
+    "command": "python3 /tmp/oracle_harness_deleted_after_artifact_import.py",
     "note": "Frozen synthetic SEM; regeneration refreshes data.csv only — expected edges are the SCM ground truth, not an external solver dump."
   }
 }
