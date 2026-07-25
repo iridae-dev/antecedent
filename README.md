@@ -1,5 +1,7 @@
 # Antecedent
 
+[![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml)[![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest)[![DOI](https://zenodo.org/badge/1310219847.svg)](https://doi.org/10.5281/zenodo.21556247)
+
 Antecedent is an identification-first causal inference engine for Python and Rust. It takes an analysis from causal structure through estimation, diagnostics, interventions, and counterfactuals — without silently treating discovered graphs as ground truth.
 
 Most causal tooling asks you to supply the true DAG and then conditions every downstream number on it, even though the graph is usually the least certain input you have. Antecedent is built for **causal inference under structural uncertainty**: discovered structure — a CPDAG, a PAG, a posterior over graphs — is treated as evidence about the causal graph, and that uncertainty is propagated into identification, estimation, and effect intervals rather than resolved by fiat.
@@ -289,6 +291,24 @@ the Rust API is on [docs.rs/antecedent](https://docs.rs/antecedent). Locally:
 
 Also: [Full capabilities](docs/capabilities.md) · [Comparison with DoWhy, EconML, Tigramite, causal-learn](docs/comparison.md) · [Architecture](docs/architecture.md) · [Development](docs/development.md) · [API naming](docs/api_naming.md) · [ADRs](adr/README.md) · [Examples](crates/antecedent/examples/) · [Python examples](python/examples/).
 
+## Citation
+
+If you use Antecedent in research, please cite it. Citation metadata is in
+[`CITATION.cff`](CITATION.cff); the archived release is
+[doi:10.5281/zenodo.21556247](https://doi.org/10.5281/zenodo.21556247).
+
+```bibtex
+@software{hinshaw_antecedent_2026,
+  author       = {Hinshaw, Charles},
+  title        = {Antecedent},
+  version      = {0.3.0},
+  year         = {2026},
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.21556247},
+  url          = {https://doi.org/10.5281/zenodo.21556247}
+}
+```
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). DCO sign-off required.
@@ -296,3 +316,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). DCO sign-off required.
 ## License
 
 MIT OR Apache-2.0 — see `LICENSE-MIT` and `LICENSE-APACHE`.
+
