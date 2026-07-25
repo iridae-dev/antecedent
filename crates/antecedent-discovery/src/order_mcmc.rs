@@ -1,7 +1,11 @@
 //! Order MCMC for DAG posteriors.
 //!
 //! State = topological order + forward-edge subset. Proposals: adjacent
-//! transposition (dropping conflicting edges) and forward-edge flips.
+//! transposition (reorienting the skeleton) and forward-edge flips.
+//!
+//! The Metropolis target is the DAG posterior on graphs, not the order-augmented
+//! joint: each candidate score is corrected by `log|# topological orders|` so
+//! DAGs with more linear extensions are not over-weighted (MM-011).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -148,6 +152,9 @@ impl OrderMcmc {
                         prior,
                         variables,
                     )
+                    // MM-011: subtract log of the DAG's topological-order count so the
+                    // chain's stationary distribution is uniform over DAGs (given the
+                    // score), not over (order, forward-edge) pairs.
                     .map(|score| score - log_topological_order_count(mask, n))
                     .unwrap_or(f64::NEG_INFINITY);
                     let total_steps = n_warmup + n_draws * thin;
@@ -324,6 +331,19 @@ mod tests {
 
     use crate::graph_posterior::GraphPrior;
 
+    #[test]
+    fn topological_order_count_matches_known_dags() {
+        let n = 3;
+        // Empty DAG: all 3! = 6 orders.
+        assert!((log_topological_order_count(0, n) - (6.0f64).ln()).abs() < 1e-12);
+        // Chain 0→1→2: unique order.
+        let chain = set_edge(set_edge(0, n, 0, 1, true), n, 1, 2, true);
+        assert!((log_topological_order_count(chain, n) - 0.0).abs() < 1e-12);
+        // V-structure 0→2←1: two orders (0 before 1, or 1 before 0).
+        let v = set_edge(set_edge(0, n, 0, 2, true), n, 1, 2, true);
+        assert!((log_topological_order_count(v, n) - (2.0f64).ln()).abs() < 1e-12);
+    }
+
     fn chain_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {
         let mut b = CausalSchemaBuilder::new();
         for name in ["a", "b", "c"] {
@@ -369,9 +389,9 @@ mod tests {
     #[test]
     fn order_mcmc_chain_signal() {
         let (data, vars) = chain_data(220);
-        // Gate off: short schedules recover edge mass but do not mix enough for
-        // the graph-posterior diagnostics bar under correct multi-chain Geyer ESS.
-        let eng = OrderMcmc::new().with_schedule(2, 300, 600, 1).with_diagnostics_gate(false);
+        // Gate off: a short schedule recovers edge mass but is not intended as a
+        // publishable multi-chain run (see the refusal test below).
+        let eng = OrderMcmc::new().with_schedule(2, 40, 50, 1).with_diagnostics_gate(false);
         let ctx = ExecutionContext::for_tests(9);
         let mut ws = DiscoveryWorkspace::default();
         let post = eng
@@ -382,14 +402,16 @@ mod tests {
         assert!(sk01 > 0.25, "P(A—B)={sk01}");
         assert!(
             !crate::graph_posterior::allows_graph_posterior(&post.diagnostics),
-            "short order-MCMC schedule should not clear the diagnostics bar"
+            "short order-MCMC schedule should not clear the diagnostics bar (ess_bulk={:?}, rhat={:?})",
+            post.diagnostics.ess_bulk_min,
+            post.diagnostics.rhat_max
         );
     }
 
     #[test]
     fn order_mcmc_short_schedule_gate_refuses() {
         let (data, vars) = chain_data(220);
-        let eng = OrderMcmc::new().with_schedule(2, 300, 600, 1).with_diagnostics_gate(true);
+        let eng = OrderMcmc::new().with_schedule(2, 40, 50, 1).with_diagnostics_gate(true);
         let ctx = ExecutionContext::for_tests(9);
         let mut ws = DiscoveryWorkspace::default();
         let err = eng

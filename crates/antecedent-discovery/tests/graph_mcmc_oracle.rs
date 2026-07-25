@@ -87,6 +87,54 @@ fn named_marginals(post: &GraphPosterior, names: &[String]) -> BTreeMap<String, 
     out
 }
 
+fn case_data_permuted(
+    case: &JsonValue,
+    perm: &[usize],
+) -> (TabularData, Vec<VariableId>, Vec<String>) {
+    let names: Vec<String> = case["var_names"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap().to_owned())
+        .collect();
+    let names: Vec<String> = perm.iter().map(|&i| names[i].clone()).collect();
+    let rows = case["data"].as_array().unwrap();
+    let n = rows.len();
+    let mut builder = CausalSchemaBuilder::new();
+    for name in &names {
+        builder
+            .add_variable(
+                name.as_str(),
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+    }
+    let schema = builder.build().unwrap();
+    let columns: Vec<OwnedColumn> = perm
+        .iter()
+        .enumerate()
+        .map(|(out_col, &src_col)| {
+            let values: Vec<f64> =
+                rows.iter().map(|row| row.as_array().unwrap()[src_col].as_f64().unwrap()).collect();
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(out_col as u32),
+                    Arc::from(values),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )
+        })
+        .collect();
+    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    let variables = (0..names.len()).map(|i| VariableId::from_raw(i as u32)).collect();
+    (TabularData::new(storage), variables, names)
+}
+
 fn expected(target: &JsonValue) -> BTreeMap<String, f64> {
     target["edge_marginals"]
         .as_object()
@@ -112,6 +160,8 @@ fn max_error(actual: &BTreeMap<String, f64>, target: &BTreeMap<String, f64>) -> 
 
 #[test]
 fn graph_mcmc_marginals_against_exact_exhaustive_targets() {
+    // MM-011: Order MCMC subtracts log|#topo orders| so edge marginals match the
+    // exhaustive uniform-DAG Gaussian-BIC target (Structure MCMC already did).
     let fixture = fixture();
     let (chains, warmup, draws, thin) = schedule(&fixture);
     let band = fixture["acceptance"]["absolute_edge_marginal_band"].as_f64().unwrap();
@@ -168,6 +218,36 @@ fn graph_mcmc_marginals_against_exact_exhaustive_targets() {
             );
         }
     }
+}
+
+#[test]
+fn order_mcmc_named_marginals_invariant_to_column_relabeling() {
+    let fixture = fixture();
+    let (chains, warmup, draws, thin) = schedule(&fixture);
+    let band = fixture["acceptance"]["absolute_edge_marginal_band"].as_f64().unwrap();
+    let case = &fixture["cases"][0];
+    let target = expected(&case["targets"]["uniform_all_dags"]);
+    let perm = [2usize, 0, 1];
+    let (data, variables, names) = case_data_permuted(case, &perm);
+    let mut workspace = DiscoveryWorkspace::default();
+    let order = OrderMcmc::new()
+        .with_schedule(chains, warmup, draws, thin)
+        .with_diagnostics_gate(false);
+    let post = order
+        .run(
+            &data,
+            &variables,
+            &GraphPrior::uniform(),
+            GraphScoreFamily::GaussianBic,
+            &mut workspace,
+            &ExecutionContext::for_tests(401),
+        )
+        .unwrap();
+    let error = max_error(&named_marginals(&post, &names), &target);
+    assert!(
+        error <= band,
+        "relabeled order MCMC error {error} > {band} (names={names:?})"
+    );
 }
 
 #[test]
