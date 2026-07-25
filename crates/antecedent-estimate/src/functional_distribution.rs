@@ -1091,6 +1091,10 @@ mod tests {
 
     #[test]
     fn plug_in_matches_known_interventional_mean() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/functional_plugin/expected.json"
+        ))
+        .unwrap();
         let mut dag = Dag::with_variables(3);
         let t = DenseNodeId::from_raw(0);
         let y = DenseNodeId::from_raw(1);
@@ -1123,10 +1127,17 @@ mod tests {
             .unwrap();
         let mut ews = FunctionalDistributionWorkspace::default();
         let out = est.estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(0)).unwrap();
-        // E[Y|do(T=1)] = 0.7
-        assert!((out.mean - 0.7).abs() < 0.05, "mean={} atoms={:?}", out.mean, out.atoms);
+        let tolerance = fixture["acceptance"]["atol"].as_f64().unwrap();
+        let expected_mean = fixture["case"]["interventional_mean"].as_f64().unwrap();
+        assert!(
+            (out.mean - expected_mean).abs() <= tolerance,
+            "mean={} atoms={:?}",
+            out.mean,
+            out.atoms
+        );
         let mass: f64 = out.atoms.iter().map(|a| a.probability).sum();
-        assert!((mass - 1.0).abs() < 1e-6, "mass={mass}");
+        let expected_mass = fixture["case"]["atom_probability_sum"].as_f64().unwrap();
+        assert!((mass - expected_mass).abs() <= tolerance, "mass={mass}");
     }
 
     #[test]

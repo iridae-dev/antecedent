@@ -326,7 +326,7 @@ mod tests {
     use super::*;
 
     fn series() -> (TimeSeriesData, TemporalDag) {
-        let n = 300usize;
+        let n = 240usize;
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
             "x",
@@ -351,7 +351,7 @@ mod tests {
         let mut y = vec![0.0; n];
         for t in 1..n {
             x[t] = ((t as f64) * 0.07).sin();
-            y[t] = 0.8 * x[t - 1];
+            y[t] = 0.8 * x[t - 1] + 0.1 * (0.19 * t as f64).cos();
         }
         let cols = vec![
             OwnedColumn::Float64(
@@ -409,7 +409,17 @@ mod tests {
         let mut est2 = TemporalLinearAdjustment::new();
         est2.inner.bootstrap_replicates = 0;
         let effect = est2.fit(&prep, &mut ws, &ctx, id_res.result.required_assumptions).unwrap();
-        assert!((effect.ate - 0.8).abs() < 0.05, "ate={} expected ~0.8", effect.ate);
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/temporal_adjustment/expected.json"
+        ))
+        .unwrap();
+        let expected = fixture["reference"]["coefficient"].as_f64().unwrap();
+        let tolerance = fixture["acceptance"]["atol"].as_f64().unwrap();
+        assert!(
+            (effect.ate - expected).abs() <= tolerance,
+            "ate={} expected {expected}",
+            effect.ate
+        );
     }
 
     #[test]

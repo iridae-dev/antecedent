@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "statsmodels",
+    "versions": {"python": "3.12.7", "numpy": "2.1.3", "scipy": "1.14.1", "pandas": "2.2.3", "statsmodels": "0.14.4"},
+    "installed_metadata_sha256": {"statsmodels": "1f93f27342fb62aef002c7f9ef6bf7f85a94bf7b99459176d156223c33238aaa"},
+    "api": "statsmodels.api.OLS with [1,T,W,T*W]; exact delta-method contrast",
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 --with pandas==2.2.3 --with statsmodels==0.14.4 python /tmp/antecedent_estimation_closure_oracle.py",
+    "generation_location": "temporary external harness; deleted after artifact import"
+  },
+  "data": {
+    "n": 240,
+    "treatment": "i mod 2",
+    "modifier": "(i mod 7)-3",
+    "outcome": "1.2 + 1.8*T - 0.4*W + 0.65*T*W + 0.25*sin(0.31*i) + 0.1*cos(0.17*i)"
+  },
+  "reference": {
+    "coefficients": [1.203334538373436, 1.798306615297484, -0.39851122606401895, 0.647091042033792],
+    "modifier_mean": -0.020833333333333332,
+    "ate_at_modifier_mean": 1.78482555192178,
+    "analytic_se": 0.025287065525592435
+  },
+  "acceptance": {"atol": 2e-9}
+}

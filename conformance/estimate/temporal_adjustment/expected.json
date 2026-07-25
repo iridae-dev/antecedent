@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "closed-form lag-aligned OLS",
+    "pin": "fixture-algorithm-v1",
+    "generation_location": "analytical artifact; no generator retained"
+  },
+  "data": {
+    "n": 240,
+    "treatment": "sin(0.07*i)",
+    "outcome": "0.8*treatment[i-1] + 0.1*cos(0.19*i)",
+    "treatment_offset": -1,
+    "outcome_offset": 0
+  },
+  "reference": {
+    "estimand": "coefficient on lag-one treatment in [1,T_lag1]",
+    "coefficient": 0.7931593999012879,
+    "intervention_delta": 1.0
+  },
+  "acceptance": {"atol": 2e-10, "translation_invariance_atol": 2e-10}
+}
