@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "Colombo-Maathuis RFCI semantics plus independent oracle-CI motif enumeration",
+    "version": "fixture-algorithm-v1",
+    "generator": "temporary clean-room motif enumerator (deleted after artifact import)",
+    "normalization": "Edges are canonicalized by variable label; endpoint marks are recorded at each labeled endpoint."
+  },
+  "cases": [
+    {
+      "id": "unshielded_oracle_skeleton",
+      "variables": ["v0", "v1", "v2"],
+      "adjacencies": [["v0", "v1"], ["v1", "v2"]],
+      "non_adjacencies": [["v0", "v2"]]
+    },
+    {
+      "id": "unshielded_collider",
+      "variables": ["v0", "v1", "v2"],
+      "adjacencies": [["v0", "v1"], ["v1", "v2"]],
+      "arrowheads_at": ["v1", "v1"]
+    }
+  ],
+  "invariants": {
+    "node_relabeling": true,
+    "rfci_has_no_possible_dsep_phase": true,
+    "lemma_3_1_phase_present": true
+  }
+}

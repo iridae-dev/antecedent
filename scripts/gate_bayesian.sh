@@ -104,6 +104,7 @@ cargo test -p antecedent-discovery --lib structure_mcmc::
 cargo test -p antecedent-discovery --lib order_mcmc::
 cargo test -p antecedent-discovery --lib ci_screened_posterior::
 cargo test -p antecedent-discovery --lib dbn_posterior::
+cargo test -p antecedent-discovery --test graph_mcmc_oracle
 cargo test -p antecedent-estimate --lib bayesian
 cargo test -p antecedent-estimate --lib envelope
 cargo test -p antecedent-validate --lib bayesian_checks
