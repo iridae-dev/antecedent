@@ -126,19 +126,17 @@ where
     }
     let mut best_feas = None;
     let mut best_eu = f64::NEG_INFINITY;
-    let mut best_any = None;
     let mut best_any_eu = f64::NEG_INFINITY;
     for (a, &u) in eu.iter().enumerate() {
         if u > best_any_eu {
             best_any_eu = u;
-            best_any = Some(a);
         }
         if sat[a] + 1e-12 >= problem.chance_threshold && u > best_eu {
             best_eu = u;
             best_feas = Some(a);
         }
     }
-    let chosen = best_feas.or(best_any);
+    let chosen = best_feas;
     let chosen_eu = chosen.map_or(0.0, |a| eu[a]);
     let oracle = best_any_eu.max(chosen_eu);
     let regret = (oracle - chosen_eu).max(0.0);

@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "SciPy distribution support and normalization oracle",
+    "api": "scipy.stats.norm, scipy.stats.invgamma, scipy.integrate.quad",
+    "packages": {
+      "scipy": {
+        "version": "1.14.1",
+        "metadata_sha256": "dd4e8542e7e319158dfab943b04eb811ee99566a1911241f1a3226e07bfbae57"
+      },
+      "numpy": {
+        "version": "2.1.3",
+        "metadata_sha256": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8"
+      }
+    },
+    "python": "3.12.7",
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 python /tmp/antecedent_prior_support_oracle.py",
+    "generation_location": "temporary external harness; not retained"
+  },
+  "coefficient_priors": [
+    {
+      "name": "ordinary",
+      "mean": [
+        0.0,
+        1.5
+      ],
+      "variance": [
+        1.0,
+        4.0
+      ],
+      "valid": true,
+      "normal_integrals": [
+        0.9999999999999997,
+        0.9999999999999997
+      ],
+      "precision": [
+        1.0,
+        0.25
+      ]
+    },
+    {
+      "name": "tiny_positive",
+      "mean": [
+        0.0
+      ],
+      "variance": [
+        1e-12
+      ],
+      "valid": true,
+      "normal_integrals": [
+        0.9999999999999997
+      ],
+      "precision": [
+        1000000000000.0
+      ]
+    },
+    {
+      "name": "length_mismatch",
+      "mean": [
+        0.0,
+        1.0
+      ],
+      "variance": [
+        1.0
+      ],
+      "valid": false
+    },
+    {
+      "name": "empty",
+      "mean": [],
+      "variance": [],
+      "valid": false
+    },
+    {
+      "name": "zero_variance",
+      "mean": [
+        0.0
+      ],
+      "variance": [
+        0.0
+      ],
+      "valid": false
+    },
+    {
+      "name": "negative_variance",
+      "mean": [
+        0.0
+      ],
+      "variance": [
+        -1.0
+      ],
+      "valid": false
+    },
+    {
+      "name": "infinite_variance",
+      "mean": [
+        0.0
+      ],
+      "variance": [
+        "inf"
+      ],
+      "valid": false
+    }
+  ],
+  "inverse_gamma_priors": [
+    {
+      "shape": 0.001,
+      "scale": 0.001,
+      "valid": true,
+      "integral": 0.9999999998727266,
+      "mean": null
+    },
+    {
+      "shape": 0.5,
+      "scale": 2.0,
+      "valid": true,
+      "integral": 0.9999999999998379,
+      "mean": null
+    },
+    {
+      "shape": 3.0,
+      "scale": 4.0,
+      "valid": true,
+      "integral": 1.0,
+      "mean": 2.0
+    },
+    {
+      "shape": 0.0,
+      "scale": 1.0,
+      "valid": false
+    },
+    {
+      "shape": 1.0,
+      "scale": -2.0,
+      "valid": false
+    }
+  ],
+  "effect_priors": [
+    {
+      "mean": 0.0,
+      "sd": 1.0,
+      "valid": true
+    },
+    {
+      "mean": -2.0,
+      "sd": 1e-12,
+      "valid": true
+    },
+    {
+      "mean": "nan",
+      "sd": 1.0,
+      "valid": false
+    },
+    {
+      "mean": 0.0,
+      "sd": 0.0,
+      "valid": false
+    },
+    {
+      "mean": 0.0,
+      "sd": "inf",
+      "valid": false
+    }
+  ],
+  "known_variances": [
+    {
+      "value": 2.5,
+      "valid": true
+    },
+    {
+      "value": 1e-12,
+      "valid": true
+    },
+    {
+      "value": 0.0,
+      "valid": false
+    },
+    {
+      "value": -1.0,
+      "valid": false
+    },
+    {
+      "value": "nan",
+      "valid": false
+    }
+  ],
+  "prior_set_rules": {
+    "maximum_residual_variance_specs": 1,
+    "categorical_predictors_require_contrast": true,
+    "default_variance_model": {
+      "shape": 0.001,
+      "scale": 0.001
+    }
+  },
+  "tolerance": {
+    "normalization_atol": 2e-08
+  }
+}

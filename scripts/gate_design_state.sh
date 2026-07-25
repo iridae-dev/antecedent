@@ -87,7 +87,10 @@ PY
 
 echo "== cargo test design / state / facade design_state =="
 cargo test -p antecedent-design --lib
+cargo test -p antecedent-design --test design_oracle
 cargo test -p antecedent-state --lib
+cargo test -p antecedent-state --test particle_filter_oracle
+cargo test -p antecedent-state --test rolling_mechanism_oracle
 cargo test -p antecedent --test design_state
 
 echo "== criterion smoke (design + state) =="
