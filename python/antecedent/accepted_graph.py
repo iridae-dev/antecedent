@@ -12,36 +12,24 @@ refused under ``latency="interactive"``).
 from __future__ import annotations
 
 import json
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ._native import CausalUnsupportedError
 from .discovery import (
-    FCI,
-    GES,
     LPCMCI,
-    LiNGAM,
-    NOTEARS,
-    PC,
     PCMCI,
-    PCMCIPlus,
-    RFCI,
     DiscoveryResult,
-    discover_fci,
-    discover_ges,
-    discover_lingam,
-    discover_lpcmci,
-    discover_notears,
-    discover_pc,
-    discover_pcmci,
-    discover_pcmci_plus,
-    discover_rfci,
+    PCMCIPlus,
+    StaticDiscovery,
+    TemporalDiscovery,
     discovery_to_dag,
+    run_static_discovery,
+    run_temporal_discovery,
 )
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 
-_StaticDiscovery = PC | GES | LiNGAM | NOTEARS | FCI | RFCI
-_TemporalDiscovery = PCMCI | PCMCIPlus | LPCMCI
-_AnyDiscovery = _StaticDiscovery | _TemporalDiscovery
+_AnyDiscovery = StaticDiscovery | TemporalDiscovery
 
 _GraphTypes = (
     Dag
@@ -54,117 +42,6 @@ _GraphTypes = (
     | Sequence[tuple[str, str]]
     | Sequence[tuple[str, int, str, int]]
 )
-
-
-def _run_static_discovery(
-    data: Any,
-    discovery: _StaticDiscovery,
-    *,
-    seed: int,
-    threads: int,
-) -> tuple[DiscoveryResult, str]:
-    if isinstance(discovery, PC):
-        return (
-            discover_pc(
-                data,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=discovery.ci if isinstance(discovery.ci, str) else "parcorr",
-                max_cond_size=discovery.max_cond_size,
-            ),
-            "pc",
-        )
-    if isinstance(discovery, GES):
-        return (
-            discover_ges(
-                data,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-            ),
-            "ges",
-        )
-    if isinstance(discovery, LiNGAM):
-        return discover_lingam(data, seed=seed, threads=threads), "lingam"
-    if isinstance(discovery, NOTEARS):
-        return discover_notears(data, seed=seed, threads=threads), "notears"
-    if isinstance(discovery, FCI):
-        return (
-            discover_fci(
-                data,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                max_cond_size=discovery.max_cond_size,
-            ),
-            "fci",
-        )
-    if isinstance(discovery, RFCI):
-        return (
-            discover_rfci(
-                data,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                max_cond_size=discovery.max_cond_size,
-            ),
-            "rfci",
-        )
-    raise TypeError(f"unsupported static discovery type for AcceptedGraph: {type(discovery)!r}")
-
-
-def _run_temporal_discovery(
-    data: Any,
-    discovery: _TemporalDiscovery,
-    *,
-    seed: int,
-    threads: int,
-) -> tuple[DiscoveryResult, str]:
-    if isinstance(discovery, PCMCI):
-        return (
-            discover_pcmci(
-                data=data,
-                max_lag=discovery.max_lag,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=discovery.ci if isinstance(discovery.ci, str) else "parcorr",
-            ),
-            "pcmci",
-        )
-    if isinstance(discovery, PCMCIPlus):
-        return (
-            discover_pcmci_plus(
-                data=data,
-                max_lag=discovery.max_lag,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=discovery.ci if isinstance(discovery.ci, str) else "parcorr",
-            ),
-            "pcmci+",
-        )
-    if isinstance(discovery, LPCMCI):
-        return (
-            discover_lpcmci(
-                data=data,
-                max_lag=discovery.max_lag,
-                alpha=discovery.alpha,
-                fdr=discovery.fdr,
-                seed=seed,
-                threads=threads,
-                ci=discovery.ci if isinstance(discovery.ci, str) else "parcorr",
-            ),
-            "lpcmci",
-        )
-    raise TypeError(f"unsupported temporal discovery type for AcceptedGraph: {type(discovery)!r}")
 
 
 def _result_to_graph(result: DiscoveryResult, algorithm_id: str) -> Dag | Cpdag | Pag:
@@ -220,16 +97,12 @@ def _result_to_temporal_graph(
             if n not in seen:
                 seen.add(n)
                 names.append(n)
-        directed.append(
-            (link.source, int(link.source_lag), link.target, int(link.target_lag))
-        )
+        directed.append((link.source, int(link.source_lag), link.target, int(link.target_lag)))
 
     if not names:
         cpdag_nodes = getattr(result, "cpdag_nodes", None)
-        if cpdag_nodes:
-            names = list(cpdag_nodes)
-        else:
-            names = ["x", "y"]
+        names = list(cpdag_nodes) if cpdag_nodes else ["x", "y"]
+
     # Hold as TemporalDag from retained links. Incomplete PCMCI+ orientations
     # should be completed under review before estimate; directed links still form
     # a usable completion artifact for pulse estimates on identified paths.
@@ -322,14 +195,10 @@ class AcceptedGraph:
     ) -> AcceptedGraph:
         """User-triggered rediscovery; never called by estimate / prepare."""
         if isinstance(discovery, (PCMCI, PCMCIPlus, LPCMCI)):
-            result, algo = _run_temporal_discovery(
-                data, discovery, seed=seed, threads=threads
-            )
+            result, algo = run_temporal_discovery(data, discovery, seed=seed, threads=threads)
             graph: _GraphTypes = _result_to_temporal_graph(result, algo)
         else:
-            result, algo = _run_static_discovery(
-                data, discovery, seed=seed, threads=threads
-            )
+            result, algo = run_static_discovery(data, discovery, seed=seed, threads=threads)
             graph = _result_to_graph(result, algo)
         return AcceptedGraph(graph, version=self._version + 1, algorithm_id=algo)
 
@@ -338,7 +207,7 @@ class AcceptedGraph:
 
         Rejects caller ``discovery=``. Does not bump :attr:`version`.
         """
-        from .estimation import analyze
+        from ._analyze_handlers import analyze
 
         if "discovery" in kwargs and kwargs["discovery"] is not None:
             raise CausalUnsupportedError(
@@ -443,35 +312,28 @@ def _temporal_names(graph: TemporalDag) -> list[str]:
 def _decode_graph(kind: str, payload: Any) -> _GraphTypes:
     if kind == "temporal_dag":
         names = list(payload["names"])
-        edges = [
-            (str(a), int(sa), str(b), int(tb)) for a, sa, b, tb in payload["edges"]
-        ]
-        return TemporalDag.from_lagged_edges(names, edges)
+        lagged = [(str(a), int(sa), str(b), int(tb)) for a, sa, b, tb in payload["edges"]]
+        return TemporalDag.from_lagged_edges(names, lagged)
     if kind == "temporal_cpdag":
         names = list(payload["names"])
-        directed = [
-            (str(a), int(sa), str(b), int(tb)) for a, sa, b, tb in payload["directed"]
-        ]
+        directed = [(str(a), int(sa), str(b), int(tb)) for a, sa, b, tb in payload["directed"]]
         undirected = [
-            (str(a), int(sa), str(b), int(tb))
-            for a, sa, b, tb in payload.get("undirected", [])
+            (str(a), int(sa), str(b), int(tb)) for a, sa, b, tb in payload.get("undirected", [])
         ]
         return TemporalCpdag.from_lagged_edges(names, directed, undirected or None)
     if kind == "temporal_pag":
         names = list(payload["names"])
-        edges = [
+        marked = [
             (str(a), int(sa), str(b), int(tb), str(ma), str(mb))
             for a, sa, b, tb, ma, mb in payload.get("edges", [])
         ]
-        return TemporalPag.from_marked_lagged_edges(names, edges)
+        return TemporalPag.from_marked_lagged_edges(names, marked)
     if kind == "temporal_edges":
-        return [
-            (str(a), int(sa), str(b), int(tb)) for a, sa, b, tb in payload["edges"]
-        ]
+        return [(str(a), int(sa), str(b), int(tb)) for a, sa, b, tb in payload["edges"]]
     if kind == "dag":
         nodes = list(payload["nodes"])
-        edges = [(str(a), str(b)) for a, b in payload["edges"]]
-        return Dag.from_edges(nodes, edges)
+        static = [(str(a), str(b)) for a, b in payload["edges"]]
+        return Dag.from_edges(nodes, static)
     if kind == "cpdag":
         return Cpdag.from_json(payload)
     if kind == "pag":
@@ -481,5 +343,6 @@ def _decode_graph(kind: str, payload: Any) -> _GraphTypes:
     if kind == "edges":
         return [(str(a), str(b)) for a, b in payload["edges"]]
     raise ValueError(f"unknown AcceptedGraph kind: {kind!r}")
+
 
 __all__ = ["AcceptedGraph"]

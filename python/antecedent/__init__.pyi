@@ -1,9 +1,9 @@
-"""Package type stub for ``causal``.
+"""Package type stub for ``antecedent``.
 
 Day-1: ``analyze``, queries, ``Dag``/graphs, ``identify``, ``fit_gcm``,
 ``Identifier``/``Estimator``, inference modes, ``AnalysisResult``.
-Stage depth: ``causal.discovery``, ``causal.gcm``, ``causal.graph``, etc.
-``AteAnalysisResult`` is private to ``causal._native``.
+Stage depth: ``antecedent.discovery``, ``antecedent.gcm``, ``antecedent.graph``, etc.
+``AteAnalysisResult`` is private to ``antecedent._native``.
 """
 
 from __future__ import annotations
@@ -25,11 +25,14 @@ from . import (
     state,
     validation,
 )
+from ._analyze_handlers import analyze
 from ._native import (
     Admg,
     AnomalyScores,
     ArrowLoadInfo,
+    CancellationToken,
     CausalAttributionError,
+    CausalCancelledError,
     CausalCompileError,
     CausalCounterfactualError,
     CausalDataError,
@@ -46,8 +49,6 @@ from ._native import (
     CausalState,
     CausalStateError,
     CausalUnsupportedError,
-    CausalCancelledError,
-    CancellationToken,
     CausalValidateError,
     ChangeAttributionResult,
     Contribution,
@@ -106,54 +107,40 @@ from ._native import (
     sample_do,
     sample_interventional_distribution,
 )
+from .accepted_graph import AcceptedGraph
 from .data import EventFrame, MultiEnvFrame, PanelFrame, event, multi_env, panel
 from .design import evaluate_decision
-from .gcm import (
-    anomaly_attribution_discovered,
-    attribute_distribution_change_discovered,
-    attribute_paths_discovered,
-    fit_gcm_discovered,
-)
-from .population import (
-    PopulationRegistry,
-    target_all,
-    target_custom_distribution,
-    target_named,
-    target_rows,
-    target_treated,
-    target_untreated,
-)
 from .discovery import (
+    FCI,
+    GES,
+    LPCMCI,
+    NOTEARS,
+    PC,
+    PCMCI,
+    RFCI,
+    RPCMCI,
     CiScreenedPosterior,
     DbnPosterior,
     ExactDagPosterior,
-    FCI,
-    GES,
     JPCMCIPlus,
-    LPCMCI,
     LiNGAM,
-    NOTEARS,
     OrderMcmc,
-    PC,
-    PCMCI,
     PCMCIPlus,
-    RFCI,
-    RPCMCI,
     StructureMcmc,
     discover_ci_screened_posterior,
     discover_dbn_posterior,
     discover_exact_dag_posterior,
+    discover_fci,
+    discover_ges,
     discover_jpcmci_plus,
+    discover_lingam,
     discover_lpcmci,
+    discover_notears,
     discover_order_mcmc,
     discover_pc,
-    discover_ges,
-    discover_lingam,
-    discover_notears,
-    discover_fci,
-    discover_rfci,
     discover_pcmci,
     discover_pcmci_plus,
+    discover_rfci,
     discover_rpcmci,
     discover_structure_mcmc,
     two_regime_half_split,
@@ -166,14 +153,28 @@ from .estimation import (
     PredictiveCheckReport,
     PreparedAnalysis,
     PriorSensitivityReport,
-    analyze,
     analyze_many,
     identify,
 )
-from .accepted_graph import AcceptedGraph
-from .inference import Bayesian, Frequentist
+from .gcm import (
+    anomaly_attribution_discovered,
+    attribute_distribution_change_discovered,
+    attribute_paths_discovered,
+    fit_gcm_discovered,
+)
 from .ids import Estimator, Identifier, Latency, Refute
+from .inference import Bayesian, Frequentist
+from .population import (
+    PopulationRegistry,
+    target_all,
+    target_custom_distribution,
+    target_named,
+    target_rows,
+    target_treated,
+    target_untreated,
+)
 from .prior_bank import (
+    POPULATION_TAG_KEY,
     CompatibilityReport,
     ComposedPrior,
     ConflictPolicy,
@@ -181,7 +182,6 @@ from .prior_bank import (
     EstimandFingerprint,
     ExternalPriorSourceSpec,
     ExternalPriorWeight,
-    POPULATION_TAG_KEY,
     PriorCatalog,
     PriorMapping,
     PriorSource,

@@ -2,15 +2,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Literal
 
 from ._native import (
     compose_external_priors as _compose_external_priors,
+)
+from ._native import (
     conflict_shrink_alpha as _shrink_alpha,
+)
+from ._native import (
     decode_prior_source_meta as _decode_meta,
+)
+from ._native import (
     encode_prior_source_meta as _encode_meta,
+)
+from ._native import (
     prior_catalog_filter as _filter,
+)
+from ._native import (
     prior_catalog_rank as _rank,
 )
 
@@ -205,7 +216,7 @@ class ComposedPrior:
 
 def _normalize_weights(
     sources: Sequence[ExternalPriorSourceSpec],
-    weights: Sequence[ExternalPriorWeight] | Sequence[float] | None,
+    weights: Sequence[ExternalPriorWeight | float] | None,
 ) -> list[ExternalPriorSourceSpec]:
     if weights is None:
         return list(sources)
@@ -237,7 +248,7 @@ def populations_from_prior_sources(
 
 def compose_external_priors(
     sources: Sequence[ExternalPriorSourceSpec],
-    weights: Sequence[ExternalPriorWeight] | Sequence[float] | None = None,
+    weights: Sequence[ExternalPriorWeight | float] | None = None,
     *,
     baseline: tuple[Sequence[float], Sequence[float]] | None = None,
     conflict: ConflictPolicy | None = None,
@@ -284,40 +295,100 @@ def compose_external_priors(
     coef_index:
         Coefficient index rewritten under reweight (default: last).
     """
+    srcs = _normalize_compose_sources(sources, weights)
+    baseline_mean, baseline_var = _compose_baseline(srcs, baseline)
+    pop_list = _resolve_source_populations(
+        srcs, source_populations=source_populations, prior_sources=prior_sources
+    )
+    raw = _invoke_compose_native(
+        srcs,
+        baseline_mean,
+        baseline_var,
+        conflict=conflict,
+        conflict_signals=conflict_signals,
+        transport=transport,
+        target_population=target_population,
+        source_populations=pop_list,
+        unit_effects=unit_effects,
+        transport_weights=transport_weights,
+        coef_index=coef_index,
+    )
+    return _composed_prior_from_native(raw, srcs, conflict=conflict, transport=transport)
+
+
+def _normalize_compose_sources(
+    sources: Sequence[ExternalPriorSourceSpec],
+    weights: Sequence[ExternalPriorWeight | float] | None,
+) -> list[ExternalPriorSourceSpec]:
     srcs = _normalize_weights(sources, weights)
     if not srcs:
         raise ValueError("compose_external_priors requires at least one source")
+    return srcs
+
+
+def _compose_baseline(
+    srcs: Sequence[ExternalPriorSourceSpec],
+    baseline: tuple[Sequence[float], Sequence[float]] | None,
+) -> tuple[list[float], list[float]]:
     n = len(srcs[0].mean)
     if baseline is None:
-        baseline_mean = [0.0] * n
-        baseline_var = [100.0] * n
-    else:
-        baseline_mean = list(baseline[0])
-        baseline_var = list(baseline[1])
-    payload = [s.to_dict() for s in srcs]
-    conf_dict = conflict.to_dict() if conflict is not None else None
-    sig_list = [dict(s) for s in conflict_signals] if conflict_signals is not None else None
-    pop_list = None
+        return [0.0] * n, [100.0] * n
+    return list(baseline[0]), list(baseline[1])
+
+
+def _resolve_source_populations(
+    srcs: Sequence[ExternalPriorSourceSpec],
+    *,
+    source_populations: Sequence[str | None] | None,
+    prior_sources: Sequence[PriorSource] | None,
+) -> list[str | None] | None:
     if source_populations is not None:
-        pop_list = [None if p is None else str(p) for p in source_populations]
-    elif prior_sources is not None:
+        return [None if p is None else str(p) for p in source_populations]
+    if prior_sources is not None:
         if len(prior_sources) != len(srcs):
             raise ValueError("prior_sources length must match sources")
-        pop_list = populations_from_prior_sources(prior_sources)
-    raw = _compose_external_priors(
-        payload,
-        baseline_mean,
-        baseline_var,
-        conflict=conf_dict,
-        conflict_signals=sig_list,
+        return populations_from_prior_sources(prior_sources)
+    return None
+
+
+def _invoke_compose_native(
+    srcs: Sequence[ExternalPriorSourceSpec],
+    baseline_mean: Sequence[float],
+    baseline_var: Sequence[float],
+    *,
+    conflict: ConflictPolicy | None,
+    conflict_signals: Sequence[Mapping[str, float | None]] | None,
+    transport: TransportPolicy | None,
+    target_population: str | None,
+    source_populations: Sequence[str | None] | None,
+    unit_effects: Sequence[float] | None,
+    transport_weights: Sequence[float] | None,
+    coef_index: int | None,
+) -> dict[str, Any]:
+    return _compose_external_priors(
+        [s.to_dict() for s in srcs],
+        list(baseline_mean),
+        list(baseline_var),
+        conflict=conflict.to_dict() if conflict is not None else None,
+        conflict_signals=[dict(s) for s in conflict_signals]
+        if conflict_signals is not None
+        else None,
         transport=transport.to_wire() if transport is not None else None,
         target_population=target_population,
-        source_populations=pop_list,
+        source_populations=list(source_populations) if source_populations is not None else None,
         unit_effects=list(unit_effects) if unit_effects is not None else None,
         transport_weights=list(transport_weights) if transport_weights is not None else None,
         coef_index=coef_index,
     )
-    # Prefer transported source moments when native echoed them.
+
+
+def _composed_prior_from_native(
+    raw: Mapping[str, Any],
+    srcs: Sequence[ExternalPriorSourceSpec],
+    *,
+    conflict: ConflictPolicy | None,
+    transport: TransportPolicy | None,
+) -> ComposedPrior:
     out_sources = tuple(srcs)
     if raw.get("sources"):
         rebuilt: list[ExternalPriorSourceSpec] = []
@@ -344,9 +415,7 @@ def compose_external_priors(
         source_ids=tuple(str(x) for x in raw["source_ids"]),
         alphas_requested=tuple(float(x) for x in raw["alphas_requested"]),
         alphas_applied=tuple(float(x) for x in raw["alphas_applied"]),
-        mixture_weights=tuple(
-            None if w is None else float(w) for w in raw["mixture_weights"]
-        ),
+        mixture_weights=tuple(None if w is None else float(w) for w in raw["mixture_weights"]),
         sources=out_sources,
         conflict=conflict,
         conflict_p_values=tuple(

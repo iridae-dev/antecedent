@@ -27,6 +27,7 @@ bash scripts/gate_design_state.sh
 bash scripts/gate_upstream_names.sh
 bash scripts/gate_calibration.sh   # SE coverage / CI Type I — weekly / pre-release
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
+bash scripts/gate_python_lint.sh   # ruff + mypy on python/ (local only; not wheel CI)
 ```
 
 Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
@@ -34,6 +35,28 @@ Mark a `parity/*.toml` capability `done` only with conformance under `conformanc
 command when black-box comparison applies.
 
 Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
+
+## Python lint / types (local)
+
+`scripts/gate_python_lint.sh` runs **ruff** (check + format) and **mypy** over
+`python/antecedent` (including hand-written `.pyi` stubs for `_native`). It is a
+**local / pre-merge** gate for Python and PyO3 binding changes — it is **not**
+part of the wheel-matrix CI job.
+
+```bash
+cd python
+uv sync --group dev
+# If CONDA_PREFIX and VIRTUAL_ENV are both set, unset CONDA_PREFIX first.
+bash ../scripts/gate_python_lint.sh
+```
+
+Or individually:
+
+```bash
+cd python && uv run ruff check antecedent tests examples
+uv run ruff format --check antecedent tests examples
+uv run mypy
+```
 
 ## Tests that matter
 

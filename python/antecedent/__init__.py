@@ -1,22 +1,23 @@
-"""causal — Python bindings for the causal-library Rust workspace.
+"""antecedent — Python bindings for the Antecedent causal engine.
 
 Day-1 surface::
 
-    result = causal.analyze(
+    result = antecedent.analyze(
         data,
         graph=edges,
-        query=causal.AverageEffect(treatment="t", outcome="y"),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
     )
 
-Stage modules hold depth: ``causal.discovery``, ``causal.estimation``,
-``causal.gcm``, ``causal.graph``, ``causal.attribution``, ``causal.validation``.
-Prefer ``Dag.from_dot`` / ``.to_dot`` (and peers); free ``dag_from_*`` helpers
-remain thin aliases under ``causal`` and ``causal.graph``.
+Stage modules hold depth: ``antecedent.discovery``, ``antecedent.estimation``,
+``antecedent.gcm``, ``antecedent.graph``, ``antecedent.attribution``,
+``antecedent.validation``. Prefer ``Dag.from_dot`` / ``.to_dot`` (and peers);
+free ``dag_from_*`` helpers remain thin aliases under ``antecedent`` and
+``antecedent.graph``.
 
 Public analysis results are nested ``AnalysisResult`` views. The native DTO
-``AteAnalysisResult`` lives on ``causal._native`` only.
+``AteAnalysisResult`` lives on ``antecedent._native`` only.
 
-The native extension ``causal._native`` is an advanced FFI surface.
+The native extension ``antecedent._native`` is an advanced FFI surface.
 """
 
 from __future__ import annotations
@@ -38,13 +39,14 @@ from . import (
     state,
     validation,
 )
-from .data import EventFrame, MultiEnvFrame, PanelFrame, event, multi_env, panel
-from .design import evaluate_decision
+from ._analyze_handlers import analyze
 from ._native import (
     Admg,
     AnomalyScores,
     ArrowLoadInfo,
+    CancellationToken,
     CausalAttributionError,
+    CausalCancelledError,
     CausalCompileError,
     CausalCounterfactualError,
     CausalDataError,
@@ -61,8 +63,6 @@ from ._native import (
     CausalState,
     CausalStateError,
     CausalUnsupportedError,
-    CausalCancelledError,
-    CancellationToken,
     CausalValidateError,
     ChangeAttributionResult,
     Contribution,
@@ -121,12 +121,63 @@ from ._native import (
     sample_do,
     sample_interventional_distribution,
 )
+from .accepted_graph import AcceptedGraph
+from .data import EventFrame, MultiEnvFrame, PanelFrame, event, multi_env, panel
+from .design import evaluate_decision
+from .discovery import (
+    FCI,
+    GES,
+    LPCMCI,
+    NOTEARS,
+    PC,
+    PCMCI,
+    RFCI,
+    RPCMCI,
+    CiScreenedPosterior,
+    DbnPosterior,
+    ExactDagPosterior,
+    JPCMCIPlus,
+    LiNGAM,
+    OrderMcmc,
+    PCMCIPlus,
+    StructureMcmc,
+    discover_ci_screened_posterior,
+    discover_dbn_posterior,
+    discover_exact_dag_posterior,
+    discover_fci,
+    discover_ges,
+    discover_jpcmci_plus,
+    discover_lingam,
+    discover_lpcmci,
+    discover_notears,
+    discover_order_mcmc,
+    discover_pc,
+    discover_pcmci,
+    discover_pcmci_plus,
+    discover_rfci,
+    discover_rpcmci,
+    discover_structure_mcmc,
+    two_regime_half_split,
+)
+from .estimation import (
+    AnalysisResult,
+    ConflictSummaryView,
+    EffectEnvelope,
+    IdentifyResult,
+    PredictiveCheckReport,
+    PreparedAnalysis,
+    PriorSensitivityReport,
+    analyze_many,
+    identify,
+)
 from .gcm import (
     anomaly_attribution_discovered,
     attribute_distribution_change_discovered,
     attribute_paths_discovered,
     fit_gcm_discovered,
 )
+from .ids import Estimator, Identifier, Latency, Refute
+from .inference import Bayesian, Frequentist
 from .population import (
     PopulationRegistry,
     target_all,
@@ -136,57 +187,8 @@ from .population import (
     target_treated,
     target_untreated,
 )
-from .discovery import (
-    CiScreenedPosterior,
-    DbnPosterior,
-    ExactDagPosterior,
-    FCI,
-    GES,
-    JPCMCIPlus,
-    LPCMCI,
-    LiNGAM,
-    NOTEARS,
-    OrderMcmc,
-    PC,
-    PCMCI,
-    PCMCIPlus,
-    RFCI,
-    RPCMCI,
-    StructureMcmc,
-    discover_ci_screened_posterior,
-    discover_dbn_posterior,
-    discover_exact_dag_posterior,
-    discover_jpcmci_plus,
-    discover_lpcmci,
-    discover_order_mcmc,
-    discover_pc,
-    discover_ges,
-    discover_lingam,
-    discover_notears,
-    discover_fci,
-    discover_rfci,
-    discover_pcmci,
-    discover_pcmci_plus,
-    discover_rpcmci,
-    discover_structure_mcmc,
-    two_regime_half_split,
-)
-from .estimation import (
-    AnalysisResult,
-    ConflictSummaryView,
-    EffectEnvelope,
-    PredictiveCheckReport,
-    PreparedAnalysis,
-    PriorSensitivityReport,
-    IdentifyResult,
-    analyze,
-    analyze_many,
-    identify,
-)
-from .accepted_graph import AcceptedGraph
-from .inference import Bayesian, Frequentist
-from .ids import Estimator, Identifier, Latency, Refute
 from .prior_bank import (
+    POPULATION_TAG_KEY,
     CompatibilityReport,
     ComposedPrior,
     ConflictPolicy,
@@ -194,7 +196,6 @@ from .prior_bank import (
     EstimandFingerprint,
     ExternalPriorSourceSpec,
     ExternalPriorWeight,
-    POPULATION_TAG_KEY,
     PriorCatalog,
     PriorMapping,
     PriorSource,

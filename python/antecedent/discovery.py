@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, Sequence, Union
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,26 +15,61 @@ from ._native import (
     GraphPosterior,
     PcmciDiscoveryResult,
     RpcmciDiscoverySummary,
-    discover_ci_screened_posterior as _discover_ci_screened_posterior,
-    discover_dbn_posterior as _discover_dbn_posterior,
-    discover_exact_dag_posterior as _discover_exact_dag_posterior,
-    discover_jpcmci_plus as _discover_jpcmci_plus,
-    discover_lpcmci as _discover_lpcmci,
-    discover_order_mcmc as _discover_order_mcmc,
-    discover_pc as _discover_pc,
-    discover_ges as _discover_ges,
-    discover_lingam as _discover_lingam,
-    discover_notears as _discover_notears,
-    discover_fci as _discover_fci,
-    discover_pcmci as _discover_pcmci,
-    discover_pcmci_plus as _discover_pcmci_plus,
-    discover_rfci as _discover_rfci,
-    discover_rpcmci as _discover_rpcmci,
-    discover_structure_mcmc as _discover_structure_mcmc,
     two_regime_half_split,
 )
+from ._native import (
+    discover_ci_screened_posterior as _discover_ci_screened_posterior,
+)
+from ._native import (
+    discover_dbn_posterior as _discover_dbn_posterior,
+)
+from ._native import (
+    discover_exact_dag_posterior as _discover_exact_dag_posterior,
+)
+from ._native import (
+    discover_fci as _discover_fci,
+)
+from ._native import (
+    discover_ges as _discover_ges,
+)
+from ._native import (
+    discover_jpcmci_plus as _discover_jpcmci_plus,
+)
+from ._native import (
+    discover_lingam as _discover_lingam,
+)
+from ._native import (
+    discover_lpcmci as _discover_lpcmci,
+)
+from ._native import (
+    discover_notears as _discover_notears,
+)
+from ._native import (
+    discover_order_mcmc as _discover_order_mcmc,
+)
+from ._native import (
+    discover_pc as _discover_pc,
+)
+from ._native import (
+    discover_pcmci as _discover_pcmci,
+)
+from ._native import (
+    discover_pcmci_plus as _discover_pcmci_plus,
+)
+from ._native import (
+    discover_rfci as _discover_rfci,
+)
+from ._native import (
+    discover_rpcmci as _discover_rpcmci,
+)
+from ._native import (
+    discover_structure_mcmc as _discover_structure_mcmc,
+)
 
-CiSpec = Union[str, Callable[..., Sequence[tuple[float, float]]]]
+if TYPE_CHECKING:
+    from .graph import Cpdag, Dag
+
+CiSpec = str | Callable[..., Sequence[tuple[float, float]]]
 
 
 @dataclass(frozen=True)
@@ -217,7 +253,7 @@ class DbnPosterior:
 DiscoveryResult = PcmciDiscoveryResult
 
 
-def discovery_to_dag(result: DiscoveryResult) -> "Dag":
+def discovery_to_dag(result: DiscoveryResult) -> Dag:
     """Build a ``Dag`` from a discovery result's directed ``graph_edges``.
 
     Raises ``ValueError`` if any undirected/circle marks remain.
@@ -269,6 +305,313 @@ def _coerce_tabular(
     raise TypeError("provide data=… or names + columns")
 
 
+def _call_discover(
+    fn: Callable[..., DiscoveryResult],
+    names_or_data: Any | None,
+    columns,
+    *,
+    data=None,
+    **kwargs: Any,
+) -> DiscoveryResult:
+    n, cols = _coerce_tabular(names_or_data, columns, data=data)
+    return fn(n, cols, **kwargs)
+
+
+def _ci_str(ci: CiSpec) -> str:
+    return ci if isinstance(ci, str) else "parcorr"
+
+
+StaticDiscovery = PC | GES | LiNGAM | NOTEARS | FCI | RFCI
+TemporalDiscovery = PCMCI | PCMCIPlus | LPCMCI
+
+
+def run_static_discovery(
+    data: Any,
+    discovery: StaticDiscovery,
+    *,
+    seed: int = 1,
+    threads: int = 1,
+) -> tuple[DiscoveryResult, str]:
+    """Dispatch a static discovery config to the matching ``discover_*`` helper.
+
+    Single source of truth for PC/GES/LiNGAM/NOTEARS/FCI/RFCI used by
+    ``analyze``, ``AcceptedGraph``, and GCM compose helpers.
+    """
+    if isinstance(discovery, PC):
+        return (
+            discover_pc(
+                data,
+                alpha=discovery.alpha,
+                fdr=discovery.fdr,
+                seed=seed,
+                threads=threads,
+                ci=_ci_str(discovery.ci),
+                max_cond_size=discovery.max_cond_size,
+            ),
+            "pc",
+        )
+    if isinstance(discovery, GES):
+        return (
+            discover_ges(
+                data,
+                alpha=discovery.alpha,
+                fdr=discovery.fdr,
+                seed=seed,
+                threads=threads,
+                ci=_ci_str(discovery.ci),
+                max_cond_size=discovery.max_cond_size,
+                screen_pc=discovery.screen_pc,
+                max_subset=discovery.max_subset,
+            ),
+            "ges",
+        )
+    if isinstance(discovery, LiNGAM):
+        return (
+            discover_lingam(
+                data,
+                prune_threshold=discovery.prune_threshold,
+                max_cond_size=discovery.max_cond_size,
+                seed=seed,
+                threads=threads,
+            ),
+            "lingam",
+        )
+    if isinstance(discovery, NOTEARS):
+        return (
+            discover_notears(
+                data,
+                l1=discovery.l1,
+                threshold=discovery.threshold,
+                standardize=discovery.standardize,
+                max_cond_size=discovery.max_cond_size,
+                seed=seed,
+                threads=threads,
+            ),
+            "notears",
+        )
+    if isinstance(discovery, FCI):
+        return (
+            discover_fci(
+                data,
+                alpha=discovery.alpha,
+                fdr=discovery.fdr,
+                seed=seed,
+                threads=threads,
+                ci=_ci_str(discovery.ci),
+                max_cond_size=discovery.max_cond_size,
+            ),
+            "fci",
+        )
+    if isinstance(discovery, RFCI):
+        return (
+            discover_rfci(
+                data,
+                alpha=discovery.alpha,
+                fdr=discovery.fdr,
+                seed=seed,
+                threads=threads,
+                ci=_ci_str(discovery.ci),
+                max_cond_size=discovery.max_cond_size,
+            ),
+            "rfci",
+        )
+    raise TypeError(f"unsupported static discovery type: {type(discovery)!r}")
+
+
+def run_temporal_discovery(
+    data: Any,
+    discovery: TemporalDiscovery,
+    *,
+    seed: int = 1,
+    threads: int = 1,
+) -> tuple[DiscoveryResult, str]:
+    """Dispatch a PCMCI-family discovery config to the matching ``discover_*`` helper."""
+    if isinstance(discovery, PCMCI):
+        return (
+            discover_pcmci(
+                data=data,
+                max_lag=discovery.max_lag,
+                alpha=discovery.alpha,
+                fdr=discovery.fdr,
+                seed=seed,
+                threads=threads,
+                ci=_ci_str(discovery.ci),
+            ),
+            "pcmci",
+        )
+    if isinstance(discovery, PCMCIPlus):
+        return (
+            discover_pcmci_plus(
+                data=data,
+                max_lag=discovery.max_lag,
+                alpha=discovery.alpha,
+                fdr=discovery.fdr,
+                seed=seed,
+                threads=threads,
+                ci=_ci_str(discovery.ci),
+            ),
+            "pcmci+",
+        )
+    if isinstance(discovery, LPCMCI):
+        return (
+            discover_lpcmci(
+                data=data,
+                max_lag=discovery.max_lag,
+                alpha=discovery.alpha,
+                fdr=discovery.fdr,
+                seed=seed,
+                threads=threads,
+                ci=_ci_str(discovery.ci),
+            ),
+            "lpcmci",
+        )
+    raise TypeError(f"unsupported temporal discovery type: {type(discovery)!r}")
+
+
+def discovery_algorithm(discovery: Any) -> dict[str, Any]:
+    """Serialize a discovery config dataclass into kwargs for native analyze paths."""
+    if isinstance(discovery, PCMCI):
+        return {
+            "algorithm": "pcmci",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+        }
+    if isinstance(discovery, PCMCIPlus):
+        return {
+            "algorithm": "pcmci_plus",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+        }
+    if isinstance(discovery, LPCMCI):
+        return {
+            "algorithm": "lpcmci",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+        }
+    if isinstance(discovery, JPCMCIPlus):
+        return {
+            "algorithm": "jpcmci_plus",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+            "context_names": list(discovery.context_names),
+            "include_space_dummy": discovery.include_space_dummy,
+            "include_time_dummy": discovery.include_time_dummy,
+            "space_dummy_ci": discovery.space_dummy_ci,
+            "time_dummy_encoding": discovery.time_dummy_encoding,
+            "time_dummy_ci": discovery.time_dummy_ci,
+        }
+    if isinstance(discovery, RPCMCI):
+        return {
+            "algorithm": "rpcmci",
+            "max_lag": discovery.max_lag,
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+        }
+    if isinstance(discovery, PC):
+        return {
+            "algorithm": "pc",
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
+        }
+    if isinstance(discovery, GES):
+        return {
+            "algorithm": "ges",
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
+        }
+    if isinstance(discovery, LiNGAM):
+        return {
+            "algorithm": "lingam",
+            "prune_threshold": discovery.prune_threshold,
+            "max_cond_size": discovery.max_cond_size,
+            "alpha": 0.05,
+            "fdr": True,
+            "ci": "parcorr",
+        }
+    if isinstance(discovery, NOTEARS):
+        return {
+            "algorithm": "notears",
+            "lambda": discovery.l1,
+            "threshold": discovery.threshold,
+            "standardize": discovery.standardize,
+            "max_cond_size": discovery.max_cond_size,
+            "alpha": 0.05,
+            "fdr": True,
+            "ci": "parcorr",
+        }
+    if isinstance(discovery, FCI):
+        return {
+            "algorithm": "fci",
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
+        }
+    if isinstance(discovery, RFCI):
+        return {
+            "algorithm": "rfci",
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
+        }
+    if isinstance(discovery, ExactDagPosterior):
+        return {"algorithm": "exact_dag_posterior"}
+    if isinstance(discovery, OrderMcmc):
+        return {
+            "algorithm": "order_mcmc",
+            "n_chains": discovery.n_chains,
+            "n_warmup": discovery.n_warmup,
+            "mcmc_draws": discovery.n_draws,
+            "thin": discovery.thin,
+            "require_diagnostics_gate": discovery.require_diagnostics_gate,
+        }
+    if isinstance(discovery, StructureMcmc):
+        return {
+            "algorithm": "structure_mcmc",
+            "n_chains": discovery.n_chains,
+            "n_warmup": discovery.n_warmup,
+            "mcmc_draws": discovery.n_draws,
+            "thin": discovery.thin,
+        }
+    if isinstance(discovery, CiScreenedPosterior):
+        return {
+            "algorithm": "ci_screened_posterior",
+            "alpha": discovery.alpha,
+            "fdr": discovery.fdr,
+            "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
+            "soft_weight": discovery.soft_weight,
+            "n_chains": discovery.n_chains,
+            "n_warmup": discovery.n_warmup,
+            "mcmc_draws": discovery.n_draws,
+            "thin": discovery.thin,
+        }
+    if isinstance(discovery, DbnPosterior):
+        return {
+            "algorithm": "dbn_posterior",
+            "max_lag": discovery.max_lag,
+            "force_mcmc": discovery.force_mcmc,
+            "n_chains": discovery.n_chains,
+            "n_warmup": discovery.n_warmup,
+            "mcmc_draws": discovery.n_draws,
+        }
+    raise TypeError(f"unsupported discovery config: {type(discovery)!r}")
+
+
 def discover_pc(
     names: Any | None = None,
     columns: Sequence[NDArray[np.float64]] | None = None,
@@ -281,10 +624,11 @@ def discover_pc(
     max_cond_size: int = 2,
     threads: int = 1,
 ) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_pc(
-        n,
-        cols,
+    return _call_discover(
+        _discover_pc,
+        names,
+        columns,
+        data=data,
         alpha=alpha,
         fdr=fdr,
         seed=seed,
@@ -308,10 +652,11 @@ def discover_ges(
     screen_pc: bool = False,
     max_subset: int | None = None,
 ) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_ges(
-        n,
-        cols,
+    return _call_discover(
+        _discover_ges,
+        names,
+        columns,
+        data=data,
         alpha=alpha,
         fdr=fdr,
         seed=seed,
@@ -333,10 +678,11 @@ def discover_lingam(
     max_cond_size: int = 8,
     threads: int = 1,
 ) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_lingam(
-        n,
-        cols,
+    return _call_discover(
+        _discover_lingam,
+        names,
+        columns,
+        data=data,
         prune_threshold=prune_threshold,
         seed=seed,
         max_cond_size=max_cond_size,
@@ -356,10 +702,11 @@ def discover_notears(
     max_cond_size: int = 8,
     threads: int = 1,
 ) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_notears(
-        n,
-        cols,
+    return _call_discover(
+        _discover_notears,
+        names,
+        columns,
+        data=data,
         l1=l1,
         threshold=threshold,
         standardize=standardize,
@@ -381,10 +728,11 @@ def discover_fci(
     max_cond_size: int = 2,
     threads: int = 1,
 ) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_fci(
-        n,
-        cols,
+    return _call_discover(
+        _discover_fci,
+        names,
+        columns,
+        data=data,
         alpha=alpha,
         fdr=fdr,
         seed=seed,
@@ -406,10 +754,11 @@ def discover_rfci(
     max_cond_size: int = 2,
     threads: int = 1,
 ) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_rfci(
-        n,
-        cols,
+    return _call_discover(
+        _discover_rfci,
+        names,
+        columns,
+        data=data,
         alpha=alpha,
         fdr=fdr,
         seed=seed,
@@ -432,10 +781,11 @@ def discover_pcmci(
     weights: list[float] | None = None,
     threads: int = 1,
 ) -> DiscoveryResult:
-    n, cols = _coerce_tabular(names, columns, data=data)
-    return _discover_pcmci(
-        n,
-        cols,
+    return _call_discover(
+        _discover_pcmci,
+        names,
+        columns,
+        data=data,
         max_lag=max_lag,
         alpha=alpha,
         fdr=fdr,
@@ -698,8 +1048,7 @@ def discover_dbn_posterior(
     )
 
 
-
-def graph_posterior_map_edges(post: "GraphPosterior") -> list[tuple[str, str]]:
+def graph_posterior_map_edges(post: GraphPosterior) -> list[tuple[str, str]]:
     """Oriented edges from the maximum-weight adjacency mask in a graph posterior."""
     import numpy as np
 
@@ -723,7 +1072,7 @@ def graph_posterior_map_edges(post: "GraphPosterior") -> list[tuple[str, str]]:
     return edges
 
 
-def graph_posterior_map_dag(post: "GraphPosterior") -> "Dag":
+def graph_posterior_map_dag(post: GraphPosterior) -> Dag:
     """MAP DAG from a graph posterior (maximum-weight atom)."""
     from .graph import Dag
 
@@ -732,7 +1081,7 @@ def graph_posterior_map_dag(post: "GraphPosterior") -> "Dag":
     return Dag.from_edges(names, edges)
 
 
-def cpdag_oriented_edges(cpdag: "Cpdag", *, require_oriented: bool = True) -> list[tuple[str, str]]:
+def cpdag_oriented_edges(cpdag: Cpdag, *, require_oriented: bool = True) -> list[tuple[str, str]]:
     """Return directed edges from a CPDAG; error if undirected remain when required."""
     from .graph import Cpdag
 
@@ -803,8 +1152,11 @@ __all__ = [
     "discover_rpcmci",
     "discover_structure_mcmc",
     "cpdag_oriented_edges",
+    "discovery_algorithm",
     "discovery_to_dag",
     "graph_posterior_map_dag",
     "graph_posterior_map_edges",
+    "run_static_discovery",
+    "run_temporal_discovery",
     "two_regime_half_split",
 ]

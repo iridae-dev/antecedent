@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,8 +22,7 @@ def as_columns(
         cols = [to_f64(data[c].to_numpy()) for c in data.columns]
         return names, cols
     raise TypeError(
-        "data must be a mapping of name→array or a pandas DataFrame; "
-        f"got {type(data)!r}"
+        f"data must be a mapping of name→array or a pandas DataFrame; got {type(data)!r}"
     )
 
 

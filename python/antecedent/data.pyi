@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from numpy.typing import NDArray
 
 from ._native import (
     ArrowLoadInfo as ArrowLoadInfo,
+)
+from ._native import (
     load_float64_arrow_c_columns as load_float64_arrow_c_columns,
+)
+from ._native import (
     load_float64_columns as load_float64_columns,
 )
 
@@ -31,9 +36,7 @@ def event(
     *,
     align_interval_ns: int,
 ) -> EventFrame: ...
-
 def panel(
     units: Sequence[Mapping[str, Any] | Any] | Mapping[Any, Mapping[str, Any] | Any],
 ) -> PanelFrame: ...
-
 def multi_env(envs: Sequence[Mapping[str, Any] | Any]) -> MultiEnvFrame: ...

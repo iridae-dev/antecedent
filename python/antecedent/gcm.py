@@ -6,7 +6,8 @@ compose ``discover_*`` → ``discovery_to_dag`` → ``fit_gcm`` / ``attribute_*`
 
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ._data import as_columns
 from ._native import (
@@ -18,38 +19,23 @@ from ._native import (
 from .discovery import (
     FCI,
     GES,
-    LiNGAM,
     NOTEARS,
     PC,
     RFCI,
-    discover_ges,
-    discover_lingam,
-    discover_notears,
-    discover_pc,
+    LiNGAM,
     discovery_to_dag,
+    run_static_discovery,
 )
 
 
 def _run_static_discovery(data, discovery, *, seed: int, threads: int):
-    if isinstance(discovery, PC):
-        return discover_pc(
-            data, alpha=discovery.alpha, fdr=discovery.fdr, seed=seed, threads=threads
-        ), "pc"
-    if isinstance(discovery, GES):
-        return discover_ges(
-            data, alpha=discovery.alpha, fdr=discovery.fdr, seed=seed, threads=threads
-        ), "ges"
-    if isinstance(discovery, LiNGAM):
-        return discover_lingam(data, seed=seed, threads=threads), "lingam"
-    if isinstance(discovery, NOTEARS):
-        return discover_notears(data, seed=seed, threads=threads), "notears"
     if isinstance(discovery, (FCI, RFCI)):
         algo = "fci" if isinstance(discovery, FCI) else "rfci"
         raise ValueError(
             f"{algo}: fit_gcm_discovered requires a fully oriented DAG; "
             "use PC/GES/LiNGAM/NOTEARS, or orient the PAG and call fit_gcm directly"
         )
-    raise TypeError(f"unsupported discovery type for GCM compose: {type(discovery)!r}")
+    return run_static_discovery(data, discovery, seed=seed, threads=threads)
 
 
 def fit_gcm_discovered(
@@ -85,9 +71,7 @@ def attribute_paths_discovered(
     threads: int = 1,
 ):
     """``fit_gcm_discovered`` then ``attribute_paths``. Returns ``(result, graph_edges)``."""
-    fitted, edges = fit_gcm_discovered(
-        data, discovery=discovery, seed=seed, threads=threads
-    )
+    fitted, edges = fit_gcm_discovered(data, discovery=discovery, seed=seed, threads=threads)
     _ = fitted
     names, columns = as_columns(data)
     result = attribute_paths(
@@ -114,14 +98,10 @@ def anomaly_attribution_discovered(
     threads: int = 1,
 ):
     """``fit_gcm_discovered`` then ``anomaly_attribution``. Returns ``(result, graph_edges)``."""
-    fitted, edges = fit_gcm_discovered(
-        data, discovery=discovery, seed=seed, threads=threads
-    )
+    fitted, edges = fit_gcm_discovered(data, discovery=discovery, seed=seed, threads=threads)
     _ = fitted
     names, columns = as_columns(data)
-    result = anomaly_attribution(
-        names, columns, edges, list(outcomes), max_units=max_units
-    )
+    result = anomaly_attribution(names, columns, edges, list(outcomes), max_units=max_units)
     return result, edges
 
 
@@ -139,9 +119,7 @@ def attribute_distribution_change_discovered(
     threads: int = 1,
 ):
     """Compose discover → DAG → ``attribute_distribution_change``."""
-    fitted, edges = fit_gcm_discovered(
-        data, discovery=discovery, seed=seed, threads=threads
-    )
+    fitted, edges = fit_gcm_discovered(data, discovery=discovery, seed=seed, threads=threads)
     _ = fitted
     names, columns = as_columns(data)
     result = attribute_distribution_change(
