@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "oracle": {"kind": "composition of frozen backdoor, ID, IDC, IV, RD, and envelope fixtures", "generator": "temporary composition harness (deleted after artifact import)"},
+  "cases": [
+    {"id": "backdoor_route", "expected_method_family": "backdoor", "status": "identified"},
+    {"id": "conditioned_distribution_route", "expected_method_family": "idc", "status": "identified"},
+    {"id": "iv_route", "expected_method_family": "iv", "status": "identified"},
+    {"id": "rd_route_with_config", "expected_method_family": "rd.sharp", "status": "identified"},
+    {"id": "unsupported_soft_mechanism", "status": "error"}
+  ]
+}

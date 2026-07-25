@@ -84,6 +84,8 @@ dependencies = [
  "antecedent-prob",
  "antecedent-stats",
  "criterion",
+ "serde",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -104,6 +106,7 @@ dependencies = [
  "antecedent-model",
  "antecedent-prob",
  "criterion",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -131,6 +134,7 @@ dependencies = [
  "antecedent-prob",
  "antecedent-stats",
  "criterion",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -162,6 +166,7 @@ dependencies = [
  "antecedent-prob",
  "antecedent-stats",
  "criterion",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -178,6 +183,7 @@ version = "0.2.0"
 dependencies = [
  "antecedent-core",
  "criterion",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -190,6 +196,7 @@ dependencies = [
  "antecedent-expr",
  "antecedent-graph",
  "criterion",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -235,6 +242,7 @@ dependencies = [
  "antecedent-prob",
  "antecedent-stats",
  "criterion",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -245,6 +253,7 @@ dependencies = [
  "antecedent-core",
  "antecedent-kernels",
  "criterion",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -278,6 +287,7 @@ dependencies = [
  "antecedent-core",
  "antecedent-stats",
  "criterion",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 

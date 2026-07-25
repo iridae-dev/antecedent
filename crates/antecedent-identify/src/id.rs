@@ -727,6 +727,11 @@ mod tests {
 
     #[test]
     fn hedge_not_identified() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/id_hedge/expected.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["cases"][1]["certificate"].as_str(), Some("hedge"));
         // t -> y with t ↔ y
         let mut g = Admg::with_variables(2);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();

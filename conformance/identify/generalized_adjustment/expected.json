@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "oracle": {"project": "complete MAG enumeration plus generalized adjustment criterion", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "cases": [
+    {"id": "directed_edge", "pag": ["T->Y"], "status": "identified", "adjustment_set": []},
+    {"id": "observed_confounder", "pag": ["Z->T", "Z->Y", "T->Y"], "status": "identified", "adjustment_set": ["Z"]},
+    {"id": "mixed_circle_arrow", "pag": ["To->Y"], "invariant": "identified_weight+unidentified_weight=completion_count"}
+  ]
+}
