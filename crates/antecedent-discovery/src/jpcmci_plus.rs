@@ -418,7 +418,7 @@ impl JpcmciPlus {
             workspace,
             ctx,
         )?;
-        let rules: [&dyn OrientationRule; 4] =
+        let rules: [&dyn OrientationRule<antecedent_graph::TemporalCpdag>; 4] =
             [&ContempMeekR1, &ContempMeekR2, &ContempMeekR3, &ContempMeekR4];
         let meek_delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 

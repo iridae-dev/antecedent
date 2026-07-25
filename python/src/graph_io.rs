@@ -7,25 +7,50 @@
 )]
 
 use crate::*;
+use antecedent_graph::Dag;
 use pyo3::prelude::*;
 
-#[pyfunction]
-fn dag_from_dot(dot: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
+type DagWireTuple = (usize, Vec<(u32, u32)>);
+
+fn dag_to_wire_tuple(dag: &Dag) -> PyResult<DagWireTuple> {
+    let wire = antecedent_io::dag_to_wire(dag).map_err(py_err)?;
+    Ok((wire.node_count as usize, wire.edges))
+}
+
+fn dag_from_node_edges(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<Dag> {
+    let wire = antecedent_io::DagWire { node_count, edges };
+    antecedent_io::dag_from_wire(&wire).map_err(py_err)
+}
+
+fn parse_dag_to_wire_tuple<F>(parse: F) -> PyResult<DagWireTuple>
+where
+    F: FnOnce() -> Result<Dag, antecedent::CausalError>,
+{
     catch_ffi(|| {
-        let dag = facade_dag_from_dot(dot).map_err(py_err)?;
-        let wire = antecedent_io::dag_to_wire(&dag).map_err(py_err)?;
-        Ok((wire.node_count as usize, wire.edges))
+        let dag = parse().map_err(py_err)?;
+        dag_to_wire_tuple(&dag)
     })
+}
+
+fn emit_dag_from_wire<F>(node_count: u32, edges: Vec<(u32, u32)>, emit: F) -> PyResult<String>
+where
+    F: FnOnce(&Dag) -> Result<String, antecedent::CausalError>,
+{
+    catch_ffi(|| {
+        let dag = dag_from_node_edges(node_count, edges)?;
+        emit(&dag).map_err(py_err)
+    })
+}
+
+#[pyfunction]
+fn dag_from_dot(dot: &str) -> PyResult<DagWireTuple> {
+    parse_dag_to_wire_tuple(|| facade_dag_from_dot(dot))
 }
 
 /// Emit DOT for a numeric DAG given `node_count` and `edges`.
 #[pyfunction]
 fn dag_to_dot(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
-    catch_ffi(|| {
-        let wire = antecedent_io::DagWire { node_count, edges };
-        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
-        facade_dag_to_dot(&dag, None).map_err(py_err)
-    })
+    emit_dag_from_wire(node_count, edges, |dag| facade_dag_to_dot(dag, None))
 }
 
 /// Parsed JSON DAG: `(node_count, edges, variable_names)`.
@@ -50,49 +75,34 @@ fn dag_to_json(
     variable_names: Option<Vec<String>>,
 ) -> PyResult<String> {
     catch_ffi(|| {
-        let wire = antecedent_io::DagWire { node_count, edges };
-        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
+        let dag = dag_from_node_edges(node_count, edges)?;
         facade_dag_to_json(&dag, variable_names.as_deref()).map_err(py_err)
     })
 }
 
 /// Parse GML digraph text; return `(node_count, edges)`.
 #[pyfunction]
-fn dag_from_gml(gml: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
-    catch_ffi(|| {
-        let dag = antecedent::io::dag_from_gml(gml).map_err(py_err)?;
-        let wire = antecedent_io::dag_to_wire(&dag).map_err(py_err)?;
-        Ok((wire.node_count as usize, wire.edges))
-    })
+fn dag_from_gml(gml: &str) -> PyResult<DagWireTuple> {
+    parse_dag_to_wire_tuple(|| antecedent::io::dag_from_gml(gml))
 }
 
 /// Emit GML for a numeric DAG.
 #[pyfunction]
 fn dag_to_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
-    catch_ffi(|| {
-        let wire = antecedent_io::DagWire { node_count, edges };
-        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
-        antecedent::io::dag_to_gml(&dag, None).map_err(py_err)
-    })
+    emit_dag_from_wire(node_count, edges, |dag| antecedent::io::dag_to_gml(dag, None))
 }
 
 /// Parse NetworkX node-link JSON; return `(node_count, edges)`.
 #[pyfunction]
-fn dag_from_networkx_node_link(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
-    catch_ffi(|| {
-        let dag = antecedent::io::dag_from_networkx_node_link(json).map_err(py_err)?;
-        let wire = antecedent_io::dag_to_wire(&dag).map_err(py_err)?;
-        Ok((wire.node_count as usize, wire.edges))
-    })
+fn dag_from_networkx_node_link(json: &str) -> PyResult<DagWireTuple> {
+    parse_dag_to_wire_tuple(|| antecedent::io::dag_from_networkx_node_link(json))
 }
 
 /// Emit NetworkX node-link JSON for a numeric DAG.
 #[pyfunction]
 fn dag_to_networkx_node_link(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
-    catch_ffi(|| {
-        let wire = antecedent_io::DagWire { node_count, edges };
-        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
-        antecedent::io::dag_to_networkx_node_link(&dag, None).map_err(py_err)
+    emit_dag_from_wire(node_count, edges, |dag| {
+        antecedent::io::dag_to_networkx_node_link(dag, None)
     })
 }
 
@@ -127,11 +137,7 @@ fn encode_model_bundle(
             .map_err(|e| py_err(IoError::Convert(e.to_string())))?;
         }
         let schema = b.build().map_err(|e| py_err(IoError::Convert(e.to_string())))?;
-        let wire = antecedent_io::DagWire {
-            node_count: u32::try_from(variable_names.len()).unwrap_or(0),
-            edges,
-        };
-        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
+        let dag = dag_from_node_edges(u32::try_from(variable_names.len()).unwrap_or(0), edges)?;
         let slots: Vec<MechanismSlot> = mechanisms
             .into_iter()
             .map(|(kind, constant, coeffs, sigma)| match kind.as_str() {
@@ -184,12 +190,8 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<ModelBundleSummary> {
 }
 
 #[pyfunction]
-fn dag_from_networkx_adjacency(json: &str) -> PyResult<(usize, Vec<(u32, u32)>)> {
-    catch_ffi(|| {
-        let dag = facade_dag_from_networkx_adjacency(json).map_err(py_err)?;
-        let wire = antecedent_io::dag_to_wire(&dag).map_err(py_err)?;
-        Ok((wire.node_count as usize, wire.edges))
-    })
+fn dag_from_networkx_adjacency(json: &str) -> PyResult<DagWireTuple> {
+    parse_dag_to_wire_tuple(|| facade_dag_from_networkx_adjacency(json))
 }
 
 /// Emit NetworkX adjacency JSON for a numeric DAG.
@@ -200,8 +202,7 @@ fn dag_to_networkx_adjacency(
     variable_names: Option<Vec<String>>,
 ) -> PyResult<String> {
     catch_ffi(|| {
-        let wire = antecedent_io::DagWire { node_count, edges };
-        let dag = antecedent_io::dag_from_wire(&wire).map_err(py_err)?;
+        let dag = dag_from_node_edges(node_count, edges)?;
         facade_dag_to_networkx_adjacency(&dag, variable_names.as_deref()).map_err(py_err)
     })
 }

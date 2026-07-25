@@ -19,7 +19,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
-use crate::{catch_ffi, columns_to_batch, py_msg};
+use crate::{catch_ffi, columns_to_batch, py_err};
 
 type BatchColumnsPy<'py> = (Vec<String>, Vec<Bound<'py, PyArray1<f64>>>);
 
@@ -42,7 +42,7 @@ pub struct PyCausalState {
 
 impl PyCausalState {
     fn apply(&mut self, event: StateEvent) -> PyResult<u64> {
-        let ver = apply_state_event(&mut self.inner, event).map_err(py_msg)?;
+        let ver = apply_state_event(&mut self.inner, event).map_err(py_err)?;
         Ok(ver.raw())
     }
 
@@ -263,7 +263,7 @@ impl PyCausalState {
             .into_iter()
             .map(|(q, fp, bytes)| (QueryId::from_raw(q as u32), fp, bytes))
             .collect();
-        self.inner.refresh_results(&mapped).map_err(py_msg)?;
+        self.inner.refresh_results(&mapped).map_err(py_err)?;
         Ok(())
     }
 
@@ -284,7 +284,7 @@ impl PyCausalState {
             .ols
             .get_mut(key.as_str())
             .ok_or_else(|| PyValueError::new_err(format!("unknown ols key `{key}`")))?;
-        stats.append_row(&row, y).map_err(py_msg)?;
+        stats.append_row(&row, y).map_err(py_err)?;
         Ok(())
     }
 
@@ -322,7 +322,7 @@ impl PyCausalState {
             .cov
             .get_mut(key.as_str())
             .ok_or_else(|| PyValueError::new_err(format!("unknown cov key `{key}`")))?;
-        cov.append(&row).map_err(py_msg)?;
+        cov.append(&row).map_err(py_err)?;
         Ok(())
     }
 
@@ -359,7 +359,7 @@ impl PyCausalState {
             self.inner.data_catalog.version.raw(),
             seed,
         )
-        .map_err(py_msg)?;
+        .map_err(py_err)?;
         self.inner.suff_stats.particle_filters.insert(Arc::from(key), pf);
         Ok(())
     }
@@ -372,7 +372,7 @@ impl PyCausalState {
             .particle_filters
             .get_mut(key.as_str())
             .ok_or_else(|| PyValueError::new_err(format!("unknown particle filter `{key}`")))?;
-        pf.step(y).map_err(py_msg)?;
+        pf.step(y).map_err(py_err)?;
         Ok(())
     }
 
@@ -423,7 +423,7 @@ pub(crate) fn antecedent_state_append(n_appends: u64, cache_bytes: u64) -> PyRes
                 &mut state.inner,
                 StateEvent::AppendData(DataBatchRef { id, nrows: 8, bytes: 64 }),
             )
-            .map_err(py_msg)?;
+            .map_err(py_err)?;
         }
         Ok((state.inner.version.raw(), state.inner.stale_queries().len()))
     })

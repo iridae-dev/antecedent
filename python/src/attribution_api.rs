@@ -34,18 +34,7 @@ fn counterfactual_ite(
             let data = loaded.data;
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let n_vars = u32::try_from(data.schema().len())
-                .map_err(|_| PyValueError::new_err("too many variables"))?;
-            let mut g = Dag::with_variables(n_vars);
-            for (from, to) in &edges {
-                let from_id = data.schema().id_of(from).map_err(py_err)?;
-                let to_id = data.schema().id_of(to).map_err(py_err)?;
-                g.insert_directed(
-                    DenseNodeId::from_raw(from_id.raw()),
-                    DenseNodeId::from_raw(to_id.raw()),
-                )
-                .map_err(py_err)?;
-            }
+            let g = dag_from_named_edges(data.schema(), &edges)?;
             let fitted = fit_gcm(g, &data).map_err(py_err)?;
             let n_assignments = fitted.assignments.len();
             let ctx = py_execution_context(seed, threads);
@@ -95,18 +84,7 @@ fn sample_do_py(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let model = if let Some(w) = wrappers {
             Python::attach(|py| {
@@ -167,18 +145,7 @@ fn sample_interventional_distribution(
             None => names.last().map_or("y", String::as_str),
         };
         let y_id = data.schema().id_of(y_name).map_err(py_err)?;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let query = InterventionalDistributionQuery::new(
             y_id,
@@ -236,18 +203,7 @@ fn attribute_path_specific(
                 intermediates.push(data.schema().id_of(n).map_err(py_err)?);
             }
         }
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
             .with_max_paths(max_paths)
@@ -296,18 +252,7 @@ fn attribute_distribution_change(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let query = ChangeAttributionQuery::new(
             y_id,
@@ -355,30 +300,10 @@ fn attribute_structure_change(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g0 = Dag::with_variables(n_vars);
-        for (from, to) in &baseline_edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g0.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
-        let mut g1 = Dag::with_variables(n_vars);
-        for (from, to) in &comparison_edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g1.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
-        let baseline = CompiledCausalModel::compile(g0).map_err(py_msg)?;
-        let comparison = CompiledCausalModel::compile(g1).map_err(py_msg)?;
+        let g0 = dag_from_named_edges(data.schema(), &baseline_edges)?;
+        let g1 = dag_from_named_edges(data.schema(), &comparison_edges)?;
+        let baseline = CompiledCausalModel::compile(g0).map_err(py_err)?;
+        let comparison = CompiledCausalModel::compile(g1).map_err(py_err)?;
         let query = ChangeAttributionQuery::new(
             y_id,
             PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
@@ -508,18 +433,7 @@ fn anomaly_attribution(
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let outcome_ids: Vec<VariableId> = outcomes
             .iter()
@@ -565,18 +479,7 @@ fn attribute_unit_change(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let max_u = if max_units == 0 { data.row_count() } else { max_units };
@@ -614,18 +517,7 @@ fn attribute_feature_relevance(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let features: Vec<VariableId> = (0..data.schema().len())
@@ -680,18 +572,7 @@ fn attribute_distribution_change_robust(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let query = ChangeAttributionQuery {
             outcome: y_id,
@@ -735,18 +616,7 @@ fn mechanism_change_detection(
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
-        let n_vars = u32::try_from(data.schema().len())
-            .map_err(|_| PyValueError::new_err("too many variables"))?;
-        let mut g = Dag::with_variables(n_vars);
-        for (from, to) in &edges {
-            let from_id = data.schema().id_of(from).map_err(py_err)?;
-            let to_id = data.schema().id_of(to).map_err(py_err)?;
-            g.insert_directed(
-                DenseNodeId::from_raw(from_id.raw()),
-                DenseNodeId::from_raw(to_id.raw()),
-            )
-            .map_err(py_err)?;
-        }
+        let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let targets: Vec<VariableId> = (0..data.schema().len())

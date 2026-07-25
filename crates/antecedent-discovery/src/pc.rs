@@ -34,7 +34,7 @@ use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::evidence::threshold_scored_links;
 use crate::orientation::{
-    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationState, StaticOrientationRule,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule, OrientationState,
     run_static_orientation_to_fixed_point,
 };
 use crate::result::{
@@ -372,7 +372,7 @@ impl Pc {
             state.set_sepset(a, b, Arc::from(dense_sep));
         }
 
-        let rules: [&dyn StaticOrientationRule; 5] =
+        let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 5] =
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
         let orient_delta = run_static_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 
