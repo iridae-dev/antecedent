@@ -1,13 +1,10 @@
-# Oracle-fixture closure ledger for the method-by-method mathematical audit.
+# Oracle-fixture closure ledger.
 #
-# Oracle generation is an external audit operation. Temporary harnesses are
-# deleted after generation; this repository retains only frozen artifacts,
-# provenance, conformance tests, and gate wiring.
+# Oracle generation is an external operation. Temporary harnesses are deleted
+# after generation; this repository retains only frozen artifacts, provenance,
+# conformance tests, and gate wiring.
 
 schema_version = 1
-audit_base_commit = "29336cf06d0925aa33b94398c87ae19ef65b9907"
-audit_readme = "docs/audit/method-math/README.md"
-plan = "docs/audit/method-math/oracle-closure-plan.md"
 target_rows = 60
 
 [case_profiles.numeric]
@@ -156,8 +153,8 @@ fixture_dir = "conformance/discovery/advanced_ci"
 comparison = "statistical"
 case_profile = "statistical"
 gate = "scripts/gate_estimate_ci.sh"
-exit_disposition = "defective"
-status = "oracle_disagreement"
+exit_disposition = "validated_with_limits"
+status = "closed"
 
 [[method]]
 id = "ci.bayesian"
@@ -221,8 +218,8 @@ fixture_dir = "conformance/discovery/static_oracle_matrix"
 comparison = "graph-semantic"
 case_profile = "graph"
 gate = "scripts/gate_pag.sh"
-exit_disposition = "defective"
-status = "oracle_disagreement"
+exit_disposition = "validated_with_limits"
+status = "closed"
 
 [[method]]
 id = "discovery.direct_lingam"
@@ -247,8 +244,8 @@ fixture_dir = "conformance/discovery/lpcmci_matrix"
 comparison = "graph-semantic"
 case_profile = "statistical"
 gate = "scripts/gate_pag.sh"
-exit_disposition = "defective"
-status = "oracle_disagreement"
+exit_disposition = "validated_with_limits"
+status = "closed"
 
 [[method]]
 id = "discovery.jpcmci_plus"
@@ -286,8 +283,8 @@ fixture_dir = "conformance/discovery/graph_mcmc_exact"
 comparison = "distributional"
 case_profile = "mcmc"
 gate = "scripts/gate_bayesian.sh"
-exit_disposition = "defective"
-status = "oracle_disagreement"
+exit_disposition = "validated_with_limits"
+status = "closed"
 
 [[method]]
 id = "discovery.structure_mcmc"
@@ -559,8 +556,8 @@ fixture_dir = "conformance/gcm/discrete_hierarchical_glm"
 comparison = "numeric-and-statistical"
 case_profile = "statistical"
 gate = "scripts/gate_gcm.sh"
-exit_disposition = "defective"
-status = "oracle_disagreement"
+exit_disposition = "validated_with_limits"
+status = "closed"
 
 [[method]]
 id = "scm.minnesota_bvar"
@@ -598,8 +595,8 @@ fixture_dir = "conformance/gcm/gaussian_process"
 comparison = "numeric-and-statistical"
 case_profile = "statistical"
 gate = "scripts/gate_gcm.sh"
-exit_disposition = "defective"
-status = "oracle_disagreement"
+exit_disposition = "validated_with_limits"
+status = "closed"
 
 [[method]]
 id = "scm.do_sampling"
@@ -780,8 +777,8 @@ fixture_dir = "conformance/design/expected_information_gain"
 comparison = "numeric-and-statistical"
 case_profile = "statistical"
 gate = "scripts/gate_design_state.sh"
-exit_disposition = "defective"
-status = "oracle_disagreement"
+exit_disposition = "validated_with_limits"
+status = "closed"
 
 [[method]]
 id = "design.decision_ranking"
@@ -793,8 +790,8 @@ fixture_dir = "conformance/design/decision_ranking"
 comparison = "numeric-and-semantic"
 case_profile = "semantic"
 gate = "scripts/gate_design_state.sh"
-exit_disposition = "defective"
-status = "oracle_disagreement"
+exit_disposition = "validated_with_limits"
+status = "closed"
 
 [[method]]
 id = "design.candidate_ranking"

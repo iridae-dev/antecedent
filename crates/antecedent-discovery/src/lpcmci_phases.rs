@@ -325,7 +325,7 @@ fn restore_contemporaneous_marks(
     }
 }
 
-/// Tigramite end-of-phase: force remaining ambiguous middle marks to `!` (Both).
+/// End-of-phase: force remaining ambiguous middle marks to `!` (Both).
 fn force_ambiguous_middles_to_both(pag: &mut TemporalPag) {
     let n = pag.node_count();
     for a_raw in 0..n {
@@ -360,7 +360,7 @@ fn orient_lagged_only(
 }
 
 fn collect_parents(pag: &TemporalPag, idx: &NodeIndex, variables: &[VariableId]) -> ParentMemory {
-    // Tigramite `remember_only_parents`: retain definite parents (tail→arrow) that still exist.
+    // Remember-only-parents: retain definite parents (tail→arrow) that still exist.
     let mut mem = ParentMemory::new();
     for &v in variables {
         let set = known_parents_of(pag, idx, v)
@@ -372,7 +372,7 @@ fn collect_parents(pag: &TemporalPag, idx: &NodeIndex, variables: &[VariableId])
     mem
 }
 
-/// Priority link batches matching Tigramite `auto_first` ancestral removal:
+/// Priority link batches matching pinned `auto_first` ancestral removal:
 /// autos first, then contemporaneous, then increasing positive lag.
 fn ancestral_link_batches(
     variables: &[VariableId],
@@ -425,7 +425,7 @@ fn ancestral_removal_phase(
     let rules = prelim_lpcmci_rules();
     let batches = ancestral_link_batches(variables, max_lag);
 
-    // Tigramite: while over p_pc, restart at 0 after an orientation update.
+    // While over p_pc, restart at 0 after an orientation update.
     let mut p_pc = 0usize;
     let mut guard = 0usize;
     while p_pc <= max_p && guard < 10_000 {
@@ -435,7 +435,7 @@ fn ancestral_removal_phase(
 
         for batch in &batches {
             // Defer removals until the end of the batch so co-tested links remain
-            // available as conditioning candidates (Tigramite `to_remove`).
+            // available as conditioning candidates (`to_remove`).
             let mut to_remove: Vec<(VariableId, Lag, VariableId, Vec<(VariableId, Lag)>)> =
                 Vec::new();
 
@@ -645,7 +645,7 @@ fn ancestral_removal_phase(
         }
     }
     // End-of-phase: force middle marks to `!`, then full orientation including contemporaneous
-    // (Tigramite `prelim_with_collider_rules` / `_rules_all` with `only_lagged=False`).
+    // (`prelim_with_collider_rules` / `_rules_all` with `only_lagged=False`).
     force_ambiguous_middles_to_both(pag);
     let _ = run_lpcmci_orientation(pag, &default_lpcmci_rules(), state).map_err(DiscoveryError::from)?;
     Ok(ci_tests)

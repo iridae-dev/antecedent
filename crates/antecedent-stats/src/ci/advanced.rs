@@ -472,7 +472,7 @@ fn symbolic_mi_on_rows(columns: &[&[f64]], x: usize, y: usize, rows: &[usize]) -
 /// Residualization centers the response, factors `K+λI` once with Cholesky, and
 /// predicts with the unregularized kernel (MM-008). The earlier Jacobi-on-raw-`y`
 /// path rejected conditional nulls and missed two-conditioner alternatives against
-/// pinned Tigramite.
+/// the pinned advanced-CI oracle.
 #[derive(Clone, Debug)]
 pub struct Gpdc {
     /// RBF length scale.
