@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "SciPy exact Gaussian-process log marginal likelihood",
+    "versions": {"python": "3.12.7", "numpy": "2.1.3", "scipy": "1.14.1"},
+    "installed_metadata_sha256": {"numpy": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8", "scipy": "dd4e8542e7e319158dfab943b04eb811ee99566a1911241f1a3226e07bfbae57"},
+    "algorithm": "exact Cholesky NLML over the repository's fixed hyperparameter grid",
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 --with pandas==2.2.3 --with statsmodels==0.14.4 python /tmp/antecedent_scm_closure_oracle.py",
+    "generation_location": "temporary external harness; deleted after artifact import"
+  },
+  "data": {
+    "n": 24,
+    "parent": "linspace(-2.4,2.4,24)",
+    "outcome": "sin(1.3*x)+0.18*cos(3.1*x)"
+  },
+  "grid": {"length_scale": [0.25, 0.5, 1.0, 2.0, 4.0], "noise_std": [0.05, 0.1, 0.2, 0.5], "variance": 1.0},
+  "reference": {"length_scale": 1.0, "noise_std": 0.05, "nlml": -23.653010155689028},
+  "native_proxy": {"length_scale": 0.5, "noise_std": 0.05, "objective": 1.4746372110776524},
+  "acceptance": {"hyperparameters_exact": true}
+}
