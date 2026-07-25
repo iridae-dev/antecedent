@@ -70,11 +70,22 @@ fn coefficient_effect_variance_and_inverse_gamma_support_matches_oracle() {
 
 #[test]
 fn prior_set_residual_and_contrast_rules_match_frozen_contract() {
+    let fixture = fixture();
+    assert_eq!(fixture["prior_set_rules"]["maximum_coefficient_priors"], 1);
+    assert_eq!(fixture["prior_set_rules"]["maximum_residual_variance_specs"], 1);
+
     let mut duplicate = PriorSet::new();
     duplicate.push(PriorSpec::KnownResidualVariance(1.0));
     duplicate.push(PriorSpec::ResidualInvGamma(InvGammaPrior { shape: 2.0, scale: 3.0 }));
     assert!(duplicate.validate().is_err());
     assert!(GaussianVarianceModel::from_prior_set(&duplicate).is_err());
+
+    let mut duplicate_coef = PriorSet::new();
+    duplicate_coef
+        .push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(1, 1.0)));
+    duplicate_coef
+        .push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(1, 2.0)));
+    assert!(duplicate_coef.validate().is_err());
 
     let empty = PriorSet::new();
     assert_eq!(
