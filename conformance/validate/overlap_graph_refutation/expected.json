@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "DoWhy 0.14 plus direct overlap formulas",
+    "version": "0.14",
+    "generator": "temporary pinned Python environment and clean-room formula harness (deleted after artifact import)"
+  },
+  "overlap": {
+    "ess_fraction": "ess/n",
+    "comparison": "1-ess_fraction",
+    "balanced_propensity": 0.5,
+    "balanced_retained_fraction": 1.0,
+    "deterministic_assignment_passes": false
+  },
+  "graph_refutation": {
+    "scm": "Z->T, Z->Y, T->Y",
+    "drop_true_confounder_passes": false,
+    "minimum_relative_effect_change": 0.5
+  }
+}

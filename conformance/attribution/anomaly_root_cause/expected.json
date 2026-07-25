@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "kind": "closed_form_moments_and_ranking",
+    "generator": "temporary clean-room harness (deleted after artifact import)",
+    "formula": "score_j=abs(mean(draw_j)); graph_std_j=sqrt(E[draw_j^2]-E[draw_j]^2)."
+  },
+  "posterior_draws_colmajor": [1.0, 2.0, 3.0, -4.0, -4.0, -4.0],
+  "n_draws": 3,
+  "expected_ranking": [
+    {"component_raw": 1, "score": 4.0, "graph_std": 0.0},
+    {"component_raw": 0, "score": 2.0, "graph_std": 0.816496580927726}
+  ],
+  "tolerance": {"absolute": 1e-12}
+}

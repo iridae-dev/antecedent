@@ -641,6 +641,15 @@ mod tests {
 
     #[test]
     fn prior_sensitivity_external_alpha_pulls_toward_source() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/validate/bayesian_checks/expected.json"
+        ))
+        .unwrap();
+        assert!(
+            fixture["contracts"]["prior_sensitivity_full_trust_moves_toward_source"]
+                .as_bool()
+                .unwrap()
+        );
         use antecedent_prob::{
             ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSpec,
         };

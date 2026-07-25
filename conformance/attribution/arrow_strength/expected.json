@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "kind": "closed_form_linear_sem",
+    "generator": "temporary clean-room harness (deleted after artifact import)",
+    "formula": "Direct linear arrow strength is the absolute parent coefficient; a do contrast of width delta is abs(beta*delta)."
+  },
+  "edges": [
+    {"parent_raw": 0, "child_raw": 2, "coefficient": -2.5, "strength": 2.5},
+    {"parent_raw": 1, "child_raw": 2, "coefficient": 0.75, "strength": 0.75}
+  ],
+  "do_contrast": {"coefficient": -2.5, "delta": 2.0, "expected": 5.0},
+  "tolerance": {"absolute": 1e-12}
+}

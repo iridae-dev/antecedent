@@ -73,6 +73,9 @@ fn toy_confounded() -> (TabularData, IdentifiedEstimand, f64) {
 
 #[test]
 fn placebo_near_zero_on_null() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
+            .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -95,7 +98,8 @@ fn placebo_near_zero_on_null() {
     assert!(report.passed, "{:?}", report.failure_condition);
     // comparison is the two-sided p-value of zero under the placebo distribution.
     assert!(report.comparison >= 0.05, "p={}", report.comparison);
-    assert!(report.refuted_ate.abs() < 0.25, "mean placebo ate={}", report.refuted_ate);
+    let max = fixture["expected"]["placebo_abs_max"].as_f64().unwrap();
+    assert!(report.refuted_ate.abs() < max, "mean placebo ate={}", report.refuted_ate);
 }
 
 #[test]
@@ -127,6 +131,9 @@ fn placebo_permute_near_zero_on_null() {
 
 #[test]
 fn rcc_preserves_ate() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
+            .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -146,7 +153,8 @@ fn rcc_preserves_ate() {
     };
     let report = RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.passed, "{:?}", report.failure_condition);
-    assert!((report.refuted_ate - original.ate).abs() < 0.15);
+    let max = fixture["expected"]["random_common_cause_abs_delta_max"].as_f64().unwrap();
+    assert!((report.refuted_ate - original.ate).abs() < max);
 }
 
 #[test]
@@ -328,6 +336,10 @@ fn evalue_zero_effect_fails_default_threshold() {
 
 #[test]
 fn graph_refute_flags_dropping_the_true_confounder() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/validate/overlap_graph_refutation/expected.json"
+    ))
+    .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -349,11 +361,16 @@ fn graph_refute_flags_dropping_the_true_confounder() {
     // Z is the only, essential confounder; dropping it biases the estimate by 1.5 of
     // a true ATE of 2 — a 75% relative change.
     assert!(!report.passed, "{:?}", report.failure_condition);
-    assert!(report.comparison > 0.5, "relative delta={}", report.comparison);
+    let min = fixture["graph_refutation"]["minimum_relative_effect_change"].as_f64().unwrap();
+    assert!(report.comparison > min, "relative delta={}", report.comparison);
 }
 
 #[test]
 fn linear_sensitivity_reports_a_bounded_robustness_value() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/validate/confounding_sensitivity/expected.json"
+    ))
+    .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
@@ -375,7 +392,7 @@ fn linear_sensitivity_reports_a_bounded_robustness_value() {
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.comparison > 0.0);
     assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
-    assert_eq!(report.replicates as usize, refuter.partial_r2_grid.len());
+    assert_eq!(report.replicates as u64, fixture["expected"]["replicates"].as_u64().unwrap());
 }
 
 #[test]
