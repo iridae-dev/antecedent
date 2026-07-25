@@ -1,6 +1,7 @@
 //! GCM: fit → [`sample_do`](antecedent::gcm::sample_do).
 //!
 //! Run: `cargo run -p antecedent --example gcm_do`
+//! Source: `examples/rust/gcm_do.rs`
 
 use antecedent::gcm::{fit_gcm, sample_do};
 use antecedent::prelude::*;

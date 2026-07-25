@@ -53,8 +53,8 @@ bash ../scripts/gate_python_lint.sh
 Or individually:
 
 ```bash
-cd python && uv run ruff check antecedent tests examples
-uv run ruff format --check antecedent tests examples
+cd python && uv run ruff check antecedent tests ../examples/python
+uv run ruff format --check antecedent tests ../examples/python
 uv run mypy
 ```
 

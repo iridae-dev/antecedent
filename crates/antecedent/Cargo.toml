@@ -38,3 +38,47 @@ thiserror = { workspace = true }
 [dev-dependencies]
 antecedent-kernels = { version = "0.3.0", path = "../antecedent-kernels" }
 serde_json = { workspace = true }
+
+[[example]]
+name = "ate_quickstart"
+path = "../../examples/rust/ate_quickstart.rs"
+
+[[example]]
+name = "identify_only"
+path = "../../examples/rust/identify_only.rs"
+
+[[example]]
+name = "gcm_do"
+path = "../../examples/rust/gcm_do.rs"
+
+[[example]]
+name = "propensity_weighting"
+path = "../../examples/rust/propensity_weighting.rs"
+
+[[example]]
+name = "manufacturing_temporal"
+path = "../../examples/rust/manufacturing_temporal.rs"
+
+[[example]]
+name = "sequential_bayes"
+path = "../../examples/rust/sequential_bayes.rs"
+
+[[example]]
+name = "discover_then_estimate"
+path = "../../examples/rust/discover_then_estimate.rs"
+
+[[example]]
+name = "rank_designs"
+path = "../../examples/rust/rank_designs.rs"
+
+[[example]]
+name = "causal_state_workflow"
+path = "../../examples/rust/causal_state_workflow.rs"
+
+[[example]]
+name = "prior_bank_surveys"
+path = "../../examples/rust/prior_bank_surveys.rs"
+
+[[example]]
+name = "sales_spreadsheet_e2e"
+path = "../../examples/rust/sales_spreadsheet_e2e.rs"

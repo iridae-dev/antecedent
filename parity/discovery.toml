@@ -337,7 +337,7 @@ notes = """
 python_facade=full. LatencyMode::Interactive refuses GraphInput::Discover* /
 analyze(discovery=, latency='interactive') → CausalUnsupportedError.
 Session: causal.AcceptedGraph (versioned; rediscover explicit only).
-Docs: docs/artifacts.md (artifact-first); example: python/examples/discover_then_estimate.py.
+Docs: docs/artifacts.md (artifact-first); example: examples/python/discover_then_estimate.py.
 Gates: latency_tiers::interactive_refuses_inline_discovery; test_discovery_interactive_guard;
 test_accepted_graph.
 """

@@ -31,7 +31,8 @@ let result = CausalAnalysis::builder()
 
 A complete compiling example (schema → data → DAG → query → run) is in the
 [crate docs](https://docs.rs/antecedent); runnable examples live in
-[`examples/`](https://github.com/iridae-dev/antecedent/tree/main/crates/antecedent/examples).
+[`examples/`](https://github.com/iridae-dev/antecedent/tree/main/examples)
+(`cargo run -p antecedent --example <name>`).
 The same engine powers the Python package
 ([`pip install antecedent`](https://pypi.org/project/antecedent/)).
 

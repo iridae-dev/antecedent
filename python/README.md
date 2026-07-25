@@ -117,9 +117,9 @@ Also exposed:
 - `refute=True|"full"|"placebo"|False` on static and temporal `analyze`
 - RD: `estimator="rd.sharp"` with `running_variable` / `cutoff` / `bandwidth`
 - `dag_from_*` / `dag_to_*` — graph interchange (also `Dag.from_dot` / `.to_dot`)
-- Design / state examples: [`examples/rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/main/python/examples/rank_designs.py),
-  [`examples/causal_state_workflow.py`](https://github.com/iridae-dev/antecedent/blob/main/python/examples/causal_state_workflow.py)
-  (see ADR 0016 — no auto-rerun)
+- Design / state examples: [`examples/python/rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/rank_designs.py),
+  [`examples/python/causal_state_workflow.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/causal_state_workflow.py)
+  (see ADR 0016 — no auto-rerun); catalog in [`examples/README.md`](https://github.com/iridae-dev/antecedent/blob/main/examples/README.md)
 
 Build artifacts (`_native.*.so`) are gitignored; always `maturin develop` (or install a wheel) on a fresh checkout.
 

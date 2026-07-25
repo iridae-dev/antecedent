@@ -1,6 +1,7 @@
 //! Static ATE: schema + named columns + named DAG → analyze.
 //!
 //! Run: `cargo run -p antecedent --example ate_quickstart`
+//! Source: `examples/rust/ate_quickstart.rs`
 
 use antecedent::RefuteSuite;
 use antecedent::prelude::*;

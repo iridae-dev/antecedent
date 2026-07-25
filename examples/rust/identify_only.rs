@@ -1,6 +1,7 @@
 //! Identify-only: graph + query without fitting.
 //!
 //! Run: `cargo run -p antecedent --example identify_only`
+//! Source: `examples/rust/identify_only.rs`
 
 use antecedent::RefuteSuite;
 use antecedent::prelude::*;
