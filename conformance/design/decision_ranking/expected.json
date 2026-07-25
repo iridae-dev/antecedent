@@ -47,10 +47,7 @@
       "threshold": 0.75,
       "chosen_action": null,
       "expected_utility": 0.0,
-      "regret": 3.0,
-      "native_chosen_action": 1,
-      "native_expected_utility": 3.0,
-      "native_regret": 0.0
+      "regret": 3.0
     },
     {
       "name": "utility_tie",
