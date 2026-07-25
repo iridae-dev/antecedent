@@ -140,27 +140,36 @@ impl OrderMcmc {
                             }
                         }
                     }
-                    let mut cur =
-                        score_dag_mask(mask, n, &score_data, &mut cache, prior, variables)
-                            .unwrap_or(f64::NEG_INFINITY);
+                    let mut cur = score_dag_mask(
+                        mask,
+                        n,
+                        &score_data,
+                        &mut cache,
+                        prior,
+                        variables,
+                    )
+                    .map(|score| score - log_topological_order_count(mask, n))
+                    .unwrap_or(f64::NEG_INFINITY);
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
                         let (new_order, new_mask, rej) = propose_order(&order, mask, n, &mut rng);
                         local_rej += rej;
-                        let prop_score =
-                            score_dag_mask(new_mask, n, &score_data, &mut cache, prior, variables);
+                        let prop_score = score_dag_mask(
+                            new_mask,
+                            n,
+                            &score_data,
+                            &mut cache,
+                            prior,
+                            variables,
+                        )
+                        .map(|score| score - log_topological_order_count(new_mask, n));
                         let accept = match prop_score {
                             Some(ps) if cur.is_finite() => {
                                 let log_r = ps - cur;
                                 log_r >= 0.0 || rng.next_f64() < log_r.exp()
                             }
-                            Some(ps) => {
-                                order = new_order.clone();
-                                mask = new_mask;
-                                cur = ps;
-                                false
-                            }
+                            Some(_) => true,
                             None => false,
                         };
                         if accept {
@@ -227,40 +236,18 @@ fn propose_order(
 ) -> (Vec<usize>, u64, u64) {
     let mut new_order = order.to_vec();
     let mut new_mask = mask;
-    let mut rejected = 0u64;
+    let rejected = 0u64;
     let u = rng.next_f64();
     if u < 0.35 && n >= 2 {
         let k = (rng.next_u64() as usize) % (n - 1);
         new_order.swap(k, k + 1);
-        let pos = position_map(&new_order);
-        for i in 0..n {
-            for j in 0..n {
-                if i == j {
-                    continue;
-                }
-                if has_edge(new_mask, n, i, j) && pos[i] > pos[j] {
-                    new_mask = set_edge(new_mask, n, i, j, false);
-                    rejected += 1;
-                }
-            }
-        }
+        new_mask = reorient_skeleton(mask, &new_order, n);
     } else if u < 0.55 && n >= 3 {
         let a = (rng.next_u64() as usize) % n;
         let b = (rng.next_u64() as usize) % n;
         if a != b {
             new_order.swap(a, b);
-            let pos = position_map(&new_order);
-            for i in 0..n {
-                for j in 0..n {
-                    if i == j {
-                        continue;
-                    }
-                    if has_edge(new_mask, n, i, j) && pos[i] > pos[j] {
-                        new_mask = set_edge(new_mask, n, i, j, false);
-                        rejected += 1;
-                    }
-                }
-            }
+            new_mask = reorient_skeleton(mask, &new_order, n);
         }
     } else {
         let a = (rng.next_u64() as usize) % n;
@@ -281,6 +268,46 @@ fn position_map(order: &[usize]) -> Vec<usize> {
         pos[node] = p;
     }
     pos
+}
+
+fn reorient_skeleton(mask: u64, order: &[usize], n: usize) -> u64 {
+    let pos = position_map(order);
+    let mut out = 0u64;
+    for a in 0..n {
+        for b in a + 1..n {
+            if has_edge(mask, n, a, b) || has_edge(mask, n, b, a) {
+                let (from, to) = if pos[a] < pos[b] { (a, b) } else { (b, a) };
+                out = set_edge(out, n, from, to, true);
+            }
+        }
+    }
+    out
+}
+
+fn log_topological_order_count(mask: u64, n: usize) -> f64 {
+    let states = 1usize << n;
+    let mut parent_masks = vec![0usize; n];
+    for (node, parents) in parent_masks.iter_mut().enumerate() {
+        for parent in 0..n {
+            if parent != node && has_edge(mask, n, parent, node) {
+                *parents |= 1usize << parent;
+            }
+        }
+    }
+    let mut ways = vec![0u64; states];
+    ways[0] = 1;
+    for placed in 0..states {
+        if ways[placed] == 0 {
+            continue;
+        }
+        for (node, &parents) in parent_masks.iter().enumerate() {
+            let bit = 1usize << node;
+            if placed & bit == 0 && parents & !placed == 0 {
+                ways[placed | bit] = ways[placed | bit].saturating_add(ways[placed]);
+            }
+        }
+    }
+    (ways[states - 1].max(1) as f64).ln()
 }
 
 #[cfg(test)]

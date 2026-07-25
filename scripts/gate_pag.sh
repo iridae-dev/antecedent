@@ -68,6 +68,7 @@ for path in [
     "conformance/identify/generalized_adjustment/expected.json",
     "conformance/identify/path_specific/expected.json",
     "conformance/identify/auto_envelopes/expected.json",
+    "conformance/discovery/rfci/expected.json",
     "conformance/pag/lpcmci_chain/expected.json",
     "conformance/pag/latent_projection_msep/expected.json",
     "conformance/pag/envelope_unidentified_mass/expected.json",
@@ -107,6 +108,8 @@ PY
 echo "== cargo test graph / discovery LPCMCI / identify / facade pag =="
 cargo test -p antecedent-graph --lib
 cargo test -p antecedent-discovery --lib
+cargo test -p antecedent-discovery --test static_discovery_oracle
+cargo test -p antecedent-discovery --test lpcmci_oracle_matrix
 cargo test -p antecedent-identify --lib
 cargo test -p antecedent --test pag
 cargo test -p antecedent --lib refuses_dag_only

@@ -96,5 +96,6 @@ cargo test -p antecedent-stats --lib ci::calibration
 cargo test -p antecedent-stats --test foundations_oracle
 cargo test -p antecedent-stats --test advanced_ci_oracle
 cargo test -p antecedent-stats --test bayesian_ci_oracle
+cargo test -p antecedent-discovery --test multiplicity_oracle
 bash scripts/gate_estimate_reuse.sh
 echo "estimate_ci parity gate: ok"

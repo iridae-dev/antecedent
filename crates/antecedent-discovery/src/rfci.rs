@@ -997,6 +997,10 @@ mod tests {
 
     #[test]
     fn oracle_chain_recovers_skeleton() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../../conformance/discovery/rfci/expected.json"))
+                .unwrap();
+        assert_eq!(fixture["cases"][0]["adjacencies"].as_array().unwrap().len(), 2);
         let data = tabular_n(3, 50);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
@@ -1016,6 +1020,10 @@ mod tests {
 
     #[test]
     fn oracle_collider_orients_into_middle() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../../conformance/discovery/rfci/expected.json"))
+                .unwrap();
+        assert_eq!(fixture["cases"][1]["arrowheads_at"].as_array().unwrap().len(), 2);
         let data = tabular_n(3, 40);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
         let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
