@@ -1,0 +1,66 @@
+{
+  "atol": 1e-12,
+  "cases": [
+    {
+      "mean": 6.2,
+      "name": "ordinary",
+      "population_variance": 29.76000000000001,
+      "sample_std": 6.099180272790763,
+      "values": [1.0, 2.0, 4.0, 8.0, 16.0]
+    },
+    {
+      "mean": 1000000006.2,
+      "name": "translated",
+      "population_variance": 29.76,
+      "sample_std": 6.099180272790763,
+      "values": [1000000001.0, 1000000002.0, 1000000004.0, 1000000008.0, 1000000016.0]
+    },
+    {
+      "mean": -3.5,
+      "name": "constant",
+      "population_variance": 0.0,
+      "sample_std": 0.0,
+      "values": [-3.5, -3.5, -3.5, -3.5]
+    },
+    {
+      "mean": 2.0,
+      "name": "two_values",
+      "population_variance": 16.0,
+      "sample_std": 5.656854249492381,
+      "values": [-2.0, 6.0]
+    },
+    {
+      "mean": 4.25,
+      "name": "singleton",
+      "population_variance": 0.0,
+      "sample_std": null,
+      "values": [4.25]
+    }
+  ],
+  "domain": {
+    "at_least_two_for_finite_sample_std": true,
+    "empty_input": "outside validated domain",
+    "finite_nonempty_for_mean_var": true,
+    "nonfinite_input": "outside validated domain"
+  },
+  "reference": {
+    "available": true,
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 --with pandas==2.2.3 --with statsmodels==0.14.4 python /tmp/antecedent-oracle-foundations/generate.py",
+    "generation_location": "temporary external harness; not retained",
+    "installed_metadata_sha256": {
+      "numpy": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8",
+      "pandas": "f05423139806d0d75d527aba42689260084dc7a2dad1f4f32b16770f97d1f70f",
+      "scipy": "dd4e8542e7e319158dfab943b04eb811ee99566a1911241f1a3226e07bfbae57",
+      "statsmodels": "1f93f27342fb62aef002c7f9ef6bf7f85a94bf7b99459176d156223c33238aaa"
+    },
+    "project": "NumPy",
+    "versions": {
+      "numpy": "2.1.3",
+      "python": "3.12.7",
+      "scipy": "1.14.1",
+      "statsmodels": "0.14.4"
+    }
+  },
+  "rtol": 1e-12,
+  "tolerance_class": "Numeric"
+}
