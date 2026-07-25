@@ -87,5 +87,5 @@ estimate-only pulse clicks never re-run discovery.
 One-shot `analyze(..., discovery=...)` remains a **script** convenience
 (Standard/Report or no latency tier). Combining `discovery=` with
 `latency="interactive"` raises `CausalUnsupportedError` (Rust:
-`refuse_discovery_under_interactive`). See `python/examples/discover_then_estimate.py`
+`refuse_discovery_under_interactive`). See `examples/python/discover_then_estimate.py`
 and `parity/discovery.toml` capability `discovery.ux.artifact_first`.

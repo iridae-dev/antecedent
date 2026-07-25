@@ -19,10 +19,10 @@ if [[ -z "${VIRTUAL_ENV:-}" && -f .venv/bin/activate ]]; then
 fi
 
 echo "==> ruff check"
-uv run ruff check antecedent tests examples
+uv run ruff check antecedent tests ../examples/python
 
 echo "==> ruff format --check"
-uv run ruff format --check antecedent tests examples
+uv run ruff format --check antecedent tests ../examples/python
 
 echo "==> mypy (package + stubs)"
 uv run mypy
