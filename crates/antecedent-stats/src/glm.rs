@@ -768,6 +768,41 @@ fn fit_binomial_ridge(
     })
 }
 
+/// Fit a binomial GLM with an always-active ridge penalty.
+///
+/// A constant first design column is treated as an intercept and is not
+/// penalized. Unlike [`GlmOptions::ridge_on_separation`], this entry point
+/// applies `lambda` whether or not the unpenalized fit is separated.
+///
+/// # Errors
+///
+/// Invalid shapes, outcomes, family, penalty, or a numerical solver failure.
+pub fn fit_glm_ridge(
+    family: GlmFamily,
+    design: GlmDesignRef<'_>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+    lambda: f64,
+) -> Result<GlmFit, StatsError> {
+    if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
+        return Err(StatsError::Shape { message: "ridge GLM currently requires a binomial family" });
+    }
+    if design.y.len() != design.nrows {
+        return Err(StatsError::Shape { message: "y length != nrows" });
+    }
+    if design.x_colmajor.len() < design.nrows.saturating_mul(design.ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    if !lambda.is_finite() || lambda <= 0.0 {
+        return Err(StatsError::Shape { message: "ridge lambda must be finite and positive" });
+    }
+    if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
+        return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+    }
+    fit_binomial_ridge(family, design, backend, workspace, options, lambda)
+}
+
 fn col_is_constant(x_colmajor: &[f64], nrows: usize, col: usize) -> bool {
     if nrows == 0 {
         return true;

@@ -499,6 +499,14 @@ impl ConditionalIndependenceTest for Gpdc {
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
         prepared.ensure_compatible(request)?;
+        if !self.length_scale.is_finite() || self.length_scale <= 0.0 {
+            return Err(StatsError::Shape {
+                message: "GPDC length scale must be finite and positive",
+            });
+        }
+        if !self.ridge.is_finite() || self.ridge <= 0.0 {
+            return Err(StatsError::Shape { message: "GPDC ridge must be finite and positive" });
+        }
         let request = &prepared.bind_request(request);
         let n = request.columns.first().map_or(0, |c| c.len());
         if n == 0 {
@@ -509,8 +517,8 @@ impl ConditionalIndependenceTest for Gpdc {
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
-            let rx = gp_residual(request.columns[q.x], request.columns, z, self);
-            let ry = gp_residual(request.columns[q.y], request.columns, z, self);
+            let rx = gp_residual(request.columns[q.x], request.columns, z, self)?;
+            let ry = gp_residual(request.columns[q.y], request.columns, z, self)?;
             let dcor = distance_correlation(policy, &rx, &ry);
             // Permutation null: shuffle the Y residuals (Z influence already removed)
             // and recompute dCor; add-one p-value keeps it in (0, 1].
@@ -530,11 +538,17 @@ impl ConditionalIndependenceTest for Gpdc {
     }
 }
 
-fn gp_residual(y: &[f64], columns: &[&[f64]], z: &[usize], gp: &Gpdc) -> Vec<f64> {
+fn gp_residual(
+    y: &[f64],
+    columns: &[&[f64]],
+    z: &[usize],
+    gp: &Gpdc,
+) -> Result<Vec<f64>, StatsError> {
     let n = y.len();
+    let mean = y.iter().sum::<f64>() / n as f64;
+    let centered: Vec<f64> = y.iter().map(|value| value - mean).collect();
     if z.is_empty() {
-        let mean = y.iter().sum::<f64>() / n as f64;
-        return y.iter().map(|v| v - mean).collect();
+        return Ok(centered);
     }
     // Build Gram on Z (sum of RBF over Z dims) and solve (K+λI)α = y.
     let mut k = vec![0.0; n * n];
@@ -551,29 +565,20 @@ fn gp_residual(y: &[f64], columns: &[&[f64]], z: &[usize], gp: &Gpdc) -> Vec<f64
         }
         k[i * n + i] += gp.ridge;
     }
-    // Simple Gauss-Seidel / Jacobi for α
-    let mut alpha = vec![0.0; n];
-    for _ in 0..40 {
-        for i in 0..n {
-            let mut s = y[i];
-            for j in 0..n {
-                if i != j {
-                    s -= k[i * n + j] * alpha[j];
-                }
-            }
-            alpha[i] = s / k[i * n + i];
-        }
-    }
+    let chol = crate::gram::cholesky_spd(&k, n)
+        .ok_or_else(|| StatsError::Backend("GPDC kernel factorization failed".into()))?;
+    let alpha = crate::gram::chol_solve(&chol, n, &centered)
+        .ok_or_else(|| StatsError::Backend("GPDC kernel solve failed".into()))?;
     let mut pred = vec![0.0; n];
     for i in 0..n {
         for j in 0..n {
             pred[i] += k[i * n + j] * alpha[j];
         }
-        // remove ridge contribution approx by using original K without ridge on predict —
-        // residual = y - K_unreg α; use y - pred + ridge*α as correction
+        // Prediction uses the unregularized kernel, while the factorization
+        // uses K + λI.
         pred[i] -= gp.ridge * alpha[i];
     }
-    (0..n).map(|i| y[i] - pred[i]).collect()
+    Ok((0..n).map(|i| centered[i] - pred[i]).collect())
 }
 
 fn distance_correlation(policy: &KernelPolicy, x: &[f64], y: &[f64]) -> f64 {
