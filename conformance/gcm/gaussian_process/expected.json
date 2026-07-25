@@ -15,6 +15,5 @@
   },
   "grid": {"length_scale": [0.25, 0.5, 1.0, 2.0, 4.0], "noise_std": [0.05, 0.1, 0.2, 0.5], "variance": 1.0},
   "reference": {"length_scale": 1.0, "noise_std": 0.05, "nlml": -23.653010155689028},
-  "native_proxy": {"length_scale": 0.5, "noise_std": 0.05, "objective": 1.4746372110776524},
   "acceptance": {"hyperparameters_exact": true}
 }
