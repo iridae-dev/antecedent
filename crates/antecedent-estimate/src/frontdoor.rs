@@ -19,8 +19,10 @@
 //! This assumes no direct `T → Y` edge (all of the treatment effect flows through the mediators,
 //! as the front-door criterion requires) and linear structural equations.
 //!
-//! The analytic standard error uses a Sobel-style delta-method for a single mediator; for
-//! `|M| > 1` the analytic SE is left as NaN and bootstrap is recommended.
+//! The analytic standard error is a stacked M-estimator sandwich: every stage-1 mediator
+//! regression and the stage-2 outcome regression share one score vector per row so that
+//! same-sample cross-stage (and cross-mediator) covariances enter the delta-method variance
+//! of the path sum. Bootstrap remains available for resampling checks.
 //!
 //! Positivity is not meaningful here — it is not a propensity-based method — so
 //! [`OverlapPolicy::ExplicitOverride`] is the only supported policy, matching
@@ -37,11 +39,14 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_stats::{
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
+};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
+use crate::se::{AnalyticSeKind, require_clusters};
 use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
 
 /// Stage-1 design column count: `[1, T]`.
@@ -161,6 +166,10 @@ pub struct FrontDoorTwoStage {
     pub bootstrap_replicates: u32,
     /// Overlap policy (must be [`OverlapPolicy::ExplicitOverride`]).
     pub overlap: OverlapPolicy,
+    /// Analytic SE policy for the stacked path-sum sandwich (default HC0).
+    pub se_kind: AnalyticSeKind,
+    /// Optional cluster ids (`length = nrows`) for [`AnalyticSeKind::Cluster`].
+    pub cluster_ids: Option<Arc<[u32]>>,
 }
 
 impl Default for FrontDoorTwoStage {
@@ -170,13 +179,15 @@ impl Default for FrontDoorTwoStage {
 }
 
 impl FrontDoorTwoStage {
-    /// Default: 200 bootstrap replicates, explicit overlap override.
+    /// Default: 200 bootstrap replicates, explicit overlap override, HC0 stacked SE.
     #[must_use]
     pub fn new() -> Self {
         Self {
             backend: FaerBackend,
             bootstrap_replicates: 200,
             overlap: OverlapPolicy::ExplicitOverride,
+            se_kind: AnalyticSeKind::Hc0,
+            cluster_ids: None,
         }
     }
 
@@ -236,48 +247,52 @@ impl FrontDoorTwoStage {
         workspace: &mut FrontDoorWorkspace,
     ) -> Result<(f64, f64), EstimationError> {
         let k = problem.mediators.len();
-        let mut path_sum = 0.0;
-        let mut beta_tm = Vec::with_capacity(k);
+        let n = problem.nrows;
+        let x1 = stage1_matrix(&problem.treatment);
+        let mut stage1_coefs = Vec::with_capacity(k);
+        let mut stage1_resid = Vec::with_capacity(k);
         for m in problem.mediators.iter() {
             let stage1 = self.fit_stage1(&problem.treatment, m, workspace)?;
-            let b = stage1.coefficients[STAGE1_TREATMENT_COL];
-            beta_tm.push((b, stage1.rss));
+            let mut resid = vec![0.0; n];
+            for r in 0..n {
+                resid[r] = m[r]
+                    - stage1.coefficients[0]
+                    - stage1.coefficients[STAGE1_TREATMENT_COL] * problem.treatment[r];
+            }
+            stage1_coefs.push(stage1.coefficients);
+            stage1_resid.push(resid);
         }
         let stage2 =
             self.fit_stage2(&problem.treatment, &problem.mediators, &problem.outcome, workspace)?;
-        for (j, &(b_tm, _)) in beta_tm.iter().enumerate() {
-            let b_my = stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
-            path_sum += b_tm * b_my;
+        let x2 = stage2_matrix(&problem.treatment, &problem.mediators);
+        let stage2_ncols = 2 + k;
+        let mut stage2_resid = vec![0.0; n];
+        for r in 0..n {
+            let mut pred = 0.0;
+            for c in 0..stage2_ncols {
+                pred += x2[c * n + r] * stage2.coefficients[c];
+            }
+            stage2_resid[r] = problem.outcome[r] - pred;
+        }
+        let mut path_sum = 0.0;
+        for (j, coefs) in stage1_coefs.iter().enumerate() {
+            path_sum +=
+                coefs[STAGE1_TREATMENT_COL] * stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
         }
         let ate = path_sum * problem.treatment_delta;
-
-        // Single-mediator Sobel SE; multi-mediator analytic SE left as NaN (use bootstrap).
-        let se_analytic = if k == 1 {
-            let n = problem.nrows as f64;
-            let (beta_m_t, rss1) = beta_tm[0];
-            let beta_y_m = stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL];
-            let var1 = crate::util::coefficient_variance(
-                &stage1_matrix(&problem.treatment),
-                problem.nrows,
-                STAGE1_NCOLS,
-                STAGE1_TREATMENT_COL,
-                rss1 / (n - STAGE1_NCOLS as f64).max(1.0),
-            );
-            let stage2_ncols = 2 + k;
-            let var2 = crate::util::coefficient_variance(
-                &stage2_matrix(&problem.treatment, &problem.mediators),
-                problem.nrows,
-                stage2_ncols,
-                STAGE2_FIRST_MEDIATOR_COL,
-                stage2.rss / (n - stage2_ncols as f64).max(1.0),
-            );
-            let var_ate = (beta_y_m * beta_y_m * var1 + beta_m_t * beta_m_t * var2)
-                * problem.treatment_delta
-                * problem.treatment_delta;
-            var_ate.max(0.0).sqrt()
-        } else {
-            f64::NAN
-        };
+        let se_analytic = stacked_path_sum_se(
+            &x1,
+            &stage1_resid,
+            &stage1_coefs,
+            &x2,
+            stage2_ncols,
+            &stage2_resid,
+            &stage2.coefficients,
+            problem.treatment_delta,
+            self.se_kind,
+            self.cluster_ids.as_deref(),
+            CrossStagePolicy::Empirical,
+        )?;
         Ok((ate, se_analytic))
     }
 
@@ -366,6 +381,306 @@ fn stage2_matrix(treatment: &[f64], mediators: &[Arc<[f64]>]) -> Vec<f64> {
     }
     let _ = STAGE2_TREATMENT_COL;
     x
+}
+
+/// Whether the stacked meat keeps empirical cross-stage blocks.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CrossStagePolicy {
+    /// Full stacked HC meat (includes Cov across stages/mediators).
+    Empirical,
+    /// Zero cross-stage / cross-mediator blocks (independent-path Sobel delta).
+    IndependentPaths,
+}
+
+fn stacked_path_sum_se(
+    x1: &[f64],
+    stage1_resid: &[Vec<f64>],
+    stage1_coefs: &[Vec<f64>],
+    x2: &[f64],
+    stage2_ncols: usize,
+    stage2_resid: &[f64],
+    stage2_coefs: &[f64],
+    treatment_delta: f64,
+    se_kind: AnalyticSeKind,
+    cluster_ids: Option<&[u32]>,
+    cross_stage: CrossStagePolicy,
+) -> Result<f64, EstimationError> {
+    let (cov, grad) = stacked_theta_cov_and_grad(
+        x1,
+        stage1_resid,
+        stage1_coefs,
+        x2,
+        stage2_ncols,
+        stage2_resid,
+        stage2_coefs,
+        treatment_delta,
+        se_kind,
+        cluster_ids,
+        cross_stage,
+    )?;
+    let p = grad.len();
+    let mut tmp = vec![0.0; p];
+    for i in 0..p {
+        let mut s = 0.0;
+        for j in 0..p {
+            s += cov[i * p + j] * grad[j];
+        }
+        tmp[i] = s;
+    }
+    let mut var = 0.0;
+    for i in 0..p {
+        var += grad[i] * tmp[i];
+    }
+    if !var.is_finite() {
+        return Ok(f64::NAN);
+    }
+    Ok(var.max(0.0).sqrt())
+}
+
+fn stacked_theta_cov_and_grad(
+    x1: &[f64],
+    stage1_resid: &[Vec<f64>],
+    stage1_coefs: &[Vec<f64>],
+    x2: &[f64],
+    stage2_ncols: usize,
+    stage2_resid: &[f64],
+    stage2_coefs: &[f64],
+    treatment_delta: f64,
+    se_kind: AnalyticSeKind,
+    cluster_ids: Option<&[u32]>,
+    cross_stage: CrossStagePolicy,
+) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
+    let k = stage1_resid.len();
+    if k == 0 || stage1_coefs.len() != k {
+        return Err(EstimationError::unsupported("stacked front-door SE needs ≥1 mediator"));
+    }
+    let n = stage2_resid.len();
+    if x1.len() < n * STAGE1_NCOLS || x2.len() < n * stage2_ncols {
+        return Err(EstimationError::data_msg("stacked front-door design buffer too short"));
+    }
+    for resid in stage1_resid {
+        if resid.len() != n {
+            return Err(EstimationError::data_msg("stage-1 residual length mismatch"));
+        }
+    }
+    let p = k * STAGE1_NCOLS + stage2_ncols;
+
+    // Block-diagonal bread A = diag(X1'X1, …, X1'X1, X2'X2).
+    let mut bread = vec![0.0; p * p];
+    let mut xtx1 = vec![0.0; STAGE1_NCOLS * STAGE1_NCOLS];
+    form_xtx(x1, n, STAGE1_NCOLS, &mut xtx1);
+    for j in 0..k {
+        let off = j * STAGE1_NCOLS;
+        for r in 0..STAGE1_NCOLS {
+            for c in 0..STAGE1_NCOLS {
+                bread[(off + r) * p + (off + c)] = xtx1[r * STAGE1_NCOLS + c];
+            }
+        }
+    }
+    let mut xtx2 = vec![0.0; stage2_ncols * stage2_ncols];
+    form_xtx(x2, n, stage2_ncols, &mut xtx2);
+    let off2 = k * STAGE1_NCOLS;
+    for r in 0..stage2_ncols {
+        for c in 0..stage2_ncols {
+            bread[(off2 + r) * p + (off2 + c)] = xtx2[r * stage2_ncols + c];
+        }
+    }
+    let bread_inv = invert_square(&bread, p)
+        .ok_or_else(|| EstimationError::stats_msg("singular stacked front-door bread"))?;
+
+    let meat = match se_kind {
+        AnalyticSeKind::Homoskedastic | AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 => {
+            let mut meat = stacked_hc_meat(x1, stage1_resid, x2, stage2_ncols, stage2_resid, cross_stage);
+            if matches!(se_kind, AnalyticSeKind::Hc1) {
+                if n <= p {
+                    return Err(EstimationError::stats_msg("non-positive residual df for HC1"));
+                }
+                let scale = n as f64 / (n as f64 - p as f64);
+                for v in &mut meat {
+                    *v *= scale;
+                }
+            }
+            meat
+        }
+        AnalyticSeKind::Cluster => {
+            let groups = require_clusters(cluster_ids, n)?;
+            stacked_cluster_meat(
+                x1,
+                stage1_resid,
+                x2,
+                stage2_ncols,
+                stage2_resid,
+                groups,
+                cross_stage,
+            )?
+        }
+        AnalyticSeKind::Hc2
+        | AnalyticSeKind::Hc3
+        | AnalyticSeKind::Multiway
+        | AnalyticSeKind::NeweyWest { .. }
+        | AnalyticSeKind::PanelClusterHac { .. } => {
+            return Err(EstimationError::unsupported(
+                "FrontDoorTwoStage stacked SE supports Homoskedastic/Hc0/Hc1/Cluster only",
+            ));
+        }
+    };
+
+    // Σ = A⁻¹ B A⁻¹
+    let mut tmp = vec![0.0; p * p];
+    for i in 0..p {
+        for j in 0..p {
+            let mut s = 0.0;
+            for t in 0..p {
+                s += bread_inv[i * p + t] * meat[t * p + j];
+            }
+            tmp[i * p + j] = s;
+        }
+    }
+    let mut cov = vec![0.0; p * p];
+    for i in 0..p {
+        for j in 0..p {
+            let mut s = 0.0;
+            for t in 0..p {
+                s += tmp[i * p + t] * bread_inv[t * p + j];
+            }
+            cov[i * p + j] = s;
+        }
+    }
+
+    // ∇g for g = Δ Σⱼ aⱼ bⱼ
+    let mut grad = vec![0.0; p];
+    for j in 0..k {
+        let a = stage1_coefs[j][STAGE1_TREATMENT_COL];
+        let b = stage2_coefs[STAGE2_FIRST_MEDIATOR_COL + j];
+        grad[j * STAGE1_NCOLS + STAGE1_TREATMENT_COL] = treatment_delta * b;
+        grad[off2 + STAGE2_FIRST_MEDIATOR_COL + j] = treatment_delta * a;
+    }
+    Ok((cov, grad))
+}
+
+fn fill_row_score(
+    score: &mut [f64],
+    x1: &[f64],
+    stage1_resid: &[Vec<f64>],
+    x2: &[f64],
+    stage2_ncols: usize,
+    stage2_resid: &[f64],
+    row: usize,
+    n: usize,
+) {
+    let k = stage1_resid.len();
+    score.fill(0.0);
+    for j in 0..k {
+        let e = stage1_resid[j][row];
+        let off = j * STAGE1_NCOLS;
+        for c in 0..STAGE1_NCOLS {
+            score[off + c] = e * x1[c * n + row];
+        }
+    }
+    let e2 = stage2_resid[row];
+    let off2 = k * STAGE1_NCOLS;
+    for c in 0..stage2_ncols {
+        score[off2 + c] = e2 * x2[c * n + row];
+    }
+}
+
+fn zero_cross_blocks(meat: &mut [f64], p: usize, k: usize, stage2_ncols: usize) {
+    // Zero every off-diagonal stage block (independent-path Sobel).
+    let blocks: Vec<(usize, usize)> = {
+        let mut b = Vec::with_capacity(k + 1);
+        for j in 0..k {
+            b.push((j * STAGE1_NCOLS, STAGE1_NCOLS));
+        }
+        b.push((k * STAGE1_NCOLS, stage2_ncols));
+        b
+    };
+    for (bi, &(o1, n1)) in blocks.iter().enumerate() {
+        for (bj, &(o2, n2)) in blocks.iter().enumerate() {
+            if bi == bj {
+                continue;
+            }
+            for r in 0..n1 {
+                for c in 0..n2 {
+                    meat[(o1 + r) * p + (o2 + c)] = 0.0;
+                }
+            }
+        }
+    }
+}
+
+fn stacked_hc_meat(
+    x1: &[f64],
+    stage1_resid: &[Vec<f64>],
+    x2: &[f64],
+    stage2_ncols: usize,
+    stage2_resid: &[f64],
+    cross_stage: CrossStagePolicy,
+) -> Vec<f64> {
+    let k = stage1_resid.len();
+    let n = stage2_resid.len();
+    let p = k * STAGE1_NCOLS + stage2_ncols;
+    let mut meat = vec![0.0; p * p];
+    let mut score = vec![0.0; p];
+    for r in 0..n {
+        fill_row_score(&mut score, x1, stage1_resid, x2, stage2_ncols, stage2_resid, r, n);
+        for a in 0..p {
+            for b in 0..p {
+                meat[a * p + b] += score[a] * score[b];
+            }
+        }
+    }
+    if cross_stage == CrossStagePolicy::IndependentPaths {
+        zero_cross_blocks(&mut meat, p, k, stage2_ncols);
+    }
+    meat
+}
+
+fn stacked_cluster_meat(
+    x1: &[f64],
+    stage1_resid: &[Vec<f64>],
+    x2: &[f64],
+    stage2_ncols: usize,
+    stage2_resid: &[f64],
+    groups: &[u32],
+    cross_stage: CrossStagePolicy,
+) -> Result<Vec<f64>, EstimationError> {
+    let k = stage1_resid.len();
+    let n = stage2_resid.len();
+    let p = k * STAGE1_NCOLS + stage2_ncols;
+    let mut totals: std::collections::BTreeMap<u32, Vec<f64>> = std::collections::BTreeMap::new();
+    let mut score = vec![0.0; p];
+    for r in 0..n {
+        fill_row_score(&mut score, x1, stage1_resid, x2, stage2_ncols, stage2_resid, r, n);
+        let entry = totals.entry(groups[r]).or_insert_with(|| vec![0.0; p]);
+        for c in 0..p {
+            entry[c] += score[c];
+        }
+    }
+    let g = totals.len();
+    if g < 2 {
+        return Err(EstimationError::stats_msg(
+            "cluster-robust variance requires at least 2 clusters",
+        ));
+    }
+    if n <= p {
+        return Err(EstimationError::stats_msg("non-positive residual df for cluster SE"));
+    }
+    let mut meat = vec![0.0; p * p];
+    for score_g in totals.values() {
+        for a in 0..p {
+            for b in 0..p {
+                meat[a * p + b] += score_g[a] * score_g[b];
+            }
+        }
+    }
+    if cross_stage == CrossStagePolicy::IndependentPaths {
+        zero_cross_blocks(&mut meat, p, k, stage2_ncols);
+    }
+    let scale = (g as f64 / (g as f64 - 1.0)) * ((n as f64 - 1.0) / (n as f64 - p as f64));
+    for v in &mut meat {
+        *v *= scale;
+    }
+    Ok(meat)
 }
 
 #[cfg(test)]
@@ -611,6 +926,318 @@ mod tests {
         let mut ws = FrontDoorWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 11.0).abs() < 0.5, "ate={}", effect.ate);
+        assert!(
+            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
+            "se={}",
+            effect.se_analytic
+        );
+    }
+
+    #[test]
+    fn stacked_se_captures_cross_stage_covariance_and_matches_bootstrap() {
+        // Correlated stage residuals → nonzero Cov(a,b); analytic SE ≈ paired bootstrap.
+        let n = 2500usize;
+        let mut rng = ExecutionContext::for_tests(11).rng.stream(0xF402_u64);
+        let mut t = vec![0.0; n];
+        let mut m = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let ti = standard_normal(&mut rng);
+            let e1 = standard_normal(&mut rng);
+            let e2 = 0.85 * e1 + 0.15 * standard_normal(&mut rng);
+            let mi = 1.5 * ti + e1;
+            let yi = 2.0 * mi + e2;
+            t[i] = ti;
+            m[i] = mi;
+            y[i] = yi;
+        }
+        let data = build_frontdoor_data(n, t, y, m);
+        let estimand = frontdoor_estimand();
+        let est = FrontDoorTwoStage { bootstrap_replicates: 400, ..FrontDoorTwoStage::new() };
+        let prep = est.prepare(&data, &estimand, &query()).unwrap();
+        let mut ws = FrontDoorWorkspace::default();
+
+        let x1 = stage1_matrix(&prep.treatment);
+        let s1 = est.fit_stage1(&prep.treatment, &prep.mediators[0], &mut ws).unwrap();
+        let mut r1 = vec![0.0; n];
+        for r in 0..n {
+            r1[r] = prep.mediators[0][r]
+                - s1.coefficients[0]
+                - s1.coefficients[STAGE1_TREATMENT_COL] * prep.treatment[r];
+        }
+        let s2 = est
+            .fit_stage2(&prep.treatment, &prep.mediators, &prep.outcome, &mut ws)
+            .unwrap();
+        let x2 = stage2_matrix(&prep.treatment, &prep.mediators);
+        let mut r2 = vec![0.0; n];
+        for r in 0..n {
+            let mut pred = 0.0;
+            for c in 0..(2 + prep.mediators.len()) {
+                pred += x2[c * n + r] * s2.coefficients[c];
+            }
+            r2[r] = prep.outcome[r] - pred;
+        }
+        let (cov, _) = stacked_theta_cov_and_grad(
+            &x1,
+            &[r1.clone()],
+            &[s1.coefficients.clone()],
+            &x2,
+            3,
+            &r2,
+            &s2.coefficients,
+            prep.treatment_delta,
+            AnalyticSeKind::Hc0,
+            None,
+            CrossStagePolicy::Empirical,
+        )
+        .unwrap();
+        // Indices: a at stage1 col 1 (index 1), b at stage2 mediator col (index 4).
+        let cov_ab = cov[1 * 5 + 4];
+        let var_a = cov[1 * 5 + 1];
+        let var_b = cov[4 * 5 + 4];
+        assert!(
+            cov_ab.is_finite() && cov_ab.abs() > 0.0,
+            "expected nonzero cross-stage Cov(a,b), got {cov_ab}"
+        );
+        assert!(var_a > 0.0 && var_b > 0.0);
+
+        let se_full = stacked_path_sum_se(
+            &x1,
+            &[r1.clone()],
+            &[s1.coefficients.clone()],
+            &x2,
+            3,
+            &r2,
+            &s2.coefficients,
+            prep.treatment_delta,
+            AnalyticSeKind::Hc0,
+            None,
+            CrossStagePolicy::Empirical,
+        )
+        .unwrap();
+        let se_indep = stacked_path_sum_se(
+            &x1,
+            &[r1],
+            &[s1.coefficients.clone()],
+            &x2,
+            3,
+            &r2,
+            &s2.coefficients,
+            prep.treatment_delta,
+            AnalyticSeKind::Hc0,
+            None,
+            CrossStagePolicy::IndependentPaths,
+        )
+        .unwrap();
+        assert!(
+            (se_full - se_indep).abs() / se_full.max(1e-8) > 0.001,
+            "cross-stage term should move SE: full={se_full} indep={se_indep}"
+        );
+
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let boot = effect.se_bootstrap.expect("bootstrap SE");
+        let rel = (effect.se_analytic - boot).abs() / boot.max(1e-8);
+        assert!(
+            rel < 0.25,
+            "analytic={} boot={} rel={}",
+            effect.se_analytic,
+            boot,
+            rel
+        );
+    }
+
+    #[test]
+    fn two_mediator_stacked_se_matches_bootstrap() {
+        let n = 3000usize;
+        let mut rng = ExecutionContext::for_tests(12).rng.stream(0xF403_u64);
+        let mut t = vec![0.0; n];
+        let mut m1 = vec![0.0; n];
+        let mut m2 = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let ti = standard_normal(&mut rng);
+            let e = standard_normal(&mut rng);
+            let a = ti + 0.5 * e + 0.1 * standard_normal(&mut rng);
+            let b = 1.5 * ti + 0.5 * e + 0.1 * standard_normal(&mut rng);
+            let yi = 2.0 * a + 1.5 * b + 0.4 * e + 0.1 * standard_normal(&mut rng);
+            t[i] = ti;
+            m1[i] = a;
+            m2[i] = b;
+            y[i] = yi;
+        }
+        let mut bldr = CausalSchemaBuilder::new();
+        for (name, role) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("m1", RoleHint::Context),
+            ("m2", RoleHint::Context),
+        ] {
+            bldr.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(role),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = bldr.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(m1),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(3),
+                    Arc::from(m2),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let estimand = IdentifiedEstimand::frontdoor(
+            "frontdoor",
+            Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+            ExprId::from_raw(0),
+        );
+        let est = FrontDoorTwoStage { bootstrap_replicates: 350, ..FrontDoorTwoStage::new() };
+        let prep = est.prepare(&data, &estimand, &query()).unwrap();
+        let mut ws = FrontDoorWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
+        let boot = effect.se_bootstrap.expect("bootstrap SE");
+        let rel = (effect.se_analytic - boot).abs() / boot.max(1e-8);
+        assert!(
+            rel < 0.3,
+            "analytic={} boot={} rel={}",
+            effect.se_analytic,
+            boot,
+            rel
+        );
+    }
+
+    #[test]
+    fn zeroing_cross_stage_meat_recovers_independent_path_delta() {
+        let (data, estimand) = frontdoor_scm(2000, 21);
+        let est = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let prep = est.prepare(&data, &estimand, &query()).unwrap();
+        let mut ws = FrontDoorWorkspace::default();
+        let n = prep.nrows;
+        let x1 = stage1_matrix(&prep.treatment);
+        let s1 = est.fit_stage1(&prep.treatment, &prep.mediators[0], &mut ws).unwrap();
+        let mut r1 = vec![0.0; n];
+        for r in 0..n {
+            r1[r] = prep.mediators[0][r]
+                - s1.coefficients[0]
+                - s1.coefficients[STAGE1_TREATMENT_COL] * prep.treatment[r];
+        }
+        let s2 = est
+            .fit_stage2(&prep.treatment, &prep.mediators, &prep.outcome, &mut ws)
+            .unwrap();
+        let x2 = stage2_matrix(&prep.treatment, &prep.mediators);
+        let mut r2 = vec![0.0; n];
+        for r in 0..n {
+            let mut pred = 0.0;
+            for c in 0..3 {
+                pred += x2[c * n + r] * s2.coefficients[c];
+            }
+            r2[r] = prep.outcome[r] - pred;
+        }
+        let a = s1.coefficients[STAGE1_TREATMENT_COL];
+        let b = s2.coefficients[STAGE2_FIRST_MEDIATOR_COL];
+        let se_indep = stacked_path_sum_se(
+            &x1,
+            &[r1.clone()],
+            &[s1.coefficients.clone()],
+            &x2,
+            3,
+            &r2,
+            &s2.coefficients,
+            prep.treatment_delta,
+            AnalyticSeKind::Hc0,
+            None,
+            CrossStagePolicy::IndependentPaths,
+        )
+        .unwrap();
+        // Ordinary independent-path delta on HC0 marginal variances of a and b.
+        let (cov, _) = stacked_theta_cov_and_grad(
+            &x1,
+            &[r1],
+            &[s1.coefficients.clone()],
+            &x2,
+            3,
+            &r2,
+            &s2.coefficients,
+            prep.treatment_delta,
+            AnalyticSeKind::Hc0,
+            None,
+            CrossStagePolicy::IndependentPaths,
+        )
+        .unwrap();
+        let var_a = cov[1 * 5 + 1];
+        let var_b = cov[4 * 5 + 4];
+        let cov_ab = cov[1 * 5 + 4];
+        assert!(cov_ab.abs() < 1e-12, "cross-stage block should be zeroed, got {cov_ab}");
+        let d = prep.treatment_delta;
+        let var_ref = (b * b * var_a + a * a * var_b) * d * d;
+        assert!((se_indep - var_ref.max(0.0).sqrt()).abs() < 1e-10);
+    }
+
+    #[test]
+    fn clustered_stacked_se_invariant_to_cluster_relabel() {
+        let (data, estimand) = frontdoor_scm(800, 31);
+        let prep = FrontDoorTwoStage::new().prepare(&data, &estimand, &query()).unwrap();
+        let n = prep.nrows;
+        let mut groups: Vec<u32> = (0..n as u32).map(|i| i % 40).collect();
+        let est = FrontDoorTwoStage {
+            bootstrap_replicates: 0,
+            se_kind: AnalyticSeKind::Cluster,
+            cluster_ids: Some(Arc::from(groups.as_slice())),
+            ..FrontDoorTwoStage::new()
+        };
+        let mut ws = FrontDoorWorkspace::default();
+        let se1 = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().se_analytic;
+
+        // Relabel clusters by a fixed permutation of ids.
+        for g in &mut groups {
+            *g = (*g * 7 + 3) % 40;
+        }
+        let est2 = FrontDoorTwoStage {
+            bootstrap_replicates: 0,
+            se_kind: AnalyticSeKind::Cluster,
+            cluster_ids: Some(Arc::from(groups.as_slice())),
+            ..FrontDoorTwoStage::new()
+        };
+        let se2 = est2.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().se_analytic;
+        assert!(
+            (se1 - se2).abs() < 1e-12,
+            "relabel changed SE: {se1} vs {se2}"
+        );
+        assert!(se1.is_finite() && se1 > 0.0);
     }
 
     #[test]
