@@ -77,7 +77,9 @@ pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
     predict_propensity,
 };
-pub use regularized::{LassoFit, LassoOptions, fit_lasso, fit_ridge};
+pub use regularized::{
+    LassoFit, LassoOptions, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
+};
 pub use special::{
     digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_sf, trigamma,
 };

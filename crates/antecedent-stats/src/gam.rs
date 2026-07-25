@@ -289,7 +289,7 @@ pub fn fit_gam(
     }
     validate_raw_layout(x_colmajor, nrows, n_raw_cols, specs)?;
     for s in specs {
-        if !s.auto_lambda && !(s.lambda.is_finite() && s.lambda >= 0.0) {
+        if !(s.auto_lambda || (s.lambda.is_finite() && s.lambda >= 0.0)) {
             return Err(StatsError::Shape { message: "smooth lambda must be finite and ≥ 0" });
         }
         if s.n_basis < CUBIC_ORDER {
