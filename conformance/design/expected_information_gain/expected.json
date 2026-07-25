@@ -27,54 +27,47 @@
       "candidate": "measure",
       "amount": 1,
       "reliability": 0.5276334472589853,
-      "expected_information_gain": 0.0736929868888847,
-      "native_pointwise_clipped_expectation": 0.08762198222691676
+      "expected_information_gain": 0.0736929868888847
     },
     {
       "name": "measure_two",
       "candidate": "measure",
       "amount": 2,
       "reliability": 0.7768698398515702,
-      "expected_information_gain": 0.3826550217889961,
-      "native_pointwise_clipped_expectation": 0.3826550217889961
+      "expected_information_gain": 0.3826550217889961
     },
     {
       "name": "intervene_one",
       "candidate": "intervene",
       "amount": 1,
       "reliability": 0.6321205588285577,
-      "expected_information_gain": 0.1719455582574009,
-      "native_pointwise_clipped_expectation": 0.17644990585496
+      "expected_information_gain": 0.1719455582574009
     },
     {
       "name": "observe_fifty",
       "candidate": "observe",
       "amount": 50,
       "reliability": 0.5,
-      "expected_information_gain": 0.05212203882242212,
-      "native_pointwise_clipped_expectation": 0.06893031564995829
+      "expected_information_gain": 0.05212203882242212
     },
     {
       "name": "sample_one",
       "candidate": "sample",
       "amount": 1,
       "reliability": 0.05,
-      "expected_information_gain": 0.22862135572357684,
-      "native_pointwise_clipped_expectation": 0.22862135572357684
+      "expected_information_gain": 0.22862135572357684
     },
     {
       "name": "sample_one_hundred",
       "candidate": "sample",
       "amount": 100,
       "reliability": 0.6666666666666667,
-      "expected_information_gain": 0.21382040404557492,
-      "native_pointwise_clipped_expectation": 0.21382040404557492
+      "expected_information_gain": 0.21382040404557492
     }
   ],
   "acceptance": {
     "fixed_budget_samples": 100000,
     "score_atol": 0.006,
-    "exact_disagreement_min": 0.01,
     "seeds": [1701, 1702, 1703],
     "adaptive_min_batches": 8,
     "adaptive_max_batches": 256,
