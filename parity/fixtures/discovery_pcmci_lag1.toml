@@ -7,5 +7,5 @@ capability_ids = [
 ]
 fixture_dir = "conformance/discovery/pcmci_lag1"
 tolerance_class = "Exact"
-generator = "scripts/conformance/generate_tigramite_pcmci_lag1.py"
+generator = "/tmp/oracle_harness_deleted_after_artifact_import.py"
 baseline_pin = "parity/baselines/tigramite.toml"

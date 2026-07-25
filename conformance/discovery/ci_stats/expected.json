@@ -9,7 +9,7 @@
   "n": 200,
   "seed": 11,
   "generation": {
-    "script": "scripts/conformance/generate_tigramite_ci_stats.py",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/tigramite.toml",
     "env": "uv run --python 3.10 --with numpy --with scipy --with dcor --with scikit-learn --with tigramite==5.2.1.30"
   },

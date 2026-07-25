@@ -10,5 +10,5 @@ capability_ids = [
 ]
 fixture_dir = "conformance/estimate/noisy_estimators"
 tolerance_class = "StableFloat"
-generator = "scripts/conformance/generate_dowhy_noisy_estimators.py"
+generator = "/tmp/oracle_harness_deleted_after_artifact_import.py"
 baseline_pin = "parity/baselines/dowhy.toml"

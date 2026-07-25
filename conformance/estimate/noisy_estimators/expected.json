@@ -163,7 +163,7 @@
     }
   },
   "generation": {
-    "script": "scripts/conformance/generate_dowhy_noisy_estimators.py",
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "seed_note": "numpy Generator seed=7",
     "env": "dowhy==0.14 + numpy/pandas/statsmodels/scikit-learn"
   },
@@ -172,7 +172,7 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python scripts/conformance/generate_dowhy_noisy_estimators.py",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
     "note": "black-box execution only; AIPW is clean-room (econml excluded)"
   }
 }
