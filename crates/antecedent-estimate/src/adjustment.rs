@@ -19,7 +19,8 @@ use antecedent_data::TabularData;
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, LassoOptions, LeastSquaresWorkspace,
-    MEstimateOptions, fit_huber_m, fit_lasso, fit_ridge, form_xtx, invert_square,
+    MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge, form_xtx, invert_square,
+    predict_lasso,
 };
 
 use crate::error::EstimationError;
@@ -417,21 +418,32 @@ impl LinearAdjustmentAte {
                 Ok((fit.coefficients, fit.residuals, fit.rss, true))
             }
             LinearFitKind::Lasso { lambda } => {
-                let fit = fit_lasso(x, n, p, y, lambda, &LassoOptions::default())
-                    .map_err(EstimationError::from)?;
+                let fit = fit_lasso_with_ones_column(
+                    x,
+                    n,
+                    p,
+                    y,
+                    &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
+                )
+                .map_err(EstimationError::from)?;
+                // Design keeps an all-ones column; stitch intercept back for g-computation.
+                let mut coefficients = Vec::with_capacity(p);
+                coefficients.push(fit.intercept);
+                coefficients.extend_from_slice(&fit.coefficients);
+                let pred = if fit.coefficients.is_empty() {
+                    vec![fit.intercept; n]
+                } else {
+                    predict_lasso(&fit, &x[n..], n, p - 1).map_err(EstimationError::from)?
+                };
                 let mut residuals = vec![0.0; n];
                 let mut rss = 0.0;
                 for r in 0..n {
-                    let mut pred = 0.0;
-                    for c in 0..p {
-                        pred += x[c * n + r] * fit.coefficients[c];
-                    }
-                    let e = y[r] - pred;
+                    let e = y[r] - pred[r];
                     residuals[r] = e;
                     rss += e * e;
                 }
                 // Permanent policy: no analytic SE for Lasso (bootstrap only).
-                Ok((fit.coefficients, residuals, rss, false))
+                Ok((coefficients, residuals, rss, false))
             }
             LinearFitKind::Huber { c } => {
                 let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
@@ -493,8 +505,19 @@ impl LinearAdjustmentAte {
                     }
                 }
                 LinearFitKind::Lasso { lambda } => {
-                    match fit_lasso(&x_boot, n, p, &y_boot, lambda, &LassoOptions::default()) {
-                        Ok(fit) => fit.coefficients,
+                    match fit_lasso_with_ones_column(
+                        &x_boot,
+                        n,
+                        p,
+                        &y_boot,
+                        &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
+                    ) {
+                        Ok(fit) => {
+                            let mut coefficients = Vec::with_capacity(p);
+                            coefficients.push(fit.intercept);
+                            coefficients.extend_from_slice(&fit.coefficients);
+                            coefficients
+                        }
                         Err(_) => return Ok(None),
                     }
                 }
