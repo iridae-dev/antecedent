@@ -12,9 +12,12 @@ Antecedent is a causal inference engine written in Rust with a first-class Pytho
 
 For the fastest introduction, we've written some notebooks that you can open and run in Google Colab to see how Antecedent works:
 
-* [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) See how a naive marketing dashboard can materially overstate paid-search impact by crediting the campaign for demand that would have existed anyway. Antecedent adjusts for market demand and produces a decision-ready estimate of incremental pipeline.
-* [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) Use evidence from a previous sales campaign without assuming the new campaign is identical. Antecedent transfers the historical treatment-effect posterior into a different target model, then lets current data update it.
-* [Marketing experiment design](examples/notebooks/marketing_experiment_design.ipynb) Compare a holdout experiment, better intent data and additional CRM records to determine which investment actually resolves the causal question. Antecedent identifies the best feasible action under a £40,000 budget and shows why collecting more of the same data would not fix the attribution problem.
+| Notebook | Description |
+| ----- | ----- |
+| [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb)  | See how a naive marketing dashboard can materially overstate paid-search impact by crediting the campaign for demand that would have existed anyway. Antecedent adjusts for market demand and produces a decision-ready estimate of incremental pipeline.  [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
+| [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) | Use evidence from a previous sales campaign without assuming the new campaign is identical. Antecedent transfers the historical treatment-effect posterior into a different target model, then lets current data update it. [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
+| [Marketing experiment design](examples/notebooks/marketing_experiment_design.ipynb) | Compare a holdout experiment, better intent data and additional CRM records to determine which investment actually resolves the causal question. Antecedent identifies the best feasible action under a £40,000 budget and shows why collecting more of the same data would not fix the attribution problem. [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/marketing_experiment_design.ipynb) |
+
 
 We also have a library of examples in both Rust and Python in [`examples/`](examples/).
 
@@ -82,28 +85,9 @@ currently provided.
 - [Architecture](docs/architecture.md) 
 - [Comparison with DoWhy, EconML, Tigramite, causal-learn](docs/comparison.md)
 
-- Rust docs and API are on [docs.rs](https://docs.rs/antecedent/latest/antecedent/)
-- Docs and the Python API reference are on
+Docs and the Python API reference are on
 [Read the Docs](https://antecedent.readthedocs.io/) ([Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html));
 the Rust API is on [docs.rs/antecedent](https://docs.rs/antecedent). 
-
-## Citation
-
-If you use Antecedent in research, please cite it. Citation metadata is in
-[`CITATION.cff`](CITATION.cff); the archived release is
-[doi:10.5281/zenodo.21556247](https://doi.org/10.5281/zenodo.21556247).
-
-```bibtex
-@software{hinshaw_antecedent_2026,
-  author       = {Hinshaw, Charles and Antecedent Contributors},
-  title        = {Antecedent},
-  version      = {0.3.0},
-  year         = {2026},
-  publisher    = {Zenodo},
-  doi          = {10.5281/zenodo.21556247},
-  url          = {https://doi.org/10.5281/zenodo.21556247}
-}
-```
 
 ## Contributing
 
