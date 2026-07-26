@@ -2,83 +2,26 @@
 
 [![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
-Antecedent is an identification-first causal inference engine for Python and Rust. It takes an analysis from causal structure through estimation, diagnostics, interventions, and counterfactuals — without silently treating discovered graphs as ground truth.
-
-Most causal tooling asks you to supply the true DAG and then conditions every downstream number on it, even though the graph is usually the least certain input you have. Antecedent is built for **causal inference under structural uncertainty**: discovered structure — a CPDAG, a PAG, a posterior over graphs — is treated as evidence about the causal graph, and that uncertainty is propagated into identification, estimation, and effect intervals rather than resolved by fiat.
-
-Three rules are enforced throughout:
-
-* identification is evaluated before estimation;
-* priors and parametric assumptions do not upgrade nonparametric identification;
-* uncertainty about causal structure is retained rather than silently resolved.
-
-Everything else in the library supports that position:
+Antecedent is a causal inference engine written in Rust with a first-class Python API. It is built for **causal inference under structural uncertainty**. 
 
 * **One engine, whole workflow.** Discovery, identification, estimation, Bayesian inference, interventions, counterfactuals, attribution, validation, and experimental design share one API and one set of guarantees — assumptions are not lost at the seams between libraries.
+* Discovered structure — a CPDAG, a PAG, a posterior over graphs — is treated as evidence about the causal graph, and that uncertainty is propagated throughout estimation.
 * **Temporal and online analysis.** Temporal graphs with their own semantics, PCMCI-family discovery, temporal identification and estimation, and incremental `CausalState` for streaming workflows.
-* **A Rust core.** The scientific engine is written in Rust with a first-class Python API, so the same computation runs in notebooks and in production.
 
-## Quick start
+## Try it!
 
-View these notebooks on GitHub, or open them in Google Colab from the
-instructions inside each one — no local install required.
+For the fastest introduction, we've written some notebooks that you can open and run in Google Colab to see how Antecedent works:
 
-### [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
+* [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) See how a naive marketing dashboard can materially overstate paid-search impact by crediting the campaign for demand that would have existed anyway. Antecedent adjusts for market demand and produces a decision-ready estimate of incremental pipeline.
+* [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) Use evidence from a previous sales campaign without assuming the new campaign is identical. Antecedent transfers the historical treatment-effect posterior into a different target model, then lets current data update it.
+* [Marketing experiment design](examples/notebooks/marketing_experiment_design.ipynb) Compare a holdout experiment, better intent data and additional CRM records to determine which investment actually resolves the causal question. Antecedent identifies the best feasible action under a £40,000 budget and shows why collecting more of the same data would not fix the attribution problem.
 
-See how a naive marketing dashboard can materially overstate paid-search impact by crediting the campaign for demand that would have existed anyway. Antecedent adjusts for market demand and produces a decision-ready estimate of incremental pipeline.
-
-### [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb)
-
-Use evidence from a previous sales campaign without assuming the new campaign is identical. Antecedent transfers the historical treatment-effect posterior into a different target model, then lets current data update—or contradict—it.
-
-### [Marketing experiment design](examples/notebooks/marketing_experiment_design.ipynb)
-
-Compare a holdout experiment, better intent data and additional CRM records to determine which investment actually resolves the causal question. Antecedent identifies the best feasible action under a £40,000 budget and shows why collecting more of the same data would not fix the attribution problem.
-
-There are more examples in both Rust and Python in [`examples/`](examples/).
-
-## Workflow
-
-```text
-data
-  │
-  ├── discover
-  │     └── DAG · CPDAG · PAG · temporal graph · graph posterior
-  │
-  └── graph
-        ├── identify
-        ├── estimate
-        ├── infer posterior
-        ├── intervene
-        ├── evaluate counterfactuals
-        ├── attribute change
-        ├── validate
-        └── rank experimental designs
-```
-
-Discovery results are treated as evidence about causal structure. They are not automatically treated as the true graph.
-
-## Queries
-
-Antecedent uses typed causal queries rather than a string query language.
-
-| Query                        | Purpose                                        |
-| ---------------------------- | ---------------------------------------------- |
-| `AverageEffect`              | Average treatment effects and contrasts        |
-| `ConditionalEffect`          | Conditional and heterogeneous effects          |
-| `PulseEffect`                | Temporary temporal interventions               |
-| `SustainedEffect`            | Sustained temporal interventions               |
-| `InterventionalDistribution` | Distributions under `do(·)`                    |
-| `PathSpecificEffect`         | Direct, mediated, and path-specific effects    |
-| Counterfactual queries       | Nested and unit-level counterfactuals          |
-| Attribution queries          | Anomaly, mechanism, path, and unit attribution |
+We also have a library of examples in both Rust and Python in [`examples/`](examples/).
 
 ## Capabilities
 
 The full inventory — every graph class, algorithm, estimator, refuter, and
-mechanism — lives in [docs/capabilities.md](docs/capabilities.md) (also on
-[Read the Docs](https://antecedent.readthedocs.io/en/latest/capabilities/)).
-The highlights:
+mechanism — lives in [docs/capabilities.md](docs/capabilities.md). The highlights:
 
 * **Graphs.** DAG, ADMG, CPDAG, PAG, and their temporal variants, with
   d-/m-separation, latent projection, and Markov-equivalence operations.
@@ -135,12 +78,14 @@ currently provided.
 
 ## Documentation
 
-Narrative docs and the Python API reference are on
-[Read the Docs](https://antecedent.readthedocs.io/) ([Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html));
-the Rust API is on [docs.rs/antecedent](https://docs.rs/antecedent). Locally:
-`mkdocs serve`, `cargo doc -p antecedent --open`.
+- [Full capabilities](docs/capabilities.md)
+- [Architecture](docs/architecture.md) 
+- [Comparison with DoWhy, EconML, Tigramite, causal-learn](docs/comparison.md)
 
-Also: [Full capabilities](docs/capabilities.md) · [Comparison with DoWhy, EconML, Tigramite, causal-learn](docs/comparison.md) · [Architecture](docs/architecture.md) · [Development](docs/development.md) · [API naming](docs/api_naming.md) · [ADRs](adr/README.md) · [Examples](examples/).
+- Rust docs and API are on [docs.rs](https://docs.rs/antecedent/latest/antecedent/)
+- Docs and the Python API reference are on
+[Read the Docs](https://antecedent.readthedocs.io/) ([Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html));
+the Rust API is on [docs.rs/antecedent](https://docs.rs/antecedent). 
 
 ## Citation
 
@@ -163,6 +108,8 @@ If you use Antecedent in research, please cite it. Citation metadata is in
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). DCO sign-off required.
+
+Also: [Development](docs/development.md) · [API naming](docs/api_naming.md) · [ADRs](adr/README.md)
 
 ## License
 
