@@ -71,6 +71,16 @@ Antecedent follows several explicit constraints:
 6. PAG-native full ID and IDC are not claimed.
 7. Unsupervised regime discovery is outside the RPCMCI workflow.
 
+### Provenance, conformance, and parity
+
+Antecedent treats scientific traceability and behavioural verification as requirements for merging significant algorithms—not as release-time aspirations:
+
+* **Provenance.** Every significant algorithm must cite its scientific sources and record any upstream implementations consulted, including whether each was referenced directly or used only as a black-box behavioural comparator. Antecedent's current upstream comparisons are black-box only. See [`provenance/`](provenance/).
+* **Conformance.** Implementations are output-verified on documented fixtures against established reference libraries, including DoWhy, scikit-learn, and Tigramite where applicable. Defined conformance outputs permit no unexplained divergence. See [`conformance/`](conformance/).
+* **Parity.** Applicable public behaviour must remain in complete parity across the Rust and Python APIs. See [`parity/`](parity/).
+
+These guarantees establish traceable algorithmic lineage, agreement on defined reference cases, and consistent cross-language behaviour. They do not validate a user's causal assumptions or imply endorsement by the referenced projects.
+
 ## Platform support
 
 Python wheels cover CPython 3.11–3.14 on Linux, macOS, and Windows:
