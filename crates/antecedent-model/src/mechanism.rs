@@ -18,7 +18,9 @@ use antecedent_kernels::{categorical_from_u, standard_normal};
 use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatchMut};
 use crate::compile::MechanismSlot;
 use crate::error::ModelError;
-use crate::lgssm::{infer_lgssm_innovations, sample_lgssm_noise, unpack_innovations};
+use crate::lgssm::{
+    infer_lgssm_innovations, kalman_filter, sample_lgssm_noise, unpack_innovations,
+};
 
 /// How noise was recovered for a mechanism family during abduction.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -141,18 +143,18 @@ pub fn evaluate_column(
             if *n_parents != parents.n_parents {
                 return Err(ModelError::Shape { message: "GP n_parents mismatch".into() });
             }
-            let inv_l2 = 1.0 / (length_scale * length_scale);
+            gp_predictive_mean_column(
+                *length_scale,
+                *variance,
+                x_train,
+                *n_train,
+                *n_parents,
+                alpha,
+                parents,
+                &mut output[..n],
+            )?;
             for r in 0..n {
-                let mut mean = 0.0;
-                for i in 0..*n_train {
-                    let mut d2 = 0.0;
-                    for p in 0..parents.n_parents {
-                        let d = parents.column(p)?[r] - x_train[i * n_parents + p];
-                        d2 += d * d;
-                    }
-                    mean += alpha[i] * variance * (-0.5 * d2 * inv_l2).exp();
-                }
-                output[r] = mean + noise[r];
+                output[r] += noise[r];
             }
             Ok(())
         }
@@ -194,6 +196,42 @@ pub fn evaluate_column(
             mechanism.evaluate_column(parents, noise, output, ws)
         }
     }
+}
+
+/// GP dual-form predictive mean at each row: `Σᵢ αᵢ · variance · exp(-0.5 d(x_row, xᵢ)² / ℓ²)`.
+///
+/// Shared by [`evaluate_column`], [`infer_noise_column_rng`], `log_prob_column`, and the
+/// registry's residual-MSE scoring so all four use an identical dual-form prediction.
+///
+/// # Errors
+///
+/// Out-of-range parent column access.
+#[allow(clippy::too_many_arguments)] // GP dual-form params, threaded through from the fitted slot.
+pub(crate) fn gp_predictive_mean_column(
+    length_scale: f64,
+    variance: f64,
+    x_train: &[f64],
+    n_train: usize,
+    n_parents: usize,
+    alpha: &[f64],
+    parents: ParentBatch<'_>,
+    output: &mut [f64],
+) -> Result<(), ModelError> {
+    let n = parents.n_rows;
+    let inv_l2 = 1.0 / (length_scale * length_scale);
+    for r in 0..n {
+        let mut mean = 0.0;
+        for i in 0..n_train {
+            let mut d2 = 0.0;
+            for p in 0..parents.n_parents {
+                let d = parents.column(p)?[r] - x_train[i * n_parents + p];
+                d2 += d * d;
+            }
+            mean += alpha[i] * variance * (-0.5 * d2 * inv_l2).exp();
+        }
+        output[r] = mean;
+    }
+    Ok(())
 }
 
 /// Infer exogenous noise from observed value and parents (invertible path).
@@ -273,18 +311,19 @@ pub fn infer_noise_column_rng(
             if *n_parents != parents.n_parents {
                 return Err(ModelError::Shape { message: "GP n_parents mismatch".into() });
             }
-            let inv_l2 = 1.0 / (length_scale * length_scale);
+            let mut mean = vec![0.0; n];
+            gp_predictive_mean_column(
+                *length_scale,
+                *variance,
+                x_train,
+                *n_train,
+                *n_parents,
+                alpha,
+                parents,
+                &mut mean,
+            )?;
             for r in 0..n {
-                let mut mean = 0.0;
-                for i in 0..*n_train {
-                    let mut d2 = 0.0;
-                    for p in 0..parents.n_parents {
-                        let d = parents.column(p)?[r] - x_train[i * n_parents + p];
-                        d2 += d * d;
-                    }
-                    mean += alpha[i] * variance * (-0.5 * d2 * inv_l2).exp();
-                }
-                output[r] = value[r] - mean;
+                output[r] = value[r] - mean[r];
             }
             Ok(NoiseInferenceMode::Invertible)
         }
@@ -466,28 +505,55 @@ pub fn log_prob_column(
         MechanismSlot::Vacant | MechanismSlot::Pending { .. } => {
             Err(ModelError::Unsupported { message: "mechanism not fitted".into() })
         }
-        MechanismSlot::LinearGaussianStateSpace { obs_std, .. } => {
+        MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
             if !(obs_std.is_finite() && *obs_std > 0.0) {
                 return Err(ModelError::Numerical { message: "obs_std must be > 0".into() });
             }
-            let inv_s = 1.0 / obs_std;
-            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - obs_std.ln();
-            for r in 0..n {
-                // Marginal N(0, obs) approximation for scoring.
-                let z = values[r] * inv_s;
-                output[r] = log_norm - 0.5 * z * z;
+            // Kalman one-step predictive density N(x_pred[t], p_pred[t] + r): the correct
+            // per-observation marginal likelihood contribution for a state-space model
+            // (not the raw-value N(0, obs_std²) approximation used previously).
+            let q = (process_std * process_std).max(1e-16);
+            let r_var = (obs_std * obs_std).max(1e-16);
+            let (_, _, x_pred, p_pred) =
+                kalman_filter(&values[..n], *a, q, r_var, *initial_mean, q);
+            for t in 0..n {
+                let var = (p_pred[t] + r_var).max(1e-16);
+                let z = values[t] - x_pred[t];
+                output[t] = -0.5 * (2.0 * std::f64::consts::PI * var).ln() - 0.5 * z * z / var;
             }
             Ok(())
         }
-        MechanismSlot::GaussianProcess { noise_std, .. } => {
+        MechanismSlot::GaussianProcess {
+            length_scale,
+            variance,
+            noise_std,
+            x_train,
+            n_train,
+            n_parents,
+            alpha,
+        } => {
             if !(noise_std.is_finite() && *noise_std > 0.0) {
                 return Err(ModelError::Numerical { message: "noise_std must be > 0".into() });
             }
-            // Predictive mean already in evaluate; here use noise-scale residual approx.
+            if *n_parents != parents.n_parents {
+                return Err(ModelError::Shape { message: "GP n_parents mismatch".into() });
+            }
+            // Score against the GP predictive mean, not the raw observed value.
+            let mut mean = vec![0.0; n];
+            gp_predictive_mean_column(
+                *length_scale,
+                *variance,
+                x_train,
+                *n_train,
+                *n_parents,
+                alpha,
+                parents,
+                &mut mean,
+            )?;
             let inv_s = 1.0 / noise_std;
             let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - noise_std.ln();
             for r in 0..n {
-                let z = values[r] * inv_s;
+                let z = (values[r] - mean[r]) * inv_s;
                 output[r] = log_norm - 0.5 * z * z;
             }
             Ok(())

@@ -33,7 +33,7 @@ use crate::compile::{
     CompiledCausalModel, CompiledMechanismStore, MechanismSlot, ParentGatherPlan,
 };
 use crate::error::ModelError;
-use crate::mechanism::log_prob_column;
+use crate::mechanism::{gp_predictive_mean_column, log_prob_column};
 
 /// Candidate mechanism family known to the registry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -287,12 +287,38 @@ fn score_family(
             }
             Some(logits) => discrete_mean_loglik(gather, model, data, y, support, logits)?,
         },
-        MechanismSlot::LinearGaussianStateSpace { process_std, obs_std, .. } => {
-            let mse = y.iter().map(|yi| yi.powi(2)).sum::<f64>() / y.len().max(1) as f64;
+        MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean } => {
+            // Kalman one-step-ahead predictive residual, on the same fitted-residual scale as
+            // the other families (was: mean(y²), the raw second moment of the target — not a
+            // fitted residual at all, and incomparable across families).
+            let q = (process_std * process_std).max(1e-16);
+            let r_var = (obs_std * obs_std).max(1e-16);
+            let (_, _, x_pred, _) = crate::lgssm::kalman_filter(y, *a, q, r_var, *initial_mean, q);
+            let mse = y.iter().zip(x_pred.iter()).map(|(yi, xp)| (yi - xp).powi(2)).sum::<f64>()
+                / y.len().max(1) as f64;
             -mse - (process_std + obs_std).ln().abs() * 0.01
         }
-        MechanismSlot::GaussianProcess { noise_std, .. } => {
-            let mse = y.iter().map(|yi| yi.powi(2)).sum::<f64>() / y.len().max(1) as f64;
+        MechanismSlot::GaussianProcess {
+            length_scale,
+            variance,
+            noise_std,
+            x_train,
+            n_train,
+            n_parents,
+            alpha,
+        } => {
+            let mse = gp_residual_mse(
+                gather,
+                model,
+                data,
+                y,
+                *length_scale,
+                *variance,
+                x_train,
+                *n_train,
+                *n_parents,
+                alpha,
+            )?;
             -mse - noise_std.ln().abs() * 0.01
         }
         _ => f64::NEG_INFINITY,
@@ -949,6 +975,45 @@ fn residual_mse(
     Ok(sse / n.max(1) as f64)
 }
 
+/// Fitted-residual MSE for a GP mechanism, on the same scale as [`residual_mse`]: uses the
+/// dual-form predictive mean (shared with `evaluate_column` / `log_prob_column`), not the raw
+/// second moment of `y`.
+#[allow(clippy::too_many_arguments)]
+fn gp_residual_mse(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    length_scale: f64,
+    variance: f64,
+    x_train: &[f64],
+    n_train: usize,
+    n_parents: usize,
+    alpha: &[f64],
+) -> Result<f64, ModelError> {
+    let n = y.len();
+    let p = gather.n_parents();
+    let parent_cols = gather_parent_cols(gather, model, data)?;
+    let mut parent_mat = vec![0.0; n * p.max(1)];
+    for (pi, col) in parent_cols.iter().enumerate() {
+        parent_mat[pi * n..pi * n + n].copy_from_slice(&col[..n]);
+    }
+    let parents =
+        ParentBatch { n_rows: n, n_parents: p, values: &parent_mat[..p.saturating_mul(n)] };
+    let mut pred = vec![0.0; n];
+    gp_predictive_mean_column(
+        length_scale,
+        variance,
+        x_train,
+        n_train,
+        n_parents,
+        alpha,
+        parents,
+        &mut pred,
+    )?;
+    Ok(y.iter().zip(pred.iter()).map(|(yi, m)| (yi - m).powi(2)).sum::<f64>() / n.max(1) as f64)
+}
+
 fn discrete_mean_loglik(
     gather: &ParentGatherPlan,
     model: &CompiledCausalModel,
@@ -1258,5 +1323,78 @@ mod tests {
         assert_eq!(length_scale, fixture["reference"]["length_scale"].as_f64().unwrap());
         assert_eq!(noise_std, fixture["reference"]["noise_std"].as_f64().unwrap());
         assert_ne!(length_scale, 0.5, "must not select the diagonal-proxy length scale");
+    }
+
+    /// MM-A1: LGSSM/GP scoring must use a genuine fitted residual, on the same scale as the
+    /// linear families — not `mean(y²)`, the raw second moment of the target. On data
+    /// generated from a persistent near-random-walk LGSSM with a large offset, `mean(y²)`
+    /// is dominated by `mean(y)² ≈ 25`, which was always far worse than the intercept-only
+    /// `LinearGaussian` residual MSE (≈ the small variance around the slowly-drifting level)
+    /// regardless of how well LGSSM actually predicts one step ahead. With the fix, LGSSM's
+    /// score uses the Kalman one-step-ahead predictive residual, which is small for this
+    /// series, so `BestScore` correctly prefers LGSSM.
+    #[test]
+    fn best_score_prefers_lgssm_over_linear_gaussian_on_lgssm_generated_data() {
+        use antecedent_core::CausalRng;
+        use antecedent_kernels::standard_normal;
+
+        let n = 60usize;
+        let a = 0.95_f64;
+        let process_std = 0.05_f64;
+        let obs_std = 0.05_f64;
+        let initial_mean = 5.0_f64;
+        let mut rng = CausalRng::from_seed(11);
+        let mut yv = vec![0.0; n];
+        let mut x = initial_mean;
+        for i in 0..n {
+            x = if i == 0 {
+                initial_mean + process_std * standard_normal(&mut rng)
+            } else {
+                a * x + process_std * standard_normal(&mut rng)
+            };
+            yv[i] = x + obs_std * standard_normal(&mut rng);
+        }
+
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(yv), validity).unwrap(),
+        )];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let compiled = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+
+        let registry = MechanismRegistry::with_bayesian_families();
+        let (_, assigns) =
+            registry.assign_and_fit(&compiled, &data, SelectionPolicy::BestScore).unwrap();
+        assert_eq!(assigns.len(), 1);
+        let assignment = &assigns[0];
+        let lg_candidate = assignment
+            .candidates
+            .iter()
+            .find(|c| c.family == MechanismFamily::LinearGaussian)
+            .expect("LinearGaussian candidate present");
+        let lgssm_candidate = assignment
+            .candidates
+            .iter()
+            .find(|c| c.family == MechanismFamily::LinearGaussianStateSpace)
+            .expect("LGSSM candidate present");
+        assert!(
+            lgssm_candidate.score > lg_candidate.score,
+            "lgssm={} linear={}",
+            lgssm_candidate.score,
+            lg_candidate.score
+        );
+        assert_eq!(assignment.selected, MechanismFamily::LinearGaussianStateSpace);
     }
 }
