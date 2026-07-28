@@ -3,7 +3,7 @@
 use super::*;
 use crate::estimator_spec::EstimatorSpec;
 
-impl super::CausalAnalysis {
+impl super::Study {
     pub(super) fn execute_static(
         &self,
         data: &TabularData,
@@ -11,7 +11,7 @@ impl super::CausalAnalysis {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
@@ -41,7 +41,7 @@ impl super::CausalAnalysis {
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            &super::super::stage::AnalysisStageEvent::Identify {
+            &super::super::stage::StageEvent::Identify {
                 identification: identification.clone(),
                 estimand: estimand.clone(),
             },
@@ -79,7 +79,7 @@ impl super::CausalAnalysis {
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            &super::super::stage::AnalysisStageEvent::Point { estimate: point.clone() },
+            &super::super::stage::StageEvent::Point { estimate: point.clone() },
         );
 
         // Uncertainty: bootstrap fills (real work when replicates > 0).
@@ -92,9 +92,7 @@ impl super::CausalAnalysis {
                 clock.finish(super::super::stage::STAGE_UNCERTAINTY);
                 super::super::stage::emit_stage(
                     self.stage_sink.as_ref(),
-                    &super::super::stage::AnalysisStageEvent::Uncertainty {
-                        estimate: point.clone(),
-                    },
+                    &super::super::stage::StageEvent::Uncertainty { estimate: point.clone() },
                 );
                 point
             }
@@ -133,9 +131,7 @@ impl super::CausalAnalysis {
                 }
                 super::super::stage::emit_stage(
                     self.stage_sink.as_ref(),
-                    &super::super::stage::AnalysisStageEvent::Uncertainty {
-                        estimate: filled.clone(),
-                    },
+                    &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
                 );
                 filled
             }
@@ -170,9 +166,7 @@ impl super::CausalAnalysis {
                 }
                 super::super::stage::emit_stage(
                     self.stage_sink.as_ref(),
-                    &super::super::stage::AnalysisStageEvent::Uncertainty {
-                        estimate: filled.clone(),
-                    },
+                    &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
                 );
                 filled
             }
@@ -210,7 +204,7 @@ impl super::CausalAnalysis {
             clock.finish(super::super::stage::STAGE_VALIDATE);
             super::super::stage::emit_stage(
                 self.stage_sink.as_ref(),
-                &super::super::stage::AnalysisStageEvent::Validate {
+                &super::super::stage::StageEvent::Validate {
                     refutations: reports.clone(),
                     predictive_checks: Vec::new(),
                 },
@@ -267,7 +261,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::InterventionalDistributionQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let identifier = physical
             .logical
@@ -410,7 +404,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::PathSpecificEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_PATH_IDENTIFIER);
@@ -513,7 +507,7 @@ impl super::CausalAnalysis {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let rd = self.rd.ok_or_else(|| CausalError::Compile {
             message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
@@ -597,7 +591,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::ConditionalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let (identifier, _) = self.resolve_conditional_pair();
         let identifier_id: IdentifierId = identifier.parse()?;
@@ -670,7 +664,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::MediationQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         if !matches!(query.contrast, MediationContrast::Total) {
             return Err(CausalError::Unsupported {

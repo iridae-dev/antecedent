@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use antecedent::{BatchAnalysis, CausalAnalysis, RefuteSuite};
+use antecedent::{BatchStudy, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
@@ -83,14 +83,14 @@ fn batch_matches_solo_estimates() {
     let q2 = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
     let ctx = ExecutionContext::for_tests(3);
 
-    let batch = BatchAnalysis::new(data.clone(), dag.clone())
+    let batch = BatchStudy::new(data.clone(), dag.clone())
         .bootstrap_replicates(0)
         .refute(RefuteSuite::None)
         .estimate_many(&[q1.clone(), q2.clone()], &ctx)
         .unwrap();
     assert_eq!(batch.len(), 2);
 
-    let solo1 = CausalAnalysis::builder()
+    let solo1 = Study::builder()
         .data(data.clone())
         .graph(dag.clone())
         .query(q1)
@@ -100,7 +100,7 @@ fn batch_matches_solo_estimates() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let solo2 = CausalAnalysis::builder()
+    let solo2 = Study::builder()
         .data(data)
         .graph(dag)
         .query(q2)

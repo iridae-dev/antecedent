@@ -1,4 +1,4 @@
-//! Unified static/temporal `CausalAnalysis` facade (identify → estimate → refute).
+//! Unified static/temporal `Study` facade (identify → estimate → refute).
 //!
 //! Antecedent is an identification-first causal inference engine: identification
 //! is evaluated before estimation, refuters run against the estimate, and
@@ -28,7 +28,7 @@
 //! .unwrap();
 //! let dag = Dag::from_named_edges(&schema, &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
 //! let q = AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
-//! let result = CausalAnalysis::builder()
+//! let result = Study::builder()
 //!     .data(data)
 //!     .graph(dag)
 //!     .query(q)
@@ -78,8 +78,8 @@ pub mod validate;
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
-    AnalysisStageEvent, BatchAnalysis, CausalAnalysis, CausalAnalysisBuilder, ComputeBudget,
-    LatencyMode, PreparedAnalysis, RdConfig, RefuteSuite, StageResultSink,
+    BatchStudy, ComputeBudget, LatencyMode, PreparedStudy, RdConfig, RefuteSuite, StageEvent,
+    StageResultSink, Study, StudyBuilder,
 };
 #[allow(deprecated)]
 pub use error::AnalysisError;
@@ -92,7 +92,7 @@ pub use inference::{BayesianConfig, InferenceMode};
 pub use options::{DiscoveryAccept, FdrControl};
 pub use planner::{CompiledAnalysis, GraphInput};
 pub use query::*;
-pub use result::CausalAnalysisResult;
+pub use result::StudyResult;
 
 // Strategy helpers and peer APIs: use `antecedent::estimate`, `antecedent::discovery`,
 // `antecedent::gcm`, `antecedent::io`, `antecedent::design`, `antecedent::state`, `antecedent::graph`,
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn end_to_end_ate() {
         let (data, graph, query) = scm();
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(graph)
             .query(query)
@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn bayesian_ate_attaches_prior_and_posterior_predictive() {
         let (data, graph, query) = scm();
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(graph)
             .query(query)
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn bayesian_exact_dag_posterior_effect_envelope() {
         let (data, _graph, query) = scm();
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .discover_exact_dag_posterior()
             .query(query)
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn graph_posterior_discovery_rejects_frequentist() {
         let (data, _graph, query) = scm();
-        let err = CausalAnalysis::builder()
+        let err = Study::builder()
             .data(data)
             .discover_exact_dag_posterior()
             .query(query)
@@ -372,7 +372,7 @@ mod tests {
             VariableId::from_raw(1),
             [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
         );
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(dag)
             .query(CausalQuery::Distribution(query))
@@ -448,7 +448,7 @@ mod tests {
         let query =
             PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
                 .with_path_nodes([VariableId::from_raw(1)]);
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(dag)
             .query(CausalQuery::PathSpecific(query))
@@ -553,7 +553,7 @@ mod tests {
         // (`test_analyze_propensity_weighting_recovers_ate_and_overlap`): true ATE=2;
         // Rust band |ate−2|<0.3; shared cross-language floor is 0.4.
         let (data, graph, query) = confounded_scm(800, 1);
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(graph)
             .query(query)
@@ -566,7 +566,7 @@ mod tests {
         let result = analysis.run(&ctx).unwrap();
         assert!((result.estimate.ate - 2.0).abs() < 0.3, "ate={}", result.estimate.ate);
         // Placebo/RCC refuters are hardwired to LinearAdjustmentAte and are skipped for
-        // every non-default estimator (see `CausalAnalysis::execute_static`).
+        // every non-default estimator (see `Study::execute_static`).
         assert!(result.refutations.is_empty());
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("propensity.weighting"));
     }
@@ -661,7 +661,7 @@ mod tests {
     #[test]
     fn end_to_end_iv_two_stage_least_squares() {
         let (data, graph, query) = iv_scm(4000, 5);
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(graph)
             .query(query)
@@ -740,7 +740,7 @@ mod tests {
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_policy(TemporalPolicy::pulse(-1))
             .with_horizon_steps(1);
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .series(series)
             .temporal_graph(g)
             .temporal_query(q)

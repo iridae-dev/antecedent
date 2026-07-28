@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl super::CausalAnalysis {
+impl super::Study {
     pub(super) fn execute_temporal(
         &self,
         data: &TimeSeriesData,
@@ -10,7 +10,7 @@ impl super::CausalAnalysis {
         query: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let id_res = TemporalBackdoorIdentifier::new()
             .identify_temporal(graph, query)
@@ -246,7 +246,7 @@ impl super::CausalAnalysis {
         query: &antecedent_core::MediationQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let identification = TemporalMediationIdentifier {
             allow_natural_controlled_alias: true,

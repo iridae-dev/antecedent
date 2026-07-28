@@ -7,14 +7,13 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use crate::analysis::{
-    CausalAnalysis, CausalAnalysisBuilder, ComputeBudget, LatencyMode, PreparedAnalysis, RdConfig,
-    RefuteSuite,
+    ComputeBudget, LatencyMode, PreparedStudy, RdConfig, RefuteSuite, Study, StudyBuilder,
 };
 pub use crate::error::CausalError;
 pub use crate::inference::{BayesianConfig, InferenceMode};
 pub use crate::options::{DiscoveryAccept, FdrControl};
 pub use crate::planner::{CompiledAnalysis, GraphInput};
-pub use crate::result::CausalAnalysisResult;
+pub use crate::result::StudyResult;
 pub use crate::strategy_table::{EstimatorId, IdentifierId};
 
 pub use antecedent_core::{

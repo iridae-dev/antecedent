@@ -1,4 +1,4 @@
-// Free functions supporting CausalAnalysis execute paths.
+// Free functions supporting Study execute paths.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(super) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, VariableId), CausalError> {
@@ -104,13 +104,13 @@ pub(super) fn binary_cf_interventions(
 ) -> Result<(VariableId, f64, f64), CausalError> {
     if query.interventions.len() != 1 {
         return Err(CausalError::Unsupported {
-            message: "CausalAnalysis counterfactual path currently supports a single hard \
+            message: "Study counterfactual path currently supports a single hard \
                  intervention for ITE (use gcm helpers for multi-world predict)",
         });
     }
     let Intervention::Set { variable, value } = &query.interventions[0] else {
         return Err(CausalError::Unsupported {
-            message: "CausalAnalysis counterfactual path requires a hard Set intervention",
+            message: "Study counterfactual path requires a hard Set intervention",
         });
     };
     let active = value.as_f64().ok_or_else(|| CausalError::Compile {

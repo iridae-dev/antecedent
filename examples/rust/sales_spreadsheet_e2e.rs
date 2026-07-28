@@ -164,7 +164,7 @@ fn main() -> Result<(), CausalError> {
     let (data, dag) = sales_static(400, 7);
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(3));
 
-    let bayes = CausalAnalysis::builder()
+    let bayes = Study::builder()
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -202,7 +202,7 @@ fn main() -> Result<(), CausalError> {
     println!("ITE mean={:.4} n={}", ite.mean_ite, ite.unit_effects.len());
 
     // Second estimate click — still no discovery (graph supplied).
-    let _ = CausalAnalysis::builder()
+    let _ = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)
@@ -213,7 +213,7 @@ fn main() -> Result<(), CausalError> {
         .run(&ExecutionContext::for_tests(4))?;
 
     let (series, tdag, pulse_q) = sales_temporal(350, 11);
-    let pulse = CausalAnalysis::builder()
+    let pulse = Study::builder()
         .series(series)
         .temporal_graph(tdag)
         .temporal_query(pulse_q)

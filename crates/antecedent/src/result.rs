@@ -21,7 +21,7 @@ use crate::gcm::IteResult;
 /// End-to-end analysis result.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct CausalAnalysisResult {
+pub struct StudyResult {
     /// Logical plan record.
     pub logical_plan: LogicalAnalysisPlanRecord,
     /// Physical plan record.
@@ -67,7 +67,7 @@ pub struct CausalAnalysisResult {
     pub outcome: VariableId,
 }
 
-impl CausalAnalysisResult {
+impl StudyResult {
     /// Primary scalar effect for display and tests.
     ///
     /// Prefer this over reading [`EffectEstimate::ate`] directly when the query may be a

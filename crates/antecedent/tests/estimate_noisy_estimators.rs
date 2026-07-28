@@ -13,7 +13,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use antecedent::{CausalAnalysis, EstimatorId, IdentifierId};
+use antecedent::{EstimatorId, IdentifierId, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, TargetPopulation, ValueType, VariableId,
@@ -129,7 +129,7 @@ fn run_method(
     }
 
     let clip = expected["clip"].as_f64().unwrap_or(0.01);
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .data(data)
         .graph(graph)
         .query(query)

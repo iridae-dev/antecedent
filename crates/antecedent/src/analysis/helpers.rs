@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade.
+//! Unified `Study` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -35,7 +35,7 @@ use crate::discovery::{
 };
 use crate::discovery_defaults::resolve_ci;
 use crate::error::CausalError;
-use crate::result::CausalAnalysisResult;
+use crate::result::StudyResult;
 use antecedent_discovery::{MultiDatasetConstraints, RegimeAssignment};
 
 use super::builder::RefuteSuite;
@@ -77,14 +77,14 @@ pub(crate) struct AssembleArgs<'a> {
     pub(crate) early_stopped: bool,
 }
 
-pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> CausalAnalysisResult {
+pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
     let copy_count = args
         .physical
         .materializations
         .iter()
         .filter(|(_, m)| !matches!(m, BufferMaterialization::Borrowed))
         .count() as u64;
-    CausalAnalysisResult {
+    StudyResult {
         logical_plan: args.logical.clone(),
         physical_plan: args.physical.clone(),
         identification: args.identification,

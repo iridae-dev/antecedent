@@ -1,6 +1,6 @@
 //! Free `identify()`: identification as a function of structure and query.
 //!
-//! `CausalAnalysis::identify_only()` requires a caller-supplied `TabularData` it never
+//! `Study::identify_only()` requires a caller-supplied `TabularData` it never
 //! reads (see `examples/rust/identify_only.rs`, which apologises for this in a
 //! comment). Identification does not need data — only a graph and a query — and this
 //! module says so in its signature: [`identify`] and [`identify_with`] take an
@@ -181,7 +181,7 @@ pub fn identify_with(
             // strategy for temporal structure it was never wired to identify.
             Err(CausalError::Unsupported {
                 message: "temporal graph classes have no wired free-identify() entry point; \
-                          use CausalAnalysis for the temporal path",
+                          use Study for the temporal path",
             })
         }
     }

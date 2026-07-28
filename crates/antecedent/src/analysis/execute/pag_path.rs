@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl super::CausalAnalysis {
+impl super::Study {
     /// ADMG ATE via general ID + functional plug-in (bidirected case).
     pub(super) fn execute_admg(
         &self,
@@ -11,7 +11,7 @@ impl super::CausalAnalysis {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let identifier = physical
             .logical
@@ -116,7 +116,7 @@ impl super::CausalAnalysis {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let identifier = physical
             .logical
@@ -299,7 +299,7 @@ impl super::CausalAnalysis {
         ctx: &ExecutionContext,
         envelope: &IdentificationEnvelope<Pag>,
         started: Instant,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),

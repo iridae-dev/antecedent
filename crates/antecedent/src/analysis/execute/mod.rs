@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade execution (split by modality for SRP).
+//! Unified `Study` facade execution (split by modality for SRP).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -71,7 +71,7 @@ pub(super) use crate::planner::{
     compile_logical_static_ate, compile_logical_static_pag_ate, compile_logical_temporal_effect,
     compile_logical_temporal_effect_classified, reject_dag_only_on_pag,
 };
-pub(super) use crate::result::CausalAnalysisResult;
+pub(super) use crate::result::StudyResult;
 pub(super) use crate::review::{
     PendingCpdagReview, PendingGraphReview, compile_review_required, compile_review_required_cpdag,
     compile_review_required_pag, compile_review_required_static_cpdag,
@@ -90,7 +90,7 @@ pub(super) use crate::strategy_table::{
     identify_static_query_with_rd, require_identified, select_estimand, validate_static_pair,
 };
 
-pub(super) use super::builder::{CausalAnalysisBuilder, DataInput, RdConfig, RefuteSuite};
+pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite, StudyBuilder};
 pub(super) use super::helpers::{
     AssembleArgs, assemble_result, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
     overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_pair,
@@ -102,7 +102,7 @@ pub(super) use super::helpers::{
 
 /// Prepared analysis (static or temporal).
 #[derive(Clone)]
-pub struct CausalAnalysis {
+pub struct Study {
     pub(crate) data: DataInput,
     pub(crate) graph: GraphInput,
     pub(crate) query: CausalQuery,
@@ -123,9 +123,9 @@ pub struct CausalAnalysis {
     pub(crate) stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
 }
 
-impl std::fmt::Debug for CausalAnalysis {
+impl std::fmt::Debug for Study {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CausalAnalysis")
+        f.debug_struct("Study")
             .field("data", &"<data>")
             .field("graph", &self.graph)
             .field("query", &"<query>")

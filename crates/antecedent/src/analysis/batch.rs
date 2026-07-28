@@ -7,10 +7,10 @@ use antecedent_data::TabularData;
 use antecedent_graph::Dag;
 
 use crate::error::CausalError;
-use crate::result::CausalAnalysisResult;
+use crate::result::StudyResult;
 
-use super::builder::{CausalAnalysisBuilder, RefuteSuite};
-use super::execute::CausalAnalysis;
+use super::builder::{RefuteSuite, StudyBuilder};
+use super::execute::Study;
 use super::latency::LatencyMode;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
@@ -19,7 +19,7 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 /// Binds data once; each query runs identify → project → estimate independently
 /// (shared ingest, not shared physical plan — plans stay per-query).
 #[derive(Clone, Debug)]
-pub struct BatchAnalysis {
+pub struct BatchStudy {
     data: TabularData,
     graph: Dag,
     bootstrap_replicates: u32,
@@ -29,7 +29,7 @@ pub struct BatchAnalysis {
     estimator: Option<EstimatorId>,
 }
 
-impl BatchAnalysis {
+impl BatchStudy {
     /// Start a batch over `data` and a static DAG.
     #[must_use]
     pub fn new(data: TabularData, graph: Dag) -> Self {
@@ -92,7 +92,7 @@ impl BatchAnalysis {
         &self,
         queries: &[AverageEffectQuery],
         ctx: &ExecutionContext,
-    ) -> Result<Vec<CausalAnalysisResult>, CausalError> {
+    ) -> Result<Vec<StudyResult>, CausalError> {
         if queries.is_empty() {
             return Err(CausalError::Compile {
                 message: "batch estimate_many requires at least one query".into(),
@@ -100,7 +100,7 @@ impl BatchAnalysis {
         }
         let mut out = Vec::with_capacity(queries.len());
         for q in queries {
-            let mut builder = CausalAnalysisBuilder::new()
+            let mut builder = StudyBuilder::new()
                 .data(self.data.clone())
                 .graph(self.graph.clone())
                 .query(q.clone())
@@ -115,7 +115,7 @@ impl BatchAnalysis {
             if let Some(est) = self.estimator {
                 builder = builder.estimator(est);
             }
-            let analysis: CausalAnalysis = builder.build()?;
+            let analysis: Study = builder.build()?;
             out.push(analysis.run(ctx)?);
         }
         Ok(out)

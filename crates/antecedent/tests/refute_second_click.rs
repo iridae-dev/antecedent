@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use antecedent::{CausalAnalysis, LatencyMode, RefuteSuite};
+use antecedent::{LatencyMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -79,7 +79,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
 fn prepared_refute_second_click_preserves_ate() {
     let (data, dag, query) = confounded_scm(400, 11);
     let ctx = ExecutionContext::for_tests(5);
-    let prepared = CausalAnalysis::builder()
+    let prepared = Study::builder()
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -100,7 +100,7 @@ fn prepared_refute_second_click_preserves_ate() {
     assert!(!second.refutations.is_empty());
     assert!(second.diagnostics.iter().any(|d| d.code.as_ref() == "exec.refute.second_click"));
 
-    let one_shot = CausalAnalysis::builder()
+    let one_shot = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)
