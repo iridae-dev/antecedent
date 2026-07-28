@@ -332,7 +332,12 @@ fn incomplete_temporal_pag_review_required_structured() {
         antecedent::CausalError::ReviewRequired { kind, pending_edge_count, hint, .. } => {
             assert_eq!(kind, "temporal_pag");
             assert!(pending_edge_count >= 1, "expected pending circle marks");
-            assert!(!hint.is_empty(), "review errors must carry an actionable hint");
+            // Pin the hint content, as the pre-refactor test did: a non-empty
+            // string is not an actionable hint.
+            assert!(
+                hint.contains("TemporalDag") || hint.contains("PAG"),
+                "hint must name the resolution: {hint}"
+            );
         }
         other => panic!("expected CausalError::ReviewRequired, got {other:?}"),
     }
@@ -365,4 +370,57 @@ fn manufacturing_pressure_defect_bayesian() {
     let bytes = encode_causal_posterior_bytes(post, "temporal-pulse").unwrap();
     let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
     assert_eq!(meta.n_draws as usize, post.draws.n_draws);
+}
+
+/// A temporal PAG that reached the study via discovery must record the discovering
+/// algorithm, not the generic `supplied.` prefix.
+///
+/// Regression gate. The plan record's `discovery_algorithm` is surfaced to Python and
+/// serialized into artifacts, and `temporal_path` reads it to decide whether to emit the
+/// `temporal.pag.completed_to_dag` scientific diagnostic — the disclosure that
+/// identification went through PAG completion rather than class-aware temporal PAG ID.
+/// Recording a discovered graph as "supplied" makes a stored analysis misstate how its
+/// structure was obtained.
+#[test]
+fn discovered_temporal_pag_records_its_algorithm() {
+    let (series, _g, q) = manufacturing_series(80);
+    let mut pag = antecedent_graph::TemporalPag::empty();
+    let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    pag.insert_directed(p1, d0).unwrap();
+
+    // Arrives through the discovery-accept path, carrying its algorithm id.
+    let review = antecedent_graph::TemporalPagReview::from_pag(pag.clone(), "lpcmci");
+    let accepted = AcceptedGraph::accept(review).unwrap();
+    assert_eq!(accepted.algorithm_id(), Some("lpcmci"));
+
+    let plan = Study::series(series.clone())
+        .graph(accepted)
+        .temporal_query(q.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .plan(&ExecutionContext::for_tests(7))
+        .unwrap();
+    assert_eq!(
+        plan.logical.record.discovery_algorithm.as_deref(),
+        Some("lpcmci.pag_completed_to_dag"),
+        "a discovered PAG must not be recorded as `supplied.`"
+    );
+
+    // An asserted PAG genuinely is supplied, and keeps that prefix.
+    let plan = Study::series(series)
+        .graph(AcceptedGraph::temporal_pag(pag).unwrap())
+        .temporal_query(q)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .plan(&ExecutionContext::for_tests(7))
+        .unwrap();
+    assert_eq!(
+        plan.logical.record.discovery_algorithm.as_deref(),
+        Some("supplied.temporal_pag.completed_to_dag")
+    );
 }

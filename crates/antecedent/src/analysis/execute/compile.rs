@@ -337,9 +337,10 @@ impl super::Study {
                     .graph
                     .as_temporal_pag()
                     .expect("class() == TemporalPag implies as_temporal_pag() is Some");
-                // Temporal backdoor is DAG-only: a TemporalPag is accepted unconditionally
-                // (circles are information, not incompleteness — see `AcceptedGraph::temporal_pag`),
-                // but this path can only proceed when it happens to be fully directed.
+                // Temporal backdoor is DAG-only. `AcceptedGraph::temporal_pag` already
+                // refused any PAG carrying circle marks, so this conversion should not
+                // fail; the arm is defensive, not the review gate (that lives at
+                // construction, and reports `ReviewRequired` with a pending count).
                 let dag = pag.try_into_temporal_dag().map_err(|_| CausalError::Compile {
                     message: "temporal PAG has unresolved circle marks; temporal backdoor \
                               requires a fully directed structure (no class-aware temporal PAG \
@@ -353,8 +354,15 @@ impl super::Study {
                 let mut logical = compile_logical_temporal_effect_classified(
                     data, &dag, q, self.split, false, class,
                 )?;
-                logical.record.discovery_algorithm =
-                    Some(Arc::from("supplied.temporal_pag.completed_to_dag"));
+                // Name the algorithm that actually produced this structure. A PAG that
+                // reached here via `AcceptedGraph::accept(lpcmci_review)` is not
+                // "supplied" — recording it as such loses the provenance the record
+                // exists to carry. Asserted graphs have no algorithm and keep the
+                // `supplied.` prefix.
+                logical.record.discovery_algorithm = Some(self.graph.algorithm_id().map_or_else(
+                    || Arc::from("supplied.temporal_pag.completed_to_dag"),
+                    |a| Arc::from(format!("{a}.pag_completed_to_dag").as_str()),
+                ));
                 logical.compile_physical_with_graph(ctx, Some(dag))
             }
             (
