@@ -17,6 +17,52 @@ use antecedent_state::StateError;
 use antecedent_validate::ValidationError;
 use thiserror::Error;
 
+/// Which review artifact is blocking execution.
+///
+/// Mirrors the `kind` strings accepted by [`CausalError::ReviewRequired`]. Kept as a
+/// closed enum so callers get exhaustiveness checking; [`Self::as_str`] is the bridge
+/// to the wire-level `String` field (kept as `String` for the Python binding today).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum ReviewKind {
+    /// `DirectLiNGAM` / other full-DAG discovery pending edge acceptance.
+    StaticDag,
+    /// Static PC / GES CPDAG pending edge acceptance or undirected-mark orientation.
+    StaticCpdag,
+    /// Classic static FCI / RFCI PAG pending circle-mark review.
+    StaticPag,
+    /// PCMCI / temporal DAG discovery pending edge acceptance.
+    TemporalDag,
+    /// PCMCI+ temporal CPDAG pending edge acceptance or undirected-mark orientation.
+    TemporalCpdag,
+    /// LPCMCI temporal PAG pending circle-mark review.
+    TemporalPag,
+    /// Review required without a more specific structured kind.
+    Generic,
+}
+
+impl ReviewKind {
+    /// Canonical wire name (matches [`CausalError::ReviewRequired`]'s `kind` field values).
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::StaticDag => "static_dag",
+            Self::StaticCpdag => "static_cpdag",
+            Self::StaticPag => "static_pag",
+            Self::TemporalDag => "temporal_dag",
+            Self::TemporalCpdag => "temporal_cpdag",
+            Self::TemporalPag => "temporal_pag",
+            Self::Generic => "generic",
+        }
+    }
+}
+
+impl std::fmt::Display for ReviewKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Pipeline and facade failures — structured sum over domain errors.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 #[non_exhaustive]
@@ -75,7 +121,8 @@ pub enum CausalError {
     /// Graph review incomplete (structured for facade UX).
     #[error("{message}")]
     ReviewRequired {
-        /// Review kind: `temporal_pag`, `temporal_cpdag`, `static_pag`, `static_cpdag`, `temporal_dag`, `generic`.
+        /// Review kind: `static_dag`, `static_cpdag`, `static_pag`, `temporal_dag`,
+        /// `temporal_cpdag`, `temporal_pag`, `generic` (see [`ReviewKind::as_str`]).
         kind: String,
         /// Discovery / supply algorithm id when known.
         algorithm: Option<String>,
@@ -103,6 +150,14 @@ pub enum CausalError {
     Cancelled {
         /// Pipeline stage where cancellation was observed.
         stage: &'static str,
+    },
+    /// Two sources of truth were set for the same setting.
+    #[error("conflicting configuration for {what}: {detail}")]
+    Conflict {
+        /// The setting that was configured twice.
+        what: &'static str,
+        /// How to resolve it.
+        detail: &'static str,
     },
 }
 

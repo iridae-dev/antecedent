@@ -49,6 +49,7 @@
 #![deny(missing_docs)]
 #![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
+pub mod accepted;
 pub mod analysis;
 pub mod callback_plan;
 pub mod design;
@@ -68,20 +69,23 @@ pub mod strategy_table;
 pub mod estimate;
 pub mod graph;
 pub mod identify;
+pub mod identify_api;
 pub mod io;
 pub mod query;
 pub mod validate;
 
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
+pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     AnalysisStageEvent, BatchAnalysis, CausalAnalysis, CausalAnalysisBuilder, ComputeBudget,
     LatencyMode, PreparedAnalysis, RdConfig, RefuteSuite, StageResultSink,
 };
 #[allow(deprecated)]
 pub use error::AnalysisError;
-pub use error::CausalError;
+pub use error::{CausalError, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
 pub use graph::{Dag, DenseNodeId, TemporalDag};
+pub use identify_api::{Identification, identify, identify_with};
 pub use inference::{BayesianConfig, InferenceMode};
 pub use options::{DiscoveryAccept, FdrControl};
 pub use planner::{CompiledAnalysis, GraphInput};
