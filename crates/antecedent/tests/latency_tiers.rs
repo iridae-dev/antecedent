@@ -95,8 +95,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
 fn interactive_vs_standard_records_mode_and_effort() {
     let (data, dag, query) = confounded_scm(600, 7);
 
-    let interactive = Study::builder()
-        .data(data.clone())
+    let interactive = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
         .latency_mode(LatencyMode::Interactive)
@@ -115,8 +114,7 @@ fn interactive_vs_standard_records_mode_and_effort() {
     );
     assert!(interactive.performance.stage_timings_ns.iter().any(|(s, _)| s.as_ref() == "identify"));
 
-    let standard = Study::builder()
-        .data(data)
+    let standard = Study::tabular(data)
         .graph(dag)
         .query(query)
         .latency_mode(LatencyMode::Standard)
@@ -156,8 +154,7 @@ fn cancel_mid_bootstrap_yields_partial_not_silent_full() {
     let (data, dag, query) = confounded_scm(400, 11);
     let requested = 80u32;
 
-    let full = Study::builder()
-        .data(data.clone())
+    let full = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
         .bootstrap_replicates(requested)
@@ -173,8 +170,7 @@ fn cancel_mid_bootstrap_yields_partial_not_silent_full() {
     let token = ctx.cancellation.clone();
     ctx.progress = Some(Arc::new(CancelOnBootstrap { token }));
 
-    let partial = Study::builder()
-        .data(data)
+    let partial = Study::tabular(data)
         .graph(dag)
         .query(query)
         .bootstrap_replicates(requested)
@@ -195,33 +191,78 @@ fn cancel_mid_bootstrap_yields_partial_not_silent_full() {
 }
 
 #[test]
-fn interactive_refuses_inline_discovery() {
-    use antecedent::{DiscoveryAccept, FdrControl};
+fn discovered_graph_builds_under_every_latency_tier() {
+    // MIGRATION NOTE: the behavior this test asserted — `.build()` refusing to combine
+    // `LatencyMode::Interactive` with inline discovery — has no equivalent left in the
+    // current API, and this is a genuine behavior retirement, not a relocation.
+    // `.discover_pc(..)` and `DiscoveryAccept` were deleted; discovery is now always a
+    // standalone call (`antecedent::discovery::discover_pc`) whose result must be
+    // explicitly turned into an `AcceptedGraph` *before* a `Study` exists at all, so
+    // "inline discovery under a latency-tagged builder" is no longer an expressible
+    // call shape — there is nothing left for `.build()` to refuse. A crate-wide check
+    // confirms no `LatencyMode`-vs-discovery-provenance refusal exists anywhere in
+    // `analysis/{builder,latency,execute/*}.rs`: `AcceptedGraph::algorithm_id()` (the
+    // only signal that would let such a check exist) is set by discovery but has zero
+    // production readers. The type system now makes the old failure mode
+    // unconstructible rather than refusing it at runtime — arguably a strictly
+    // stronger form of the same guarantee, but not the same runtime assertion, so this
+    // is flagged rather than silently preserved. See the migration report for detail.
+    use antecedent::discovery::{StaticDiscoverParams, discover_pc};
+    use antecedent::discovery_defaults::resolve_ci;
+    use antecedent::{AcceptedGraph, FdrControl};
 
     let (data, dag, query) = confounded_scm(200, 23);
-    let err = Study::builder()
-        .data(data.clone())
-        .discover_pc(0.05, 3, FdrControl::Off, DiscoveryAccept::AutoAccept)
-        .query(query.clone())
-        .latency_mode(LatencyMode::Interactive)
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("Interactive") || msg.contains("discovery"), "unexpected: {msg}");
+    let ctx = ExecutionContext::for_tests(23);
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let params = StaticDiscoverParams {
+        alpha: 0.05,
+        max_cond_size: 3,
+        fdr: FdrControl::Off.adjustment(),
+        ci: resolve_ci("parcorr", None).unwrap(),
+        screen_pc: false,
+        max_subset: None,
+    };
+    let discovered = discover_pc(&data, &vars, &params, &ctx).unwrap();
+    let mut review = discovered.review;
+    // Orient undirected marks FIRST: `orient_edge` pushes the newly-oriented edge onto
+    // `pending_edges`, so draining directed edges first would leave the review
+    // incomplete again. Snapshot each list before looping, since accept/orient consume
+    // `review` and return a new one.
+    let pending_undirected: Vec<_> = review.pending_undirected.iter().copied().collect();
+    for (a, b) in pending_undirected {
+        review = review.orient_edge(a, b).unwrap();
+    }
+    let pending_directed: Vec<_> = review.pending_edges.iter().copied().collect();
+    for (from, to) in pending_directed {
+        review = review.accept_edge(from, to);
+    }
+    assert!(review.is_complete(), "review must be complete before accept");
+    let accepted = AcceptedGraph::accept(review).unwrap();
 
-    // Standard one-shot discovery remains a valid script path (may review/fail later).
-    let standard = Study::builder()
-        .data(data.clone())
-        .discover_pc(0.05, 3, FdrControl::Off, DiscoveryAccept::AutoAccept)
+    // Standalone discovery + explicit accept, then built under every latency tier:
+    // there is no discovery-provenance check left to distinguish this from a
+    // directly-asserted graph.
+    let standard = Study::tabular(data.clone())
+        .graph(accepted.clone())
         .query(query.clone())
         .latency_mode(LatencyMode::Standard)
         .refute(RefuteSuite::None)
         .build();
     assert!(standard.is_ok(), "{standard:?}");
 
-    let supplied = Study::builder()
-        .data(data)
+    let interactive = Study::tabular(data.clone())
+        .graph(accepted)
+        .query(query.clone())
+        .latency_mode(LatencyMode::Interactive)
+        .refute(RefuteSuite::None)
+        .build();
+    assert!(
+        interactive.is_ok(),
+        "a discovered-then-accepted graph is an ordinary AcceptedGraph now; Interactive \
+         tier has no discovery-provenance check to refuse it: {interactive:?}"
+    );
+
+    let supplied = Study::tabular(data)
         .graph(dag)
         .query(query)
         .latency_mode(LatencyMode::Interactive)
@@ -239,8 +280,7 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
 
     let mut ctx_full = ExecutionContext::for_tests(5);
     ctx_full.adaptive_bootstrap = AdaptiveBootstrapBudget::disabled();
-    let full = Study::builder()
-        .data(data.clone())
+    let full = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
         .bootstrap_replicates(max_reps)
@@ -256,8 +296,7 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
     let mut ctx_adapt = ExecutionContext::for_tests(5);
     ctx_adapt.adaptive_bootstrap =
         AdaptiveBootstrapBudget { enabled: true, min_replicates: 12, se_rel_epsilon: 0.05 };
-    let a1 = Study::builder()
-        .data(data.clone())
+    let a1 = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
         .bootstrap_replicates(max_reps)
@@ -266,8 +305,7 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
         .unwrap()
         .run(&ctx_adapt)
         .unwrap();
-    let a2 = Study::builder()
-        .data(data)
+    let a2 = Study::tabular(data)
         .graph(dag)
         .query(query)
         .bootstrap_replicates(max_reps)
@@ -299,8 +337,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
 
     let mut ctx_full = ExecutionContext::for_tests(9);
     ctx_full.adaptive_draws = AdaptiveDrawBudget::disabled();
-    let full = Study::builder()
-        .data(data.clone())
+    let full = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
         .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(max_draws)))
@@ -322,8 +359,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
         quantile_width_rel_epsilon: 0.05,
         ess_target: 10_000.0,
     };
-    let a1 = Study::builder()
-        .data(data.clone())
+    let a1 = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
         .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(max_draws)))
@@ -332,8 +368,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
         .unwrap()
         .run(&ctx_adapt)
         .unwrap();
-    let a2 = Study::builder()
-        .data(data)
+    let a2 = Study::tabular(data)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(max_draws)))
@@ -400,8 +435,7 @@ fn progressive_stages_stream_payloads_in_order() {
         point_ate: Mutex::new(None),
         uncertainty_has_boot: Mutex::new(None),
     });
-    let result = Study::builder()
-        .data(data)
+    let result = Study::tabular(data)
         .graph(dag)
         .query(query)
         .bootstrap_replicates(40)

@@ -39,8 +39,8 @@ pub(crate) use discovery_api::{
     DiscoveredLink, PcmciDiscoveryResult, series_from_batch, tabular_from_batch,
 };
 pub(crate) use graph_build::{
-    dag_from_named_edges, parse_dummy_ci_modes, parse_time_dummy_encoding, schema_var_id,
-    series_from_tabular, space_dummy_ci_from_bool, temporal_dag_from_lagged_edges,
+    dag_from_named_edges, parse_dummy_ci_modes, parse_time_dummy_encoding, pool_panel_series,
+    schema_var_id, series_from_tabular, space_dummy_ci_from_bool, temporal_dag_from_lagged_edges,
     temporal_dag_from_schema_edges, time_dummy_ci_from_bool,
 };
 pub(crate) use temporal_api::{
@@ -91,9 +91,10 @@ use antecedent::io::{
     dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency, decode_causal_posterior_bytes,
     encode_causal_posterior_bytes,
 };
+use antecedent::review::{PendingCpdagReview, PendingGraphReview};
 use antecedent::{
-    BayesianConfig, CausalError as RustCausalError, DiscoveryAccept, EstimatorId, FdrControl,
-    GraphInput, IdentifierId, InferenceMode, RefuteSuite, Study,
+    AcceptedGraph, BayesianConfig, CausalError as RustCausalError, EstimatorId, FdrControl,
+    IdentifierId, InferenceMode, RefuteSuite, Study,
 };
 use antecedent_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalQuery,
@@ -110,8 +111,9 @@ use antecedent_data::{
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use antecedent_graph::{
-    Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark, NodeRef, Pag,
-    TemporalCpdag, TemporalPag,
+    Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, GraphError, MarkedEdge, MiddleMark,
+    NodeRef, Pag, PagReview, TemporalCpdag, TemporalCpdagReview, TemporalGraphReview, TemporalPag,
+    TemporalPagReview,
 };
 use antecedent_io::{
     CausalPosteriorWire, IoError, PosteriorQuantityWire,
@@ -128,24 +130,24 @@ use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-create_exception!(causal._native, CausalError, PyException);
-create_exception!(causal._native, CausalIdentifyError, CausalError);
-create_exception!(causal._native, CausalEstimateError, CausalError);
-create_exception!(causal._native, CausalValidateError, CausalError);
-create_exception!(causal._native, CausalDiscoveryError, CausalError);
-create_exception!(causal._native, CausalModelError, CausalError);
-create_exception!(causal._native, CausalCounterfactualError, CausalError);
-create_exception!(causal._native, CausalAttributionError, CausalError);
-create_exception!(causal._native, CausalDataError, CausalError);
-create_exception!(causal._native, CausalGraphError, CausalError);
-create_exception!(causal._native, CausalDesignError, CausalError);
-create_exception!(causal._native, CausalStateError, CausalError);
-create_exception!(causal._native, CausalSerializationError, CausalError);
-create_exception!(causal._native, CausalCompileError, CausalError);
-create_exception!(causal._native, CausalResourceError, CausalError);
-create_exception!(causal._native, CausalReviewError, CausalError);
-create_exception!(causal._native, CausalUnsupportedError, CausalError);
-create_exception!(causal._native, CausalCancelledError, CausalError);
+create_exception!(antecedent._native, CausalError, PyException);
+create_exception!(antecedent._native, CausalIdentifyError, CausalError);
+create_exception!(antecedent._native, CausalEstimateError, CausalError);
+create_exception!(antecedent._native, CausalValidateError, CausalError);
+create_exception!(antecedent._native, CausalDiscoveryError, CausalError);
+create_exception!(antecedent._native, CausalModelError, CausalError);
+create_exception!(antecedent._native, CausalCounterfactualError, CausalError);
+create_exception!(antecedent._native, CausalAttributionError, CausalError);
+create_exception!(antecedent._native, CausalDataError, CausalError);
+create_exception!(antecedent._native, CausalGraphError, CausalError);
+create_exception!(antecedent._native, CausalDesignError, CausalError);
+create_exception!(antecedent._native, CausalStateError, CausalError);
+create_exception!(antecedent._native, CausalSerializationError, CausalError);
+create_exception!(antecedent._native, CausalCompileError, CausalError);
+create_exception!(antecedent._native, CausalResourceError, CausalError);
+create_exception!(antecedent._native, CausalReviewError, CausalError);
+create_exception!(antecedent._native, CausalUnsupportedError, CausalError);
+create_exception!(antecedent._native, CausalCancelledError, CausalError);
 
 /// Parse Python `refute=` — bool or suite name (`"full"` / `"placebo"` / `"none"`).
 /// `None` (omitted kwarg) defaults to PlaceboAndRcc.
@@ -172,6 +174,108 @@ pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Refu
     Err(PyValueError::new_err(
         "refute= must be bool or str (True|False|\"full\"|\"placebo\"|\"none\")",
     ))
+}
+
+// --- Discovery review acceptance helpers -----------------------------------------
+//
+// The old `StudyBuilder` took a `DiscoveryAccept` flag (`AutoAccept` / `Review`) on each
+// `.discover_*()` setter and deferred the actual review gate to `compile()` time. The new
+// facade runs discovery standalone (see `antecedent::discovery`) and requires callers to
+// explicitly turn the resulting review artifact into an `AcceptedGraph` — via
+// `AcceptedGraph::accept(review)` (fallible; the review-artifact path) or the infallible
+// `From<Dag|Admg|Pag|TemporalDag|TemporalPag>` conversions.
+//
+// These helpers reproduce the Python-visible `accept_discovered: bool` semantics on top of
+// the new API, one per review-artifact shape:
+// - DAG-shaped (`DagReview`, `TemporalGraphReview`): `true` clears pending directed edges
+//   first (mirrors the old `DiscoveryAccept::AutoAccept`); `false` requires the graph to
+//   already be fully oriented.
+// - CPDAG-shaped (`CpdagReview`, `TemporalCpdagReview`): `true` clears directed pending
+//   edges only — undirected marks still block acceptance, matching the old
+//   `accept_all_directed` semantics (never silently orients ambiguous edges).
+// - PAG-shaped (`PagReview`, `TemporalPagReview`): circle marks are informational, not
+//   incompleteness (the class-aware identifiers handle them directly), so `true` accepts
+//   the discovered graph as-is via the infallible `From` conversion — mirroring the old
+//   unconditional `AutoAccept` success for FCI/RFCI/LPCMCI; `false` routes through the
+//   review artifact, which fails with `ReviewRequired` while circles remain unreviewed.
+
+/// DAG-shaped review (static `DagReview`; DirectLiNGAM, NOTEARS).
+pub(crate) fn accept_dag_review(
+    review: DagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    let review = if accept_discovered { review.accept_all() } else { review };
+    AcceptedGraph::accept(review)
+}
+
+/// Temporal DAG-shaped review (`TemporalGraphReview`; PCMCI).
+pub(crate) fn accept_temporal_graph_review(
+    review: TemporalGraphReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    let pending = PendingGraphReview::new(review);
+    let pending = if accept_discovered { pending.accept_all() } else { pending };
+    pending.finish()
+}
+
+/// Static CPDAG-shaped review (`CpdagReview`; PC, GES).
+pub(crate) fn accept_cpdag_review(
+    mut review: CpdagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    if accept_discovered {
+        review.pending_edges = std::sync::Arc::from([]);
+    }
+    AcceptedGraph::accept(review)
+}
+
+/// Temporal CPDAG-shaped review (`TemporalCpdagReview`; PCMCI+, J-PCMCI+, RPCMCI).
+pub(crate) fn accept_temporal_cpdag_review(
+    review: TemporalCpdagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    let pending = PendingCpdagReview::new(review);
+    let pending = if accept_discovered { pending.accept_all_directed() } else { pending };
+    pending.finish()
+}
+
+/// Static PAG-shaped discovery output (FCI, RFCI).
+pub(crate) fn accept_pag_review(
+    graph: Pag,
+    review: PagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    if accept_discovered { Ok(AcceptedGraph::from(graph)) } else { AcceptedGraph::accept(review) }
+}
+
+/// Temporal PAG-shaped discovery output (LPCMCI).
+pub(crate) fn accept_temporal_pag_review(
+    graph: TemporalPag,
+    review: TemporalPagReview,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    if accept_discovered { Ok(AcceptedGraph::from(graph)) } else { AcceptedGraph::accept(review) }
+}
+
+/// RPCMCI: reduce N per-regime CPDAG reviews to one accepted graph. A single accepted
+/// graph is only possible when discovery found exactly one regime — multiple regimes
+/// always require manual review (there is no single-graph collapse across regimes),
+/// mirroring the old `compile()`'s `result.per_regime.len() == 1` gate.
+pub(crate) fn accept_rpcmci_review(
+    result: &antecedent::discovery::RpcmciDiscoveryResult,
+    accept_discovered: bool,
+) -> Result<AcceptedGraph, RustCausalError> {
+    let Some(first) = result.per_regime.first() else {
+        return Err(RustCausalError::review_required_msg("RPCMCI discovered no regime graphs"));
+    };
+    if result.per_regime.len() != 1 {
+        return Err(RustCausalError::review_required_msg(format!(
+            "RPCMCI discovered {} regimes; a single accepted graph requires exactly one \
+             (review each regime's CPDAG separately)",
+            result.per_regime.len()
+        )));
+    }
+    accept_temporal_cpdag_review(first.review.clone(), accept_discovered)
 }
 
 trait IntoCausalPyErr {
@@ -688,6 +792,31 @@ impl PosteriorArtifact {
             hessian_condition,
             quantity_names,
         }
+    }
+
+    /// Number of posterior draws (``n_draws``, independent of whether `draws` is populated).
+    fn __len__(&self) -> usize {
+        self.n_draws
+    }
+
+    /// NumPy array protocol — ``np.asarray(artifact)`` returns the flat posterior draws
+    /// directly, without needing ``np.asarray(artifact.draws)``.
+    ///
+    /// `dtype` and `copy` are accepted (and ignored) only to match the NumPy 2 calling
+    /// convention ``__array__(self, dtype=None, *, copy=None)``; this always builds a
+    /// fresh `float64` array from `draws`, so there is no NumPy-owned buffer to alias and
+    /// no in-place dtype cast to perform here — NumPy applies any further cast/copy on its
+    /// side after this returns.
+    #[pyo3(signature = (dtype=None, copy=None))]
+    fn __array__<'py>(
+        &self,
+        py: Python<'py>,
+        dtype: Option<Bound<'py, PyAny>>,
+        copy: Option<Bound<'py, PyAny>>,
+    ) -> Bound<'py, PyArray1<f64>> {
+        let _ = dtype;
+        let _ = copy;
+        PyArray1::from_vec(py, self.draws.clone())
     }
 }
 

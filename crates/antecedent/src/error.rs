@@ -193,7 +193,3 @@ impl CausalError {
         )
     }
 }
-
-/// Deprecated alias for [`CausalError`].
-#[deprecated(note = "renamed to CausalError")]
-pub type AnalysisError = CausalError;

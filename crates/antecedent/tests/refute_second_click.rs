@@ -79,8 +79,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
 fn prepared_refute_second_click_preserves_ate() {
     let (data, dag, query) = confounded_scm(400, 11);
     let ctx = ExecutionContext::for_tests(5);
-    let prepared = Study::builder()
-        .data(data.clone())
+    let prepared = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
         .latency_mode(LatencyMode::Interactive)
@@ -100,8 +99,7 @@ fn prepared_refute_second_click_preserves_ate() {
     assert!(!second.refutations.is_empty());
     assert!(second.diagnostics.iter().any(|d| d.code.as_ref() == "exec.refute.second_click"));
 
-    let one_shot = Study::builder()
-        .data(data)
+    let one_shot = Study::tabular(data)
         .graph(dag)
         .query(query)
         .refute(RefuteSuite::PlaceboAndRcc)

@@ -320,8 +320,7 @@ fn ppc() {
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let facade = Study::builder()
-        .data(data)
+    let facade = Study::tabular(data)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(
@@ -447,9 +446,8 @@ fn temporal_pulse() {
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
 
-    let analysis = Study::builder()
-        .series(series)
-        .temporal_graph(g)
+    let analysis = Study::series(series)
+        .graph(g)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(n_draws).prior_scale(100.0),
@@ -635,8 +633,7 @@ fn prior_bank_effect_map() {
     dag_a.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     dag_a.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     dag_a.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let result_a = Study::builder()
-        .data(data_a)
+    let result_a = Study::tabular(data_a)
         .graph(dag_a)
         .query(AverageEffectQuery::binary_ate(t_a, y_a))
         .inference(InferenceMode::Bayesian(
@@ -701,8 +698,7 @@ fn prior_bank_effect_map() {
     dag_b.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
     dag_b.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
 
-    let baseline = Study::builder()
-        .data(data_b.clone())
+    let baseline = Study::tabular(data_b.clone())
         .graph(dag_b.clone())
         .query(AverageEffectQuery::binary_ate(t, y))
         .inference(InferenceMode::Bayesian(
@@ -716,8 +712,7 @@ fn prior_bank_effect_map() {
     let base_post = baseline.posterior.as_ref().unwrap();
     let base_mean = base_post.summaries.mean[base_post.effect_column().unwrap()];
 
-    let mapped = Study::builder()
-        .data(data_b.clone())
+    let mapped = Study::tabular(data_b.clone())
         .graph(dag_b.clone())
         .query(AverageEffectQuery::binary_ate(t, y))
         .inference(InferenceMode::Bayesian(
@@ -758,8 +753,7 @@ fn prior_bank_effect_map() {
     }
 
     // Unset mapping auto-selects EffectFunctional for heterogeneous designs.
-    let auto = Study::builder()
-        .data(data_b)
+    let auto = Study::tabular(data_b)
         .graph(dag_b)
         .query(AverageEffectQuery::binary_ate(t, y))
         .inference(InferenceMode::Bayesian(
@@ -1401,8 +1395,7 @@ fn prior_bank_alpha_sensitivity() {
     let baseline = PriorSet::weakly_informative(ncols);
     let composed = compose_external_priors(&sources, &baseline).unwrap();
 
-    let result = Study::builder()
-        .data(data)
+    let result = Study::tabular(data)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(
@@ -1554,9 +1547,8 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
 
     // Facade path: conflict re-shrink attaches (Full refute is separately limited on
     // temporal by DataSubset masks; α-grid is exercised directly below).
-    let result = Study::builder()
-        .series(series)
-        .temporal_graph(g)
+    let result = Study::series(series)
+        .graph(g)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(n_draws).prior_from_composed(

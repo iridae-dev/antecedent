@@ -88,8 +88,7 @@ impl PyPreparedAnalysis {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-            let mut builder = Study::builder()
-                .data(data)
+            let mut builder = Study::tabular(data)
                 .graph(dag)
                 .query(query)
                 .refute(suite)

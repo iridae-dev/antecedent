@@ -96,8 +96,7 @@ fn wide_table_projection_matches_full_column_ate() {
     assert_eq!(data.schema().len(), 3 + noise_cols);
 
     let ctx = ExecutionContext::for_tests(7);
-    let result = Study::builder()
-        .data(data)
+    let result = Study::tabular(data)
         .graph(dag)
         .query(query)
         .bootstrap_replicates(0)
@@ -131,8 +130,7 @@ fn thin_table_skips_projection_diagnostic() {
     let (data, dag, query) = wide_confounded_scm(200, 0, 3);
     assert_eq!(data.schema().len(), 3);
     let ctx = ExecutionContext::for_tests(1);
-    let result = Study::builder()
-        .data(data)
+    let result = Study::tabular(data)
         .graph(dag)
         .query(query)
         .bootstrap_replicates(0)

@@ -246,30 +246,88 @@ pub(crate) fn panel_multi_dataset_constraints(
     })
 }
 
+/// Run standalone discovery over panel data and return a builder already seeded with the
+/// accepted graph via [`Study::panel`] + [`antecedent::StudyBuilder::graph`].
+///
+/// `pcmci`/`pcmci_plus`/`lpcmci` pool all units into one series first (matches the
+/// preprocessing the old lazy `Study::compile()` applied to these algorithms over
+/// `PanelData`); `jpcmci_plus` uses the panel's per-unit multi-environment view directly.
 pub(crate) fn panel_discovery_builder(
-    builder: antecedent::StudyBuilder,
+    panel: PanelData,
     algo: &str,
     max_lag: u32,
     alpha: f64,
     max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     multi_dataset: MultiDatasetConstraints,
+    ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<antecedent::StudyBuilder> {
+    let fdr = fdr_ctrl.adjustment();
     match algo {
-        "jpcmci_plus" | "jpcmci+" => Ok(builder.discover_jpcmci_plus(
-            max_lag,
-            alpha,
-            max_cond_size,
-            fdr_ctrl,
-            accept,
-            multi_dataset,
-        )),
-        "pcmci" => Ok(builder.discover_pcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept)),
-        "pcmci_plus" | "pcmci+" => {
-            Ok(builder.discover_pcmci_plus(max_lag, alpha, max_cond_size, fdr_ctrl, accept))
+        "jpcmci_plus" | "jpcmci+" => {
+            let multi = panel.as_multi_env().map_err(py_err)?;
+            let vars: Vec<VariableId> = multi.schema().variables().iter().map(|v| v.id).collect();
+            let params =
+                DiscoverParams { max_lag, alpha, fdr, ci: ci_impl, multi_dataset, max_cond_size };
+            let found = facade_discover_jpcmci_plus(&multi, &vars, &params, ctx).map_err(py_err)?;
+            let accepted =
+                accept_temporal_cpdag_review(found.review, accept_discovered).map_err(py_err)?;
+            Ok(Study::panel(panel).graph(accepted))
         }
-        "lpcmci" => Ok(builder.discover_lpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept)),
+        "pcmci" => {
+            let series = pool_panel_series(&panel)?;
+            let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+            let params = DiscoverParams {
+                max_lag,
+                alpha,
+                fdr,
+                ci: ci_impl,
+                multi_dataset: MultiDatasetConstraints::default(),
+                max_cond_size,
+            };
+            let found = facade_discover_pcmci(&series, &vars, &params, ctx).map_err(py_err)?;
+            let accepted =
+                accept_temporal_graph_review(found.review, accept_discovered).map_err(py_err)?;
+            Ok(Study::panel(panel).graph(accepted))
+        }
+        "pcmci_plus" | "pcmci+" => {
+            let series = pool_panel_series(&panel)?;
+            let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+            let params = DiscoverParams {
+                max_lag,
+                alpha,
+                fdr,
+                ci: ci_impl,
+                multi_dataset: MultiDatasetConstraints::default(),
+                max_cond_size,
+            };
+            let found = facade_discover_pcmci_plus(&series, &vars, &params, ctx).map_err(py_err)?;
+            let accepted =
+                accept_temporal_cpdag_review(found.review, accept_discovered).map_err(py_err)?;
+            Ok(Study::panel(panel).graph(accepted))
+        }
+        "lpcmci" => {
+            let series = pool_panel_series(&panel)?;
+            let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+            let params = DiscoverParams {
+                max_lag,
+                alpha,
+                fdr,
+                ci: ci_impl,
+                multi_dataset: MultiDatasetConstraints::default(),
+                max_cond_size,
+            };
+            let found = facade_discover_lpcmci(&series, &vars, &params, ctx).map_err(py_err)?;
+            let accepted = accept_temporal_pag_review(
+                found.evidence.graph.clone(),
+                found.review,
+                accept_discovered,
+            )
+            .map_err(py_err)?;
+            Ok(Study::panel(panel).graph(accepted))
+        }
         other => Err(PyValueError::new_err(format!(
             "unknown panel discovery algorithm {other:?}; use jpcmci_plus|pcmci|pcmci_plus|lpcmci"
         ))),
@@ -469,8 +527,7 @@ fn analyze_ate(
             bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = Study::builder()
-            .data(data)
+        let mut builder = Study::tabular(data)
             .graph(dag)
             .query(query)
             .refute(suite)
@@ -616,8 +673,7 @@ fn analyze_ate_arrow_c(
             bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = Study::builder()
-            .data(data)
+        let mut builder = Study::tabular(data)
             .graph(dag)
             .query(query)
             .refute(suite)
@@ -753,11 +809,22 @@ fn prepare_ate_tabular_preamble(
     Ok((batch, suite, custom_validators, threads))
 }
 
+/// Static graph input for the shared `analyze_ate_{pag,cpdag,admg}` dispatch helper.
+///
+/// Local replacement for the old crate-level `GraphInput` enum (removed along with the
+/// facade's `Study::builder()` refactor): a bare dispatch tag over the three typed static
+/// graph classes these three Python entry points accept, nothing more.
+enum StaticGraphInput {
+    Pag(Pag),
+    Cpdag(Cpdag),
+    Admg(antecedent_graph::Admg),
+}
+
 fn analyze_ate_typed_graph(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
-    graph: GraphInput,
+    graph: StaticGraphInput,
     treatment: String,
     outcome: String,
     control_level: f64,
@@ -814,7 +881,7 @@ fn analyze_ate_typed_graph(
 fn run_ate_with_graph_input(
     names: &[String],
     batch: RecordBatch,
-    graph: GraphInput,
+    graph: StaticGraphInput,
     treatment: String,
     outcome: String,
     control_level: f64,
@@ -846,20 +913,18 @@ fn run_ate_with_graph_input(
         bandwidth,
         |rv| data.schema().id_of(rv).map_err(py_err),
     )?;
-    let mut builder = Study::builder()
-        .data(data)
+    let mut builder = Study::tabular(data)
         .query(query)
         .refute(suite)
         .custom_validators(custom_validators)
         .bootstrap_replicates(bootstrap);
     builder = match graph {
-        GraphInput::Static(dag) => builder.graph(dag),
-        GraphInput::Pag(pag) => builder.pag(pag),
-        GraphInput::Cpdag(cpdag) => builder.cpdag(cpdag),
-        GraphInput::Admg(admg) => builder.admg(admg),
-        _other => {
-            return Err(PyValueError::new_err("unsupported static graph input for analyze_ate_*"));
+        StaticGraphInput::Pag(pag) => builder.graph(pag),
+        StaticGraphInput::Cpdag(cpdag) => {
+            let accepted = AcceptedGraph::cpdag(cpdag).map_err(py_err)?;
+            builder.graph(accepted)
         }
+        StaticGraphInput::Admg(admg) => builder.graph(admg),
     };
     // Names at the boundary, ids on the hot path.
     if let Some(id) = identifier {
@@ -934,7 +999,7 @@ fn analyze_ate_pag(
         py,
         names,
         columns,
-        GraphInput::Pag(graph.pag),
+        StaticGraphInput::Pag(graph.pag),
         treatment,
         outcome,
         control_level,
@@ -996,7 +1061,7 @@ fn analyze_ate_cpdag(
         py,
         names,
         columns,
-        GraphInput::Cpdag(graph.cpdag),
+        StaticGraphInput::Cpdag(graph.cpdag),
         treatment,
         outcome,
         control_level,
@@ -1058,7 +1123,7 @@ fn analyze_ate_admg(
         py,
         names,
         columns,
-        GraphInput::Admg(graph.admg),
+        StaticGraphInput::Admg(graph.admg),
         treatment,
         outcome,
         control_level,
@@ -1175,8 +1240,8 @@ fn analyze_ate_discover(
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
         let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-        let accept =
-            if accept_discovered { DiscoveryAccept::AutoAccept } else { DiscoveryAccept::Review };
+        let ctx = py_execution_context(seed, threads);
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
 
         let rd_ids = parse_rd_config(
             estimator.as_deref(),
@@ -1185,7 +1250,6 @@ fn analyze_ate_discover(
             bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = Study::builder().data(data);
         let soft = match soft_weight.as_str() {
             "none" | "" => antecedent::discovery::CiSoftWeight::None,
             "bayes_factor" | "bf" => antecedent::discovery::CiSoftWeight::BayesFactor,
@@ -1198,44 +1262,182 @@ fn analyze_ate_discover(
                 )));
             }
         };
-        builder = match algo.as_str() {
-            "pc" => builder.discover_pc(alpha, max_cond_size, fdr_ctrl, accept),
-            "ges" => builder.discover_ges(alpha, max_cond_size, fdr_ctrl, accept),
-            "lingam" => builder.discover_lingam(max_cond_size, prune_threshold, accept),
-            "notears" => {
-                builder.discover_notears(max_cond_size, l1, threshold, standardize, accept)
-            }
-            "fci" => builder.discover_fci(alpha, max_cond_size, fdr_ctrl, accept),
-            "rfci" => builder.discover_rfci(alpha, max_cond_size, fdr_ctrl, accept),
-            "exact_dag_posterior" | "exact" => builder.discover_exact_dag_posterior(),
-            "order_mcmc" => builder.discover_order_mcmc(
-                n_chains,
-                n_warmup,
-                mcmc_draws,
-                thin,
-                require_diagnostics_gate,
-            ),
-            "structure_mcmc" => {
-                builder.discover_structure_mcmc(n_chains, n_warmup, mcmc_draws, thin)
-            }
-            "ci_screened_posterior" | "ci_screened" => builder.discover_ci_screened_posterior(
-                alpha,
-                max_cond_size,
-                fdr_ctrl,
-                soft,
-                n_chains,
-                n_warmup,
-                mcmc_draws,
-                thin,
-            ),
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown static discovery algorithm {other:?};                      use pc|ges|lingam|notears|fci|rfci|exact_dag_posterior|order_mcmc|                     structure_mcmc|ci_screened_posterior"
-                )));
-            }
+
+        // Bayesian graph-posterior discovery: no discrete graph to review — wire the
+        // posterior directly. Frequentist inference + a posterior is refused by the
+        // library itself (checked inside `build`/`run`, not here).
+        let is_graph_posterior = matches!(
+            algo.as_str(),
+            "exact_dag_posterior"
+                | "exact"
+                | "order_mcmc"
+                | "structure_mcmc"
+                | "ci_screened_posterior"
+                | "ci_screened"
+        );
+        let builder = if is_graph_posterior {
+            let params = antecedent::discovery::BayesianDiscoverParams::default();
+            let gp = match algo.as_str() {
+                "exact_dag_posterior" | "exact" => {
+                    antecedent::discovery::discover_exact_dag_posterior(&data, &vars, &params, &ctx)
+                        .map_err(py_err)?
+                }
+                "order_mcmc" => {
+                    let schedule = antecedent::discovery::GraphMcmcSchedule {
+                        n_chains,
+                        n_warmup,
+                        n_draws: mcmc_draws,
+                        thin,
+                    };
+                    antecedent::discovery::discover_order_mcmc(
+                        &data,
+                        &vars,
+                        &params,
+                        &schedule,
+                        require_diagnostics_gate,
+                        &ctx,
+                    )
+                    .map_err(py_err)?
+                }
+                "structure_mcmc" => {
+                    let schedule = antecedent::discovery::GraphMcmcSchedule {
+                        n_chains,
+                        n_warmup,
+                        n_draws: mcmc_draws,
+                        thin,
+                    };
+                    antecedent::discovery::discover_structure_mcmc(
+                        &data, &vars, &params, &schedule, &ctx,
+                    )
+                    .map_err(py_err)?
+                }
+                _ => {
+                    // "ci_screened_posterior" | "ci_screened"
+                    let screen = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let schedule = antecedent::discovery::GraphMcmcSchedule {
+                        n_chains,
+                        n_warmup,
+                        n_draws: mcmc_draws,
+                        thin,
+                    };
+                    antecedent::discovery::discover_ci_screened_posterior(
+                        &data, &vars, &params, &screen, &schedule, soft, &ctx,
+                    )
+                    .map_err(py_err)?
+                }
+            };
+            Study::tabular(data).graph_posterior(gp)
+        } else {
+            let accepted = match algo.as_str() {
+                "pc" => {
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found = facade_discover_pc(&data, &vars, &params, &ctx).map_err(py_err)?;
+                    accept_cpdag_review(found.review, accept_discovered).map_err(py_err)?
+                }
+                "ges" => {
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found = facade_discover_ges(&data, &vars, &params, &ctx).map_err(py_err)?;
+                    accept_cpdag_review(found.review, accept_discovered).map_err(py_err)?
+                }
+                "lingam" => {
+                    // LiNGAM ignores `params.ci`/`params.fdr` (independence-of-residuals is
+                    // internal to the algorithm); a fresh partial-correlation stub satisfies
+                    // the required field without invoking a possibly-slow Python `ci=`.
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: None,
+                        ci: Arc::new(antecedent_stats::PartialCorrelation),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found =
+                        facade_discover_lingam(&data, &vars, &params, prune_threshold, &ctx)
+                            .map_err(py_err)?;
+                    accept_dag_review(found.review, accept_discovered).map_err(py_err)?
+                }
+                "notears" => {
+                    // NOTEARS ignores `params.ci`/`params.fdr` (continuous-SEM solver); see
+                    // the `lingam` arm above for why a stub CI is passed here.
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: None,
+                        ci: Arc::new(antecedent_stats::PartialCorrelation),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found = facade_discover_notears(
+                        &data,
+                        &vars,
+                        &params,
+                        l1,
+                        threshold,
+                        standardize,
+                        &ctx,
+                    )
+                    .map_err(py_err)?;
+                    accept_dag_review(found.discovery.review, accept_discovered).map_err(py_err)?
+                }
+                "fci" => {
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found = facade_discover_fci(&data, &vars, &params, &ctx).map_err(py_err)?;
+                    accept_pag_review(found.evidence.graph.clone(), found.review, accept_discovered)
+                        .map_err(py_err)?
+                }
+                "rfci" => {
+                    let params = StaticDiscoverParams {
+                        alpha,
+                        max_cond_size,
+                        fdr: fdr_ctrl.adjustment(),
+                        ci: ci_impl.clone(),
+                        screen_pc: false,
+                        max_subset: None,
+                    };
+                    let found =
+                        facade_discover_rfci(&data, &vars, &params, &ctx).map_err(py_err)?;
+                    accept_pag_review(found.evidence.graph.clone(), found.review, accept_discovered)
+                        .map_err(py_err)?
+                }
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown static discovery algorithm {other:?}; use pc|ges|lingam|notears|\
+                         fci|rfci|exact_dag_posterior|order_mcmc|structure_mcmc|\
+                         ci_screened_posterior"
+                    )));
+                }
+            };
+            Study::tabular(data).graph(accepted)
         };
         let mut builder = builder
-            .discovery_ci(ci_impl)
             .query(query)
             .refute(suite)
             .custom_validators(custom_validators)
@@ -1321,8 +1523,7 @@ fn analyze_distribution(
             query = query.with_conditioning(z);
         }
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = Study::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::Distribution(query))
             .identifier(IdentifierId::GeneralId)
@@ -1390,8 +1591,7 @@ fn analyze_path_specific(
             query = query.with_path_nodes(ids);
         }
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = Study::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::PathSpecific(query))
             .identifier(IdentifierId::PathSpecificNatural)
@@ -1605,8 +1805,7 @@ fn analyze_conditional(
         let cq = ConditionalEffectQuery::try_new(inner)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = Study::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::ConditionalEffect(cq))
             .refute(suite)
@@ -1670,8 +1869,7 @@ fn analyze_mediation(
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = Study::builder()
-            .data(data)
+        let analysis = Study::tabular(data)
             .graph(dag)
             .query(CausalQuery::Mediation(q))
             .refute(suite)
@@ -1703,8 +1901,7 @@ fn identify_ate(
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let mut builder = Study::builder()
-            .data(data)
+        let mut builder = Study::tabular(data)
             .graph(dag)
             .query(AverageEffectQuery::binary_ate(t_id, y_id))
             .refute(RefuteSuite::None);

@@ -129,8 +129,7 @@ fn run_method(
     }
 
     let clip = expected["clip"].as_f64().unwrap_or(0.01);
-    let analysis = Study::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
         .identifier(identifier.parse::<IdentifierId>().unwrap())

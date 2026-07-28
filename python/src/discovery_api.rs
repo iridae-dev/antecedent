@@ -169,6 +169,25 @@ pub(crate) struct DiscoveredLink {
     pub(crate) conditioning_set: Vec<(String, u32)>,
 }
 
+#[pymethods]
+impl DiscoveredLink {
+    fn __repr__(&self) -> String {
+        format!(
+            "DiscoveredLink({}{} -> {}{}, p={:.3})",
+            self.source,
+            lagged_node_suffix(self.source_lag),
+            self.target,
+            lagged_node_suffix(self.target_lag),
+            self.p_value
+        )
+    }
+}
+
+/// Format a lag as ``"[t]"`` (lag 0) or ``"[t-N]"`` (lag > 0), for `__repr__` use.
+fn lagged_node_suffix(lag: u32) -> String {
+    if lag == 0 { "[t]".to_string() } else { format!("[t-{lag}]") }
+}
+
 /// Coarse-grained PCMCI discovery result (single boundary crossing).
 ///
 /// Field set is the stable Rust↔Python temporal discovery schema for .
@@ -201,6 +220,18 @@ pub(crate) struct PcmciDiscoveryResult {
     /// Oriented graph body (CPDAG/PAG marks); empty for lagged-only PCMCI.
     #[pyo3(get)]
     pub(crate) graph_edges: Vec<GraphEdge>,
+}
+
+#[pymethods]
+impl PcmciDiscoveryResult {
+    fn __repr__(&self) -> String {
+        format!(
+            "PcmciDiscoveryResult(algorithm={:?}, links={}, ci_tests={})",
+            self.algorithm_id,
+            self.links.len(),
+            self.ci_tests
+        )
+    }
 }
 
 pub(crate) fn series_from_batch(

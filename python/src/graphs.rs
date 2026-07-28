@@ -37,7 +37,7 @@ use antecedent_graph::{
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyType;
+use pyo3::types::{PyList, PyType};
 
 use crate::{CausalGraphError, py_err};
 
@@ -80,6 +80,11 @@ fn cpdag_mark_str(edge: MarkedEdge) -> &'static str {
 
 fn default_names(n: usize) -> Vec<String> {
     (0..n).map(|i| i.to_string()).collect()
+}
+
+/// Format a lagged node as ``"name[t]"`` (lag 0) or ``"name[t-N]"`` (lag > 0).
+fn lagged_node_name(name: &str, lag: u32) -> String {
+    if lag == 0 { format!("{name}[t]") } else { format!("{name}[t-{lag}]") }
 }
 
 fn resolve_name_index(names: &[String], name: &str) -> PyResult<DenseNodeId> {
@@ -257,6 +262,23 @@ impl Dag {
     fn __repr__(&self) -> String {
         format!("Dag(nodes={}, edges={})", self.dag.node_count(), self.dag.edges().count())
     }
+
+    /// Number of nodes in the graph.
+    fn __len__(&self) -> usize {
+        self.dag.node_count()
+    }
+
+    /// Whether ``name`` is a node in the graph (node membership, not edge membership).
+    fn __contains__(&self, name: &str) -> bool {
+        self.names.iter().any(|n| n == name)
+    }
+
+    /// Iterate over node names in stable order.
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
+        let py = slf.py();
+        let list = PyList::new(py, slf.names.clone())?;
+        Ok(list.try_iter()?.into_any().unbind())
+    }
 }
 
 /// Named static CPDAG.
@@ -420,6 +442,23 @@ impl Cpdag {
     fn __repr__(&self) -> String {
         format!("Cpdag(nodes={}, edges={})", self.cpdag.node_count(), self.cpdag.edges().len())
     }
+
+    /// Number of nodes in the graph.
+    fn __len__(&self) -> usize {
+        self.cpdag.node_count()
+    }
+
+    /// Whether ``name`` is a node in the graph (node membership, not edge membership).
+    fn __contains__(&self, name: &str) -> bool {
+        self.names.iter().any(|n| n == name)
+    }
+
+    /// Iterate over node names in stable order.
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
+        let py = slf.py();
+        let list = PyList::new(py, slf.names.clone())?;
+        Ok(list.try_iter()?.into_any().unbind())
+    }
 }
 
 /// Named static PAG.
@@ -555,6 +594,23 @@ impl Pag {
     fn __repr__(&self) -> String {
         format!("Pag(nodes={})", self.pag.node_count())
     }
+
+    /// Number of nodes in the graph.
+    fn __len__(&self) -> usize {
+        self.pag.node_count()
+    }
+
+    /// Whether ``name`` is a node in the graph (node membership, not edge membership).
+    fn __contains__(&self, name: &str) -> bool {
+        self.names.iter().any(|n| n == name)
+    }
+
+    /// Iterate over node names in stable order.
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
+        let py = slf.py();
+        let list = PyList::new(py, slf.names.clone())?;
+        Ok(list.try_iter()?.into_any().unbind())
+    }
 }
 
 /// Named ADMG (directed + bidirected).
@@ -684,6 +740,23 @@ impl Admg {
     fn __repr__(&self) -> String {
         format!("Admg(nodes={})", self.admg.node_count())
     }
+
+    /// Number of nodes in the graph.
+    fn __len__(&self) -> usize {
+        self.admg.node_count()
+    }
+
+    /// Whether ``name`` is a node in the graph (node membership, not edge membership).
+    fn __contains__(&self, name: &str) -> bool {
+        self.names.iter().any(|n| n == name)
+    }
+
+    /// Iterate over node names in stable order.
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
+        let py = slf.py();
+        let list = PyList::new(py, slf.names.clone())?;
+        Ok(list.try_iter()?.into_any().unbind())
+    }
 }
 
 /// Named temporal DAG over lagged variables.
@@ -720,6 +793,17 @@ impl TemporalDag {
                 Err(CausalGraphError::new_err(format!("temporal node {} is not lagged", id.raw())))
             }
         }
+    }
+
+    /// Lagged node names (``"var[t-lag]"``) in stable (dense-id) order.
+    fn node_names(&self) -> PyResult<Vec<String>> {
+        let mut out = Vec::with_capacity(self.dag.node_count());
+        for i in 0..self.dag.node_count() {
+            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let (name, lag) = self.node_label(id)?;
+            out.push(lagged_node_name(&name, lag));
+        }
+        Ok(out)
     }
 }
 
@@ -772,6 +856,25 @@ impl TemporalDag {
     fn __repr__(&self) -> String {
         format!("TemporalDag(variables={}, nodes={})", self.names.len(), self.dag.node_count())
     }
+
+    /// Number of lagged nodes in the graph.
+    fn __len__(&self) -> usize {
+        self.dag.node_count()
+    }
+
+    /// Whether ``name`` (formatted as ``"var[t-lag]"``) is a lagged node in the graph
+    /// (node membership, not edge membership).
+    fn __contains__(&self, name: &str) -> PyResult<bool> {
+        Ok(self.node_names()?.iter().any(|n| n == name))
+    }
+
+    /// Iterate over lagged node names (``"var[t-lag]"``) in stable order.
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
+        let names = slf.node_names()?;
+        let py = slf.py();
+        let list = PyList::new(py, names)?;
+        Ok(list.try_iter()?.into_any().unbind())
+    }
 }
 
 /// Named temporal CPDAG over lagged variables.
@@ -780,6 +883,36 @@ impl TemporalDag {
 pub struct TemporalCpdag {
     pub(crate) cpdag: antecedent_graph::TemporalCpdag,
     pub(crate) names: Vec<String>,
+}
+
+impl TemporalCpdag {
+    fn node_label(&self, id: DenseNodeId) -> PyResult<(String, u32)> {
+        match self.cpdag.nodes().get(id.as_usize()) {
+            Some(NodeRef::Lagged { variable, lag }) => {
+                let name = self.names.get(variable.as_usize()).cloned().ok_or_else(|| {
+                    CausalGraphError::new_err(format!(
+                        "variable id {} out of range",
+                        variable.raw()
+                    ))
+                })?;
+                Ok((name, lag.raw()))
+            }
+            _ => {
+                Err(CausalGraphError::new_err(format!("temporal node {} is not lagged", id.raw())))
+            }
+        }
+    }
+
+    /// Lagged node names (``"var[t-lag]"``) in stable (dense-id) order.
+    fn node_names(&self) -> PyResult<Vec<String>> {
+        let mut out = Vec::with_capacity(self.cpdag.node_count());
+        for i in 0..self.cpdag.node_count() {
+            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let (name, lag) = self.node_label(id)?;
+            out.push(lagged_node_name(&name, lag));
+        }
+        Ok(out)
+    }
 }
 
 #[pymethods]
@@ -826,6 +959,25 @@ impl TemporalCpdag {
     fn __repr__(&self) -> String {
         format!("TemporalCpdag(variables={}, nodes={})", self.names.len(), self.cpdag.node_count())
     }
+
+    /// Number of lagged nodes in the graph.
+    fn __len__(&self) -> usize {
+        self.cpdag.node_count()
+    }
+
+    /// Whether ``name`` (formatted as ``"var[t-lag]"``) is a lagged node in the graph
+    /// (node membership, not edge membership).
+    fn __contains__(&self, name: &str) -> PyResult<bool> {
+        Ok(self.node_names()?.iter().any(|n| n == name))
+    }
+
+    /// Iterate over lagged node names (``"var[t-lag]"``) in stable order.
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
+        let names = slf.node_names()?;
+        let py = slf.py();
+        let list = PyList::new(py, names)?;
+        Ok(list.try_iter()?.into_any().unbind())
+    }
 }
 
 /// Named temporal PAG over lagged variables.
@@ -834,6 +986,36 @@ impl TemporalCpdag {
 pub struct TemporalPag {
     pub(crate) pag: antecedent_graph::TemporalPag,
     pub(crate) names: Vec<String>,
+}
+
+impl TemporalPag {
+    fn node_label(&self, id: DenseNodeId) -> PyResult<(String, u32)> {
+        match self.pag.nodes().get(id.as_usize()) {
+            Some(NodeRef::Lagged { variable, lag }) => {
+                let name = self.names.get(variable.as_usize()).cloned().ok_or_else(|| {
+                    CausalGraphError::new_err(format!(
+                        "variable id {} out of range",
+                        variable.raw()
+                    ))
+                })?;
+                Ok((name, lag.raw()))
+            }
+            _ => {
+                Err(CausalGraphError::new_err(format!("temporal node {} is not lagged", id.raw())))
+            }
+        }
+    }
+
+    /// Lagged node names (``"var[t-lag]"``) in stable (dense-id) order.
+    fn node_names(&self) -> PyResult<Vec<String>> {
+        let mut out = Vec::with_capacity(self.pag.node_count());
+        for i in 0..self.pag.node_count() {
+            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let (name, lag) = self.node_label(id)?;
+            out.push(lagged_node_name(&name, lag));
+        }
+        Ok(out)
+    }
 }
 
 #[pymethods]
@@ -873,6 +1055,25 @@ impl TemporalPag {
 
     fn __repr__(&self) -> String {
         format!("TemporalPag(variables={}, nodes={})", self.names.len(), self.pag.node_count())
+    }
+
+    /// Number of lagged nodes in the graph.
+    fn __len__(&self) -> usize {
+        self.pag.node_count()
+    }
+
+    /// Whether ``name`` (formatted as ``"var[t-lag]"``) is a lagged node in the graph
+    /// (node membership, not edge membership).
+    fn __contains__(&self, name: &str) -> PyResult<bool> {
+        Ok(self.node_names()?.iter().any(|n| n == name))
+    }
+
+    /// Iterate over lagged node names (``"var[t-lag]"``) in stable order.
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
+        let names = slf.node_names()?;
+        let py = slf.py();
+        let list = PyList::new(py, names)?;
+        Ok(list.try_iter()?.into_any().unbind())
     }
 }
 

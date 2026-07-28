@@ -9,7 +9,7 @@ use antecedent_graph::Dag;
 use crate::error::CausalError;
 use crate::result::StudyResult;
 
-use super::builder::{RefuteSuite, StudyBuilder};
+use super::builder::RefuteSuite;
 use super::execute::Study;
 use super::latency::LatencyMode;
 use crate::strategy_table::{EstimatorId, IdentifierId};
@@ -100,8 +100,7 @@ impl BatchStudy {
         }
         let mut out = Vec::with_capacity(queries.len());
         for q in queries {
-            let mut builder = StudyBuilder::new()
-                .data(self.data.clone())
+            let mut builder = Study::tabular(self.data.clone())
                 .graph(self.graph.clone())
                 .query(q.clone())
                 .refute(self.refute)
