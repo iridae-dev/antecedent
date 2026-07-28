@@ -70,7 +70,7 @@ group = "conditional_independence"
 description = "Multivariate partial correlation"
 status = "done"
 owner = "ci"
-notes = "Block residualization + first canonical correlation; scalar blocks reduce to ParCorr."
+notes = "Block residualization; significance via Bartlett chi-square on Wilks' Lambda over all canonical correlations (BlockShuffle recomputes Lambda per replicate). Scalar blocks reduce to ParCorr. Type I calibration: ci::calibration::multivariate_block_calibration_gate."
 
 [[capabilities]]
 id = "discovery.ci.weighted_partial_corr"
