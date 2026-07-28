@@ -285,6 +285,52 @@ mod tests {
         assert!(post.draws.n_draws > 0);
     }
 
+    /// Every posterior producer must tag itself, and that tag must survive into the
+    /// plan record — which is surfaced to Python and serialized into CBOR artifacts.
+    ///
+    /// This is a regression gate. A refactor once made every posterior algorithm record
+    /// the generic label `"graph_posterior"`, and the whole suite stayed green because
+    /// nothing anywhere asserted `discovery_algorithm`. An analysis that cannot say
+    /// which structure-learning algorithm produced its posterior is not reproducible.
+    #[test]
+    fn graph_posterior_records_its_real_algorithm() {
+        let (data, _graph, query) = scm();
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let ctx = ExecutionContext::for_tests(1);
+        let params = crate::discovery::BayesianDiscoverParams::default();
+
+        let exact =
+            crate::discovery::discover_exact_dag_posterior(&data, &vars, &params, &ctx).unwrap();
+        assert_eq!(exact.algorithm.as_deref(), Some("exact_dag_posterior"));
+
+        let schedule = crate::discovery::GraphMcmcSchedule {
+            n_chains: 2,
+            n_warmup: 20,
+            n_draws: 40,
+            ..Default::default()
+        };
+        let order =
+            crate::discovery::discover_order_mcmc(&data, &vars, &params, &schedule, false, &ctx)
+                .unwrap();
+        assert_eq!(
+            order.algorithm.as_deref(),
+            Some("order_mcmc"),
+            "order MCMC must not report a generic posterior label"
+        );
+
+        // End-to-end: the tag reaches the plan record, not just the posterior struct.
+        let plan = Study::tabular(data)
+            .graph_posterior(order)
+            .query(query)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(40)))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .plan(&ctx)
+            .unwrap();
+        assert_eq!(plan.logical.record.discovery_algorithm.as_deref(), Some("order_mcmc"));
+    }
+
     #[test]
     fn graph_posterior_discovery_rejects_frequentist() {
         let (data, _graph, query) = scm();

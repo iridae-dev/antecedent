@@ -355,7 +355,7 @@ fn analyze_temporal_pag(
         )?;
 
         let mut builder = Study::series(series)
-            .graph(graph.pag)
+            .graph(AcceptedGraph::temporal_pag(graph.pag).map_err(py_err)?)
             .temporal_query(q)
             .refute(suite)
             .custom_validators(custom_validators)

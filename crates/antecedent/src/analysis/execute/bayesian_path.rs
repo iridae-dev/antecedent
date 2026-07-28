@@ -424,7 +424,12 @@ impl super::Study {
                     identifier,
                     estimator,
                 })?;
-                logical.record.discovery_algorithm = Some(Arc::from("graph_posterior"));
+                logical.record.discovery_algorithm = Some(
+                    self.graph_posterior
+                        .as_ref()
+                        .and_then(|gp| gp.algorithm.clone())
+                        .unwrap_or_else(|| Arc::from("graph_posterior")),
+                );
                 logical.compile_physical(ctx)
             }
             (
@@ -443,7 +448,12 @@ impl super::Study {
                     false,
                     class,
                 )?;
-                logical.record.discovery_algorithm = Some(Arc::from("dbn_posterior"));
+                logical.record.discovery_algorithm = Some(
+                    self.graph_posterior
+                        .as_ref()
+                        .and_then(|gp| gp.algorithm.clone())
+                        .unwrap_or_else(|| Arc::from("dbn_posterior")),
+                );
                 logical.compile_physical(ctx)
             }
             _ => Err(CausalError::Unsupported {

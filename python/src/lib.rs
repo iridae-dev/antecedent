@@ -245,7 +245,9 @@ pub(crate) fn accept_pag_review(
     review: PagReview,
     accept_discovered: bool,
 ) -> Result<AcceptedGraph, RustCausalError> {
-    if accept_discovered { Ok(AcceptedGraph::from(graph)) } else { AcceptedGraph::accept(review) }
+    // Static PAG circle marks are information the class-aware generalized-adjustment
+    // identifier consumes, so auto-accept is safe here.
+    if accept_discovered { Ok(AcceptedGraph::pag(graph)) } else { AcceptedGraph::accept(review) }
 }
 
 /// Temporal PAG-shaped discovery output (LPCMCI).
@@ -254,7 +256,13 @@ pub(crate) fn accept_temporal_pag_review(
     review: TemporalPagReview,
     accept_discovered: bool,
 ) -> Result<AcceptedGraph, RustCausalError> {
-    if accept_discovered { Ok(AcceptedGraph::from(graph)) } else { AcceptedGraph::accept(review) }
+    // Unlike the static case, auto-accept cannot bypass the gate: no class-aware
+    // temporal PAG identifier exists, so a remaining circle mark genuinely blocks.
+    if accept_discovered {
+        AcceptedGraph::temporal_pag(graph)
+    } else {
+        AcceptedGraph::accept(review)
+    }
 }
 
 /// RPCMCI: reduce N per-regime CPDAG reviews to one accepted graph. A single accepted

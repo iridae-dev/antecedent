@@ -384,6 +384,7 @@ pub fn discover_exact_dag_posterior(
     let eng = ExactDagPosterior::new();
     let mut ws = DiscoveryWorkspace::default();
     eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
+        .map(|gp| gp.with_algorithm("exact_dag_posterior"))
         .map_err(CausalError::from)
 }
 
@@ -405,6 +406,7 @@ pub fn discover_order_mcmc(
         .with_diagnostics_gate(require_diagnostics_gate);
     let mut ws = DiscoveryWorkspace::default();
     eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
+        .map(|gp| gp.with_algorithm("order_mcmc"))
         .map_err(CausalError::from)
 }
 
@@ -428,6 +430,7 @@ pub fn discover_structure_mcmc(
     );
     let mut ws = DiscoveryWorkspace::default();
     eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
+        .map(|gp| gp.with_algorithm("structure_mcmc"))
         .map_err(CausalError::from)
 }
 
@@ -462,6 +465,7 @@ pub fn discover_ci_screened_posterior(
     eng.fdr = fdr;
     let mut ws = DiscoveryWorkspace::default();
     eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)
+        .map(|gp| gp.with_algorithm("ci_screened_posterior"))
         .map_err(CausalError::from)
 }
 
@@ -484,7 +488,9 @@ pub fn discover_dbn_posterior(
         schedule.n_warmup,
         schedule.n_draws,
     );
-    eng.run(data, variables, &params.prior, params.score_family, ctx).map_err(CausalError::from)
+    eng.run(data, variables, &params.prior, params.score_family, ctx)
+        .map(|gp| gp.with_algorithm("dbn_posterior"))
+        .map_err(CausalError::from)
 }
 
 /// Count definite directed edges in a temporal PAG (Tail–Arrow or Arrow–Tail).

@@ -64,11 +64,16 @@ enum GraphKind {
 ///
 /// Construction is the review gate: a value of this type can never carry unresolved
 /// marks that would block estimation. [`Self::dag`], [`Self::admg`], [`Self::pag`],
-/// [`Self::temporal_dag`], and [`Self::temporal_pag`] are infallible because those
-/// classes structurally cannot be partial (a PAG's circle marks are information, not
-/// incompleteness). [`Self::cpdag`], [`Self::temporal_cpdag`], and [`Self::accept`]
-/// are fallible because CPDAGs and discovery review artifacts *can* carry unresolved
-/// marks — that asymmetry is deliberate (see the missing `From<Cpdag>` impl below).
+/// and [`Self::temporal_dag`] are infallible because those classes structurally cannot
+/// be partial. [`Self::pag`] is infallible too: a *static* PAG's circle marks are
+/// information the class-aware generalized-adjustment identifier is built to consume.
+///
+/// [`Self::cpdag`], [`Self::temporal_cpdag`], [`Self::temporal_pag`], and
+/// [`Self::accept`] are fallible, because each of those *can* carry marks that block
+/// estimation. Temporal PAGs are fallible where static PAGs are not for a concrete
+/// reason, not symmetry: no class-aware *temporal* PAG identifier is wired, so a
+/// circle mark on a temporal PAG has nothing that can consume it and genuinely blocks.
+/// That asymmetry is deliberate (see the missing `From<Cpdag>` impls below).
 #[derive(Clone, Debug)]
 pub struct AcceptedGraph {
     kind: GraphKind,
@@ -109,10 +114,29 @@ impl AcceptedGraph {
         Self::from_kind(GraphKind::TemporalDag(g), None)
     }
 
-    /// Accept a temporal PAG. Cannot fail, for the same reason as [`Self::pag`].
-    #[must_use]
-    pub fn temporal_pag(g: TemporalPag) -> Self {
-        Self::from_kind(GraphKind::TemporalPag(g), None)
+    /// Accept a temporal PAG, asserting no circle marks remain.
+    ///
+    /// Fallible where [`Self::pag`] is not: static PAG circles are consumed by the
+    /// class-aware generalized-adjustment identifier, but no equivalent temporal
+    /// identifier exists, so a temporal circle mark blocks estimation outright.
+    ///
+    /// # Errors
+    ///
+    /// [`CausalError::ReviewRequired`] when circle marks remain, carrying the count so
+    /// a caller can drive a review UI rather than re-deriving it.
+    pub fn temporal_pag(g: TemporalPag) -> Result<Self, CausalError> {
+        let pending = TemporalPagReview::from_pag(g, "asserted");
+        if !pending.is_complete() {
+            return Err(CausalError::review_required(
+                ReviewKind::TemporalPag.as_str(),
+                None::<String>,
+                pending.pending_circles.len(),
+                "temporal PAG has unresolved circle marks",
+                "orient the circle marks, or supply a fully directed TemporalDag \
+                 (no class-aware temporal PAG identifier is wired today)",
+            ));
+        }
+        Ok(Self::from_kind(GraphKind::TemporalPag(pending.graph), None))
     }
 
     /// Accept a static CPDAG, asserting it is fully oriented.
@@ -299,12 +323,6 @@ impl From<Pag> for AcceptedGraph {
 impl From<TemporalDag> for AcceptedGraph {
     fn from(g: TemporalDag) -> Self {
         Self::temporal_dag(g)
-    }
-}
-
-impl From<TemporalPag> for AcceptedGraph {
-    fn from(g: TemporalPag) -> Self {
-        Self::temporal_pag(g)
     }
 }
 

@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use antecedent::AcceptedGraph;
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
@@ -287,7 +288,7 @@ fn supplied_complete_temporal_pag_estimates() {
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_directed(p1, d0).unwrap();
     let analysis = Study::series(series)
-        .graph(pag)
+        .graph(AcceptedGraph::temporal_pag(pag).unwrap())
         .temporal_query(q)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -317,29 +318,25 @@ fn incomplete_temporal_pag_review_required_structured() {
     // crates/antecedent-graph/src/temporal_pag.rs); no class-aware temporal PAG
     // identifier exists yet, so an unresolved circle mark now surfaces as
     // `CausalError::Compile` with a message that says exactly that. The underlying
-    // "circle marks block estimation" contract survives; only the error *shape*
-    // (variant + message) changed, so the assertion is updated to match, not relaxed.
+    // An unresolved circle mark on a *temporal* PAG blocks estimation: no class-aware
+    // temporal PAG identifier exists to consume it. The refusal must stay structured —
+    // Python drives a review UI off `kind` / `pending_edge_count` / `hint`, so
+    // degrading this to a flat message is a user-visible regression, not a shape change.
     let (series, _g, q) = manufacturing_series(80);
     let mut pag = antecedent_graph::TemporalPag::empty();
     let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_circle_arrow(p1, d0).unwrap();
-    let err = Study::series(series)
-        .graph(pag)
-        .temporal_query(q)
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(7))
-        .unwrap_err();
+    let err = AcceptedGraph::temporal_pag(pag).unwrap_err();
     match err {
-        antecedent::CausalError::Compile { message } => {
-            assert!(message.contains("unresolved circle marks"), "unexpected: {message}");
-            assert!(message.contains("temporal backdoor"), "unexpected: {message}");
+        antecedent::CausalError::ReviewRequired { kind, pending_edge_count, hint, .. } => {
+            assert_eq!(kind, "temporal_pag");
+            assert!(pending_edge_count >= 1, "expected pending circle marks");
+            assert!(!hint.is_empty(), "review errors must carry an actionable hint");
         }
-        other => panic!("expected CausalError::Compile, got {other:?}"),
+        other => panic!("expected CausalError::ReviewRequired, got {other:?}"),
     }
+    let _ = (series, q);
 }
 
 #[test]
