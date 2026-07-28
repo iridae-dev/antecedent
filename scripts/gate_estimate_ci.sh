@@ -63,6 +63,7 @@ EVIDENCE = {
     "discovery.graphs.endpoints": "crates/antecedent-graph/src/cpdag.rs",
     "discovery.data.masks": "conformance/discovery/masked_mci_lag1",
     "discovery.data.vector_variables": "conformance/discovery/vector_vars_pcmci",
+    "discovery.temporal.max_cond_size": "python/tests/test_discovery_provenance.py",
 }
 
 missing = []
@@ -98,4 +99,17 @@ cargo test -p antecedent-stats --test advanced_ci_oracle
 cargo test -p antecedent-stats --test bayesian_ci_oracle
 cargo test -p antecedent-discovery --test multiplicity_oracle
 bash scripts/gate_estimate_reuse.sh
+
+echo "== Python max_cond_size (PCMCI family) facade smoke =="
+if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
+  echo "SKIP_PYTHON_SMOKE=1; skipping (covered by python-wheels CI)"
+elif ! command -v uv >/dev/null 2>&1; then
+  echo "WARN: uv not on PATH; skipping Python facade smoke (covered by python-wheels CI)"
+else
+  (
+    cd python
+    uv run pytest tests/test_discovery_provenance.py -q
+  )
+fi
+
 echo "estimate_ci parity gate: ok"

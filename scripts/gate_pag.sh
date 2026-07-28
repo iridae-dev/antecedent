@@ -83,7 +83,11 @@ for path in [
 
 # Domain inventory rows
 discovery_inv = (root / "parity/discovery.toml").read_text()
-for cid in ("discovery.lpcmci", "discovery.graphs.separation"):
+for cid in (
+    "discovery.lpcmci",
+    "discovery.graphs.separation",
+    "discovery.provenance.conditioning_sets",
+):
     block = None
     for b in re.split(r"\n\[\[capabilities\]\]\n", discovery_inv)[1:]:
         if re.search(rf'^id\s*=\s*"{cid}"', b, re.M):
@@ -117,5 +121,17 @@ cargo test -p antecedent --lib refuses_dag_only
 echo "== criterion smoke (m-sep + PAG orientation) =="
 cargo bench -p antecedent-graph --bench mseparation -- --test
 cargo bench -p antecedent-discovery --bench pag_orientation -- --test
+
+echo "== Python conditioning-set provenance facade smoke =="
+if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
+  echo "SKIP_PYTHON_SMOKE=1; skipping (covered by python-wheels CI)"
+elif ! command -v uv >/dev/null 2>&1; then
+  echo "WARN: uv not on PATH; skipping Python facade smoke (covered by python-wheels CI)"
+else
+  (
+    cd python
+    uv run pytest tests/test_discovery_provenance.py -q
+  )
+fi
 
 echo "PAG gate PASSED"

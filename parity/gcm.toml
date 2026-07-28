@@ -33,6 +33,12 @@ python_facade = "full"
 notes = "Weighting, KDE, MCMC do-samplers; Python sample_do / sample_interventional_distribution"
 
 [[capabilities]]
+id = "gcm.do_sampling.shift"
+status = "done"
+python_facade = "full"
+notes = "Additive shift do(X := X + delta) alongside hard do(X := v); FittedGcm.sample_do(shifts=...), sample_do(shift=True), sample_interventional_distribution(shift=True); overlay.rs applies shifts, collision between interventions/shifts is a raised error"
+
+[[capabilities]]
 id = "gcm.model.falsification"
 status = "done"
 notes = "Residual CI, local Markov, predictive checks"

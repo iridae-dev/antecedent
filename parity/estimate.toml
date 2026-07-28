@@ -156,6 +156,10 @@ notes = "ConditionalLinearAdjustment; conformance/context/conditional_effect; py
 [[capabilities]]
 id = "estimate.refute.placebo"
 group = "refutation_and_sensitivity"
+description = "Placebo treatment"
+status = "done"
+owner = "estimate"
+python_facade = "full"
 notes = "Placebo treatment; temporal-aware refit for unfolded backdoor (GraphRefuter N/A on temporal)"
 
 [[capabilities]]
@@ -164,6 +168,7 @@ group = "refutation_and_sensitivity"
 description = "Random common cause"
 status = "done"
 owner = "estimate"
+python_facade = "full"
 
 [[capabilities]]
 id = "estimate.refute.bootstrap"
@@ -171,6 +176,7 @@ group = "refutation_and_sensitivity"
 description = "Bootstrap"
 status = "done"
 owner = "estimate"
+python_facade = "full"
 
 [[capabilities]]
 id = "estimate.refute.unobserved_common_cause"
@@ -178,6 +184,7 @@ group = "refutation_and_sensitivity"
 description = "Unobserved common cause"
 status = "done"
 owner = "estimate"
+python_facade = "full"
 
 [[capabilities]]
 id = "estimate.refute.overlap"
@@ -185,6 +192,7 @@ group = "refutation_and_sensitivity"
 description = "Overlap and overlap-rule assessment"
 status = "done"
 owner = "estimate"
+python_facade = "full"
 notes = "OverlapRefuter + OverlapRuleRefuter (Crump-style retained support)."
 
 [[capabilities]]
@@ -193,6 +201,7 @@ group = "refutation_and_sensitivity"
 description = "Data subset"
 status = "done"
 owner = "estimate"
+python_facade = "full"
 
 [[capabilities]]
 id = "estimate.refute.dummy_outcome"
@@ -200,6 +209,7 @@ group = "refutation_and_sensitivity"
 description = "Dummy outcome"
 status = "done"
 owner = "estimate"
+python_facade = "full"
 
 [[capabilities]]
 id = "estimate.refute.evalue"
@@ -207,6 +217,7 @@ group = "refutation_and_sensitivity"
 description = "E-value"
 status = "done"
 owner = "estimate"
+python_facade = "full"
 
 [[capabilities]]
 id = "estimate.refute.graph"
@@ -214,6 +225,7 @@ group = "refutation_and_sensitivity"
 description = "Graph refutation"
 status = "done"
 owner = "estimate"
+python_facade = "full"
 
 [[capabilities]]
 id = "estimate.refute.sensitivity"
@@ -221,6 +233,7 @@ group = "refutation_and_sensitivity"
 description = "Linear, partial-linear, nonparametric, and Reisz-representer sensitivity"
 status = "done"
 owner = "estimate"
+python_facade = "full"
 notes = "Nonparametric = NW residualization + partial-R² grid; Reisz = IPW representer L2 bounds."
 
 [[capabilities]]

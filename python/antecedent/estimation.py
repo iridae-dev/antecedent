@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from ._data import as_columns
@@ -142,6 +142,24 @@ class PriorSensitivityReport:
 
 
 @dataclass(frozen=True)
+class RefutationReport:
+    """One refuter's record (name, comparison statistic, pass/fail).
+
+    Lets callers name which check ran and read its statistic, rather than only
+    seeing an aggregate pass/fail across the whole suite.
+    """
+
+    refuter: str
+    original_ate: float
+    refuted_ate: float
+    comparison: float
+    informative: bool
+    passed: bool
+    failure_condition: str | None
+    replicates: int
+
+
+@dataclass(frozen=True)
 class ValidationView:
     passed: bool
     ran: bool
@@ -149,6 +167,7 @@ class ValidationView:
     prior_predictive: PredictiveCheckReport | None = None
     posterior_predictive: PredictiveCheckReport | None = None
     prior_sensitivity: PriorSensitivityReport | None = None
+    reports: list[RefutationReport] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -260,6 +279,22 @@ class AnalysisResult:
         if isinstance(suite, Refute):
             suite = str(suite)
         return self._prepared.refute(data, suite, seed=seed, threads=threads, cancel=cancel)
+
+
+def _refutation_reports_from_raw(raw: Any) -> list[RefutationReport]:
+    return [
+        RefutationReport(
+            refuter=r.refuter,
+            original_ate=r.original_ate,
+            refuted_ate=r.refuted_ate,
+            comparison=r.comparison,
+            informative=r.informative,
+            passed=r.passed,
+            failure_condition=r.failure_condition,
+            replicates=r.replicates,
+        )
+        for r in getattr(raw, "refutations", None) or ()
+    ]
 
 
 def _plan_from_raw(raw: Any) -> PlanView:
@@ -378,6 +413,7 @@ def _wrap_ate(raw: AteAnalysisResult, prepared: Any | None = None) -> AnalysisRe
             prior_predictive=prior_predictive,
             posterior_predictive=posterior_predictive,
             prior_sensitivity=prior_sensitivity,
+            reports=_refutation_reports_from_raw(raw),
         ),
         performance=PerformanceView(
             plan_id=raw.plan_id,
@@ -582,6 +618,7 @@ def _wrap_temporal(raw: TemporalAnalysisResult) -> AnalysisResult:
             passed=ran,
             ran=ran,
             count=raw.refutation_count,
+            reports=_refutation_reports_from_raw(raw),
         ),
         performance=PerformanceView(
             plan_id=raw.plan_id,
@@ -940,6 +977,7 @@ __all__ = [
     "PredictiveCheckReport",
     "PreparedAnalysis",
     "PriorSensitivityReport",
+    "RefutationReport",
     "TemporalAnalysisResult",
     "ValidationView",
     "analyze_many",

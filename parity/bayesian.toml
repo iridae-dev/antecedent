@@ -59,6 +59,12 @@ status = "done"
 notes = "CBOR meta + f64 LE draws section"
 
 [[capabilities]]
+id = "bayes.io.posterior_artifact_summary_only"
+status = "done"
+python_facade = "full"
+notes = "PosteriorArtifact.from_moments (mean/sd/quantiles, no draws); encode_posterior_artifact emits draws_encoding=none, decode_posterior_artifact round-trips with an empty draws vector; hydrate_prior_from_posterior_bytes / default_hydrate_mapping in crates/antecedent/src/inference.rs read only wire mean/sd/quantities (never draws), so Bayesian(prior_from=<summary-only bytes>) hydrates end to end; crates/antecedent-io/src/posterior.rs::posterior_meta_only_skips_draws + posterior_convert.rs::summary_payload_encoding_omits_draw_bytes; python/tests/test_prior_bank.py::test_summary_only_artifact_round_trips_and_hydrates_prior"
+
+[[capabilities]]
 id = "bayes.facade.inference_mode"
 status = "done"
 notes = "InferenceMode::Bayesian + Python posterior_* summaries"

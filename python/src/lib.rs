@@ -60,8 +60,8 @@ use std::sync::Arc;
 
 use antecedent::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
 use antecedent::discovery::{
-    DiscoverParams, DiscoveryPerformanceRecord, MultiDatasetConstraints, RegimeAssignment,
-    ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
+    DiscoverParams, DiscoveryPerformanceRecord, LaggedParent, MultiDatasetConstraints, PcSepsets,
+    RegimeAssignment, ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
     discover_fci as facade_discover_fci, discover_ges as facade_discover_ges,
     discover_jpcmci_plus as facade_discover_jpcmci_plus, discover_lingam as facade_discover_lingam,
     discover_lpcmci as facade_discover_lpcmci, discover_notears as facade_discover_notears,
@@ -119,7 +119,7 @@ use antecedent_io::{
 };
 use antecedent_stats::FdrAdjustment;
 use antecedent_stats::PartialCorrelation;
-use antecedent_validate::PredictiveCheckKind;
+use antecedent_validate::{PredictiveCheckKind, RefutationReport};
 use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
@@ -368,6 +368,9 @@ pub(crate) struct AteAnalysisResult {
     refutation_ran: bool,
     #[pyo3(get)]
     refutation_count: usize,
+    /// Per-refuter records (name, comparison statistic, pass/fail), one per validator run.
+    #[pyo3(get)]
+    refutations: Vec<RefutationReportView>,
     #[pyo3(get)]
     assumption_count: usize,
     #[pyo3(get)]
@@ -495,6 +498,65 @@ pub(crate) struct AteAnalysisResult {
     stage_timings: Vec<(String, u64)>,
 }
 
+/// One refuter's record: which check ran, its comparison statistic, and pass/fail.
+///
+/// Exposes the fields of [`antecedent_validate::RefutationReport`] so callers can name the
+/// refuter that failed instead of only seeing an aggregate pass/fail flag.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone, Debug)]
+struct RefutationReportView {
+    /// Refuter id (e.g. `placebo.treatment`, `random.common_cause`, `bootstrap.ci_coverage`).
+    #[pyo3(get)]
+    refuter: String,
+    /// Original ATE before refutation.
+    #[pyo3(get)]
+    original_ate: f64,
+    /// Refuted / transformed ATE (mean across replicates when applicable).
+    #[pyo3(get)]
+    refuted_ate: f64,
+    /// Scale-free comparison statistic (meaning is refuter-specific; see
+    /// [`antecedent_validate::RefutationReport::comparison`]).
+    #[pyo3(get)]
+    comparison: f64,
+    /// Whether the check is informative for the estimator used.
+    #[pyo3(get)]
+    informative: bool,
+    /// Whether the check passed the configured threshold.
+    #[pyo3(get)]
+    passed: bool,
+    /// Failure condition description when `passed` is `False`.
+    #[pyo3(get)]
+    failure_condition: Option<String>,
+    /// Number of replicate estimates.
+    #[pyo3(get)]
+    replicates: u32,
+}
+
+impl From<&RefutationReport> for RefutationReportView {
+    fn from(r: &RefutationReport) -> Self {
+        Self {
+            refuter: r.refuter.to_string(),
+            original_ate: r.original_ate,
+            refuted_ate: r.refuted_ate,
+            comparison: r.comparison,
+            informative: r.informative,
+            passed: r.passed,
+            failure_condition: r.failure_condition.as_ref().map(std::string::ToString::to_string),
+            replicates: r.replicates,
+        }
+    }
+}
+
+#[pymethods]
+impl RefutationReportView {
+    fn __repr__(&self) -> String {
+        format!(
+            "RefutationReportView(refuter={:?}, passed={}, comparison={}, replicates={})",
+            self.refuter, self.passed, self.comparison, self.replicates
+        )
+    }
+}
+
 /// Decoded posterior artifact for Python consumers .
 #[pyclass]
 struct PosteriorArtifact {
@@ -563,6 +625,58 @@ impl PosteriorArtifact {
             q025,
             q975,
             draws,
+            backend_id,
+            identification,
+            unidentified_mass,
+            converged,
+            hessian_condition,
+            quantity_names,
+        }
+    }
+
+    /// Build a summary-only artifact (mean / SD / quantiles, no draws).
+    ///
+    /// For callers who only hold posterior moments (e.g. from a conjugate update
+    /// computed elsewhere) and would otherwise have to fabricate a fake draws array
+    /// just to construct an artifact. `n_draws` records the draw count the moments
+    /// were computed from; no samples are stored. `encode_posterior_artifact` emits
+    /// `draws_encoding = "none"` for artifacts built this way, and
+    /// `decode_posterior_artifact` round-trips them back with an empty `draws`.
+    #[staticmethod]
+    #[pyo3(signature = (
+        n_draws,
+        mean,
+        sd,
+        q025,
+        q975,
+        backend_id,
+        identification,
+        quantity_names,
+        unidentified_mass=0.0,
+        converged=true,
+        hessian_condition=f64::NAN,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn from_moments(
+        n_draws: usize,
+        mean: Vec<f64>,
+        sd: Vec<f64>,
+        q025: Vec<f64>,
+        q975: Vec<f64>,
+        backend_id: String,
+        identification: String,
+        quantity_names: Vec<String>,
+        unidentified_mass: f64,
+        converged: bool,
+        hessian_condition: f64,
+    ) -> Self {
+        Self {
+            n_draws,
+            mean,
+            sd,
+            q025,
+            q975,
+            draws: Vec::new(),
             backend_id,
             identification,
             unidentified_mass,
@@ -821,6 +935,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
 fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
+    m.add_class::<RefutationReportView>()?;
     m.add_class::<PyCancellationToken>()?;
     m.add_class::<PosteriorArtifact>()?;
     m.add_class::<AnalysisResult>()?;

@@ -143,6 +143,7 @@ pub(crate) fn run_pcmci_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: Option<antecedent_stats::FdrAdjustment>,
     ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
@@ -154,6 +155,7 @@ pub(crate) fn run_pcmci_review(
         fdr,
         ci,
         multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size,
     };
     let result = discover_pcmci(data, &vars, &params, ctx)?;
     Ok(result.review)
@@ -163,6 +165,7 @@ pub(crate) fn run_pcmci_plus_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: Option<antecedent_stats::FdrAdjustment>,
     ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
@@ -174,6 +177,7 @@ pub(crate) fn run_pcmci_plus_review(
         fdr,
         ci,
         multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size,
     };
     let result = discover_pcmci_plus(data, &vars, &params, ctx)?;
     Ok(result.review)
@@ -183,6 +187,7 @@ pub(crate) fn run_jpcmci_plus_review(
     data: &MultiEnvironmentData,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: Option<antecedent_stats::FdrAdjustment>,
     multi_dataset: &MultiDatasetConstraints,
     ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
@@ -196,7 +201,14 @@ pub(crate) fn run_jpcmci_plus_review(
             message: "jpcmci+ needs ≥1 system variable after excluding context_variables".into(),
         });
     }
-    let params = DiscoverParams { max_lag, alpha, fdr, ci, multi_dataset: multi_dataset.clone() };
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr,
+        ci,
+        multi_dataset: multi_dataset.clone(),
+        max_cond_size,
+    };
     let result = discover_jpcmci_plus(data, &system, &params, ctx)?;
     Ok(result.review)
 }
@@ -205,6 +217,7 @@ pub(crate) fn run_rpcmci_discovery(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: Option<antecedent_stats::FdrAdjustment>,
     assignment: &RegimeAssignment,
     ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
@@ -217,6 +230,7 @@ pub(crate) fn run_rpcmci_discovery(
         fdr,
         ci,
         multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size,
     };
     if assignment.len() != data.row_count() {
         return Err(CausalError::Compile {
@@ -234,6 +248,7 @@ pub(crate) fn run_lpcmci_review(
     data: &TimeSeriesData,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: Option<antecedent_stats::FdrAdjustment>,
     ci: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     ctx: &ExecutionContext,
@@ -245,6 +260,7 @@ pub(crate) fn run_lpcmci_review(
         fdr,
         ci,
         multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size,
     };
     let result = discover_lpcmci(data, &vars, &params, ctx)?;
     Ok(result.review)

@@ -255,19 +255,25 @@ pub(crate) fn panel_discovery_builder(
     algo: &str,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     multi_dataset: MultiDatasetConstraints,
 ) -> PyResult<antecedent::CausalAnalysisBuilder> {
     match algo {
-        "jpcmci_plus" | "jpcmci+" => {
-            Ok(builder.discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset))
-        }
-        "pcmci" => Ok(builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept)),
+        "jpcmci_plus" | "jpcmci+" => Ok(builder.discover_jpcmci_plus(
+            max_lag,
+            alpha,
+            max_cond_size,
+            fdr_ctrl,
+            accept,
+            multi_dataset,
+        )),
+        "pcmci" => Ok(builder.discover_pcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept)),
         "pcmci_plus" | "pcmci+" => {
-            Ok(builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept))
+            Ok(builder.discover_pcmci_plus(max_lag, alpha, max_cond_size, fdr_ctrl, accept))
         }
-        "lpcmci" => Ok(builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept)),
+        "lpcmci" => Ok(builder.discover_lpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept)),
         other => Err(PyValueError::new_err(format!(
             "unknown panel discovery algorithm {other:?}; use jpcmci_plus|pcmci|pcmci_plus|lpcmci"
         ))),
@@ -1420,6 +1426,7 @@ pub(crate) fn ate_result_from_analysis(
         refutation_passed,
         refutation_ran,
         refutation_count: result.refutations.len(),
+        refutations: result.refutations.iter().map(RefutationReportView::from).collect(),
         assumption_count: result.estimate.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
         method: result.estimand.method.to_string(),

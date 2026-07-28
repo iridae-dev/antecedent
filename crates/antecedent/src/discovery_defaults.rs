@@ -24,28 +24,32 @@ pub const DEFAULT_RPCMCI_MIN_REGIME_LEN: usize = 40;
 
 /// Lagged-only PCMCI constraints (`min_lag = 1`).
 #[must_use]
-pub fn pcmci_constraints(max_lag: u32, alpha: f64) -> DiscoveryConstraints {
+pub fn pcmci_constraints(max_lag: u32, alpha: f64, max_cond_size: usize) -> DiscoveryConstraints {
     DiscoveryConstraints {
         temporal: TemporalConstraints {
             max_lag: Lag::from_raw(max_lag),
             min_lag: Lag::from_raw(1),
         },
         alpha,
-        max_cond_size: DEFAULT_MAX_COND_SIZE,
+        max_cond_size,
         ..DiscoveryConstraints::default()
     }
 }
 
 /// Contemporaneous-allowed constraints (`min_lag = 0`) for PCMCI+, LPCMCI, RPCMCI.
 #[must_use]
-pub fn contemporaneous_constraints(max_lag: u32, alpha: f64) -> DiscoveryConstraints {
+pub fn contemporaneous_constraints(
+    max_lag: u32,
+    alpha: f64,
+    max_cond_size: usize,
+) -> DiscoveryConstraints {
     DiscoveryConstraints {
         temporal: TemporalConstraints {
             max_lag: Lag::from_raw(max_lag),
             min_lag: Lag::CONTEMPORANEOUS,
         },
         alpha,
-        max_cond_size: DEFAULT_MAX_COND_SIZE,
+        max_cond_size,
         ..DiscoveryConstraints::default()
     }
 }
@@ -69,9 +73,10 @@ pub fn static_pc_constraints(alpha: f64, max_cond_size: usize) -> DiscoveryConst
 pub fn jpcmci_constraints(
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     multi_dataset: MultiDatasetConstraints,
 ) -> DiscoveryConstraints {
-    let mut c = contemporaneous_constraints(max_lag, alpha);
+    let mut c = contemporaneous_constraints(max_lag, alpha, max_cond_size);
     c.multi_dataset = multi_dataset;
     c
 }

@@ -87,6 +87,7 @@ class PCMCI:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
+    max_cond_size: int = 2
     kind: Literal["pcmci"] = "pcmci"
 
 
@@ -96,6 +97,7 @@ class PCMCIPlus:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
+    max_cond_size: int = 2
     kind: Literal["pcmci_plus"] = "pcmci_plus"
 
 
@@ -105,6 +107,7 @@ class LPCMCI:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
+    max_cond_size: int = 2
     kind: Literal["lpcmci"] = "lpcmci"
 
 
@@ -120,6 +123,7 @@ class JPCMCIPlus:
     space_dummy_ci: Literal["scalar", "multivariate"] = "scalar"
     time_dummy_encoding: Literal["integer", "one_hot"] = "integer"
     time_dummy_ci: Literal["scalar", "multivariate"] = "scalar"
+    max_cond_size: int = 2
     kind: Literal["jpcmci_plus"] = "jpcmci_plus"
 
 
@@ -134,6 +138,7 @@ class RPCMCI:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
+    max_cond_size: int = 2
     kind: Literal["rpcmci"] = "rpcmci"
 
 
@@ -436,6 +441,7 @@ def run_temporal_discovery(
                 seed=seed,
                 threads=threads,
                 ci=_ci_str(discovery.ci),
+                max_cond_size=discovery.max_cond_size,
             ),
             "pcmci",
         )
@@ -449,6 +455,7 @@ def run_temporal_discovery(
                 seed=seed,
                 threads=threads,
                 ci=_ci_str(discovery.ci),
+                max_cond_size=discovery.max_cond_size,
             ),
             "pcmci+",
         )
@@ -462,6 +469,7 @@ def run_temporal_discovery(
                 seed=seed,
                 threads=threads,
                 ci=_ci_str(discovery.ci),
+                max_cond_size=discovery.max_cond_size,
             ),
             "lpcmci",
         )
@@ -477,6 +485,7 @@ def discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "alpha": discovery.alpha,
             "fdr": discovery.fdr,
             "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
         }
     if isinstance(discovery, PCMCIPlus):
         return {
@@ -485,6 +494,7 @@ def discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "alpha": discovery.alpha,
             "fdr": discovery.fdr,
             "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
         }
     if isinstance(discovery, LPCMCI):
         return {
@@ -493,6 +503,7 @@ def discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "alpha": discovery.alpha,
             "fdr": discovery.fdr,
             "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
         }
     if isinstance(discovery, JPCMCIPlus):
         return {
@@ -507,6 +518,7 @@ def discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "space_dummy_ci": discovery.space_dummy_ci,
             "time_dummy_encoding": discovery.time_dummy_encoding,
             "time_dummy_ci": discovery.time_dummy_ci,
+            "max_cond_size": discovery.max_cond_size,
         }
     if isinstance(discovery, RPCMCI):
         return {
@@ -515,6 +527,7 @@ def discovery_algorithm(discovery: Any) -> dict[str, Any]:
             "alpha": discovery.alpha,
             "fdr": discovery.fdr,
             "ci": discovery.ci,
+            "max_cond_size": discovery.max_cond_size,
         }
     if isinstance(discovery, PC):
         return {
@@ -780,6 +793,7 @@ def discover_pcmci(
     ci: str = "parcorr",
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> DiscoveryResult:
     return _call_discover(
         _discover_pcmci,
@@ -793,6 +807,7 @@ def discover_pcmci(
         ci=ci,
         weights=weights,
         threads=threads,
+        max_cond_size=max_cond_size,
     )
 
 
@@ -808,6 +823,7 @@ def discover_pcmci_plus(
     ci: str = "parcorr",
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> DiscoveryResult:
     n, cols = _coerce_tabular(names, columns, data=data)
     return _discover_pcmci_plus(
@@ -820,6 +836,7 @@ def discover_pcmci_plus(
         ci=ci,
         weights=weights,
         threads=threads,
+        max_cond_size=max_cond_size,
     )
 
 
@@ -835,6 +852,7 @@ def discover_lpcmci(
     ci: str = "parcorr",
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> DiscoveryResult:
     n, cols = _coerce_tabular(names, columns, data=data)
     return _discover_lpcmci(
@@ -847,6 +865,7 @@ def discover_lpcmci(
         ci=ci,
         weights=weights,
         threads=threads,
+        max_cond_size=max_cond_size,
     )
 
 
@@ -867,6 +886,7 @@ def discover_jpcmci_plus(
     space_dummy_ci: str = "scalar",
     time_dummy_encoding: str = "integer",
     time_dummy_ci: str = "scalar",
+    max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult:
     return _discover_jpcmci_plus(
         names,
@@ -884,6 +904,7 @@ def discover_jpcmci_plus(
         space_dummy_ci=space_dummy_ci,
         time_dummy_encoding=time_dummy_encoding,
         time_dummy_ci=time_dummy_ci,
+        max_cond_size=max_cond_size,
     )
 
 
@@ -900,6 +921,7 @@ def discover_rpcmci(
     ci: str = "parcorr",
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> RpcmciDiscoverySummary:
     """Run RPCMCI. ``regimes`` is required (length = series length); no silent half-split.
 
@@ -917,6 +939,7 @@ def discover_rpcmci(
         ci=ci,
         weights=weights,
         threads=threads,
+        max_cond_size=max_cond_size,
     )
 
 
