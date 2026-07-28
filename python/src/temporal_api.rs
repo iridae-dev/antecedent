@@ -664,7 +664,8 @@ fn analyze_panel(
     include_time_dummy=false,
     space_dummy_ci=false,
     time_dummy_encoding="integer",
-    time_dummy_ci=false
+    time_dummy_ci=false,
+    ci=None,
 ))]
 fn analyze_panel_discover(
     py: Python<'_>,
@@ -698,6 +699,7 @@ fn analyze_panel_discover(
     space_dummy_ci: bool,
     time_dummy_encoding: &str,
     time_dummy_ci: bool,
+    ci: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AnalysisResult> {
     if unit_columns.is_empty() {
         return Err(PyValueError::new_err("panel needs ≥1 unit"));
@@ -711,7 +713,8 @@ fn analyze_panel_discover(
     }
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
+    let threads = if is_ci_callback || !custom_validators.is_empty() { 1 } else { threads };
     drop(unit_columns);
     let policy = policy.to_string();
     let time_dummy_encoding = time_dummy_encoding.to_string();
@@ -747,7 +750,7 @@ fn analyze_panel_discover(
         )?;
         let algo = algorithm.to_ascii_lowercase();
         let builder = panel_discovery_builder(
-            CausalAnalysis::builder().panel(panel),
+            CausalAnalysis::builder().panel(panel).discovery_ci(ci_impl),
             algo.as_str(),
             max_lag,
             alpha,
