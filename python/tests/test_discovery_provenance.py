@@ -117,6 +117,36 @@ def test_conditioning_set_nonempty_and_correct_for_retained_pcmci_link():
     assert link.conditioning_set == [("v1", 1)], link.conditioning_set
 
 
+def test_lpcmci_links_all_correspond_to_final_pag_edges():
+    """LPCMCI's scored-link accumulator is reconciled against the final PAG before it is
+    returned (`reconcile_evidence_with_pag` in the Rust discovery phases), so every
+    entry in `result.links` must name a pair that is actually an edge in
+    `result.graph_edges`. Before that reconciliation existed, `links` could retain
+    entries from an earlier preliminary iteration that a later iteration's fresh PAG
+    (built by `init_complete_pag`, carrying over only parent memory) no longer connected
+    at all — this test pins the invariant that no longer happens.
+
+    Edge presence is checked as an unordered pair: a PAG edge for (a, b) may be reported
+    with either endpoint as `source`, so a link's `(source, source_lag)` /
+    `(target, target_lag)` pair is compared against `graph_edges` regardless of
+    orientation.
+    """
+    names, cols = _chain_series()
+    result = antecedent.discover_lpcmci(names, cols, max_lag=2, alpha=0.1, fdr=False, seed=9)
+    assert result.links, "expected at least one retained link for this chain"
+
+    edge_pairs = {
+        frozenset({(edge.source, edge.source_lag), (edge.target, edge.target_lag)})
+        for edge in result.graph_edges
+    }
+    for link in result.links:
+        link_pair = frozenset({(link.source, link.source_lag), (link.target, link.target_lag)})
+        assert link_pair in edge_pairs, (
+            f"link {link.source}[{link.source_lag}] -> {link.target}[{link.target_lag}] "
+            "has no corresponding edge in graph_edges"
+        )
+
+
 def test_max_cond_size_default_matches_pc():
     assert PCMCI().max_cond_size == PC().max_cond_size == 2
     assert PCMCIPlus().max_cond_size == 2
