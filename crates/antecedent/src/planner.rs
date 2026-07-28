@@ -406,35 +406,35 @@ impl LogicalAnalysisPlan {
             ctx.parallelism.max_threads.get()
         };
 
+        // An unknown/unparseable estimator on the wire (or a missing one) must not fail
+        // physical planning: fall back to the same labels the old `Other` escape produced
+        // ("analysis" task dimension, "ols.faer" kernel) so previously-serialized artifacts
+        // with an estimator name outside the current allowlist still load.
         let task_schedule: Arc<[ParallelTaskSpec]> = if workers == 0 {
             Arc::from([ParallelTaskSpec { dimension: Arc::from("serial"), units: 1 }])
         } else {
-            let estimator = self
+            let dimension = self
                 .record
                 .estimator
                 .as_deref()
-                .map_or(EstimatorId::Other(Arc::from("")), EstimatorId::parse);
-            Arc::from([ParallelTaskSpec {
-                dimension: Arc::from(estimator.parallel_task_dimension()),
-                units: workers,
-            }])
+                .and_then(|s| s.parse::<EstimatorId>().ok())
+                .map_or("analysis", |e| e.parallel_task_dimension());
+            Arc::from([ParallelTaskSpec { dimension: Arc::from(dimension), units: workers }])
         };
 
-        let estimator = self
+        let kernel_label = self
             .record
             .estimator
             .as_deref()
-            .map_or(EstimatorId::Other(Arc::from("")), EstimatorId::parse);
+            .and_then(|s| s.parse::<EstimatorId>().ok())
+            .map_or("ols.faer", |e| e.kernel_label());
         let record = PhysicalExecutionPlanRecord {
             plan_id: Arc::clone(&self.record.plan_id),
             materializations: Arc::from([(
                 Arc::from("design.matrix"),
                 BufferMaterialization::CopiedContiguous,
             )]),
-            kernels: Arc::from([(
-                Arc::from(estimator.kernel_label()),
-                KernelSelection::DenseBackend,
-            )]),
+            kernels: Arc::from([(Arc::from(kernel_label), KernelSelection::DenseBackend)]),
             batch_size: Some(n_rows as usize),
             workspace_bytes: Some(workspace),
             estimated_peak_memory_bytes: Some(peak),
@@ -510,8 +510,8 @@ pub enum CompiledAnalysis {
 
 /// Whether an identifier is DAG-only (cannot accept a PAG without completion / class-aware ID).
 #[must_use]
-pub fn is_dag_only_identifier(identifier: impl Into<IdentifierId>) -> bool {
-    identifier.into().is_dag_only()
+pub fn is_dag_only_identifier(identifier: IdentifierId) -> bool {
+    identifier.is_dag_only()
 }
 
 /// Refuse DAG-only identification on a PAG input.
@@ -521,9 +521,8 @@ pub fn is_dag_only_identifier(identifier: impl Into<IdentifierId>) -> bool {
 /// [`CausalError::Compile`] when a DAG-only identifier is paired with PAG graph input.
 pub fn reject_dag_only_on_pag(
     graph: &GraphInput,
-    identifier: impl Into<IdentifierId>,
+    identifier: IdentifierId,
 ) -> Result<(), CausalError> {
-    let identifier = identifier.into();
     let is_pag = matches!(
         graph,
         GraphInput::Pag(_)
@@ -572,9 +571,9 @@ pub fn compile_logical_static_ate(
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
-    let identifier = IdentifierId::parse(&input.identifier);
-    let estimator = EstimatorId::parse(&input.estimator);
-    validate_static_pair(identifier.clone(), estimator.clone())?;
+    let identifier: IdentifierId = input.identifier.parse()?;
+    let estimator: EstimatorId = input.estimator.parse()?;
+    validate_static_pair(identifier, estimator)?;
     if matches!(estimator, EstimatorId::LinearAdjustmentAte)
         && input.query.target_population != TargetPopulation::AllObserved
     {
@@ -633,8 +632,8 @@ pub fn compile_logical_static_pag_ate(
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     validate_query_vars_in_pag(input.pag, input.query.treatment, input.query.outcome)?;
-    let identifier = IdentifierId::parse(&input.identifier);
-    let estimator = EstimatorId::parse(&input.estimator);
+    let identifier: IdentifierId = input.identifier.parse()?;
+    let estimator: EstimatorId = input.estimator.parse()?;
     if !matches!(identifier, IdentifierId::GeneralizedAdjustment) {
         return Err(CausalError::Compile {
             message: format!(
@@ -707,8 +706,8 @@ pub fn compile_logical_distribution(
         message: "distribution query requires at least one outcome".into(),
     })?;
     validate_query_vars_in_dag(input.graph, treatment, outcome)?;
-    let identifier = IdentifierId::parse(&input.identifier);
-    let estimator = EstimatorId::parse(&input.estimator);
+    let identifier: IdentifierId = input.identifier.parse()?;
+    let estimator: EstimatorId = input.estimator.parse()?;
     validate_distribution_pair(identifier, estimator)?;
     let mut qvars = vec![treatment, outcome];
     for &z in input.query.conditioning.iter() {
@@ -768,8 +767,8 @@ pub fn compile_logical_path_specific(
         });
     }
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
-    let identifier = IdentifierId::parse(&input.identifier);
-    let estimator = EstimatorId::parse(&input.estimator);
+    let identifier: IdentifierId = input.identifier.parse()?;
+    let estimator: EstimatorId = input.estimator.parse()?;
     validate_path_specific_pair(identifier, estimator)?;
     let mut qvars = vec![input.query.treatment, input.query.outcome];
     for &m in input.query.path_nodes.iter() {
@@ -1241,10 +1240,11 @@ mod tests {
     fn refuses_dag_only_identifier_on_pag() {
         use antecedent_graph::Pag;
         let pag = Pag::with_variables(2);
-        let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), "backdoor.adjustment").unwrap_err();
+        let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), IdentifierId::BackdoorAdjustment)
+            .unwrap_err();
         assert!(matches!(err, CausalError::Compile { .. }));
         // Class-aware identifier is allowed through this gate.
         let pag = Pag::with_variables(2);
-        reject_dag_only_on_pag(&GraphInput::Pag(pag), "generalized.adjustment").unwrap();
+        reject_dag_only_on_pag(&GraphInput::Pag(pag), IdentifierId::GeneralizedAdjustment).unwrap();
     }
 }

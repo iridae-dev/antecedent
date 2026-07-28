@@ -100,8 +100,8 @@ fn main() -> Result<(), CausalError> {
         .data(data)
         .graph(graph)
         .query(query)
-        .identifier("backdoor.adjustment")
-        .estimator("propensity.weighting")
+        .identifier(IdentifierId::BackdoorAdjustment)
+        .estimator(EstimatorId::PropensityWeighting)
         .bootstrap_replicates(30)
         .refute(RefuteSuite::None)
         .build()?

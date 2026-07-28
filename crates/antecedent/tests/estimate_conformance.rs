@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use antecedent::CausalAnalysis;
+use antecedent::{EstimatorId, IdentifierId};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ValueType, VariableId,
@@ -119,8 +120,8 @@ fn estimate_propensity_ipw_recovers_ate() {
         .data(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse().unwrap())
         .bootstrap_replicates(30)
         .build()
         .unwrap();
@@ -167,8 +168,8 @@ fn estimate_iv_2sls_recovers_structural_effect() {
         .data(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse().unwrap())
         .bootstrap_replicates(30)
         .build()
         .unwrap();
@@ -214,8 +215,8 @@ fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
         .data(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse().unwrap())
         .bootstrap_replicates(30)
         .build()
         .unwrap();
@@ -230,8 +231,8 @@ fn run_static(name: &str, data: TabularData, graph: Dag, query: AverageEffectQue
         .data(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse().unwrap())
         .bootstrap_replicates(20)
         .build()
         .unwrap();
@@ -318,8 +319,8 @@ fn estimate_glm_adjustment_recovers_positive_ate() {
         .data(data)
         .graph(graph)
         .query(query)
-        .identifier(expected["identifier"].as_str().unwrap())
-        .estimator(expected["estimator"].as_str().unwrap())
+        .identifier(expected["identifier"].as_str().unwrap().parse().unwrap())
+        .estimator(expected["estimator"].as_str().unwrap().parse().unwrap())
         .bootstrap_replicates(20)
         .build()
         .unwrap();
@@ -367,8 +368,8 @@ fn estimate_rd_sharp_recovers_jump() {
         .data(data)
         .graph(graph)
         .query(query)
-        .identifier("rd.sharp")
-        .estimator("rd.sharp")
+        .identifier(IdentifierId::RdSharp)
+        .estimator(EstimatorId::RdSharp)
         .rd_config(VariableId::from_raw(2), 0.0, 1.5)
         .bootstrap_replicates(20)
         .build()
