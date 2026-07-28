@@ -28,6 +28,7 @@ use antecedent_stats::ConditionalIndependence;
 use antecedent_validate::CustomEffectValidator;
 
 use crate::error::CausalError;
+use crate::estimator_spec::EstimatorSpec;
 use crate::inference::InferenceMode;
 use crate::planner::GraphInput;
 use crate::strategy_table::{EstimatorId, IdentifierId};
@@ -101,6 +102,10 @@ pub struct CausalAnalysisBuilder {
     split: Option<DiscoveryEstimationSplit>,
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
+    /// Caller-configured estimator (superset of [`Self::estimator`]); `Some` only when
+    /// [`CausalAnalysisBuilder::estimator`] was called with a configured estimator rather
+    /// than a bare [`EstimatorId`].
+    estimator_spec: Option<EstimatorSpec>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
     /// Whether Bayesian `n_draws` were set via [`ComputeBudget`] (mode draw map skipped).
@@ -135,6 +140,7 @@ impl std::fmt::Debug for CausalAnalysisBuilder {
             .field("split", &self.split)
             .field("identifier", &self.identifier)
             .field("estimator", &self.estimator)
+            .field("estimator_spec", &self.estimator_spec)
             .field("rd", &self.rd)
             .field("inference", &self.inference)
             .field("n_draws_explicit", &self.n_draws_explicit)
@@ -171,6 +177,7 @@ impl CausalAnalysisBuilder {
             split: None,
             identifier: None,
             estimator: None,
+            estimator_spec: None,
             rd: None,
             inference: InferenceMode::Frequentist,
             n_draws_explicit: false,
@@ -701,9 +708,18 @@ impl CausalAnalysisBuilder {
     /// [`std::str::FromStr`] impl). `compile` refuses any identifier/estimator pair outside
     /// the allowlist. Ignored on the temporal path (which always uses
     /// [`EstimatorId::TemporalLinearAdjustment`]).
+    ///
+    /// Accepts either a bare [`EstimatorId`] (study fills bootstrap / overlap defaults, exactly
+    /// as before) or a fully caller-configured estimator (e.g.
+    /// `LinearAdjustmentAte::new().with_se_kind(..)`), via `impl Into<`[`EstimatorSpec`]`>`.
+    /// Combining a configured estimator with an explicit [`Self::bootstrap_replicates`] or
+    /// [`Self::overlap_policy`] is refused at [`Self::build`] time
+    /// ([`CausalError::Conflict`]) rather than silently picking a winner.
     #[must_use]
-    pub fn estimator(mut self, id: EstimatorId) -> Self {
-        self.estimator = Some(id);
+    pub fn estimator(mut self, spec: impl Into<EstimatorSpec>) -> Self {
+        let spec = spec.into();
+        self.estimator = Some(spec.id());
+        self.estimator_spec = Some(spec);
         self
     }
 
@@ -762,9 +778,29 @@ impl CausalAnalysisBuilder {
     ///
     /// # Errors
     ///
-    /// Missing required fields, event alignment failure, Interactive+HMC, or
-    /// Interactive+discovery graph.
+    /// Missing required fields, event alignment failure, Interactive+HMC,
+    /// Interactive+discovery graph, or [`CausalError::Conflict`] when a configured
+    /// [`Self::estimator`] and an explicit [`Self::bootstrap_replicates`] /
+    /// [`Self::overlap_policy`] disagree about who owns that setting.
     pub fn build(self) -> Result<CausalAnalysis, CausalError> {
+        if let Some(spec) = &self.estimator_spec {
+            if spec.is_configured() {
+                if self.bootstrap_explicit {
+                    return Err(CausalError::Conflict {
+                        what: "bootstrap_replicates",
+                        detail: "set on both the builder and the configured estimator; set it \
+                                 in one place (prefer the estimator)",
+                    });
+                }
+                if self.overlap_policy.is_some() {
+                    return Err(CausalError::Conflict {
+                        what: "overlap_policy",
+                        detail: "set on both the builder and the configured estimator; set it \
+                                 in one place (prefer the estimator)",
+                    });
+                }
+            }
+        }
         let data = if let Some((event, interval_ns)) = self.event_pending {
             let aligned = event.align_to_grid(interval_ns).map_err(|e| CausalError::Compile {
                 message: format!("event align_to_grid: {e}"),
@@ -833,6 +869,7 @@ impl CausalAnalysisBuilder {
             split: self.split,
             identifier: self.identifier,
             estimator: self.estimator,
+            estimator_spec: self.estimator_spec,
             rd: self.rd,
             inference,
             overlap_policy: self.overlap_policy,
@@ -842,5 +879,50 @@ impl CausalAnalysisBuilder {
             latency_mode,
             stage_sink: self.stage_sink,
         })
+    }
+}
+
+#[cfg(test)]
+mod estimator_spec_conflict_tests {
+    use antecedent_estimate::LinearAdjustmentAte;
+
+    use super::*;
+
+    #[test]
+    fn configured_estimator_plus_explicit_bootstrap_replicates_conflicts() {
+        let result = CausalAnalysisBuilder::new()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
+            .bootstrap_replicates(100)
+            .build();
+        match result {
+            Err(CausalError::Conflict { what, .. }) => assert_eq!(what, "bootstrap_replicates"),
+            other => panic!("expected CausalError::Conflict, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn configured_estimator_plus_explicit_overlap_policy_conflicts() {
+        let result = CausalAnalysisBuilder::new()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
+            .overlap_policy(OverlapPolicy::ExplicitOverride)
+            .build();
+        match result {
+            Err(CausalError::Conflict { what, .. }) => assert_eq!(what, "overlap_policy"),
+            other => panic!("expected CausalError::Conflict, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn configured_estimator_alone_does_not_conflict() {
+        let result = CausalAnalysisBuilder::new()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
+            .build();
+        assert!(!matches!(result, Err(CausalError::Conflict { .. })));
+    }
+
+    #[test]
+    fn explicit_bootstrap_replicates_alone_does_not_conflict() {
+        let result = CausalAnalysisBuilder::new().bootstrap_replicates(100).build();
+        assert!(!matches!(result, Err(CausalError::Conflict { .. })));
     }
 }

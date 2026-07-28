@@ -111,6 +111,7 @@ pub struct CausalAnalysis {
     pub(crate) split: Option<DiscoveryEstimationSplit>,
     pub(crate) identifier: Option<IdentifierId>,
     pub(crate) estimator: Option<EstimatorId>,
+    pub(crate) estimator_spec: Option<crate::estimator_spec::EstimatorSpec>,
     pub(crate) rd: Option<RdConfig>,
     pub(crate) inference: InferenceMode,
     pub(crate) overlap_policy: Option<OverlapPolicy>,
@@ -133,6 +134,7 @@ impl std::fmt::Debug for CausalAnalysis {
             .field("split", &self.split)
             .field("identifier", &self.identifier)
             .field("estimator", &self.estimator)
+            .field("estimator_spec", &self.estimator_spec)
             .field("rd", &self.rd)
             .field("inference", &self.inference)
             .field("overlap_policy", &self.overlap_policy)

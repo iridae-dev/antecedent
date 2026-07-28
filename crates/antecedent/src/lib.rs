@@ -56,6 +56,7 @@ pub mod design;
 pub mod discovery;
 pub mod discovery_defaults;
 pub mod error;
+pub mod estimator_spec;
 pub mod gcm;
 pub mod inference;
 pub mod options;
@@ -84,6 +85,7 @@ pub use analysis::{
 pub use error::AnalysisError;
 pub use error::{CausalError, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
+pub use estimator_spec::EstimatorSpec;
 pub use graph::{Dag, DenseNodeId, TemporalDag};
 pub use identify_api::{Identification, identify, identify_with};
 pub use inference::{BayesianConfig, InferenceMode};

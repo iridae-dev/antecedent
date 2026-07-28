@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use antecedent::EstimatorSpec;
 use antecedent::{CausalAnalysis, RefuteSuite};
 use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
@@ -187,7 +188,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
 
     let mut ws = StaticEstimateWorkspaces::default();
     let _ = estimate_static_effect(
-        EstimatorId::PropensityWeighting,
+        &EstimatorSpec::Default(EstimatorId::PropensityWeighting),
         &data,
         &estimand,
         &query,
@@ -222,7 +223,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
 
     let mut ws2 = StaticEstimateWorkspaces::default();
     let aipw = estimate_static_effect(
-        EstimatorId::Aipw,
+        &EstimatorSpec::Default(EstimatorId::Aipw),
         &data,
         &estimand,
         &query,

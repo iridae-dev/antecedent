@@ -29,6 +29,7 @@ use antecedent_identify::{
 };
 
 use crate::error::CausalError;
+use crate::estimator_spec::EstimatorSpec;
 
 /// Every accepted wire name for [`IdentifierId`], in [`IdentifierId::ALL`] order.
 const IDENTIFIER_NAMES: &[&str] = &[
@@ -870,12 +871,94 @@ pub fn estimate_provenance_step(estimator: EstimatorId) -> (&'static str, &'stat
     }
 }
 
-/// Run a frequentist static estimator by strategy id (excludes `rd.sharp` / `bayesian.gcomp`).
+/// Run a frequentist static estimator by strategy spec (excludes `rd.sharp` / `bayesian.gcomp`).
+///
+/// [`EstimatorSpec::Default`] builds a fresh estimator and applies
+/// `bootstrap_replicates` / `overlap_policy` / `population_registry` exactly as the
+/// closed-set id-only path always has. Every other [`EstimatorSpec`] variant carries a
+/// caller-configured estimator that is used verbatim — `bootstrap_replicates`,
+/// `overlap_policy`, and `population_registry` are ignored in that case (the builder
+/// refuses the conflicting-configuration case before this is ever called).
 ///
 /// # Errors
 ///
 /// Unknown estimator or estimation failure.
 pub fn estimate_static_effect(
+    spec: &EstimatorSpec,
+    data: &TabularData,
+    estimand: &IdentifiedEstimand,
+    query: &AverageEffectQuery,
+    assumptions: AssumptionSet,
+    bootstrap_replicates: u32,
+    overlap_policy: Option<OverlapPolicy>,
+    population_registry: Option<&PopulationRegistry>,
+    ctx: &ExecutionContext,
+    workspaces: &mut StaticEstimateWorkspaces,
+) -> Result<EffectEstimate, CausalError> {
+    match spec {
+        EstimatorSpec::Default(id) => estimate_static_effect_default(
+            *id,
+            data,
+            estimand,
+            query,
+            assumptions,
+            bootstrap_replicates,
+            overlap_policy,
+            population_registry,
+            ctx,
+            workspaces,
+        ),
+        EstimatorSpec::LinearAdjustmentAte(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, &mut workspaces.linear, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::PropensityWeighting(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::PropensityMatching(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::PropensityStratification(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::DistanceMatching(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, &mut workspaces.propensity, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::Aipw(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, &mut workspaces.aipw, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::GlmAdjustment(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            let mut ws = GlmAdjustmentWorkspace::default();
+            cfg.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::FrontDoorTwoStage(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            let mut ws = FrontDoorWorkspace::default();
+            cfg.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::IvWald(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::Iv2Sls(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            let mut ws = TwoStageLeastSquaresWorkspace::default();
+            cfg.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+        }
+    }
+}
+
+/// [`EstimatorSpec::Default`] path: construct a fresh estimator by id and apply the
+/// same `bootstrap_replicates` / `overlap_policy` / `population_registry` defaulting
+/// [`estimate_static_effect`] has always applied (byte-identical to the pre-`EstimatorSpec`
+/// behavior).
+fn estimate_static_effect_default(
     estimator: EstimatorId,
     data: &TabularData,
     estimand: &IdentifiedEstimand,
