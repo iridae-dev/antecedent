@@ -680,6 +680,50 @@ fn shrink_alpha_py(
     Ok(policy.shrink_alpha(alpha, p_value, kl))
 }
 
+/// Moment-match a Beta prior to `(mean, variance)` exactly (`alpha + beta -
+/// 2` convention for the resulting `.ess()`). See
+/// `antecedent_prob::BetaHyperparameters::from_moments` for the full
+/// contract; errors on out-of-support input rather than clamping it.
+#[pyfunction(name = "beta_from_moments")]
+fn beta_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
+    let h = antecedent_prob::BetaHyperparameters::from_moments(mean, variance)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok((h.alpha, h.beta))
+}
+
+/// Build a Beta prior from `mean` and a caller-declared prior-strength
+/// `ess` exactly (`alpha + beta - 2` convention); no `variance` parameter.
+/// See `antecedent_prob::BetaHyperparameters::from_mean_and_ess` for the
+/// full contract.
+#[pyfunction(name = "beta_from_mean_and_ess")]
+fn beta_from_mean_and_ess_py(mean: f64, ess: f64) -> PyResult<(f64, f64)> {
+    let h = antecedent_prob::BetaHyperparameters::from_mean_and_ess(mean, ess)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok((h.alpha, h.beta))
+}
+
+/// Moment-match a Gamma prior to `(mean, variance)` exactly (`shape - 1`
+/// convention for the resulting `.ess()`). See
+/// `antecedent_prob::GammaHyperparameters::from_moments` for the full
+/// contract; errors on out-of-support input rather than clamping it.
+#[pyfunction(name = "gamma_from_moments")]
+fn gamma_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
+    let h = antecedent_prob::GammaHyperparameters::from_moments(mean, variance)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok((h.shape, h.rate))
+}
+
+/// Build a Gamma prior from `mean` and a caller-declared prior-strength
+/// `ess` exactly (`shape - 1` convention); no `variance` parameter. See
+/// `antecedent_prob::GammaHyperparameters::from_mean_and_ess` for the full
+/// contract.
+#[pyfunction(name = "gamma_from_mean_and_ess")]
+fn gamma_from_mean_and_ess_py(mean: f64, ess: f64) -> PyResult<(f64, f64)> {
+    let h = antecedent_prob::GammaHyperparameters::from_mean_and_ess(mean, ess)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok((h.shape, h.rate))
+}
+
 /// Owned payload for applying a composed external prior after GIL release.
 pub(crate) struct OwnedComposedPrior {
     /// Hydrated external sources.
@@ -764,5 +808,9 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decode_prior_source_meta, m)?)?;
     m.add_function(wrap_pyfunction!(compose_external_priors_py, m)?)?;
     m.add_function(wrap_pyfunction!(shrink_alpha_py, m)?)?;
+    m.add_function(wrap_pyfunction!(beta_from_moments_py, m)?)?;
+    m.add_function(wrap_pyfunction!(beta_from_mean_and_ess_py, m)?)?;
+    m.add_function(wrap_pyfunction!(gamma_from_moments_py, m)?)?;
+    m.add_function(wrap_pyfunction!(gamma_from_mean_and_ess_py, m)?)?;
     Ok(())
 }

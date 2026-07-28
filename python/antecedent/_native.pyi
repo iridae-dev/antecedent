@@ -1713,3 +1713,19 @@ def conflict_shrink_alpha(
     p_min: float = 0.05,
     kl_scale: float = 1.0,
 ) -> float: ...
+def beta_from_moments(
+    mean: float,
+    variance: float,
+) -> tuple[float, float]: ...
+def beta_from_mean_and_ess(
+    mean: float,
+    ess: float,
+) -> tuple[float, float]: ...
+def gamma_from_moments(
+    mean: float,
+    variance: float,
+) -> tuple[float, float]: ...
+def gamma_from_mean_and_ess(
+    mean: float,
+    ess: float,
+) -> tuple[float, float]: ...

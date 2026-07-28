@@ -639,3 +639,151 @@ def test_alpha_prior_sensitivity_on_composed_prior():
     assert all(np.isfinite(m) for m in sens.effect_means)
     m0, m1 = sens.effect_means[0], sens.effect_means[-1]
     assert abs(m1 - 8.0) < abs(m0 - 8.0)
+
+
+def test_beta_from_moments_round_trips_input_moments():
+    """from_moments matches both moments exactly — no rescale to undo.
+
+    mean=0.3, variance=0.02: mean*(1-mean)=0.21 > 0.02, so kappa =
+    0.21/0.02 - 1 = 9.5, alpha=2.85, beta=6.65, ess = kappa - 2 = 7.5.
+    """
+    h = antecedent.beta_from_moments(0.3, 0.02)
+    assert h.alpha == pytest.approx(2.85)
+    assert h.beta == pytest.approx(6.65)
+    assert h.mean == pytest.approx(0.3)
+    assert h.variance == pytest.approx(0.02)
+    assert h.ess == pytest.approx(7.5)
+
+
+def test_beta_from_moments_can_report_negative_ess():
+    """mean=0.5, variance=0.24 sits just inside the support bound (0.25):
+    kappa = 0.25/0.24 - 1 ~= 0.041667 < 2, so ess = kappa - 2 < 0. alpha and
+    beta stay positive and proper -- a negative ess here is a truthful
+    report of a prior weaker than the flat reference, not an error.
+    """
+    h = antecedent.beta_from_moments(0.5, 0.24)
+    assert h.alpha > 0.0
+    assert h.beta > 0.0
+    assert h.ess < 0.0
+    assert h.mean == pytest.approx(0.5)
+    assert h.variance == pytest.approx(0.24, abs=1e-6)
+
+
+def test_beta_from_moments_rejects_out_of_support_variance():
+    """No Beta has moments (mean, variance) once variance reaches the
+    support bound mean*(1-mean); the comparison is exact, no epsilon slack.
+    """
+    with pytest.raises(ValueError, match="variance"):
+        antecedent.beta_from_moments(0.5, 0.25)
+    with pytest.raises(ValueError, match="variance"):
+        antecedent.beta_from_moments(0.5, 0.3)
+
+
+def test_beta_from_moments_rejects_mean_outside_open_interval():
+    with pytest.raises(ValueError, match="mean"):
+        antecedent.beta_from_moments(0.0, 0.01)
+    with pytest.raises(ValueError, match="mean"):
+        antecedent.beta_from_moments(1.0, 0.01)
+
+
+def test_beta_from_mean_and_ess_zero_is_beta_1_1_strength():
+    """ess=0 degrades to Beta(1,1)-equivalent strength at the requested
+    mean, never a vanishing or improper prior. There is no variance
+    argument here to satisfy any support check.
+    """
+    h = antecedent.beta_from_mean_and_ess(0.3, ess=0.0)
+    assert h.alpha == pytest.approx(0.6)
+    assert h.beta == pytest.approx(1.4)
+    assert h.mean == pytest.approx(0.3)
+    assert h.ess == pytest.approx(0.0)
+    assert h.alpha > 0.0
+    assert h.beta > 0.0
+
+
+def test_beta_from_mean_and_ess_matches_any_nonnegative_request():
+    """Every (mean, ess >= 0) request is satisfiable -- no support gate to
+    violate, including a value from_moments would reject as an
+    out-of-support variance.
+    """
+    h = antecedent.beta_from_mean_and_ess(0.5, ess=10.0)
+    assert h.alpha == pytest.approx(6.0)
+    assert h.beta == pytest.approx(6.0)
+    assert h.mean == pytest.approx(0.5)
+    assert h.ess == pytest.approx(10.0)
+
+
+def test_beta_from_mean_and_ess_rejects_mean_outside_open_interval():
+    with pytest.raises(ValueError, match="mean"):
+        antecedent.beta_from_mean_and_ess(0.0, ess=1.0)
+    with pytest.raises(ValueError, match="mean"):
+        antecedent.beta_from_mean_and_ess(1.0, ess=1.0)
+
+
+def test_beta_from_mean_and_ess_rejects_negative_ess():
+    with pytest.raises(ValueError, match="ess"):
+        antecedent.beta_from_mean_and_ess(0.3, ess=-1.0)
+
+
+def test_gamma_from_moments_round_trips_input_moments():
+    """mean=4.0, variance=2.0: shape = 16/2 = 8, rate = 4/2 = 2, ess = 7."""
+    h = antecedent.gamma_from_moments(4.0, 2.0)
+    assert h.shape == pytest.approx(8.0)
+    assert h.rate == pytest.approx(2.0)
+    assert h.mean == pytest.approx(4.0)
+    assert h.variance == pytest.approx(2.0)
+    assert h.ess == pytest.approx(7.0)
+
+
+def test_gamma_from_moments_can_report_negative_ess():
+    """mean=4.0, variance=32.0: shape = 16/32 = 0.5 < 1, so ess = shape - 1
+    < 0. shape and rate stay positive and proper -- a negative ess here is
+    a truthful report of a prior weaker than the reference exponential.
+    """
+    h = antecedent.gamma_from_moments(4.0, 32.0)
+    assert h.shape > 0.0
+    assert h.rate > 0.0
+    assert h.ess < 0.0
+    assert h.mean == pytest.approx(4.0)
+    assert h.variance == pytest.approx(32.0, abs=1e-6)
+
+
+def test_gamma_from_moments_rejects_nonpositive_mean_or_variance():
+    with pytest.raises(ValueError, match="mean"):
+        antecedent.gamma_from_moments(0.0, 1.0)
+    with pytest.raises(ValueError, match="mean"):
+        antecedent.gamma_from_moments(-1.0, 1.0)
+    with pytest.raises(ValueError, match="variance"):
+        antecedent.gamma_from_moments(4.0, 0.0)
+    with pytest.raises(ValueError, match="variance"):
+        antecedent.gamma_from_moments(4.0, -1.0)
+
+
+def test_gamma_from_mean_and_ess_zero_is_reference_exponential():
+    """ess=0 degrades to Gamma(shape=1, .), the reference exponential
+    prior, at the requested mean. There is no variance argument here.
+    """
+    h = antecedent.gamma_from_mean_and_ess(4.0, ess=0.0)
+    assert h.shape == pytest.approx(1.0)
+    assert h.rate == pytest.approx(0.25)
+    assert h.mean == pytest.approx(4.0)
+    assert h.ess == pytest.approx(0.0)
+
+
+def test_gamma_from_mean_and_ess_matches_any_nonnegative_request():
+    h = antecedent.gamma_from_mean_and_ess(4.0, ess=7.0)
+    assert h.shape == pytest.approx(8.0)
+    assert h.rate == pytest.approx(2.0)
+    assert h.mean == pytest.approx(4.0)
+    assert h.ess == pytest.approx(7.0)
+
+
+def test_gamma_from_mean_and_ess_rejects_nonpositive_mean():
+    with pytest.raises(ValueError, match="mean"):
+        antecedent.gamma_from_mean_and_ess(0.0, ess=1.0)
+    with pytest.raises(ValueError, match="mean"):
+        antecedent.gamma_from_mean_and_ess(-1.0, ess=1.0)
+
+
+def test_gamma_from_mean_and_ess_rejects_negative_ess():
+    with pytest.raises(ValueError, match="ess"):
+        antecedent.gamma_from_mean_and_ess(4.0, ess=-1.0)
