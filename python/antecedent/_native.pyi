@@ -708,6 +708,7 @@ def analyze_panel_discover(
     space_dummy_ci: bool = False,
     time_dummy_encoding: str = "integer",
     time_dummy_ci: bool = False,
+    ci: CiArg = None,
 ) -> AnalysisResult: ...
 def analyze_distribution(
     names: list[str],

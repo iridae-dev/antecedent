@@ -827,6 +827,7 @@ def _handle_panel_frame(
                 time_dummy_encoding=cfg["time_dummy_encoding"],
                 time_dummy_ci=cfg["time_dummy_ci"]
                 in ("multivariate", "multivariate_block", "block", True),
+                ci=cfg["ci"],
             )
             return _wrap_temporal(raw)
         if isinstance(discovery, (PCMCI, PCMCIPlus, LPCMCI)):
@@ -853,6 +854,7 @@ def _handle_panel_frame(
                 bootstrap=bootstrap,
                 threads=threads,
                 algorithm=cfg["algorithm"],
+                ci=cfg["ci"],
             )
             return _wrap_temporal(raw)
         raise TypeError("PanelFrame discovery supports JPCMCIPlus, PCMCI, PCMCIPlus, or LPCMCI")
