@@ -130,7 +130,7 @@ impl super::CausalAnalysis {
             }
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Pag(pag)) => {
                 let (identifier, estimator) = self.resolve_pag_pair();
-                reject_dag_only_on_pag(&self.graph, IdentifierId::parse(&identifier))?;
+                reject_dag_only_on_pag(&self.graph, identifier.parse::<IdentifierId>()?)?;
                 compile_logical_static_pag_ate(StaticPagAteCompileInput {
                     data,
                     pag,
@@ -277,7 +277,7 @@ impl super::CausalAnalysis {
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let (identifier, estimator) = self.resolve_static_pair();
         if let Some(graph) = pag_graph {
-            reject_dag_only_on_pag(graph, &identifier)?;
+            reject_dag_only_on_pag(graph, identifier.parse::<IdentifierId>()?)?;
         }
         let n_vars = u32::try_from(data.schema().len()).unwrap_or(0);
         let empty = Dag::with_variables(n_vars);
@@ -869,7 +869,7 @@ impl super::CausalAnalysis {
             ) => {
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let (identifier, estimator) = self.resolve_pag_pair();
-                reject_dag_only_on_pag(graph, IdentifierId::parse(&identifier))?;
+                reject_dag_only_on_pag(graph, identifier.parse::<IdentifierId>()?)?;
                 let review = run_fci_review(data, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 // Accept-as-PAG: circle marks are handled by generalized adjustment over
                 // MAG completions (same path as GraphInput::Pag). Review is only when
@@ -902,7 +902,7 @@ impl super::CausalAnalysis {
             ) => {
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
                 let (identifier, estimator) = self.resolve_pag_pair();
-                reject_dag_only_on_pag(graph, IdentifierId::parse(&identifier))?;
+                reject_dag_only_on_pag(graph, identifier.parse::<IdentifierId>()?)?;
                 let review = run_rfci_review(data, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 if *accept_discovered {
                     let mut logical = compile_logical_static_pag_ate(StaticPagAteCompileInput {
@@ -927,7 +927,7 @@ impl super::CausalAnalysis {
             }
             (DataInput::Tabular(data), CausalQuery::AverageEffect(q), GraphInput::Pag(pag)) => {
                 let (identifier, estimator) = self.resolve_pag_pair();
-                reject_dag_only_on_pag(&self.graph, IdentifierId::parse(&identifier))?;
+                reject_dag_only_on_pag(&self.graph, identifier.parse::<IdentifierId>()?)?;
                 let logical = compile_logical_static_pag_ate(StaticPagAteCompileInput {
                     data,
                     pag,
@@ -966,8 +966,8 @@ impl super::CausalAnalysis {
                 if admg_has_bidirected(admg) {
                     let (identifier, estimator) = self.resolve_admg_pair();
                     validate_static_pair(
-                        IdentifierId::parse(&identifier),
-                        EstimatorId::parse(&estimator),
+                        identifier.parse::<IdentifierId>()?,
+                        estimator.parse::<EstimatorId>()?,
                     )?;
                     q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                     let record = antecedent_core::LogicalAnalysisPlanRecord {

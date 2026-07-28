@@ -12,6 +12,7 @@ use crate::result::CausalAnalysisResult;
 use super::builder::{CausalAnalysisBuilder, RefuteSuite};
 use super::execute::CausalAnalysis;
 use super::latency::LatencyMode;
+use crate::strategy_table::{EstimatorId, IdentifierId};
 
 /// Shared-table batch of static average-effect queries.
 ///
@@ -24,8 +25,8 @@ pub struct BatchAnalysis {
     bootstrap_replicates: u32,
     refute: RefuteSuite,
     latency_mode: Option<LatencyMode>,
-    identifier: Option<String>,
-    estimator: Option<String>,
+    identifier: Option<IdentifierId>,
+    estimator: Option<EstimatorId>,
 }
 
 impl BatchAnalysis {
@@ -64,17 +65,21 @@ impl BatchAnalysis {
         self
     }
 
-    /// Optional identifier id string.
+    /// Optional identification strategy applied to every query.
+    ///
+    /// Parse a wire name with `"backdoor.adjustment".parse::<IdentifierId>()?`.
     #[must_use]
-    pub fn identifier(mut self, id: impl Into<String>) -> Self {
-        self.identifier = Some(id.into());
+    pub const fn identifier(mut self, id: IdentifierId) -> Self {
+        self.identifier = Some(id);
         self
     }
 
-    /// Optional estimator id string.
+    /// Optional estimator applied to every query.
+    ///
+    /// Parse a wire name with `"propensity.weighting".parse::<EstimatorId>()?`.
     #[must_use]
-    pub fn estimator(mut self, id: impl Into<String>) -> Self {
-        self.estimator = Some(id.into());
+    pub const fn estimator(mut self, id: EstimatorId) -> Self {
+        self.estimator = Some(id);
         self
     }
 
@@ -104,10 +109,10 @@ impl BatchAnalysis {
             if let Some(mode) = self.latency_mode {
                 builder = builder.latency_mode(mode);
             }
-            if let Some(id) = self.identifier.as_deref() {
+            if let Some(id) = self.identifier {
                 builder = builder.identifier(id);
             }
-            if let Some(est) = self.estimator.as_deref() {
+            if let Some(est) = self.estimator {
                 builder = builder.estimator(est);
             }
             let analysis: CausalAnalysis = builder.build()?;

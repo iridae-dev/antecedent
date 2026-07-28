@@ -551,8 +551,8 @@ mod tests {
             .data(data)
             .graph(graph)
             .query(query)
-            .identifier("backdoor.adjustment")
-            .estimator("propensity.weighting")
+            .identifier(IdentifierId::BackdoorAdjustment)
+            .estimator(EstimatorId::PropensityWeighting)
             .bootstrap_replicates(30)
             .build()
             .unwrap();
@@ -659,8 +659,8 @@ mod tests {
             .data(data)
             .graph(graph)
             .query(query)
-            .identifier("iv")
-            .estimator("iv.2sls")
+            .identifier(IdentifierId::Iv)
+            .estimator(EstimatorId::Iv2Sls)
             .bootstrap_replicates(30)
             .build()
             .unwrap();

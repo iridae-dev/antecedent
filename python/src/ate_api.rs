@@ -489,11 +489,19 @@ fn analyze_ate(
         if let Some(reg) = registry {
             builder = builder.population_registry(reg);
         }
+        // Names at the boundary, ids on the hot path: an unknown strategy name is
+        // rejected here, at the call the user made, not deep inside compile().
         if let Some(id) = identifier {
-            builder = builder.identifier(id);
+            builder = builder.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some(est) = estimator {
-            builder = builder.estimator(est);
+            builder = builder.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some((rv_id, cut, bw)) = rd_ids {
             builder = builder.rd_config(rv_id, cut, bw);
@@ -622,11 +630,19 @@ fn analyze_ate_arrow_c(
         if let Some(mode) = latency_mode {
             builder = builder.latency_mode(mode);
         }
+        // Names at the boundary, ids on the hot path: an unknown strategy name is
+        // rejected here, at the call the user made, not deep inside compile().
         if let Some(id) = identifier {
-            builder = builder.identifier(id);
+            builder = builder.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some(est) = estimator {
-            builder = builder.estimator(est);
+            builder = builder.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some((rv_id, cut, bw)) = rd_ids {
             builder = builder.rd_config(rv_id, cut, bw);
@@ -705,10 +721,16 @@ fn analyze_ate_many(
             batch = batch.latency_mode(mode);
         }
         if let Some(id) = identifier {
-            batch = batch.identifier(id);
+            batch = batch.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some(est) = estimator {
-            batch = batch.estimator(est);
+            batch = batch.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         let ctx = py_execution_context(seed, threads);
         let results = batch.estimate_many(&ate_queries, &ctx).map_err(py_err)?;
@@ -843,11 +865,18 @@ fn run_ate_with_graph_input(
             return Err(PyValueError::new_err("unsupported static graph input for analyze_ate_*"));
         }
     };
+    // Names at the boundary, ids on the hot path.
     if let Some(id) = identifier {
-        builder = builder.identifier(id);
+        builder = builder.identifier(
+            id.parse::<antecedent::IdentifierId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
     }
     if let Some(est) = estimator {
-        builder = builder.estimator(est);
+        builder = builder.estimator(
+            est.parse::<antecedent::EstimatorId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
     }
     if let Some((rv_id, cut, bw)) = rd_ids {
         builder = builder.rd_config(rv_id, cut, bw);
@@ -1215,11 +1244,19 @@ fn analyze_ate_discover(
             .refute(suite)
             .custom_validators(custom_validators)
             .bootstrap_replicates(bootstrap);
+        // Names at the boundary, ids on the hot path: an unknown strategy name is
+        // rejected here, at the call the user made, not deep inside compile().
         if let Some(id) = identifier {
-            builder = builder.identifier(id);
+            builder = builder.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some(est) = estimator {
-            builder = builder.estimator(est);
+            builder = builder.estimator(
+                est.parse::<antecedent::EstimatorId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         if let Some((rv_id, cut, bw)) = rd_ids {
             builder = builder.rd_config(rv_id, cut, bw);
@@ -1676,7 +1713,10 @@ fn identify_ate(
             .query(AverageEffectQuery::binary_ate(t_id, y_id))
             .refute(RefuteSuite::None);
         if let Some(id) = identifier {
-            builder = builder.identifier(id.as_str());
+            builder = builder.identifier(
+                id.parse::<antecedent::IdentifierId>()
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            );
         }
         let analysis = builder.build().map_err(py_err)?;
         let id_res = analysis.identify_only().map_err(py_err)?;

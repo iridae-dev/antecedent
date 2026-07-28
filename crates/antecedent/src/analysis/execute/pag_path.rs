@@ -25,14 +25,16 @@ impl super::CausalAnalysis {
             .estimator
             .as_deref()
             .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR);
-        if !matches!(EstimatorId::parse(estimator), EstimatorId::FunctionalEffect) {
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
+        if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
             return Err(CausalError::Compile {
                 message: format!("ADMG ATE requires estimator functional.effect; got {estimator}"),
             });
         }
 
-        let identification = identify_admg(identifier, admg, query)?;
-        let estimand = select_estimand(&identification, EstimatorId::parse(estimator))?;
+        let identification = identify_admg(identifier_id, admg, query)?;
+        let estimand = select_estimand(&identification, estimator_id)?;
         let est = FunctionalEffect {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalEffect::new()
@@ -67,8 +69,8 @@ impl super::CausalAnalysis {
             None,
         )?;
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator);
+        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
+        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
         let provenance = provenance_pair(
             (id_artifact, id_op, &[], &identification.required_assumptions),
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),
@@ -128,8 +130,9 @@ impl super::CausalAnalysis {
             .estimator
             .as_deref()
             .unwrap_or(DEFAULT_PAG_ESTIMATOR_ID.as_str());
-        let estimator_id = EstimatorId::parse(estimator);
-        let envelope = identify_pag(identifier, pag, query)?;
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
+        let envelope = identify_pag(identifier_id, pag, query)?;
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
@@ -182,7 +185,7 @@ impl super::CausalAnalysis {
             {
                 continue;
             }
-            let mut estimand = select_estimand(&case.result, estimator_id.clone())?;
+            let mut estimand = select_estimand(&case.result, estimator_id)?;
             // Generalized-adjustment estimands are backdoor-shaped; estimators expect
             // the canonical backdoor method tag.
             if estimand.method.as_ref().starts_with("generalized.adjustment") {
@@ -190,7 +193,7 @@ impl super::CausalAnalysis {
             }
             let mut case_ws = StaticEstimateWorkspaces::default();
             let estimate = estimate_static_effect(
-                estimator_id.clone(),
+                estimator_id,
                 data,
                 &estimand,
                 query,
@@ -243,8 +246,8 @@ impl super::CausalAnalysis {
             None,
         )?;
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier);
-        let (est_artifact, est_op) = estimate_provenance_step(estimator);
+        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
+        let (est_artifact, est_op) = estimate_provenance_step(estimator_id);
         let provenance = provenance_pair(
             (id_artifact, id_op, &[], &identification.required_assumptions),
             (est_artifact, est_op, &[id_artifact], &estimate.assumptions),

@@ -14,8 +14,9 @@ impl super::CausalAnalysis {
         let mut clock = super::super::stage::StageClock::new();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
+        let identifier_id: IdentifierId = identifier.parse()?;
         clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
-        let identification = identify_static(identifier, graph, query)?;
+        let identification = identify_static(identifier_id, graph, query)?;
         let estimand = select_estimand(&identification, EstimatorId::BayesianGcomp)?;
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
@@ -155,7 +156,7 @@ impl super::CausalAnalysis {
             },
         );
 
-        let (id_artifact, id_op) = identify_provenance_step(identifier);
+        let (id_artifact, id_op) = identify_provenance_step(identifier_id);
         let provenance = provenance_pair(
             (id_artifact, id_op, &[], &identification.required_assumptions),
             (
@@ -636,7 +637,7 @@ impl super::CausalAnalysis {
                 flags.push(GraphIdentFlag::Unidentified);
                 continue;
             };
-            let Ok(identification) = identify_static(DEFAULT_IDENTIFIER, &dag, query) else {
+            let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query) else {
                 flags.push(GraphIdentFlag::Unidentified);
                 continue;
             };

@@ -160,7 +160,7 @@ fn dag_only_pag_reject() {
     let expected = load_expected("dag_only_pag_reject");
     let pag = Pag::with_variables(2);
     let id = expected["identifier"].as_str().unwrap();
-    let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), id);
+    let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), id.parse().unwrap());
     assert!(expected["expect_compile_error"].as_bool().unwrap());
     assert!(err.is_err());
 }

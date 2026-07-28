@@ -265,7 +265,9 @@ fn auto_multi_estimand_requires_unique_match() {
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let id = identify_static_query(IdentifierId::Auto, &g, &CausalQuery::AverageEffect(q)).unwrap();
     if id.estimands.len() > 1 {
-        let err = select_estimand(&id, EstimatorId::Other(Arc::from("unmatched"))).unwrap_err();
+        // `RdSharp` is a real estimator that an auto backdoor identification on a chain
+        // never produces an estimand for, so selection must refuse rather than guess.
+        let err = select_estimand(&id, EstimatorId::RdSharp).unwrap_err();
         assert!(err.to_string().contains("estimands"));
     }
     let _ = data;

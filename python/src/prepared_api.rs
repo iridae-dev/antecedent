@@ -98,10 +98,16 @@ impl PyPreparedAnalysis {
                 builder = builder.latency_mode(mode);
             }
             if let Some(id) = identifier {
-                builder = builder.identifier(id);
+                builder = builder.identifier(
+                    id.parse::<antecedent::IdentifierId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
             }
             if let Some(est) = estimator {
-                builder = builder.estimator(est);
+                builder = builder.estimator(
+                    est.parse::<antecedent::EstimatorId>()
+                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
             }
             if let Some(mode) = inference.as_deref() {
                 builder = apply_inference(builder, mode, n_draws, prior_scale)?;

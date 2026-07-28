@@ -684,24 +684,26 @@ impl CausalAnalysisBuilder {
     /// Select the identification strategy for the static ATE path.
     ///
     /// Defaults to [`IdentifierId::BackdoorAdjustment`] when unset. Wire strings such as
-    /// `"backdoor.adjustment"` are accepted via [`From<&str>`]. `compile` refuses any
-    /// identifier/estimator pair outside the allowlist. Ignored on the temporal path (which
-    /// always uses [`IdentifierId::TemporalBackdoorUnfolded`]).
+    /// `"backdoor.adjustment"` parse via `identifier.parse::<IdentifierId>()` (see its
+    /// [`std::str::FromStr`] impl). `compile` refuses any identifier/estimator pair outside
+    /// the allowlist. Ignored on the temporal path (which always uses
+    /// [`IdentifierId::TemporalBackdoorUnfolded`]).
     #[must_use]
-    pub fn identifier(mut self, id: impl Into<IdentifierId>) -> Self {
-        self.identifier = Some(id.into());
+    pub fn identifier(mut self, id: IdentifierId) -> Self {
+        self.identifier = Some(id);
         self
     }
 
     /// Select the estimator for the static ATE path.
     ///
     /// Defaults to [`EstimatorId::LinearAdjustmentAte`] when unset. Wire strings such as
-    /// `"linear.adjustment.ate"` are accepted via [`From<&str>`]. `compile` refuses any
-    /// identifier/estimator pair outside the allowlist. Ignored on the temporal path (which
-    /// always uses [`EstimatorId::TemporalLinearAdjustment`]).
+    /// `"linear.adjustment.ate"` parse via `estimator.parse::<EstimatorId>()` (see its
+    /// [`std::str::FromStr`] impl). `compile` refuses any identifier/estimator pair outside
+    /// the allowlist. Ignored on the temporal path (which always uses
+    /// [`EstimatorId::TemporalLinearAdjustment`]).
     #[must_use]
-    pub fn estimator(mut self, id: impl Into<EstimatorId>) -> Self {
-        self.estimator = Some(id.into());
+    pub fn estimator(mut self, id: EstimatorId) -> Self {
+        self.estimator = Some(id);
         self
     }
 

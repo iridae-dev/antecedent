@@ -131,7 +131,7 @@ impl super::CausalAnalysis {
             }
             (DataInput::Tabular(_), CausalQuery::AverageEffect(_), GraphInput::Pag(_)) => {
                 let (identifier, _) = self.resolve_pag_pair();
-                reject_dag_only_on_pag(&self.graph, IdentifierId::parse(&identifier))?;
+                reject_dag_only_on_pag(&self.graph, identifier.parse::<IdentifierId>()?)?;
             }
             _ => {}
         }
@@ -163,52 +163,52 @@ impl super::CausalAnalysis {
     /// Resolve builder-selected identifier/estimator ids against modality defaults.
     pub(super) fn resolve_id_est_pair(
         &self,
-        default_identifier: &IdentifierId,
-        default_estimator: &EstimatorId,
+        default_identifier: IdentifierId,
+        default_estimator: EstimatorId,
     ) -> (Arc<str>, Arc<str>) {
-        let identifier = self.identifier.as_ref().unwrap_or(default_identifier);
-        let estimator = self.estimator.as_ref().unwrap_or(default_estimator);
+        let identifier = self.identifier.unwrap_or(default_identifier);
+        let estimator = self.estimator.unwrap_or(default_estimator);
         (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
     }
 
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     pub(super) fn resolve_static_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(&DEFAULT_IDENTIFIER_ID, &DEFAULT_ESTIMATOR_ID)
+        self.resolve_id_est_pair(DEFAULT_IDENTIFIER_ID, DEFAULT_ESTIMATOR_ID)
     }
 
     /// Resolve identifier/estimator for PAG ATE (generalized adjustment).
     pub(super) fn resolve_pag_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(&DEFAULT_PAG_IDENTIFIER_ID, &DEFAULT_PAG_ESTIMATOR_ID)
+        self.resolve_id_est_pair(DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PAG_ESTIMATOR_ID)
     }
 
     /// Resolve identifier/estimator for ADMG ATE (general ID + functional effect).
     pub(super) fn resolve_admg_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(&DEFAULT_ADMG_IDENTIFIER_ID, &DEFAULT_ADMG_ESTIMATOR_ID)
+        self.resolve_id_est_pair(DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_ADMG_ESTIMATOR_ID)
     }
 
     /// Resolve identifier/estimator for ConditionalEffect.
     pub(super) fn resolve_conditional_pair(&self) -> (Arc<str>, Arc<str>) {
         self.resolve_id_est_pair(
-            &DEFAULT_CONDITIONAL_IDENTIFIER_ID,
-            &DEFAULT_CONDITIONAL_ESTIMATOR_ID,
+            DEFAULT_CONDITIONAL_IDENTIFIER_ID,
+            DEFAULT_CONDITIONAL_ESTIMATOR_ID,
         )
     }
 
     /// Resolve identifier/estimator for Distribution queries.
     pub(super) fn resolve_distribution_pair(&self) -> (Arc<str>, Arc<str>) {
         self.resolve_id_est_pair(
-            &DEFAULT_DISTRIBUTION_IDENTIFIER_ID,
-            &DEFAULT_DISTRIBUTION_ESTIMATOR_ID,
+            DEFAULT_DISTRIBUTION_IDENTIFIER_ID,
+            DEFAULT_DISTRIBUTION_ESTIMATOR_ID,
         )
     }
 
     /// Resolve identifier/estimator for PathSpecific queries.
     pub(super) fn resolve_path_pair(&self) -> (Arc<str>, Arc<str>) {
-        self.resolve_id_est_pair(&DEFAULT_PATH_IDENTIFIER_ID, &DEFAULT_PATH_ESTIMATOR_ID)
+        self.resolve_id_est_pair(DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID)
     }
 
     pub(super) fn ensure_rd_config_present(&self, estimator: &str) -> Result<(), CausalError> {
-        if matches!(EstimatorId::parse(estimator), EstimatorId::RdSharp) && self.rd.is_none() {
+        if matches!(estimator.parse::<EstimatorId>()?, EstimatorId::RdSharp) && self.rd.is_none() {
             return Err(CausalError::Compile {
                 message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
             });
@@ -449,7 +449,7 @@ impl super::CausalAnalysis {
                 message: "identify_only currently supports static DAG graphs only",
             });
         };
-        let id = self.identifier.clone().unwrap_or(DEFAULT_IDENTIFIER_ID);
+        let id = self.identifier.unwrap_or(DEFAULT_IDENTIFIER_ID);
         identify_static_query(id, graph, &self.query)
     }
 
