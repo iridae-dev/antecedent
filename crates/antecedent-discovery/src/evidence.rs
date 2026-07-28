@@ -131,10 +131,7 @@ fn edge_evidence_from_scored(links: &[ScoredLink], sepsets: &PcSepsets) -> Arc<[
         .copied()
         .map(|s| {
             let key = (s.link.source, s.link.source_lag, s.link.target, s.link.target_lag);
-            let sep = sepsets
-                .get(&key)
-                .cloned()
-                .map_or_else(|| Arc::from([]), |s| Arc::<[_]>::from(vec![s]));
+            let sep = sepsets.get(&key).cloned();
             let mut ev = EdgeEvidence::from_scored(s, sep);
             ev.adjusted_p_value = s.adjusted_p_value;
             ev
@@ -317,7 +314,7 @@ pub fn pag_evidence_from_oriented(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::result::LaggedLink;
+    use crate::result::{LaggedLink, LaggedParent};
     use antecedent_graph::Endpoint;
 
     #[test]
@@ -482,5 +479,50 @@ mod tests {
         let out = threshold_scored_links(vec![contemp], Some(cfg), 1.0);
         assert_eq!(out.len(), 1);
         assert!(out[0].adjusted_p_value.is_some());
+    }
+
+    /// `EdgeEvidence::separating_set` is an `Option`, not a list, because the sepset map holds
+    /// exactly one set per link key — the lookup either hits or it doesn't. This pins that the
+    /// per-link lookup routes each link to its own set and leaves unrecorded links at `None`,
+    /// which is what makes the collapsed type honest rather than merely narrower.
+    #[test]
+    fn edge_evidence_carries_the_sepset_recorded_for_its_own_link_only() {
+        let recorded = ScoredLink {
+            link: LaggedLink {
+                source: VariableId::from_raw(0),
+                source_lag: Lag::from_raw(1),
+                target: VariableId::from_raw(1),
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.5,
+            p_value: 0.01,
+            adjusted_p_value: None,
+        };
+        let unrecorded = ScoredLink {
+            link: LaggedLink {
+                source: VariableId::from_raw(2),
+                source_lag: Lag::from_raw(1),
+                target: VariableId::from_raw(1),
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..recorded
+        };
+        let sep: Arc<[LaggedParent]> = Arc::from([(VariableId::from_raw(3), Lag::from_raw(2))]);
+        let mut sepsets = PcSepsets::default();
+        sepsets.insert(
+            (
+                recorded.link.source,
+                recorded.link.source_lag,
+                recorded.link.target,
+                recorded.link.target_lag,
+            ),
+            Arc::clone(&sep),
+        );
+
+        let evidence = edge_evidence_from_scored(&[recorded, unrecorded], &sepsets);
+
+        assert_eq!(evidence.len(), 2);
+        assert_eq!(evidence[0].separating_set.as_deref(), Some(&*sep));
+        assert_eq!(evidence[1].separating_set, None);
     }
 }
