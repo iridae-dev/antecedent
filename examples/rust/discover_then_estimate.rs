@@ -116,16 +116,14 @@ fn main() -> Result<(), CausalError> {
     let _ = &discovery.evidence.graph;
 
     // Spreadsheet review: accept a fully oriented DAG for estimate clicks.
-    let analysis = Study::builder()
-        .data(data.clone())
+    let analysis = Study::tabular(data.clone())
         .graph(accepted_dag.clone())
         .query(query.clone())
         .refute(RefuteSuite::None)
         .build()?;
 
     let first = analysis.run(&ctx)?;
-    let second = Study::builder()
-        .data(data.clone())
+    let second = Study::tabular(data.clone())
         .graph(accepted_dag.clone())
         .query(query.clone())
         .bootstrap_replicates(0)

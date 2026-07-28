@@ -116,8 +116,7 @@ fn propensity_ipw_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQu
 fn estimate_propensity_ipw_recovers_ate() {
     let expected = load_expected("propensity_ipw");
     let (data, graph, query) = propensity_ipw_scm(1200, 3);
-    let analysis = Study::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
         .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
@@ -164,8 +163,7 @@ fn iv_2sls_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
 fn estimate_iv_2sls_recovers_structural_effect() {
     let expected = load_expected("iv_2sls");
     let (data, graph, query) = iv_2sls_scm(4000, 5);
-    let analysis = Study::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
         .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
@@ -211,8 +209,7 @@ fn frontdoor_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) 
 fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
     let expected = load_expected("frontdoor");
     let (data, graph, query) = frontdoor_scm(4000, 1);
-    let analysis = Study::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
         .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
@@ -227,8 +224,7 @@ fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
 
 fn run_static(name: &str, data: TabularData, graph: Dag, query: AverageEffectQuery, seed: u64) {
     let expected = load_expected(name);
-    let analysis = Study::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
         .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
@@ -315,8 +311,7 @@ fn estimate_glm_adjustment_recovers_positive_ate() {
     // Monte Carlo: logistic g-comp ATE is positive and typically ~0.2–0.3 under this SCM.
     let expected = load_expected("glm_adjustment");
     let (data, graph, query) = glm_binary_scm(2000, 23);
-    let analysis = Study::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
         .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
@@ -364,8 +359,7 @@ fn estimate_rd_sharp_recovers_jump() {
     let (data, query) = rd_scm(3000, 25);
     // Synthetic empty DAG; RD path does not use graph identification.
     let graph = Dag::with_variables(3);
-    let analysis = Study::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
         .identifier(IdentifierId::RdSharp)

@@ -94,8 +94,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
 #[test]
 fn execute_static_refute_reuses_estimate_workspace() {
     let (data, dag, query) = confounded_scm(300, 3);
-    let result = Study::builder()
-        .data(data)
+    let result = Study::tabular(data)
         .graph(dag)
         .query(query)
         .bootstrap_replicates(20)
@@ -113,8 +112,7 @@ fn execute_static_refute_reuses_estimate_workspace() {
 #[test]
 fn shared_workspace_placebo_parity_and_capacity() {
     let (data, dag, query) = confounded_scm(250, 5);
-    let id_run = Study::builder()
-        .data(data.clone())
+    let id_run = Study::tabular(data.clone())
         .graph(dag)
         .query(query.clone())
         .bootstrap_replicates(10)
@@ -172,8 +170,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     use antecedent_validate::OverlapRefuter;
 
     let (data, dag, query) = confounded_scm(280, 7);
-    let id_run = Study::builder()
-        .data(data.clone())
+    let id_run = Study::tabular(data.clone())
         .graph(dag)
         .query(query.clone())
         .estimator(EstimatorId::PropensityWeighting)

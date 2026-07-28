@@ -90,8 +90,7 @@ fn batch_matches_solo_estimates() {
         .unwrap();
     assert_eq!(batch.len(), 2);
 
-    let solo1 = Study::builder()
-        .data(data.clone())
+    let solo1 = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(q1)
         .bootstrap_replicates(0)
@@ -100,8 +99,7 @@ fn batch_matches_solo_estimates() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let solo2 = Study::builder()
-        .data(data)
+    let solo2 = Study::tabular(data)
         .graph(dag)
         .query(q2)
         .bootstrap_replicates(0)

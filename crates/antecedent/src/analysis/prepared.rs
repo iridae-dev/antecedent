@@ -13,8 +13,9 @@ use antecedent_core::{CausalQuery, CausalSchema, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::EstimationWorkspace;
 
+use crate::accepted::GraphClass;
 use crate::error::CausalError;
-use crate::planner::{CompiledAnalysis, GraphInput, PhysicalExecutionPlan};
+use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
 use crate::strategy_table::DEFAULT_ESTIMATOR;
 
@@ -63,7 +64,7 @@ impl PreparedStudy {
         self.ensure_schema_compatible(data)?;
         let mut analysis = self.analysis.clone();
         analysis.data = DataInput::Tabular(data.clone());
-        analysis.execute(&CompiledAnalysis::Ready(self.plan.clone()), ctx)
+        analysis.execute(&self.plan, ctx)
     }
 
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
@@ -78,7 +79,7 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(&data)?;
         self.analysis.data = DataInput::Tabular(data);
-        self.analysis.execute(&CompiledAnalysis::Ready(self.plan.clone()), ctx)
+        self.analysis.execute(&self.plan, ctx)
     }
 
     /// Second-click / background refute: replace validation on a prior estimate.
@@ -182,14 +183,7 @@ impl Study {
     /// Unsupported combination, compile failure, or review-required plan.
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         ensure_prepared_supported(self)?;
-        let compiled = self.compile(ctx)?;
-        let CompiledAnalysis::Ready(plan) = compiled else {
-            return Err(CausalError::Compile {
-                message: "prepare requires a Ready plan; complete graph review first \
-                    (discovery / incomplete CPDAG/PAG are not session-refreshable)"
-                    .into(),
-            });
-        };
+        let plan = self.compile(ctx)?;
         let schema = match &self.data {
             DataInput::Tabular(data) => data.schema().clone(),
             _ => {
@@ -213,39 +207,32 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             message: "PreparedStudy currently supports AverageEffect only",
         });
     }
-    if !is_supplied_static_graph(&analysis.graph) {
+    if !is_supplied_static_graph(analysis.graph.class()) {
         return Err(CausalError::Unsupported {
-            message: "PreparedStudy requires a supplied static Dag/Cpdag/Pag/Admg \
-                (discovery graphs stay on one-shot analyze / review)",
+            message: "PreparedStudy requires a static Dag/Cpdag/Pag/Admg structure \
+                (temporal classes are not session-refreshable here)",
         });
     }
     Ok(())
 }
 
-fn is_supplied_static_graph(graph: &GraphInput) -> bool {
-    matches!(
-        graph,
-        GraphInput::Static(_) | GraphInput::Cpdag(_) | GraphInput::Pag(_) | GraphInput::Admg(_)
-    )
+fn is_supplied_static_graph(class: GraphClass) -> bool {
+    matches!(class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag | GraphClass::Admg)
 }
 
 #[cfg(test)]
 mod tests {
     use super::is_supplied_static_graph;
-    use crate::planner::GraphInput;
-    use antecedent_graph::{Admg, Cpdag, Dag, Pag};
+    use crate::accepted::GraphClass;
 
     #[test]
     fn supplied_static_graphs_only() {
-        assert!(is_supplied_static_graph(&GraphInput::Static(Dag::with_variables(1))));
-        assert!(is_supplied_static_graph(&GraphInput::Cpdag(Cpdag::with_variables(1))));
-        assert!(is_supplied_static_graph(&GraphInput::Pag(Pag::with_variables(1))));
-        assert!(is_supplied_static_graph(&GraphInput::Admg(Admg::with_variables(1))));
-        assert!(!is_supplied_static_graph(&GraphInput::DiscoverPc {
-            alpha: 0.05,
-            max_cond_size: 3,
-            fdr: None,
-            accept_discovered: true,
-        }));
+        assert!(is_supplied_static_graph(GraphClass::Dag));
+        assert!(is_supplied_static_graph(GraphClass::Cpdag));
+        assert!(is_supplied_static_graph(GraphClass::Pag));
+        assert!(is_supplied_static_graph(GraphClass::Admg));
+        assert!(!is_supplied_static_graph(GraphClass::TemporalDag));
+        assert!(!is_supplied_static_graph(GraphClass::TemporalCpdag));
+        assert!(!is_supplied_static_graph(GraphClass::TemporalPag));
     }
 }

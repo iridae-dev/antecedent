@@ -161,16 +161,6 @@ pub(super) fn envelope_to_identification_result(
     )
 }
 
-pub(super) fn mark_panel_classification(compiled: CompiledAnalysis) -> CompiledAnalysis {
-    match compiled {
-        CompiledAnalysis::Ready(mut physical) => {
-            physical.logical.record.data_classification = DataClassification::Panel;
-            CompiledAnalysis::Ready(physical)
-        }
-        other => other,
-    }
-}
-
 pub(super) fn admg_has_bidirected(admg: &Admg) -> bool {
     (0..admg.node_count()).any(|i| {
         let id = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));

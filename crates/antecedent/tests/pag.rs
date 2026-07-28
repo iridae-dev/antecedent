@@ -8,7 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use antecedent::GraphInput;
+use antecedent::AcceptedGraph;
 use antecedent::discovery::Lpcmci;
 use antecedent::identify::GeneralizedAdjustmentIdentifier;
 use antecedent::planner::reject_dag_only_on_pag;
@@ -160,7 +160,7 @@ fn dag_only_pag_reject() {
     let expected = load_expected("dag_only_pag_reject");
     let pag = Pag::with_variables(2);
     let id = expected["identifier"].as_str().unwrap();
-    let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), id.parse().unwrap());
+    let err = reject_dag_only_on_pag(&AcceptedGraph::pag(pag), id.parse().unwrap());
     assert!(expected["expect_compile_error"].as_bool().unwrap());
     assert!(err.is_err());
 }

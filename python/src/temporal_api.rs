@@ -266,9 +266,8 @@ fn analyze(
             active_level,
         )?;
 
-        let mut builder = Study::builder()
-            .series(series)
-            .temporal_graph(g)
+        let mut builder = Study::series(series)
+            .graph(g)
             .temporal_query(q)
             .refute(suite)
             .custom_validators(custom_validators)
@@ -287,7 +286,9 @@ fn analyze(
     })
 }
 
-/// Temporal effect with a typed [`TemporalPag`] (review-required; same as LPCMCI without auto-accept).
+/// Temporal effect with a typed [`TemporalPag`]. Circle marks are informational (handled
+/// directly by class-aware temporal identification, like the static PAG path) rather than
+/// pending review, so the supplied PAG is always accepted as-is.
 #[pyfunction]
 #[pyo3(signature = (
     names,
@@ -353,9 +354,8 @@ fn analyze_temporal_pag(
             active_level,
         )?;
 
-        let mut builder = Study::builder()
-            .series(series)
-            .temporal_pag(graph.pag)
+        let mut builder = Study::series(series)
+            .graph(graph.pag)
             .temporal_query(q)
             .refute(suite)
             .custom_validators(custom_validators)
@@ -456,8 +456,6 @@ fn analyze_events(
     drop(columns);
     let policy = policy.to_string();
     let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-    let accept =
-        if accept_discovered { DiscoveryAccept::AutoAccept } else { DiscoveryAccept::Review };
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let event = EventData::try_new(loaded.data.storage().clone(), Arc::from(event_times_ns))
@@ -472,29 +470,65 @@ fn analyze_events(
             horizon_steps,
             active_level,
         )?;
-        let graph = if algorithm.is_none() {
-            Some(temporal_dag_from_schema_edges(event.schema(), &edges)?)
-        } else {
-            None
-        };
-        let mut builder = Study::builder()
-            .events(event, align_interval_ns)
-            .temporal_query(q)
-            .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap)
-            .discovery_ci(ci_impl);
-        if let Some(g) = graph {
-            builder = builder.temporal_graph(g);
-        } else if let Some(algo) = algorithm.as_deref() {
+        let ctx = py_execution_context(seed, threads);
+        let mut builder = if let Some(algo) = algorithm.as_deref() {
+            // Discovery needs the aligned series up front; `Study::events` re-runs the
+            // same (pure, deterministic) alignment internally so the built `Study` still
+            // reports `DataClassification::Event`.
+            let aligned = event.align_to_grid(align_interval_ns).map_err(py_err)?;
+            let vars: Vec<VariableId> = aligned.schema().variables().iter().map(|v| v.id).collect();
             let algo = algo.to_ascii_lowercase();
-            builder = match algo.as_str() {
-                "pcmci" => builder.discover_pcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept),
+            let fdr = fdr_ctrl.adjustment();
+            let builder = Study::events(&event, align_interval_ns).map_err(py_err)?;
+            match algo.as_str() {
+                "pcmci" => {
+                    let params = DiscoverParams {
+                        max_lag,
+                        alpha,
+                        fdr,
+                        ci: ci_impl.clone(),
+                        multi_dataset: MultiDatasetConstraints::default(),
+                        max_cond_size,
+                    };
+                    let found =
+                        facade_discover_pcmci(&aligned, &vars, &params, &ctx).map_err(py_err)?;
+                    let accepted = accept_temporal_graph_review(found.review, accept_discovered)
+                        .map_err(py_err)?;
+                    builder.graph(accepted)
+                }
                 "pcmci_plus" => {
-                    builder.discover_pcmci_plus(max_lag, alpha, max_cond_size, fdr_ctrl, accept)
+                    let params = DiscoverParams {
+                        max_lag,
+                        alpha,
+                        fdr,
+                        ci: ci_impl.clone(),
+                        multi_dataset: MultiDatasetConstraints::default(),
+                        max_cond_size,
+                    };
+                    let found = facade_discover_pcmci_plus(&aligned, &vars, &params, &ctx)
+                        .map_err(py_err)?;
+                    let accepted = accept_temporal_cpdag_review(found.review, accept_discovered)
+                        .map_err(py_err)?;
+                    builder.graph(accepted)
                 }
                 "lpcmci" => {
-                    builder.discover_lpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept)
+                    let params = DiscoverParams {
+                        max_lag,
+                        alpha,
+                        fdr,
+                        ci: ci_impl.clone(),
+                        multi_dataset: MultiDatasetConstraints::default(),
+                        max_cond_size,
+                    };
+                    let found =
+                        facade_discover_lpcmci(&aligned, &vars, &params, &ctx).map_err(py_err)?;
+                    let accepted = accept_temporal_pag_review(
+                        found.evidence.graph.clone(),
+                        found.review,
+                        accept_discovered,
+                    )
+                    .map_err(py_err)?;
+                    builder.graph(accepted)
                 }
                 "rpcmci" => {
                     let regimes = regimes.ok_or_else(|| {
@@ -506,17 +540,50 @@ fn analyze_events(
                         regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
                     )
                     .map_err(|e| PyValueError::new_err(e.to_string()))?;
-                    builder.discover_rpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept, assign)
+                    let params = DiscoverParams {
+                        max_lag,
+                        alpha,
+                        fdr,
+                        ci: ci_impl.clone(),
+                        multi_dataset: MultiDatasetConstraints::default(),
+                        max_cond_size,
+                    };
+                    let found =
+                        facade_discover_rpcmci(&aligned, &vars, &assign, &params, None, &ctx)
+                            .map_err(py_err)?;
+                    let accepted =
+                        accept_rpcmci_review(&found, accept_discovered).map_err(py_err)?;
+                    builder.graph(accepted)
                 }
-                "dbn_posterior" => builder
-                    .discover_dbn_posterior(max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws),
+                "dbn_posterior" => {
+                    let params = antecedent::discovery::BayesianDiscoverParams::default();
+                    let schedule = antecedent::discovery::GraphMcmcSchedule {
+                        n_chains,
+                        n_warmup,
+                        n_draws: mcmc_draws,
+                        thin: 1,
+                    };
+                    let gp = antecedent::discovery::discover_dbn_posterior(
+                        &aligned, &vars, &params, max_lag, force_mcmc, &schedule, &ctx,
+                    )
+                    .map_err(py_err)?;
+                    builder.graph_posterior(gp)
+                }
                 other => {
                     return Err(PyValueError::new_err(format!(
                         "EventFrame discovery algorithm {other:?} unsupported"
                     )));
                 }
-            };
-        }
+            }
+        } else {
+            let g = temporal_dag_from_schema_edges(event.schema(), &edges)?;
+            Study::events(&event, align_interval_ns).map_err(py_err)?.graph(g)
+        };
+        builder = builder
+            .temporal_query(q)
+            .refute(suite)
+            .custom_validators(custom_validators)
+            .bootstrap_replicates(bootstrap);
         builder = apply_temporal_inference(
             builder,
             inference.as_deref(),
@@ -525,7 +592,6 @@ fn analyze_events(
             prior_artifact.as_deref(),
         )?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
         analysis_result_from_run(&names, result)
     })
@@ -610,9 +676,8 @@ fn analyze_panel(
             horizon_steps,
             active_level,
         )?;
-        let mut builder = Study::builder()
-            .panel(panel)
-            .temporal_graph(g)
+        let mut builder = Study::panel(panel)
+            .graph(g)
             .temporal_query(q)
             .refute(suite)
             .custom_validators(custom_validators)
@@ -737,8 +802,6 @@ fn analyze_panel_discover(
             active_level,
         )?;
         let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-        let accept =
-            if accept_discovered { DiscoveryAccept::AutoAccept } else { DiscoveryAccept::Review };
         let multi_dataset = panel_multi_dataset_constraints(
             &panel,
             context_names.unwrap_or_default(),
@@ -749,15 +812,18 @@ fn analyze_panel_discover(
             time_dummy_ci,
         )?;
         let algo = algorithm.to_ascii_lowercase();
+        let ctx = py_execution_context(seed, threads);
         let builder = panel_discovery_builder(
-            Study::builder().panel(panel).discovery_ci(ci_impl),
+            panel,
             algo.as_str(),
             max_lag,
             alpha,
             max_cond_size,
             fdr_ctrl,
-            accept,
+            accept_discovered,
             multi_dataset,
+            ci_impl,
+            &ctx,
         )?;
         let mut builder = builder
             .temporal_query(q)
@@ -772,7 +838,6 @@ fn analyze_panel_discover(
             prior_artifact.as_deref(),
         )?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
         analysis_result_from_run(&names, result)
     })
@@ -876,7 +941,7 @@ fn temporal_discover_jpcmci_plus(
     alpha: f64,
     max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     suite: RefuteSuite,
     custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
@@ -909,14 +974,24 @@ fn temporal_discover_jpcmci_plus(
     };
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let analysis = Study::builder()
-        .series_multi(multi)
+    let vars: Vec<VariableId> = multi.schema().variables().iter().map(|v| v.id).collect();
+    let ctx = py_execution_context(seed, threads);
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr: fdr_ctrl.adjustment(),
+        ci: ci_impl,
+        multi_dataset,
+        max_cond_size,
+    };
+    let found = facade_discover_jpcmci_plus(&multi, &vars, &params, &ctx).map_err(py_err)?;
+    let accepted = accept_temporal_cpdag_review(found.review, accept_discovered).map_err(py_err)?;
+    let analysis = Study::series_multi(multi)
+        .graph(accepted)
         .temporal_query(q)
         .refute(suite)
         .custom_validators(custom_validators)
         .bootstrap_replicates(bootstrap)
-        .discovery_ci(ci_impl)
-        .discover_jpcmci_plus(max_lag, alpha, max_cond_size, fdr_ctrl, accept, multi_dataset)
         .build()
         .map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
@@ -936,7 +1011,7 @@ fn temporal_discover_rpcmci(
     alpha: f64,
     max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     suite: RefuteSuite,
     custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
@@ -961,14 +1036,25 @@ fn temporal_discover_rpcmci(
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let analysis = Study::builder()
-        .series(series)
+    let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+    let ctx = py_execution_context(seed, threads);
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr: fdr_ctrl.adjustment(),
+        ci: ci_impl,
+        multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size,
+    };
+    let found =
+        facade_discover_rpcmci(&series, &vars, &assign, &params, None, &ctx).map_err(py_err)?;
+    let accepted = accept_rpcmci_review(&found, accept_discovered).map_err(py_err)?;
+    let analysis = Study::series(series)
+        .graph(accepted)
         .temporal_query(q)
         .refute(suite)
         .custom_validators(custom_validators)
         .bootstrap_replicates(bootstrap)
-        .discovery_ci(ci_impl)
-        .discover_rpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept, assign)
         .build()
         .map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
@@ -988,7 +1074,7 @@ fn temporal_discover_pcmci_family(
     alpha: f64,
     max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     suite: RefuteSuite,
     custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
@@ -1006,21 +1092,43 @@ fn temporal_discover_pcmci_family(
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let mut builder = Study::builder()
-        .series(series)
+    let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+    let ctx = py_execution_context(seed, threads);
+    let params = DiscoverParams {
+        max_lag,
+        alpha,
+        fdr: fdr_ctrl.adjustment(),
+        ci: ci_impl,
+        multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size,
+    };
+    let accepted = match algo {
+        "pcmci" => {
+            let found = facade_discover_pcmci(&series, &vars, &params, &ctx).map_err(py_err)?;
+            accept_temporal_graph_review(found.review, accept_discovered).map_err(py_err)?
+        }
+        "pcmci_plus" => {
+            let found =
+                facade_discover_pcmci_plus(&series, &vars, &params, &ctx).map_err(py_err)?;
+            accept_temporal_cpdag_review(found.review, accept_discovered).map_err(py_err)?
+        }
+        "lpcmci" => {
+            let found = facade_discover_lpcmci(&series, &vars, &params, &ctx).map_err(py_err)?;
+            accept_temporal_pag_review(
+                found.evidence.graph.clone(),
+                found.review,
+                accept_discovered,
+            )
+            .map_err(py_err)?
+        }
+        _ => unreachable!(),
+    };
+    let mut builder = Study::series(series)
+        .graph(accepted)
         .temporal_query(q)
         .refute(suite)
         .custom_validators(custom_validators)
-        .bootstrap_replicates(bootstrap)
-        .discovery_ci(ci_impl);
-    builder = match algo {
-        "pcmci" => builder.discover_pcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept),
-        "pcmci_plus" => {
-            builder.discover_pcmci_plus(max_lag, alpha, max_cond_size, fdr_ctrl, accept)
-        }
-        "lpcmci" => builder.discover_lpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept),
-        _ => unreachable!(),
-    };
+        .bootstrap_replicates(bootstrap);
     builder = apply_temporal_inference(builder, inference, n_draws, prior_scale, prior_artifact)?;
     let analysis = builder.build().map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
@@ -1056,18 +1164,33 @@ fn temporal_discover_dbn_posterior(
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let mut builder = Study::builder()
-        .series(series)
+    let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
+    let ctx = py_execution_context(seed, threads);
+    let params = antecedent::discovery::BayesianDiscoverParams::default();
+    let schedule = antecedent::discovery::GraphMcmcSchedule {
+        n_chains,
+        n_warmup,
+        n_draws: mcmc_draws,
+        thin: 1,
+    };
+    let gp = antecedent::discovery::discover_dbn_posterior(
+        &series, &vars, &params, max_lag, force_mcmc, &schedule, &ctx,
+    )
+    .map_err(py_err)?;
+    let mut builder = Study::series(series)
+        .graph_posterior(gp)
         .temporal_query(q)
         .refute(suite)
         .custom_validators(custom_validators)
-        .bootstrap_replicates(bootstrap)
-        .discover_dbn_posterior(max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws);
+        .bootstrap_replicates(bootstrap);
     builder = apply_temporal_inference(builder, inference, n_draws, prior_scale, prior_artifact)?;
     let analysis = builder.build().map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
 }
 
+// Discovery config carried across the temporal dispatch helpers. The bools are
+// independent switches mirroring Python kwargs, not a state machine worth a type.
+#[allow(clippy::struct_excessive_bools)]
 struct TemporalDiscoverContext {
     names: Vec<String>,
     treatment: String,
@@ -1080,7 +1203,7 @@ struct TemporalDiscoverContext {
     alpha: f64,
     max_cond_size: usize,
     fdr_ctrl: FdrControl,
-    accept: DiscoveryAccept,
+    accept_discovered: bool,
     suite: RefuteSuite,
     custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     bootstrap: u32,
@@ -1162,7 +1285,7 @@ fn dispatch_temporal_jpcmci_plus(
             ctx.alpha,
             ctx.max_cond_size,
             ctx.fdr_ctrl,
-            ctx.accept,
+            ctx.accept_discovered,
             ctx.suite,
             ctx.custom_validators,
             ctx.bootstrap,
@@ -1199,7 +1322,7 @@ fn dispatch_temporal_rpcmci(
             ctx.alpha,
             ctx.max_cond_size,
             ctx.fdr_ctrl,
-            ctx.accept,
+            ctx.accept_discovered,
             ctx.suite,
             ctx.custom_validators,
             ctx.bootstrap,
@@ -1233,7 +1356,7 @@ fn dispatch_temporal_pcmci_family(
             ctx.alpha,
             ctx.max_cond_size,
             ctx.fdr_ctrl,
-            ctx.accept,
+            ctx.accept_discovered,
             ctx.suite,
             ctx.custom_validators,
             ctx.bootstrap,
@@ -1372,8 +1495,6 @@ fn analyze_temporal_discover(
     let suite = suite_from_refute(refute.as_ref())?;
     let policy = policy.to_ascii_lowercase();
     let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-    let accept =
-        if accept_discovered { DiscoveryAccept::AutoAccept } else { DiscoveryAccept::Review };
     let context_names = context_names.unwrap_or_default();
     let space_dummy_ci = space_dummy_ci.to_string();
     let time_dummy_encoding = time_dummy_encoding.to_string();
@@ -1395,7 +1516,7 @@ fn analyze_temporal_discover(
             alpha,
             max_cond_size,
             fdr_ctrl,
-            accept,
+            accept_discovered,
             suite,
             custom_validators,
             bootstrap,
@@ -1604,9 +1725,8 @@ fn analyze_temporal_mediation(
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
         let g = temporal_dag_from_schema_edges(series.schema(), &edges)?;
-        let analysis = Study::builder()
-            .series(series)
-            .temporal_graph(g)
+        let analysis = Study::series(series)
+            .graph(g)
             .query(CausalQuery::Mediation(q))
             .refute(RefuteSuite::None)
             .bootstrap_replicates(bootstrap)

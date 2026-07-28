@@ -81,9 +81,8 @@ fn supplied_oriented_cpdag_runs_ate() {
     cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     cpdag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let result = Study::builder()
-        .data(data)
-        .cpdag(cpdag)
+    let result = Study::tabular(data)
+        .graph(AcceptedGraph::cpdag(cpdag).unwrap())
         .query(AverageEffectQuery::binary_ate(t, y))
         .refute(RefuteSuite::None)
         .build()
@@ -100,9 +99,8 @@ fn supplied_admg_without_bidirected_coerces_to_dag() {
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let result = Study::builder()
-        .data(data)
-        .admg(admg)
+    let result = Study::tabular(data)
+        .graph(admg)
         .query(AverageEffectQuery::binary_ate(t, y))
         .refute(RefuteSuite::None)
         .build()

@@ -157,12 +157,35 @@ fn white_noise_pulse_series(
 
 #[test]
 fn manufacturing_dbn_posterior_bayesian_envelope() {
+    use antecedent::discovery::{
+        BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior,
+    };
+
     // White-noise treatment so BIC mass lands on the lag edge (not AR loops
     // that hit temporal backdoor history caps).
     let (series, _g, q) = white_noise_pulse_series(400, 42);
-    let analysis = Study::builder()
-        .series(series)
-        .discover_dbn_posterior(1, false, 2, 40, 60)
+    let ctx = ExecutionContext::for_tests(11);
+    // Discovery is now standalone (no `.discover_dbn_posterior(..)` builder method):
+    // run it explicitly and feed the resulting `GraphPosterior` in via `.graph_posterior(..)`.
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+    let schedule = GraphMcmcSchedule {
+        n_chains: 2,
+        n_warmup: 40,
+        n_draws: 60,
+        ..GraphMcmcSchedule::default()
+    };
+    let gp = discover_dbn_posterior(
+        &series,
+        &vars,
+        &BayesianDiscoverParams::default(),
+        1,
+        false,
+        &schedule,
+        &ctx,
+    )
+    .unwrap();
+    let analysis = Study::series(series)
+        .graph_posterior(gp)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(64).prior_scale(100.0),
@@ -171,7 +194,6 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let ctx = ExecutionContext::for_tests(11);
     let result = analysis.run(&ctx).unwrap();
     let post = result.posterior.expect("DBN mixture posterior");
     assert!((0.0..=1.0).contains(&post.unidentified_mass));
@@ -182,6 +204,9 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
 
 #[test]
 fn manufacturing_dbn_envelope_composed_prior_conflict() {
+    use antecedent::discovery::{
+        BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior,
+    };
     use antecedent_prob::{
         ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
         compose_external_priors,
@@ -189,6 +214,7 @@ fn manufacturing_dbn_envelope_composed_prior_conflict() {
     use antecedent_validate::ConflictPolicy;
 
     let (series, _g, q) = white_noise_pulse_series(400, 42);
+    let ctx = ExecutionContext::for_tests(11);
     // Temporal pulse design is typically intercept + treatment (2 coefs).
     let ncols = 2;
     let mut mean = vec![0.0; ncols];
@@ -208,9 +234,29 @@ fn manufacturing_dbn_envelope_composed_prior_conflict() {
     let composed = compose_external_priors(&sources, &baseline).unwrap();
     let policy = ConflictPolicy::try_new(0.05, 1.0).unwrap();
 
-    let analysis = Study::builder()
-        .series(series)
-        .discover_dbn_posterior(1, false, 2, 40, 60)
+    // Discovery is now standalone: run it explicitly and feed the resulting
+    // `GraphPosterior` in via `.graph_posterior(..)` instead of the removed
+    // `.discover_dbn_posterior(..)` builder chain method.
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+    let schedule = GraphMcmcSchedule {
+        n_chains: 2,
+        n_warmup: 40,
+        n_draws: 60,
+        ..GraphMcmcSchedule::default()
+    };
+    let gp = discover_dbn_posterior(
+        &series,
+        &vars,
+        &BayesianDiscoverParams::default(),
+        1,
+        false,
+        &schedule,
+        &ctx,
+    )
+    .unwrap();
+
+    let analysis = Study::series(series)
+        .graph_posterior(gp)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(48).prior_from_composed(
@@ -223,7 +269,7 @@ fn manufacturing_dbn_envelope_composed_prior_conflict() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let result = analysis.run(&ExecutionContext::for_tests(11)).unwrap();
+    let result = analysis.run(&ctx).unwrap();
     let post = result.posterior.expect("DBN mixture posterior");
     assert!(post.summaries.mean[post.effect_column().unwrap()].is_finite());
     assert!(
@@ -240,9 +286,8 @@ fn supplied_complete_temporal_pag_estimates() {
     let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_directed(p1, d0).unwrap();
-    let analysis = Study::builder()
-        .series(series)
-        .temporal_pag(pag)
+    let analysis = Study::series(series)
+        .graph(pag)
         .temporal_query(q)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -258,14 +303,29 @@ fn supplied_complete_temporal_pag_estimates() {
 
 #[test]
 fn incomplete_temporal_pag_review_required_structured() {
+    // MIGRATION NOTE: a directly-supplied `TemporalPag` now converts into an
+    // `AcceptedGraph` unconditionally (`AcceptedGraph::temporal_pag` /
+    // `impl From<TemporalPag> for AcceptedGraph`, crates/antecedent/src/accepted.rs) —
+    // "circles are information, not incompleteness" for a *supplied* structure, unlike
+    // a discovery *review artifact* (`TemporalPagReview`), which is the only path that
+    // can still produce `CausalError::ReviewRequired`. So this scenario (a supplied
+    // `TemporalPag` with an unresolved circle-arrow mark) can no longer raise
+    // `ReviewRequired` at all — that variant is structurally unreachable here now.
+    // Tracing `Study::compile()` (crates/antecedent/src/analysis/execute/compile.rs)
+    // shows the temporal-backdoor path only knows how to proceed when the supplied
+    // `TemporalPag` happens to be fully directed (`TemporalPag::try_into_temporal_dag`,
+    // crates/antecedent-graph/src/temporal_pag.rs); no class-aware temporal PAG
+    // identifier exists yet, so an unresolved circle mark now surfaces as
+    // `CausalError::Compile` with a message that says exactly that. The underlying
+    // "circle marks block estimation" contract survives; only the error *shape*
+    // (variant + message) changed, so the assertion is updated to match, not relaxed.
     let (series, _g, q) = manufacturing_series(80);
     let mut pag = antecedent_graph::TemporalPag::empty();
     let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_circle_arrow(p1, d0).unwrap();
-    let err = Study::builder()
-        .series(series)
-        .temporal_pag(pag)
+    let err = Study::series(series)
+        .graph(pag)
         .temporal_query(q)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -274,21 +334,19 @@ fn incomplete_temporal_pag_review_required_structured() {
         .run(&ExecutionContext::for_tests(7))
         .unwrap_err();
     match err {
-        antecedent::CausalError::ReviewRequired { kind, pending_edge_count, hint, .. } => {
-            assert_eq!(kind, "temporal_pag");
-            assert!(pending_edge_count >= 1);
-            assert!(hint.contains("TemporalPag") || hint.contains("PAG"));
+        antecedent::CausalError::Compile { message } => {
+            assert!(message.contains("unresolved circle marks"), "unexpected: {message}");
+            assert!(message.contains("temporal backdoor"), "unexpected: {message}");
         }
-        other => panic!("expected ReviewRequired, got {other:?}"),
+        other => panic!("expected CausalError::Compile, got {other:?}"),
     }
 }
 
 #[test]
 fn manufacturing_pressure_defect_bayesian() {
     let (series, g, q) = manufacturing_series(400);
-    let analysis = Study::builder()
-        .series(series)
-        .temporal_graph(g)
+    let analysis = Study::series(series)
+        .graph(g)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(256).prior_scale(100.0),

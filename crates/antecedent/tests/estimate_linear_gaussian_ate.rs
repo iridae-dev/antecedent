@@ -132,8 +132,7 @@ fn estimate_linear_gaussian_ate_stable_float() {
     assert_eq!(adjustment[0].as_str().unwrap(), "z");
 
     let (data, graph, query) = load_csv(&expected);
-    let analysis = Study::builder()
-        .data(data)
+    let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
         .refute(RefuteSuite::PlaceboAndRcc)

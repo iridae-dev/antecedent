@@ -12,261 +12,14 @@ use antecedent_core::{
     PhysicalExecutionPlanRecord, TargetPopulation, TemporalEffectQuery,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
-use antecedent_graph::{
-    Admg, Cpdag, CpdagReview, Dag, DagReview, Pag, PagReview, TemporalCpdag, TemporalCpdagReview,
-    TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview,
-};
-use antecedent_stats::FdrAdjustment;
+use antecedent_graph::{Dag, Pag, TemporalDag};
 
+use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::error::CausalError;
 use crate::strategy_table::{
     EstimatorId, IdentifierId, validate_distribution_pair, validate_path_specific_pair,
     validate_static_pair,
 };
-
-/// How the causal graph is supplied to the planner.
-#[derive(Clone, Debug)]
-pub enum GraphInput {
-    /// Validated static DAG.
-    Static(Dag),
-    /// Validated temporal DAG (template).
-    Temporal(TemporalDag),
-    /// Discover with PCMCI (review usually required).
-    DiscoverPcmci {
-        /// Max lag for PCMCI.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size in the PC1 / skeleton phase.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept discovered edges (skip review).
-        accept_discovered: bool,
-    },
-    /// Discover with PCMCI+ (temporal CPDAG; review/orientation usually required).
-    DiscoverPcmciPlus {
-        /// Max lag for PCMCI+.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size in the PC1 / skeleton phase.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept directed edges when no undirected marks remain.
-        ///
-        /// If undirected contemporaneous edges remain after orientation, compile still
-        /// returns [`CompiledAnalysis::ReviewRequiredCpdag`] (never silently coerces).
-        accept_discovered: bool,
-    },
-    /// Supplied static PAG (class-aware identification required).
-    Pag(Pag),
-    /// Supplied static CPDAG (completes to DAG when fully oriented).
-    Cpdag(Cpdag),
-    /// Supplied static ADMG (general ID when bidirected edges exist; else DAG path).
-    Admg(Admg),
-    /// Supplied temporal PAG.
-    TemporalPag(TemporalPag),
-    /// Supplied temporal CPDAG (completes to temporal DAG when fully oriented).
-    TemporalCpdag(TemporalCpdag),
-    /// Discover with LPCMCI (temporal PAG).
-    DiscoverLpcmci {
-        /// Max lag.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size in the PC1 / skeleton phase.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no circle marks remain.
-        accept_discovered: bool,
-    },
-    /// Discover with J-PCMCI+ (multi-environment / context; review usually required).
-    DiscoverJpcmciPlus {
-        /// Max lag.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size in the PC1 / skeleton phase.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no undirected marks remain.
-        accept_discovered: bool,
-        /// Multi-dataset / context / dummy settings.
-        multi_dataset: antecedent_discovery::MultiDatasetConstraints,
-    },
-    /// Discover with RPCMCI (regime assignments + per-regime graphs).
-    DiscoverRpcmci {
-        /// Max lag.
-        max_lag: u32,
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size in the PC1 / skeleton phase.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when a single fully-oriented regime exists.
-        accept_discovered: bool,
-        /// Caller-supplied regime label per time index (required; no silent half-split).
-        regime_assignment: antecedent_discovery::RegimeAssignment,
-    },
-    /// Discover with static PC (tabular CPDAG → DAG when fully oriented).
-    DiscoverPc {
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no undirected marks remain.
-        accept_discovered: bool,
-    },
-    /// Discover with classic static FCI (tabular PAG).
-    DiscoverFci {
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no circle marks remain (ATE still unwired for PAG).
-        accept_discovered: bool,
-    },
-    /// Discover with classic static RFCI (tabular PAG; no Possible-D-Sep search).
-    DiscoverRfci {
-        /// Significance level.
-        alpha: f64,
-        /// Max conditioning-set size.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no circle marks remain (ATE still unwired for PAG).
-        accept_discovered: bool,
-    },
-    /// Discover with GES (tabular CPDAG via Gaussian BIC).
-    DiscoverGes {
-        /// Significance level (used when PC screening is enabled on the algorithm).
-        alpha: f64,
-        /// Max conditioning-set size / parent bound hint.
-        max_cond_size: usize,
-        /// Multiple-testing adjustment for optional PC screening (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Auto-accept when no undirected marks remain.
-        accept_discovered: bool,
-    },
-    /// Discover with `DirectLiNGAM` (tabular DAG; auto-accept clears pending edges).
-    DiscoverLingam {
-        /// Max parent bound hint (via static constraints).
-        max_cond_size: usize,
-        /// Absolute OLS prune threshold.
-        prune_threshold: f64,
-        /// Auto-accept all discovered edges (skip review).
-        accept_discovered: bool,
-    },
-    /// Discover with NOTEARS (tabular continuous SEM → DAG).
-    DiscoverNotears {
-        /// Max parent bound hint (via static constraints).
-        max_cond_size: usize,
-        /// L1 penalty \(\lambda\).
-        lambda: f64,
-        /// Absolute soft-weight threshold for the hard DAG.
-        threshold: f64,
-        /// Standardize columns before solving (varsortability policy).
-        standardize: bool,
-        /// Auto-accept all discovered edges (skip review).
-        accept_discovered: bool,
-    },
-    /// Exact DAG posterior enumeration (Bayesian graph×effect mixture; n ≤ 6).
-    DiscoverExactDagPosterior,
-    /// Order MCMC DAG posterior (Bayesian graph×effect mixture).
-    DiscoverOrderMcmc {
-        /// MCMC chains.
-        n_chains: u32,
-        /// Warmup draws per chain.
-        n_warmup: u32,
-        /// Retained draws per chain.
-        n_draws: u32,
-        /// Thinning.
-        thin: u32,
-        /// Refuse when chain diagnostics fail.
-        require_diagnostics_gate: bool,
-    },
-    /// Structure MCMC DAG posterior (Bayesian graph×effect mixture).
-    DiscoverStructureMcmc {
-        /// MCMC chains.
-        n_chains: u32,
-        /// Warmup draws per chain.
-        n_warmup: u32,
-        /// Retained draws per chain.
-        n_draws: u32,
-        /// Thinning.
-        thin: u32,
-    },
-    /// CI-screened structure MCMC posterior (Bayesian graph×effect mixture).
-    DiscoverCiScreenedPosterior {
-        /// PC screen significance.
-        alpha: f64,
-        /// FDR adjustment for screening (`None` = off).
-        fdr: Option<FdrAdjustment>,
-        /// Max conditioning-set size for PC screen.
-        max_cond_size: usize,
-        /// Soft CI weight mode name (`none` | `bayes_factor` | `posterior_dependence`).
-        soft_weight: antecedent_discovery::CiSoftWeight,
-        /// MCMC chains.
-        n_chains: u32,
-        /// Warmup draws per chain.
-        n_warmup: u32,
-        /// Retained draws per chain.
-        n_draws: u32,
-        /// Thinning.
-        thin: u32,
-    },
-    /// Bounded-lag DBN template posterior (temporal Bayesian graph×effect mixture).
-    DiscoverDbnPosterior {
-        /// Max lag.
-        max_lag: u32,
-        /// Force MCMC even when exact enumeration is feasible.
-        force_mcmc: bool,
-        /// MCMC chains.
-        n_chains: u32,
-        /// Warmup draws per chain.
-        n_warmup: u32,
-        /// Retained draws per chain.
-        n_draws: u32,
-    },
-}
-
-impl GraphInput {
-    /// True when this input runs a discovery algorithm at compile time.
-    ///
-    /// Supplied static/temporal graphs return `false`. Interactive estimate clicks
-    /// must use a supplied (accepted) artifact — never a `Discover*` variant.
-    #[must_use]
-    pub const fn is_discovery(&self) -> bool {
-        matches!(
-            self,
-            Self::DiscoverPcmci { .. }
-                | Self::DiscoverPcmciPlus { .. }
-                | Self::DiscoverLpcmci { .. }
-                | Self::DiscoverJpcmciPlus { .. }
-                | Self::DiscoverRpcmci { .. }
-                | Self::DiscoverPc { .. }
-                | Self::DiscoverFci { .. }
-                | Self::DiscoverRfci { .. }
-                | Self::DiscoverGes { .. }
-                | Self::DiscoverLingam { .. }
-                | Self::DiscoverNotears { .. }
-                | Self::DiscoverExactDagPosterior
-                | Self::DiscoverOrderMcmc { .. }
-                | Self::DiscoverStructureMcmc { .. }
-                | Self::DiscoverCiScreenedPosterior { .. }
-                | Self::DiscoverDbnPosterior { .. }
-        )
-    }
-}
 
 /// Logical plan after compile (semantics only).
 #[derive(Clone, Debug)]
@@ -489,48 +242,22 @@ impl PhysicalExecutionPlan {
     }
 }
 
-/// Result of compilation: ready to run, or graph review required.
-#[derive(Clone, Debug)]
-pub enum CompiledAnalysis {
-    /// Physical plan may execute.
-    Ready(PhysicalExecutionPlan),
-    /// Discovery / incomplete DAG needs human acceptance.
-    ReviewRequired(TemporalGraphReview),
-    /// PCMCI+ CPDAG needs acceptance of directed edges and orientation of undirected marks.
-    ReviewRequiredCpdag(TemporalCpdagReview),
-    /// Static PC CPDAG needs orientation before ATE estimation.
-    ReviewRequiredStaticCpdag(CpdagReview),
-    /// `DirectLiNGAM` (or other full-DAG discovery) needs edge acceptance.
-    ReviewRequiredStaticDag(DagReview),
-    /// Classic static FCI/RFCI PAG when `accept_discovered` is false (review UI).
-    ReviewRequiredStaticPag(PagReview),
-    /// LPCMCI / temporal PAG needs review (temporal backdoor is DAG-only today).
-    ReviewRequiredPag(TemporalPagReview),
-}
-
 /// Whether an identifier is DAG-only (cannot accept a PAG without completion / class-aware ID).
 #[must_use]
 pub fn is_dag_only_identifier(identifier: IdentifierId) -> bool {
     identifier.is_dag_only()
 }
 
-/// Refuse DAG-only identification on a PAG input.
+/// Refuse DAG-only identification on a PAG structure.
 ///
 /// # Errors
 ///
-/// [`CausalError::Compile`] when a DAG-only identifier is paired with PAG graph input.
+/// [`CausalError::Compile`] when a DAG-only identifier is paired with a PAG structure.
 pub fn reject_dag_only_on_pag(
-    graph: &GraphInput,
+    structure: &AcceptedGraph,
     identifier: IdentifierId,
 ) -> Result<(), CausalError> {
-    let is_pag = matches!(
-        graph,
-        GraphInput::Pag(_)
-            | GraphInput::TemporalPag(_)
-            | GraphInput::DiscoverLpcmci { .. }
-            | GraphInput::DiscoverFci { .. }
-            | GraphInput::DiscoverRfci { .. }
-    );
+    let is_pag = matches!(structure.class(), GraphClass::Pag | GraphClass::TemporalPag);
     if is_pag && identifier.is_dag_only() {
         return Err(CausalError::Compile {
             message: format!(
@@ -1239,12 +966,11 @@ mod tests {
     #[test]
     fn refuses_dag_only_identifier_on_pag() {
         use antecedent_graph::Pag;
-        let pag = Pag::with_variables(2);
-        let err = reject_dag_only_on_pag(&GraphInput::Pag(pag), IdentifierId::BackdoorAdjustment)
-            .unwrap_err();
+        let structure = AcceptedGraph::pag(Pag::with_variables(2));
+        let err = reject_dag_only_on_pag(&structure, IdentifierId::BackdoorAdjustment).unwrap_err();
         assert!(matches!(err, CausalError::Compile { .. }));
         // Class-aware identifier is allowed through this gate.
-        let pag = Pag::with_variables(2);
-        reject_dag_only_on_pag(&GraphInput::Pag(pag), IdentifierId::GeneralizedAdjustment).unwrap();
+        let structure = AcceptedGraph::pag(Pag::with_variables(2));
+        reject_dag_only_on_pag(&structure, IdentifierId::GeneralizedAdjustment).unwrap();
     }
 }

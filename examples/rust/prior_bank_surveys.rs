@@ -112,8 +112,7 @@ fn fit_artifact(
     query: AverageEffectQuery,
     seed: u64,
 ) -> Result<(Vec<u8>, f64), CausalError> {
-    let result = Study::builder()
-        .data(data)
+    let result = Study::tabular(data)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(96)))
@@ -228,8 +227,7 @@ fn main() -> Result<(), CausalError> {
     // Clear offline conflict for fit; α' already applied.
     let prior_for_fit = composed.clone();
 
-    let target_result = Study::builder()
-        .data(data_t)
+    let target_result = Study::tabular(data_t)
         .graph(dag)
         .query(query)
         .inference(InferenceMode::Bayesian(

@@ -24,7 +24,7 @@ pub use execute::Study;
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,
-    STANDARD_N_DRAWS, refuse_discovery_under_interactive, refuse_non_report_hmc,
+    STANDARD_N_DRAWS, refuse_non_report_hmc,
 };
 pub use prepared::PreparedStudy;
 pub use stage::{StageEvent, StageResultSink};

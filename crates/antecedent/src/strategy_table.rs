@@ -733,7 +733,7 @@ pub fn identify_static_query_with_rd(
         IdentifierId::GeneralizedAdjustment => {
             return Err(CausalError::Unsupported {
                 message: "identifier \"generalized.adjustment\" requires a PAG \
-                     (use GraphInput::Pag / FCI / RFCI, not a static DAG)",
+                     (supply AcceptedGraph::pag(..) / FCI / RFCI output, not a static DAG)",
             });
         }
         IdentifierId::RdSharp => {
