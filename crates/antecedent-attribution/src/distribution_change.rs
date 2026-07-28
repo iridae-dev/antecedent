@@ -494,6 +494,67 @@ mod tests {
         assert!(result.total_change.is_finite() && result.total_change.abs() > 1.0);
     }
 
+    /// `DifferenceMeasure::GaussianKl` end to end: exact-Shapley efficiency
+    /// (`Σφ == v(N) − v(∅) == total_change`) holds for the KL payoff exactly as it
+    /// does for `MeanDiff` — this is an algebraic identity of the coalition-cached
+    /// Shapley telescoping sum, independent of the (nonlinear) payoff shape.
+    #[test]
+    fn gaussian_kl_efficiency_holds_end_to_end() {
+        let (model, data) = two_period_chain();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.cache_policy = CachePolicy::enabled(Some(1_000_000));
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::GaussianKl,
+            n_samples: 800,
+            seed: 13,
+        };
+        let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
+        let phi_sum: f64 = result.contributions.iter().map(|c| c.contribution).sum();
+        assert!(
+            (phi_sum - result.total_change).abs() < 1e-6,
+            "Σφ={phi_sum} total_change={}",
+            result.total_change
+        );
+        // Gaussian KL >= 0 always; the +5 intercept shift on Y must register as a
+        // genuine, nonzero divergence for this test to be meaningful.
+        assert!(
+            result.total_change.is_finite() && result.total_change > 0.0,
+            "total_change={}",
+            result.total_change
+        );
+    }
+
+    /// `DifferenceMeasure::GaussianKl` payoff value, pinned against a hand-computed
+    /// closed-form Gaussian KL (not just checked for internal self-consistency).
+    /// `measure_value` is exactly the computation `MechanismSwapPayoff::value`
+    /// delegates to for the `GaussianKl` branch, so this pins the actual payoff
+    /// arithmetic that was previously untested.
+    #[test]
+    fn measure_value_gaussian_kl_matches_closed_form() {
+        // KL(N(2,3) ‖ N(0,1)) = 0.5 * (ln(1/3) + (3 + (2-0)^2)/1 - 1)
+        let expected = 0.5_f64 * ((1.0_f64 / 3.0).ln() + 7.0 - 1.0);
+        let got =
+            measure_value(DifferenceMeasure::GaussianKl, 1, 2.0, 3.0, Some((0.0, 1.0))).unwrap();
+        assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
+
+        // The all-baseline coalition (mask == 0) is defined as exactly zero
+        // divergence, regardless of the sampled (mu, var) passed in — matching
+        // `v(∅) == 0` used by the efficiency identity above.
+        let empty =
+            measure_value(DifferenceMeasure::GaussianKl, 0, 2.0, 3.0, Some((0.0, 1.0))).unwrap();
+        assert!(empty.abs() < f64::EPSILON, "expected exact 0.0, got {empty}");
+
+        // Missing cached baseline law with a non-empty mask is a hard error, not a
+        // silent 0.0 — the payoff must have cached v(∅) first.
+        assert!(measure_value(DifferenceMeasure::GaussianKl, 1, 2.0, 3.0, None).is_err());
+    }
+
     #[test]
     fn inputs_and_mechanisms_runs() {
         let (model, data) = two_period_chain();
