@@ -15,18 +15,19 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, PopulationRegistry, TemporalEffectQuery, VariableId,
+    AverageEffectQuery, CausalQuery, CausalSchema, PopulationRegistry, TemporalEffectQuery,
+    VariableId,
 };
 use antecedent_data::{
-    DiscoveryEstimationSplit, EventData, MultiEnvironmentData, PanelData, TabularData,
+    DiscoveryEstimationSplit, EventData, MultiEnvironmentData, PanelData, TableView, TabularData,
     TimeSeriesData,
 };
 use antecedent_discovery::GraphPosterior;
 use antecedent_estimate::OverlapPolicy;
-use antecedent_graph::{Dag, TemporalDag};
+use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_validate::CustomEffectValidator;
 
-use crate::accepted::AcceptedGraph;
+use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::error::CausalError;
 use crate::estimator_spec::EstimatorSpec;
 use crate::inference::InferenceMode;
@@ -104,6 +105,95 @@ fn stub_accepted_graph_for(data: &DataInput, n_vars: usize) -> Result<AcceptedGr
             message: "graph-posterior analysis supports tabular or temporal/event data only",
         }),
     }
+}
+
+/// Borrow the schema backing `data`, regardless of modality.
+fn data_schema(data: &DataInput) -> &CausalSchema {
+    match data {
+        DataInput::Tabular(d) => d.schema(),
+        DataInput::Temporal(d) | DataInput::Event(d) => d.schema(),
+        DataInput::MultiEnv(d) => d.schema(),
+        DataInput::Panel(d) => d.schema(),
+    }
+}
+
+/// Node count of `graph`, for classes where a node is one variable.
+///
+/// `None` for the temporal classes: their nodes are (variable, lag) pairs, so
+/// `node_count()` is a multiple of the variable count rather than equal to it, and
+/// there is no accessor here that recovers the lag depth honestly. Static classes
+/// (`Dag`, `Admg`, `Cpdag`, `Pag`) are positional — node `i` *is* variable `i` — so
+/// their node count is directly comparable to a schema's variable count.
+fn static_node_count(graph: &AcceptedGraph) -> Option<usize> {
+    match graph.class() {
+        GraphClass::Dag => graph.as_dag().map(Dag::node_count),
+        GraphClass::Admg => graph.as_admg().map(Admg::node_count),
+        GraphClass::Cpdag => graph.as_cpdag().map(Cpdag::node_count),
+        GraphClass::Pag => graph.as_pag().map(Pag::node_count),
+        GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => None,
+    }
+}
+
+/// Refuse a `graph` whose node indices cannot possibly describe `schema`.
+///
+/// Static graph nodes are positional (`DenseNodeId(i)` is `VariableId(i)`) with no
+/// stored record of which schema those indices meant — a structure built against one
+/// schema is silently meaningless against another with the same shape. Two
+/// independent checks guard against that:
+///
+/// - **Shape** (always, static classes only): the graph's node count must equal the
+///   number of variables in `schema`. Temporal classes are exempt (see
+///   [`static_node_count`]).
+/// - **Names** (only when the graph was bound via [`AcceptedGraph::with_schema`]):
+///   the bound variable names must match `schema`'s names, in order. This check
+///   applies to every class, temporal included, because the bound name list is
+///   variable-level, not node-level — comparing it needs no lag arithmetic.
+///
+/// # Errors
+///
+/// [`CausalError::SchemaMismatch`] on either disagreement.
+fn validate_schema_binding(
+    graph: &AcceptedGraph,
+    schema: &CausalSchema,
+) -> Result<(), CausalError> {
+    if let Some(node_count) = static_node_count(graph) {
+        let n_vars = schema.len();
+        if node_count != n_vars {
+            return Err(CausalError::SchemaMismatch {
+                detail: format!(
+                    "graph has {node_count} nodes but data has {n_vars} variables; the \
+                     structure does not describe this table"
+                ),
+            });
+        }
+    }
+
+    if let Some(names) = graph.variable_names() {
+        let data_vars = schema.variables();
+        if names.len() != data_vars.len() {
+            return Err(CausalError::SchemaMismatch {
+                detail: format!(
+                    "graph is bound to {} variables but data has {} variables; the structure \
+                     does not describe this table",
+                    names.len(),
+                    data_vars.len()
+                ),
+            });
+        }
+        for (i, (bound_name, var)) in names.iter().zip(data_vars.iter()).enumerate() {
+            if bound_name.as_ref() != var.name.as_ref() {
+                return Err(CausalError::SchemaMismatch {
+                    detail: format!(
+                        "graph is bound to variable {i} `{bound_name}` but data has `{}` at \
+                         that position; the structure was built against a different schema",
+                        var.name
+                    ),
+                });
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Builder for static or temporal analysis.
@@ -407,6 +497,11 @@ impl StudyBuilder {
     /// [`Self::graph`] and [`Self::graph_posterior`] were set (or when a configured
     /// [`Self::estimator`] and an explicit [`Self::bootstrap_replicates`] /
     /// [`Self::overlap_policy`] disagree about who owns that setting).
+    /// [`CausalError::SchemaMismatch`] when a directly-supplied [`Self::graph`]'s node
+    /// count does not match the data's variable count, or — when the graph was bound
+    /// via [`AcceptedGraph::with_schema`] — its bound variable names do not match the
+    /// data's, in order. Not checked for [`Self::graph_posterior`], which carries a
+    /// placeholder graph.
     pub fn build(self) -> Result<Study, CausalError> {
         if let Some(spec) = &self.estimator_spec {
             if spec.is_configured() {
@@ -435,7 +530,10 @@ impl StudyBuilder {
                              one causal-structure input",
                 });
             }
-            (Some(g), None) => (g, None),
+            (Some(g), None) => {
+                validate_schema_binding(&g, data_schema(&data))?;
+                (g, None)
+            }
             (None, Some(gp)) => {
                 let stub = stub_accepted_graph_for(&data, gp.n_vars)?;
                 (stub, Some(gp))

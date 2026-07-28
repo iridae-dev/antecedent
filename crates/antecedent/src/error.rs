@@ -159,6 +159,12 @@ pub enum CausalError {
         /// How to resolve it.
         detail: &'static str,
     },
+    /// A structure was used with data it does not describe.
+    #[error("{detail}")]
+    SchemaMismatch {
+        /// What disagreed, naming the specific variable or count.
+        detail: String,
+    },
 }
 
 impl CausalError {
