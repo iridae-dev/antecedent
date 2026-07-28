@@ -2,24 +2,27 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::fmt;
-
 use antecedent_core::{Lag, VariableId};
+use thiserror::Error;
 
 /// Graph-layer errors.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[non_exhaustive]
 pub enum GraphError {
     /// Unknown dense node.
+    #[error("unknown dense node {id}")]
     UnknownNode {
         /// Dense id.
         id: u32,
     },
     /// Unknown variable name at an API boundary.
+    #[error("unknown variable name '{name}'")]
     UnknownVariableName {
         /// Requested name.
         name: String,
     },
     /// Edge would introduce a directed cycle.
+    #[error("edge {from}->{to} would create a cycle")]
     Cycle {
         /// Source dense id.
         from: u32,
@@ -27,16 +30,19 @@ pub enum GraphError {
         to: u32,
     },
     /// Invalid endpoint combination for this graph class.
+    #[error("invalid endpoints: {message}")]
     InvalidEndpoints {
         /// Explanation.
         message: &'static str,
     },
     /// Contemporaneous self-edge is invalid.
+    #[error("contemporaneous self-edge on {variable}")]
     ContemporaneousSelfEdge {
         /// Variable.
         variable: VariableId,
     },
     /// Duplicate edge.
+    #[error("duplicate edge {from}->{to}")]
     DuplicateEdge {
         /// From.
         from: u32,
@@ -44,17 +50,20 @@ pub enum GraphError {
         to: u32,
     },
     /// Lagged self-edge with lag 0.
+    #[error("invalid lag {lag}")]
     InvalidLag {
         /// Lag value.
         lag: Lag,
     },
     /// Node capacity exceeded.
+    #[error("too many nodes")]
     TooManyNodes,
     /// Bounded path search hit `max_paths` or `max_len` before exploring all candidates.
     ///
     /// Returned when m-separation would otherwise conclude "separated" after an incomplete
     /// search (an unexplored active path may still exist). Finding an active path remains
     /// conclusive even under truncation.
+    #[error("path search budget exhausted (max_paths={max_paths}, max_len={max_len})")]
     SearchBudgetExhausted {
         /// Path-count budget.
         max_paths: usize,
@@ -62,25 +71,3 @@ pub enum GraphError {
         max_len: usize,
     },
 }
-
-impl fmt::Display for GraphError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnknownNode { id } => write!(f, "unknown dense node {id}"),
-            Self::UnknownVariableName { name } => write!(f, "unknown variable name '{name}'"),
-            Self::Cycle { from, to } => write!(f, "edge {from}->{to} would create a cycle"),
-            Self::InvalidEndpoints { message } => write!(f, "invalid endpoints: {message}"),
-            Self::ContemporaneousSelfEdge { variable } => {
-                write!(f, "contemporaneous self-edge on {variable}")
-            }
-            Self::DuplicateEdge { from, to } => write!(f, "duplicate edge {from}->{to}"),
-            Self::InvalidLag { lag } => write!(f, "invalid lag {lag}"),
-            Self::TooManyNodes => write!(f, "too many nodes"),
-            Self::SearchBudgetExhausted { max_paths, max_len } => {
-                write!(f, "path search budget exhausted (max_paths={max_paths}, max_len={max_len})")
-            }
-        }
-    }
-}
-
-impl std::error::Error for GraphError {}

@@ -262,6 +262,10 @@ impl IntoCausalPyErr for RustCausalError {
             Self::Cancelled { stage } => {
                 CausalCancelledError::new_err(format!("cancelled during {stage}"))
             }
+            // `CausalError` is `#[non_exhaustive]`: any variant added upstream maps to the
+            // hierarchy root rather than failing the build. Give new variants an explicit
+            // arm above when their Python-facing category is decided.
+            ref other => CausalError::new_err(other.to_string()),
         }
     }
 }

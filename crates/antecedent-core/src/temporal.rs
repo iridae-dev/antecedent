@@ -4,35 +4,25 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::fmt;
-
 use crate::ids::{Lag, VariableId};
 
 /// Errors from temporal indexing.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum TemporalIndexError {
     /// Invalid constructor arguments.
+    #[error("{message}")]
     Invalid {
         /// Message.
         message: &'static str,
     },
     /// Variable id outside the indexer.
+    #[error("unknown variable id {}", id.raw())]
     UnknownVariable {
         /// Variable.
         id: VariableId,
     },
 }
-
-impl fmt::Display for TemporalIndexError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Invalid { message } => write!(f, "{message}"),
-            Self::UnknownVariable { id } => write!(f, "unknown variable id {}", id.raw()),
-        }
-    }
-}
-
-impl std::error::Error for TemporalIndexError {}
 
 /// Stable unfolded temporal node identity (serializable).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]

@@ -2,50 +2,40 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::fmt;
+use thiserror::Error;
 
 /// Errors from prior construction, posterior storage, or inference backends.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[non_exhaustive]
 pub enum ProbError {
     /// Shape / dimension mismatch.
+    #[error("shape error: {message}")]
     Shape {
         /// Context.
         message: &'static str,
     },
     /// Invalid prior or configuration.
+    #[error("invalid prior: {message}")]
     InvalidPrior {
         /// Context.
         message: &'static str,
     },
     /// Inference failed to converge or produce a usable approximation.
+    #[error("inference error: {message}")]
     Inference {
         /// Context.
         message: &'static str,
     },
     /// Numerical failure (singular Hessian, separation, etc.).
+    #[error("numerical error: {message}")]
     Numerical {
         /// Context.
         message: String,
     },
     /// Missing required diagnostics for a reported posterior.
+    #[error("missing diagnostics: {message}")]
     MissingDiagnostics {
         /// Context.
         message: String,
     },
 }
-
-impl fmt::Display for ProbError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Shape { message } => write!(f, "shape error: {message}"),
-            Self::InvalidPrior { message } => write!(f, "invalid prior: {message}"),
-            Self::Inference { message } => write!(f, "inference error: {message}"),
-            Self::Numerical { message } => write!(f, "numerical error: {message}"),
-            Self::MissingDiagnostics { message } => {
-                write!(f, "missing diagnostics: {message}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ProbError {}

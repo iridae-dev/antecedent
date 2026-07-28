@@ -8,6 +8,7 @@ use core::fmt;
 
 /// Errors when constructing or indexing views.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ViewError {
     /// Shape or stride inconsistency.
     InvalidShape {

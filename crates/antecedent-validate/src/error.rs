@@ -11,6 +11,7 @@ use thiserror::Error;
 
 /// Validation / refutation failures.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ValidationError {
     /// Data transformation failed.
     #[error(transparent)]

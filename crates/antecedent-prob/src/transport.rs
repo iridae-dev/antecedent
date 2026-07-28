@@ -8,6 +8,8 @@
 
 use std::sync::Arc;
 
+use thiserror::Error;
+
 use antecedent_core::PriorAssumption;
 
 use crate::error::ProbError;
@@ -190,9 +192,15 @@ pub struct TransportOutcome {
 }
 
 /// Structured transport errors (stable `code()` for conformance).
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[non_exhaustive]
 pub enum TransportError {
     /// Populations differ and no [`TransportPolicy`] was supplied.
+    #[error(
+        "{code}: population mismatch source={source_population:?} \
+         target={target_population:?} requires TransportPolicy",
+        code = self.code()
+    )]
     PolicyRequired {
         /// Source population tag (empty if absent).
         source_population: Arc<str>,
@@ -200,6 +208,10 @@ pub enum TransportError {
         target_population: Arc<str>,
     },
     /// Source / target population vector length mismatch.
+    #[error(
+        "{code}: source_populations len {n_populations} != sources len {n_sources}",
+        code = self.code()
+    )]
     SourceCountMismatch {
         /// Number of sources.
         n_sources: usize,
@@ -207,16 +219,22 @@ pub enum TransportError {
         n_populations: usize,
     },
     /// Invalid reweight weights / effects.
+    #[error("{code}: {message}", code = self.code())]
     InvalidWeights {
         /// Context.
         message: &'static str,
     },
     /// Unknown policy wire name.
+    #[error("{code}: unknown TransportPolicy `{name}`", code = self.code())]
     UnknownPolicy {
         /// Provided name.
         name: Arc<str>,
     },
     /// Coefficient index out of range for reweight.
+    #[error(
+        "{code}: coef_index {index} out of range for n_coef={n_coef}",
+        code = self.code()
+    )]
     CoefIndexOutOfRange {
         /// Requested index.
         index: usize,
@@ -238,38 +256,6 @@ impl TransportError {
         }
     }
 }
-
-impl core::fmt::Display for TransportError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::PolicyRequired { source_population, target_population } => {
-                write!(
-                    f,
-                    "{}: population mismatch source={source_population:?} target={target_population:?} requires TransportPolicy",
-                    self.code()
-                )
-            }
-            Self::SourceCountMismatch { n_sources, n_populations } => {
-                write!(
-                    f,
-                    "{}: source_populations len {n_populations} != sources len {n_sources}",
-                    self.code()
-                )
-            }
-            Self::InvalidWeights { message } => {
-                write!(f, "{}: {message}", self.code())
-            }
-            Self::UnknownPolicy { name } => {
-                write!(f, "{}: unknown TransportPolicy `{name}`", self.code())
-            }
-            Self::CoefIndexOutOfRange { index, n_coef } => {
-                write!(f, "{}: coef_index {index} out of range for n_coef={n_coef}", self.code())
-            }
-        }
-    }
-}
-
-impl std::error::Error for TransportError {}
 
 impl From<TransportError> for ProbError {
     fn from(e: TransportError) -> Self {

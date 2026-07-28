@@ -54,3 +54,32 @@ impl core::hash::Hash for Value {
         }
     }
 }
+
+/// Renders each variant as: `Float64`/`Int64` via their native [`fmt::Display`](core::fmt::Display)
+/// (e.g. `1.5`, `42`); `Bool` as `true`/`false`; `Category` as `cat(<code>)` (e.g. `cat(3)`);
+/// and `Label` as the raw label text, unquoted.
+impl core::fmt::Display for Value {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Float64(v) => write!(f, "{v}"),
+            Self::Int64(v) => write!(f, "{v}"),
+            Self::Bool(v) => write!(f, "{v}"),
+            Self::Category(v) => write!(f, "cat({v})"),
+            Self::Label(v) => write!(f, "{v}"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_renders_each_variant() {
+        assert_eq!(Value::Float64(1.5).to_string(), "1.5");
+        assert_eq!(Value::Int64(42).to_string(), "42");
+        assert_eq!(Value::Bool(true).to_string(), "true");
+        assert_eq!(Value::Category(3).to_string(), "cat(3)");
+        assert_eq!(Value::Label(Arc::from("foo")).to_string(), "foo");
+    }
+}
