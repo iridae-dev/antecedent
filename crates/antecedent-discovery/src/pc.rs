@@ -185,10 +185,9 @@ impl Pc {
         let mut depth = 0usize;
         loop {
             let mut depth_tests = 0u64;
-            let edges: Vec<(VariableId, VariableId)> = adj
-                .keys()
-                .map(|&(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi)))
-                .collect();
+            // See `sorted_edge_pairs` doc: this loop mutates `adj` (edges removed below),
+            // so traversal order must be deterministic for the skeleton to be reproducible.
+            let edges = sorted_edge_pairs(&adj);
 
             for &(x, y) in &edges {
                 if !adj.contains_key(&edge_key(x, y)) {
@@ -218,32 +217,31 @@ impl Pc {
                 cand_sets.dedup();
 
                 let mut independent = false;
-                let mut best_stat = f64::NAN;
-                let mut best_p = f64::NAN;
+                // `weakest_dep_stat`/`weakest_dep_p` summarize a *retained* edge (no
+                // conditioning set separated x and y): they hold the statistic/p-value of
+                // whichever tested z gave the weakest evidence of dependence (max p), not
+                // whichever z happened to be tested last. That's the conservative summary
+                // to feed BH-FDR downstream. If the loop instead finds a separating set, we
+                // report that test's own (stat, p) — the value that actually establishes
+                // independence — not the running max.
+                let mut weakest_dep_stat = f64::NAN;
+                let mut weakest_dep_p = f64::NAN;
                 let mut best_sep: Arc<[VariableId]> = Arc::from([]);
 
                 for z in &cand_sets {
                     let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
                     ci_tests += 1;
                     depth_tests += 1;
-                    best_stat = stat;
-                    best_p = p;
                     if p > alpha {
                         independent = true;
+                        weakest_dep_stat = stat;
+                        weakest_dep_p = p;
                         best_sep = Arc::from(z.as_slice());
                         break;
                     }
-                }
-
-                if depth == 0 && cand_sets.is_empty() {
-                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, &[], workspace, ctx)?;
-                    ci_tests += 1;
-                    depth_tests += 1;
-                    best_stat = stat;
-                    best_p = p;
-                    if p > alpha {
-                        independent = true;
-                        best_sep = Arc::from([]);
+                    if weakest_dep_p.is_nan() || p > weakest_dep_p {
+                        weakest_dep_stat = stat;
+                        weakest_dep_p = p;
                     }
                 }
 
@@ -258,7 +256,7 @@ impl Pc {
                         Arc::clone(&sep_lagged),
                     );
                     sepsets.insert((y, Lag::CONTEMPORANEOUS, x, Lag::CONTEMPORANEOUS), sep_lagged);
-                } else if best_p.is_finite() {
+                } else if weakest_dep_p.is_finite() {
                     let link = ScoredLink {
                         link: LaggedLink {
                             source: x,
@@ -266,14 +264,14 @@ impl Pc {
                             target: y,
                             target_lag: Lag::CONTEMPORANEOUS,
                         },
-                        statistic: best_stat,
-                        p_value: best_p,
+                        statistic: weakest_dep_stat,
+                        p_value: weakest_dep_p,
                         adjusted_p_value: None,
                     };
                     edge_scores
                         .entry(key)
                         .and_modify(|s| {
-                            if best_p < s.p_value {
+                            if weakest_dep_p < s.p_value {
                                 *s = link;
                             }
                         })
@@ -527,6 +525,22 @@ pub(crate) fn edge_key(a: VariableId, b: VariableId) -> (u32, u32) {
     if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) }
 }
 
+/// Deterministic traversal order over `adj`'s pairs.
+///
+/// `HashMap` iteration order is randomly seeded per-process (`RandomState`) and is not
+/// stable across runs. The skeleton / Possible-D-Sep loops that consume this list mutate
+/// `adj` (or the graph it backs) as they iterate, so which pair is visited first changes
+/// `adjacent_vars` / reachability for pairs visited later in the *same* pass — an
+/// unsorted traversal makes the resulting skeleton nondeterministic across runs on
+/// bit-identical input. Sorting fixes a canonical order; it does not change the
+/// algorithm's existing (documented) order-dependence, only makes it reproducible.
+pub(crate) fn sorted_edge_pairs(adj: &HashMap<(u32, u32), ()>) -> Vec<(VariableId, VariableId)> {
+    let mut edges: Vec<(VariableId, VariableId)> =
+        adj.keys().map(|&(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi))).collect();
+    edges.sort_unstable();
+    edges
+}
+
 pub(crate) fn adjacent_vars(
     v: VariableId,
     adj: &HashMap<(u32, u32), ()>,
@@ -559,7 +573,7 @@ mod tests {
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
-    use antecedent_stats::OracleCi;
+    use antecedent_stats::{CiBatchResult, CiResult, CiWorkspace, OracleCi, StatsError};
 
     use super::*;
 
@@ -764,6 +778,194 @@ mod tests {
             rate >= lo && rate <= hi,
             "PC null skeleton edge rate={rate:.3} outside [{lo:.3}, {hi:.3}] \
              ({retained}/{total}; α={ALPHA})"
+        );
+    }
+
+    /// C1 regression: `sorted_edge_pairs` must return a canonical ascending order, not
+    /// raw `HashMap` iteration order.
+    ///
+    /// Builds the same 21-pair edge set (7-node complete graph) via two different
+    /// insertion histories (ascending vs. descending). Pre-fix (`adj.keys().collect()`
+    /// with no sort), `HashMap` iteration order depends on the randomly-seeded hasher
+    /// and, for `hashbrown`, on insertion/removal history too — there is a vanishingly
+    /// small chance (~1-in-21!) either raw order already happens to be canonically
+    /// sorted, so comparing against the true sorted reference deterministically fails
+    /// on the unsorted code and passes once `sort_unstable` is in place. This is the
+    /// non-flaky counterpart to a same-process double-run comparison (see
+    /// `full_run_reproducible_across_repeated_calls` below for why that alone isn't
+    /// reliable pre-fix).
+    #[test]
+    fn sorted_edge_pairs_is_deterministic_regardless_of_insertion_order() {
+        let n = 7u32;
+        let mut expected: Vec<(VariableId, VariableId)> = Vec::new();
+        for i in 0..n {
+            for j in (i + 1)..n {
+                expected.push((VariableId::from_raw(i), VariableId::from_raw(j)));
+            }
+        }
+        debug_assert!(expected.is_sorted());
+
+        let mut ascending: HashMap<(u32, u32), ()> = HashMap::new();
+        for &(a, b) in &expected {
+            ascending.insert(edge_key(a, b), ());
+        }
+        let mut descending: HashMap<(u32, u32), ()> = HashMap::new();
+        for &(a, b) in expected.iter().rev() {
+            descending.insert(edge_key(a, b), ());
+        }
+
+        assert_eq!(sorted_edge_pairs(&ascending), expected);
+        assert_eq!(sorted_edge_pairs(&descending), expected);
+    }
+
+    /// C1 end-to-end confirmation: two full `Pc::run()` calls on bit-identical input
+    /// return a bit-identical skeleton.
+    ///
+    /// Caveat: this alone is not a reliable pre-fix regression test. Rust's default
+    /// `HashMap` hasher keys are seeded per OS thread (`RandomState`), so two
+    /// `Pc::run()` calls inside the *same* `#[test]` function may or may not observe
+    /// different iteration order for the same insertion sequence depending on
+    /// unspecified std/hashbrown implementation details -- relying on that would be
+    /// flaky across Rust versions/platforms, which is exactly why
+    /// `sorted_edge_pairs_is_deterministic_regardless_of_insertion_order` above exists
+    /// as the genuine, always-failing-pre-fix check. This test instead confirms the
+    /// fix's actual user-visible contract (repeatable results) end to end on a
+    /// nontrivial graph (`max_cond_size = 2`, several degree->=2 nodes).
+    #[test]
+    fn full_run_reproducible_across_repeated_calls() {
+        let data = tabular_n(9, 60);
+        let vars: Vec<VariableId> = (0..9u32).map(VariableId::from_raw).collect();
+        // Three node-disjoint (and thus edge-disjoint) 3-node chains: 0-1-2, 3-4-5,
+        // 6-7-8. Nodes 1, 4, 7 have degree 2 (several degree>=2 nodes) while keeping
+        // every unshielded triple isolated to its own component -- deliberately
+        // avoiding a shared hub/chain edge touched by two different unshielded
+        // triples, which is a separate, pre-existing collider-orientation limitation
+        // (`orient_undirected requires an undirected Tail–Tail edge`) unrelated to
+        // the C1/C2 fixes under test here.
+        let oracle = OracleCi::new([(0usize, 1usize), (1, 2), (3, 4), (4, 5), (6, 7), (7, 8)]);
+        let mut constraints = DiscoveryConstraints::default();
+        constraints.max_cond_size = 2;
+        constraints.temporal = crate::TemporalConstraints {
+            max_lag: Lag::CONTEMPORANEOUS,
+            min_lag: Lag::CONTEMPORANEOUS,
+        };
+        let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle)).with_constraints(constraints);
+
+        let run_once = || {
+            let mut ws = DiscoveryWorkspace::default();
+            let ctx = ExecutionContext::for_tests(1);
+            let result = pc.run(&data, &vars, &mut ws, &ctx).unwrap();
+            let mut edges: Vec<(u32, u32)> = Vec::new();
+            for i in 0..9u32 {
+                for j in (i + 1)..9u32 {
+                    if result
+                        .evidence
+                        .graph
+                        .has_edge(DenseNodeId::from_raw(i), DenseNodeId::from_raw(j))
+                    {
+                        edges.push((i, j));
+                    }
+                }
+            }
+            edges
+        };
+
+        let first = run_once();
+        let second = run_once();
+        assert_eq!(first, second, "PC skeleton must be identical across repeated runs");
+    }
+
+    /// Test double whose p-value depends on which conditioning set was queried, so we
+    /// can verify a retained edge's reported p-value is the MAXIMUM over every tested
+    /// conditioning set at its winning depth (C2), not whichever was tested last.
+    struct ZDependentCi;
+
+    impl ZDependentCi {
+        fn p_for(query_x: usize, query_y: usize, cond: &[usize]) -> (f64, f64) {
+            let (lo, hi) = if query_x <= query_y { (query_x, query_y) } else { (query_y, query_x) };
+            if (lo, hi) == (0, 1) {
+                let pval = match cond {
+                    [2] => 0.40,
+                    [3] => 0.10,
+                    _ => 0.45, // cond == [] (depth 0).
+                };
+                (1.0 - pval, pval)
+            } else {
+                // Strongly dependent for every conditioning set: keeps the rest of the
+                // K4 skeleton fully connected so (0, 1) always sees {2, 3} as candidate
+                // conditioning variables at depth 1.
+                (0.999, 0.001)
+            }
+        }
+    }
+
+    impl ConditionalIndependence for ZDependentCi {
+        fn test_batch(
+            &self,
+            prepared: &PreparedCiTest,
+            request: &CiBatchRequest<'_>,
+            _workspace: &mut CiWorkspace,
+            _ctx: &ExecutionContext,
+        ) -> Result<CiBatchResult, StatsError> {
+            prepared.ensure_compatible(request)?;
+            let request = &prepared.bind_request(request);
+            let results = request
+                .queries
+                .iter()
+                .map(|query| {
+                    let cond = &request.z_flat[query.z_start..query.z_start + query.z_len];
+                    let (statistic, p_value) = Self::p_for(query.x, query.y, cond);
+                    CiResult { statistic, p_value, df: 0.0, ci: None }
+                })
+                .collect();
+            Ok(CiBatchResult { results })
+        }
+    }
+
+    /// C2 regression: a retained edge reports the max p-value over tested conditioning
+    /// sets, not the last one tested.
+    ///
+    /// Pair (0, 1) is tested at depth 0 (`z = []`, p = 0.45) and depth 1 (`z = [2]`
+    /// then `z = [3]`, since `cand_sets` sorts ascending) -- `z = [2]`'s p = 0.40 is
+    /// tested *before* `z = [3]`'s p = 0.10. Pre-fix ("last tested"), depth 1's
+    /// recorded result is 0.10; post-fix ("max tested"), it's 0.40. Depth 0's p = 0.45
+    /// is chosen to never win the (unmodified, out-of-scope) cross-depth min-p merge in
+    /// `edge_scores` either way -- 0.40 and 0.10 are both `< 0.45` -- so depth 1's value
+    /// is always what's finally reported, isolating exactly the within-depth behavior
+    /// this test targets.
+    #[test]
+    fn retained_edge_reports_max_p_not_last_tested() {
+        let data = tabular_n(4, 30);
+        let vars: Vec<VariableId> = (0..4u32).map(VariableId::from_raw).collect();
+
+        let mut constraints = DiscoveryConstraints::default();
+        constraints.alpha = 0.5;
+        constraints.max_cond_size = 1;
+        constraints.temporal = crate::TemporalConstraints {
+            max_lag: Lag::CONTEMPORANEOUS,
+            min_lag: Lag::CONTEMPORANEOUS,
+        };
+        let pc =
+            Pc::new().with_fdr(false).with_ci(Arc::new(ZDependentCi)).with_constraints(constraints);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = pc.run(&data, &vars, &mut ws, &ctx).unwrap();
+
+        assert!(result.evidence.graph.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+        let evidence = result
+            .evidence
+            .edge_evidence
+            .iter()
+            .find(|e| {
+                let (a, b) = (e.link.source.raw(), e.link.target.raw());
+                (a, b) == (0, 1) || (a, b) == (1, 0)
+            })
+            .expect("edge (0,1) evidence present");
+        let p = evidence.p_value.expect("p-value recorded");
+        assert!(
+            (p - 0.40).abs() < 1e-9,
+            "expected max-over-tested-z p=0.40 for retained edge (0,1), got {p} \
+             (0.10 would indicate the pre-fix 'last tested' bug)"
         );
     }
 }
