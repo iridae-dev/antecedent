@@ -470,8 +470,14 @@ fn summarize_check(
     let mean = reduce_posterior_draws(summaries, PosteriorReduceOp::Mean, &policy).unwrap_or(0.0);
     let sd = reduce_posterior_draws(summaries, PosteriorReduceOp::Std, &policy).unwrap_or(0.0);
     let n = summaries.len() as f64;
+    // (1 + count) / (1 + n) form (Davison & Hinkley): an exact-zero Monte Carlo
+    // p-value is never valid evidence with a finite sample, so both tails are
+    // bounded below by 1/(n+1) and the two-sided p-value by 2/(n+1).
     let below = summaries.iter().filter(|&&x| x <= observed).count() as f64;
-    let p = (2.0 * (below / n.max(1.0)).min(1.0 - below / n.max(1.0))).min(1.0);
+    let above = summaries.iter().filter(|&&x| x >= observed).count() as f64;
+    let p_lower = (1.0 + below) / (1.0 + n);
+    let p_upper = (1.0 + above) / (1.0 + n);
+    let p = (2.0 * p_lower.min(p_upper)).min(1.0);
     PredictiveCheckReport {
         kind,
         observed,
@@ -604,6 +610,35 @@ mod tests {
             .check(&prep, &post)
             .unwrap();
         assert_eq!(post_rep.kind, PredictiveCheckKind::Posterior);
+    }
+
+    #[test]
+    fn summarize_check_observed_outside_range_never_reports_zero() {
+        // Simulated draws are tightly clustered; an observation far outside the
+        // range on either side must not collapse the Monte Carlo p-value to
+        // exactly 0 (D1: below/n or above/n hitting 0 or 1 exactly).
+        let n = 200usize;
+        let summaries: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect(); // [0, 1)
+        let min_p = 2.0 / (n as f64 + 1.0);
+
+        let low = summarize_check(PredictiveCheckKind::Posterior, -10.0, &summaries, n as u32);
+        assert!(low.p_value > 0.0, "p_value must be strictly positive, got {}", low.p_value);
+        assert!(low.p_value >= min_p, "p_value {} below the 2/(n+1) floor {min_p}", low.p_value);
+
+        let high = summarize_check(PredictiveCheckKind::Posterior, 10.0, &summaries, n as u32);
+        assert!(high.p_value > 0.0, "p_value must be strictly positive, got {}", high.p_value);
+        assert!(high.p_value >= min_p, "p_value {} below the 2/(n+1) floor {min_p}", high.p_value);
+    }
+
+    #[test]
+    fn summarize_check_observed_near_centre_gives_high_p_value() {
+        // Sanity check that the corrected formula still behaves as expected in
+        // the ordinary case: an observation near the middle of the simulated
+        // distribution should give a p-value near 1, not just "not exactly 0".
+        let n = 200usize;
+        let summaries: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect(); // [0, 1)
+        let centre = summarize_check(PredictiveCheckKind::Posterior, 0.5, &summaries, n as u32);
+        assert!(centre.p_value > 0.9, "expected p_value near 1, got {}", centre.p_value);
     }
 
     #[test]
