@@ -28,7 +28,7 @@ use crate::orientation::OrientationState;
 use crate::pipeline::{algorithm_record, push_diagnostic};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, LaggedParent,
-    PagDiscoveryResult, PcSepsets, ScoredLink,
+    PagDiscoveryResult, PcSepsets, ScoredLink, SepsetKey,
 };
 use crate::rule_scheduling::{default_lpcmci_rules, prelim_lpcmci_rules, run_lpcmci_orientation};
 use crate::weakly_minimal::{make_sepset_weakly_minimal, store_weakly_minimal_sepset};
@@ -750,6 +750,113 @@ fn non_ancestral_removal_phase(
     Ok(ci_tests)
 }
 
+/// Reconcile the `scored` and `sepsets` accumulators against the final oriented PAG.
+///
+/// # Why this is needed
+///
+/// `run_lpcmci_algorithm` threads two accumulators through every phase it runs (each
+/// preliminary iteration, the full ancestral phase, and the non-ancestral phase):
+///
+/// - `scored` is appended to only when a link's separation search came up empty, i.e. the
+///   link was **retained** in that phase's PAG (see the `sep_cond.is_none()` branch above).
+/// - `sepsets` is inserted into only when a separating set **was** found, immediately before
+///   the corresponding edge is removed. A sepset is the recorded justification for a removal.
+///
+/// Both accumulators are append-only and are never rebuilt when a PAG is rebuilt. Critically,
+/// each preliminary iteration calls [`init_complete_pag`] to start over from a *fresh* complete
+/// graph (carrying over only remembered parents, not the prior iteration's removals). So a
+/// removal made in iteration `k` — and the sepset recorded for it — can be silently undone by
+/// iteration `k + 1` reintroducing that edge into its fresh PAG and failing to re-remove it (or
+/// removing a *different* edge instead). Symmetrically, a link pushed to `scored` as "retained"
+/// in an earlier phase can end up removed by a later phase operating on that phase's own PAG.
+/// By the time the final PAG is oriented, both accumulators can describe edges that no longer
+/// exist in it, or omit sepsets for edges that were, in the end, never separated.
+///
+/// This function is the fix: it filters both accumulators against the single source of truth,
+/// the final PAG, **in opposite directions** —
+///
+/// - `scored` entries are kept only if their link's edge **is present** in the final PAG,
+///   because `scored` records retained links; a "retained" link that isn't actually an edge
+///   anymore is a stale claim.
+/// - `sepsets` entries are kept only if their pair's edge **is absent** from the final PAG,
+///   because a sepset records the justification for a removal; a sepset attached to an edge
+///   that survived to the final PAG is exactly the stale-removal-undone case described above,
+///   and reporting it as the surviving link's conditioning set would be dishonest. Dropping it
+///   makes the surviving link report an empty conditioning set instead, which is honest about
+///   what is actually known.
+///
+/// It is precisely because each preliminary iteration rebuilds a fresh complete PAG that both
+/// directions of drift are reachable in practice, not just in theory.
+///
+/// `fci.rs:446` and `rfci.rs:423` already do the `scored` half of this for their own algorithms
+/// (`scored.retain(|s| adj.contains_key(&edge_key(...)))`, filtering against live adjacency
+/// after their final orientation pass) — that is the in-repo precedent for this pattern. LPCMCI
+/// never had an equivalent step, and its repeated preliminary-iteration structure is exactly
+/// what makes the omission observable.
+///
+/// # Steps
+///
+/// 1. Dedup `scored` by `(source, source_lag, target, target_lag)`, keeping the **last**
+///    occurrence (later phases supersede earlier ones with a more current statistic/p-value),
+///    while preserving the relative order of the surviving entries.
+/// 2. Retain a `scored` entry only if both endpoints resolve through `idx` and
+///    [`TemporalPag::has_edge`] returns `true` for the resolved pair.
+/// 3. Retain a `sepsets` entry only if both endpoints resolve through `idx` **and**
+///    [`TemporalPag::has_edge`] returns `false` for the resolved pair.
+///
+/// Endpoint resolution failure (missing from `idx`) drops the entry from either accumulator —
+/// it cannot correspond to an edge in this graph.
+fn reconcile_evidence_with_pag(
+    pag: &TemporalPag,
+    idx: &NodeIndex,
+    scored: &mut Vec<ScoredLink>,
+    sepsets: &mut PcSepsets,
+) {
+    // Step 1: dedup by link key, last occurrence wins, order-preserving.
+    let mut seen: HashSet<(u32, u32, u32, u32)> = HashSet::new();
+    let mut keep = vec![false; scored.len()];
+    for (i, s) in scored.iter().enumerate().rev() {
+        let link = s.link;
+        let key =
+            (link.source.raw(), link.source_lag.raw(), link.target.raw(), link.target_lag.raw());
+        if seen.insert(key) {
+            keep[i] = true;
+        }
+    }
+    // Zip rather than drive `retain` from a side iterator: the lengths are structurally
+    // paired here, so a mismatch cannot be silently absorbed as "drop it".
+    *scored = std::mem::take(scored)
+        .into_iter()
+        .zip(keep)
+        .filter_map(|(s, keep)| keep.then_some(s))
+        .collect();
+
+    // Step 2: scored links must be present as an edge in the final PAG.
+    scored.retain(|s| {
+        let link = s.link;
+        if let (Some(&a), Some(&b)) = (
+            idx.get(&(link.source.raw(), link.source_lag.raw())),
+            idx.get(&(link.target.raw(), link.target_lag.raw())),
+        ) {
+            pag.has_edge(a, b)
+        } else {
+            false
+        }
+    });
+
+    // Step 3: sepsets must be absent as an edge in the final PAG (opposite direction of step 2).
+    sepsets.retain(|key: &SepsetKey, _| {
+        let &(x, x_lag, y, y_lag) = key;
+        if let (Some(&a), Some(&b)) =
+            (idx.get(&(x.raw(), x_lag.raw())), idx.get(&(y.raw(), y_lag.raw())))
+        {
+            !pag.has_edge(a, b)
+        } else {
+            false
+        }
+    });
+}
+
 /// Run full LPCMCI Algorithm 1.
 pub fn run_lpcmci_algorithm(
     engine: &PcmciEngine,
@@ -840,6 +947,10 @@ pub fn run_lpcmci_algorithm(
     let delta =
         run_lpcmci_orientation(&mut pag, &rules, &mut state).map_err(DiscoveryError::from)?;
 
+    // The final oriented PAG is the sole authority on what survived; reconcile the
+    // phase-accumulated `scored`/`sepsets` against it before packaging evidence.
+    reconcile_evidence_with_pag(&pag, &idx, &mut scored, &mut sepsets);
+
     let _ = fdr; // alpha-based removals; FDR on residual scored links is not applied in Alg. 1.
 
     let algorithm = algorithm_record(
@@ -886,4 +997,159 @@ pub fn run_lpcmci_algorithm(
         },
         sepsets,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn two_vars() -> Vec<VariableId> {
+        vec![VariableId::from_raw(0), VariableId::from_raw(1)]
+    }
+
+    fn scored_link(
+        source: VariableId,
+        source_lag: u32,
+        target: VariableId,
+        target_lag: u32,
+        statistic: f64,
+        p_value: f64,
+    ) -> ScoredLink {
+        ScoredLink {
+            link: LaggedLink {
+                source,
+                source_lag: Lag::from_raw(source_lag),
+                target,
+                target_lag: Lag::from_raw(target_lag),
+            },
+            statistic,
+            p_value,
+            adjusted_p_value: None,
+        }
+    }
+
+    #[test]
+    fn reconcile_drops_scored_link_absent_from_final_pag() {
+        // Pins: a `scored` entry for a link that was removed from the PAG (by a later
+        // phase, or a fresh preliminary-iteration rebuild undoing an earlier removal)
+        // must not survive reconciliation.
+        let vars = two_vars();
+        let (mut pag, idx) = init_complete_pag(&vars, 1).unwrap();
+        let a = idx[&(vars[0].raw(), 0)];
+        let b = idx[&(vars[1].raw(), 0)];
+        assert!(pag.has_edge(a, b));
+        let _ = pag.remove_edge(a, b);
+        assert!(!pag.has_edge(a, b));
+
+        let mut scored = vec![scored_link(vars[0], 0, vars[1], 0, 0.1, 0.9)];
+        let mut sepsets = PcSepsets::default();
+        reconcile_evidence_with_pag(&pag, &idx, &mut scored, &mut sepsets);
+        assert!(scored.is_empty(), "removed edge must not surface as a retained link");
+    }
+
+    #[test]
+    fn reconcile_keeps_scored_link_present_in_final_pag() {
+        // Pins: a `scored` entry for a link that genuinely survives to the final PAG
+        // keeps its statistic/p_value unchanged.
+        let vars = two_vars();
+        let (pag, idx) = init_complete_pag(&vars, 1).unwrap();
+        // Lagged X_{t-1} o-> Y_t: never removed here, so it must still be an edge.
+        let a = idx[&(vars[0].raw(), 1)];
+        let b = idx[&(vars[1].raw(), 0)];
+        assert!(pag.has_edge(a, b));
+
+        let mut scored = vec![scored_link(vars[0], 1, vars[1], 0, 0.42, 0.03)];
+        let mut sepsets = PcSepsets::default();
+        reconcile_evidence_with_pag(&pag, &idx, &mut scored, &mut sepsets);
+        assert_eq!(scored.len(), 1);
+        assert!((scored[0].statistic - 0.42).abs() < 1e-12);
+        assert!((scored[0].p_value - 0.03).abs() < 1e-12);
+    }
+
+    #[test]
+    fn reconcile_drops_sepset_for_pair_still_edged_in_final_pag() {
+        // Pins: the stale-removal-undone case — a sepset was recorded for a pair whose
+        // edge was later reintroduced (e.g. a fresh preliminary-iteration PAG rebuild).
+        // Attaching that stale sepset to the surviving edge would misreport its
+        // conditioning set, which is exactly the bug this reconciliation step fixes.
+        let vars = two_vars();
+        let (pag, idx) = init_complete_pag(&vars, 1).unwrap();
+        let key: SepsetKey = (vars[0], Lag::CONTEMPORANEOUS, vars[1], Lag::CONTEMPORANEOUS);
+        let a = idx[&(vars[0].raw(), 0)];
+        let b = idx[&(vars[1].raw(), 0)];
+        assert!(pag.has_edge(a, b));
+
+        let mut scored = Vec::new();
+        let mut sepsets = PcSepsets::default();
+        sepsets.insert(key, Arc::from(Vec::<LaggedParent>::new()));
+        reconcile_evidence_with_pag(&pag, &idx, &mut scored, &mut sepsets);
+        assert!(sepsets.is_empty(), "sepset attached to a surviving edge must be dropped");
+    }
+
+    #[test]
+    fn reconcile_keeps_sepset_for_genuinely_separated_pair() {
+        // Pins: a sepset must NOT regress — it is evidence for a removal that held in
+        // the final PAG, so the surviving separation must keep its conditioning set.
+        let vars = two_vars();
+        let (mut pag, idx) = init_complete_pag(&vars, 1).unwrap();
+        let key: SepsetKey = (vars[0], Lag::CONTEMPORANEOUS, vars[1], Lag::CONTEMPORANEOUS);
+        let a = idx[&(vars[0].raw(), 0)];
+        let b = idx[&(vars[1].raw(), 0)];
+        let _ = pag.remove_edge(a, b);
+        assert!(!pag.has_edge(a, b));
+
+        let mut scored = Vec::new();
+        let mut sepsets = PcSepsets::default();
+        let cond: Arc<[LaggedParent]> = Arc::from(vec![(vars[0], Lag::from_raw(1))]);
+        sepsets.insert(key, cond.clone());
+        reconcile_evidence_with_pag(&pag, &idx, &mut scored, &mut sepsets);
+        assert_eq!(sepsets.get(&key), Some(&cond));
+    }
+
+    #[test]
+    fn reconcile_collapses_duplicate_scored_entries_last_wins() {
+        // Pins: the same link pushed by multiple phases collapses to one entry that
+        // carries the LAST (most current) statistic/p_value, since later phases
+        // supersede earlier ones.
+        let vars = two_vars();
+        let (pag, idx) = init_complete_pag(&vars, 1).unwrap();
+        let a = idx[&(vars[0].raw(), 1)];
+        let b = idx[&(vars[1].raw(), 0)];
+        assert!(pag.has_edge(a, b));
+
+        let mut scored = vec![
+            scored_link(vars[0], 1, vars[1], 0, 0.11, 0.10),
+            scored_link(vars[0], 1, vars[1], 0, 0.22, 0.02),
+        ];
+        let mut sepsets = PcSepsets::default();
+        reconcile_evidence_with_pag(&pag, &idx, &mut scored, &mut sepsets);
+        assert_eq!(scored.len(), 1);
+        assert!(
+            (scored[0].p_value - 0.02).abs() < 1e-12,
+            "must keep the later (second-pushed) entry's p_value"
+        );
+        assert!(
+            (scored[0].statistic - 0.22).abs() < 1e-12,
+            "must keep the later (second-pushed) entry's statistic"
+        );
+    }
+
+    #[test]
+    fn reconcile_drops_unresolvable_endpoints_from_both_accumulators() {
+        // Pins: a link/sepset whose endpoint isn't in `idx` cannot correspond to an edge
+        // in this graph and must be dropped, not kept by some permissive fallback.
+        let vars = two_vars();
+        let (pag, idx) = init_complete_pag(&vars, 1).unwrap();
+        let ghost = VariableId::from_raw(99);
+
+        let mut scored = vec![scored_link(ghost, 0, vars[1], 0, 0.1, 0.5)];
+        let mut sepsets = PcSepsets::default();
+        sepsets.insert(
+            (ghost, Lag::CONTEMPORANEOUS, vars[1], Lag::CONTEMPORANEOUS),
+            Arc::from(Vec::<LaggedParent>::new()),
+        );
+        reconcile_evidence_with_pag(&pag, &idx, &mut scored, &mut sepsets);
+        assert!(scored.is_empty());
+        assert!(sepsets.is_empty());
+    }
 }

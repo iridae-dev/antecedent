@@ -161,11 +161,10 @@ pub(crate) struct DiscoveredLink {
     ///   plain-PCMCI link can legitimately show a non-empty set here; it documents which
     ///   candidate parents were pruned during PC1, not a separation certificate for the
     ///   retained link's own MCI test.
-    /// - LPCMCI: the returned `links` list can include entries from an earlier phase
-    ///   that a later phase subsequently separated and removed from the PAG (the two
-    ///   phases don't reconcile the scored-link accumulator against each other). A
-    ///   non-empty set here for an LPCMCI link is therefore not proof the link is still
-    ///   present in the final PAG — cross-check `graph_edges`.
+    /// - LPCMCI: the scored-link and separating-set accumulators are reconciled against
+    ///   the final PAG before being returned, so every entry in `links` corresponds to
+    ///   an edge in `graph_edges`, and a non-empty set here is populated only for a pair
+    ///   actually separated in the final PAG.
     #[pyo3(get)]
     pub(crate) conditioning_set: Vec<(String, u32)>,
 }
