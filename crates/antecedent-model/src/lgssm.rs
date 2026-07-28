@@ -130,7 +130,9 @@ pub fn infer_lgssm_innovations(
     }
     let q = (process_std * process_std).max(1e-16);
     let r = (obs_std * obs_std).max(1e-16);
-    let (x_f, p_f, x_pred, p_pred) = kalman_filter(y, a, q, r, initial_mean, 1.0);
+    // Initial state variance matches the generative model (mechanism.rs: x_0 = initial_mean +
+    // process_std * eps, i.e. Var(x_0) = process_std² = q) — not an independent hyperparameter.
+    let (x_f, p_f, x_pred, p_pred) = kalman_filter(y, a, q, r, initial_mean, q);
     let (x_s, p_s, _) = rts_smooth(a, &x_f, &p_f, &x_pred, &p_pred);
 
     let mut x_draw = x_s.clone();
@@ -198,5 +200,41 @@ mod tests {
             let yhat = x2 + obs_std * eta;
             assert!((yhat - y[t]).abs() < 1e-4, "t={t}: yhat={yhat} y={}", y[t]);
         }
+    }
+
+    /// MM-A3: `infer_lgssm_innovations` must seed the Kalman filter's initial state variance
+    /// from `process_std²` (matching the generative model `x_0 = initial_mean + process_std *
+    /// eps`, i.e. `Var(x_0) = process_std²`), not a hardcoded `1.0`.
+    ///
+    /// Expected `eps`/`eta` below are hand-derived (exact rationals) from the Kalman
+    /// filter/RTS-smoother recursion for `a=0.5, q=process_std²=4.0, r=obs_std²=1.0,
+    /// initial_mean=0.0, y=[1.0, 1.0]` with `p0 = q = 4.0`:
+    ///   `x_pred`=[0, 2/5], `p_pred`=[4, 21/5], `x_f`=[4/5, 23/26], `p_f`=[4/5, 21/26]
+    ///   `x_s`=[11/13, 23/26]  ⇒  eps0=11/26, eps1=3/13, eta0=2/13, eta1=3/26
+    ///
+    /// The pre-fix code hardcoded `p0=1.0`, which gives a materially different `x_s[0]` (and
+    /// hence `eps0 ≈ 0.268293`, not `11/26 ≈ 0.423077`) — a self-consistency round trip
+    /// (reconstructing `y` from the inferred innovations) cannot distinguish the two, so this
+    /// test compares against the independently-computed rationals instead.
+    #[test]
+    fn infer_lgssm_innovations_seeds_initial_variance_from_process_std() {
+        let a = 0.5;
+        let process_std = 2.0; // ≠ 1.0, so the old hardcoded p0 would be wrong.
+        let obs_std = 1.0;
+        let initial_mean = 0.0;
+        let y = [1.0_f64, 1.0];
+        let mut inferred = [0.0; 2];
+        infer_lgssm_innovations(&y, a, process_std, obs_std, initial_mean, &mut inferred, None)
+            .unwrap();
+        let (eps0, eta0) = unpack_innovations(inferred[0]);
+        let (eps1, eta1) = unpack_innovations(inferred[1]);
+        let expected_eps0 = 11.0 / 26.0;
+        let expected_eps1 = 3.0 / 13.0;
+        let expected_eta0 = 2.0 / 13.0;
+        let expected_eta1 = 3.0 / 26.0;
+        assert!((eps0 - expected_eps0).abs() < 1e-4, "eps0={eps0} expected={expected_eps0}");
+        assert!((eps1 - expected_eps1).abs() < 1e-4, "eps1={eps1} expected={expected_eps1}");
+        assert!((eta0 - expected_eta0).abs() < 1e-4, "eta0={eta0} expected={expected_eta0}");
+        assert!((eta1 - expected_eta1).abs() < 1e-4, "eta1={eta1} expected={expected_eta1}");
     }
 }
