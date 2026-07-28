@@ -48,7 +48,7 @@ fn parse_prior_mapping(
 
 fn run_static_ate_from_builder(
     names: &[String],
-    mut builder: antecedent::CausalAnalysisBuilder,
+    mut builder: antecedent::StudyBuilder,
     inference: Option<&str>,
     n_draws: usize,
     prior_scale: f64,
@@ -164,7 +164,7 @@ type PosteriorSummary = (
 );
 
 fn posterior_summary_from_result(
-    result: &antecedent::CausalAnalysisResult,
+    result: &antecedent::StudyResult,
     include_artifact: bool,
 ) -> PyResult<PosteriorSummary> {
     if let Some(post) = result.posterior.as_ref() {
@@ -190,9 +190,7 @@ fn posterior_summary_from_result(
     }
 }
 
-fn prior_sensitivity_from_result(
-    result: &antecedent::CausalAnalysisResult,
-) -> PriorSensitivityFields {
+fn prior_sensitivity_from_result(result: &antecedent::StudyResult) -> PriorSensitivityFields {
     if let Some(post) = result.posterior.as_ref() {
         if let Some(sens) = post.prior_sensitivity.as_ref() {
             let scales = sens.prior_scales.iter().copied().collect::<Vec<_>>();
@@ -208,9 +206,7 @@ fn prior_sensitivity_from_result(
     (None, None, None, None)
 }
 
-fn conflict_summary_from_result(
-    result: &antecedent::CausalAnalysisResult,
-) -> ConflictSummaryFields {
+fn conflict_summary_from_result(result: &antecedent::StudyResult) -> ConflictSummaryFields {
     if let Some(post) = result.posterior.as_ref() {
         if let Some(cs) = post.conflict_summary.as_ref() {
             return (
@@ -251,7 +247,7 @@ pub(crate) fn panel_multi_dataset_constraints(
 }
 
 pub(crate) fn panel_discovery_builder(
-    builder: antecedent::CausalAnalysisBuilder,
+    builder: antecedent::StudyBuilder,
     algo: &str,
     max_lag: u32,
     alpha: f64,
@@ -259,7 +255,7 @@ pub(crate) fn panel_discovery_builder(
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     multi_dataset: MultiDatasetConstraints,
-) -> PyResult<antecedent::CausalAnalysisBuilder> {
+) -> PyResult<antecedent::StudyBuilder> {
     match algo {
         "jpcmci_plus" | "jpcmci+" => Ok(builder.discover_jpcmci_plus(
             max_lag,
@@ -353,8 +349,8 @@ fn parse_population_registry(
 
 /// `identifier`/`estimator` select the identification strategy and estimator; leaving both
 /// `None` preserves the default (`backdoor.adjustment` + `linear.adjustment.ate`).
-/// See [`antecedent::CausalAnalysisBuilder::identifier`] and
-/// [`antecedent::CausalAnalysisBuilder::estimator`] for the supported ids.
+/// See [`antecedent::StudyBuilder::identifier`] and
+/// [`antecedent::StudyBuilder::estimator`] for the supported ids.
 ///
 /// Crosses the Python boundary once: NumPy columns + edge list in, structured
 /// summary out. No per-row callbacks. Releases the GIL during native work.
@@ -473,7 +469,7 @@ fn analyze_ate(
             bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = CausalAnalysis::builder()
+        let mut builder = Study::builder()
             .data(data)
             .graph(dag)
             .query(query)
@@ -620,7 +616,7 @@ fn analyze_ate_arrow_c(
             bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = CausalAnalysis::builder()
+        let mut builder = Study::builder()
             .data(data)
             .graph(dag)
             .query(query)
@@ -716,7 +712,7 @@ fn analyze_ate_many(
             ate_queries.push(AverageEffectQuery::with_levels(t_id, y_id, *control, *active));
         }
         let mut batch =
-            antecedent::BatchAnalysis::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
+            antecedent::BatchStudy::new(data, dag).bootstrap_replicates(bootstrap).refute(suite);
         if let Some(mode) = latency_mode {
             batch = batch.latency_mode(mode);
         }
@@ -850,7 +846,7 @@ fn run_ate_with_graph_input(
         bandwidth,
         |rv| data.schema().id_of(rv).map_err(py_err),
     )?;
-    let mut builder = CausalAnalysis::builder()
+    let mut builder = Study::builder()
         .data(data)
         .query(query)
         .refute(suite)
@@ -1189,7 +1185,7 @@ fn analyze_ate_discover(
             bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
-        let mut builder = CausalAnalysis::builder().data(data);
+        let mut builder = Study::builder().data(data);
         let soft = match soft_weight.as_str() {
             "none" | "" => antecedent::discovery::CiSoftWeight::None,
             "bayes_factor" | "bf" => antecedent::discovery::CiSoftWeight::BayesFactor,
@@ -1325,7 +1321,7 @@ fn analyze_distribution(
             query = query.with_conditioning(z);
         }
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(dag)
             .query(CausalQuery::Distribution(query))
@@ -1394,7 +1390,7 @@ fn analyze_path_specific(
             query = query.with_path_nodes(ids);
         }
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(dag)
             .query(CausalQuery::PathSpecific(query))
@@ -1411,7 +1407,7 @@ fn analyze_path_specific(
 
 pub(crate) fn ate_result_from_analysis(
     names: &[String],
-    result: antecedent::CausalAnalysisResult,
+    result: antecedent::StudyResult,
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let adjustment_set: Vec<String> = result
@@ -1609,7 +1605,7 @@ fn analyze_conditional(
         let cq = ConditionalEffectQuery::try_new(inner)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(dag)
             .query(CausalQuery::ConditionalEffect(cq))
@@ -1674,7 +1670,7 @@ fn analyze_mediation(
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .data(data)
             .graph(dag)
             .query(CausalQuery::Mediation(q))
@@ -1707,7 +1703,7 @@ fn identify_ate(
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let mut builder = CausalAnalysis::builder()
+        let mut builder = Study::builder()
             .data(data)
             .graph(dag)
             .query(AverageEffectQuery::binary_ate(t_id, y_id))

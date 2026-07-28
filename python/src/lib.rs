@@ -92,8 +92,8 @@ use antecedent::io::{
     encode_causal_posterior_bytes,
 };
 use antecedent::{
-    BayesianConfig, CausalAnalysis, CausalError as RustCausalError, DiscoveryAccept, EstimatorId,
-    FdrControl, GraphInput, IdentifierId, InferenceMode, RefuteSuite,
+    BayesianConfig, CausalError as RustCausalError, DiscoveryAccept, EstimatorId, FdrControl,
+    GraphInput, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
 use antecedent_core::{
     AllocationMethod, AttributionComponents, AverageEffectQuery, CachePolicy, CausalQuery,

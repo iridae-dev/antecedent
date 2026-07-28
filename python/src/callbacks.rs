@@ -527,24 +527,24 @@ impl PyStageResultSink {
 }
 
 impl antecedent::StageResultSink for PyStageResultSink {
-    fn on_stage(&self, event: &antecedent::AnalysisStageEvent) {
+    fn on_stage(&self, event: &antecedent::StageEvent) {
         Python::attach(|py| {
             let payload = match event {
-                antecedent::AnalysisStageEvent::Identify { identification, estimand } => {
+                antecedent::StageEvent::Identify { identification, estimand } => {
                     let d = PyDict::new(py);
                     let _ = d.set_item("status", format!("{:?}", identification.status));
                     let _ = d.set_item("method", estimand.method.as_ref());
                     d
                 }
-                antecedent::AnalysisStageEvent::Point { estimate }
-                | antecedent::AnalysisStageEvent::Uncertainty { estimate } => {
+                antecedent::StageEvent::Point { estimate }
+                | antecedent::StageEvent::Uncertainty { estimate } => {
                     let d = PyDict::new(py);
                     let _ = d.set_item("ate", estimate.ate);
                     let _ = d.set_item("se_analytic", estimate.se_analytic);
                     let _ = d.set_item("se_bootstrap", estimate.se_bootstrap);
                     d
                 }
-                antecedent::AnalysisStageEvent::Validate { refutations, predictive_checks } => {
+                antecedent::StageEvent::Validate { refutations, predictive_checks } => {
                     let d = PyDict::new(py);
                     let _ = d.set_item("n_refutations", refutations.len());
                     let _ = d.set_item("n_predictive_checks", predictive_checks.len());

@@ -266,7 +266,7 @@ fn analyze(
             active_level,
         )?;
 
-        let mut builder = CausalAnalysis::builder()
+        let mut builder = Study::builder()
             .series(series)
             .temporal_graph(g)
             .temporal_query(q)
@@ -353,7 +353,7 @@ fn analyze_temporal_pag(
             active_level,
         )?;
 
-        let mut builder = CausalAnalysis::builder()
+        let mut builder = Study::builder()
             .series(series)
             .temporal_pag(graph.pag)
             .temporal_query(q)
@@ -477,7 +477,7 @@ fn analyze_events(
         } else {
             None
         };
-        let mut builder = CausalAnalysis::builder()
+        let mut builder = Study::builder()
             .events(event, align_interval_ns)
             .temporal_query(q)
             .refute(suite)
@@ -610,7 +610,7 @@ fn analyze_panel(
             horizon_steps,
             active_level,
         )?;
-        let mut builder = CausalAnalysis::builder()
+        let mut builder = Study::builder()
             .panel(panel)
             .temporal_graph(g)
             .temporal_query(q)
@@ -750,7 +750,7 @@ fn analyze_panel_discover(
         )?;
         let algo = algorithm.to_ascii_lowercase();
         let builder = panel_discovery_builder(
-            CausalAnalysis::builder().panel(panel).discovery_ci(ci_impl),
+            Study::builder().panel(panel).discovery_ci(ci_impl),
             algo.as_str(),
             max_lag,
             alpha,
@@ -848,7 +848,7 @@ fn temporal_multi_env_dummy_modes(
 
 fn run_temporal_analysis(
     names: &[String],
-    analysis: antecedent::CausalAnalysis,
+    analysis: antecedent::Study,
     seed: u64,
     threads: u32,
 ) -> PyResult<AnalysisResult> {
@@ -909,7 +909,7 @@ fn temporal_discover_jpcmci_plus(
     };
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .series_multi(multi)
         .temporal_query(q)
         .refute(suite)
@@ -961,7 +961,7 @@ fn temporal_discover_rpcmci(
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .series(series)
         .temporal_query(q)
         .refute(suite)
@@ -1006,7 +1006,7 @@ fn temporal_discover_pcmci_family(
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let mut builder = CausalAnalysis::builder()
+    let mut builder = Study::builder()
         .series(series)
         .temporal_query(q)
         .refute(suite)
@@ -1056,7 +1056,7 @@ fn temporal_discover_dbn_posterior(
     let y_id = series.schema().id_of(outcome).map_err(py_err)?;
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
-    let mut builder = CausalAnalysis::builder()
+    let mut builder = Study::builder()
         .series(series)
         .temporal_query(q)
         .refute(suite)
@@ -1425,7 +1425,7 @@ fn analyze_temporal_discover(
 
 fn analysis_result_from_run(
     names: &[String],
-    result: antecedent::CausalAnalysisResult,
+    result: antecedent::StudyResult,
 ) -> PyResult<AnalysisResult> {
     let adjustment_set: Vec<String> = result
         .estimand
@@ -1526,12 +1526,12 @@ fn analysis_result_from_run(
 }
 
 fn apply_temporal_inference(
-    builder: antecedent::CausalAnalysisBuilder,
+    builder: antecedent::StudyBuilder,
     inference: Option<&str>,
     n_draws: usize,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
-) -> PyResult<antecedent::CausalAnalysisBuilder> {
+) -> PyResult<antecedent::StudyBuilder> {
     let Some(mode) = inference else {
         return Ok(builder);
     };
@@ -1604,7 +1604,7 @@ fn analyze_temporal_mediation(
         q.control = Intervention::set(t_id, Value::f64(control_level));
         q.active = Intervention::set(t_id, Value::f64(active_level));
         let g = temporal_dag_from_schema_edges(series.schema(), &edges)?;
-        let analysis = CausalAnalysis::builder()
+        let analysis = Study::builder()
             .series(series)
             .temporal_graph(g)
             .query(CausalQuery::Mediation(q))

@@ -12,7 +12,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use antecedent::{CausalAnalysis, RefuteSuite};
+use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, ToleranceClass, ValueType, VariableId,
@@ -132,7 +132,7 @@ fn estimate_linear_gaussian_ate_stable_float() {
     assert_eq!(adjustment[0].as_str().unwrap(), "z");
 
     let (data, graph, query) = load_csv(&expected);
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .data(data)
         .graph(graph)
         .query(query)

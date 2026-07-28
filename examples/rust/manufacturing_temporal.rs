@@ -92,7 +92,7 @@ fn main() -> Result<(), CausalError> {
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
 
-    let result = CausalAnalysis::builder()
+    let result = Study::builder()
         .series(series)
         .temporal_graph(g)
         .temporal_query(q)

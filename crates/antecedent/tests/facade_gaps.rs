@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use antecedent::estimate::{identify_static_query, select_estimand};
-use antecedent::{CausalAnalysis, CompiledAnalysis, EstimatorId, IdentifierId, RefuteSuite};
+use antecedent::{CompiledAnalysis, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CausalSchemaBuilder,
     ConditionalEffectQuery, CounterfactualQuery, ExecutionContext, IdentificationStatus,
@@ -70,7 +70,7 @@ fn pag_ate_via_generalized_adjustment() {
     let mut pag = Pag::with_variables(2);
     pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .data(data)
         .pag(pag)
         .query(q)
@@ -92,7 +92,7 @@ fn pag_with_circles_ate_via_generalized_adjustment() {
     let mut pag = Pag::with_variables(2);
     pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .data(data)
         .pag(pag)
         .query(q)
@@ -149,7 +149,7 @@ fn conditional_effect_via_causal_analysis() {
     let inner = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
         .with_effect_modifiers([VariableId::from_raw(2)]);
     let cq = ConditionalEffectQuery::try_new(inner).unwrap();
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .data(data)
         .graph(g)
         .query(CausalQuery::ConditionalEffect(cq))
@@ -167,7 +167,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         VariableId::from_raw(1),
         [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
     );
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .data(data.clone())
         .graph(g.clone())
         .query(CausalQuery::Counterfactual(cf))
@@ -179,7 +179,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
     assert!(result.estimate.ate.is_finite());
 
     let an = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .data(data)
         .graph(g)
         .query(CausalQuery::AnomalyAttribution(an))
@@ -243,7 +243,7 @@ fn static_mediation_natural_rejected() {
         [VariableId::from_raw(1)],
         MediationContrast::NaturalDirect,
     );
-    let err = CausalAnalysis::builder()
+    let err = Study::builder()
         .data(data)
         .graph(g)
         .query(CausalQuery::Mediation(q))
@@ -292,13 +292,8 @@ fn pag_compile_ready() {
     let mut pag = Pag::with_variables(2);
     pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let analysis = CausalAnalysis::builder()
-        .data(data)
-        .pag(pag)
-        .query(q)
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap();
+    let analysis =
+        Study::builder().data(data).pag(pag).query(q).refute(RefuteSuite::None).build().unwrap();
     let compiled = analysis.compile(&ExecutionContext::for_tests(1)).unwrap();
     assert!(matches!(compiled, CompiledAnalysis::Ready(_)));
 }

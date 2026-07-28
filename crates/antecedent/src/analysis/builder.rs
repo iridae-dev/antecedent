@@ -1,4 +1,4 @@
-//! Unified `CausalAnalysis` facade.
+//! Unified `Study` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -33,7 +33,7 @@ use crate::inference::InferenceMode;
 use crate::planner::GraphInput;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
-use super::execute::CausalAnalysis;
+use super::execute::Study;
 use super::latency::{
     ComputeBudget, LatencyMode, ResolvedLatencyBudget, refuse_discovery_under_interactive,
     refuse_non_report_hmc,
@@ -65,7 +65,7 @@ pub(crate) enum DataInput {
 }
 
 /// Running-variable configuration for the `rd.sharp` estimator; required when `rd.sharp` is
-/// selected as the estimator (see [`CausalAnalysisBuilder::rd_config`]).
+/// selected as the estimator (see [`StudyBuilder::rd_config`]).
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct RdConfig {
@@ -87,7 +87,7 @@ impl RdConfig {
 
 /// Builder for static or temporal analysis.
 #[derive(Clone)]
-pub struct CausalAnalysisBuilder {
+pub struct StudyBuilder {
     data: Option<DataInput>,
     /// Pending event alignment applied in [`Self::build`].
     event_pending: Option<(EventData, u64)>,
@@ -103,7 +103,7 @@ pub struct CausalAnalysisBuilder {
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
     /// Caller-configured estimator (superset of [`Self::estimator`]); `Some` only when
-    /// [`CausalAnalysisBuilder::estimator`] was called with a configured estimator rather
+    /// [`StudyBuilder::estimator`] was called with a configured estimator rather
     /// than a bare [`EstimatorId`].
     estimator_spec: Option<EstimatorSpec>,
     rd: Option<RdConfig>,
@@ -126,9 +126,9 @@ pub struct CausalAnalysisBuilder {
     stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
 }
 
-impl std::fmt::Debug for CausalAnalysisBuilder {
+impl std::fmt::Debug for StudyBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CausalAnalysisBuilder")
+        f.debug_struct("StudyBuilder")
             .field("data", &self.data.as_ref().map(|_| "<data>"))
             .field("event_pending", &self.event_pending.as_ref().map(|_| "<event>"))
             .field("graph", &self.graph)
@@ -155,13 +155,13 @@ impl std::fmt::Debug for CausalAnalysisBuilder {
     }
 }
 
-impl Default for CausalAnalysisBuilder {
+impl Default for StudyBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl CausalAnalysisBuilder {
+impl StudyBuilder {
     /// Start a builder.
     #[must_use]
     pub fn new() -> Self {
@@ -767,7 +767,7 @@ impl CausalAnalysisBuilder {
 
     /// Stream intermediate stage payloads (identify → point → uncertainty → validate).
     ///
-    /// Final [`super::execute::CausalAnalysis::run`] still returns the complete result.
+    /// Final [`super::execute::Study::run`] still returns the complete result.
     #[must_use]
     pub fn stage_sink(mut self, sink: Arc<dyn super::stage::StageResultSink>) -> Self {
         self.stage_sink = Some(sink);
@@ -782,7 +782,7 @@ impl CausalAnalysisBuilder {
     /// Interactive+discovery graph, or [`CausalError::Conflict`] when a configured
     /// [`Self::estimator`] and an explicit [`Self::bootstrap_replicates`] /
     /// [`Self::overlap_policy`] disagree about who owns that setting.
-    pub fn build(self) -> Result<CausalAnalysis, CausalError> {
+    pub fn build(self) -> Result<Study, CausalError> {
         if let Some(spec) = &self.estimator_spec {
             if spec.is_configured() {
                 if self.bootstrap_explicit {
@@ -860,7 +860,7 @@ impl CausalAnalysisBuilder {
             }
         }
 
-        Ok(CausalAnalysis {
+        Ok(Study {
             data,
             graph,
             query: self.query.ok_or(CausalError::Missing { field: "query" })?,
@@ -890,7 +890,7 @@ mod estimator_spec_conflict_tests {
 
     #[test]
     fn configured_estimator_plus_explicit_bootstrap_replicates_conflicts() {
-        let result = CausalAnalysisBuilder::new()
+        let result = StudyBuilder::new()
             .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
             .bootstrap_replicates(100)
             .build();
@@ -902,7 +902,7 @@ mod estimator_spec_conflict_tests {
 
     #[test]
     fn configured_estimator_plus_explicit_overlap_policy_conflicts() {
-        let result = CausalAnalysisBuilder::new()
+        let result = StudyBuilder::new()
             .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
             .overlap_policy(OverlapPolicy::ExplicitOverride)
             .build();
@@ -914,7 +914,7 @@ mod estimator_spec_conflict_tests {
 
     #[test]
     fn configured_estimator_alone_does_not_conflict() {
-        let result = CausalAnalysisBuilder::new()
+        let result = StudyBuilder::new()
             .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
             .build();
         assert!(!matches!(result, Err(CausalError::Conflict { .. })));
@@ -922,7 +922,7 @@ mod estimator_spec_conflict_tests {
 
     #[test]
     fn explicit_bootstrap_replicates_alone_does_not_conflict() {
-        let result = CausalAnalysisBuilder::new().bootstrap_replicates(100).build();
+        let result = StudyBuilder::new().bootstrap_replicates(100).build();
         assert!(!matches!(result, Err(CausalError::Conflict { .. })));
     }
 }

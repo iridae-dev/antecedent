@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl super::CausalAnalysis {
+impl super::Study {
     pub(super) fn validation_suite_id(&self) -> Option<Arc<str>> {
         match self.refute {
             RefuteSuite::None => None,
@@ -225,7 +225,7 @@ impl super::CausalAnalysis {
         &self,
         plan: &CompiledAnalysis,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let CompiledAnalysis::Ready(physical) = plan else {
             let (kind, algorithm, pending, hint) = match plan {
                 CompiledAnalysis::ReviewRequired(r) => (
@@ -431,7 +431,7 @@ impl super::CausalAnalysis {
     /// # Errors
     ///
     /// Compile / review / execute failures.
-    pub fn run(&self, ctx: &ExecutionContext) -> Result<CausalAnalysisResult, CausalError> {
+    pub fn run(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
         let compiled = self.compile(ctx)?;
         self.execute(&compiled, ctx)
     }
@@ -473,7 +473,7 @@ impl super::CausalAnalysis {
         &self,
         review: TemporalGraphReview,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
             return Err(CausalError::Compile {
                 message: "finish_review_and_run requires temporal data".into(),
@@ -499,7 +499,7 @@ impl super::CausalAnalysis {
         &self,
         review: TemporalCpdagReview,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
             return Err(CausalError::Compile {
                 message: "finish_cpdag_review_and_run requires temporal data".into(),
@@ -526,7 +526,7 @@ impl super::CausalAnalysis {
         &self,
         review: PagReview,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let DataInput::Tabular(data) = &self.data else {
             return Err(CausalError::Compile {
                 message: "finish_static_pag_review_and_run requires tabular data".into(),
@@ -554,8 +554,8 @@ impl super::CausalAnalysis {
 
     /// Builder entry point.
     #[must_use]
-    pub fn builder() -> CausalAnalysisBuilder {
-        CausalAnalysisBuilder::new()
+    pub fn builder() -> StudyBuilder {
+        StudyBuilder::new()
     }
 
     /// Mark physical plan when discovery CI override or custom validators are present.

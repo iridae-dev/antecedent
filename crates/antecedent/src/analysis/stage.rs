@@ -18,11 +18,11 @@ pub const STAGE_ESTIMATE_POINT: &str = "estimate_point";
 pub const STAGE_UNCERTAINTY: &str = "uncertainty";
 pub const STAGE_VALIDATE: &str = "validate";
 
-/// Intermediate stage payload emitted before the final [`crate::CausalAnalysisResult`].
+/// Intermediate stage payload emitted before the final [`crate::StudyResult`].
 ///
 /// Same logical plan throughout; only sample size / uncertainty fills deepen across stages.
 #[derive(Clone, Debug)]
-pub enum AnalysisStageEvent {
+pub enum StageEvent {
     /// Identification fail-fast complete.
     Identify {
         /// Full identification artifact.
@@ -49,7 +49,7 @@ pub enum AnalysisStageEvent {
     },
 }
 
-impl AnalysisStageEvent {
+impl StageEvent {
     /// Stable stage id matching [`STAGE_IDENTIFY`] / … constants.
     #[must_use]
     pub fn stage_id(&self) -> &'static str {
@@ -65,7 +65,7 @@ impl AnalysisStageEvent {
 /// Optional sink for streamed intermediate stage payloads (parallel to [`antecedent_core::ProgressSink`]).
 pub trait StageResultSink: Send + Sync {
     /// Called at each progressive stage boundary with a usable partial payload.
-    fn on_stage(&self, event: &AnalysisStageEvent);
+    fn on_stage(&self, event: &StageEvent);
 }
 
 /// Records per-stage timings and reports progress / cancellation.
@@ -133,7 +133,7 @@ impl StageClock {
 }
 
 /// Emit a stage event when a sink is configured.
-pub(crate) fn emit_stage(sink: Option<&Arc<dyn StageResultSink>>, event: &AnalysisStageEvent) {
+pub(crate) fn emit_stage(sink: Option<&Arc<dyn StageResultSink>>, event: &StageEvent) {
     if let Some(s) = sink {
         s.on_stage(event);
     }

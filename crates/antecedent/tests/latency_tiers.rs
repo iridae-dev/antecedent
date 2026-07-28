@@ -6,7 +6,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use antecedent::{AnalysisStageEvent, CausalAnalysis, LatencyMode, RefuteSuite, StageResultSink};
+use antecedent::{LatencyMode, RefuteSuite, StageEvent, StageResultSink, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     ProgressSink, RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -95,7 +95,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
 fn interactive_vs_standard_records_mode_and_effort() {
     let (data, dag, query) = confounded_scm(600, 7);
 
-    let interactive = CausalAnalysis::builder()
+    let interactive = Study::builder()
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -115,7 +115,7 @@ fn interactive_vs_standard_records_mode_and_effort() {
     );
     assert!(interactive.performance.stage_timings_ns.iter().any(|(s, _)| s.as_ref() == "identify"));
 
-    let standard = CausalAnalysis::builder()
+    let standard = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)
@@ -156,7 +156,7 @@ fn cancel_mid_bootstrap_yields_partial_not_silent_full() {
     let (data, dag, query) = confounded_scm(400, 11);
     let requested = 80u32;
 
-    let full = CausalAnalysis::builder()
+    let full = Study::builder()
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -173,7 +173,7 @@ fn cancel_mid_bootstrap_yields_partial_not_silent_full() {
     let token = ctx.cancellation.clone();
     ctx.progress = Some(Arc::new(CancelOnBootstrap { token }));
 
-    let partial = CausalAnalysis::builder()
+    let partial = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)
@@ -199,7 +199,7 @@ fn interactive_refuses_inline_discovery() {
     use antecedent::{DiscoveryAccept, FdrControl};
 
     let (data, dag, query) = confounded_scm(200, 23);
-    let err = CausalAnalysis::builder()
+    let err = Study::builder()
         .data(data.clone())
         .discover_pc(0.05, 3, FdrControl::Off, DiscoveryAccept::AutoAccept)
         .query(query.clone())
@@ -211,7 +211,7 @@ fn interactive_refuses_inline_discovery() {
     assert!(msg.contains("Interactive") || msg.contains("discovery"), "unexpected: {msg}");
 
     // Standard one-shot discovery remains a valid script path (may review/fail later).
-    let standard = CausalAnalysis::builder()
+    let standard = Study::builder()
         .data(data.clone())
         .discover_pc(0.05, 3, FdrControl::Off, DiscoveryAccept::AutoAccept)
         .query(query.clone())
@@ -220,7 +220,7 @@ fn interactive_refuses_inline_discovery() {
         .build();
     assert!(standard.is_ok(), "{standard:?}");
 
-    let supplied = CausalAnalysis::builder()
+    let supplied = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)
@@ -239,7 +239,7 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
 
     let mut ctx_full = ExecutionContext::for_tests(5);
     ctx_full.adaptive_bootstrap = AdaptiveBootstrapBudget::disabled();
-    let full = CausalAnalysis::builder()
+    let full = Study::builder()
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -256,7 +256,7 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
     let mut ctx_adapt = ExecutionContext::for_tests(5);
     ctx_adapt.adaptive_bootstrap =
         AdaptiveBootstrapBudget { enabled: true, min_replicates: 12, se_rel_epsilon: 0.05 };
-    let a1 = CausalAnalysis::builder()
+    let a1 = Study::builder()
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -266,7 +266,7 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
         .unwrap()
         .run(&ctx_adapt)
         .unwrap();
-    let a2 = CausalAnalysis::builder()
+    let a2 = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)
@@ -299,7 +299,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
 
     let mut ctx_full = ExecutionContext::for_tests(9);
     ctx_full.adaptive_draws = AdaptiveDrawBudget::disabled();
-    let full = CausalAnalysis::builder()
+    let full = Study::builder()
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -322,7 +322,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
         quantile_width_rel_epsilon: 0.05,
         ess_target: 10_000.0,
     };
-    let a1 = CausalAnalysis::builder()
+    let a1 = Study::builder()
         .data(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -332,7 +332,7 @@ fn adaptive_draws_pin_stable_count_and_width() {
         .unwrap()
         .run(&ctx_adapt)
         .unwrap();
-    let a2 = CausalAnalysis::builder()
+    let a2 = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)
@@ -377,14 +377,14 @@ struct RecordingStageSink {
 }
 
 impl StageResultSink for RecordingStageSink {
-    fn on_stage(&self, event: &AnalysisStageEvent) {
+    fn on_stage(&self, event: &StageEvent) {
         self.stages.lock().unwrap().push(event.stage_id());
         match event {
-            AnalysisStageEvent::Point { estimate } => {
+            StageEvent::Point { estimate } => {
                 *self.point_ate.lock().unwrap() = Some(estimate.ate);
                 assert!(estimate.se_bootstrap.is_none(), "point stage must not carry bootstrap SE");
             }
-            AnalysisStageEvent::Uncertainty { estimate } => {
+            StageEvent::Uncertainty { estimate } => {
                 *self.uncertainty_has_boot.lock().unwrap() = Some(estimate.se_bootstrap.is_some());
             }
             _ => {}
@@ -400,7 +400,7 @@ fn progressive_stages_stream_payloads_in_order() {
         point_ate: Mutex::new(None),
         uncertainty_has_boot: Mutex::new(None),
     });
-    let result = CausalAnalysis::builder()
+    let result = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)

@@ -112,7 +112,7 @@ fn fit_artifact(
     query: AverageEffectQuery,
     seed: u64,
 ) -> Result<(Vec<u8>, f64), CausalError> {
-    let result = CausalAnalysis::builder()
+    let result = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)
@@ -228,7 +228,7 @@ fn main() -> Result<(), CausalError> {
     // Clear offline conflict for fit; α' already applied.
     let prior_for_fit = composed.clone();
 
-    let target_result = CausalAnalysis::builder()
+    let target_result = Study::builder()
         .data(data_t)
         .graph(dag)
         .query(query)

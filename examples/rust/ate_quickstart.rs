@@ -28,7 +28,7 @@ fn main() -> Result<(), CausalError> {
     let dag = Dag::from_named_edges(&schema, &[("z", "t"), ("z", "y"), ("t", "y")])?;
     let query = AverageEffectQuery::binary_ate(schema.id_of("t")?, schema.id_of("y")?);
 
-    let result = CausalAnalysis::builder()
+    let result = Study::builder()
         .data(data)
         .graph(dag)
         .query(query)

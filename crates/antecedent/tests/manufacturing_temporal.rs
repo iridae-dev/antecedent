@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
-use antecedent::{BayesianConfig, CausalAnalysis, InferenceMode, RefuteSuite};
+use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
     TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
@@ -160,7 +160,7 @@ fn manufacturing_dbn_posterior_bayesian_envelope() {
     // White-noise treatment so BIC mass lands on the lag edge (not AR loops
     // that hit temporal backdoor history caps).
     let (series, _g, q) = white_noise_pulse_series(400, 42);
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .series(series)
         .discover_dbn_posterior(1, false, 2, 40, 60)
         .temporal_query(q)
@@ -208,7 +208,7 @@ fn manufacturing_dbn_envelope_composed_prior_conflict() {
     let composed = compose_external_priors(&sources, &baseline).unwrap();
     let policy = ConflictPolicy::try_new(0.05, 1.0).unwrap();
 
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .series(series)
         .discover_dbn_posterior(1, false, 2, 40, 60)
         .temporal_query(q)
@@ -240,7 +240,7 @@ fn supplied_complete_temporal_pag_estimates() {
     let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_directed(p1, d0).unwrap();
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .series(series)
         .temporal_pag(pag)
         .temporal_query(q)
@@ -263,7 +263,7 @@ fn incomplete_temporal_pag_review_required_structured() {
     let p1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     pag.insert_circle_arrow(p1, d0).unwrap();
-    let err = CausalAnalysis::builder()
+    let err = Study::builder()
         .series(series)
         .temporal_pag(pag)
         .temporal_query(q)
@@ -286,7 +286,7 @@ fn incomplete_temporal_pag_review_required_structured() {
 #[test]
 fn manufacturing_pressure_defect_bayesian() {
     let (series, g, q) = manufacturing_series(400);
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .series(series)
         .temporal_graph(g)
         .temporal_query(q)

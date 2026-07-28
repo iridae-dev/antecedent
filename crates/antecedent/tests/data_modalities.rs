@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use antecedent::CausalAnalysis;
+use antecedent::Study;
 use antecedent_core::{
     CausalSchemaBuilder, DataClassification, ExecutionContext, Lag, MeasurementSpec, RoleHint,
     SmallRoleSet, TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
@@ -82,7 +82,7 @@ fn event_align_then_temporal_effect() {
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1)
         .with_max_history_lag(Some(1));
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .events(event, 1)
         .temporal_graph(lagged_xy_graph())
         .temporal_query(q)
@@ -106,7 +106,7 @@ fn panel_stacked_estimate_with_cluster_se() {
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1)
         .with_max_history_lag(Some(1));
-    let analysis = CausalAnalysis::builder()
+    let analysis = Study::builder()
         .panel(panel)
         .temporal_graph(lagged_xy_graph())
         .temporal_query(q)

@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl super::CausalAnalysis {
+impl super::Study {
     pub(super) fn execute_bayesian(
         &self,
         data: &TabularData,
@@ -10,7 +10,7 @@ impl super::CausalAnalysis {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
         let identifier =
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
@@ -21,7 +21,7 @@ impl super::CausalAnalysis {
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            &super::super::stage::AnalysisStageEvent::Identify {
+            &super::super::stage::StageEvent::Identify {
                 identification: identification.clone(),
                 estimand: estimand.clone(),
             },
@@ -59,13 +59,13 @@ impl super::CausalAnalysis {
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            &super::super::stage::AnalysisStageEvent::Point { estimate: estimate.clone() },
+            &super::super::stage::StageEvent::Point { estimate: estimate.clone() },
         );
         clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
         clock.finish(super::super::stage::STAGE_UNCERTAINTY);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            &super::super::stage::AnalysisStageEvent::Uncertainty { estimate: estimate.clone() },
+            &super::super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
         );
 
         let mut diagnostics = identification.diagnostics.clone();
@@ -150,7 +150,7 @@ impl super::CausalAnalysis {
         clock.finish(super::super::stage::STAGE_VALIDATE);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
-            &super::super::stage::AnalysisStageEvent::Validate {
+            &super::super::stage::StageEvent::Validate {
                 refutations: refutations.clone(),
                 predictive_checks: predictive_checks.clone(),
             },
@@ -238,7 +238,7 @@ impl super::CausalAnalysis {
         query: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
@@ -586,7 +586,7 @@ impl super::CausalAnalysis {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
@@ -788,7 +788,7 @@ impl super::CausalAnalysis {
         envelope: &IdentificationEnvelope<Pag>,
         identification: IdentificationResult,
         started: Instant,
-    ) -> Result<CausalAnalysisResult, CausalError> {
+    ) -> Result<StudyResult, CausalError> {
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),

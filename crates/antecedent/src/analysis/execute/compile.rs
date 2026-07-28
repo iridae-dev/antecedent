@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl super::CausalAnalysis {
+impl super::Study {
     /// Compile logical plan only (inspectable semantics).
     ///
     /// # Errors

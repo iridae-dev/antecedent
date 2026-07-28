@@ -96,7 +96,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
 
 fn main() -> Result<(), CausalError> {
     let (data, graph, query) = confounded_scm(1200, 7);
-    let result = CausalAnalysis::builder()
+    let result = Study::builder()
         .data(data)
         .graph(graph)
         .query(query)

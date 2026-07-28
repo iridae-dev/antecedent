@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use antecedent::{CausalAnalysis, LatencyMode, PreparedAnalysis, RefuteSuite};
+use antecedent::{LatencyMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
     RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -91,8 +91,8 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
     (TabularData::new(storage), dag, query)
 }
 
-fn build_analysis(data: TabularData, dag: Dag, query: AverageEffectQuery) -> CausalAnalysis {
-    CausalAnalysis::builder()
+fn build_analysis(data: TabularData, dag: Dag, query: AverageEffectQuery) -> Study {
+    Study::builder()
         .data(data)
         .graph(dag)
         .query(query)
@@ -217,7 +217,7 @@ fn prepare_refuses_discovery_graph() {
     let (data, _, query) = confounded_scm(100, 37);
     // Discovery under Interactive is refused at build; Standard one-shot still
     // reaches prepare, which refuses Discover* graphs.
-    let err = CausalAnalysis::builder()
+    let err = Study::builder()
         .data(data)
         .discover_pc(0.05, 3, FdrControl::Off, DiscoveryAccept::AutoAccept)
         .query(query)
@@ -235,7 +235,7 @@ fn refresh_updates_retained_data() {
     let (data1, dag, query) = confounded_scm(400, 41);
     let (data2, _, _) = confounded_scm(400, 43);
     let ctx = ExecutionContext::for_tests(1);
-    let mut prepared: PreparedAnalysis =
+    let mut prepared: PreparedStudy =
         build_analysis(data1.clone(), dag, query).prepare(&ctx).unwrap();
     let a = prepared.refresh(data1, &ctx).unwrap().estimate.ate;
     let b = prepared.refresh(data2, &ctx).unwrap().estimate.ate;
