@@ -60,6 +60,24 @@ impl TemporalMediationEstimator {
         Self::default()
     }
 
+    /// Set the linear algebra backend.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set whether [`MediationContrast::NaturalDirect`] / [`MediationContrast::NaturalIndirect`]
+    /// are treated as their controlled counterparts (linear alias).
+    ///
+    /// Defaults to `false`: natural contrasts are refused unless explicitly enabled, since
+    /// they only alias the controlled direct/indirect effects under a linear SEM.
+    #[must_use]
+    pub const fn with_allow_natural_controlled_alias(mut self, allow: bool) -> Self {
+        self.allow_natural_controlled_alias = allow;
+        self
+    }
+
     /// Estimate mediation contrasts from lag-aligned series.
     ///
     /// Treatment at lag 1, mediator and outcome contemporaneous (linear SEM path).

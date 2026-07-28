@@ -55,6 +55,44 @@ impl PropensityWeighting {
         }
     }
 
+    /// Set the dense linear-algebra backend used for the logistic IRLS fit.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the bootstrap standard error.
+    ///
+    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. Positivity is mandatory here:
+    /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the GLM fitting options for the propensity model.
+    #[must_use]
+    pub const fn with_glm_options(mut self, glm_options: GlmOptions) -> Self {
+        self.glm_options = glm_options;
+        self
+    }
+
+    /// Set bindings for named predicates / custom target distributions.
+    #[must_use]
+    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
+        self.population_registry = Some(registry);
+        self
+    }
+
     /// Prepare the covariate design from tabular data, identified estimand, and query.
     ///
     /// # Errors

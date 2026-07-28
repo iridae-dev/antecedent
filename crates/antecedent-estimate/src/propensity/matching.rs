@@ -87,6 +87,83 @@ impl PropensityMatching {
         }
     }
 
+    /// Set the dense linear-algebra backend used for the logistic IRLS fit.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates (0 = skip bootstrap).
+    ///
+    /// Defaults to 200, but the nonparametric bootstrap is invalid for nearest-neighbor
+    /// matching CIs (Abadie–Imbens 2008) — see the module docs. Prefer the analytic SE.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. Positivity is mandatory here:
+    /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the GLM fitting options for the propensity model.
+    #[must_use]
+    pub const fn with_glm_options(mut self, glm_options: GlmOptions) -> Self {
+        self.glm_options = glm_options;
+        self
+    }
+
+    /// Set the maximum propensity distance for an accepted match.
+    ///
+    /// Defaults to `None` (no caliper): every query row is matched to its nearest donor
+    /// regardless of distance.
+    #[must_use]
+    pub const fn with_caliper(mut self, caliper: f64) -> Self {
+        self.caliper = Some(caliper);
+        self
+    }
+
+    /// Set the analytic SE kind (Abadie–Imbens / hetero / cluster).
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
+    }
+
+    /// Set cluster ids aligned to prepared complete-case rows.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set bindings for named predicates / custom target distributions.
+    #[must_use]
+    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
+        self.population_registry = Some(registry);
+        self
+    }
+
+    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension).
+    #[must_use]
+    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
+        self.multiway_ids = Some(multiway_ids);
+        self
+    }
+
+    /// Set panel time labels for panel HAC.
+    #[must_use]
+    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
+        self.panel_times = Some(panel_times);
+        self
+    }
+
     /// Prepare the covariate design.
     ///
     /// # Errors

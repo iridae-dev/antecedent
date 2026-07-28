@@ -239,6 +239,75 @@ impl LinearAdjustmentAte {
         }
     }
 
+    /// Set the dense linear-algebra backend used for the OLS / ridge / Huber fits.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the bootstrap standard error.
+    ///
+    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE
+    /// (`NaN` when [`Self::with_fit_kind`] is [`LinearFitKind::Lasso`]).
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. `prepare` requires [`OverlapPolicy::ExplicitOverride`] since
+    /// this is a regression (not propensity-based) path.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the analytic standard-error kind (default [`AnalyticSeKind::Homoskedastic`]).
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
+    }
+
+    /// Set cluster ids (length must equal the prepared design's row count) for
+    /// [`AnalyticSeKind::Cluster`] / panel SE.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
+    /// [`AnalyticSeKind::Multiway`].
+    #[must_use]
+    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
+        self.multiway_ids = Some(multiway_ids);
+        self
+    }
+
+    /// Set panel time labels (length must equal the prepared design's row count) for
+    /// panel HAC standard errors.
+    #[must_use]
+    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
+        self.panel_times = Some(panel_times);
+        self
+    }
+
+    /// Set the linear fit family (default [`LinearFitKind::Ols`]).
+    ///
+    /// **Lasso trap**: with `LinearFitKind::Lasso { .. }`, the analytic SE is permanently
+    /// `NaN` — classical / active-set sandwich SEs are invalid after selection, and debiased
+    /// Lasso changes the point estimator. Pair this with a nonzero
+    /// [`Self::with_bootstrap_replicates`] to get a usable SE; this setter stays dumb and
+    /// does not enforce that pairing.
+    #[must_use]
+    pub const fn with_fit_kind(mut self, fit_kind: LinearFitKind) -> Self {
+        self.fit_kind = fit_kind;
+        self
+    }
+
     /// Prepare design from tabular data, identified estimand, and query levels.
     ///
     /// # Errors

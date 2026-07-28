@@ -51,6 +51,20 @@ impl ConditionalLinearAdjustment {
         Self { overlap: OverlapPolicy::ExplicitOverride, backend: FaerBackend }
     }
 
+    /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`].
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the dense linear-algebra backend used for the interaction-model OLS fit.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
     /// Estimate conditional ATE from a [`ConditionalEffectQuery`].
     ///
     /// # Errors
