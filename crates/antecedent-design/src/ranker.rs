@@ -363,10 +363,14 @@ fn rank_uncertainty_ok(sums: &[f64], stderrs: &[f64], n: u64, threshold: f64) ->
         let b = order[i + 1];
         let gap = (means[a] - means[b]).abs();
         let se = (stderrs[a].powi(2) + stderrs[b].powi(2)).sqrt();
+        // Early stop is acceptable when EITHER the pair's own combined CI half-width
+        // is already under the absolute threshold, OR the two candidates are
+        // separated by more than their combined CI (gap exceeds 1.96*se) even if
+        // the absolute half-width alone is still above threshold. (E2: a second,
+        // subsuming `if 1.96 * se > threshold { return false; }` branch previously
+        // made the `gap` check dead code — only the absolute-width criterion ever
+        // fired. Removed.)
         if 1.96 * se > threshold && gap < 1.96 * se {
-            return false;
-        }
-        if 1.96 * se > threshold {
             return false;
         }
     }
@@ -787,6 +791,7 @@ where
 mod tests {
     use super::*;
     use crate::candidate::{DesignCost, EnvironmentPlan, MeasurementPlan, SamplingPlan};
+    use crate::decision::{DecisionConstraint, Utility};
     use antecedent_core::{CausalRng, EnvironmentId, VariableId};
     use antecedent_prob::GraphIdentFlag;
 
@@ -1167,5 +1172,149 @@ mod tests {
             (red_obs - red_samp).abs() > 1e-6,
             "env Gram pooling should differ from isotropic n-scaling: obs={red_obs} samp={red_samp}"
         );
+    }
+
+    // -- rank_uncertainty_ok (E2) -------------------------------------------------
+
+    #[test]
+    fn rank_uncertainty_ok_true_when_absolute_ci_narrow() {
+        // Combined CI half-width (≈0.0028) is well under the threshold (0.1);
+        // the gap (0.01) is irrelevant to this branch.
+        let sums = [10.0, 9.99];
+        let stderrs = [0.001, 0.001];
+        assert!(rank_uncertainty_ok(&sums, &stderrs, 1, 0.1));
+    }
+
+    /// E2: the top-2 gap (8.0) exceeds the combined CI (≈2.77) even though the
+    /// combined CI half-width itself exceeds the absolute threshold (1.0). The
+    /// dead second branch in the pre-fix code returned `false` (blocked early
+    /// stop) here regardless of `gap`; the fix must allow the early stop.
+    #[test]
+    fn rank_uncertainty_ok_true_when_top_two_well_separated() {
+        let sums = [10.0, 2.0];
+        let stderrs = [1.0, 1.0];
+        assert!(rank_uncertainty_ok(&sums, &stderrs, 1, 1.0));
+    }
+
+    #[test]
+    fn rank_uncertainty_ok_false_when_neither_condition_holds() {
+        // Combined CI half-width (≈2.77) exceeds the threshold (1.0) and the gap
+        // (0.5) does not clear it either — genuinely uncertain, must not stop.
+        let sums = [10.0, 9.5];
+        let stderrs = [1.0, 1.0];
+        assert!(!rank_uncertainty_ok(&sums, &stderrs, 1, 1.0));
+    }
+
+    // -- model_distinguish_score ---------------------------------------------------
+
+    #[test]
+    fn model_distinguish_score_matches_closed_form_two_models() {
+        let m0 = ModelId::from_raw(0);
+        let m1 = ModelId::from_raw(1);
+        // n_draws = 1 makes the (otherwise random) draw index deterministic:
+        // `rng.next_u64() % 1 == 0` always, regardless of RNG state.
+        let ll = ModelLoglikDraws {
+            models: Arc::from([m0, m1]),
+            loglik: Arc::from([-12.0_f64, -9.5]),
+            n_draws: 1,
+        };
+        let candidate = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        // observation_reliability(Measure, k=1) = 1 - exp(-0.75 * 1).
+        let expected_strength = 1.0 - (-0.75_f64).exp();
+        let expected = expected_strength * (-12.0_f64 - (-9.5)).abs();
+        let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
+        let got = model_distinguish_score(&candidate, &ll, &[m0, m1], &mut rng);
+        assert!((got - expected).abs() < 1e-9, "got={got} expected={expected}");
+    }
+
+    #[test]
+    fn model_distinguish_score_zero_for_single_model() {
+        let m0 = ModelId::from_raw(0);
+        let ll =
+            ModelLoglikDraws { models: Arc::from([m0]), loglik: Arc::from([-1.0_f64]), n_draws: 1 };
+        let candidate = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
+        assert_eq!(model_distinguish_score(&candidate, &ll, &[m0], &mut rng), 0.0);
+    }
+
+    // -- decision_regret_reduction --------------------------------------------------
+
+    struct LinearUtility;
+    impl Utility<f64, f64> for LinearUtility {
+        fn evaluate_batch(&self, actions: &[f64], outcomes: &[f64], out: &mut [f64]) {
+            let n_o = outcomes.len();
+            for (ai, a) in actions.iter().enumerate() {
+                for (oi, o) in outcomes.iter().enumerate() {
+                    out[ai * n_o + oi] = a * o;
+                }
+            }
+        }
+    }
+
+    /// Only action 0 satisfies the constraint, regardless of outcomes.
+    struct OnlyFirstFeasible;
+    impl DecisionConstraint<f64, f64> for OnlyFirstFeasible {
+        fn name(&self) -> &str {
+            "only_first"
+        }
+        fn satisfaction_batch(&self, actions: &[f64], _outcomes: &[f64], out: &mut [f64]) {
+            for (a, slot) in (0..actions.len()).zip(out.iter_mut()) {
+                *slot = if a == 0 { 1.0 } else { 0.0 };
+            }
+        }
+    }
+
+    #[test]
+    fn decision_regret_reduction_matches_closed_form_single_outcome() {
+        // Actions [1.0, 5.0], utility(a, o) = a*o, single outcome o=2.0:
+        // EU(action0)=2.0 (feasible), EU(action1)=10.0 (infeasible, sets the
+        // oracle). Baseline regret = 10.0 - 2.0 = 8.0.
+        let problem = DecisionProblem::new(
+            vec![1.0_f64, 5.0],
+            Arc::new(LinearUtility),
+            vec![Arc::new(OnlyFirstFeasible) as Arc<dyn DecisionConstraint<f64, f64>>],
+        );
+        let reg =
+            DecisionRegistry::<f64, f64> { problems: vec![Some(problem)], outcomes: vec![2.0] };
+        let base = evaluate_decision(reg.problems[0].as_ref().unwrap(), &reg.outcomes);
+        assert!((base.posterior_regret - 8.0).abs() < 1e-12, "base={:?}", base.posterior_regret);
+
+        let candidate = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        // With a single outcome, `n_keep` collapses to 1 for a Measure candidate, so
+        // the resampled `sample` is always `[outcomes[0]]` — identical to
+        // `reg.outcomes` — regardless of RNG draws, making `after == base` exactly.
+        // reduced = base.regret * (1 - strength); result = base.regret * strength.
+        let expected_strength = 1.0 - (-0.75_f64).exp();
+        let expected = 8.0 * expected_strength;
+        let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
+        let got =
+            decision_regret_reduction(&candidate, &reg, DecisionProblemId::from_raw(0), &mut rng);
+        assert!((got - expected).abs() < 1e-9, "got={got} expected={expected}");
+    }
+
+    #[test]
+    fn decision_regret_reduction_zero_for_unknown_decision() {
+        let reg = DecisionRegistry::<f64, f64> { problems: vec![None], outcomes: vec![2.0] };
+        let candidate = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
+        let got =
+            decision_regret_reduction(&candidate, &reg, DecisionProblemId::from_raw(0), &mut rng);
+        assert_eq!(got, 0.0);
     }
 }
