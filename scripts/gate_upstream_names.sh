@@ -41,6 +41,12 @@ def allowed(path: Path) -> bool:
     # Positioning / comparison docs intentionally name upstream libraries.
     if s in {"README.md", "docs/comparison.md", "docs/index.md"}:
         return True
+    # The changelog records which external baseline a release was validated
+    # against ("LPCMCI aligned to the pinned Tigramite reference behavior"),
+    # which is provenance in the same category as the parity inventories --
+    # naming the oracle is the point of the entry.
+    if s == "CHANGELOG.md":
+        return True
     return False
 
 skip_dirs = {
