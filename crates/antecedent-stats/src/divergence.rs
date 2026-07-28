@@ -201,7 +201,10 @@ pub fn kernel_two_sample(a: &[f64], b: &[f64], rng_seed: u64) -> Result<(f64, f6
         return Err(StatsError::Shape { message: "kernel_two_sample requires non-empty samples" });
     }
     let n_perm = nonparametric_permutation_count(SignificanceMethod::Analytic);
-    let gamma = rbf_gamma_median_heuristic(a, b);
+    // Separate, salted stream from the permutation shuffle below so bandwidth selection
+    // and the null distribution don't share draws.
+    let mut bandwidth_rng = CausalRng::from_seed(rng_seed ^ 0xB4E5_1C7A_9D02_33F1);
+    let gamma = rbf_gamma_median_heuristic(a, b, &mut bandwidth_rng);
     let observed = biased_mmd2(a, b, gamma);
     let mut pooled = Vec::with_capacity(a.len() + b.len());
     pooled.extend_from_slice(a);
@@ -296,25 +299,44 @@ pub fn change_point_scan(series: &[f64], rng_seed: u64) -> Result<(f64, f64), St
     Ok((observed, p.clamp(0.0, 1.0)))
 }
 
-fn rbf_gamma_median_heuristic(a: &[f64], b: &[f64]) -> f64 {
-    let mut diffs = Vec::with_capacity(a.len() * b.len().max(1));
-    // Subsample pairwise |diffs| on pooled points for O(n²) with small n.
+/// Pair count below which the exact median pairwise-|diff| is affordable to compute.
+const MEDIAN_HEURISTIC_EXACT_PAIR_CAP: usize = 20_000;
+/// Number of pairs drawn when the pool is too large to enumerate exactly.
+const MEDIAN_HEURISTIC_SAMPLE_SIZE: usize = 2_000;
+
+/// Bandwidth via the median pairwise-|diff| heuristic on the pooled sample.
+///
+/// Computes the exact median over all `C(n, 2)` pairs when that's affordable;
+/// otherwise draws a seeded random subsample of pairs. The subsample must be
+/// unbiased with respect to input ordering: a fixed stride over the row-major
+/// `(i, j)` pair enumeration can alias with periodicity in structured / time-ordered
+/// input — exactly what `kernel_two_sample` is documented to be used on — and bias the
+/// estimated median away from the true one.
+fn rbf_gamma_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> f64 {
     let mut pooled = Vec::with_capacity(a.len() + b.len());
     pooled.extend_from_slice(a);
     pooled.extend_from_slice(b);
     let n = pooled.len();
-    let step = ((n * n) / 2_000).max(1);
-    let mut idx = 0usize;
-    for i in 0..n {
-        for j in (i + 1)..n {
-            if idx % step == 0 {
+    if n < 2 {
+        return 1.0;
+    }
+    let total_pairs = n * (n - 1) / 2;
+    let mut diffs = Vec::with_capacity(total_pairs.min(MEDIAN_HEURISTIC_SAMPLE_SIZE.max(1)));
+    if total_pairs <= MEDIAN_HEURISTIC_EXACT_PAIR_CAP {
+        for i in 0..n {
+            for j in (i + 1)..n {
                 diffs.push((pooled[i] - pooled[j]).abs());
             }
-            idx += 1;
         }
-    }
-    if diffs.is_empty() {
-        return 1.0;
+    } else {
+        for _ in 0..MEDIAN_HEURISTIC_SAMPLE_SIZE {
+            let i = (rng.next_u64() as usize) % n;
+            let mut j = (rng.next_u64() as usize) % n;
+            while j == i {
+                j = (rng.next_u64() as usize) % n;
+            }
+            diffs.push((pooled[i] - pooled[j]).abs());
+        }
     }
     diffs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
     let median = diffs[diffs.len() / 2].max(1e-8);
@@ -535,6 +557,38 @@ mod tests {
         let b = lcg_noise(50, 2);
         let (_stat, p) = kernel_two_sample(&a, &b, 0x_A011_0001).unwrap();
         assert!(p > 0.01, "null p should not be tiny: p={p}");
+    }
+
+    #[test]
+    fn median_heuristic_unbiased_under_periodic_structure() {
+        // Periodic/time-ordered input: a period-5 sine cycle repeated across a pool
+        // large enough (n=300, C(300,2)=44,850 pairs) to force the random-subsample
+        // path. A fixed stride over the row-major (i, j) enumeration resonates with
+        // this period: at this n the old `idx % step` sampler's median was ~1.618x
+        // (the golden ratio, coincidentally) the true pairwise-|diff| median. The
+        // seeded subsample must recover the true median regardless of this structure.
+        let n = 300usize;
+        let period = 5.0;
+        let pooled: Vec<f64> =
+            (0..n).map(|i| (2.0 * std::f64::consts::PI * i as f64 / period).sin()).collect();
+        let (a, b) = pooled.split_at(n / 2);
+
+        let mut exact_diffs = Vec::with_capacity(n * (n - 1) / 2);
+        for i in 0..n {
+            for j in (i + 1)..n {
+                exact_diffs.push((pooled[i] - pooled[j]).abs());
+            }
+        }
+        exact_diffs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+        let true_median = exact_diffs[exact_diffs.len() / 2].max(1e-8);
+        let expected_gamma = 1.0 / (2.0 * true_median * true_median);
+
+        let mut rng = CausalRng::from_seed(0x5EED_C0DE);
+        let gamma = rbf_gamma_median_heuristic(a, b, &mut rng);
+        assert!(
+            (gamma - expected_gamma).abs() / expected_gamma < 0.05,
+            "gamma={gamma} expected≈{expected_gamma} (true_median={true_median})"
+        );
     }
 
     #[test]

@@ -18,7 +18,8 @@ pub use advanced::{Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCm
 pub use analytic::analytic_parcorr_ci;
 pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 pub use calibration::{
-    CalibrationReport, calibrate_gsquared, calibrate_parcorr_like, chi2_crit_approx,
+    CalibrationReport, calibrate_gsquared, calibrate_multivariate_parcorr_block,
+    calibrate_multivariate_parcorr_block_shuffle, calibrate_parcorr_like, chi2_crit_approx,
     collect_null_pvalues_parcorr_like, type_i_within_three_se, type_i_within_two_se,
     uniform_bin_chi2,
 };

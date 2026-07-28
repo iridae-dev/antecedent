@@ -22,7 +22,7 @@ use super::types::{
     ConfidenceMethod, PreparedCiTest, SignificanceMethod,
 };
 use crate::error::StatsError;
-use crate::gram::invert_square;
+use crate::gram::{chol_log_det, cholesky_spd, invert_square};
 
 pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
     let n = col.len();
@@ -304,6 +304,36 @@ fn weighted_block_shuffle_pvalue(
 /// Each column of X and Y is residualized against Z by OLS; the leading canonical
 /// correlation between residual blocks is the dependence statistic. When both blocks
 /// are scalar this reduces to ordinary partial correlation.
+///
+/// ## Significance for block (`px > 1` or `py > 1`) queries
+///
+/// The analytic p-value is Bartlett's chi-square test on Wilks' Lambda, combining
+/// **all** `min(px, py)` canonical correlations:
+///
+/// ```text
+/// Λ    = Π (1 − ρ_i²)
+/// chi2 = -[(n - q) - (px + py + 1)/2] · ln Λ,   df = px · py
+/// ```
+///
+/// with `q = |Z| + 1` the rank of the partialled-out design. `BlockShuffle`
+/// significance permutes whole rows of the X residual block and recomputes `Λ` from
+/// scratch per replicate.
+///
+/// The reported `statistic` remains the leading canonical correlation `ρ₁` — an
+/// interpretable dependence strength on `[0, 1]` that downstream link scoring can
+/// compare across edges. The chi-square is not comparable across block shapes, so it
+/// is not surfaced as the statistic. No confidence interval is reported for block
+/// queries: `ρ₁` is a maximum over linear combinations of both blocks, so its null
+/// distribution is not the Fisher-z one a naive interval would assume.
+///
+/// **History.** Before this was corrected, both paths were badly anti-conservative.
+/// The analytic path reapplied the bivariate `ParCorr` t-test to `ρ₁` alone with an
+/// ad hoc `df` shift, and the shuffle path permuted a *fixed* leading-CCA projection
+/// estimated once on the observed sample — a direction chosen to maximize the
+/// observed correlation, so it stayed favourable under permutation. Measured Type I
+/// at nominal α = 0.05 was ≈0.34 at `px = py = 2` and ≈0.81 at `px = py = 3`, rising
+/// with `n`. It is now ≈0.05 across shapes; see `multivariate_block_calibration_gate`
+/// in [`crate::ci::calibration`].
 #[derive(Clone, Debug, Default)]
 pub struct MultivariatePartialCorrelation {
     inner: PartialCorrelation,
@@ -366,32 +396,88 @@ impl MultivariatePartialCorrelation {
         let py = y_cols.len();
         let rho = first_canonical_correlation(&rx, &ry, n, px, py)?;
 
-        let df = (n as f64) - 2.0 - (z_flat.len() as f64) - ((px + py) as f64 - 2.0).max(0.0);
         match significance {
             SignificanceMethod::Analytic => {
-                if df <= 0.0 {
+                // Bartlett's chi-square on Wilks' Lambda, over *all* min(px, py)
+                // canonical correlations:
+                //
+                //     chi2 = -[(n - q) - (px + py + 1)/2] * ln Λ,  df = px * py
+                //
+                // where q = |Z| + 1 is the rank of the design already partialled
+                // out (intercept included), so `n - q` is the residual sample size
+                // entering the canonical-correlation analysis.
+                let q = z_flat.len() as f64 + 1.0;
+                let n_resid = n as f64 - q;
+                let df = (px * py) as f64;
+                let multiplier = n_resid - ((px + py) as f64 + 1.0) / 2.0;
+                if multiplier <= 0.0 {
                     return Err(StatsError::Shape { message: "non-positive residual df" });
                 }
-                // Bartlett approximation on first canonical correlation (Fisher-z of ρ).
-                let p = crate::ci::analytic::analytic_parcorr_pvalue(rho, df);
+                let chi2 = -multiplier * wilks_lambda_ln(&rx, &ry, n, px, py)?;
+                let p = crate::special::gamma_q(df / 2.0, chi2.max(0.0) / 2.0);
                 Ok(CiResult {
+                    // The reported statistic stays the leading canonical
+                    // correlation: it is the interpretable dependence strength on a
+                    // [0, 1] scale, and downstream link scoring compares it across
+                    // edges. Significance comes from the chi-square above, which is
+                    // on a different scale and not comparable across block shapes.
                     statistic: rho,
                     p_value: p,
                     df,
-                    ci: Some(crate::ci::analytic::analytic_parcorr_ci(rho, df, 0.95)),
+                    // No interval. A Fisher-z CI on ρ would be anti-conservative for
+                    // exactly the reason the old p-value was: ρ is a maximum over
+                    // linear combinations of both blocks, not a single bivariate
+                    // correlation, so its null distribution is not the Fisher-z one.
+                    ci: None,
                 })
             }
-            SignificanceMethod::BlockShuffle { .. } => {
-                // Delegate shuffle significance through scalar ParCorr on projected residuals
-                // of the leading CCA directions when requested.
-                let (ux, uy) = leading_cca_scores(&rx, &ry, n, px, py)?;
-                let mut owned = vec![ux, uy];
-                for &z in z_flat {
-                    owned.push(columns[z].to_vec());
+            SignificanceMethod::BlockShuffle { replicates, block_size } => {
+                if block_size == 0 || replicates == 0 {
+                    return Err(StatsError::Shape {
+                        message: "block shuffle needs positive block_size and replicates",
+                    });
                 }
-                // Residuals already orthogonal to Z; test without Z for shuffle path.
-                let refs: Vec<&[f64]> = owned.iter().map(Vec::as_slice).collect();
-                self.inner.test_one(&refs, &[], significance, workspace, ctx)
+                // Permute whole rows of the X residual block and recompute Wilks'
+                // Lambda from scratch each replicate.
+                //
+                // The previous implementation projected onto the leading canonical
+                // directions once, on the observed sample, and then permuted that
+                // fixed one-dimensional score. Those directions were chosen to
+                // maximize the observed correlation, so they stayed favourable under
+                // permutation and the null was under-dispersed -- the same
+                // anti-conservative bias the analytic path had. Re-deriving the
+                // canonical structure inside every replicate is what makes this an
+                // honest permutation test.
+                let observed = wilks_lambda_ln(&rx, &ry, n, px, py)?;
+                let n_blocks = n.div_ceil(block_size);
+                let mut block_perm: Vec<usize> = (0..n_blocks).collect();
+                let mut rng = ctx.rng.stream(0x77C2);
+                let mut permuted = vec![0.0; n * px];
+                let mut at_least_as_extreme = 0u32;
+                for _ in 0..replicates {
+                    for i in (1..n_blocks).rev() {
+                        let j = (rng.next_u64() as usize) % (i + 1);
+                        block_perm.swap(i, j);
+                    }
+                    let mut dst = 0usize;
+                    for &b in &block_perm {
+                        let start = b * block_size;
+                        let end = (start + block_size).min(n);
+                        for r in start..end {
+                            for j in 0..px {
+                                permuted[j * n + dst] = rx[j * n + r];
+                            }
+                            dst += 1;
+                        }
+                    }
+                    // Smaller Lambda means stronger dependence, so "at least as
+                    // extreme" is <=.
+                    if wilks_lambda_ln(&permuted, &ry, n, px, py)? <= observed {
+                        at_least_as_extreme += 1;
+                    }
+                }
+                let p = (f64::from(at_least_as_extreme) + 1.0) / (f64::from(replicates) + 1.0);
+                Ok(CiResult { statistic: rho, p_value: p, df: (px * py) as f64, ci: None })
             }
         }
     }
@@ -471,6 +557,119 @@ fn residualize_block(
     Ok(out)
 }
 
+/// Natural log of Wilks' Lambda for the two residual blocks (col-major `n×px`, `n×py`).
+///
+/// `Λ = Π (1 − ρ_i²)` over all `min(px, py)` canonical correlations.
+///
+/// Computed by whitening each block against its own scatter matrix and taking the
+/// determinant of `I − A Aᵀ`, where `A = Lx⁻¹ Sxy Ly⁻ᵀ` is the whitened
+/// cross-covariance whose singular values are exactly the canonical correlations.
+///
+/// The tempting shortcut is the Schur-complement identity
+/// `Λ = det(S) / (det(Sxx)·det(Syy))` on the joint scatter `S` of `[Rx Ry]`, but it
+/// is numerically fragile in precisely the case that matters: as dependence
+/// approaches perfect, `det(S) → 0` and the joint Cholesky fails outright, turning
+/// "overwhelmingly significant" into an error. Whitening keeps every intermediate
+/// bounded — the singular values of `A` live in `[0, 1]` — so strong dependence
+/// degrades smoothly to `Λ → 0` instead of blowing up.
+///
+/// `Λ` is invariant to a common divisor of the scatter matrices, so raw
+/// cross-products are used without scaling by `n`.
+fn wilks_lambda_ln(
+    rx: &[f64],
+    ry: &[f64],
+    n: usize,
+    px: usize,
+    py: usize,
+) -> Result<f64, StatsError> {
+    let cross = |a: &[f64], pa: usize, b: &[f64], pb: usize| {
+        let mut out = vec![0.0; pa * pb];
+        for i in 0..pa {
+            for j in 0..pb {
+                let mut s = 0.0;
+                for r in 0..n {
+                    s += a[i * n + r] * b[j * n + r];
+                }
+                out[i * pb + j] = s;
+            }
+        }
+        out
+    };
+    // Forward substitution: return L^-1 * M for lower-triangular L (row-major, d x d)
+    // and M (d x cols, row-major).
+    let forward = |l: &[f64], d: usize, m: &[f64], cols: usize| {
+        let mut out = vec![0.0; d * cols];
+        for c in 0..cols {
+            for i in 0..d {
+                let mut acc = m[i * cols + c];
+                for j in 0..i {
+                    acc -= l[i * d + j] * out[j * cols + c];
+                }
+                out[i * cols + c] = acc / l[i * d + i];
+            }
+        }
+        out
+    };
+
+    let degenerate =
+        || StatsError::Shape { message: "singular residual block in multivariate ParCorr" };
+    let sxx = cross(rx, px, rx, px);
+    let syy = cross(ry, py, ry, py);
+    let sxy = cross(rx, px, ry, py);
+    // A block that is internally rank-deficient is a real degeneracy in the caller's
+    // data, not a numerical artifact, so this stays an error.
+    let lx = cholesky_spd(&sxx, px).ok_or_else(degenerate)?;
+    let ly = cholesky_spd(&syy, py).ok_or_else(degenerate)?;
+
+    // b = Lx^-1 Sxy, then a^T = Ly^-1 b^T, so a = Lx^-1 Sxy Ly^-T.
+    let b = forward(&lx, px, &sxy, py);
+    let mut bt = vec![0.0; py * px];
+    for i in 0..px {
+        for j in 0..py {
+            bt[j * px + i] = b[i * py + j];
+        }
+    }
+    let at = forward(&ly, py, &bt, px);
+
+    // Work in whichever of A A^T / A^T A is smaller; both have the same nonzero
+    // eigenvalues, namely the squared canonical correlations.
+    let k = px.min(py);
+    let mut gram = vec![0.0; k * k];
+    for i in 0..k {
+        for j in 0..k {
+            let mut s = 0.0;
+            if px <= py {
+                // (A A^T)_ij = sum_m at[m*px+i] * at[m*px+j]
+                for m in 0..py {
+                    s += at[m * px + i] * at[m * px + j];
+                }
+            } else {
+                // (A^T A)_ij with A^T stored row-major as `at` (py x px).
+                for m in 0..px {
+                    s += at[i * px + m] * at[j * px + m];
+                }
+            }
+            gram[i * k + j] = s;
+        }
+    }
+
+    let mut eye_minus = vec![0.0; k * k];
+    for i in 0..k {
+        for j in 0..k {
+            eye_minus[i * k + j] = f64::from(u8::from(i == j)) - gram[i * k + j];
+        }
+    }
+
+    // Cholesky failing here means some canonical correlation has reached 1 to
+    // working precision: the blocks are perfectly dependent. That is a valid
+    // answer (Λ = 0, chi-square = +inf, p = 0), not an error, so floor Λ at the
+    // smallest positive normal rather than propagating a failure.
+    match cholesky_spd(&eye_minus, k) {
+        Some(l) => Ok(chol_log_det(&l, k)),
+        None => Ok(f64::MIN_POSITIVE.ln()),
+    }
+}
+
 /// First canonical correlation between residual blocks (col-major `n×px`, `n×py`).
 fn first_canonical_correlation(
     rx: &[f64],
@@ -481,27 +680,6 @@ fn first_canonical_correlation(
 ) -> Result<f64, StatsError> {
     let (rho, _, _) = cca_leading(rx, ry, n, px, py)?;
     Ok(rho)
-}
-
-fn leading_cca_scores(
-    rx: &[f64],
-    ry: &[f64],
-    n: usize,
-    px: usize,
-    py: usize,
-) -> Result<(Vec<f64>, Vec<f64>), StatsError> {
-    let (_, ax, ay) = cca_leading(rx, ry, n, px, py)?;
-    let mut ux = vec![0.0; n];
-    let mut uy = vec![0.0; n];
-    for r in 0..n {
-        for j in 0..px {
-            ux[r] += rx[j * n + r] * ax[j];
-        }
-        for j in 0..py {
-            uy[r] += ry[j * n + r] * ay[j];
-        }
-    }
-    Ok((ux, uy))
 }
 
 /// Return (ρ, a_x, a_y) for the leading canonical pair via power iteration on

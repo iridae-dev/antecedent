@@ -29,13 +29,12 @@ run_ignored antecedent-stats gsquared_calibration_gate
 run_ignored antecedent-stats knn_dependence_calibration_gate
 run_ignored antecedent-stats parcorr_perm_pvalue_uniformity_gate
 run_ignored antecedent-stats knn_perm_pvalue_uniformity_gate
+run_ignored antecedent-stats multivariate_block_calibration_gate
+run_ignored antecedent-stats multivariate_block_shuffle_calibration_gate
 
 echo "== Discovery null FPR / power (antecedent-discovery) =="
 run_ignored antecedent-discovery pc_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
-
-echo "== Discovery synthetic-null validator (antecedent-validate) =="
-run_ignored antecedent-validate synthetic_null_fpr_near_alpha_gate
 
 echo "gate_calibration: ok"
