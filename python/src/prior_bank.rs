@@ -373,13 +373,21 @@ fn source_from_dict(d: &Bound<'_, PyDict>) -> PyResult<ExternalPriorSource> {
         Some(v) if v.is_none() => None,
         Some(v) => Some(v.extract()?),
     };
+    let ess: Option<f64> = match d.get_item("ess")? {
+        None => None,
+        Some(v) if v.is_none() => None,
+        Some(v) => Some(v.extract()?),
+    };
     let weight = ExternalPriorWeight::new(alpha, mixture_weight)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    Ok(ExternalPriorSource {
+    let source = ExternalPriorSource {
         id: std::sync::Arc::from(id),
         prior: prior_set_from_moments(&mean, &variance)?,
         weight,
-    })
+        ess,
+    };
+    source.validate().map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(source)
 }
 
 /// Parse external prior sources from a Python list of dicts (shared with analyze).
@@ -426,6 +434,10 @@ fn composed_to_dict<'py>(
     d.set_item("alphas_applied", composed.alphas_applied.as_ref())?;
     let weights: Vec<Option<f64>> = composed.mixture_weights.iter().copied().collect();
     d.set_item("mixture_weights", weights)?;
+    let effective_ess: Vec<Option<f64>> = composed.effective_ess.iter().copied().collect();
+    d.set_item("effective_ess", effective_ess)?;
+    d.set_item("composed_ess", composed.composed_ess)?;
+    d.set_item("kish_ess", composed.kish_ess)?;
     let assumption_ids: Vec<String> =
         composed.prior.restrictions.iter().map(|r| r.id.as_ref().to_string()).collect();
     d.set_item("assumption_ids", assumption_ids)?;
@@ -477,6 +489,7 @@ fn sources_to_py_list<'py>(
         sd.set_item("variance", coef.variance.as_ref())?;
         sd.set_item("alpha", s.weight.alpha)?;
         sd.set_item("mixture_weight", s.weight.mixture_weight)?;
+        sd.set_item("ess", s.ess)?;
         src_list.append(sd)?;
     }
     Ok(src_list)

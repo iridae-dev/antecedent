@@ -203,11 +203,13 @@ fn main() -> Result<(), CausalError> {
             prior: src_a,
             weight: ExternalPriorWeight::power_mixture(1.0, 0.6 * w_launch / w_sum)
                 .expect("weight"),
+            ess: None,
         },
         ExternalPriorSource {
             id: Arc::from("survey_retention"),
             prior: src_b,
             weight: ExternalPriorWeight::power_mixture(1.0, 0.6 * w_ret / w_sum).expect("weight"),
+            ess: None,
         },
     ]);
     let baseline = PriorSet::weakly_informative(3);

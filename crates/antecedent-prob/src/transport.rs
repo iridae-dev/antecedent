@@ -152,11 +152,12 @@ impl TransportAdjustment {
     }
 
     /// Kish effective sample size for diagnostics.
+    ///
+    /// Delegates to [`crate::external_prior::kish_ess`] — the same
+    /// concentration-of-trust formula, shared rather than duplicated.
     #[must_use]
     pub fn kish_ess(&self) -> f64 {
-        let sum: f64 = self.target_weights.iter().sum();
-        let sum_sq: f64 = self.target_weights.iter().map(|w| w * w).sum();
-        if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+        crate::external_prior::kish_ess(&self.target_weights)
     }
 }
 
@@ -514,6 +515,7 @@ mod tests {
             id: Arc::from(id),
             prior: gauss(mean, 1.0),
             weight: ExternalPriorWeight::power(alpha).unwrap(),
+            ess: None,
         }
     }
 

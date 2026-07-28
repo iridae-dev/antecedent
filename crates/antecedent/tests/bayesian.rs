@@ -829,6 +829,7 @@ fn prior_bank_power_mixture() {
         id: Arc::from("old"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(alpha).unwrap(),
+        ess: None,
     }];
     let composed = compose_external_priors(&sources, &baseline).unwrap();
     let coef = composed.prior.gaussian_coefficients().unwrap();
@@ -846,6 +847,134 @@ fn prior_bank_power_mixture() {
             "missing restriction {needle}"
         );
     }
+}
+
+#[test]
+fn prior_bank_ess_accounting() {
+    use std::sync::Arc;
+
+    use antecedent_prob::{
+        ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
+        compose_external_priors,
+    };
+
+    fn gauss(mean: f64, var: f64) -> PriorSet {
+        let mut p = PriorSet::new();
+        p.push(PriorSpec::GaussianCoefficients(
+            GaussianCoefficientPrior::shared(1, mean, var).unwrap(),
+        ));
+        p
+    }
+
+    fn assert_opt_vec(actual: &[Option<f64>], expected: &serde_json::Value, tol: f64) {
+        let expected = expected.as_array().unwrap();
+        assert_eq!(actual.len(), expected.len());
+        for (a, e) in actual.iter().zip(expected.iter()) {
+            match (a, e.as_f64()) {
+                (Some(av), Some(ev)) => assert!((av - ev).abs() < tol, "{av} vs {ev}"),
+                (None, None) => {}
+                other => panic!("mismatch: {other:?}"),
+            }
+        }
+    }
+
+    fn assert_opt(actual: Option<f64>, expected: &serde_json::Value, tol: f64) {
+        match (actual, expected.as_f64()) {
+            (Some(av), Some(ev)) => assert!((av - ev).abs() < tol, "{av} vs {ev}"),
+            (None, None) => {}
+            other => panic!("mismatch: {other:?}"),
+        }
+    }
+
+    let expected = load_expected("prior_bank_ess");
+    let tol = expected["tol"].as_f64().unwrap();
+
+    // -- power: single contributing source sums exactly. --
+    let p = &expected["power"];
+    let baseline =
+        gauss(p["baseline_mean"].as_f64().unwrap(), p["baseline_variance"].as_f64().unwrap());
+    let sources = [ExternalPriorSource {
+        id: Arc::from("old"),
+        prior: gauss(p["source_mean"].as_f64().unwrap(), p["source_variance"].as_f64().unwrap()),
+        weight: ExternalPriorWeight::power(p["alpha"].as_f64().unwrap()).unwrap(),
+        ess: Some(p["ess"].as_f64().unwrap()),
+    }];
+    let composed = compose_external_priors(&sources, &baseline).unwrap();
+    assert_opt_vec(&composed.effective_ess, &p["expected_effective_ess"], tol);
+    assert_opt(composed.composed_ess, &p["expected_composed_ess"], tol);
+    assert_opt(composed.kish_ess, &p["expected_kish_ess"], tol);
+
+    // -- power_partial_coverage: a contributing source without ess forces
+    //    composed_ess to None, even though the other source's effective_ess
+    //    is reported. --
+    let pc = &expected["power_partial_coverage"];
+    let baseline =
+        gauss(pc["baseline_mean"].as_f64().unwrap(), pc["baseline_variance"].as_f64().unwrap());
+    let sa = &pc["source_a"];
+    let sb = &pc["source_b"];
+    let sources = [
+        ExternalPriorSource {
+            id: Arc::from("a"),
+            prior: gauss(sa["mean"].as_f64().unwrap(), sa["variance"].as_f64().unwrap()),
+            weight: ExternalPriorWeight::power(sa["alpha"].as_f64().unwrap()).unwrap(),
+            ess: sa["ess"].as_f64(),
+        },
+        ExternalPriorSource {
+            id: Arc::from("b"),
+            prior: gauss(sb["mean"].as_f64().unwrap(), sb["variance"].as_f64().unwrap()),
+            weight: ExternalPriorWeight::power(sb["alpha"].as_f64().unwrap()).unwrap(),
+            ess: sb["ess"].as_f64(),
+        },
+    ];
+    let composed = compose_external_priors(&sources, &baseline).unwrap();
+    assert_opt_vec(&composed.effective_ess, &pc["expected_effective_ess"], tol);
+    assert_opt(composed.composed_ess, &pc["expected_composed_ess"], tol);
+    assert_opt(composed.kish_ess, &pc["expected_kish_ess"], tol);
+
+    // -- power_dropped_source: a dropped (α=0) source with a declared ess
+    //    contributes nothing and cannot poison composed_ess. --
+    let pd = &expected["power_dropped_source"];
+    let baseline =
+        gauss(pd["baseline_mean"].as_f64().unwrap(), pd["baseline_variance"].as_f64().unwrap());
+    let sa = &pd["source_a"];
+    let sb = &pd["source_b"];
+    let sources = [
+        ExternalPriorSource {
+            id: Arc::from("a"),
+            prior: gauss(sa["mean"].as_f64().unwrap(), sa["variance"].as_f64().unwrap()),
+            weight: ExternalPriorWeight::power(sa["alpha"].as_f64().unwrap()).unwrap(),
+            ess: sa["ess"].as_f64(),
+        },
+        ExternalPriorSource {
+            id: Arc::from("b"),
+            prior: gauss(sb["mean"].as_f64().unwrap(), sb["variance"].as_f64().unwrap()),
+            weight: ExternalPriorWeight::power(sb["alpha"].as_f64().unwrap()).unwrap(),
+            ess: sb["ess"].as_f64(),
+        },
+    ];
+    let composed = compose_external_priors(&sources, &baseline).unwrap();
+    assert_opt_vec(&composed.effective_ess, &pd["expected_effective_ess"], tol);
+    assert_opt(composed.composed_ess, &pd["expected_composed_ess"], tol);
+    assert_opt(composed.kish_ess, &pd["expected_kish_ess"], tol);
+
+    // -- mixture: composed_ess is always None regardless of a declared ess. --
+    let m = &expected["mixture"];
+    let baseline =
+        gauss(m["baseline_mean"].as_f64().unwrap(), m["baseline_variance"].as_f64().unwrap());
+    let sources = [ExternalPriorSource {
+        id: Arc::from("s"),
+        prior: gauss(m["source_mean"].as_f64().unwrap(), m["source_variance"].as_f64().unwrap()),
+        weight: ExternalPriorWeight::power_mixture(
+            m["alpha"].as_f64().unwrap(),
+            m["mixture_weight"].as_f64().unwrap(),
+        )
+        .unwrap(),
+        ess: Some(m["ess"].as_f64().unwrap()),
+    }];
+    let composed = compose_external_priors(&sources, &baseline).unwrap();
+    assert_opt_vec(&composed.effective_ess, &m["expected_effective_ess"], tol);
+    assert_opt(composed.composed_ess, &m["expected_composed_ess"], tol);
+    assert_opt(composed.kish_ess, &m["expected_kish_ess"], tol);
 }
 
 #[test]
@@ -877,6 +1006,7 @@ fn prior_bank_conflict_shrink() {
         id: Arc::from("src"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(alpha).unwrap(),
+        ess: None,
     }];
 
     let conf = &expected["conflict"];
@@ -953,6 +1083,7 @@ fn prior_bank_transport() {
         id: Arc::from("src"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(alpha).unwrap(),
+        ess: None,
     }];
 
     let missing = TransportContext {
@@ -1111,6 +1242,7 @@ fn prior_bank_alpha_sensitivity() {
         id: Arc::from("survey_a"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(alpha).unwrap(),
+        ess: None,
     }]);
     let baseline = PriorSet::weakly_informative(ncols);
     let composed = compose_external_priors(&sources, &baseline).unwrap();
@@ -1260,6 +1392,7 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
         id: Arc::from("temporal_bank"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(1.0).unwrap(),
+        ess: None,
     }]);
     let baseline = PriorSet::weakly_informative(ncols);
     let composed = compose_external_priors(&sources, &baseline).unwrap();

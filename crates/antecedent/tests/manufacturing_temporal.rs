@@ -202,6 +202,7 @@ fn manufacturing_dbn_envelope_composed_prior_conflict() {
         id: Arc::from("dbn_bank"),
         prior: source_prior,
         weight: ExternalPriorWeight::power(1.0).unwrap(),
+        ess: None,
     }]);
     let baseline = PriorSet::weakly_informative(ncols);
     let composed = compose_external_priors(&sources, &baseline).unwrap();

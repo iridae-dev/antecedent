@@ -709,6 +709,7 @@ mod tests {
             id: Arc::from("survey_a"),
             prior: source_prior,
             weight: ExternalPriorWeight::power(1.0).unwrap(),
+            ess: None,
         }];
         let alphas_applied = [1.0_f64];
         let mut ws = BayesianGCompWorkspace::default();
