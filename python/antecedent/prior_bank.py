@@ -7,6 +7,12 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 from ._native import (
+    beta_from_mean_and_ess as _beta_from_mean_and_ess,
+)
+from ._native import (
+    beta_from_moments as _beta_from_moments,
+)
+from ._native import (
     compose_external_priors as _compose_external_priors,
 )
 from ._native import (
@@ -17,6 +23,12 @@ from ._native import (
 )
 from ._native import (
     encode_prior_source_meta as _encode_meta,
+)
+from ._native import (
+    gamma_from_mean_and_ess as _gamma_from_mean_and_ess,
+)
+from ._native import (
+    gamma_from_moments as _gamma_from_moments,
 )
 from ._native import (
     prior_catalog_filter as _filter,
@@ -252,6 +264,193 @@ class ComposedPrior:
         if self.transport is not None:
             d["transport"] = self.transport.to_wire()
         return d
+
+
+@dataclass(frozen=True)
+class BetaHyperparameters:
+    """``Beta(alpha, beta)`` conjugate hyperparameters.
+
+    Produced by one of two constructors with distinct, honest contracts:
+
+    * :func:`beta_from_moments` matches ``(mean, variance)`` exactly;
+      :attr:`ess` is whatever those moments imply, a derived consequence
+      rather than a request.
+    * :func:`beta_from_mean_and_ess` matches ``mean`` and a caller-declared
+      prior-strength ``ess`` exactly; there is no ``variance`` parameter,
+      because ``mean`` and ``ess`` alone determine ``alpha`` and ``beta``.
+
+    This is a **standalone converter, not a coefficient prior** — no
+    inference backend in this library consumes a Beta prior over a bounded
+    proportion (they all take a Gaussian coefficient design-matrix prior),
+    so it is not accepted by ``compose_external_priors`` or
+    ``Bayesian(prior_from=...)``.
+
+    ESS convention: ``ess = alpha + beta - 2``, chosen so the flat reference
+    prior ``Beta(1, 1)`` maps to ``ess = 0`` — which is what makes
+    ``beta_from_mean_and_ess(mean, 0.0)`` degrade to a
+    ``Beta(1,1)``-equivalent-strength prior at the requested mean rather
+    than to something vanishing or improper. Some references instead report
+    ``alpha + beta`` (under which ``Beta(1,1)`` is ``ess = 2``); this module
+    never uses that convention. See also the three distinct ESS conventions
+    documented on :class:`ComposedPrior` — this is the same prior-strength
+    notion, applied to a conjugate family instead of a Gaussian
+    coefficient's precision.
+
+    :attr:`ess` can be **negative** on a :func:`beta_from_moments` result:
+    any ``(mean, variance)`` pair weaker than the flat reference (total
+    concentration ``< 2``) yields ``alpha + beta - 2 < 0`` while ``alpha``
+    and ``beta`` stay positive and proper. That is a truthful report of a
+    prior weaker than ``Beta(1, 1)``, not an error.
+    """
+
+    alpha: float
+    beta: float
+
+    @property
+    def mean(self) -> float:
+        return self.alpha / (self.alpha + self.beta)
+
+    @property
+    def variance(self) -> float:
+        total = self.alpha + self.beta
+        return (self.alpha * self.beta) / (total * total * (total + 1.0))
+
+    @property
+    def ess(self) -> float:
+        return self.alpha + self.beta - 2.0
+
+
+@dataclass(frozen=True)
+class GammaHyperparameters:
+    """``Gamma(shape, rate)`` conjugate hyperparameters.
+
+    Produced by one of two constructors with distinct, honest contracts,
+    mirroring :class:`BetaHyperparameters`:
+
+    * :func:`gamma_from_moments` matches ``(mean, variance)`` exactly;
+      :attr:`ess` is whatever those moments imply.
+    * :func:`gamma_from_mean_and_ess` matches ``mean`` and a caller-declared
+      prior-strength ``ess`` exactly; no ``variance`` parameter.
+
+    Like :class:`BetaHyperparameters`, this is a standalone converter, not a
+    coefficient prior accepted elsewhere in this library.
+
+    ESS convention: ``ess = shape - 1``, chosen so the reference exponential
+    prior ``Gamma(shape=1, ...)`` maps to ``ess = 0``. Some references
+    instead report ``shape`` directly (under which ``Gamma(1, ...)`` is
+    ``ess = 1``); this module never uses that convention.
+
+    :attr:`ess` can be **negative** on a :func:`gamma_from_moments` result
+    (``shape < 1``, i.e. ``variance > mean ** 2``) while ``shape`` and
+    ``rate`` stay positive and proper — a truthful report of a prior weaker
+    than the reference exponential, not an error.
+    """
+
+    shape: float
+    rate: float
+
+    @property
+    def mean(self) -> float:
+        return self.shape / self.rate
+
+    @property
+    def variance(self) -> float:
+        return self.shape / (self.rate * self.rate)
+
+    @property
+    def ess(self) -> float:
+        return self.shape - 1.0
+
+
+def beta_from_moments(mean: float, variance: float) -> BetaHyperparameters:
+    """Moment-match a Beta prior on a bounded proportion to ``(mean, variance)``.
+
+    Matches both moments exactly. The result's ``ess`` (``alpha + beta -
+    2``; see :class:`BetaHyperparameters`) is whatever those moments imply —
+    a derived consequence, not a caller input. It can be negative (a proper
+    prior weaker than the flat reference ``Beta(1, 1)``); that is a
+    truthful report, not an error. Use :func:`beta_from_mean_and_ess` to
+    request a specific prior strength instead of reading one back.
+
+    Out-of-support input is rejected, never silently clamped:
+
+    Raises
+    ------
+    ValueError
+        ``mean`` is not finite and strictly inside ``(0, 1)``; or
+        ``variance`` is not finite and > 0, or is `>= mean * (1 - mean)`
+        (no Beta distribution has those moments — the comparison is exact,
+        with no epsilon slack at the boundary).
+    """
+    alpha, beta = _beta_from_moments(float(mean), float(variance))
+    return BetaHyperparameters(alpha=alpha, beta=beta)
+
+
+def beta_from_mean_and_ess(mean: float, ess: float) -> BetaHyperparameters:
+    """Build a Beta prior on a bounded proportion from ``mean`` and a
+    caller-declared prior-strength ``ess``.
+
+    Matches ``mean`` and ``ess`` (``alpha + beta - 2``; see
+    :class:`BetaHyperparameters`) exactly. There is no ``variance``
+    parameter: ``mean`` and ``ess`` alone determine ``alpha`` and ``beta``,
+    so a ``variance`` argument would have nothing to do. ``ess=0`` returns a
+    prior with the same strength as the flat reference ``Beta(1, 1)`` at
+    ``mean`` — never a vanishing or improper one. Every ``(mean, ess >=
+    0)`` request is satisfiable; unlike :func:`beta_from_moments`, there is
+    no support gate to violate.
+
+    Raises
+    ------
+    ValueError
+        ``mean`` is not finite and strictly inside ``(0, 1)``; or ``ess`` is
+        not finite and >= 0.
+    """
+    alpha, beta = _beta_from_mean_and_ess(float(mean), float(ess))
+    return BetaHyperparameters(alpha=alpha, beta=beta)
+
+
+def gamma_from_moments(mean: float, variance: float) -> GammaHyperparameters:
+    """Moment-match a Gamma prior on a non-negative rate to ``(mean, variance)``.
+
+    Matches both moments exactly. The result's ``ess`` (``shape - 1``; see
+    :class:`GammaHyperparameters`) is whatever those moments imply — a
+    derived consequence, not a caller input. It can be negative (a proper
+    prior weaker than the reference exponential ``Gamma(shape=1, ...)``);
+    that is a truthful report, not an error. Use
+    :func:`gamma_from_mean_and_ess` to request a specific prior strength
+    instead of reading one back.
+
+    Out-of-support input is rejected, never silently clamped:
+
+    Raises
+    ------
+    ValueError
+        ``mean`` is not finite and > 0; or ``variance`` is not finite and >
+        0.
+    """
+    shape, rate = _gamma_from_moments(float(mean), float(variance))
+    return GammaHyperparameters(shape=shape, rate=rate)
+
+
+def gamma_from_mean_and_ess(mean: float, ess: float) -> GammaHyperparameters:
+    """Build a Gamma prior on a non-negative rate from ``mean`` and a
+    caller-declared prior-strength ``ess``.
+
+    Matches ``mean`` and ``ess`` (``shape - 1``; see
+    :class:`GammaHyperparameters`) exactly. There is no ``variance``
+    parameter: ``mean`` and ``ess`` alone determine ``shape`` and ``rate``
+    (``rate = shape / mean``), so a ``variance`` argument would have
+    nothing to do. ``ess=0`` returns ``Gamma(shape=1, ...)`` — the reference
+    exponential prior — at ``mean``, never a vanishing or improper one.
+    Every ``(mean, ess >= 0)`` request is satisfiable.
+
+    Raises
+    ------
+    ValueError
+        ``mean`` is not finite and > 0; or ``ess`` is not finite and >= 0.
+    """
+    shape, rate = _gamma_from_mean_and_ess(float(mean), float(ess))
+    return GammaHyperparameters(shape=shape, rate=rate)
 
 
 def _normalize_weights(
@@ -665,6 +864,7 @@ class PriorCatalog:
 
 
 __all__ = [
+    "BetaHyperparameters",
     "CompatibilityReport",
     "ComposedPrior",
     "ConflictPolicy",
@@ -672,12 +872,17 @@ __all__ = [
     "EstimandFingerprint",
     "ExternalPriorSourceSpec",
     "ExternalPriorWeight",
+    "GammaHyperparameters",
     "POPULATION_TAG_KEY",
     "PriorCatalog",
     "PriorMapping",
     "PriorSource",
     "PriorSourceMeta",
     "TransportPolicy",
+    "beta_from_mean_and_ess",
+    "beta_from_moments",
     "compose_external_priors",
+    "gamma_from_mean_and_ess",
+    "gamma_from_moments",
     "populations_from_prior_sources",
 ]

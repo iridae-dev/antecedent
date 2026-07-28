@@ -978,6 +978,160 @@ fn prior_bank_ess_accounting() {
 }
 
 #[test]
+fn prior_conjugate_moment_match() {
+    use antecedent_prob::{BetaHyperparameters, GammaHyperparameters};
+
+    let expected = load_expected("prior_conjugate_moment_match");
+    let tol = expected["tol"].as_f64().unwrap();
+
+    // -- beta_moment_match: from_moments matches (mean, variance) exactly;
+    //    the resulting ess is a derived consequence, not a request. --
+    let br = &expected["beta_moment_match"];
+    let h = BetaHyperparameters::from_moments(
+        br["mean"].as_f64().unwrap(),
+        br["variance"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.alpha - br["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((h.beta - br["expected_beta"].as_f64().unwrap()).abs() < tol);
+    assert!((h.mean() - br["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((h.variance() - br["expected_variance"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - br["expected_ess"].as_f64().unwrap()).abs() < tol);
+
+    // -- beta_moment_match_negative_ess: a proper moment match weaker than
+    //    the flat reference reports a negative ess -- truthful, not an
+    //    error. --
+    let bn = &expected["beta_moment_match_negative_ess"];
+    let h = BetaHyperparameters::from_moments(
+        bn["mean"].as_f64().unwrap(),
+        bn["variance"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!(h.alpha > 0.0 && h.beta > 0.0);
+    assert!(h.ess() < 0.0);
+    assert!((h.mean() - bn["expected_mean"].as_f64().unwrap()).abs() < tol);
+
+    // -- beta_mean_and_ess_zero: from_mean_and_ess(mean, 0.0) degrades to
+    //    Beta(1,1)-equivalent strength at the requested mean, never
+    //    vanishing or improper. No variance argument exists to satisfy any
+    //    support check here. --
+    let bz = &expected["beta_mean_and_ess_zero"];
+    let h = BetaHyperparameters::from_mean_and_ess(
+        bz["mean"].as_f64().unwrap(),
+        bz["ess"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.alpha - bz["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((h.beta - bz["expected_beta"].as_f64().unwrap()).abs() < tol);
+    assert!((h.mean() - bz["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - bz["expected_ess"].as_f64().unwrap()).abs() < tol);
+    assert!(h.alpha > 0.0 && h.beta > 0.0);
+
+    // -- beta_mean_and_ess_matches_any_request: every (mean, ess >= 0) pair
+    //    is satisfiable -- no support gate to violate. --
+    let bm = &expected["beta_mean_and_ess_matches_any_request"];
+    let h = BetaHyperparameters::from_mean_and_ess(
+        bm["mean"].as_f64().unwrap(),
+        bm["ess"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.alpha - bm["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((h.beta - bm["expected_beta"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - bm["expected_ess"].as_f64().unwrap()).abs() < tol);
+
+    // -- beta_moment_match_rejected_inputs: out-of-support (mean, variance)
+    //    and out-of-range mean are rejected, never silently clamped. --
+    for row in expected["beta_moment_match_rejected_inputs"].as_array().unwrap() {
+        let err = BetaHyperparameters::from_moments(
+            row["mean"].as_f64().unwrap(),
+            row["variance"].as_f64().unwrap(),
+        );
+        assert!(err.is_err(), "expected rejection: {}", row["reason"]);
+    }
+
+    // -- beta_mean_and_ess_rejected_inputs: out-of-range mean and negative
+    //    ess are rejected. --
+    for row in expected["beta_mean_and_ess_rejected_inputs"].as_array().unwrap() {
+        let err = BetaHyperparameters::from_mean_and_ess(
+            row["mean"].as_f64().unwrap(),
+            row["ess"].as_f64().unwrap(),
+        );
+        assert!(err.is_err(), "expected rejection: {}", row["reason"]);
+    }
+
+    // -- gamma_moment_match: same exact-match contract for Gamma. --
+    let gr = &expected["gamma_moment_match"];
+    let h = GammaHyperparameters::from_moments(
+        gr["mean"].as_f64().unwrap(),
+        gr["variance"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.shape - gr["expected_shape"].as_f64().unwrap()).abs() < tol);
+    assert!((h.rate - gr["expected_rate"].as_f64().unwrap()).abs() < tol);
+    assert!((h.mean() - gr["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((h.variance() - gr["expected_variance"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - gr["expected_ess"].as_f64().unwrap()).abs() < tol);
+
+    // -- gamma_moment_match_negative_ess: shape < 1 reports a negative ess,
+    //    truthfully, not as an error. --
+    let gn = &expected["gamma_moment_match_negative_ess"];
+    let h = GammaHyperparameters::from_moments(
+        gn["mean"].as_f64().unwrap(),
+        gn["variance"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!(h.shape > 0.0 && h.rate > 0.0);
+    assert!(h.ess() < 0.0);
+    assert!((h.mean() - gn["expected_mean"].as_f64().unwrap()).abs() < tol);
+
+    // -- gamma_mean_and_ess_zero: degrades to Gamma(shape=1, .), the
+    //    reference exponential prior, at the requested mean. --
+    let gz = &expected["gamma_mean_and_ess_zero"];
+    let h = GammaHyperparameters::from_mean_and_ess(
+        gz["mean"].as_f64().unwrap(),
+        gz["ess"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.shape - gz["expected_shape"].as_f64().unwrap()).abs() < tol);
+    assert!((h.rate - gz["expected_rate"].as_f64().unwrap()).abs() < tol);
+    assert!((h.mean() - gz["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - gz["expected_ess"].as_f64().unwrap()).abs() < tol);
+    assert!(h.shape > 0.0 && h.rate > 0.0);
+
+    // -- gamma_mean_and_ess_matches_any_request: every (mean, ess >= 0)
+    //    pair is satisfiable for Gamma too. --
+    let gm = &expected["gamma_mean_and_ess_matches_any_request"];
+    let h = GammaHyperparameters::from_mean_and_ess(
+        gm["mean"].as_f64().unwrap(),
+        gm["ess"].as_f64().unwrap(),
+    )
+    .unwrap();
+    assert!((h.shape - gm["expected_shape"].as_f64().unwrap()).abs() < tol);
+    assert!((h.rate - gm["expected_rate"].as_f64().unwrap()).abs() < tol);
+    assert!((h.ess() - gm["expected_ess"].as_f64().unwrap()).abs() < tol);
+
+    // -- gamma_moment_match_rejected_inputs: non-positive mean/variance are
+    //    rejected. --
+    for row in expected["gamma_moment_match_rejected_inputs"].as_array().unwrap() {
+        let err = GammaHyperparameters::from_moments(
+            row["mean"].as_f64().unwrap(),
+            row["variance"].as_f64().unwrap(),
+        );
+        assert!(err.is_err(), "expected rejection: {}", row["reason"]);
+    }
+
+    // -- gamma_mean_and_ess_rejected_inputs: non-positive mean and negative
+    //    ess are rejected. --
+    for row in expected["gamma_mean_and_ess_rejected_inputs"].as_array().unwrap() {
+        let err = GammaHyperparameters::from_mean_and_ess(
+            row["mean"].as_f64().unwrap(),
+            row["ess"].as_f64().unwrap(),
+        );
+        assert!(err.is_err(), "expected rejection: {}", row["reason"]);
+    }
+}
+
+#[test]
 fn prior_bank_conflict_shrink() {
     use std::sync::Arc;
 

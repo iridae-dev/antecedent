@@ -95,6 +95,93 @@ interchangeable:**
 | MCMC / autocorrelation ESS | Effectively independent draws in a chain | Posterior / inference diagnostics |
 | Kish importance-weighting ESS | Concentration of a trust / importance weight vector | `ComposedPrior.kish_ess`, `TransportAdjustment.kish_ess()` |
 
+## Conjugate moment-matching (Beta / Gamma)
+
+Everything above stays in Gaussian-coefficient terms — `PriorSet` /
+`PriorSpec` speak Gaussian coefficients only, and every inference backend in
+`antecedent-prob` (conjugate, Laplace, HMC) consumes exactly that shape plus
+a residual-variance model. A Gaussian summary cannot itself express a prior
+over a **bounded proportion** or a **non-negative rate**, so
+`BetaHyperparameters` / `GammaHyperparameters`
+(`crates/antecedent-prob/src/conjugate_moment_match.rs`, Python
+`antecedent.prior_bank.beta_from_moments` /
+`antecedent.prior_bank.gamma_from_moments` and their `*_from_mean_and_ess`
+siblings) convert a Gaussian-shaped summary into the matching conjugate
+family. Each family exposes **two constructors with distinct contracts** —
+reach for the one that matches what you actually know:
+
+- **`from_moments(mean, variance)`** matches both moments exactly. Beta:
+  total concentration `κ = mean·(1−mean)/var − 1` from the moments, then
+  `α = mean·κ`, `β = (1−mean)·κ`. Gamma: `shape = mean²/var`, `rate =
+  mean/var`. Prior strength (`.ess()`) is whatever those moments imply — a
+  derived consequence, not something you request. Use this when you have a
+  genuine `(mean, variance)` summary (e.g. from a composed prior's moments
+  or a domain expert's elicited belief) and want the closest conjugate fit,
+  prior strength included.
+- **`from_mean_and_ess(mean, ess)`** matches the mean and a caller-declared
+  prior-strength `ess` exactly. Beta: `α = mean·(ess+2)`, `β =
+  (1−mean)·(ess+2)`. Gamma: `shape = ess+1`, `rate = shape/mean`. There is
+  no `variance` parameter — `mean` and `ess` alone determine every other
+  moment, so a `variance` argument would have nothing to do. Use this when
+  what you actually know is a target mean and how much you want the prior
+  to weigh (in sample-size terms), not a variance.
+
+An earlier version of this module offered a single
+`from_moments(mean, variance, target_ess)`: moment-match to `(mean,
+variance)`, then discard that match and rescale to `target_ess` instead.
+`variance` never affected the output under that signature — it was checked
+for validity and then thrown away — which both misnamed the function (it
+built from `(mean, target_ess)`, not from moments) and made the Beta variant
+reject satisfiable requests, since the variance support check ran against a
+value the rescale would immediately discard. The two-constructor split
+above replaces that signature; there is no `target_ess` parameter anywhere
+in the current API.
+
+These are **standalone converters, not `PriorSpec` variants** — no backend
+in this crate can consume a Beta or Gamma prior today (all four take a
+Gaussian coefficient design-matrix prior), so adding a `PriorSpec::Beta` /
+`::Gamma` would create a type the library accepts but nothing can use.
+Callers get plain hyperparameter structs to hand to their own conjugate
+update (Beta-Binomial, Gamma-Poisson) or record as an assumption.
+
+Out-of-support input is **rejected, never silently clamped**: `from_moments`
+requires `mean` strictly inside `(0, 1)` for Beta (`mean > 0` for Gamma),
+and `var < mean·(1−mean)` for Beta (`var > 0` for Gamma, no upper bound —
+unlike Beta, any positive variance is achievable at a given positive mean
+via some shape); the variance comparison has no epsilon slack at the
+boundary. `from_mean_and_ess` shares the same `mean` domain check but has
+**no variance-derived gate to violate** — every `(mean, ess >= 0)` request
+is satisfiable by construction — and rejects negative `ess`.
+`from_mean_and_ess(mean, 0.0)` degrades to the reference-strength prior at
+the requested mean — `Beta(1, 1)`-equivalent strength, or `Gamma(shape=1,
+·)` — never something vanishing or improper.
+
+**ESS convention**: `ess = α + β − 2` for Beta and `ess = shape − 1` for
+Gamma — chosen so each family's flat/reference prior maps to `ess = 0`,
+which is exactly why `from_mean_and_ess(mean, 0.0)` degrades to that
+reference rather than to a degenerate prior. This is the same
+**prior-strength ESS** notion in the table above (how much evidence a
+prior's concentration is worth, in sample-size terms), applied to two
+conjugate families instead of a Gaussian coefficient's precision — still
+not interchangeable with MCMC ESS or Kish ESS. Some references instead
+report `α + β` (total pseudo-count; `Beta(1,1)` would be `ess = 2`) or
+`shape` directly (`Gamma(1, ·)` would be `ess = 1`); this module never uses
+those conventions.
+
+`from_moments` can report a **negative** `.ess()`: any `(mean, variance)`
+match weaker than the flat/reference prior (Beta `κ < 2`; Gamma `shape <
+1`) yields `α + β − 2 < 0` or `shape − 1 < 0` while `α`/`β` (or
+`shape`/`rate`) stay positive and proper. That is a truthful report that
+the supplied moments describe a prior weaker than the reference, not an
+error — distinct from `from_mean_and_ess` rejecting a negative `ess`
+*input*, since a caller cannot request negative prior strength even though
+a moment match can honestly report it.
+
+See `conformance/bayesian/prior_conjugate_moment_match/` for pinned analytic
+scenarios covering both constructors (moment round trip, a moment match
+with negative `ess`, `from_mean_and_ess(mean, 0.0)`, and each rejected
+input).
+
 ## Supported transport policies
 
 Documented in parity `bayes.prior_bank.transport`:

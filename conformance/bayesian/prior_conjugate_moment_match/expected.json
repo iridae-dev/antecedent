@@ -1,0 +1,135 @@
+{
+  "beta_moment_match": {
+    "mean": 0.3,
+    "variance": 0.02,
+    "expected_alpha": 2.85,
+    "expected_beta": 6.65,
+    "expected_mean": 0.3,
+    "expected_variance": 0.02,
+    "expected_ess": 7.5
+  },
+  "beta_moment_match_negative_ess": {
+    "mean": 0.5,
+    "variance": 0.24,
+    "expected_mean": 0.5
+  },
+  "beta_mean_and_ess_zero": {
+    "mean": 0.3,
+    "ess": 0.0,
+    "expected_alpha": 0.6,
+    "expected_beta": 1.4,
+    "expected_mean": 0.3,
+    "expected_ess": 0.0
+  },
+  "beta_mean_and_ess_matches_any_request": {
+    "mean": 0.5,
+    "ess": 10.0,
+    "expected_alpha": 6.0,
+    "expected_beta": 6.0,
+    "expected_ess": 10.0
+  },
+  "beta_moment_match_rejected_inputs": [
+    {
+      "mean": 0.5,
+      "variance": 0.25,
+      "reason": "variance equals the support bound mean*(1-mean) exactly; no Beta has these moments"
+    },
+    {
+      "mean": 0.5,
+      "variance": 0.3,
+      "reason": "variance exceeds the support bound mean*(1-mean)"
+    },
+    {
+      "mean": 0.0,
+      "variance": 0.01,
+      "reason": "mean not strictly inside (0, 1)"
+    },
+    {
+      "mean": 1.0,
+      "variance": 0.01,
+      "reason": "mean not strictly inside (0, 1)"
+    }
+  ],
+  "beta_mean_and_ess_rejected_inputs": [
+    {
+      "mean": 0.0,
+      "ess": 1.0,
+      "reason": "mean not strictly inside (0, 1)"
+    },
+    {
+      "mean": 1.0,
+      "ess": 1.0,
+      "reason": "mean not strictly inside (0, 1)"
+    },
+    {
+      "mean": 0.3,
+      "ess": -1.0,
+      "reason": "ess negative"
+    }
+  ],
+  "gamma_moment_match": {
+    "mean": 4.0,
+    "variance": 2.0,
+    "expected_shape": 8.0,
+    "expected_rate": 2.0,
+    "expected_mean": 4.0,
+    "expected_variance": 2.0,
+    "expected_ess": 7.0
+  },
+  "gamma_moment_match_negative_ess": {
+    "mean": 4.0,
+    "variance": 32.0,
+    "expected_mean": 4.0
+  },
+  "gamma_mean_and_ess_zero": {
+    "mean": 4.0,
+    "ess": 0.0,
+    "expected_shape": 1.0,
+    "expected_rate": 0.25,
+    "expected_mean": 4.0,
+    "expected_ess": 0.0
+  },
+  "gamma_mean_and_ess_matches_any_request": {
+    "mean": 4.0,
+    "ess": 7.0,
+    "expected_shape": 8.0,
+    "expected_rate": 2.0,
+    "expected_ess": 7.0
+  },
+  "gamma_moment_match_rejected_inputs": [
+    {
+      "mean": 0.0,
+      "variance": 1.0,
+      "reason": "mean not > 0"
+    },
+    {
+      "mean": -1.0,
+      "variance": 1.0,
+      "reason": "mean not > 0"
+    },
+    {
+      "mean": 4.0,
+      "variance": 0.0,
+      "reason": "variance not > 0"
+    }
+  ],
+  "gamma_mean_and_ess_rejected_inputs": [
+    {
+      "mean": 0.0,
+      "ess": 1.0,
+      "reason": "mean not > 0"
+    },
+    {
+      "mean": -1.0,
+      "ess": 1.0,
+      "reason": "mean not > 0"
+    },
+    {
+      "mean": 4.0,
+      "ess": -1.0,
+      "reason": "ess negative"
+    }
+  ],
+  "tol": 1e-9,
+  "notes": "Two constructors per family, replacing an earlier single from_moments(mean, variance, target_ess) whose variance argument never affected the output (the rescale to target_ess discarded the moment match's magnitude). from_moments(mean, variance) matches both moments exactly: Beta kappa = mean*(1-mean)/variance - 1 (total concentration), alpha = mean*kappa, beta = (1-mean)*kappa; Gamma shape = mean^2/variance, rate = mean/variance. Its ess() is a derived consequence and may be negative (a proper prior weaker than the flat/reference prior) -- not an error. from_mean_and_ess(mean, ess) has no variance parameter: Beta alpha = mean*(ess+2), beta = (1-mean)*(ess+2); Gamma shape = ess+1, rate = shape/mean. Every (mean, ess >= 0) request is satisfiable, so from_mean_and_ess has no support gate to violate the way from_moments does."
+}
