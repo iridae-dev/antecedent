@@ -130,6 +130,12 @@ pub struct GraphPosterior {
     pub max_lag: Option<u32>,
     /// Optional per-atom lag-edge bitmasks (DBN templates; same length as `adjacency`).
     pub lag_masks: Option<Arc<[u64]>>,
+    /// Which structure-learning algorithm produced this posterior.
+    ///
+    /// `None` when the producer did not tag it. Carried so downstream plan records and
+    /// artifacts can name the real algorithm rather than a generic label — a posterior
+    /// handed to a study no longer arrives with that provenance implied by the call.
+    pub algorithm: Option<Arc<str>>,
 }
 
 impl GraphPosterior {
@@ -191,7 +197,15 @@ impl GraphPosterior {
             lagged_edge_marginals: None,
             max_lag: None,
             lag_masks: None,
+            algorithm: None,
         })
+    }
+
+    /// Tag this posterior with the algorithm that produced it.
+    #[must_use]
+    pub fn with_algorithm(mut self, algorithm: impl Into<Arc<str>>) -> Self {
+        self.algorithm = Some(algorithm.into());
+        self
     }
 
     /// Attach lagged-edge marginals (DBN).
