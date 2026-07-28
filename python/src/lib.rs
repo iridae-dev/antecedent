@@ -353,6 +353,9 @@ impl IntoCausalPyErr for RustCausalError {
                 _ => CausalStateError::new_err(e.to_string()),
             },
             Self::Schema(e) => CausalDataError::new_err(e.to_string()),
+            // A structure that does not describe the table is a data problem, and
+            // callers should be able to catch it as one rather than the root class.
+            Self::SchemaMismatch { detail } => CausalDataError::new_err(detail),
             Self::Compile { message } => CausalCompileError::new_err(message),
             Self::Resource { message } => CausalResourceError::new_err(message),
             Self::ReviewRequired { kind, algorithm, pending_edge_count, message, hint } => {

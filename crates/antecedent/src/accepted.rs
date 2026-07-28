@@ -13,6 +13,7 @@
 
 use std::sync::Arc;
 
+use antecedent_core::CausalSchema;
 use antecedent_graph::{
     Admg, Cpdag, CpdagReview, Dag, DagReview, Pag, PagReview, TemporalCpdag, TemporalCpdagReview,
     TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview,
@@ -79,11 +80,15 @@ pub struct AcceptedGraph {
     kind: GraphKind,
     version: u32,
     algorithm_id: Option<Arc<str>>,
+    /// Ordered variable names this structure's node indices refer to, when bound via
+    /// [`Self::with_schema`]. `None` when the structure was never bound (the default) —
+    /// binding is opt-in so existing callers are unaffected.
+    schema_names: Option<Arc<[Arc<str>]>>,
 }
 
 impl AcceptedGraph {
     fn from_kind(kind: GraphKind, algorithm_id: Option<Arc<str>>) -> Self {
-        Self { kind, version: 1, algorithm_id }
+        Self { kind, version: 1, algorithm_id, schema_names: None }
     }
 
     /// Accept an already-directed static DAG. Cannot fail: a [`Dag`] has no undirected
@@ -297,7 +302,27 @@ impl AcceptedGraph {
             kind: next.kind,
             version: self.version + 1,
             algorithm_id: next.algorithm_id,
+            schema_names: next.schema_names,
         }
+    }
+
+    /// Bind this structure to the schema its node indices refer to.
+    ///
+    /// Graph nodes are positional (`DenseNodeId(i)` is `VariableId(i)`), so a structure
+    /// built against one schema is silently meaningless against another with the same
+    /// shape. Binding lets [`crate::StudyBuilder::build`] refuse that.
+    #[must_use]
+    pub fn with_schema(mut self, schema: &CausalSchema) -> Self {
+        let names: Arc<[Arc<str>]> =
+            schema.variables().iter().map(|v| Arc::clone(&v.name)).collect();
+        self.schema_names = Some(names);
+        self
+    }
+
+    /// Ordered variable names this structure is bound to, if any.
+    #[must_use]
+    pub fn variable_names(&self) -> Option<&[Arc<str>]> {
+        self.schema_names.as_deref()
     }
 }
 
