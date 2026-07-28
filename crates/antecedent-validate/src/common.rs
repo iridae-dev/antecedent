@@ -585,7 +585,18 @@ pub(crate) fn replicate_p_value(samples: &[f64], hypothesized: f64) -> f64 {
         return if (hypothesized - mean).abs() <= 1e-9 * scale { 1.0 } else { 0.0 };
     }
     let z = (hypothesized - mean) / sd;
-    erfc(z.abs() / std::f64::consts::SQRT_2)
+    if !z.is_finite() {
+        // Defense in depth rather than a live path: a non-finite `mean` drags
+        // `sample_sd` non-finite too, so the guard above already catches every
+        // way `z` is currently reachable as NaN/±inf. Kept so a future change to
+        // the spread guards cannot leak a NaN into a reported probability, and
+        // returning 1.0 matches the non-finite convention established above.
+        return 1.0;
+    }
+    // `erfc` is guaranteed in [0, 2] for finite input, so `z.abs() >= 0` keeps this
+    // in [0, 1] mathematically — clamp anyway since this value is documented as a
+    // probability and defensive clamping is cheap.
+    erfc(z.abs() / std::f64::consts::SQRT_2).clamp(0.0, 1.0)
 }
 
 /// Copy a full-length float64 column (unmasked; caller handles missingness).
@@ -679,4 +690,40 @@ pub(crate) fn sample_sd(values: &[f64]) -> f64 {
 pub(crate) fn fill_gaussian(out: &mut [f64], ctx: &ExecutionContext, stream_id: u64) {
     let mut rng = ctx.rng.stream(stream_id);
     antecedent_kernels::fill_standard_normal(&mut rng, out);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replicate_p_value_zero_sd_matches_hypothesis_is_valid_probability() {
+        // All replicates identical (SD = 0) and equal to the hypothesized value:
+        // handled by the existing degenerate-spread guard, not the erfc path.
+        let samples = [1.5, 1.5, 1.5, 1.5];
+        let p = replicate_p_value(&samples, 1.5);
+        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
+        assert!(!p.is_nan(), "p_value must not be NaN");
+    }
+
+    #[test]
+    fn replicate_p_value_zero_sd_away_from_hypothesis_is_valid_probability() {
+        // All replicates identical (SD = 0) but away from the hypothesized value.
+        let samples = [1.5, 1.5, 1.5, 1.5];
+        let p = replicate_p_value(&samples, 0.0);
+        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
+        assert!(!p.is_nan(), "p_value must not be NaN");
+    }
+
+    #[test]
+    fn replicate_p_value_nan_mean_does_not_propagate_nan() {
+        // A blown-up replicate (e.g. a failed refit) can leave NaN in the sample
+        // set; `mean`/`z` then become non-finite even though `sd` itself may
+        // still compare finite. The result must stay a valid probability
+        // (D2: unclamped/non-finite tail probability).
+        let samples = [1.0, 2.0, f64::NAN, 3.0];
+        let p = replicate_p_value(&samples, 0.0);
+        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
+        assert!(!p.is_nan(), "p_value must not be NaN");
+    }
 }
