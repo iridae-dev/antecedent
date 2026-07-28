@@ -137,6 +137,23 @@ impl FunctionalDistribution {
         Self { overlap: OverlapPolicy::ExplicitOverride, bootstrap_replicates: 0 }
     }
 
+    /// Set the overlap policy recorded on the estimate artifact.
+    ///
+    /// Positivity is implicit in the empirical CPT's support, so override is generally safe.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the interventional mean's standard
+    /// error (0 = skip).
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
     /// Prepare from an identified `GeneralId` functional and tabular data.
     ///
     /// # Errors
@@ -406,6 +423,21 @@ impl FunctionalEffect {
     #[must_use]
     pub fn new() -> Self {
         Self { overlap: OverlapPolicy::ExplicitOverride, bootstrap_replicates: 0 }
+    }
+
+    /// Set the overlap policy recorded on the estimate artifact.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the scalar functional's standard
+    /// error (0 = skip).
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
     }
 
     /// Prepare CPT plug-in for a path-specific / general-ID contrast functional.

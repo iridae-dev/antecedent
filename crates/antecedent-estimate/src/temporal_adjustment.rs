@@ -49,6 +49,13 @@ impl TemporalLinearAdjustment {
         Self { inner: LinearAdjustmentAte::new() }
     }
 
+    /// Set the shared OLS / bootstrap machinery.
+    #[must_use]
+    pub fn with_inner(mut self, inner: LinearAdjustmentAte) -> Self {
+        self.inner = inner;
+        self
+    }
+
     /// Prepare a lag-aligned design from series + unfolded identification.
     ///
     /// Adjustment `VariableId`s are interpreted as **dense unfolded node ids**

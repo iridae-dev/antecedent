@@ -119,6 +119,77 @@ impl AipwAte {
         }
     }
 
+    /// Set the dense linear-algebra backend used for the propensity IRLS fit and outcome
+    /// OLS fits.
+    #[must_use]
+    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
+        self.backend = backend;
+        self
+    }
+
+    /// Set the number of bootstrap replicates used for the bootstrap standard error.
+    ///
+    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
+    /// Each replicate refits both the propensity model and the two outcome models.
+    #[must_use]
+    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
+        self.bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set the overlap policy. Positivity is mandatory here:
+    /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
+    #[must_use]
+    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
+        self.overlap = overlap;
+        self
+    }
+
+    /// Set the GLM fitting options (max iterations, convergence tolerance) used for the
+    /// propensity model.
+    #[must_use]
+    pub const fn with_glm_options(mut self, glm_options: GlmOptions) -> Self {
+        self.glm_options = glm_options;
+        self
+    }
+
+    /// Set the analytic standard-error kind (default [`AnalyticSeKind::Homoskedastic`]).
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
+    }
+
+    /// Set cluster ids (aligned to prepared rows) for [`AnalyticSeKind::Cluster`].
+    #[must_use]
+    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set bindings for named predicates / custom target distributions used when the query
+    /// targets [`TargetPopulation::Predicate`] or a custom distribution.
+    #[must_use]
+    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
+        self.population_registry = Some(registry);
+        self
+    }
+
+    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
+    /// [`AnalyticSeKind::Multiway`].
+    #[must_use]
+    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
+        self.multiway_ids = Some(multiway_ids);
+        self
+    }
+
+    /// Set panel time labels for [`AnalyticSeKind::PanelClusterHac`].
+    #[must_use]
+    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
+        self.panel_times = Some(panel_times);
+        self
+    }
+
     /// Prepare the covariate design from tabular data, identified estimand, and query.
     ///
     /// Accepts `backdoor.adjustment` / `backdoor.efficient` estimands.
