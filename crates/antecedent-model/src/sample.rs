@@ -59,7 +59,8 @@ pub fn sample_interventional(
 ///
 /// # Errors
 ///
-/// Mechanism failures.
+/// Mechanism failures, or an overlay with a node both hard-set and shifted
+/// (see [`InterventionOverlay::validate`]).
 pub fn sample_with_overlay(
     view: &ModelView<'_>,
     n_rows: usize,
@@ -69,6 +70,10 @@ pub fn sample_with_overlay(
     if n_rows == 0 {
         return Err(ModelError::Shape { message: "n_rows must be > 0".into() });
     }
+    // Overlays reaching here need not have come from `from_interventions` — this is a
+    // public entry point taking a caller-built `ModelView`, so the invariant the hard-set
+    // branch below relies on is re-established rather than assumed.
+    view.overlay.validate()?;
     let model = view.model;
     let n_nodes = model.n_nodes();
     let mut values_buf = vec![0.0; n_rows * n_nodes];
@@ -544,13 +549,15 @@ pub fn sample_stochastic(
 ///
 /// # Errors
 ///
-/// Mechanism failures.
+/// Mechanism failures, or an overlay with a node both hard-set and shifted
+/// (see [`InterventionOverlay::validate`]).
 pub fn sample_structural_with_overlay(
     view: &ModelView<'_>,
     n_rows: usize,
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
 ) -> Result<(ValueBatch, Vec<f64>), ModelError> {
+    view.overlay.validate()?;
     let model = view.model;
     let n_nodes = model.n_nodes();
     let mut noise_buf = vec![0.0; n_rows * n_nodes];
