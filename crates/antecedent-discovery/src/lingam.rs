@@ -274,7 +274,7 @@ impl DirectLingam {
                     p_value: None,
                     adjusted_p_value: None,
                     interval: None,
-                    separating_sets: Arc::from([]),
+                    separating_set: None,
                     provenance: Arc::from([Arc::from("direct_lingam")]),
                 })
             })

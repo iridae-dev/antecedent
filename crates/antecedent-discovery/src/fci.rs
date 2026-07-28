@@ -448,23 +448,21 @@ impl Fci {
         let edge_evidence: Vec<EdgeEvidence> = scored
             .iter()
             .map(|s| {
-                let seps = sepsets
+                let sepset = sepsets
                     .get(&(
                         s.link.source,
                         Lag::CONTEMPORANEOUS,
                         s.link.target,
                         Lag::CONTEMPORANEOUS,
                     ))
-                    .cloned()
-                    .into_iter()
-                    .collect::<Vec<_>>();
+                    .cloned();
                 EdgeEvidence {
                     link: s.link,
                     statistic: Some(s.statistic),
                     p_value: Some(s.p_value),
                     adjusted_p_value: s.adjusted_p_value,
                     interval: None,
-                    separating_sets: Arc::from(seps),
+                    separating_set: sepset,
                     provenance: Arc::from([Arc::from("fci")]),
                 }
             })

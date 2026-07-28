@@ -70,8 +70,8 @@ pub struct EdgeEvidence {
     pub adjusted_p_value: Option<f64>,
     /// Optional confidence interval for the statistic.
     pub interval: Option<(f64, f64)>,
-    /// Separating sets used during PC / orientation (may be empty).
-    pub separating_sets: Arc<[Arc<[LaggedParent]>]>,
+    /// The separating set recorded for this edge during PC / orientation, if one was recorded.
+    pub separating_set: Option<Arc<[LaggedParent]>>,
     /// Short provenance tags (e.g. `mci`, `orient.meek_r1`).
     pub provenance: Arc<[Arc<str>]>,
 }
@@ -79,14 +79,14 @@ pub struct EdgeEvidence {
 impl EdgeEvidence {
     /// Build from a scored MCI link.
     #[must_use]
-    pub fn from_scored(link: ScoredLink, sepsets: Arc<[Arc<[LaggedParent]>]>) -> Self {
+    pub fn from_scored(link: ScoredLink, sepset: Option<Arc<[LaggedParent]>>) -> Self {
         Self {
             link: link.link,
             statistic: Some(link.statistic),
             p_value: Some(link.p_value),
             adjusted_p_value: None,
             interval: None,
-            separating_sets: sepsets,
+            separating_set: sepset,
             provenance: Arc::from([Arc::from("mci")]),
         }
     }
