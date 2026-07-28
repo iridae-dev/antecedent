@@ -318,4 +318,79 @@ mod tests {
         // Adding the true parent of x1 should improve the score.
         assert!(delta > 0.0, "delta={delta}");
     }
+
+    /// Independent reference for the Gaussian BIC of a simple linear regression.
+    ///
+    /// Deliberately avoids the Gram-accumulate / `invert_square` path the
+    /// implementation uses, so this is a genuine cross-check rather than a
+    /// restatement: OLS via the two-variable closed form, SSE by direct
+    /// residual accumulation, then the score assembled from the definition
+    /// `l_max - (k/2) ln n` with `l_max = -n/2 (ln 2pi + ln sigma2 + 1)`.
+    fn reference_bic_one_parent(x: &[f64], y: &[f64]) -> f64 {
+        let n = x.len();
+        let n_f = n as f64;
+        let xbar = x.iter().sum::<f64>() / n_f;
+        let ybar = y.iter().sum::<f64>() / n_f;
+        let sxy: f64 = x.iter().zip(y).map(|(xi, yi)| (xi - xbar) * (yi - ybar)).sum();
+        let sxx: f64 = x.iter().map(|xi| (xi - xbar) * (xi - xbar)).sum();
+        let slope = sxy / sxx;
+        let intercept = ybar - slope * xbar;
+        let sse: f64 = x
+            .iter()
+            .zip(y)
+            .map(|(xi, yi)| {
+                let e = yi - (intercept + slope * xi);
+                e * e
+            })
+            .sum();
+        let sigma2 = sse / n_f;
+        let k_f = 2.0; // slope + intercept
+        -0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - 0.5 * k_f * n_f.ln()
+    }
+
+    #[test]
+    fn gaussian_bic_matches_closed_form_regression() {
+        let data = chain_data();
+        let n = data.n_rows;
+        let x: Vec<f64> = data.col(0).to_vec();
+        let y: Vec<f64> = data.col(1).to_vec();
+
+        let got = gaussian_bic_local(&data, 1, &[0u32]).unwrap();
+        let expected = reference_bic_one_parent(&x, &y);
+        assert!((got - expected).abs() < 1e-9, "one-parent BIC: got {got}, closed form {expected}");
+
+        // Intercept-only: sigma2 is the population variance of y and k = 1.
+        let ybar = y.iter().sum::<f64>() / n as f64;
+        let sigma2 = y.iter().map(|yi| (yi - ybar) * (yi - ybar)).sum::<f64>() / n as f64;
+        let n_f = n as f64;
+        let expected_empty =
+            -0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - 0.5 * n_f.ln();
+        let got_empty = gaussian_bic_local(&data, 1, &[]).unwrap();
+        assert!(
+            (got_empty - expected_empty).abs() < 1e-9,
+            "intercept-only BIC: got {got_empty}, closed form {expected_empty}"
+        );
+    }
+
+    #[test]
+    fn gaussian_bic_loglik_is_monotone_under_nesting() {
+        // Backing the penalty out of the score recovers the maximized
+        // log-likelihood. Enlarging a parent set can only improve in-sample
+        // fit, so that quantity must be non-decreasing -- a wrong parameter
+        // count `k` breaks this because the penalty subtracted would not match
+        // the penalty implied by the parent set.
+        //
+        // The exact value of `k` is pinned separately, and non-tautologically,
+        // by `gaussian_bic_matches_closed_form_regression` (|Pa| = 0 and 1).
+        let data = chain_data();
+        let n_f = data.n_rows as f64;
+        let loglik = |parents: &[u32]| {
+            let k = parents.len() as f64 + 1.0;
+            gaussian_bic_local(&data, 2, parents).unwrap() + 0.5 * k * n_f.ln()
+        };
+        let nested = loglik(&[1u32]);
+        let full = loglik(&[0u32, 1u32]);
+        assert!(full >= nested - 1e-9, "log-likelihood fell on nesting: {nested} -> {full}");
+        assert!(loglik(&[1u32]) >= loglik(&[]) - 1e-9);
+    }
 }
