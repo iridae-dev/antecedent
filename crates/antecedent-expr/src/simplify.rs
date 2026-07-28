@@ -22,6 +22,7 @@ use crate::{CausalExprArena, DerivationMeta, ExprId, ExprNode, VarSetId};
 /// `|support(v)|` (`SumOut`) or drop the integration measure entirely
 /// (`IntegralOut`). Rather than guess, `simplify` fails closed and reports it.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum SimplifyError {
     /// A `SumOut` binds variable(s) that are absent from the free variables of its
     /// body.

@@ -18,7 +18,7 @@ pub fn require_method(
     allowed: &[EstimandMethod],
     message: &'static str,
 ) -> Result<EstimandMethod, EstimationError> {
-    let kind = estimand.method_kind().map_err(EstimationError::UnsupportedQuery)?;
+    let kind = estimand.method_kind().map_err(EstimationError::data_msg)?;
     if !allowed.contains(&kind) {
         return Err(EstimationError::IncompatibleEstimand { message });
     }

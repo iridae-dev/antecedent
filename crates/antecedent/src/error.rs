@@ -19,6 +19,7 @@ use thiserror::Error;
 
 /// Pipeline and facade failures — structured sum over domain errors.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CausalError {
     /// Identification failed.
     #[error(transparent)]

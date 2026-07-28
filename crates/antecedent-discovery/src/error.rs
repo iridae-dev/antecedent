@@ -9,6 +9,7 @@ use thiserror::Error;
 
 /// Discovery failures.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum DiscoveryError {
     /// Data / sample preparation.
     #[error(transparent)]

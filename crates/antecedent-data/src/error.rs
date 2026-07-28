@@ -8,6 +8,7 @@ use antecedent_core::VariableId;
 
 /// Errors from data construction, lookup, or materialization.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum DataError {
     /// Schema/data length mismatch.
     LengthMismatch {

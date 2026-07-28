@@ -101,6 +101,7 @@ pub struct FactorSpec<'a> {
 
 /// Errors from compiling or evaluating causal expressions.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum EvalError {
     /// Continuous `IntegralOut` without quadrature nodes and without discrete support.
     UnsupportedIntegralOut,

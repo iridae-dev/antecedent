@@ -251,7 +251,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
             let sel = query
                 .target_population
                 .resolve(n_full, None, registry)
-                .map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
             for (i, slot) in row_mask.iter_mut().enumerate() {
                 *slot = *slot && sel.keep.get(i).copied().unwrap_or(false);
             }
@@ -260,7 +260,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
             let sel = query
                 .target_population
                 .resolve(n_full, None, registry)
-                .map_err(|e| EstimationError::UnsupportedQuery(e.to_string()))?;
+                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
             // Keep complete-case rows; weights apply at estimation time (aligned below).
             full_weights = sel.weights;
         }

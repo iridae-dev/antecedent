@@ -56,26 +56,6 @@ pub trait Estimator<D, Q = AverageEffectQuery>: sealed::Sealed {
     ) -> Result<Self::Fit, EstimationError>;
 }
 
-/// Batch estimation against a fitted estimator .
-///
-/// Reserved extension point — not part of the day-1 public surface. No concrete
-/// estimator implements this yet; use inherent `fit` / bootstrap paths instead.
-#[allow(dead_code)] // reserved contract
-pub(crate) trait FittedEstimator<Q> {
-    /// Estimate one or more queries into `output`.
-    ///
-    /// # Errors
-    ///
-    /// Incompatible query or numerical failure.
-    fn estimate_batch(
-        &self,
-        queries: &[Q],
-        output: &mut [EffectEstimate],
-        workspace: &mut EstimationWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<(), EstimationError>;
-}
-
 /// Tabular ATE estimators that produce [`EffectEstimate`].
 pub trait TabularAteEstimator:
     Estimator<TabularData, AverageEffectQuery, Fit = EffectEstimate>

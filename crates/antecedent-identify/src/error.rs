@@ -8,6 +8,7 @@ use thiserror::Error;
 
 /// Identification failures.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum IdentificationError {
     /// Treatment/outcome missing from graph.
     #[error("unknown variable {id}")]

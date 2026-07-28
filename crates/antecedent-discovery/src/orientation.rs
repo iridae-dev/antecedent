@@ -197,6 +197,7 @@ impl PagOps for TemporalPag {
 
 /// Orientation-layer errors.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum OrientationError {
     /// Graph mutation failed.
     #[error(transparent)]
