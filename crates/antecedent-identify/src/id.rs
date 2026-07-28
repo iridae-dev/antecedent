@@ -229,7 +229,10 @@ impl IdIdentifier {
             right: right_exp,
             op: ContrastOp::Difference,
         });
-        let functional = arena.simplify(contrast);
+        // A dead sum/integral here means the assembled functional is ill-formed,
+        // which must surface rather than be silently rewritten away.
+        let functional =
+            arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))?;
         let estimand = IdentifiedEstimand::new(
             Arc::from(EstimandMethod::GeneralId.as_str()),
             Arc::from([]),

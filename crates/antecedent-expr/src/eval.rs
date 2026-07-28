@@ -503,7 +503,7 @@ mod tests {
             .unwrap()
             .evaluate(&arena, &provider, &EvalContext::default())
             .unwrap();
-        let simplified = arena.simplify(expr);
+        let simplified = arena.simplify(expr).unwrap();
         let after = arena
             .compile(simplified)
             .unwrap()
@@ -528,7 +528,7 @@ mod tests {
                 .unwrap()
                 .evaluate(arena, provider, &EvalContext::default())
                 .unwrap();
-            let simplified = arena.simplify(expr);
+            let simplified = arena.simplify(expr).unwrap();
             let after = arena
                 .compile(simplified)
                 .unwrap()
@@ -586,7 +586,7 @@ mod tests {
                 .unwrap()
                 .evaluate(arena, provider, &EvalContext::default())
                 .unwrap();
-            let simplified = arena.simplify(expr);
+            let simplified = arena.simplify(expr).unwrap();
             let after = arena
                 .compile(simplified)
                 .unwrap()
@@ -723,7 +723,7 @@ mod tests {
         let ate = compiled.evaluate(&arena, &p, &EvalContext::default()).unwrap();
         assert!((ate - 0.32).abs() < 1e-12, "ate={ate}");
 
-        let simplified = arena.simplify(expr);
+        let simplified = arena.simplify(expr).unwrap();
         let ate2 = arena
             .compile(simplified)
             .unwrap()
@@ -910,5 +910,53 @@ mod tests {
             arena.compile(exp).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
         // 0*0.25 + 2*0.75 = 1.5
         assert!((val - 1.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ratio_zero_denominator_is_division_by_zero() {
+        // `EvalOp::Ratio` must reject an exactly-zero denominator rather than
+        // returning `f64::INFINITY`/NaN. `iv_wald_is_ratio_of_instrument_contrasts`
+        // (lib.rs) only checks the compiled shape, not this evaluation-time guard.
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        // Two vacuous (no free variables) factors, distinguished by domain so they
+        // hash-cons to distinct nodes with independently settable probabilities.
+        let numerator = arena.intern(ExprNode::Distribution {
+            variables: empty,
+            conditioned_on: empty,
+            intervention: empty_i,
+            domain: DomainRef::Observational,
+        });
+        let denominator = arena.intern(ExprNode::Distribution {
+            variables: empty,
+            conditioned_on: empty,
+            intervention: empty_i,
+            domain: DomainRef::Interventional,
+        });
+        let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
+
+        let mut p = EmpiricalTableProvider::new();
+        let obs_spec = FactorSpec {
+            variables: &[],
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Observational,
+        };
+        let interv_spec = FactorSpec {
+            variables: &[],
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Interventional,
+        };
+        p.insert_probability(&obs_spec, &Assignment::from_pairs([]), 3.0).unwrap();
+        p.insert_probability(&interv_spec, &Assignment::from_pairs([]), 0.0).unwrap();
+
+        let err = arena
+            .compile(ratio)
+            .unwrap()
+            .evaluate(&arena, &p, &EvalContext::default())
+            .unwrap_err();
+        assert_eq!(err, EvalError::DivisionByZero);
     }
 }

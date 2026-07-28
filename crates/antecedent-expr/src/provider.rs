@@ -128,6 +128,9 @@ pub enum EvalError {
     },
     /// Empirical provider used where posterior draws are required (or vice versa).
     ProviderKind(&'static str),
+    /// Provider cannot answer a conditional query (non-empty `conditioned_on`) —
+    /// e.g. an independent-factor provider that only models unconditional marginals.
+    UnsupportedConditioning(&'static str),
 }
 
 impl fmt::Display for EvalError {
@@ -146,7 +149,7 @@ impl fmt::Display for EvalError {
             Self::SupportShape { expected, actual } => {
                 write!(f, "support row arity {actual} != expected {expected}")
             }
-            Self::ProviderKind(msg) => write!(f, "{msg}"),
+            Self::ProviderKind(msg) | Self::UnsupportedConditioning(msg) => write!(f, "{msg}"),
         }
     }
 }
@@ -452,6 +455,15 @@ impl DistributionProvider for GaussianDensityProvider {
         assignment: &Assignment,
         _ctx: &EvalContext,
     ) -> Result<f64, EvalError> {
+        // Independent Gaussians only model unconditional marginals; a non-empty
+        // `conditioned_on` would silently return P(variables) instead of the
+        // requested P(variables | conditioned_on), so reject rather than guess.
+        if !spec.conditioned_on.is_empty() {
+            return Err(EvalError::UnsupportedConditioning(
+                "GaussianDensityProvider models independent Gaussians and cannot answer \
+                 conditional queries; conditioned_on must be empty",
+            ));
+        }
         let mut dens = 1.0;
         for &v in spec.variables {
             let (mean, var) = self.params.get(&v).copied().ok_or(EvalError::EmptySupport(v))?;
@@ -522,5 +534,57 @@ impl DistributionProvider for GaussianDensityProvider {
 
     fn n_draws(&self) -> Option<usize> {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn v(id: u32) -> VariableId {
+        VariableId::from_raw(id)
+    }
+
+    fn f(x: f64) -> Value {
+        Value::f64(x)
+    }
+
+    #[test]
+    fn empirical_table_missing_entry_errors() {
+        // Domain declared but no `insert_probability` call for this cell: must
+        // surface `MissingTableEntry` rather than silently yielding 0.0.
+        let mut p = EmpiricalTableProvider::new();
+        let y = v(0);
+        p.set_domain(y, [f(0.0), f(1.0)]);
+        let spec = FactorSpec {
+            variables: &[y],
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Observational,
+        };
+        let assignment = Assignment::from_pairs([(y, f(0.0))]);
+        let err = p.probability(&spec, &assignment, &EvalContext::default()).unwrap_err();
+        assert_eq!(err, EvalError::MissingTableEntry);
+    }
+
+    #[test]
+    fn gaussian_provider_rejects_conditional_query() {
+        // `GaussianDensityProvider` models independent Gaussians; it must error on a
+        // conditional query (non-empty `conditioned_on`) rather than silently
+        // returning the unconditional marginal P(variables).
+        let mut p = GaussianDensityProvider::new();
+        let y = v(0);
+        let z = v(1);
+        p.set_gaussian(y, 0.0, 1.0);
+        p.set_gaussian(z, 0.0, 1.0);
+        let spec = FactorSpec {
+            variables: &[y],
+            conditioned_on: &[z],
+            intervention: &[],
+            domain: DomainRef::Observational,
+        };
+        let assignment = Assignment::from_pairs([(y, f(0.5)), (z, f(0.2))]);
+        let err = p.probability(&spec, &assignment, &EvalContext::default()).unwrap_err();
+        assert!(matches!(err, EvalError::UnsupportedConditioning(_)));
     }
 }
