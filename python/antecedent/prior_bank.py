@@ -157,12 +157,20 @@ class ExternalPriorWeight:
 
 @dataclass(frozen=True)
 class ExternalPriorSourceSpec:
-    """One hydrated Gaussian coefficient prior for composition."""
+    """One hydrated Gaussian coefficient prior for composition.
+
+    ``ess`` is an optional caller-declared **prior-strength** sample size for
+    this source (e.g. the original study's N, or an effective N after a
+    design discount). It is distinct from MCMC effective sample size and from
+    Kish importance-weighting ESS (see ``ComposedPrior.kish_ess``) — see
+    :mod:`antecedent.prior_bank` module docs.
+    """
 
     id: str
     mean: tuple[float, ...]
     variance: tuple[float, ...]
     weight: ExternalPriorWeight = field(default_factory=ExternalPriorWeight)
+    ess: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -171,12 +179,25 @@ class ExternalPriorSourceSpec:
             "variance": list(self.variance),
             "alpha": self.weight.alpha,
             "mixture_weight": self.weight.mixture_weight,
+            "ess": self.ess,
         }
 
 
 @dataclass(frozen=True)
 class ComposedPrior:
-    """Result of ``compose_external_priors``; usable as ``Bayesian(prior_from=...)``."""
+    """Result of ``compose_external_priors``; usable as ``Bayesian(prior_from=...)``.
+
+    Three distinct effective-sample-size conventions appear across this
+    library; none are interchangeable:
+
+    * ``effective_ess`` / ``composed_ess`` below are **prior-strength ESS** —
+      the sample size implied by how much precision a source (or the
+      composed prior) contributes, via ``alpha * ess``.
+    * MCMC / autocorrelation ESS (on posterior diagnostics) measures how many
+      effectively independent draws a chain produced.
+    * ``kish_ess`` below is a Kish (1965) importance-weighting diagnostic —
+      how concentrated a trust/weight vector is, ``(sum(w))**2 / sum(w**2)``.
+    """
 
     mean: tuple[float, ...]
     variance: tuple[float, ...]
@@ -190,6 +211,22 @@ class ComposedPrior:
     conflict_kl_values: tuple[float | None, ...] = ()
     assumption_ids: tuple[str, ...] = ()
     transport: TransportPolicy | None = None
+    #: Per-source prior-strength ESS after alpha discount (``alpha_applied *
+    #: ess``); ``None`` entries mean that source declared no ``ess``. Zero for
+    #: sources dropped from composition regardless of a declared ``ess``.
+    effective_ess: tuple[float | None, ...] = ()
+    #: Composed prior-strength ESS. On the power path, ``sum(alpha_k * ess_k)``
+    #: over contributing sources when *every* contributing source declared an
+    #: ``ess`` (``None`` otherwise — a partial sum would misstate it). Always
+    #: ``None`` on the mixture path: moment-matching folds in between-component
+    #: spread, so the composed prior is weaker than a precision-sum implies and
+    #: summing source ESS would overstate composed strength.
+    composed_ess: float | None = None
+    #: Kish concentration-of-trust diagnostic over the weight vector actually
+    #: used in composition (applied alphas on the power path, mixture weights
+    #: on the mixture path; dropped sources zeroed). ``None`` only when there
+    #: are no sources to diagnose.
+    kish_ess: float | None = None
 
     def to_native_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -200,6 +237,9 @@ class ComposedPrior:
             "alphas_applied": list(self.alphas_applied),
             "mixture_weights": list(self.mixture_weights),
             "sources": [s.to_dict() for s in self.sources],
+            "effective_ess": list(self.effective_ess),
+            "composed_ess": self.composed_ess,
+            "kish_ess": self.kish_ess,
         }
         if self.conflict is not None:
             d["conflict"] = self.conflict.to_dict()
@@ -234,6 +274,7 @@ def _normalize_weights(
                 mean=src.mean,
                 variance=src.variance,
                 weight=wt,
+                ess=src.ess,
             )
         )
     return out
@@ -294,6 +335,12 @@ def compose_external_priors(
         for importance-weighted moment adjustment.
     coef_index:
         Coefficient index rewritten under reweight (default: last).
+
+    Set ``ess`` on each ``ExternalPriorSourceSpec`` to get prior-strength
+    effective-sample-size accounting back on the result: per-source
+    ``ComposedPrior.effective_ess``, the path-dependent ``composed_ess``, and
+    the ``kish_ess`` concentration-of-trust diagnostic. See ``ComposedPrior``
+    for what each one means and why they are not interchangeable.
     """
     srcs = _normalize_compose_sources(sources, weights)
     baseline_mean, baseline_var = _compose_baseline(srcs, baseline)
@@ -406,6 +453,7 @@ def _composed_prior_from_native(
                             else float(row["mixture_weight"])
                         ),
                     ),
+                    ess=(None if row.get("ess") is None else float(row["ess"])),
                 )
             )
         out_sources = tuple(rebuilt)
@@ -417,6 +465,11 @@ def _composed_prior_from_native(
         alphas_applied=tuple(float(x) for x in raw["alphas_applied"]),
         mixture_weights=tuple(None if w is None else float(w) for w in raw["mixture_weights"]),
         sources=out_sources,
+        effective_ess=tuple(
+            None if x is None else float(x) for x in raw.get("effective_ess") or ()
+        ),
+        composed_ess=(None if raw.get("composed_ess") is None else float(raw["composed_ess"])),
+        kish_ess=(None if raw.get("kish_ess") is None else float(raw["kish_ess"])),
         conflict=conflict,
         conflict_p_values=tuple(
             None if x is None else float(x) for x in raw.get("conflict_p_values") or ()

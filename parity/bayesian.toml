@@ -119,5 +119,11 @@ id = "bayes.prior_bank.transport"
 status = "done"
 notes = "TransportPolicy (InvariantConditionalOutcome / EffectModifiers / Propensity); population-tag mismatch requires policy (error_code=transport_policy_required); optional unit reweight; Propensity without weights → α=0; python_facade=full (TransportPolicy on compose_external_priors); unsupported environment/unidentified shifts not claimed; conformance/bayesian/prior_bank_transport"
 
+[[capabilities]]
+id = "bayes.prior_bank.ess_accounting"
+status = "done"
+python_facade = "full"
+notes = "ExternalPriorSource.ess (caller-declared prior-strength N) + ComposedPrior.effective_ess / .composed_ess / .kish_ess; composed_ess is path-dependent (Some only when every contributing power-path source declares ess; always None on the mixture path — moment-matching folds in between-component spread, so summing source ESS would overstate composed strength); kish_ess is a Kish (1965) concentration diagnostic over applied alphas (power) or mixture weights (mixture), shared via antecedent_prob::kish_ess (also used by TransportAdjustment::kish_ess); explicitly distinct from MCMC/autocorrelation ESS on posterior diagnostics; python_facade=full (ExternalPriorSourceSpec.ess / ComposedPrior.effective_ess/.composed_ess/.kish_ess on compose_external_priors); conformance/bayesian/prior_bank_ess"
+
 # External Stan/PyMC adapters are optional forever (native Laplace is canonical;
 # ). Not tracked as a required inventory row.

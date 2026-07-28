@@ -52,6 +52,7 @@ EVIDENCE = {
     "bayes.prior_bank.power_mixture": "crates/antecedent-prob/src/external_prior.rs",
     "bayes.prior_bank.conflict": "crates/antecedent-validate/src/conflict.rs",
     "bayes.prior_bank.transport": "crates/antecedent-prob/src/transport.rs",
+    "bayes.prior_bank.ess_accounting": "crates/antecedent-prob/src/external_prior.rs",
 }
 
 missing = []
@@ -82,6 +83,7 @@ for path in [
     "conformance/bayesian/prior_bank_conflict_shrink/expected.json",
     "conformance/bayesian/prior_bank_transport/expected.json",
     "conformance/bayesian/prior_bank_alpha_sensitivity/expected.json",
+    "conformance/bayesian/prior_bank_ess/expected.json",
     "conformance/validate/bayesian_checks/expected.json",
     "crates/antecedent-prob/benches/laplace_glm.rs",
     "crates/antecedent-estimate/benches/posterior_functional.rs",

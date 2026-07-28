@@ -230,6 +230,7 @@ mod tests {
             id: Arc::from("far"),
             prior: gauss(50.0, 0.25),
             weight: ExternalPriorWeight::power(1.0).unwrap(),
+            ess: None,
         }];
         let signals = [ConflictSignals { p_value: Some(0.001), kl: Some(2.0) }];
         let (composed, summary) =

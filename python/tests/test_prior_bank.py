@@ -488,6 +488,114 @@ def test_transport_propensity_without_weights_zeros_alpha():
     assert "external_transport_prior" in composed.assumption_ids
 
 
+def test_ess_accounting_power_path_sums_when_all_sources_declare_it():
+    """Single power-path source with a declared ess: effective_ess = alpha*ess,
+    composed_ess sums it (only contributor), kish_ess=1 for one active weight.
+    """
+    src = antecedent.ExternalPriorSourceSpec(
+        id="old",
+        mean=(2.0,),
+        variance=(1.0,),
+        weight=antecedent.ExternalPriorWeight(alpha=0.5),
+        ess=40.0,
+    )
+    composed = antecedent.compose_external_priors([src], baseline=([0.0], [4.0]))
+    assert composed.effective_ess == (20.0,)
+    assert composed.composed_ess == pytest.approx(20.0)
+    assert composed.kish_ess == pytest.approx(1.0)
+
+
+def test_ess_accounting_power_path_partial_coverage_is_none():
+    """One contributing source lacks ess: composed_ess must be None (a partial
+    sum would misstate composed strength) even though the other source's own
+    effective_ess is reported.
+    """
+    src_a = antecedent.ExternalPriorSourceSpec(
+        id="a",
+        mean=(2.0,),
+        variance=(1.0,),
+        weight=antecedent.ExternalPriorWeight(alpha=0.5),
+        ess=40.0,
+    )
+    src_b = antecedent.ExternalPriorSourceSpec(
+        id="b",
+        mean=(3.0,),
+        variance=(1.0,),
+        weight=antecedent.ExternalPriorWeight(alpha=0.25),
+        ess=None,
+    )
+    composed = antecedent.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
+    assert composed.effective_ess[0] == pytest.approx(20.0)
+    assert composed.effective_ess[1] is None
+    assert composed.composed_ess is None
+    # kish_ess over alphas_applied=[0.5, 0.25]: (0.75)^2 / (0.25+0.0625) = 1.8.
+    assert composed.kish_ess == pytest.approx(1.8)
+
+
+def test_ess_accounting_dropped_power_source_contributes_nothing():
+    """A dropped (alpha=0) power-path source reports effective_ess=0 despite a
+    large declared ess, and does not block composed_ess for the other source.
+    """
+    src_a = antecedent.ExternalPriorSourceSpec(
+        id="a",
+        mean=(2.0,),
+        variance=(1.0,),
+        weight=antecedent.ExternalPriorWeight(alpha=0.5),
+        ess=40.0,
+    )
+    src_b = antecedent.ExternalPriorSourceSpec(
+        id="b",
+        mean=(5.0,),
+        variance=(1.0,),
+        weight=antecedent.ExternalPriorWeight(alpha=0.0),
+        ess=999.0,
+    )
+    composed = antecedent.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
+    assert composed.effective_ess[0] == pytest.approx(20.0)
+    assert composed.effective_ess[1] == pytest.approx(0.0)
+    assert composed.composed_ess == pytest.approx(20.0)
+
+
+def test_ess_accounting_mixture_path_never_sums_but_reports_per_source():
+    """Mixture path: composed_ess is always None (moment-matching folds in
+    between-component spread, so summing source ESS would overstate composed
+    strength), but the source's own effective_ess is still reported.
+    """
+    src = antecedent.ExternalPriorSourceSpec(
+        id="s",
+        mean=(10.0,),
+        variance=(1.0,),
+        weight=antecedent.ExternalPriorWeight(alpha=1.0, mixture_weight=0.4),
+        ess=50.0,
+    )
+    composed = antecedent.compose_external_priors([src], baseline=([0.0], [100.0]))
+    assert composed.composed_ess is None
+    assert composed.effective_ess == (50.0,)
+    assert composed.kish_ess == pytest.approx(1.0)
+
+
+def test_ess_accounting_no_ess_declared_reports_none_but_kish_present():
+    """Neither source declares an ess: every effective_ess entry and
+    composed_ess are None, but kish_ess (weight-only) is still reported.
+    """
+    src_a = antecedent.ExternalPriorSourceSpec(
+        id="a",
+        mean=(2.0,),
+        variance=(1.0,),
+        weight=antecedent.ExternalPriorWeight(alpha=0.5),
+    )
+    src_b = antecedent.ExternalPriorSourceSpec(
+        id="b",
+        mean=(3.0,),
+        variance=(1.0,),
+        weight=antecedent.ExternalPriorWeight(alpha=0.3),
+    )
+    composed = antecedent.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
+    assert composed.effective_ess == (None, None)
+    assert composed.composed_ess is None
+    assert composed.kish_ess is not None and composed.kish_ess > 0.0
+
+
 def test_alpha_prior_sensitivity_on_composed_prior():
     """External compose + refute=full sweeps α multipliers (not isotropic scales)."""
     rng = np.random.default_rng(31)

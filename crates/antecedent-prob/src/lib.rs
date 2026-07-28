@@ -50,7 +50,7 @@ pub use diagnostics::{
 pub use error::ProbError;
 pub use external_prior::{
     ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
-    compose_external_priors_with_alphas,
+    compose_external_priors_with_alphas, kish_ess,
 };
 pub use gaussian_target::{
     GaussianInvGammaTarget, GaussianKnownTarget, GaussianTarget, PosteriorTarget,
