@@ -28,10 +28,26 @@ Each `[[capabilities]]` row uses:
 
 | Field | Required | Values |
 |-------|----------|--------|
-| `id` | yes | Dotted capability id |
+| `id` | yes | Dotted capability id, unique within the manifest |
 | `status` | yes | `pending` \| `in_progress` \| `done` |
+| `group` | see below | Grouping key |
+| `description` | see below | One-line capability description |
+| `owner` | see below | Owning domain |
 | `notes` | no | Free-form evidence / gate pointers |
 | `python_facade` | no | `full` \| `thin` |
+
+**`group` / `description` / `owner`** are required in
+[estimate.toml](estimate.toml), [discovery.toml](discovery.toml), and
+[context.toml](context.toml), and unused elsewhere.
+
+The required-key contract is enforced by
+[`scripts/gate_parity_schema.sh`](../scripts/gate_parity_schema.sh), which every
+feature gate and `gate_release.sh` invoke. It exists because the gates' inline
+`caps()` parser reads keys with a regex default — an absent `status` yields
+`None`, matches no honesty check, and would otherwise pass forever without the
+row ever being marked. The schema gate also pins that regex against a real TOML
+parse, and enrolls new manifests automatically: any `parity/*.toml` carrying
+`[[capabilities]]` rows that is not listed in the gate fails it.
 
 **`python_facade`:** When a capability is Rust-done but the Python surface is
 incomplete or `_native`-only without a typed facade, set `python_facade =
@@ -57,6 +73,7 @@ command where black-box comparison applies.
 ## Exit gates
 
 ```bash
+bash scripts/gate_parity_schema.sh
 bash scripts/gate_estimate_ci.sh
 bash scripts/gate_bayesian.sh
 bash scripts/gate_gcm.sh

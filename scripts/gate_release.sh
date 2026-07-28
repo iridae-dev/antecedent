@@ -12,6 +12,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Runs unconditionally: the inventory honesty pass below reads `status` with a
+# regex default, so a row missing the key would sail through it. SKIP_PRIOR_GATES
+# must not skip the schema contract that pass depends on.
+echo "== parity manifest schema =="
+bash scripts/gate_parity_schema.sh
+
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="
   bash scripts/gate_estimate_ci.sh

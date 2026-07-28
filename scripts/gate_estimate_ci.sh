@@ -5,6 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+bash scripts/gate_parity_schema.sh
+
 python3 - <<'PY'
 from pathlib import Path
 import re
@@ -40,6 +42,9 @@ EVIDENCE = {
     "estimate.iv": "conformance/estimate/iv_2sls",
     "estimate.rd": "conformance/estimate/rd_sharp",
     "estimate.two_stage": "conformance/estimate/frontdoor",
+    "estimate.refute.placebo": "conformance/estimate/refuters",
+    "estimate.refute.random_common_cause": "conformance/estimate/refuters",
+    "estimate.refute.bootstrap": "conformance/estimate/refuters",
     "estimate.refute.unobserved_common_cause": "conformance/estimate/refuters",
     "estimate.refute.overlap": "conformance/estimate/refuters",
     "estimate.refute.data_subset": "conformance/estimate/refuters",
