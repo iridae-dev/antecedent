@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+bash scripts/gate_parity_schema.sh
+
 python3 - <<'PY'
 from pathlib import Path
 import re
