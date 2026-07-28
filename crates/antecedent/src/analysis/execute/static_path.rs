@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::estimator_spec::EstimatorSpec;
 
 impl super::CausalAnalysis {
     pub(super) fn execute_static(
@@ -58,8 +59,13 @@ impl super::CausalAnalysis {
             });
         }
         let mut estimate_ws = StaticEstimateWorkspaces::default();
+        // A caller-configured estimator wins; otherwise select by id and let the
+        // study fill bootstrap/overlap defaults. The builder refuses the ambiguous
+        // case (both set) at `build()` time, so there is nothing to reconcile here.
+        let estimator_spec =
+            self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id));
         let point = estimate_static_effect(
-            estimator_id,
+            &estimator_spec,
             &data_est,
             &estimand_est,
             &query_est,
@@ -103,9 +109,17 @@ impl super::CausalAnalysis {
                 point
             } else {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-                let mut est = LinearAdjustmentAte::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                est.overlap = OverlapPolicy::ExplicitOverride;
+                // Reuse the caller's configured estimator when there is one, so the
+                // warm-workspace bootstrap path cannot silently diverge from the
+                // point-estimate path above.
+                let est = if let EstimatorSpec::LinearAdjustmentAte(cfg) = &estimator_spec {
+                    (**cfg).clone()
+                } else {
+                    let mut est = LinearAdjustmentAte::new();
+                    est.bootstrap_replicates = self.bootstrap_replicates;
+                    est.overlap = OverlapPolicy::ExplicitOverride;
+                    est
+                };
                 let prep =
                     est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?;
                 let filled = est
@@ -137,7 +151,7 @@ impl super::CausalAnalysis {
             } else {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
                 let filled = estimate_static_effect(
-                    estimator_id,
+                    &estimator_spec,
                     &data_est,
                     &estimand_est,
                     &query_est,
@@ -675,7 +689,7 @@ impl super::CausalAnalysis {
         let estimand = select_estimand(&identification, EstimatorId::FrontDoorTwoStage)?;
         let mut estimate_ws = StaticEstimateWorkspaces::default();
         let estimate = estimate_static_effect(
-            EstimatorId::FrontDoorTwoStage,
+            &EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage),
             data,
             &estimand,
             &ate,

@@ -13,7 +13,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use antecedent::CausalAnalysis;
+use antecedent::{CausalAnalysis, EstimatorId, IdentifierId};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
     SmallRoleSet, TargetPopulation, ValueType, VariableId,
@@ -133,8 +133,8 @@ fn run_method(
         .data(data)
         .graph(graph)
         .query(query)
-        .identifier(identifier.parse().unwrap())
-        .estimator(estimator.parse().unwrap())
+        .identifier(identifier.parse::<IdentifierId>().unwrap())
+        .estimator(estimator.parse::<EstimatorId>().unwrap())
         .overlap_policy(OverlapPolicy::RequireDiagnostics { clip: Some(clip), trim: None })
         .bootstrap_replicates(0)
         .build()

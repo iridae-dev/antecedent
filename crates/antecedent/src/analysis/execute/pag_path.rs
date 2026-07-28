@@ -192,8 +192,14 @@ impl super::CausalAnalysis {
                 estimand.method = Arc::from("backdoor.adjustment");
             }
             let mut case_ws = StaticEstimateWorkspaces::default();
+            // Honour a caller-configured estimator across every equivalence-class case,
+            // falling back to id-only selection when none was supplied.
+            let case_spec = self
+                .estimator_spec
+                .clone()
+                .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
             let estimate = estimate_static_effect(
-                estimator_id,
+                &case_spec,
                 data,
                 &estimand,
                 query,
