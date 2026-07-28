@@ -30,6 +30,19 @@ def test_analyze_refute_full_runs():
     # Full suite includes more than placebo+rcc when applicable.
     assert result.validation.ran is True
     assert result.validation.count >= 2
+    # Per-refuter records let callers name which check ran/failed instead of only
+    # seeing an aggregate pass/fail across the suite.
+    reports = result.validation.reports
+    assert len(reports) == result.validation.count
+    refuter_names = {r.refuter for r in reports}
+    assert "placebo.treatment" in refuter_names
+    assert "random.common_cause" in refuter_names
+    for r in reports:
+        assert isinstance(r.refuter, str) and r.refuter
+        assert isinstance(r.passed, bool)
+        assert isinstance(r.informative, bool)
+        assert isinstance(r.replicates, int)
+        assert r.failure_condition is None or isinstance(r.failure_condition, str)
 
 
 def test_validate_pcmci_block_bootstrap_smoke():

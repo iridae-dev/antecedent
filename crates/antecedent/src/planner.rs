@@ -37,6 +37,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
+        /// Max conditioning-set size in the PC1 / skeleton phase.
+        max_cond_size: usize,
         /// Multiple-testing adjustment (`None` = off).
         fdr: Option<FdrAdjustment>,
         /// Auto-accept discovered edges (skip review).
@@ -48,6 +50,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
+        /// Max conditioning-set size in the PC1 / skeleton phase.
+        max_cond_size: usize,
         /// Multiple-testing adjustment (`None` = off).
         fdr: Option<FdrAdjustment>,
         /// Auto-accept directed edges when no undirected marks remain.
@@ -72,6 +76,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
+        /// Max conditioning-set size in the PC1 / skeleton phase.
+        max_cond_size: usize,
         /// Multiple-testing adjustment (`None` = off).
         fdr: Option<FdrAdjustment>,
         /// Auto-accept when no circle marks remain.
@@ -83,6 +89,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
+        /// Max conditioning-set size in the PC1 / skeleton phase.
+        max_cond_size: usize,
         /// Multiple-testing adjustment (`None` = off).
         fdr: Option<FdrAdjustment>,
         /// Auto-accept when no undirected marks remain.
@@ -96,6 +104,8 @@ pub enum GraphInput {
         max_lag: u32,
         /// Significance level.
         alpha: f64,
+        /// Max conditioning-set size in the PC1 / skeleton phase.
+        max_cond_size: usize,
         /// Multiple-testing adjustment (`None` = off).
         fdr: Option<FdrAdjustment>,
         /// Auto-accept when a single fully-oriented regime exists.

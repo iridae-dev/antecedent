@@ -52,6 +52,27 @@ def _unnamed_artifact_bytes() -> bytes:
     return bytes(antecedent.encode_posterior_artifact(art))
 
 
+def _summary_only_artifact_bytes(*, ate_mean: float = 2.0, ate_sd: float = 0.2) -> bytes:
+    """Build a draws-free artifact from posterior moments alone.
+
+    Mirrors ``_unnamed_artifact_bytes`` but for a caller who only holds mean/sd/
+    quantiles (e.g. from a conjugate update computed elsewhere) and has no draws
+    array to supply.
+    """
+    art = antecedent.PosteriorArtifact.from_moments(
+        n_draws=64,
+        mean=[0.0, 1.0, ate_mean],
+        sd=[1.0, 1.0, ate_sd],
+        q025=[-1.0, 0.0, ate_mean - 2.0 * ate_sd],
+        q975=[1.0, 2.0, ate_mean + 2.0 * ate_sd],
+        backend_id="conjugate",
+        identification="NonparametricallyIdentified",
+        quantity_names=["coef_0", "coef_1", "ate"],
+    )
+    assert list(art.draws) == []
+    return bytes(antecedent.encode_posterior_artifact(art))
+
+
 def test_catalog_filter_accept_reject_partial():
     data, edges = _confounded()
     result = antecedent.analyze(
@@ -214,6 +235,63 @@ def test_effect_prior_transfer_shrinks_toward_source():
             seed=5,
             return_posterior_artifact=True,
         )
+
+
+def test_summary_only_artifact_round_trips_and_hydrates_prior():
+    """A draws-free artifact (``PosteriorArtifact.from_moments``) round-trips through
+    encode/decode without inventing draws, and ``Bayesian(prior_from=...)`` hydrates
+    from it end to end — hydrate only ever reads posterior mean/sd, never draws.
+    """
+    artifact_bytes = _summary_only_artifact_bytes(ate_mean=2.0, ate_sd=0.2)
+
+    decoded = antecedent.decode_posterior_artifact(artifact_bytes)
+    assert list(decoded.draws) == []
+    assert decoded.n_draws == 64
+    assert list(decoded.quantity_names) == ["coef_0", "coef_1", "ate"]
+    assert decoded.mean[2] == pytest.approx(2.0)
+
+    # Re-encoding the decoded (still draws-free) artifact must stay draws-free.
+    reencoded = bytes(antecedent.encode_posterior_artifact(decoded))
+    redecoded = antecedent.decode_posterior_artifact(reencoded)
+    assert list(redecoded.draws) == []
+
+    rng = np.random.default_rng(31)
+    n = 160
+    z = rng.normal(size=n)
+    t = (z + rng.normal(size=n) > 0).astype(np.float64)
+    # Weak true effect, far from the artifact's ate_mean=2.0, so the pull is visible.
+    y = 0.4 * t + z + 0.3 * rng.normal(size=n)
+    data = {"z": z, "t": t, "y": y}
+    edges = [("z", "t"), ("z", "y"), ("t", "y")]
+
+    baseline = antecedent.analyze(
+        data,
+        graph=edges,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
+        refute=False,
+        seed=9,
+    )
+    mapped = antecedent.analyze(
+        data,
+        graph=edges,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(
+            n_draws=64,
+            backend="conjugate",
+            prior_from=artifact_bytes,
+            mapping=antecedent.PriorMapping.effect_functional("ate"),
+        ),
+        refute=False,
+        seed=9,
+    )
+    assert baseline.posterior is not None
+    assert mapped.posterior is not None
+    baseline_mean = float(baseline.posterior.effect_mean)
+    mapped_mean = float(mapped.posterior.effect_mean)
+    # A draws-free external prior centered at 2.0 should pull the posterior toward
+    # 2.0 relative to the weakly-informative baseline (no external prior).
+    assert abs(mapped_mean - 2.0) < abs(baseline_mean - 2.0)
 
 
 def test_compose_weight_and_conflict():

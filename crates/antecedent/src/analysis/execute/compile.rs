@@ -365,10 +365,11 @@ impl super::CausalAnalysis {
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmci { max_lag, alpha, fdr, accept_discovered },
+                GraphInput::DiscoverPcmci { max_lag, alpha, max_cond_size, fdr, accept_discovered },
             ) => {
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
-                let review = run_pcmci_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
+                let review =
+                    run_pcmci_review(data, *max_lag, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 if *accept_discovered {
                     PendingGraphReview::new(review, data.row_count(), q.clone(), self.split)
                         .accept_all()
@@ -380,10 +381,17 @@ impl super::CausalAnalysis {
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmciPlus { max_lag, alpha, fdr, accept_discovered },
+                GraphInput::DiscoverPcmciPlus {
+                    max_lag,
+                    alpha,
+                    max_cond_size,
+                    fdr,
+                    accept_discovered,
+                },
             ) => {
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
-                let review = run_pcmci_plus_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
+                let review =
+                    run_pcmci_plus_review(data, *max_lag, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 if *accept_discovered && review.pending_undirected.is_empty() {
                     PendingCpdagReview::new(review, data.row_count(), q.clone(), self.split)
                         .accept_all_directed()
@@ -398,14 +406,23 @@ impl super::CausalAnalysis {
                 GraphInput::DiscoverJpcmciPlus {
                     max_lag,
                     alpha,
+                    max_cond_size,
                     fdr,
                     accept_discovered,
                     multi_dataset,
                 },
             ) => {
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
-                let review =
-                    run_jpcmci_plus_review(multi, *max_lag, *alpha, *fdr, multi_dataset, ci, ctx)?;
+                let review = run_jpcmci_plus_review(
+                    multi,
+                    *max_lag,
+                    *alpha,
+                    *max_cond_size,
+                    *fdr,
+                    multi_dataset,
+                    ci,
+                    ctx,
+                )?;
                 let data = multi.environment(0).map_err(|e| CausalError::Compile {
                     message: format!("jpcmci+ multi-env: {e}"),
                 })?;
@@ -444,6 +461,7 @@ impl super::CausalAnalysis {
                 GraphInput::DiscoverJpcmciPlus {
                     max_lag,
                     alpha,
+                    max_cond_size,
                     fdr,
                     accept_discovered,
                     multi_dataset,
@@ -453,8 +471,16 @@ impl super::CausalAnalysis {
                     message: format!("panel as multi-env: {e}"),
                 })?;
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
-                let review =
-                    run_jpcmci_plus_review(&multi, *max_lag, *alpha, *fdr, multi_dataset, ci, ctx)?;
+                let review = run_jpcmci_plus_review(
+                    &multi,
+                    *max_lag,
+                    *alpha,
+                    *max_cond_size,
+                    *fdr,
+                    multi_dataset,
+                    ci,
+                    ctx,
+                )?;
                 let data = &panel
                     .unit(0)
                     .map_err(|e| CausalError::Compile { message: format!("panel: {e}") })?
@@ -472,7 +498,7 @@ impl super::CausalAnalysis {
             (
                 DataInput::Panel(panel),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmci { max_lag, alpha, fdr, accept_discovered },
+                GraphInput::DiscoverPcmci { max_lag, alpha, max_cond_size, fdr, accept_discovered },
             ) => {
                 let pooled = stack_panel_tabular(panel).map_err(CausalError::from)?;
                 let n = pooled.row_count();
@@ -485,7 +511,8 @@ impl super::CausalAnalysis {
                 )
                 .map_err(CausalError::from)?;
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
-                let review = run_pcmci_review(&series, *max_lag, *alpha, *fdr, ci, ctx)?;
+                let review =
+                    run_pcmci_review(&series, *max_lag, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 let data = &panel
                     .unit(0)
                     .map_err(|e| CausalError::Compile { message: format!("panel: {e}") })?
@@ -503,7 +530,13 @@ impl super::CausalAnalysis {
             (
                 DataInput::Panel(panel),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverPcmciPlus { max_lag, alpha, fdr, accept_discovered },
+                GraphInput::DiscoverPcmciPlus {
+                    max_lag,
+                    alpha,
+                    max_cond_size,
+                    fdr,
+                    accept_discovered,
+                },
             ) => {
                 let pooled = stack_panel_tabular(panel).map_err(CausalError::from)?;
                 let n = pooled.row_count();
@@ -516,7 +549,15 @@ impl super::CausalAnalysis {
                 )
                 .map_err(CausalError::from)?;
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
-                let review = run_pcmci_plus_review(&series, *max_lag, *alpha, *fdr, ci, ctx)?;
+                let review = run_pcmci_plus_review(
+                    &series,
+                    *max_lag,
+                    *alpha,
+                    *max_cond_size,
+                    *fdr,
+                    ci,
+                    ctx,
+                )?;
                 let data = &panel
                     .unit(0)
                     .map_err(|e| CausalError::Compile { message: format!("panel: {e}") })?
@@ -534,7 +575,13 @@ impl super::CausalAnalysis {
             (
                 DataInput::Panel(panel),
                 CausalQuery::TemporalEffect(_q),
-                GraphInput::DiscoverLpcmci { max_lag, alpha, fdr, accept_discovered: _ },
+                GraphInput::DiscoverLpcmci {
+                    max_lag,
+                    alpha,
+                    max_cond_size,
+                    fdr,
+                    accept_discovered: _,
+                },
             ) => {
                 let pooled = stack_panel_tabular(panel).map_err(CausalError::from)?;
                 let n = pooled.row_count();
@@ -547,7 +594,8 @@ impl super::CausalAnalysis {
                 )
                 .map_err(CausalError::from)?;
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
-                let review = run_lpcmci_review(&series, *max_lag, *alpha, *fdr, ci, ctx)?;
+                let review =
+                    run_lpcmci_review(&series, *max_lag, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 Ok(compile_review_required_pag(review))
             }
             (
@@ -556,14 +604,23 @@ impl super::CausalAnalysis {
                 GraphInput::DiscoverRpcmci {
                     max_lag,
                     alpha,
+                    max_cond_size,
                     fdr,
                     accept_discovered,
                     regime_assignment,
                 },
             ) => {
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
-                let result =
-                    run_rpcmci_discovery(data, *max_lag, *alpha, *fdr, regime_assignment, ci, ctx)?;
+                let result = run_rpcmci_discovery(
+                    data,
+                    *max_lag,
+                    *alpha,
+                    *max_cond_size,
+                    *fdr,
+                    regime_assignment,
+                    ci,
+                    ctx,
+                )?;
                 // Multi-regime estimation is not auto-wired; surface the first regime's CPDAG
                 // for review. Auto-accept only when a single fully-oriented regime exists.
                 let Some(first) = result.per_regime.first() else {
@@ -595,10 +652,17 @@ impl super::CausalAnalysis {
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
                 CausalQuery::TemporalEffect(q),
-                GraphInput::DiscoverLpcmci { max_lag, alpha, fdr, accept_discovered },
+                GraphInput::DiscoverLpcmci {
+                    max_lag,
+                    alpha,
+                    max_cond_size,
+                    fdr,
+                    accept_discovered,
+                },
             ) => {
                 let ci = resolve_analysis_ci(self.discovery_ci.as_ref())?;
-                let review = run_lpcmci_review(data, *max_lag, *alpha, *fdr, ci, ctx)?;
+                let review =
+                    run_lpcmci_review(data, *max_lag, *alpha, *max_cond_size, *fdr, ci, ctx)?;
                 // Temporal backdoor is DAG-only. Auto-accept only when the PAG is already
                 // fully definite-directed (no circle/ambiguous marks) — never invent orientations.
                 if *accept_discovered && review.is_complete() {

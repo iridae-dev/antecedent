@@ -40,6 +40,7 @@ EVIDENCE = {
     "bayes.validate.prior_sensitivity": "crates/antecedent/tests/bayesian.rs",
     "bayes.data.bayesian_bootstrap": "provenance/data.bayesian_bootstrap.toml",
     "bayes.io.posterior_artifact": "crates/antecedent-io/src/posterior.rs",
+    "bayes.io.posterior_artifact_summary_only": "crates/antecedent-io/src/posterior.rs",
     "bayes.facade.inference_mode": "crates/antecedent/src/inference.rs",
     "bayes.model.pcm_scm_registry": "crates/antecedent-model/src/lib.rs",
     "bayes.discovery.dag_posterior": "crates/antecedent-discovery/src/exact_enumeration.rs",

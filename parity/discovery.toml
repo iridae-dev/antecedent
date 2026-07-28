@@ -209,6 +209,44 @@ owner = "context"
 notes = "Rpcmci; conformance/discovery/rpcmci_two_regime"
 
 [[capabilities]]
+id = "discovery.provenance.conditioning_sets"
+group = "graphs"
+description = "PC / MCI conditioning-set provenance exposed on discovered links"
+status = "done"
+owner = "pag"
+python_facade = "full"
+notes = """
+DiscoveredLink.conditioning_set: Vec<(String, u32)> in python/src/discovery_api.rs,
+looked up from DiscoveryResult.sepsets (antecedent-discovery result::PcSepsets) by the
+link's own (source, source_lag, target, target_lag) key. Field docstring documents the
+algorithm-specific honesty split: PC/GES/FCI/RFCI/PCMCI+/J-PCMCI+ retention and
+separating-set recording are mutually exclusive (a retained link's set is always
+empty); plain PCMCI's PC1 phase decouples conditioning-set pruning from the final MCI
+retention test, so a retained plain-PCMCI link can carry a non-empty set. Harness:
+python/tests/test_discovery_provenance.py (gate_pag.sh runs it).
+"""
+
+[[capabilities]]
+id = "discovery.temporal.max_cond_size"
+group = "discovery"
+description = "Conditioning-set size cap (max_cond_size) on the PCMCI family"
+status = "done"
+owner = "ci"
+python_facade = "full"
+notes = """
+PCMCI/PCMCIPlus/LPCMCI/JPCMCIPlus/RPCMCI dataclasses (python/antecedent/discovery.py)
+gained max_cond_size: int = 2, matching PC/GES/FCI/RFCI/LiNGAM/NOTEARS. Threaded through
+DiscoverParams (crates/antecedent/src/discovery.rs) into the existing
+DiscoveryConstraints::max_cond_size cap already enforced by PC1 / skeleton phases
+(engine.rs::select_parents, pcmci_plus.rs::contemp_mci_phase, lpcmci_phases.rs) — pure
+plumbing, no new algorithmic cap. discover_pcmci/discover_pcmci_plus/discover_lpcmci/
+discover_jpcmci_plus/discover_rpcmci PyO3 signatures and the discovery_algorithm()
+serialization helper carry it too. Harness: python/tests/test_discovery_provenance.py
+(test_max_cond_size_honored_by_native_functions asserts the cap changes ci_tests, not
+merely accepted; gate_estimate_ci.sh runs it).
+"""
+
+[[capabilities]]
 id = "discovery.validate.block_bootstrap_stability"
 group = "discovery_validation"
 description = "Block-bootstrap link-frequency stability (PCMCI)"

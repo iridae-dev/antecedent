@@ -60,6 +60,7 @@ class AteAnalysisResult:
     refutation_passed: bool
     refutation_ran: bool
     refutation_count: int
+    refutations: list[RefutationReportView]
     assumption_count: int
     derivation_step_count: int
     method: str
@@ -113,6 +114,16 @@ class AteAnalysisResult:
     posterior_ppc_predictive_sd: float | None
     posterior_ppc_n_sims: int | None
 
+class RefutationReportView:
+    refuter: str
+    original_ate: float
+    refuted_ate: float
+    comparison: float
+    informative: bool
+    passed: bool
+    failure_condition: str | None
+    replicates: int
+
 class PosteriorArtifact:
     n_draws: int
     mean: list[float]
@@ -126,6 +137,20 @@ class PosteriorArtifact:
     converged: bool
     hessian_condition: float
     quantity_names: list[str]
+    @staticmethod
+    def from_moments(
+        n_draws: int,
+        mean: list[float],
+        sd: list[float],
+        q025: list[float],
+        q975: list[float],
+        backend_id: str,
+        identification: str,
+        quantity_names: list[str],
+        unidentified_mass: float = 0.0,
+        converged: bool = True,
+        hessian_condition: float = ...,
+    ) -> PosteriorArtifact: ...
 
 class DiscoveredLink:
     source: str
@@ -135,6 +160,7 @@ class DiscoveredLink:
     statistic: float
     p_value: float
     adjusted_p_value: float | None
+    conditioning_set: list[tuple[str, int]]
 
 class GraphEdge:
     source: str
@@ -208,6 +234,7 @@ class AnalysisResult:
     diagnostics: list[str]
     provenance_node_count: int
     refutation_count: int
+    refutations: list[RefutationReportView]
     worker_threads: int
     expected_python_crossings: int
     posterior_effect_mean: float | None
@@ -340,6 +367,7 @@ class FittedGcm:
         interventions: dict[str, float],
         n: int,
         *,
+        shifts: dict[str, float] | None = None,
         seed: int = 0,
         threads: int = 1,
     ) -> GcmSampleResult: ...
@@ -616,6 +644,7 @@ def analyze_events(
     algorithm: str | None = None,
     max_lag: int = 1,
     alpha: float = 0.05,
+    max_cond_size: int = 2,
     fdr: bool = True,
     accept_discovered: bool = True,
     regimes: list[int] | None = None,
@@ -657,6 +686,7 @@ def analyze_panel_discover(
     algorithm: str = "jpcmci_plus",
     max_lag: int = 3,
     alpha: float = 0.05,
+    max_cond_size: int = 2,
     fdr: bool = True,
     accept_discovered: bool = True,
     treatment_lag: int = 1,
@@ -811,6 +841,7 @@ def analyze_temporal_discover(
     algorithm: str = "pcmci",
     max_lag: int = 1,
     alpha: float = 0.05,
+    max_cond_size: int = 2,
     fdr: bool = True,
     accept_discovered: bool = True,
     treatment_lag: int = 1,
@@ -851,6 +882,7 @@ def discover_pcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_pcmci_plus(
     names: list[str],
@@ -863,6 +895,7 @@ def discover_pcmci_plus(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_pc(
     names: list[str],
@@ -941,6 +974,7 @@ def discover_lpcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_jpcmci_plus(
     names: list[str],
@@ -959,6 +993,7 @@ def discover_jpcmci_plus(
     space_dummy_ci: str = "scalar",
     time_dummy_encoding: str = "integer",
     time_dummy_ci: str = "scalar",
+    max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_rpcmci(
     names: list[str],
@@ -972,6 +1007,7 @@ def discover_rpcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int = 1,
+    max_cond_size: int = 2,
 ) -> RpcmciDiscoverySummary: ...
 def two_regime_half_split(series_len: int) -> list[int]: ...
 def discover_exact_dag_posterior(
@@ -1075,6 +1111,7 @@ def sample_do(
     seed: int = 0,
     threads: int = 1,
     mechanism_wrappers: dict[str, Any] | None = None,
+    shift: bool = False,
 ) -> GcmSampleResult: ...
 def sample_interventional_distribution(
     names: list[str],
@@ -1087,6 +1124,7 @@ def sample_interventional_distribution(
     *,
     seed: int = 0,
     threads: int = 1,
+    shift: bool = False,
 ) -> GcmSampleResult: ...
 def attribute_path_specific(
     names: list[str],

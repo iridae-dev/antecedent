@@ -167,6 +167,7 @@ from .estimation import (
     PredictiveCheckReport,
     PreparedAnalysis,
     PriorSensitivityReport,
+    RefutationReport,
     analyze_many,
     identify,
 )
@@ -315,6 +316,7 @@ __all__ = [
     "PredictSummary",
     "EffectEnvelope",
     "PredictiveCheckReport",
+    "RefutationReport",
     "ConflictSummaryView",
     "PriorCatalog",
     "PriorMapping",

@@ -207,6 +207,25 @@ mod tests {
     }
 
     #[test]
+    fn shift_overlay_accumulates_and_is_independent_of_hard_set() {
+        let g = Dag::with_variables(2);
+        let model = CompiledCausalModel::compile(g).unwrap();
+        let x = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let overlay = InterventionOverlay::from_interventions(
+            &model,
+            &[Intervention::shift(x, Value::f64(1.5)), Intervention::shift(x, Value::f64(0.5))],
+        )
+        .unwrap();
+        // Multiple shifts on the same variable accumulate additively.
+        assert!((overlay.shifts[0] - 2.0).abs() < 1e-12);
+        assert!(overlay.hard_set[0].is_none());
+        // An unrelated variable is untouched.
+        assert!(overlay.shifts[1].abs() < 1e-12);
+        assert!(overlay.hard_set[y.as_usize()].is_none());
+    }
+
+    #[test]
     fn dynamic_policy_sequence_activates_on_schedule() {
         let g = Dag::with_variables(1);
         let model = CompiledCausalModel::compile(g).unwrap();

@@ -151,6 +151,9 @@ pub(crate) struct AnalysisResult {
     pub(crate) provenance_node_count: usize,
     #[pyo3(get)]
     pub(crate) refutation_count: usize,
+    /// Per-refuter records (name, comparison statistic, pass/fail), one per validator run.
+    #[pyo3(get)]
+    pub(crate) refutations: Vec<RefutationReportView>,
     #[pyo3(get)]
     pub(crate) worker_threads: u32,
     #[pyo3(get)]
@@ -400,6 +403,7 @@ fn analyze_temporal_pag(
     algorithm=None,
     max_lag=1,
     alpha=0.05,
+    max_cond_size=2,
     fdr=true,
     accept_discovered=true,
     regimes=None,
@@ -434,6 +438,7 @@ fn analyze_events(
     algorithm: Option<String>,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: bool,
     accept_discovered: bool,
     regimes: Option<Vec<u32>>,
@@ -484,9 +489,13 @@ fn analyze_events(
         } else if let Some(algo) = algorithm.as_deref() {
             let algo = algo.to_ascii_lowercase();
             builder = match algo.as_str() {
-                "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
-                "pcmci_plus" => builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept),
-                "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
+                "pcmci" => builder.discover_pcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept),
+                "pcmci_plus" => {
+                    builder.discover_pcmci_plus(max_lag, alpha, max_cond_size, fdr_ctrl, accept)
+                }
+                "lpcmci" => {
+                    builder.discover_lpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept)
+                }
                 "rpcmci" => {
                     let regimes = regimes.ok_or_else(|| {
                         PyValueError::new_err(
@@ -497,7 +506,7 @@ fn analyze_events(
                         regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
                     )
                     .map_err(|e| PyValueError::new_err(e.to_string()))?;
-                    builder.discover_rpcmci(max_lag, alpha, fdr_ctrl, accept, assign)
+                    builder.discover_rpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept, assign)
                 }
                 "dbn_posterior" => builder
                     .discover_dbn_posterior(max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws),
@@ -634,6 +643,7 @@ fn analyze_panel(
     algorithm="jpcmci_plus",
     max_lag=3,
     alpha=0.05,
+    max_cond_size=2,
     fdr=true,
     accept_discovered=true,
     treatment_lag=1,
@@ -666,6 +676,7 @@ fn analyze_panel_discover(
     algorithm: &str,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: bool,
     accept_discovered: bool,
     treatment_lag: u32,
@@ -740,6 +751,7 @@ fn analyze_panel_discover(
             algo.as_str(),
             max_lag,
             alpha,
+            max_cond_size,
             fdr_ctrl,
             accept,
             multi_dataset,
@@ -859,6 +871,7 @@ fn temporal_discover_jpcmci_plus(
     active_level: f64,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     suite: RefuteSuite,
@@ -900,7 +913,7 @@ fn temporal_discover_jpcmci_plus(
         .custom_validators(custom_validators)
         .bootstrap_replicates(bootstrap)
         .discovery_ci(ci_impl)
-        .discover_jpcmci_plus(max_lag, alpha, fdr_ctrl, accept, multi_dataset)
+        .discover_jpcmci_plus(max_lag, alpha, max_cond_size, fdr_ctrl, accept, multi_dataset)
         .build()
         .map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
@@ -918,6 +931,7 @@ fn temporal_discover_rpcmci(
     active_level: f64,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     suite: RefuteSuite,
@@ -951,7 +965,7 @@ fn temporal_discover_rpcmci(
         .custom_validators(custom_validators)
         .bootstrap_replicates(bootstrap)
         .discovery_ci(ci_impl)
-        .discover_rpcmci(max_lag, alpha, fdr_ctrl, accept, assign)
+        .discover_rpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept, assign)
         .build()
         .map_err(py_err)?;
     run_temporal_analysis(names, analysis, seed, threads)
@@ -969,6 +983,7 @@ fn temporal_discover_pcmci_family(
     active_level: f64,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     suite: RefuteSuite,
@@ -996,9 +1011,11 @@ fn temporal_discover_pcmci_family(
         .bootstrap_replicates(bootstrap)
         .discovery_ci(ci_impl);
     builder = match algo {
-        "pcmci" => builder.discover_pcmci(max_lag, alpha, fdr_ctrl, accept),
-        "pcmci_plus" => builder.discover_pcmci_plus(max_lag, alpha, fdr_ctrl, accept),
-        "lpcmci" => builder.discover_lpcmci(max_lag, alpha, fdr_ctrl, accept),
+        "pcmci" => builder.discover_pcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept),
+        "pcmci_plus" => {
+            builder.discover_pcmci_plus(max_lag, alpha, max_cond_size, fdr_ctrl, accept)
+        }
+        "lpcmci" => builder.discover_lpcmci(max_lag, alpha, max_cond_size, fdr_ctrl, accept),
         _ => unreachable!(),
     };
     builder = apply_temporal_inference(builder, inference, n_draws, prior_scale, prior_artifact)?;
@@ -1058,6 +1075,7 @@ struct TemporalDiscoverContext {
     active_level: f64,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr_ctrl: FdrControl,
     accept: DiscoveryAccept,
     suite: RefuteSuite,
@@ -1139,6 +1157,7 @@ fn dispatch_temporal_jpcmci_plus(
             ctx.active_level,
             ctx.max_lag,
             ctx.alpha,
+            ctx.max_cond_size,
             ctx.fdr_ctrl,
             ctx.accept,
             ctx.suite,
@@ -1175,6 +1194,7 @@ fn dispatch_temporal_rpcmci(
             ctx.active_level,
             ctx.max_lag,
             ctx.alpha,
+            ctx.max_cond_size,
             ctx.fdr_ctrl,
             ctx.accept,
             ctx.suite,
@@ -1208,6 +1228,7 @@ fn dispatch_temporal_pcmci_family(
             ctx.active_level,
             ctx.max_lag,
             ctx.alpha,
+            ctx.max_cond_size,
             ctx.fdr_ctrl,
             ctx.accept,
             ctx.suite,
@@ -1274,6 +1295,7 @@ fn dispatch_temporal_dbn_posterior(
     algorithm="pcmci",
     max_lag=1,
     alpha=0.05,
+    max_cond_size=2,
     fdr=true,
     accept_discovered=true,
     treatment_lag=1,
@@ -1312,6 +1334,7 @@ fn analyze_temporal_discover(
     algorithm: &str,
     max_lag: u32,
     alpha: f64,
+    max_cond_size: usize,
     fdr: bool,
     accept_discovered: bool,
     treatment_lag: u32,
@@ -1367,6 +1390,7 @@ fn analyze_temporal_discover(
             active_level,
             max_lag,
             alpha,
+            max_cond_size,
             fdr_ctrl,
             accept,
             suite,
@@ -1476,6 +1500,7 @@ fn analysis_result_from_run(
             .collect(),
         provenance_node_count: result.provenance.len(),
         refutation_count: result.refutations.len(),
+        refutations: result.refutations.iter().map(RefutationReportView::from).collect(),
         worker_threads: result.physical_plan.worker_threads,
         expected_python_crossings: result.physical_plan.expected_python_crossings,
         adjustment_set,

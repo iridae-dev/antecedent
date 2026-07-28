@@ -247,12 +247,14 @@ impl CausalAnalysisBuilder {
         mut self,
         max_lag: u32,
         alpha: f64,
+        max_cond_size: usize,
         fdr: crate::options::FdrControl,
         accept: crate::options::DiscoveryAccept,
     ) -> Self {
         self.graph = Some(GraphInput::DiscoverPcmci {
             max_lag,
             alpha,
+            max_cond_size,
             fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
         });
@@ -268,12 +270,14 @@ impl CausalAnalysisBuilder {
         mut self,
         max_lag: u32,
         alpha: f64,
+        max_cond_size: usize,
         fdr: crate::options::FdrControl,
         accept: crate::options::DiscoveryAccept,
     ) -> Self {
         self.graph = Some(GraphInput::DiscoverPcmciPlus {
             max_lag,
             alpha,
+            max_cond_size,
             fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
         });
@@ -286,6 +290,7 @@ impl CausalAnalysisBuilder {
         mut self,
         max_lag: u32,
         alpha: f64,
+        max_cond_size: usize,
         fdr: crate::options::FdrControl,
         accept: crate::options::DiscoveryAccept,
         multi_dataset: MultiDatasetConstraints,
@@ -293,6 +298,7 @@ impl CausalAnalysisBuilder {
         self.graph = Some(GraphInput::DiscoverJpcmciPlus {
             max_lag,
             alpha,
+            max_cond_size,
             fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
             multi_dataset,
@@ -306,6 +312,7 @@ impl CausalAnalysisBuilder {
         mut self,
         max_lag: u32,
         alpha: f64,
+        max_cond_size: usize,
         fdr: crate::options::FdrControl,
         accept: crate::options::DiscoveryAccept,
         regime_assignment: RegimeAssignment,
@@ -313,6 +320,7 @@ impl CausalAnalysisBuilder {
         self.graph = Some(GraphInput::DiscoverRpcmci {
             max_lag,
             alpha,
+            max_cond_size,
             fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
             regime_assignment,
@@ -326,12 +334,14 @@ impl CausalAnalysisBuilder {
         mut self,
         max_lag: u32,
         alpha: f64,
+        max_cond_size: usize,
         fdr: crate::options::FdrControl,
         accept: crate::options::DiscoveryAccept,
     ) -> Self {
         self.graph = Some(GraphInput::DiscoverLpcmci {
             max_lag,
             alpha,
+            max_cond_size,
             fdr: fdr.adjustment(),
             accept_discovered: accept.auto(),
         });

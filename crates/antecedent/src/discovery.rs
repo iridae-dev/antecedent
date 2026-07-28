@@ -15,9 +15,9 @@ pub use antecedent_discovery::{
     CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult, DagDiscoveryResult,
     DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, EXACT_ENUM_MAX_NODES,
     ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
-    JpcmciPlus, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult, OrderMcmc,
-    PagDiscoveryResult, Pc, RegimeAssignment, RegimeGraphCollection, Rfci, Rpcmci,
-    RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
+    JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult,
+    OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment, RegimeGraphCollection, Rfci,
+    Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
     StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode,
     two_regime_half_split,
 };
@@ -79,6 +79,9 @@ pub struct DiscoverParams {
     pub ci: Arc<dyn ConditionalIndependence + Send + Sync>,
     /// Multi-dataset / context settings (J-PCMCI+); ignored by single-series algorithms.
     pub multi_dataset: MultiDatasetConstraints,
+    /// Max conditioning-set size in the PC1 / skeleton phase (same cap `PC`/`GES`/`FCI`/
+    /// `RFCI`/`LiNGAM`/`NOTEARS` expose via `StaticDiscoverParams::max_cond_size`).
+    pub max_cond_size: usize,
 }
 
 impl std::fmt::Debug for DiscoverParams {
@@ -89,6 +92,7 @@ impl std::fmt::Debug for DiscoverParams {
             .field("fdr", &self.fdr)
             .field("ci", &"<dyn ConditionalIndependence>")
             .field("multi_dataset", &self.multi_dataset)
+            .field("max_cond_size", &self.max_cond_size)
             .finish()
     }
 }
@@ -136,7 +140,7 @@ pub fn discover_pcmci(
 ) -> Result<DagDiscoveryResult, CausalError> {
     let pcmci = Pcmci::new()
         .with_fdr_adjustment(params.fdr)
-        .with_constraints(pcmci_constraints(params.max_lag, params.alpha))
+        .with_constraints(pcmci_constraints(params.max_lag, params.alpha, params.max_cond_size))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
     pcmci.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
@@ -155,7 +159,11 @@ pub fn discover_pcmci_plus(
 ) -> Result<CpdagDiscoveryResult, CausalError> {
     let plus = PcmciPlus::new()
         .with_fdr_adjustment(params.fdr)
-        .with_constraints(contemporaneous_constraints(params.max_lag, params.alpha))
+        .with_constraints(contemporaneous_constraints(
+            params.max_lag,
+            params.alpha,
+            params.max_cond_size,
+        ))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
     plus.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
@@ -174,7 +182,11 @@ pub fn discover_lpcmci(
 ) -> Result<PagDiscoveryResult, CausalError> {
     let alg = Lpcmci::new()
         .with_fdr_adjustment(params.fdr)
-        .with_constraints(contemporaneous_constraints(params.max_lag, params.alpha))
+        .with_constraints(contemporaneous_constraints(
+            params.max_lag,
+            params.alpha,
+            params.max_cond_size,
+        ))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
     alg.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
@@ -196,6 +208,7 @@ pub fn discover_jpcmci_plus(
         .with_constraints(jpcmci_constraints(
             params.max_lag,
             params.alpha,
+            params.max_cond_size,
             params.multi_dataset.clone(),
         ))
         .with_ci(Arc::clone(&params.ci));
@@ -218,7 +231,11 @@ pub fn discover_rpcmci(
 ) -> Result<RpcmciDiscoveryResult, CausalError> {
     let plus = PcmciPlus::new()
         .with_fdr_adjustment(params.fdr)
-        .with_constraints(contemporaneous_constraints(params.max_lag, params.alpha))
+        .with_constraints(contemporaneous_constraints(
+            params.max_lag,
+            params.alpha,
+            params.max_cond_size,
+        ))
         .with_ci(Arc::clone(&params.ci));
     let alg = Rpcmci::new()
         .with_min_regime_len(min_regime_len.unwrap_or(DEFAULT_RPCMCI_MIN_REGIME_LEN))
