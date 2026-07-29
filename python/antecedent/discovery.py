@@ -127,10 +127,9 @@ class PC:
         )
 
     def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
-        from .accepted_graph import AcceptedGraph
+        from .accepted_graph import accept_discovery
 
-        result = self.run(data, seed=seed, threads=threads)
-        return AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -177,10 +176,9 @@ class PCMCI:
         )
 
     def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
-        from .accepted_graph import AcceptedGraph
+        from .accepted_graph import accept_discovery
 
-        result = self.run(data, seed=seed, threads=threads)
-        return AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -231,10 +229,9 @@ class PCMCIPlus:
         )
 
     def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
-        from .accepted_graph import AcceptedGraph
+        from .accepted_graph import accept_discovery
 
-        result = self.run(data, seed=seed, threads=threads)
-        return AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -281,10 +278,9 @@ class LPCMCI:
         )
 
     def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
-        from .accepted_graph import AcceptedGraph
+        from .accepted_graph import accept_discovery
 
-        result = self.run(data, seed=seed, threads=threads)
-        return AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -506,10 +502,9 @@ class GES:
         )
 
     def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
-        from .accepted_graph import AcceptedGraph
+        from .accepted_graph import accept_discovery
 
-        result = self.run(data, seed=seed, threads=threads)
-        return AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -542,10 +537,9 @@ class LiNGAM:
         )
 
     def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
-        from .accepted_graph import AcceptedGraph
+        from .accepted_graph import accept_discovery
 
-        result = self.run(data, seed=seed, threads=threads)
-        return AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -584,10 +578,9 @@ class NOTEARS:
         )
 
     def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
-        from .accepted_graph import AcceptedGraph
+        from .accepted_graph import accept_discovery
 
-        result = self.run(data, seed=seed, threads=threads)
-        return AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -623,10 +616,9 @@ class FCI:
         )
 
     def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
-        from .accepted_graph import AcceptedGraph
+        from .accepted_graph import accept_discovery
 
-        result = self.run(data, seed=seed, threads=threads)
-        return AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
@@ -662,10 +654,9 @@ class RFCI:
         )
 
     def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
-        from .accepted_graph import AcceptedGraph
+        from .accepted_graph import accept_discovery
 
-        result = self.run(data, seed=seed, threads=threads)
-        return AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)
+        return accept_discovery(self, data, seed=seed, threads=threads)
 
 
 @dataclass(frozen=True)
