@@ -78,6 +78,38 @@ pub(crate) fn measure_value(
     }
 }
 
+/// Shared [`CoalitionPayoff::value`] caching shape for hybrid-outcome-law payoffs.
+///
+/// Both `MechanismSwapPayoff` ([`crate::distribution_change`]) and
+/// `StructureSwapPayoff` ([`crate::structure_change`]) memoize the mask-0
+/// all-baseline outcome law once (only needed for [`DifferenceMeasure::GaussianKl`])
+/// and then evaluate the coalition's difference measure at `mask`; they differ only
+/// in how they compute the outcome law itself ([`Self::law_at`]).
+pub(crate) trait CachedOutcomeLawPayoff {
+    /// The configured difference measure.
+    fn measure(&self) -> DifferenceMeasure;
+    /// The cached all-baseline `(μ₀, σ₀²)`, once computed.
+    fn baseline_law(&self) -> Option<(f64, f64)>;
+    /// Store the computed all-baseline law.
+    fn set_baseline_law(&mut self, law: (f64, f64));
+    /// Compute `(μ, σ²)` of the hybrid outcome law at `mask`.
+    fn law_at(&mut self, mask: u64) -> Result<(f64, f64), AttributionError>;
+
+    /// Shared `CoalitionPayoff::value` body.
+    fn cached_payoff_value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+        if matches!(self.measure(), DifferenceMeasure::GaussianKl) && self.baseline_law().is_none()
+        {
+            let (mu0, var0) = self.law_at(0)?;
+            self.set_baseline_law((mu0, var0));
+            if mask == 0 {
+                return Ok(0.0);
+            }
+        }
+        let (mu, var) = self.law_at(mask)?;
+        measure_value(self.measure(), mask, mu, var, self.baseline_law())
+    }
+}
+
 /// Run Shapley / sequential / path-based allocation and pack a [`ChangeAttributionResult`].
 pub(crate) fn run_change_allocation<P: CoalitionPayoff>(
     outcome: VariableId,
@@ -218,7 +250,7 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     })
 }
 
-fn pack_change_result(
+pub(crate) fn pack_change_result(
     outcome: VariableId,
     total_change: f64,
     estimate: ShapleyEstimate,

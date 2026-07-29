@@ -32,8 +32,8 @@ use crate::orientation::{
 };
 use crate::pc::{Pc, StaticCpdagDiscoveryResult, collect_float_columns};
 use crate::result::{
-    AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
+    DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
+    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
 };
 
 /// Chickering GES over tabular data → CPDAG.
@@ -305,13 +305,10 @@ impl Ges {
         Ok(DiscoveryResult {
             evidence,
             review,
-            algorithm: AlgorithmRecord {
-                id: Arc::from("ges"),
-                config: Arc::from(format!(
-                    "family=gaussian_bic screen_pc={} score={total_score:.6}",
-                    self.screen_pc
-                )),
-            },
+            algorithm: crate::pipeline::algorithm_record(
+                "ges",
+                format!("family=gaussian_bic screen_pc={} score={total_score:.6}", self.screen_pc),
+            ),
             assumptions: AssumptionSet::default(),
             iterations: Vec::<DiscoveryIteration>::new(),
             diagnostics: Vec::<DiscoveryDiagnostic>::new(),

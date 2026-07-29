@@ -10,6 +10,7 @@ use serde_json::Value as JsonValue;
 
 use crate::convert::{dag_from_wire, dag_to_wire};
 use crate::error::IoError;
+use crate::graph_dot;
 use crate::wire::DagWire;
 
 /// `NetworkX` `node_link_data` subset.
@@ -131,14 +132,14 @@ fn dag_wire_and_names_from_networkx_node_link(
     let mut index = HashMap::new();
     for n in &doc.nodes {
         let name = json_id_to_string(&n.id)?;
-        intern(&name, &mut order, &mut index)?;
+        graph_dot::intern(&name, &mut order, &mut index)?;
     }
     let mut edges = Vec::new();
     for link in &doc.links {
         let s = json_id_to_string(&link.source)?;
         let t = json_id_to_string(&link.target)?;
-        let from = intern(&s, &mut order, &mut index)?;
-        let to = intern(&t, &mut order, &mut index)?;
+        let from = graph_dot::intern(&s, &mut order, &mut index)?;
+        let to = graph_dot::intern(&t, &mut order, &mut index)?;
         edges.push((from, to));
     }
     let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
@@ -214,7 +215,7 @@ pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<St
     let mut index = HashMap::new();
     for n in &doc.nodes {
         let name = json_id_to_string(&n.id)?;
-        intern(&name, &mut order, &mut index)?;
+        graph_dot::intern(&name, &mut order, &mut index)?;
     }
     let mut edges = Vec::new();
     for n in &doc.nodes {
@@ -222,7 +223,7 @@ pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<St
         let from = *index.get(&from_name).unwrap();
         for adj in &n.adjacency {
             for key in adj.keys() {
-                let to = intern(key, &mut order, &mut index)?;
+                let to = graph_dot::intern(key, &mut order, &mut index)?;
                 edges.push((from, to));
             }
         }
@@ -282,20 +283,6 @@ pub(crate) fn json_id_to_string(v: &JsonValue) -> Result<String, IoError> {
         JsonValue::Number(n) => Ok(n.to_string()),
         other => Err(IoError::Convert(format!("unsupported node id {other}"))),
     }
-}
-
-fn intern(
-    name: &str,
-    order: &mut Vec<String>,
-    index: &mut HashMap<String, u32>,
-) -> Result<u32, IoError> {
-    if let Some(&id) = index.get(name) {
-        return Ok(id);
-    }
-    let id = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    order.push(name.to_owned());
-    index.insert(name.to_owned(), id);
-    Ok(id)
 }
 
 #[cfg(test)]

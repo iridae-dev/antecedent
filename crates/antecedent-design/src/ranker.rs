@@ -206,6 +206,31 @@ impl DesignRanker {
         A: Clone,
         O: Clone,
     {
+        self.validate_rank_inputs(candidates, ctx_eval)?;
+
+        let (violations, active) = self.filter_active_candidates(candidates);
+
+        let (sums, sumsq, n_samples, budget, early_stopped) =
+            self.run_mc_scoring_loop(objective, candidates, ctx_eval, ctx, &active)?;
+
+        Ok(Self::assemble_ranking(
+            &active,
+            &sums,
+            &sumsq,
+            n_samples,
+            candidates,
+            violations,
+            budget,
+            early_stopped,
+        ))
+    }
+
+    /// Reject empty/degenerate `rank()` inputs before any MC work runs.
+    fn validate_rank_inputs<A, O>(
+        &self,
+        candidates: &[CandidateDesign],
+        ctx_eval: &DesignEvaluationContext<'_, A, O>,
+    ) -> Result<(), DesignError> {
         if candidates.is_empty() {
             return Err(DesignError::EmptyCandidates);
         }
@@ -215,7 +240,15 @@ impl DesignRanker {
         if self.config.max_batches == 0 || self.config.batch_size == 0 {
             return Err(DesignError::Config("max_batches and batch_size must be > 0".into()));
         }
+        Ok(())
+    }
 
+    /// Split `candidates` into hard-constraint violations and the indices that remain
+    /// active for MC scoring.
+    fn filter_active_candidates(
+        &self,
+        candidates: &[CandidateDesign],
+    ) -> (Vec<ConstraintViolation>, Vec<usize>) {
         let mut violations = Vec::new();
         let mut active: Vec<usize> = Vec::new();
         for (i, c) in candidates.iter().enumerate() {
@@ -225,7 +258,24 @@ impl DesignRanker {
                 active.push(i);
             }
         }
+        (violations, active)
+    }
 
+    /// Adaptive batched Monte Carlo scoring loop with shared CRN draws across active
+    /// candidates. Returns per-candidate `(sums, sumsq)` accumulators alongside the
+    /// realized sample count / budget / early-stop flag.
+    fn run_mc_scoring_loop<A, O>(
+        &self,
+        objective: &DesignObjective,
+        candidates: &[CandidateDesign],
+        ctx_eval: &DesignEvaluationContext<'_, A, O>,
+        ctx: &ExecutionContext,
+        active: &[usize],
+    ) -> Result<(Vec<f64>, Vec<f64>, u64, MonteCarloBudget, bool), DesignError>
+    where
+        A: Clone,
+        O: Clone,
+    {
         let mut sums = vec![0.0; active.len()];
         let mut sumsq = vec![0.0; active.len()];
         let mut n_samples: u64 = 0;
@@ -269,6 +319,21 @@ impl DesignRanker {
             }
         }
 
+        Ok((sums, sumsq, n_samples, budget, early_stopped))
+    }
+
+    /// Turn per-candidate MC accumulators into a sorted, CI-annotated [`DesignRanking`].
+    #[allow(clippy::too_many_arguments)]
+    fn assemble_ranking(
+        active: &[usize],
+        sums: &[f64],
+        sumsq: &[f64],
+        n_samples: u64,
+        candidates: &[CandidateDesign],
+        violations: Vec<ConstraintViolation>,
+        budget: MonteCarloBudget,
+        early_stopped: bool,
+    ) -> DesignRanking {
         let mut scored: Vec<(usize, f64, MonteCarloError)> = active
             .iter()
             .enumerate()
@@ -305,12 +370,12 @@ impl DesignRanker {
             });
         }
 
-        Ok(DesignRanking {
+        DesignRanking {
             ranked: Arc::from(ranked),
             violations: Arc::from(violations),
             budget,
             early_stopped,
-        })
+        }
     }
 
     fn check_constraints(&self, index: usize, cost: DesignCost) -> Option<ConstraintViolation> {

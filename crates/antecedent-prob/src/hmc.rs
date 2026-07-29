@@ -31,7 +31,7 @@ use crate::backend::{
 use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
 use crate::gaussian_target::{GaussianTarget, PosteriorTarget, gaussian_target_from_model};
-use crate::laplace::{accumulate_likelihood, log_posterior_value, validate_design};
+use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
 use crate::mcmc_stats::{all_chains_moved, max_split_rhat, min_bulk_ess, min_tail_ess};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, GaussianVarianceModel, PriorSet};

@@ -42,9 +42,8 @@ use crate::fci::{
 use crate::orientation::{OrientationError, OrientationState, RuleDelta};
 use crate::pc::{adjacent_vars, collect_float_columns, edge_key, sorted_edge_pairs};
 use crate::result::{
-    AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets,
-    ScoredLink,
+    DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
+    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
 };
 use crate::rule_scheduling::{
     FciOrientationRule, LpcmciR1, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9, LpcmciR10,
@@ -326,12 +325,7 @@ impl Rfci {
             adj.retain(|k, ()| kept.contains(k));
         }
 
-        let dense_of = |v: VariableId| -> Result<DenseNodeId, DiscoveryError> {
-            let idx = *var_index
-                .get(&v)
-                .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
-            Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
-        };
+        let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         let mut pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
 
@@ -456,15 +450,10 @@ impl Rfci {
         Ok(DiscoveryResult {
             evidence,
             review,
-            algorithm: AlgorithmRecord {
-                id: Arc::from("rfci"),
-                config: Arc::from(format!(
-                    "alpha={},max_cond={},fdr={}",
-                    alpha,
-                    max_cond,
-                    self.fdr.is_some()
-                )),
-            },
+            algorithm: crate::pipeline::algorithm_record(
+                "rfci",
+                format!("alpha={},max_cond={},fdr={}", alpha, max_cond, self.fdr.is_some()),
+            ),
             assumptions: AssumptionSet::default(),
             iterations,
             diagnostics,

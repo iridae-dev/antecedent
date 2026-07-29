@@ -28,9 +28,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{
-    FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, fit_2sls, form_xtx, invert_square,
-};
+use antecedent_stats::{FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, fit_2sls};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
@@ -310,21 +308,9 @@ impl WaldIv {
             Some(self.bootstrap_se(problem, &z, ctx)?)
         };
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report: None,
-            first_stage_diagnostics,
-            retained_memory_bytes: None,
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_first_stage_diagnostics(first_stage_diagnostics)
+            .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -672,21 +658,9 @@ impl TwoStageLeastSquares {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
-        Ok(EffectEstimate {
-            ate,
-            se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report: None,
-            first_stage_diagnostics: Some(fit.first_stage_diagnostics),
-            retained_memory_bytes: None,
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_first_stage_diagnostics(Some(fit.first_stage_diagnostics))
+            .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -703,16 +677,22 @@ impl TwoStageLeastSquares {
         let mut t_boot = vec![0.0; n];
         let mut y_boot = vec![0.0; n];
         bootstrap_se(self.bootstrap_replicates, ctx, 0x25D5_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                t_boot[r] = problem.treatment[src];
-                y_boot[r] = problem.outcome[src];
-                for c in 0..zc {
-                    z_boot[c * n + r] = problem.instruments_matrix[c * n + src];
-                }
-                for c in 0..xc {
-                    x_boot[c * n + r] = problem.exogenous_matrix[c * n + src];
-                }
-            }
+            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
+            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+            crate::util::gather_bootstrap_design(
+                &mut z_boot,
+                &problem.instruments_matrix,
+                n,
+                zc,
+                idx,
+            );
+            crate::util::gather_bootstrap_design(
+                &mut x_boot,
+                &problem.exogenous_matrix,
+                n,
+                xc,
+                idx,
+            );
             match fit_2sls(
                 &z_boot[n..],
                 n,
@@ -746,9 +726,7 @@ fn analytic_se_2sls(
     let mut x2 = vec![0.0; nrows * ncols];
     x2[..nrows].copy_from_slice(fitted_endogenous);
     x2[nrows..nrows * ncols].copy_from_slice(&exogenous_colmajor[..nrows * x_ncols]);
-    let mut xtx = vec![0.0; ncols * ncols];
-    form_xtx(&x2, nrows, ncols, &mut xtx);
-    let Some(inv) = invert_square(&xtx, ncols) else {
+    let Some(inv) = crate::util::xtx_inverse(&x2, nrows, ncols) else {
         return f64::NAN;
     };
     let sigma2 = structural_rss / (nrows as f64 - ncols as f64).max(1.0);

@@ -16,7 +16,7 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
+use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::se::AnalyticSeKind;
 use crate::util::{BootstrapSeResult, bootstrap_se};
 
@@ -250,30 +250,17 @@ impl DistanceMatching {
         };
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
-        let overlap_report = Some(OverlapReport::from_propensities(
+        let overlap_report = Some(crate::propensity::propensity_overlap_report(
+            problem,
             &diag.fit.scores,
             None,
-            problem.overlap,
-            Some(&problem.treatment),
             ipw_target,
-            problem.target_weights.as_deref(),
         ));
 
-        Ok(EffectEstimate {
-            ate: result.ate,
-            se_analytic: result.se_analytic,
-            se_bootstrap: None,
-            bootstrap_replicates_ok: None,
-            bootstrap_replicates_failed: None,
-            bootstrap_cancelled: false,
-            bootstrap_early_stopped: false,
-            assumptions,
-            overlap: problem.overlap,
-            overlap_report,
-            first_stage_diagnostics: None,
-            retained_memory_bytes: Some(workspace.retained_memory_bytes()),
-        }
-        .with_bootstrap(boot))
+        Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
+            .with_overlap_report(overlap_report)
+            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
+            .with_bootstrap(boot))
     }
 
     fn bootstrap_se(

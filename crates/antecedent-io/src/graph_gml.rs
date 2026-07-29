@@ -11,6 +11,7 @@ use antecedent_graph::Dag;
 
 use crate::convert::{dag_from_wire, dag_to_wire};
 use crate::error::IoError;
+use crate::graph_dot;
 use crate::wire::DagWire;
 
 /// Parse a GML digraph into a [`Dag`].
@@ -94,7 +95,7 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
                 expect_char(&tokens, &mut i, ']')?;
                 let name =
                     label.or(id).ok_or_else(|| IoError::Convert("node missing id".into()))?;
-                intern(&name, &mut order, &mut index)?;
+                graph_dot::intern(&name, &mut order, &mut index)?;
             }
             Tok::Ident(k) if k.eq_ignore_ascii_case("edge") => {
                 i += 1;
@@ -113,8 +114,8 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
                 expect_char(&tokens, &mut i, ']')?;
                 let s = source.ok_or_else(|| IoError::Convert("edge missing source".into()))?;
                 let t = target.ok_or_else(|| IoError::Convert("edge missing target".into()))?;
-                let from = intern(&s, &mut order, &mut index)?;
-                let to = intern(&t, &mut order, &mut index)?;
+                let from = graph_dot::intern(&s, &mut order, &mut index)?;
+                let to = graph_dot::intern(&t, &mut order, &mut index)?;
                 edges.push((from, to));
             }
             Tok::Ident(_) => {
@@ -138,7 +139,7 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
     }
 
     // Prefer numeric contiguous labels when all nodes are numeric 0..n-1.
-    match remap_numeric_if_possible(&order, &edges) {
+    match graph_dot::remap_numeric_dense(&order, &edges)? {
         // Dense id == numeric label in this case, so the label carries no
         // information beyond the dense index; fall back to index strings.
         Some(wire) => {
@@ -167,43 +168,6 @@ pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> String {
     }
     out.push(']');
     out
-}
-
-fn remap_numeric_if_possible(order: &[String], edges: &[(u32, u32)]) -> Option<DagWire> {
-    let n = u32::try_from(order.len()).ok()?;
-    let all_numeric = order.iter().all(|s| s.parse::<u32>().is_ok());
-    if all_numeric {
-        let mut vals: Vec<u32> = order.iter().map(|s| s.parse().unwrap()).collect();
-        vals.sort_unstable();
-        if vals.iter().copied().eq(0..n) {
-            let mut map = HashMap::new();
-            for (i, s) in order.iter().enumerate() {
-                if let Ok(i_u32) = u32::try_from(i) {
-                    map.insert(i_u32, s.parse::<u32>().unwrap());
-                }
-            }
-            let edges = edges
-                .iter()
-                .map(|&(a, b)| (*map.get(&a).unwrap(), *map.get(&b).unwrap()))
-                .collect();
-            return Some(DagWire { node_count: n, edges });
-        }
-    }
-    None
-}
-
-fn intern(
-    name: &str,
-    order: &mut Vec<String>,
-    index: &mut HashMap<String, u32>,
-) -> Result<u32, IoError> {
-    if let Some(&id) = index.get(name) {
-        return Ok(id);
-    }
-    let id = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    order.push(name.to_owned());
-    index.insert(name.to_owned(), id);
-    Ok(id)
 }
 
 #[derive(Debug)]

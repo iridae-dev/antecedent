@@ -92,6 +92,73 @@ pub enum IdentifierId {
     Auto,
 }
 
+/// Per-identifier data-only facts backing [`IdentifierId::as_str`],
+/// [`IdentifierId::is_dag_only`], and [`identify_provenance_step`].
+///
+/// Purely descriptive — the real behavioral dispatch lives in
+/// [`identify_static_query_with_rd`] / [`identify_pag`] / [`identify_admg`], which stay
+/// exhaustive `match`es and are not table-driven.
+struct IdentifierData {
+    name: &'static str,
+    is_dag_only: bool,
+    provenance: (&'static str, &'static str),
+}
+
+const fn identifier_data(id: IdentifierId) -> IdentifierData {
+    match id {
+        IdentifierId::BackdoorAdjustment => IdentifierData {
+            name: "backdoor.adjustment",
+            is_dag_only: true,
+            provenance: ("identify.backdoor", "identify.backdoor"),
+        },
+        IdentifierId::BackdoorEfficient => IdentifierData {
+            name: "backdoor.efficient",
+            is_dag_only: true,
+            provenance: ("identify.efficient_backdoor", "identify.efficient_backdoor"),
+        },
+        IdentifierId::Frontdoor => IdentifierData {
+            name: "frontdoor",
+            is_dag_only: true,
+            provenance: ("identify.frontdoor", "identify.frontdoor"),
+        },
+        IdentifierId::Iv => IdentifierData {
+            name: "iv",
+            is_dag_only: true,
+            provenance: ("identify.iv", "identify.iv"),
+        },
+        IdentifierId::RdSharp => IdentifierData {
+            name: "rd.sharp",
+            is_dag_only: true,
+            provenance: ("identify.rd_design", "identify.rd_sharp"),
+        },
+        IdentifierId::TemporalBackdoorUnfolded => IdentifierData {
+            name: "temporal.backdoor.unfolded",
+            is_dag_only: true,
+            provenance: ("identify.temporal_backdoor", "identify.temporal_backdoor_unfolded"),
+        },
+        IdentifierId::GeneralizedAdjustment => IdentifierData {
+            name: "generalized.adjustment",
+            is_dag_only: false,
+            provenance: ("identify.generalized_adjustment", "identify.generalized_adjustment"),
+        },
+        IdentifierId::GeneralId => IdentifierData {
+            name: "general.id",
+            is_dag_only: true,
+            provenance: ("identify.general_id", "identify.general_id"),
+        },
+        IdentifierId::PathSpecificNatural => IdentifierData {
+            name: "path_specific.natural",
+            is_dag_only: true,
+            provenance: ("identify.path_specific", "identify.path_specific"),
+        },
+        IdentifierId::Auto => IdentifierData {
+            name: "auto",
+            is_dag_only: true,
+            provenance: ("identify.auto", "identify.auto"),
+        },
+    }
+}
+
 impl IdentifierId {
     /// Every closed-set identifier, in declaration order (powers [`UnknownStrategy::expected`]).
     pub const ALL: &'static [IdentifierId] = &[
@@ -110,35 +177,13 @@ impl IdentifierId {
     /// Canonical wire id.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::BackdoorAdjustment => "backdoor.adjustment",
-            Self::BackdoorEfficient => "backdoor.efficient",
-            Self::Frontdoor => "frontdoor",
-            Self::Iv => "iv",
-            Self::RdSharp => "rd.sharp",
-            Self::TemporalBackdoorUnfolded => "temporal.backdoor.unfolded",
-            Self::GeneralizedAdjustment => "generalized.adjustment",
-            Self::GeneralId => "general.id",
-            Self::PathSpecificNatural => "path_specific.natural",
-            Self::Auto => "auto",
-        }
+        identifier_data(*self).name
     }
 
     /// Whether this identifier requires a DAG (not a raw PAG).
     #[must_use]
     pub const fn is_dag_only(&self) -> bool {
-        matches!(
-            self,
-            Self::BackdoorAdjustment
-                | Self::BackdoorEfficient
-                | Self::Frontdoor
-                | Self::Iv
-                | Self::RdSharp
-                | Self::TemporalBackdoorUnfolded
-                | Self::GeneralId
-                | Self::PathSpecificNatural
-                | Self::Auto
-        )
+        identifier_data(*self).is_dag_only
     }
 }
 
@@ -217,6 +262,133 @@ pub enum EstimatorId {
     TemporalMediation,
 }
 
+/// Per-estimator data-only facts backing [`EstimatorId::as_str`],
+/// [`EstimatorId::parallel_task_dimension`], [`EstimatorId::kernel_label`], and
+/// [`estimate_provenance_step`].
+///
+/// Purely descriptive — the real behavioral dispatch lives in
+/// [`estimate_static_effect`] / [`estimate_static_effect_default`] /
+/// [`estimand_compatible_with_estimator`], which stay exhaustive `match`es and are not
+/// table-driven.
+struct EstimatorData {
+    name: &'static str,
+    parallel_task_dimension: &'static str,
+    kernel_label: &'static str,
+    provenance: (&'static str, &'static str),
+}
+
+// One exhaustive match over every estimator, returning pure data. It is long because
+// there are many estimators, not because it does several things. Keeping it as a `match`
+// rather than an indexed table preserves the compile error when a new variant is added and
+// this row is forgotten -- which is the whole point of centralising the data here.
+#[allow(clippy::too_many_lines)]
+const fn estimator_data(id: EstimatorId) -> EstimatorData {
+    match id {
+        EstimatorId::LinearAdjustmentAte => EstimatorData {
+            name: "linear.adjustment.ate",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "ols.faer",
+            provenance: ("estimate.linear_adjustment", "estimate.linear_adjustment_ate"),
+        },
+        EstimatorId::PropensityWeighting => EstimatorData {
+            name: "propensity.weighting",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "ipw",
+            provenance: ("estimate.propensity", "estimate.propensity_weighting"),
+        },
+        EstimatorId::PropensityMatching => EstimatorData {
+            name: "propensity.matching",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "matching",
+            provenance: ("estimate.propensity", "estimate.propensity_matching"),
+        },
+        EstimatorId::PropensityStratification => EstimatorData {
+            name: "propensity.stratification",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "propensity.stratification",
+            provenance: ("estimate.propensity", "estimate.propensity_stratification"),
+        },
+        EstimatorId::DistanceMatching => EstimatorData {
+            name: "distance.matching",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "matching",
+            provenance: ("estimate.matching", "estimate.distance_matching"),
+        },
+        EstimatorId::Aipw => EstimatorData {
+            name: "aipw",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "aipw",
+            provenance: ("estimate.aipw", "estimate.aipw"),
+        },
+        EstimatorId::GlmAdjustment => EstimatorData {
+            name: "glm.adjustment",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "glm.logit",
+            provenance: ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),
+        },
+        EstimatorId::FrontDoorTwoStage => EstimatorData {
+            name: "frontdoor.two_stage",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "frontdoor.two_stage",
+            provenance: ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
+        },
+        EstimatorId::IvWald => EstimatorData {
+            name: "iv.wald",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "iv.wald",
+            provenance: ("estimate.iv", "estimate.wald_iv"),
+        },
+        EstimatorId::Iv2Sls => EstimatorData {
+            name: "iv.2sls",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "2sls",
+            provenance: ("estimate.iv", "estimate.two_stage_least_squares"),
+        },
+        EstimatorId::RdSharp => EstimatorData {
+            name: "rd.sharp",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "rd.local_linear",
+            provenance: ("estimate.rd", "estimate.rd_sharp"),
+        },
+        EstimatorId::BayesianGcomp => EstimatorData {
+            name: "bayesian.gcomp",
+            parallel_task_dimension: "analysis",
+            kernel_label: "ols.faer",
+            provenance: ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
+        },
+        EstimatorId::TemporalLinearAdjustment => EstimatorData {
+            name: "temporal.linear.adjustment",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "ols.faer.temporal",
+            provenance: ("estimate.temporal_linear", "estimate.temporal_linear_adjustment"),
+        },
+        EstimatorId::FunctionalDistribution => EstimatorData {
+            name: "functional.distribution",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "functional.distribution",
+            provenance: ("estimate.functional_distribution", "estimate.functional_distribution"),
+        },
+        EstimatorId::FunctionalEffect => EstimatorData {
+            name: "functional.effect",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "functional.effect",
+            provenance: ("estimate.functional_effect", "estimate.functional_effect"),
+        },
+        EstimatorId::ConditionalLinearAdjustment => EstimatorData {
+            name: "conditional.linear.adjustment",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "ols.faer.conditional",
+            provenance: ("estimate.conditional_linear", "estimate.conditional_linear_adjustment"),
+        },
+        EstimatorId::TemporalMediation => EstimatorData {
+            name: "temporal.mediation",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "ols.faer.temporal",
+            provenance: ("estimate.temporal_mediation", "estimate.temporal_mediation"),
+        },
+    }
+}
+
 impl EstimatorId {
     /// Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).
     pub const ALL: &'static [EstimatorId] = &[
@@ -242,70 +414,19 @@ impl EstimatorId {
     /// Canonical wire id.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::LinearAdjustmentAte => "linear.adjustment.ate",
-            Self::PropensityWeighting => "propensity.weighting",
-            Self::PropensityMatching => "propensity.matching",
-            Self::PropensityStratification => "propensity.stratification",
-            Self::DistanceMatching => "distance.matching",
-            Self::Aipw => "aipw",
-            Self::GlmAdjustment => "glm.adjustment",
-            Self::FrontDoorTwoStage => "frontdoor.two_stage",
-            Self::IvWald => "iv.wald",
-            Self::Iv2Sls => "iv.2sls",
-            Self::RdSharp => "rd.sharp",
-            Self::BayesianGcomp => "bayesian.gcomp",
-            Self::TemporalLinearAdjustment => "temporal.linear.adjustment",
-            Self::FunctionalDistribution => "functional.distribution",
-            Self::FunctionalEffect => "functional.effect",
-            Self::ConditionalLinearAdjustment => "conditional.linear.adjustment",
-            Self::TemporalMediation => "temporal.mediation",
-        }
+        estimator_data(*self).name
     }
 
     /// Parallel-task dimension label for physical planning.
     #[must_use]
     pub const fn parallel_task_dimension(&self) -> &'static str {
-        match self {
-            Self::TemporalLinearAdjustment
-            | Self::TemporalMediation
-            | Self::LinearAdjustmentAte
-            | Self::ConditionalLinearAdjustment
-            | Self::PropensityWeighting
-            | Self::PropensityMatching
-            | Self::PropensityStratification
-            | Self::DistanceMatching
-            | Self::Aipw
-            | Self::GlmAdjustment
-            | Self::FrontDoorTwoStage
-            | Self::IvWald
-            | Self::Iv2Sls
-            | Self::RdSharp
-            | Self::FunctionalDistribution
-            | Self::FunctionalEffect => "bootstrap.replicate",
-            Self::BayesianGcomp => "analysis",
-        }
+        estimator_data(*self).parallel_task_dimension
     }
 
     /// Dense-kernel label recorded on the physical plan.
     #[must_use]
     pub const fn kernel_label(&self) -> &'static str {
-        match self {
-            Self::TemporalLinearAdjustment | Self::TemporalMediation => "ols.faer.temporal",
-            Self::ConditionalLinearAdjustment => "ols.faer.conditional",
-            Self::PropensityWeighting => "ipw",
-            Self::PropensityMatching | Self::DistanceMatching => "matching",
-            Self::PropensityStratification => "propensity.stratification",
-            Self::Aipw => "aipw",
-            Self::GlmAdjustment => "glm.logit",
-            Self::FrontDoorTwoStage => "frontdoor.two_stage",
-            Self::IvWald => "iv.wald",
-            Self::Iv2Sls => "2sls",
-            Self::RdSharp => "rd.local_linear",
-            Self::FunctionalDistribution => "functional.distribution",
-            Self::FunctionalEffect => "functional.effect",
-            Self::LinearAdjustmentAte | Self::BayesianGcomp => "ols.faer",
-        }
+        estimator_data(*self).kernel_label
     }
 }
 
@@ -811,64 +932,13 @@ pub fn identify_admg(
 /// Provenance `(artifact_id, operation)` for an identifier id.
 #[must_use]
 pub fn identify_provenance_step(identifier: IdentifierId) -> (&'static str, &'static str) {
-    match identifier {
-        IdentifierId::BackdoorAdjustment => ("identify.backdoor", "identify.backdoor"),
-        IdentifierId::BackdoorEfficient => {
-            ("identify.efficient_backdoor", "identify.efficient_backdoor")
-        }
-        IdentifierId::Frontdoor => ("identify.frontdoor", "identify.frontdoor"),
-        IdentifierId::Iv => ("identify.iv", "identify.iv"),
-        IdentifierId::RdSharp => ("identify.rd_design", "identify.rd_sharp"),
-        IdentifierId::TemporalBackdoorUnfolded => {
-            ("identify.temporal_backdoor", "identify.temporal_backdoor_unfolded")
-        }
-        IdentifierId::GeneralizedAdjustment => {
-            ("identify.generalized_adjustment", "identify.generalized_adjustment")
-        }
-        IdentifierId::GeneralId => ("identify.general_id", "identify.general_id"),
-        IdentifierId::PathSpecificNatural => ("identify.path_specific", "identify.path_specific"),
-        IdentifierId::Auto => ("identify.auto", "identify.auto"),
-    }
+    identifier_data(identifier).provenance
 }
 
 /// Provenance `(artifact_id, operation)` for an estimator id.
 #[must_use]
 pub fn estimate_provenance_step(estimator: EstimatorId) -> (&'static str, &'static str) {
-    match estimator {
-        EstimatorId::LinearAdjustmentAte => {
-            ("estimate.linear_adjustment", "estimate.linear_adjustment_ate")
-        }
-        EstimatorId::PropensityWeighting => {
-            ("estimate.propensity", "estimate.propensity_weighting")
-        }
-        EstimatorId::PropensityMatching => ("estimate.propensity", "estimate.propensity_matching"),
-        EstimatorId::PropensityStratification => {
-            ("estimate.propensity", "estimate.propensity_stratification")
-        }
-        EstimatorId::DistanceMatching => ("estimate.matching", "estimate.distance_matching"),
-        EstimatorId::Aipw => ("estimate.aipw", "estimate.aipw"),
-        EstimatorId::GlmAdjustment => ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),
-        EstimatorId::FrontDoorTwoStage => ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
-        EstimatorId::IvWald => ("estimate.iv", "estimate.wald_iv"),
-        EstimatorId::Iv2Sls => ("estimate.iv", "estimate.two_stage_least_squares"),
-        EstimatorId::RdSharp => ("estimate.rd", "estimate.rd_sharp"),
-        EstimatorId::BayesianGcomp => ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
-        EstimatorId::TemporalLinearAdjustment => {
-            ("estimate.temporal_linear", "estimate.temporal_linear_adjustment")
-        }
-        EstimatorId::FunctionalDistribution => {
-            ("estimate.functional_distribution", "estimate.functional_distribution")
-        }
-        EstimatorId::FunctionalEffect => {
-            ("estimate.functional_effect", "estimate.functional_effect")
-        }
-        EstimatorId::ConditionalLinearAdjustment => {
-            ("estimate.conditional_linear", "estimate.conditional_linear_adjustment")
-        }
-        EstimatorId::TemporalMediation => {
-            ("estimate.temporal_mediation", "estimate.temporal_mediation")
-        }
-    }
+    estimator_data(estimator).provenance
 }
 
 /// Run a frequentist static estimator by strategy spec (excludes `rd.sharp` / `bayesian.gcomp`).

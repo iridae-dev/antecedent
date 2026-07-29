@@ -19,6 +19,17 @@ use pyo3::types::{PyDict, PyList, PyModule};
 
 use crate::py_err;
 
+/// Convert any `Display`-able error into a `PyValueError`.
+///
+/// Deliberately *not* the crate's `py_err` / `IntoCausalPyErr` mechanism: the
+/// error types converted here (`antecedent_prob`, `antecedent_validate`, `serde_json`,
+/// ...) don't implement `IntoCausalPyErr`, so routing them through it would silently
+/// change the raised exception type. Every call site below was already raising
+/// `PyValueError` before this helper existed; this only removes the repeated closure.
+pub(crate) fn pyvalue<E: std::fmt::Display>(e: E) -> PyErr {
+    PyValueError::new_err(e.to_string())
+}
+
 fn role_from_str(s: &str) -> PyResult<DesignVariableRole> {
     match s {
         "treatment" => Ok(DesignVariableRole::Treatment),
@@ -149,8 +160,7 @@ fn report_to_dict<'py>(
         CompatibilityReport::Rejected { artifact_id, reason } => {
             d.set_item("status", "rejected")?;
             d.set_item("artifact_id", artifact_id.clone())?;
-            let reason_s =
-                serde_json::to_string(reason).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            let reason_s = serde_json::to_string(reason).map_err(pyvalue)?;
             let json = py.import("json")?;
             let reason_d = json.call_method1("loads", (reason_s,))?;
             d.set_item("reason", reason_d)?;
@@ -347,7 +357,7 @@ fn prior_set_from_moments(mean: &[f64], variance: &[f64]) -> PyResult<PriorSet> 
         mean: std::sync::Arc::from(mean.to_vec()),
         variance: std::sync::Arc::from(variance.to_vec()),
     };
-    coef.validate().map_err(|e| PyValueError::new_err(e.to_string()))?;
+    coef.validate().map_err(pyvalue)?;
     let mut prior = PriorSet::new();
     prior.push(PriorSpec::GaussianCoefficients(coef));
     Ok(prior)
@@ -378,15 +388,14 @@ fn source_from_dict(d: &Bound<'_, PyDict>) -> PyResult<ExternalPriorSource> {
         Some(v) if v.is_none() => None,
         Some(v) => Some(v.extract()?),
     };
-    let weight = ExternalPriorWeight::new(alpha, mixture_weight)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let weight = ExternalPriorWeight::new(alpha, mixture_weight).map_err(pyvalue)?;
     let source = ExternalPriorSource {
         id: std::sync::Arc::from(id),
         prior: prior_set_from_moments(&mean, &variance)?,
         weight,
         ess,
     };
-    source.validate().map_err(|e| PyValueError::new_err(e.to_string()))?;
+    source.validate().map_err(pyvalue)?;
     Ok(source)
 }
 
@@ -409,10 +418,7 @@ pub(crate) fn conflict_policy_from_dict(
     };
     let p_min: f64 = d.get_item("p_min")?.map(|v| v.extract()).transpose()?.unwrap_or(0.05);
     let kl_scale: f64 = d.get_item("kl_scale")?.map(|v| v.extract()).transpose()?.unwrap_or(1.0);
-    Ok(Some(
-        ConflictPolicy::try_new(p_min, kl_scale)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?,
-    ))
+    Ok(Some(ConflictPolicy::try_new(p_min, kl_scale).map_err(pyvalue)?))
 }
 
 fn composed_to_dict<'py>(
@@ -445,7 +451,7 @@ fn composed_to_dict<'py>(
 }
 
 fn transport_policy_from_str(s: &str) -> PyResult<antecedent_prob::TransportPolicy> {
-    antecedent_prob::TransportPolicy::parse(s).map_err(|e| PyValueError::new_err(e.to_string()))
+    antecedent_prob::TransportPolicy::parse(s).map_err(pyvalue)
 }
 
 fn conflict_signals_from_list(
@@ -544,9 +550,7 @@ fn compose_transport_path<'py>(
     };
     let adjustment = match (unit_effects, transport_weights) {
         (None, None) => None,
-        (Some(e), Some(w)) => Some(
-            TransportAdjustment::new(e, w).map_err(|err| PyValueError::new_err(err.to_string()))?,
-        ),
+        (Some(e), Some(w)) => Some(TransportAdjustment::new(e, w).map_err(pyvalue)?),
         _ => {
             return Err(PyValueError::new_err(
                 "unit_effects and transport_weights must be provided together",
@@ -560,10 +564,8 @@ fn compose_transport_path<'py>(
         adjustment: adjustment.as_ref(),
         coef_index,
     };
-    let (composed, _) = compose_with_transport(srcs, baseline, &ctx)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let (prepared, _) = antecedent_prob::apply_transport(srcs, &ctx)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let (composed, _) = compose_with_transport(srcs, baseline, &ctx).map_err(pyvalue)?;
+    let (prepared, _) = antecedent_prob::apply_transport(srcs, &ctx).map_err(pyvalue)?;
     let prepared: Vec<ExternalPriorSource> = prepared
         .into_iter()
         .zip(composed.alphas_applied.iter())
@@ -580,7 +582,7 @@ fn compose_transport_path<'py>(
         let signals = conflict_signals_from_list(conflict_signals, prepared.len())?;
         let (composed2, summary) =
             apply_conflict_and_compose(&prepared, baseline, &policy_c, &signals)
-                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                .map_err(pyvalue)?;
         let d2 = composed_to_dict(py, &composed2)?;
         with_conflict_fields(&d2, &summary)?;
         d2.set_item("sources", src_list)?;
@@ -649,8 +651,8 @@ fn compose_external_priors_py<'py>(
     let policy = conflict_policy_from_dict(conflict)?;
     if let Some(policy) = policy {
         let signals = conflict_signals_from_list(conflict_signals, srcs.len())?;
-        let (composed, summary) = apply_conflict_and_compose(&srcs, &baseline, &policy, &signals)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let (composed, summary) =
+            apply_conflict_and_compose(&srcs, &baseline, &policy, &signals).map_err(pyvalue)?;
         let d = composed_to_dict(py, &composed)?;
         with_conflict_fields(&d, &summary)?;
         d.set_item("sources", sources)?;
@@ -659,8 +661,7 @@ fn compose_external_priors_py<'py>(
         }
         return Ok(d);
     }
-    let composed = compose_external_priors(&srcs, &baseline)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let composed = compose_external_priors(&srcs, &baseline).map_err(pyvalue)?;
     let d = composed_to_dict(py, &composed)?;
     d.set_item("sources", sources)?;
     Ok(d)
@@ -675,8 +676,7 @@ fn shrink_alpha_py(
     p_min: f64,
     kl_scale: f64,
 ) -> PyResult<f64> {
-    let policy = ConflictPolicy::try_new(p_min, kl_scale)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let policy = ConflictPolicy::try_new(p_min, kl_scale).map_err(pyvalue)?;
     Ok(policy.shrink_alpha(alpha, p_value, kl))
 }
 
@@ -686,8 +686,7 @@ fn shrink_alpha_py(
 /// contract; errors on out-of-support input rather than clamping it.
 #[pyfunction(name = "beta_from_moments")]
 fn beta_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::BetaHyperparameters::from_moments(mean, variance)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let h = antecedent_prob::BetaHyperparameters::from_moments(mean, variance).map_err(pyvalue)?;
     Ok((h.alpha, h.beta))
 }
 
@@ -697,8 +696,7 @@ fn beta_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
 /// full contract.
 #[pyfunction(name = "beta_from_mean_and_ess")]
 fn beta_from_mean_and_ess_py(mean: f64, ess: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::BetaHyperparameters::from_mean_and_ess(mean, ess)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let h = antecedent_prob::BetaHyperparameters::from_mean_and_ess(mean, ess).map_err(pyvalue)?;
     Ok((h.alpha, h.beta))
 }
 
@@ -708,8 +706,7 @@ fn beta_from_mean_and_ess_py(mean: f64, ess: f64) -> PyResult<(f64, f64)> {
 /// contract; errors on out-of-support input rather than clamping it.
 #[pyfunction(name = "gamma_from_moments")]
 fn gamma_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::GammaHyperparameters::from_moments(mean, variance)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let h = antecedent_prob::GammaHyperparameters::from_moments(mean, variance).map_err(pyvalue)?;
     Ok((h.shape, h.rate))
 }
 
@@ -719,8 +716,7 @@ fn gamma_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
 /// contract.
 #[pyfunction(name = "gamma_from_mean_and_ess")]
 fn gamma_from_mean_and_ess_py(mean: f64, ess: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::GammaHyperparameters::from_mean_and_ess(mean, ess)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let h = antecedent_prob::GammaHyperparameters::from_mean_and_ess(mean, ess).map_err(pyvalue)?;
     Ok((h.shape, h.rate))
 }
 
@@ -788,7 +784,7 @@ pub(crate) fn apply_owned_composed_prior(
         &owned.alphas_applied,
         &baseline,
     )
-    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    .map_err(pyvalue)?;
     for id in &owned.assumption_ids {
         if prior_composed.prior.restrictions.iter().any(|r| r.id.as_ref() == id.as_str()) {
             continue;
