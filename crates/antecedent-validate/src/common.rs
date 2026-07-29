@@ -165,21 +165,31 @@ pub(crate) fn fit_once(
 }
 
 /// Static or temporal effect refit (bootstrap disabled).
+///
+/// `caller_estimator` carries the refuter's configured [`LinearAdjustmentAte`] (SE kind,
+/// cluster/multiway/panel-time ids, fit family, backend); the refit honors it on both the
+/// static and temporal branches so a caller who set e.g. `se_kind = AnalyticSeKind::Cluster`
+/// gets cluster-robust SEs on every refit replicate, not silently-downgraded homoskedastic
+/// OLS. Two fields are always forced regardless of what the caller configured:
+/// `bootstrap_replicates = 0` (refit replicates must never nest their own bootstrap pools)
+/// and `overlap = OverlapPolicy::ExplicitOverride` (refuters mutate a single column and refit
+/// the same design; re-running propensity/overlap diagnostics on a noised or permuted column
+/// is neither meaningful nor how the original estimate was gated).
 pub(crate) fn refit_effect(
     problem: &RefutationProblem<'_>,
     data: &TabularData,
     estimand: &IdentifiedEstimand,
     extra_contemporaneous: &[VariableId],
+    caller_estimator: &LinearAdjustmentAte,
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
     let Some(temporal) = problem.temporal else {
-        let est = linear_estimator_no_bootstrap();
+        let est = forced_refit_estimator(caller_estimator);
         return fit_once(&est, data, estimand, problem.query, workspace, ctx);
     };
-    let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
-    estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
+    let estimator =
+        TemporalLinearAdjustment::new().with_inner(forced_refit_estimator(caller_estimator));
     if let Some(panel) = temporal.panel {
         let rebuilt = panel_from_stacked(panel, data)?;
         let prep = if extra_contemporaneous.is_empty() {
@@ -504,6 +514,19 @@ pub(crate) fn linear_estimator_no_bootstrap() -> LinearAdjustmentAte {
     estimator
 }
 
+/// Clone `caller_estimator` and force the two overrides every refit needs regardless of the
+/// caller's config: no nested bootstrap, and no propensity/overlap re-diagnosis. See
+/// [`refit_effect`] for why these two are pinned rather than threaded through.
+#[must_use]
+pub(crate) fn forced_refit_estimator(
+    caller_estimator: &LinearAdjustmentAte,
+) -> LinearAdjustmentAte {
+    let mut estimator = caller_estimator.clone();
+    estimator.bootstrap_replicates = 0;
+    estimator.overlap = OverlapPolicy::ExplicitOverride;
+    estimator
+}
+
 /// Which column a noise-replace refuter overwrites.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NoiseReplaceTarget {
@@ -522,7 +545,7 @@ pub(crate) fn noise_replace_refute(
     problem: &RefutationProblem<'_>,
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
-    _estimator: &LinearAdjustmentAte,
+    estimator: &LinearAdjustmentAte,
     replicates: u32,
     alpha: f64,
     target: NoiseReplaceTarget,
@@ -545,7 +568,7 @@ pub(crate) fn noise_replace_refute(
         let mut noise = vec![0.0; n];
         fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
         let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
-        let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
+        let est = refit_effect(problem, &data, problem.estimand, &[], estimator, workspace, ctx)?;
         ates.push(est.ate);
     }
     let mean_ate = ates.iter().sum::<f64>() / f64::from(replicates);

@@ -18,9 +18,9 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_stats::{
-    CompiledDesign, DenseLinearAlgebra, FaerBackend, LassoOptions, LeastSquaresWorkspace,
-    MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge, form_xtx, invert_square,
-    predict_lasso,
+    CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
+    LeastSquaresWorkspace, MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge,
+    form_xtx, invert_square, predict_lasso,
 };
 
 use crate::error::EstimationError;
@@ -82,6 +82,10 @@ pub struct EffectEstimate {
     pub overlap: OverlapPolicy,
     /// Propensity overlap diagnostics when computed.
     pub overlap_report: Option<OverlapReport>,
+    /// Weak-instrument diagnostic (IV / 2SLS estimators only); `None` for every other
+    /// estimator family. Informational — never causes a hard failure on its own; see
+    /// [`FirstStageDiagnostics`].
+    pub first_stage_diagnostics: Option<FirstStageDiagnostics>,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,
 }
@@ -106,6 +110,7 @@ impl EffectEstimate {
             assumptions,
             overlap,
             overlap_report: None,
+            first_stage_diagnostics: None,
             retained_memory_bytes: None,
         }
     }
@@ -137,8 +142,19 @@ impl EffectEstimate {
             assumptions,
             overlap,
             overlap_report,
+            first_stage_diagnostics: None,
             retained_memory_bytes,
         }
+    }
+
+    /// Attach a weak-instrument diagnostic (IV / 2SLS estimators only).
+    #[must_use]
+    pub fn with_first_stage_diagnostics(
+        mut self,
+        diagnostics: Option<FirstStageDiagnostics>,
+    ) -> Self {
+        self.first_stage_diagnostics = diagnostics;
+        self
     }
 
     /// Attach bootstrap SE accounting (or clear when bootstrap was skipped).
@@ -436,6 +452,7 @@ impl LinearAdjustmentAte {
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
+            first_stage_diagnostics: None,
             retained_memory_bytes: None,
         })
     }

@@ -19,8 +19,7 @@ use antecedent_estimate::{
 use antecedent_identify::IdentificationStatus;
 use antecedent_kernels::{PosteriorReduceOp, reduce_posterior_draws, standard_normal};
 use antecedent_prob::{
-    BayesDesignRef, BayesFitOptions, BayesLikelihood, ExternalPriorSource, HessianFactorization,
-    InferenceBackend, LaplaceGlmBackend, LaplaceWorkspace, PriorSensitivitySummary, PriorSet,
+    ExternalPriorSource, HessianFactorization, PriorSensitivitySummary, PriorSet,
     compose_external_priors_with_alphas,
 };
 use antecedent_stats::GlmFamily;
@@ -956,111 +955,6 @@ impl SimulationBasedCalibration {
             replicates: self.n_reps,
         }
     }
-}
-
-/// Likelihood-family comparison via leave-one-out log predictive density gap.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct LikelihoodFamilyComparison {
-    /// Reserved (API stability).
-    pub n_placeholder: u8,
-}
-
-impl LikelihoodFamilyComparison {
-    /// Compare Gaussian vs Bernoulli logit Laplace fits using a LOO predictive
-    /// score (higher is better). Gap is best − second.
-    ///
-    /// # Errors
-    ///
-    /// Fit failures.
-    pub fn compare(
-        &self,
-        problem: &PreparedBayesianProblem,
-        ctx: &ExecutionContext,
-    ) -> Result<(Arc<str>, f64), ValidationError> {
-        let _ = self;
-        let design = BayesDesignRef {
-            x_colmajor: &problem.design.matrix,
-            nrows: problem.design.nrows,
-            ncols: problem.design.ncols,
-            y: &problem.design.outcome,
-            weights: None,
-            offsets: None,
-        };
-        let prior = PriorSet::weakly_informative(problem.design.ncols);
-        let opts = BayesFitOptions { n_draws: 80, seed: 1, ..BayesFitOptions::default() };
-        let mut ws = LaplaceWorkspace::default();
-        let g = LaplaceGlmBackend
-            .fit(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws, ctx)
-            .map_err(|e| ValidationError::estimation_msg(format!("Gaussian fit: {e}")))?;
-        let g_score = loo_gaussian_lpd(
-            &g.map,
-            &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
-            &problem.design.outcome,
-        );
-
-        let binary = problem
-            .design
-            .outcome
-            .iter()
-            .all(|&y| (y - 0.0).abs() < f64::EPSILON || (y - 1.0).abs() < f64::EPSILON);
-        if !binary {
-            return Ok((Arc::from("gaussian_identity"), 0.0));
-        }
-        let b = LaplaceGlmBackend
-            .fit(BayesLikelihood::BernoulliLogit, design, &prior, &opts, &mut ws, ctx)
-            .map_err(|e| ValidationError::estimation_msg(format!("Bernoulli fit: {e}")))?;
-        let b_score = loo_bernoulli_lpd(
-            &b.map,
-            &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
-            &problem.design.outcome,
-        );
-        if b_score >= g_score {
-            Ok((Arc::from("bernoulli_logit"), b_score - g_score))
-        } else {
-            Ok((Arc::from("gaussian_identity"), g_score - b_score))
-        }
-    }
-}
-
-fn loo_gaussian_lpd(map: &[f64], x: &[f64], n: usize, p: usize, y: &[f64]) -> f64 {
-    let mut resid = vec![0.0; n];
-    let mut rss = 0.0;
-    for r in 0..n {
-        let mut eta = 0.0;
-        for c in 0..p {
-            eta += x[c * n + r] * map.get(c).copied().unwrap_or(0.0);
-        }
-        resid[r] = y[r] - eta;
-        rss += resid[r] * resid[r];
-    }
-    let sigma2 = (rss / n.max(1) as f64).max(1e-8);
-    let mut lpd = 0.0;
-    for r in 0..n {
-        let s2 = sigma2 * n as f64 / (n.saturating_sub(1)).max(1) as f64;
-        lpd += -0.5
-            * (s2.ln()
-                + resid[r] * resid[r] / s2
-                + std::f64::consts::LN_2
-                + std::f64::consts::PI.ln());
-    }
-    lpd
-}
-
-fn loo_bernoulli_lpd(map: &[f64], x: &[f64], n: usize, p: usize, y: &[f64]) -> f64 {
-    let mut lpd = 0.0;
-    for r in 0..n {
-        let mut eta = 0.0;
-        for c in 0..p {
-            eta += x[c * n + r] * map.get(c).copied().unwrap_or(0.0);
-        }
-        let prob = 1.0 / (1.0 + (-eta).exp());
-        lpd += if y[r] > 0.5 { prob.max(1e-12).ln() } else { (1.0 - prob).max(1e-12).ln() };
-    }
-    lpd
 }
 
 /// Posterior calibration on synthetic SCMs: known-ATE credible-interval coverage.

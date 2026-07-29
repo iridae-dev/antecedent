@@ -77,7 +77,7 @@ fn run_grid(
         let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t))?;
         let data = with_replaced_float(&data, problem.outcome(), Arc::from(y))?;
         let est = if problem.temporal.is_some() {
-            refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?
+            refit_effect(problem, &data, problem.estimand, &[], estimator, workspace, ctx)?
         } else {
             fit_once(estimator, &data, problem.estimand, problem.query, workspace, ctx)?
         };

@@ -106,7 +106,15 @@ impl PlaceboTreatment {
             let mut rng = ctx.rng.stream(0xA7E0_0001_1000_u64.wrapping_add(u64::from(r)));
             shuffle(&mut rng, &mut perm);
             let data = with_replaced_float(problem.data, treatment, Arc::from(perm))?;
-            let est = refit_effect(problem, &data, problem.estimand, &[], workspace, ctx)?;
+            let est = refit_effect(
+                problem,
+                &data,
+                problem.estimand,
+                &[],
+                &self.estimator,
+                workspace,
+                ctx,
+            )?;
             ates.push(est.ate);
         }
         let mean_ate = ates.iter().sum::<f64>() / f64::from(self.replicates);

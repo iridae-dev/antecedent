@@ -538,6 +538,7 @@ impl FunctionalEffect {
             assumptions: prepared.assumptions.clone(),
             overlap: self.overlap,
             overlap_report: None,
+            first_stage_diagnostics: None,
             retained_memory_bytes: None,
         })
     }

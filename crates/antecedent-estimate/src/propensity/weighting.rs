@@ -184,6 +184,7 @@ impl PropensityWeighting {
             assumptions,
             overlap: problem.overlap,
             overlap_report,
+            first_stage_diagnostics: None,
             retained_memory_bytes: Some(workspace.retained_memory_bytes()),
         }
         .with_bootstrap(boot))
@@ -317,24 +318,6 @@ pub(crate) fn hajek_weighted_mean(
     if den > 0.0 { num / den } else { f64::NAN }
 }
 
-pub(crate) fn hajek_group_variance(
-    treatment: &[f64],
-    outcome: &[f64],
-    weights: &[f64],
-    want_treated: bool,
-    mu: f64,
-) -> f64 {
-    let (mut num, mut den) = (0.0, 0.0);
-    for i in 0..treatment.len() {
-        if (treatment[i] > 0.5) == want_treated {
-            let w = weights[i];
-            num += w * w * (outcome[i] - mu).powi(2);
-            den += w;
-        }
-    }
-    if den > 0.0 { num / (den * den) } else { f64::NAN }
-}
-
 /// Hajek ATE/ATT/ATC analytic SE via linearized influence scores, with a
 /// first-order correction for estimated logistic propensity scores.
 ///
@@ -417,7 +400,21 @@ pub(crate) fn hajek_influence_se(
 }
 
 /// Gaussian elimination for a small dense system (propensity score projection).
+///
+/// Singularity is judged relative to the input matrix's largest absolute diagonal entry
+/// (matching `antecedent_stats::gram::invert_square`) so the verdict does not depend on the
+/// data's units — an absolute threshold would quietly accept a direction that is singular
+/// relative to the Gram matrix's own scale and hand back a garbage adjustment.
 fn solve_symmetric_posdef(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64>> {
+    let mut scale = 0.0_f64;
+    for i in 0..p {
+        scale = scale.max(a[i * p + i].abs());
+    }
+    if !(scale.is_finite() && scale > 0.0) {
+        return None;
+    }
+    let tol = 1e-12 * scale;
+
     for col in 0..p {
         let mut pivot = col;
         let mut best = a[col * p + col].abs();
@@ -428,7 +425,7 @@ fn solve_symmetric_posdef(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<
                 pivot = r;
             }
         }
-        if best < 1e-14 {
+        if best < tol {
             return None;
         }
         if pivot != col {
@@ -457,12 +454,43 @@ fn solve_symmetric_posdef(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<
     Some(x)
 }
 
-/// Legacy weights-as-fixed Hajek SE (kept for differential reference in docs).
-#[allow(dead_code)]
-pub(crate) fn hajek_analytic_se(treatment: &[f64], outcome: &[f64], weights: &[f64]) -> f64 {
-    let mu1 = hajek_weighted_mean(treatment, outcome, weights, true);
-    let mu0 = hajek_weighted_mean(treatment, outcome, weights, false);
-    let v1 = hajek_group_variance(treatment, outcome, weights, true, mu1);
-    let v0 = hajek_group_variance(treatment, outcome, weights, false, mu0);
-    (v1 + v0).sqrt()
+#[cfg(test)]
+mod tests {
+    use super::solve_symmetric_posdef;
+
+    #[test]
+    fn solve_symmetric_posdef_rejects_badly_scaled_near_singular_matrix() {
+        // Rows are nearly parallel at large magnitude — the shape an unnormalized
+        // G = S'S / n takes when two propensity-score residual columns are collinear.
+        // After one elimination step the remaining pivot is ~1e-6 in absolute terms:
+        // comfortably above a fixed 1e-14 absolute threshold (which would wrongly accept
+        // this and hand back a garbage adjustment), but far below 1e-12 * scale (~1e-2)
+        // once the tolerance is scaled to the matrix's own magnitude (~1e10).
+        let mut a = [1e10, 1e10, 1e10, 1e10 + 1e-6];
+        let mut b = [1.0, 1.0];
+        assert!(solve_symmetric_posdef(&mut a, &mut b, 2).is_none());
+    }
+
+    #[test]
+    fn solve_symmetric_posdef_still_solves_well_scaled_system() {
+        // Sanity check that the relative tolerance doesn't reject ordinary,
+        // well-conditioned systems: [4,1;1,3] x = [5,4] ⇒ x = [1,1].
+        let mut a = [4.0, 1.0, 1.0, 3.0];
+        let mut b = [5.0, 4.0];
+        let x = solve_symmetric_posdef(&mut a, &mut b, 2).expect("well-conditioned");
+        assert!((x[0] - 1.0).abs() < 1e-12, "x0={}", x[0]);
+        assert!((x[1] - 1.0).abs() < 1e-12, "x1={}", x[1]);
+    }
+
+    #[test]
+    fn solve_symmetric_posdef_rejects_degenerate_scale() {
+        // All-zero diagonal (and a non-finite one) leave no usable scale reference.
+        let mut a = [0.0, 0.0, 0.0, 0.0];
+        let mut b = [1.0, 1.0];
+        assert!(solve_symmetric_posdef(&mut a, &mut b, 2).is_none());
+
+        let mut a = [f64::INFINITY, 0.0, 0.0, 1.0];
+        let mut b = [1.0, 1.0];
+        assert!(solve_symmetric_posdef(&mut a, &mut b, 2).is_none());
+    }
 }

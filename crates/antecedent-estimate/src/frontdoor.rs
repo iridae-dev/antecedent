@@ -276,6 +276,7 @@ impl FrontDoorTwoStage {
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
+            first_stage_diagnostics: None,
             retained_memory_bytes: None,
         }
         .with_bootstrap(boot))

@@ -191,6 +191,7 @@ impl ConditionalLinearAdjustment {
             assumptions: AssumptionSet::default(),
             overlap: OverlapPolicy::ExplicitOverride,
             overlap_report: None,
+            first_stage_diagnostics: None,
             retained_memory_bytes: None,
         })
     }

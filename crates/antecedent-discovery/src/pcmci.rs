@@ -57,6 +57,13 @@ impl Pcmci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        if self.engine.constraints.temporal.min_lag.is_contemporaneous() {
+            return Err(DiscoveryError::unsupported(
+                "Pcmci requires min_lag >= 1 (lagged-only); contemporaneous links need \
+                 PcmciPlus, which supplies collider/Meek orientation instead of cycle-race \
+                 tiebreaking",
+            ));
+        }
         let mut result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
         let alpha = self.engine.constraints.alpha;
 
@@ -286,6 +293,75 @@ mod calibration_tests {
         assert!(
             power >= 0.70,
             "PCMCI planted lag-1 power={power:.2} ({hits}/{N_SIM}); expected ≥0.70"
+        );
+    }
+}
+
+#[cfg(test)]
+mod constraint_validation_tests {
+    use super::*;
+    use antecedent_core::{
+        CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+        ValidityBitmap,
+    };
+
+    use crate::constraints::{DiscoveryConstraints, TemporalConstraints};
+
+    fn tiny_series() -> (TimeSeriesData, Vec<VariableId>) {
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let n = 5;
+        let vals: Vec<f64> = vec![0.0, 1.0, 0.5, -0.5, 0.2];
+        let cols = vec![OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(0),
+                Arc::from(vals),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        )];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap();
+        (data, vec![VariableId::from_raw(0)])
+    }
+
+    /// `Pcmci` has no collider/Meek orientation machinery — that's `PcmciPlus`. A
+    /// contemporaneous `min_lag=0` would otherwise let both `(X→Y)` and `(Y→X)` reach the
+    /// `TemporalDag` as separate candidates, with the loser silently dropped as a cycle
+    /// (order-dependent) before alpha/FDR even runs. Reject the configuration instead.
+    #[test]
+    fn contemporaneous_min_lag_is_rejected() {
+        let (data, vars) = tiny_series();
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
+        };
+        let pcmci = Pcmci::new().with_constraints(constraints);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let err = pcmci.run(&data, &vars, &mut ws, &ctx).unwrap_err();
+        assert!(
+            matches!(err, DiscoveryError::Unsupported { .. }),
+            "expected DiscoveryError::Unsupported, got {err:?}"
         );
     }
 }

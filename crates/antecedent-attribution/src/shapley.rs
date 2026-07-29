@@ -4,6 +4,7 @@
 
 use antecedent_core::{CausalRng, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode};
 use antecedent_kernels::shuffle;
+use antecedent_stats::student_t_ppf;
 
 use crate::coalition::{CoalitionCache, CoalitionKey};
 use crate::error::AttributionError;
@@ -40,9 +41,21 @@ pub struct ShapleyEstimate {
 
 impl ShapleyEstimate {
     /// Convert to component contributions.
+    ///
+    /// CIs use a Student-t critical value with `n_samples - 1` degrees of freedom (from
+    /// [`ComputeBudget::samples`]) rather than a fixed asymptotic `z = 1.96`: Monte Carlo /
+    /// permutation Shapley runs often use modest sample counts, where the normal
+    /// approximation understates interval width. Exact mode never populates `stderr`
+    /// (`component_mc_stderr` is `None`), so `ci_low`/`ci_high` stay `None` there regardless
+    /// of the (unused) critical value. `n_samples == 1` still yields `stderr = +inf`
+    /// (`df == 0` also yields `t_crit = +inf`, i.e. `+inf * +inf = +inf`, not NaN) —
+    /// preserving the existing single-sample behavior.
     #[must_use]
     pub fn into_contributions(self) -> Vec<ComponentContribution> {
         let stderrs = self.component_mc_stderr;
+        #[allow(clippy::cast_precision_loss)]
+        let df = self.budget.samples.saturating_sub(1) as f64;
+        let t_crit = student_t_ppf(0.975, df);
         self.players
             .into_iter()
             .zip(self.values)
@@ -53,8 +66,8 @@ impl ShapleyEstimate {
                     component,
                     contribution,
                     stderr,
-                    ci_low: stderr.map(|s| contribution - 1.96 * s),
-                    ci_high: stderr.map(|s| contribution + 1.96 * s),
+                    ci_low: stderr.map(|s| contribution - t_crit * s),
+                    ci_high: stderr.map(|s| contribution + t_crit * s),
                 }
             })
             .collect()
@@ -483,6 +496,41 @@ mod tests {
             assert!(se.is_infinite(), "expected +inf for a single MC sample, got {se}");
         }
         assert!(est.monte_carlo_stderr.expect("mean stderr").is_infinite());
+    }
+
+    /// `into_contributions` must widen CIs using a Student-t critical value at
+    /// `n_samples - 1` degrees of freedom, not the fixed asymptotic `z = 1.96` — at a
+    /// small sample count the two are materially different.
+    #[test]
+    fn into_contributions_uses_t_critical_not_fixed_z() {
+        let players: Vec<_> = (0..2).map(ComponentId::from_raw).collect();
+        let mut payoff = XorPayoff;
+        let cfg = ShapleyConfig::monte_carlo(5).with_seed(11);
+        let est =
+            estimate_shapley(&players, &cfg, &mut payoff, &ExecutionContext::for_tests(1)).unwrap();
+        let stderr = est.component_mc_stderr.clone().expect("stderr reported")[0];
+        let contribution = est.values[0];
+        let n_samples = est.budget.samples;
+        let df = (n_samples - 1) as f64;
+        let expected_t = antecedent_stats::student_t_ppf(0.975, df);
+        assert!(
+            (expected_t - 1.96).abs() > 0.05,
+            "test setup needs a small-df t/z gap: t={expected_t}"
+        );
+        let contributions = est.into_contributions();
+        let c0 = &contributions[0];
+        assert!(
+            (c0.ci_high.unwrap() - (contribution + expected_t * stderr)).abs() < 1e-9,
+            "ci_high={:?} expected={}",
+            c0.ci_high,
+            contribution + expected_t * stderr
+        );
+        assert!(
+            (c0.ci_low.unwrap() - (contribution - expected_t * stderr)).abs() < 1e-9,
+            "ci_low={:?} expected={}",
+            c0.ci_low,
+            contribution - expected_t * stderr
+        );
     }
 
     /// E1 end-to-end statistical check: for a 2-player XOR payoff, each player's

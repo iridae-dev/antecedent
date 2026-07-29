@@ -47,6 +47,7 @@ pub use adjustment::{
 };
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use antecedent_expr::EstimandMethod;
+pub use antecedent_stats::FirstStageDiagnostics;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
     BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping,

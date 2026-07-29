@@ -328,6 +328,7 @@ impl AipwAte {
             assumptions,
             overlap: problem.overlap,
             overlap_report,
+            first_stage_diagnostics: None,
             retained_memory_bytes: None,
         }
         .with_bootstrap(boot))

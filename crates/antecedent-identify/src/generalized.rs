@@ -10,7 +10,12 @@
 //! `T` and `Y` in `G_{\underline{T}}` (outgoing edges from `T` removed). Enumeration is
 //! by increasing set size and stops at the first valid set (minimal-first). Completions
 //! that are not MAGs, or MAGs with no qualifying set in this candidate family, contribute
-//! unidentified mass.
+//! unidentified mass. A completion whose candidate family exceeds `max_candidates` is
+//! *also* folded into unidentified mass (enumeration was never attempted, so it can't be
+//! proven identified or not) but is additionally counted in
+//! [`IdentificationEnvelope::truncated_completions`] and tagged with
+//! [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`], so callers can tell "the search was cut short"
+//! apart from "the search completed and proved non-identifiability".
 //!
 //! This is **generalized adjustment**, not the full ID/IDC algorithm (see roadmap P5.3).
 //! Sets outside the ancestor candidate family are not searched.
@@ -26,7 +31,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, Value, VariableId};
+use antecedent_core::{
+    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    Value, VariableId,
+};
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{
     Admg, BitSet, CompletionSampler, DSeparationWorkspace, DenseNodeId, Endpoint, Pag,
@@ -37,8 +45,20 @@ use crate::envelope::{
 };
 use crate::error::IdentificationError;
 use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
+    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand,
 };
+
+/// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
+/// enumeration was capped by `max_candidates` before it could search — as opposed to
+/// searching exhaustively and finding no valid set. Both cases surface as
+/// [`IdentificationStatus::NotIdentified`] and fold into
+/// [`IdentificationEnvelope::unidentified_weight`] identically (unidentified mass is
+/// preserved either way), but [`IdentificationEnvelope::truncated_completions`] counts only
+/// this diagnostic so a caller can tell "the search was cut short" apart from "the search
+/// completed and proved non-identifiability".
+pub const CAPPED_COMPLETION_DIAGNOSTIC_CODE: &str =
+    "identify.generalized_adjustment.completion_capped";
 
 /// Config for PAG generalized-adjustment envelopes.
 #[derive(Clone, Debug)]
@@ -170,10 +190,7 @@ fn identify_on_mag_completion(
     let mutilated = mutilate_outgoing(&admg, t_d);
     let candidates = adjustment_candidates(&admg, t_d, y_d);
     if candidates.len() > max_candidates {
-        return Ok(not_identified(
-            query,
-            "generalized adjustment candidate set exceeds enumeration limit",
-        ));
+        return Ok(capped_completion_result(query, candidates.len(), max_candidates));
     }
 
     let mut ws = DSeparationWorkspace::default();
@@ -305,6 +322,45 @@ fn not_identified(query: CausalQuery, detail: &str) -> IdentificationResult {
     )
 }
 
+/// Not-identified result for a completion whose candidate set exceeded `max_candidates`
+/// before enumeration could even start. Distinguished from a genuinely-searched, genuinely-
+/// blocked completion via [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] (see its doc comment); the
+/// derivation text is kept human-readable and consistent with the other not-identified
+/// branches in this function.
+fn capped_completion_result(
+    query: CausalQuery,
+    n_candidates: usize,
+    max_candidates: usize,
+) -> IdentificationResult {
+    let mut derivation = DerivationTrace::default();
+    derivation.push(
+        "generalized.adjustment",
+        "generalized adjustment candidate set exceeds enumeration limit",
+    );
+    let diagnostic = Diagnostic::new(
+        CAPPED_COMPLETION_DIAGNOSTIC_CODE,
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Warning,
+        format!(
+            "generalized adjustment candidate set ({n_candidates}) exceeds max_candidates \
+             ({max_candidates}); enumeration was not attempted on this completion, so \
+             identifiability could not be determined (not the same as a proven non-\
+             identifiable completion)"
+        ),
+    );
+    IdentificationResult::from_parts(
+        IdentificationStatus::NotIdentified,
+        query,
+        Vec::new(),
+        CausalExprArena::new(),
+        derivation,
+        AssumptionSet::default(),
+        vec![diagnostic],
+        IdentificationPerformanceRecord::default(),
+        None,
+    )
+}
+
 fn mag_to_admg(mag: &Pag) -> Option<Admg> {
     let n = mag.node_count() as u32;
     let mut admg = Admg::with_variables(n);
@@ -414,5 +470,64 @@ mod tests {
         assert_eq!(env.cases[0].result.status, IdentificationStatus::NonparametricallyIdentified);
         let z_set = &env.cases[0].result.estimands[0].adjustment_set;
         assert!(z_set.iter().any(|v| v.raw() == 0), "expected Z in adjustment, got {z_set:?}");
+    }
+
+    #[test]
+    fn capped_enumeration_is_distinguishable_from_genuine_nonidentification() {
+        // Case A: Z → T, Z → Y, T → Y, but max_candidates=0 forces the single-candidate set
+        // {Z} over the cap before enumeration can even start — the search was truncated, not
+        // exhausted.
+        let mut capped_pag = Pag::with_variables(3);
+        let z = DenseNodeId::from_raw(0);
+        let t = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        capped_pag.insert_directed(z, t).unwrap();
+        capped_pag.insert_directed(z, y).unwrap();
+        capped_pag.insert_directed(t, y).unwrap();
+        let capped_id = GeneralizedAdjustmentIdentifier {
+            config: GeneralizedAdjustmentConfig {
+                max_completions: 8,
+                per_completion_weight: 1.0,
+                max_candidates: 0,
+            },
+        };
+        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
+        let capped_env = capped_id.identify_pag_envelope(&capped_pag, &q).unwrap();
+        assert!(capped_env.unidentified_weight.0 > 0.0);
+        assert_eq!(
+            capped_env.truncated_completions,
+            capped_env.cases.len(),
+            "every case in this fixture should be capped"
+        );
+        assert!(
+            capped_env.cases[0]
+                .result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE),
+            "capped case should carry the capped-completion diagnostic"
+        );
+
+        // Case B: bare T ↔ Y (unmeasured confounding, no other variables). The search is
+        // never truncated (candidates.len() == 0 never exceeds the default max_candidates),
+        // but no adjustment set can ever separate T from Y, so this is a genuine
+        // non-identification — proved, not merely "could not tell".
+        let mut confounded_pag = Pag::with_variables(2);
+        confounded_pag
+            .insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+            .unwrap();
+        let genuine_id = GeneralizedAdjustmentIdentifier::new();
+        let q2 = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let genuine_env = genuine_id.identify_pag_envelope(&confounded_pag, &q2).unwrap();
+        assert!(genuine_env.unidentified_weight.0 > 0.0);
+        assert_eq!(
+            genuine_env.truncated_completions, 0,
+            "genuinely-blocked completions must not count as truncated"
+        );
+
+        // Both envelopes report positive unidentified mass (neither is silently dropped), but
+        // only the capped one is flagged as truncated -- proving the two are distinguishable
+        // rather than both being folded indistinguishably into `unidentified_weight`.
+        assert!(capped_env.truncated_completions > genuine_env.truncated_completions);
     }
 }

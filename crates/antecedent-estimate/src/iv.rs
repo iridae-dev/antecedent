@@ -28,7 +28,9 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{FaerBackend, LeastSquaresWorkspace, fit_2sls, form_xtx, invert_square};
+use antecedent_stats::{
+    FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, fit_2sls, form_xtx, invert_square,
+};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
@@ -289,6 +291,7 @@ impl WaldIv {
 
         let wald = wald_ratio(&z, &problem.treatment, &problem.outcome)?;
         let ate = wald.ratio * problem.treatment_delta;
+        let first_stage_diagnostics = wald_first_stage_diagnostics(&z, &problem.treatment);
         let psi = wald_influence_scores(&z, &problem.treatment, &problem.outcome, wald.ratio)?;
         let se_unit = crate::se::influence_se_kind(
             self.se_kind,
@@ -318,6 +321,7 @@ impl WaldIv {
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
+            first_stage_diagnostics,
             retained_memory_bytes: None,
         }
         .with_bootstrap(boot))
@@ -385,6 +389,53 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
     }
     let ratio = (mean_y1 - mean_y0) / denom;
     Ok(WaldResult { ratio })
+}
+
+/// Weak-instrument diagnostic for the binary single-instrument Wald design.
+///
+/// Equivalent to an OLS F-test of `T ~ 1 + Z` for the null that the instrument's
+/// coefficient is zero — i.e. the squared two-sample t-statistic comparing `T`'s `Z=1`
+/// and `Z=0` arms with pooled variance, with `df1 = 1` and `df2 = n1 + n0 - 2`. Returns
+/// `None` when either arm has fewer than 2 observations (pooled variance undefined),
+/// mirroring [`fit_2sls`]'s [`FirstStageDiagnostics`] shape so both IV estimators expose
+/// the same diagnostic type. Purely informational — never causes [`WaldIv::fit`] to fail;
+/// a future release could add an opt-in hard threshold on top of it.
+fn wald_first_stage_diagnostics(z: &[f64], t: &[f64]) -> Option<FirstStageDiagnostics> {
+    let (mut n1, mut n0) = (0usize, 0usize);
+    let (mut st1, mut st0) = (0.0, 0.0);
+    for i in 0..z.len() {
+        if z[i] > 0.5 {
+            st1 += t[i];
+            n1 += 1;
+        } else {
+            st0 += t[i];
+            n0 += 1;
+        }
+    }
+    if n1 < 2 || n0 < 2 {
+        return None;
+    }
+    let n1f = n1 as f64;
+    let n0f = n0 as f64;
+    let mean_t1 = st1 / n1f;
+    let mean_t0 = st0 / n0f;
+    let (mut ss1, mut ss0) = (0.0, 0.0);
+    for i in 0..z.len() {
+        if z[i] > 0.5 {
+            let d = t[i] - mean_t1;
+            ss1 += d * d;
+        } else {
+            let d = t[i] - mean_t0;
+            ss0 += d * d;
+        }
+    }
+    let df2 = n1 + n0 - 2;
+    let sse = ss1 + ss0;
+    let ssr = (n1f * n0f / (n1f + n0f)) * (mean_t1 - mean_t0).powi(2);
+    let sst = ssr + sse;
+    let f_statistic = if sse > 0.0 { ssr / (sse / df2 as f64) } else { f64::INFINITY };
+    let partial_r2 = if sst > 0.0 { ssr / sst } else { 0.0 };
+    Some(FirstStageDiagnostics { f_statistic, df1: 1, df2, partial_r2 })
 }
 
 /// Influence-function SE for the Wald ratio `(ȳ₁−ȳ₀)/(t̄₁−t̄₀)`.
@@ -632,6 +683,7 @@ impl TwoStageLeastSquares {
             assumptions,
             overlap: problem.overlap,
             overlap_report: None,
+            first_stage_diagnostics: Some(fit.first_stage_diagnostics),
             retained_memory_bytes: None,
         }
         .with_bootstrap(boot))
@@ -759,6 +811,44 @@ mod tests {
         (build_iv_data(n, t, y, z), instrumental_estimand())
     }
 
+    /// Same DGP as [`binary_iv_scm`] but with the instrument's effect on `T` shrunk to
+    /// `0.01` (vs `0.5`) — a deliberately weak first stage for the F-statistic test.
+    fn weak_binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E73_u64);
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let zi = (i % 2) as f64;
+            let u = standard_normal(&mut rng);
+            let ti = 0.01 * zi + u + 0.1 * standard_normal(&mut rng);
+            let yi = 2.0 * ti + u + 0.1 * standard_normal(&mut rng);
+            z[i] = zi;
+            t[i] = ti;
+            y[i] = yi;
+        }
+        (build_iv_data(n, t, y, z), instrumental_estimand())
+    }
+
+    /// Same DGP as [`continuous_iv_scm`] but with the instrument's effect on `T` shrunk to
+    /// `0.01` (vs `1.0`) — a deliberately weak first stage for the F-statistic test.
+    fn weak_continuous_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E74_u64);
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let zi = (i as f64) / (n as f64) - 0.5;
+            let u = standard_normal(&mut rng);
+            let ti = 0.01 * zi + u + 0.1 * standard_normal(&mut rng);
+            let yi = 2.0 * ti + u + 0.1 * standard_normal(&mut rng);
+            z[i] = zi;
+            t[i] = ti;
+            y[i] = yi;
+        }
+        (build_iv_data(n, t, y, z), instrumental_estimand())
+    }
+
     fn instrumental_estimand() -> IdentifiedEstimand {
         IdentifiedEstimand::instrumental(
             "iv",
@@ -863,6 +953,85 @@ mod tests {
             (0.4..=2.5).contains(&ratio),
             "analytic={} bootstrap={se_boot}",
             effect.se_analytic
+        );
+    }
+
+    #[test]
+    fn two_sls_first_stage_diagnostics_strong_vs_weak() {
+        let est = TwoStageLeastSquares::new();
+
+        let (strong_data, strong_estimand) = continuous_iv_scm(2000, 1);
+        let strong_prep = est.prepare(&strong_data, &strong_estimand, &query()).unwrap();
+        let mut strong_ws = TwoStageLeastSquaresWorkspace::default();
+        let strong_effect =
+            est.fit(&strong_prep, &mut strong_ws, &ctx(), AssumptionSet::new()).unwrap();
+        let strong_diag =
+            strong_effect.first_stage_diagnostics.expect("2SLS always reports diagnostics");
+        assert_eq!(strong_diag.df1, 1);
+        assert!(
+            strong_diag.f_statistic > 50.0,
+            "expected a strong instrument to clear F=50, got {}",
+            strong_diag.f_statistic
+        );
+
+        let (weak_data, weak_estimand) = weak_continuous_iv_scm(2000, 1);
+        let weak_prep = est.prepare(&weak_data, &weak_estimand, &query()).unwrap();
+        let mut weak_ws = TwoStageLeastSquaresWorkspace::default();
+        let weak_effect = est.fit(&weak_prep, &mut weak_ws, &ctx(), AssumptionSet::new()).unwrap();
+        let weak_diag =
+            weak_effect.first_stage_diagnostics.expect("2SLS always reports diagnostics");
+        // F < 10 is the Staiger-Stock rule-of-thumb weak-instrument threshold, which is
+        // what this diagnostic exists to let a caller check.
+        assert!(
+            weak_diag.f_statistic < 10.0,
+            "expected a weak instrument to stay under the F=10 rule of thumb, got {}",
+            weak_diag.f_statistic
+        );
+        // The separation is the real claim: a weak first stage must sit an order of
+        // magnitude below a strong one.
+        assert!(
+            strong_diag.f_statistic > 10.0 * weak_diag.f_statistic,
+            "expected strong F ({}) to dwarf weak F ({})",
+            strong_diag.f_statistic,
+            weak_diag.f_statistic
+        );
+    }
+
+    #[test]
+    fn wald_iv_first_stage_diagnostics_strong_vs_weak() {
+        let est = WaldIv { bootstrap_replicates: 0, ..WaldIv::new() };
+
+        let (strong_data, strong_estimand) = binary_iv_scm(4000, 5);
+        let strong_prep = est.prepare(&strong_data, &strong_estimand, &query()).unwrap();
+        let strong_effect = est.fit(&strong_prep, &ctx(), AssumptionSet::new()).unwrap();
+        let strong_diag =
+            strong_effect.first_stage_diagnostics.expect("WaldIv always reports diagnostics");
+        assert_eq!(strong_diag.df1, 1);
+        assert!(
+            strong_diag.f_statistic > 50.0,
+            "expected a strong instrument to clear F=50, got {}",
+            strong_diag.f_statistic
+        );
+
+        let (weak_data, weak_estimand) = weak_binary_iv_scm(200, 5);
+        let weak_prep = est.prepare(&weak_data, &weak_estimand, &query()).unwrap();
+        let weak_effect = est.fit(&weak_prep, &ctx(), AssumptionSet::new()).unwrap();
+        let weak_diag =
+            weak_effect.first_stage_diagnostics.expect("WaldIv always reports diagnostics");
+        // F < 10 is the Staiger-Stock rule-of-thumb weak-instrument threshold, which is
+        // what this diagnostic exists to let a caller check.
+        assert!(
+            weak_diag.f_statistic < 10.0,
+            "expected a weak instrument to stay under the F=10 rule of thumb, got {}",
+            weak_diag.f_statistic
+        );
+        // The separation is the real claim: a weak first stage must sit an order of
+        // magnitude below a strong one.
+        assert!(
+            strong_diag.f_statistic > 10.0 * weak_diag.f_statistic,
+            "expected strong F ({}) to dwarf weak F ({})",
+            strong_diag.f_statistic,
+            weak_diag.f_statistic
         );
     }
 

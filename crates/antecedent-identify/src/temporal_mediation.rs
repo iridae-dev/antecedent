@@ -220,7 +220,7 @@ impl TemporalMediationIdentifier {
             }
         }
         if !(has_t_to_m && has_m_to_y) {
-            return Err(IdentificationError::NotIdentified {
+            return Err(IdentificationError::NotCertified {
                 message: "no treatment–mediator–outcome path found in temporal template",
             });
         }
@@ -298,7 +298,7 @@ mod tests {
             MediationContrast::Mediated,
         );
         let err = TemporalMediationIdentifier::new().identify(&g, &q).unwrap_err();
-        assert!(matches!(err, IdentificationError::NotIdentified { .. }));
+        assert!(matches!(err, IdentificationError::NotCertified { .. }));
     }
 
     #[test]

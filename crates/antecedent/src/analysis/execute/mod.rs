@@ -34,7 +34,9 @@ pub(super) use antecedent_estimate::{
     TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
     aggregate_effect_envelope, nonidentified_with_prior,
 };
-pub(super) use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
+pub(super) use antecedent_expr::{
+    CausalExprArena, DerivationMeta, DomainRef, ExprNode, IdentifiedEstimand, OutcomeExprId,
+};
 pub(super) use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag};
 pub(super) use antecedent_identify::{
     DerivationTrace, IdentificationEnvelope, IdentificationPerformanceRecord, IdentificationResult,
@@ -146,3 +148,39 @@ mod panel_path;
 mod static_path;
 mod temporal_path;
 include!("support.rs");
+
+#[cfg(test)]
+mod support_tests {
+    use super::*;
+
+    #[test]
+    fn parametric_scm_identification_functional_is_resolvable() {
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let anomaly_query = antecedent_core::AnomalyAttributionQuery::new([outcome], 10);
+        let query = CausalQuery::AnomalyAttribution(anomaly_query);
+
+        let (identification, estimand) = parametric_scm_identification(query, treatment, outcome);
+
+        // Arena actually has content (the bug was a nil ExprId(0) into an *empty* arena, which
+        // ignored `treatment`/`outcome` entirely).
+        assert!(!identification.arena.is_empty());
+
+        // `functional` resolves to a real node, not a dangling/out-of-range id.
+        let _ = identification.arena.node(estimand.functional);
+
+        // And carries derivation metadata naming the real treatment/outcome.
+        let derivation = identification
+            .arena
+            .derivation(estimand.functional)
+            .expect("functional should have derivation metadata");
+        assert_eq!(derivation.rule.as_ref(), "gcm.parametric");
+        let note = derivation.note.as_deref().unwrap_or_default();
+        assert!(note.contains(&format!("{treatment:?}")));
+        assert!(note.contains(&format!("{outcome:?}")));
+
+        // The adjustment set stays deliberately empty (GCM doesn't identify via backdoor
+        // covariates); this is unchanged behavior, asserted here as a scope guard.
+        assert!(estimand.adjustment_set.is_empty());
+    }
+}
