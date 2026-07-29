@@ -125,6 +125,43 @@ moves everything else onto **stage modules** (`antecedent.discovery`,
   downgraded via `.to_identify_result()`. The one-shot call that still returns
   `IdentifyResult` directly is `antecedent.estimation.identify(...)`, unchanged.
 
+- **`CausalAnalysis` renamed to `Study`** (Rust; `2623654`). The facade struct,
+  its builder, and its result type are now `Study` / `StudyBuilder` /
+  `StudyResult` — construct via `Study::tabular(data)` (or `::series` /
+  `::series_multi` / `::panel` / `::events`), not `CausalAnalysis::builder()`.
+  Rust callers must update the type name at every reference. **Python is
+  unaffected**: the PyO3-exposed class name (`PreparedAnalysis`) was
+  deliberately left unchanged by this rename.
+
+- **`IdentifierId` / `EstimatorId` closed** (`9b20f3e`). The `Other(Arc<str>)`
+  escape hatch that let an unrecognized identifier/estimator name defer
+  validation to first use is gone; an unrecognized name is now rejected at
+  **parse time**, not later when the analysis runs. This reaches Python:
+  `python/src/ate_api.rs` and `python/src/prepared_api.rs` construct these ids
+  from caller-supplied strings, so a bad `identifier=` / `estimator=` string
+  kwarg to `antecedent.analyze(...)` now raises immediately instead of
+  surfacing as a deferred failure.
+
+- **`AcceptedGraph` staging removals** (Rust; `2e41568`). The new
+  `AcceptedGraph.asserted()` / `.accepted()` classmethods and `.review(...)`
+  workflow (see Added, below) replace types and methods that are now
+  **removed**: `GraphInput`, `CompiledAnalysis`, `DiscoveryAccept`, the
+  `StudyBuilder::discover_*` methods, the setters they fed, and the
+  `finish_*_review_and_run` continuations. The deprecated `AnalysisError`
+  alias is also removed — use `CausalError`.
+
+- **`EdgeEvidence.separating_sets` renamed to `separating_set`** (`0c44ed3`).
+  A breaking change to a public field on a public struct; per the commit, no
+  deprecated alias is added. **Rust-only** — this field is not touched by any
+  Python binding file, so Python callers are unaffected.
+
+- **Unified error model** (`b9c232d`). Rust and Python errors are
+  consolidated onto one hierarchy — `CausalError` (Rust) and `CausalError`
+  plus typed subclasses (Python) — gathered in the new `errors.py` module
+  (see Added, below) instead of being scattered across call sites. Code that
+  matched on a previously scattered / ad hoc exception type should catch
+  `CausalError`, or the specific typed subclass, instead.
+
 ### Added
 
 - **`estimator_config=` dict kwarg on `analyze()`** for per-estimator tuning

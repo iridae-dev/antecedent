@@ -21,4 +21,5 @@ compatibility analysis where applicable. See [docs/architecture.md](../docs/arch
 | [0014](0014-context-effects.md) | Context / regime effects |
 | [0015](0015-attribution.md) | Attribution |
 | [0016](0016-design-state.md) | Design and incremental state |
-| [0017](0017-release-prep.md) | Parity closure and 1.0 preparation |
+| [0017](0017-release-prep.md) | Parity closure and 1.0 preparation (version/format clauses superseded by 0018) |
+| [0018](0018-release-version-history.md) | Release version history and artifact format correction |

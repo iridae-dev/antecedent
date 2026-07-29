@@ -67,8 +67,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Capability | Rust | Python |
 |---|---|---|
 | Day-1 import | `use antecedent::prelude::*` (`cargo add antecedent`) | `import antecedent` |
-| Run analysis | `CausalAnalysis::builder()…run(&ctx)` | `antecedent.analyze(data, graph=…, query=…)` |
-| Identify only (staged) | `CausalAnalysis::identify_only` | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()` / `.validate()` |
+| Run analysis | `Study::tabular(data)…build()?.run(&ctx)` (or `::series` / `::series_multi` / `::panel` / `::events` for other modalities) | `antecedent.analyze(data, graph=…, query=…)` |
+| Identify only (staged) | `Study::tabular(data)…build()?.identify_only()` | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()` / `.validate()` |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |

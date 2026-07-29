@@ -74,7 +74,7 @@ relationship to `0.3`. The split below replaces it:
 `ess = alpha + beta - 2` for Beta and `ess = shape - 1` for Gamma — chosen
 so each family's flat/reference prior (`Beta(1,1)`, `Gamma(shape=1,*)`) maps
 to `ess = 0`. This is the same **prior-strength ESS** notion documented for
-composed Gaussian priors in `docs/prior_bank.md` and
+composed Gaussian priors in `docs/priors.md` and
 `crates/antecedent-prob/src/external_prior.rs`, applied here to two
 conjugate families instead of a Gaussian coefficient's precision. It is not
 interchangeable with MCMC/autocorrelation ESS or with Kish

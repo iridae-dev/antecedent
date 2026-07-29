@@ -36,7 +36,7 @@ antecedent-validate      refuters, sensitivity, discovery stability, Bayesian ch
 antecedent-design        EIG / VoI / experiment ranking (computation only)
 antecedent-state         incremental caches, invalidation, sufficient statistics
 antecedent-io            CBOR+Arrow artifacts, graph interchange, migration
-causal               facade: CausalAnalysis planner + re-exports
+causal               facade: Study planner + re-exports
 ```
 
 Dependency edges point downward (no cycles). Facade (`causal`) sits on top.
@@ -50,7 +50,7 @@ data (+ optional discovery)
   → identify → IdentifiedEstimand
   → estimate | posterior
   → validate (optional)
-  → CausalAnalysisResult (+ plans, provenance, diagnostics)
+  → StudyResult (+ plans, provenance, diagnostics)
 ```
 
 Compilation produces an inspectable **logical** plan (semantics) and **physical**
