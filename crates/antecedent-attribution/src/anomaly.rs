@@ -1,5 +1,21 @@
 //! Anomaly attribution via ancestor-noise Shapley (Janzing et al. 2020; ).
 //!
+//! # Scoring
+//!
+//! The anomaly score is the information-theoretic (IT) score of Budhathoki, Janzing,
+//! Bloebaum & Ng (ICML 2022): `−log P(τ(Y) ≥ τ(y))`, the negative log of a **tail
+//! probability** under the target's own marginal, with `τ` a two-sided outlierness
+//! measure. See [`OutlierTail`].
+//!
+//! It is deliberately not `−log p(y | parents)`, the negative log **density**, which this
+//! module previously returned. A density is not a probability: it is unbounded, it carries
+//! the units of `1/y`, and it moves under any rescaling of the target. Two points equally
+//! extreme in their own distributions score differently purely because of the fitted
+//! `σ` — the normalizer contributes `−ln σ`, so the same standardized residual shifts by
+//! `ln(100) ≈ 4.6` nats between `σ = 0.01` and `σ = 1`. A tail probability has none of
+//! those defects: it is in `(0, 1]`, dimensionless, and invariant to any monotone
+//! reparameterization of the target.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -11,12 +27,88 @@ use antecedent_counterfactual::{AbductionMissingPolicy, CounterfactualEngine};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
-    CompiledCausalModel, MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatchMut,
-    evaluate_batch_topo, log_prob_column,
+    CompiledCausalModel, MechanismWorkspace, NoiseBatchMut, ValueBatchMut, evaluate_batch_topo,
 };
 
 use crate::error::AttributionError;
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
+
+/// Empirical two-sided outlier tail for one target's marginal.
+///
+/// Scores a value by how far into the tail its outlierness falls:
+/// `−log P(τ(Y) ≥ τ(y))` with `τ(y) = |y − median|`, estimated from the observed values.
+///
+/// Two-sided because "anomalous" here means unusually far from the bulk in either
+/// direction; a one-sided tail would score a large negative excursion as perfectly
+/// ordinary. The median is the centre rather than the mean so that the outliers being
+/// scored do not drag the reference point toward themselves.
+///
+/// The reference location and scale are the **median** and `1.4826 · MAD`, both robust: the
+/// very outliers being scored must not drag the reference toward themselves, which a mean and
+/// a sample SD would let them do.
+///
+/// The tail is evaluated on a Gaussian reference rather than by empirical rank. A rank-based
+/// tail `(1 + k) / (1 + n)` is bounded by `ln(1 + n)` and takes only `n + 1` distinct values,
+/// which is fatal here for two reasons: the genuine outlier saturates against the merely
+/// edge-of-range observations (in a 30-row linear ramp with one 100× excursion, the smallest
+/// ordinary value scores 2.34 against the outlier's 2.74), and every coalition reconstruction
+/// lands in the same rank bucket, so all Shapley differences collapse to exactly zero. A
+/// continuous tail keeps the score monotone in outlierness and keeps the attribution alive.
+struct OutlierTail {
+    center: f64,
+    scale: f64,
+}
+
+impl OutlierTail {
+    fn from_reference(values: &[f64]) -> Self {
+        let mut finite: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
+        if finite.is_empty() {
+            return Self { center: 0.0, scale: 1.0 };
+        }
+        finite.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let center = median_of_sorted(&finite);
+        let mut dev: Vec<f64> = finite.iter().map(|v| (v - center).abs()).collect();
+        dev.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        // 1.4826 · MAD is the consistent estimator of σ for a Gaussian.
+        let mad = median_of_sorted(&dev);
+        let scale = if mad > 0.0 {
+            1.482_602_218_505_602 * mad
+        } else {
+            // Degenerate bulk (≥ half the values identical). Fall back to the mean absolute
+            // deviation so a genuine excursion is still scored rather than divided by zero.
+            let mean_abs = dev.iter().sum::<f64>() / dev.len() as f64;
+            if mean_abs > 0.0 { mean_abs } else { 1.0 }
+        };
+        Self { center, scale }
+    }
+
+    /// `−log P(|Z| ≥ |z|)` for the standardized deviation `z = (y − center) / scale`.
+    ///
+    /// Zero for a value sitting at the centre, growing without bound into the tail — and
+    /// dimensionless, so rescaling the target leaves it unchanged.
+    fn score(&self, y: f64) -> f64 {
+        if !y.is_finite() {
+            return 0.0;
+        }
+        let z = ((y - self.center) / self.scale).abs();
+        // Two-sided Gaussian tail. `norm_sf` underflows to 0 past z ≈ 38, so switch to the
+        // log-space asymptotic `2Φ(−z) ≈ 2φ(z)/z` there instead of returning `+∞`.
+        let two_sided = 2.0 * antecedent_kernels::norm_sf(z);
+        if two_sided > f64::MIN_POSITIVE {
+            -two_sided.ln()
+        } else {
+            0.5 * z * z + z.ln() + 0.5 * std::f64::consts::TAU.ln() - std::f64::consts::LN_2
+        }
+    }
+}
+
+fn median_of_sorted(sorted: &[f64]) -> f64 {
+    let n = sorted.len();
+    if n == 0 {
+        return 0.0;
+    }
+    if n % 2 == 1 { sorted[n / 2] } else { 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]) }
+}
 
 /// Per-unit anomaly score for a target variable, with noise-term attribution.
 #[derive(Clone, Debug)]
@@ -25,9 +117,11 @@ pub struct AnomalyScores {
     pub target: VariableId,
     /// Row indices scored.
     pub rows: Arc<[usize]>,
-    /// Anomaly scores (−log p under the fitted mechanism at factual parents; higher = more anomalous).
+    /// IT scores: `−log P(|Z| ≥ |z|)` for the standardized deviation of the value from the
+    /// target's robust marginal centre. Higher = more anomalous; `0` at the centre. A tail
+    /// probability, not a density, so the scale of the target does not affect it.
     pub scores: Arc<[f64]>,
-    /// Sum of absolute Shapley −log p attributions per row.
+    /// Sum of absolute Shapley IT-score attributions per row.
     pub residual_abs: Arc<[f64]>,
     /// Ancestor (incl. target) components used as Shapley players.
     pub noise_components: Arc<[ComponentId]>,
@@ -37,7 +131,8 @@ pub struct AnomalyScores {
 
 /// Score anomalies and attribute them to ancestor noise terms via Shapley
 /// (Janzing et al. 2020): replace noise coordinates outside the coalition with
-/// reference draws (0 for additive noise) and redistribute the target −log p.
+/// reference draws (0 for additive noise) and redistribute the target's IT score
+/// (see the module docs for why that is a tail probability and not a density).
 ///
 /// # Errors
 ///
@@ -89,6 +184,9 @@ pub fn score_anomalies(
         let mut resid = Vec::with_capacity(rows.len());
         let mut contrib = vec![0.0; rows.len() * players.len()];
 
+        // Reference distribution for the IT score: the target's own observed marginal.
+        let tail = OutlierTail::from_reference(&y_all);
+
         for (ui, &row) in rows.iter().enumerate() {
             let mut payoff = NoiseShapleyPayoff {
                 model,
@@ -97,25 +195,13 @@ pub fn score_anomalies(
                 exo_noise: &exo.noise,
                 n_units: exo.n_units,
                 row,
+                tail: &tail,
                 noise_buf: vec![0.0; model.n_nodes()],
                 value_buf: vec![0.0; model.n_nodes()],
-                parent_buf: Vec::new(),
                 ws: MechanismWorkspace::default(),
             };
-            // Factual anomaly score: −log p(y|parents) under observed parents.
-            let gather = model
-                .gather_for(dense)
-                .ok_or(AttributionError::MissingArtifact("missing gather"))?;
-            let n_par = gather.n_parents();
-            let mut parent_mat = vec![0.0; n_par.max(1)];
-            for (pi, &p) in gather.parents.iter().enumerate() {
-                let pv = model.output_layout.variables[p.as_usize()];
-                parent_mat[pi] = data.float64_values(pv)?[row];
-            }
-            let parents = ParentBatch { n_rows: 1, n_parents: n_par, values: &parent_mat[..n_par] };
-            let mut lp = [0.0];
-            log_prob_column(model.mechanisms.get(dense), &[y_all[row]], parents, &mut lp)?;
-            scores.push(-lp[0]);
+            // Factual IT score: how far into the target's marginal tail this value falls.
+            scores.push(tail.score(y_all[row]));
             let est = estimate_shapley(&players, &shapley, &mut payoff, &ctx)?;
             let mut abs_sum = 0.0;
             for (j, v) in est.values.iter().enumerate() {
@@ -160,9 +246,9 @@ struct NoiseShapleyPayoff<'a> {
     exo_noise: &'a [f64],
     n_units: usize,
     row: usize,
+    tail: &'a OutlierTail,
     noise_buf: Vec<f64>,
     value_buf: Vec<f64>,
-    parent_buf: Vec<f64>,
     ws: MechanismWorkspace,
 }
 
@@ -192,25 +278,11 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
             &mut values,
             &mut self.ws,
         )?;
-        // Payoff = −log p(y|parents) under the coalition reconstruction so Shapley
-        // redistributes the anomaly score (not the reconstructed Y level).
-        let gather = self
-            .model
-            .gather_for(self.target)
-            .ok_or(AttributionError::MissingArtifact("missing gather"))?;
-        let n_par = gather.n_parents();
-        if self.parent_buf.len() < n_par {
-            self.parent_buf.resize(n_par, 0.0);
-        }
-        for (pi, &p) in gather.parents.iter().enumerate() {
-            self.parent_buf[pi] = self.value_buf[p.as_usize()];
-        }
-        let parents =
-            ParentBatch { n_rows: 1, n_parents: n_par, values: &self.parent_buf[..n_par] };
-        let y = [self.value_buf[self.target.as_usize()]];
-        let mut lp = [0.0];
-        log_prob_column(self.model.mechanisms.get(self.target), &y, parents, &mut lp)?;
-        Ok(-lp[0])
+        // Payoff = the IT score of the *reconstructed* target value, scored against the same
+        // marginal tail as the factual value. Shapley then redistributes the anomaly score
+        // itself rather than the reconstructed Y level, and every coalition value is
+        // commensurable because they all use one fixed reference distribution.
+        Ok(self.tail.score(self.value_buf[self.target.as_usize()]))
     }
 }
 
@@ -326,6 +398,82 @@ mod tests {
         SelectionPolicy,
     };
     use serde::Deserialize;
+
+    /// Build the anomaly fixture with the outcome scaled by `y_scale`.
+    fn scaled_anomaly_fixture(n: usize, y_scale: f64) -> (CompiledCausalModel, TabularData) {
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["x", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let mut yv: Vec<f64> = xv.iter().map(|x| (1.0 + 2.0 * x) * y_scale).collect();
+        yv[n - 1] = 100.0 * y_scale; // same anomaly, same standardized deviation
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        (compiled.with_mechanisms(store), data)
+    }
+
+    /// The IT score must be invariant to the target's scale.
+    ///
+    /// This is the property that separates a tail probability from a density and the reason
+    /// the finding was raised. `−log p(y | parents)` includes the normalizer `−ln σ`, so
+    /// multiplying the outcome by 100 shifts every score by `ln(100) ≈ 4.605` even though
+    /// nothing about the data's shape — or which unit is anomalous — has changed. A tail
+    /// probability is dimensionless and cannot move.
+    #[test]
+    fn it_score_is_invariant_to_target_scale() {
+        let n = 30usize;
+        let q = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
+
+        let (m1, d1) = scaled_anomaly_fixture(n, 1.0);
+        let (m2, d2) = scaled_anomaly_fixture(n, 100.0);
+        let s1 = score_anomalies(&m1, &d1, &q).unwrap();
+        let s2 = score_anomalies(&m2, &d2, &q).unwrap();
+
+        for row in 0..n {
+            let a = s1[0].scores[row];
+            let b = s2[0].scores[row];
+            assert!(
+                (a - b).abs() < 1e-6 * a.abs().max(1.0),
+                "row {row}: score moved under a pure rescaling of Y ({a} vs {b}); a density \
+                 would shift by ln(100) = {}",
+                100.0_f64.ln()
+            );
+        }
+
+        // And the score must still separate the anomaly from the bulk, not merely be stable.
+        assert!(
+            s1[0].scores[n - 1] > 10.0 * s1[0].scores[0],
+            "anomaly {} should dwarf an ordinary row {}",
+            s1[0].scores[n - 1],
+            s1[0].scores[0]
+        );
+    }
 
     #[test]
     fn anomaly_and_arrow_strength() {
