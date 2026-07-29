@@ -63,6 +63,47 @@ impl std::fmt::Display for ReviewKind {
     }
 }
 
+/// One unreviewed edge blocking a [`CausalError::ReviewRequired`], with its endpoint
+/// marks.
+///
+/// Endpoint identifiers are display strings derived from the graph's own dense
+/// variable id (`"V3"`) or lagged temporal key (`"V3@-1"`, `"V3@0"` for
+/// contemporaneous) — user-facing names live in schemas and dictionaries, not in
+/// these hot graph structures (see `antecedent_core::ids`), so resolving a bound
+/// schema name is deliberately out of scope here; callers that need the resolved
+/// name can look it up themselves from the identifier. Mark strings are `"tail"`,
+/// `"arrow"`, `"circle"`, or `"conflict"`, matching [`antecedent_graph::Endpoint`]'s
+/// wire vocabulary (the same one the Python `GraphEdge` binding already uses).
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct PendingEdge {
+    /// Source endpoint identifier.
+    pub source: String,
+    /// Target endpoint identifier.
+    pub target: String,
+    /// Mark at the source endpoint.
+    pub at_source: String,
+    /// Mark at the target endpoint.
+    pub at_target: String,
+}
+
+impl PendingEdge {
+    /// Construct a pending edge from endpoint identifiers and marks.
+    #[must_use]
+    pub fn new(
+        source: impl Into<String>,
+        target: impl Into<String>,
+        at_source: impl Into<String>,
+        at_target: impl Into<String>,
+    ) -> Self {
+        Self {
+            source: source.into(),
+            target: target.into(),
+            at_source: at_source.into(),
+            at_target: at_target.into(),
+        }
+    }
+}
+
 /// Pipeline and facade failures — structured sum over domain errors.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 #[non_exhaustive]
@@ -128,6 +169,14 @@ pub enum CausalError {
         algorithm: Option<String>,
         /// Count of pending / ambiguous marks blocking estimation.
         pending_edge_count: usize,
+        /// The actual pending edges blocking review, with endpoint marks.
+        ///
+        /// Kept consistent with `pending_edge_count` (same length) wherever the
+        /// underlying edges are known. Empty only when the review is genuinely
+        /// edge-free — e.g. [`Self::review_required_msg`]'s generic path — never used
+        /// as a placeholder for edges that exist but weren't captured; a caller-visible
+        /// empty list here must mean "nothing pending", not "unknown".
+        pending_edges: std::sync::Arc<[PendingEdge]>,
         /// Human-readable message.
         message: String,
         /// Next-step hint for callers.
@@ -169,11 +218,17 @@ pub enum CausalError {
 
 impl CausalError {
     /// Build a structured review-required error.
+    ///
+    /// `pending_edges` should carry the real edges blocking review whenever the
+    /// caller has them in hand — see the field doc on
+    /// [`Self::ReviewRequired`]'s `pending_edges` for why an empty list is reserved
+    /// for genuinely edge-free reviews.
     #[must_use]
     pub fn review_required(
         kind: impl Into<String>,
         algorithm: Option<impl Into<String>>,
         pending_edge_count: usize,
+        pending_edges: impl Into<std::sync::Arc<[PendingEdge]>>,
         message: impl Into<String>,
         hint: impl Into<String>,
     ) -> Self {
@@ -181,6 +236,7 @@ impl CausalError {
             kind: kind.into(),
             algorithm: algorithm.map(Into::into),
             pending_edge_count,
+            pending_edges: pending_edges.into(),
             message: message.into(),
             hint: hint.into(),
         }
@@ -194,6 +250,7 @@ impl CausalError {
             "generic",
             None::<String>,
             0,
+            Vec::<PendingEdge>::new(),
             message,
             "complete graph review (finish_*_review) or supply a fully oriented graph",
         )

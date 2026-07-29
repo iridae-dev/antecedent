@@ -34,7 +34,7 @@ def test_custom_distribution_ipw_via_analyze():
     weights = [1.0] * n
     for i in range(n // 2):
         weights[i] = 0.5
-    reg = antecedent.PopulationRegistry()
+    reg = antecedent.population.PopulationRegistry()
     reg.insert_distribution(7, weights)
     result = antecedent.analyze(
         data,
@@ -42,7 +42,7 @@ def test_custom_distribution_ipw_via_analyze():
         query=antecedent.AverageEffect(
             treatment="t",
             outcome="y",
-            target_population=antecedent.target_custom_distribution(7),
+            target_population=antecedent.population.CustomDistribution(7),
         ),
         population_registry=reg,
         estimator="propensity.weighting",

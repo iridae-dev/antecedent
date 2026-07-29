@@ -19,8 +19,8 @@ def _series(n: int = 400):
 
 def test_discover_pcmci_plus_returns_cpdag_summary():
     names, cols = _series()
-    result = antecedent.discover_pcmci_plus(
-        names, cols, max_lag=1, alpha=0.05, fdr=False, seed=9, ci="parcorr"
+    result = antecedent.discovery.PCMCIPlus(max_lag=1, alpha=0.05, fdr=False, ci="parcorr").run(
+        (names, cols), seed=9
     )
     assert result.algorithm_id == "pcmci_plus"
     assert result.ci_name == "parcorr"
@@ -37,15 +37,8 @@ def test_discover_pcmci_plus_returns_cpdag_summary():
 def test_discover_pcmci_weighted_parcorr_accepts_weights():
     names, cols = _series(200)
     w = np.ones(200, dtype=np.float64)
-    result = antecedent.discover_pcmci(
-        names,
-        cols,
-        max_lag=1,
-        alpha=0.05,
-        fdr=False,
-        seed=2,
-        ci="weighted_parcorr",
-        weights=w.tolist(),
-    )
+    result = antecedent.discovery.PCMCI(
+        max_lag=1, alpha=0.05, fdr=False, ci="weighted_parcorr"
+    ).run((names, cols), seed=2, weights=w.tolist())
     assert result.ci_name == "weighted_parcorr"
     assert result.ci_tests >= 0

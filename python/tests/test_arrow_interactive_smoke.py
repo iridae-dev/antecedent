@@ -46,7 +46,7 @@ def test_arrow_interactive_zero_copy_and_estimate():
     n_rows = table.num_rows
     n_cols = table.num_columns
 
-    info = antecedent.load_float64_arrow_c_columns(
+    info = antecedent.data.load_float64_arrow_c_columns(
         list(table.column_names),
         [table.column(i).combine_chunks() for i in range(n_cols)],
     )
@@ -86,7 +86,7 @@ def test_arrow_interactive_cancel_and_progress():
         }
     )
     requested = 80
-    token = antecedent.CancellationToken()
+    token = antecedent.state.CancellationToken()
     seen = {"bootstrap": False}
 
     def on_progress(fraction: float, stage: str) -> None:

@@ -1,7 +1,7 @@
 """`ci=` (a Python callable CI test) reaching the PanelFrame discovery path.
 
 `analyze(panel, discovery=..., ...)` for `PanelFrame` routes through
-`_handle_panel_frame` (`antecedent/_analyze_handlers.py`) to the native
+`_handle_panel_frame` (`antecedent/_analyze.py`) to the native
 `analyze_panel_discover`. That native function previously had no `ci` parameter
 at all, so a caller-supplied CI test was accepted by `PCMCI`/`PCMCIPlus`/
 `LPCMCI`/`JPCMCIPlus` (which all carry a `ci` field) and then silently dropped
@@ -45,11 +45,13 @@ def _counting_ci(calls: list[int]):
 def test_panel_discover_pcmci_ci_callback_invoked():
     """PCMCI branch of `_handle_panel_frame` must forward `ci=` to the native call."""
     calls: list[int] = []
-    panel = antecedent.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
+    panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
     try:
         antecedent.analyze(
             panel,
-            discovery=antecedent.PCMCI(max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)),
+            discovery=antecedent.discovery.PCMCI(
+                max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
+            ),
             query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
@@ -70,11 +72,11 @@ def test_panel_discover_pcmci_ci_callback_invoked():
 def test_panel_discover_jpcmci_plus_ci_callback_invoked():
     """JPCMCIPlus branch of `_handle_panel_frame` must forward `ci=` to the native call."""
     calls: list[int] = []
-    panel = antecedent.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
+    panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
     try:
         antecedent.analyze(
             panel,
-            discovery=antecedent.JPCMCIPlus(
+            discovery=antecedent.discovery.JPCMCIPlus(
                 max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
             ),
             query=antecedent.PulseEffect(

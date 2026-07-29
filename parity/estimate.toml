@@ -63,7 +63,7 @@ description = "Backdoor"
 status = "done"
 owner = "estimate"
 python_facade = "full"
-notes = "Python causal.identify + analyze(AverageEffect, identifier=Identifier.BACKDOOR_ADJUSTMENT)"
+notes = "Python antecedent.identify + analyze(AverageEffect, identifier=Identifier.BACKDOOR_ADJUSTMENT)"
 
 [[capabilities]]
 id = "estimate.identify.efficient_backdoor"
@@ -87,7 +87,7 @@ description = "Identified-estimand representation"
 status = "done"
 owner = "estimate"
 python_facade = "full"
-notes = "Rust IdentifiedEstimand + CausalAnalysis::identify_only; Python causal.identify → IdentifyResult"
+notes = "Rust IdentifiedEstimand + CausalAnalysis::identify_only; Python antecedent.identify → Identification (.to_identify_result() for the legacy IdentifyResult shape; antecedent.estimation.identify still returns IdentifyResult directly)"
 
 [[capabilities]]
 id = "estimate.linear_regression"

@@ -24,21 +24,23 @@ def _meta(
     *,
     outcome: str = "y",
     identification: str = "NonparametricallyIdentified",
-) -> antecedent.PriorSourceMeta:
-    return antecedent.PriorSourceMeta(
+) -> antecedent.priors.PriorSourceMeta:
+    return antecedent.priors.PriorSourceMeta(
         artifact_id=artifact_id,
-        estimand=antecedent.EstimandFingerprint(query_kind="ate", treatment="t", outcome=outcome),
+        estimand=antecedent.priors.EstimandFingerprint(
+            query_kind="ate", treatment="t", outcome=outcome
+        ),
         identification=identification,
         design=(
-            antecedent.DesignVariable(name="t", role="treatment"),
-            antecedent.DesignVariable(name="y", role="outcome"),
-            antecedent.DesignVariable(name="z", role="covariate"),
+            antecedent.priors.DesignVariable(name="t", role="treatment"),
+            antecedent.priors.DesignVariable(name="y", role="outcome"),
+            antecedent.priors.DesignVariable(name="z", role="covariate"),
         ),
     )
 
 
 def _unnamed_artifact_bytes() -> bytes:
-    art = antecedent.PosteriorArtifact(
+    art = antecedent.inference.PosteriorArtifact(
         n_draws=2,
         mean=[0.0, 1.0, 2.0],
         sd=[1.0, 1.0, 0.1],
@@ -49,7 +51,7 @@ def _unnamed_artifact_bytes() -> bytes:
         identification="NonparametricallyIdentified",
         quantity_names=["coef_0", "coef_1", "ate"],
     )
-    return bytes(antecedent.encode_posterior_artifact(art))
+    return bytes(antecedent.inference.encode_posterior_artifact(art))
 
 
 def _summary_only_artifact_bytes(*, ate_mean: float = 2.0, ate_sd: float = 0.2) -> bytes:
@@ -59,7 +61,7 @@ def _summary_only_artifact_bytes(*, ate_mean: float = 2.0, ate_sd: float = 0.2) 
     quantiles (e.g. from a conjugate update computed elsewhere) and has no draws
     array to supply.
     """
-    art = antecedent.PosteriorArtifact.from_moments(
+    art = antecedent.inference.PosteriorArtifact.from_moments(
         n_draws=64,
         mean=[0.0, 1.0, ate_mean],
         sd=[1.0, 1.0, ate_sd],
@@ -70,7 +72,7 @@ def _summary_only_artifact_bytes(*, ate_mean: float = 2.0, ate_sd: float = 0.2) 
         quantity_names=["coef_0", "coef_1", "ate"],
     )
     assert list(art.draws) == []
-    return bytes(antecedent.encode_posterior_artifact(art))
+    return bytes(antecedent.inference.encode_posterior_artifact(art))
 
 
 def test_catalog_filter_accept_reject_partial():
@@ -86,17 +88,19 @@ def test_catalog_filter_accept_reject_partial():
     )
     assert result.posterior is not None
     artifact = bytes(result.posterior.artifact)
-    names = list(antecedent.decode_posterior_artifact(artifact).quantity_names)
+    names = list(antecedent.inference.decode_posterior_artifact(artifact).quantity_names)
     assert any(n == "intercept" or n.startswith("coef_") for n in names)
     assert "ate" in names
     # Fitting path should emit durable names, not only coef_{i}.
     assert "intercept" in names or any(n.startswith("coef_") and not n[5:].isdigit() for n in names)
 
-    matching = antecedent.PriorSource(meta=_meta("match"), artifact=artifact)
-    wrong = antecedent.PriorSource(meta=_meta("wrong", outcome="other_y"))
-    unnamed = antecedent.PriorSource(meta=_meta("unnamed"), artifact=_unnamed_artifact_bytes())
+    matching = antecedent.priors.PriorSource(meta=_meta("match"), artifact=artifact)
+    wrong = antecedent.priors.PriorSource(meta=_meta("wrong", outcome="other_y"))
+    unnamed = antecedent.priors.PriorSource(
+        meta=_meta("unnamed"), artifact=_unnamed_artifact_bytes()
+    )
 
-    catalog = antecedent.PriorCatalog.from_sources([matching, wrong, unnamed])
+    catalog = antecedent.priors.PriorCatalog.from_sources([matching, wrong, unnamed])
     reports = catalog.compatible_with(
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         variables=["t", "y", "z"],
@@ -113,7 +117,7 @@ def test_catalog_filter_accept_reject_partial():
 
 def test_meta_cbor_round_trip():
     meta = _meta("rt")
-    back = antecedent.PriorSourceMeta.from_cbor(meta.to_cbor())
+    back = antecedent.priors.PriorSourceMeta.from_cbor(meta.to_cbor())
     assert back.artifact_id == "rt"
     assert back.estimand.treatment == "t"
     assert len(back.design) == 3
@@ -121,20 +125,20 @@ def test_meta_cbor_round_trip():
 
 def test_rank_orders_usable():
     reports = [
-        antecedent.CompatibilityReport(status="compatible", artifact_id="a"),
-        antecedent.CompatibilityReport(
+        antecedent.priors.CompatibilityReport(status="compatible", artifact_id="a"),
+        antecedent.priors.CompatibilityReport(
             status="partial",
             artifact_id="b",
             missing=("durable_coef_names",),
             mappable=("ate",),
         ),
-        antecedent.CompatibilityReport(
+        antecedent.priors.CompatibilityReport(
             status="rejected",
             artifact_id="c",
             reason={"code": "estimand_mismatch"},
         ),
     ]
-    catalog = antecedent.PriorCatalog()
+    catalog = antecedent.priors.PriorCatalog()
     ranked = catalog.rank(reports, {"b": 0.9, "a": 0.1})
     assert [r.artifact_id for r in ranked] == ["b", "a"]
 
@@ -190,7 +194,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
             n_draws=64,
             backend="conjugate",
             prior_from=artifact,
-            mapping=antecedent.PriorMapping.effect_functional("ate"),
+            mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
         ),
         refute=False,
         seed=5,
@@ -229,7 +233,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
                 n_draws=32,
                 backend="conjugate",
                 prior_from=artifact,
-                mapping=antecedent.PriorMapping.identical(),
+                mapping=antecedent.priors.PriorMapping.identical(),
             ),
             refute=False,
             seed=5,
@@ -244,15 +248,15 @@ def test_summary_only_artifact_round_trips_and_hydrates_prior():
     """
     artifact_bytes = _summary_only_artifact_bytes(ate_mean=2.0, ate_sd=0.2)
 
-    decoded = antecedent.decode_posterior_artifact(artifact_bytes)
+    decoded = antecedent.inference.decode_posterior_artifact(artifact_bytes)
     assert list(decoded.draws) == []
     assert decoded.n_draws == 64
     assert list(decoded.quantity_names) == ["coef_0", "coef_1", "ate"]
     assert decoded.mean[2] == pytest.approx(2.0)
 
     # Re-encoding the decoded (still draws-free) artifact must stay draws-free.
-    reencoded = bytes(antecedent.encode_posterior_artifact(decoded))
-    redecoded = antecedent.decode_posterior_artifact(reencoded)
+    reencoded = bytes(antecedent.inference.encode_posterior_artifact(decoded))
+    redecoded = antecedent.inference.decode_posterior_artifact(reencoded)
     assert list(redecoded.draws) == []
 
     rng = np.random.default_rng(31)
@@ -280,7 +284,7 @@ def test_summary_only_artifact_round_trips_and_hydrates_prior():
             n_draws=64,
             backend="conjugate",
             prior_from=artifact_bytes,
-            mapping=antecedent.PriorMapping.effect_functional("ate"),
+            mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
         ),
         refute=False,
         seed=9,
@@ -296,20 +300,20 @@ def test_summary_only_artifact_round_trips_and_hydrates_prior():
 
 def test_compose_weight_and_conflict():
     """Two sources with mixture weights; conflict shrinks the far source's α."""
-    agree = antecedent.ExternalPriorSourceSpec(
+    agree = antecedent.priors.ExternalPriorSourceSpec(
         id="agree",
         mean=(0.5,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
     )
-    conflict_src = antecedent.ExternalPriorSourceSpec(
+    conflict_src = antecedent.priors.ExternalPriorSourceSpec(
         id="conflict",
         mean=(50.0,),
         variance=(0.25,),
-        weight=antecedent.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
     )
-    policy = antecedent.ConflictPolicy(p_min=0.05, kl_scale=1.0)
-    composed = antecedent.compose_external_priors(
+    policy = antecedent.priors.ConflictPolicy(p_min=0.05, kl_scale=1.0)
+    composed = antecedent.priors.compose_external_priors(
         [agree, conflict_src],
         weights=(0.7, 0.3),
         baseline=([0.0], [4.0]),
@@ -331,19 +335,19 @@ def test_compose_weight_and_conflict():
     t = rng.normal(size=n)
     y = 0.5 * t + 0.2 * rng.normal(size=n)
     # No covariates → design is intercept + treatment (2 coefs).
-    agree2 = antecedent.ExternalPriorSourceSpec(
+    agree2 = antecedent.priors.ExternalPriorSourceSpec(
         id="agree",
         mean=(0.0, 0.5),
         variance=(100.0, 1.0),
-        weight=antecedent.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
     )
-    conflict2 = antecedent.ExternalPriorSourceSpec(
+    conflict2 = antecedent.priors.ExternalPriorSourceSpec(
         id="conflict",
         mean=(0.0, 50.0),
         variance=(100.0, 0.25),
-        weight=antecedent.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
     )
-    composed2 = antecedent.compose_external_priors(
+    composed2 = antecedent.priors.compose_external_priors(
         [agree2, conflict2],
         weights=(0.7, 0.3),
         baseline=([0.0, 0.0], [100.0, 100.0]),
@@ -354,7 +358,7 @@ def test_compose_weight_and_conflict():
         ],
     )
     # Use shrunk alphas without data-bound re-eval (policy already applied).
-    prior_for_fit = antecedent.ComposedPrior(
+    prior_for_fit = antecedent.priors.ComposedPrior(
         mean=composed2.mean,
         variance=composed2.variance,
         source_ids=composed2.source_ids,
@@ -391,14 +395,14 @@ def test_compose_weight_and_conflict():
 
 
 def test_transport_required_when_populations_differ():
-    src = antecedent.ExternalPriorSourceSpec(
+    src = antecedent.priors.ExternalPriorSourceSpec(
         id="us_study",
         mean=(1.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.8),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.8),
     )
     with pytest.raises(ValueError, match="transport_policy_required"):
-        antecedent.compose_external_priors(
+        antecedent.priors.compose_external_priors(
             [src],
             baseline=([0.0], [4.0]),
             source_populations=["us"],
@@ -408,30 +412,32 @@ def test_transport_required_when_populations_differ():
 
 def test_transport_from_prior_source_tags():
     """Catalog meta tags auto-fill source_populations (no manual threading)."""
-    src = antecedent.ExternalPriorSourceSpec(
+    src = antecedent.priors.ExternalPriorSourceSpec(
         id="us_study",
         mean=(1.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.8),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.8),
     )
-    prior_src = antecedent.PriorSource(
-        meta=antecedent.PriorSourceMeta(
+    prior_src = antecedent.priors.PriorSource(
+        meta=antecedent.priors.PriorSourceMeta(
             artifact_id="us_study",
-            estimand=antecedent.EstimandFingerprint(query_kind="ate", treatment="t", outcome="y"),
+            estimand=antecedent.priors.EstimandFingerprint(
+                query_kind="ate", treatment="t", outcome="y"
+            ),
             identification="NonparametricallyIdentified",
             tags={"population": "us"},
         ),
     )
-    assert antecedent.populations_from_prior_sources([prior_src]) == ["us"]
+    assert antecedent.priors.populations_from_prior_sources([prior_src]) == ["us"]
     with pytest.raises(ValueError, match="transport_policy_required"):
-        antecedent.compose_external_priors(
+        antecedent.priors.compose_external_priors(
             [src],
             baseline=([0.0], [4.0]),
             prior_sources=[prior_src],
             target_population="eu",
         )
     # Matching populations → no transport policy required.
-    composed = antecedent.compose_external_priors(
+    composed = antecedent.priors.compose_external_priors(
         [src],
         baseline=([0.0], [4.0]),
         prior_sources=[prior_src],
@@ -440,7 +446,7 @@ def test_transport_from_prior_source_tags():
     assert composed.alphas_applied == (0.8,)
     # Explicit source_populations wins over prior_sources tags.
     with pytest.raises(ValueError, match="transport_policy_required"):
-        antecedent.compose_external_priors(
+        antecedent.priors.compose_external_priors(
             [src],
             baseline=([0.0], [4.0]),
             prior_sources=[prior_src],
@@ -450,18 +456,18 @@ def test_transport_from_prior_source_tags():
 
 
 def test_transport_with_policy_records_assumption():
-    src = antecedent.ExternalPriorSourceSpec(
+    src = antecedent.priors.ExternalPriorSourceSpec(
         id="us_study",
         mean=(2.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
     )
-    composed = antecedent.compose_external_priors(
+    composed = antecedent.priors.compose_external_priors(
         [src],
         baseline=([0.0], [4.0]),
         source_populations=["us"],
         target_population="eu",
-        transport=antecedent.TransportPolicy.invariant_conditional_outcome(),
+        transport=antecedent.priors.TransportPolicy.invariant_conditional_outcome(),
     )
     assert all(math.isfinite(x) for x in composed.mean)
     assert all(x > 0 and math.isfinite(x) for x in composed.variance)
@@ -470,18 +476,18 @@ def test_transport_with_policy_records_assumption():
 
 
 def test_transport_propensity_without_weights_zeros_alpha():
-    src = antecedent.ExternalPriorSourceSpec(
+    src = antecedent.priors.ExternalPriorSourceSpec(
         id="us_study",
         mean=(2.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.75),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.75),
     )
-    composed = antecedent.compose_external_priors(
+    composed = antecedent.priors.compose_external_priors(
         [src],
         baseline=([0.0], [4.0]),
         source_populations=["us"],
         target_population="eu",
-        transport=antecedent.TransportPolicy.invariant_propensity(),
+        transport=antecedent.priors.TransportPolicy.invariant_propensity(),
     )
     assert composed.alphas_requested == (0.75,)
     assert composed.alphas_applied == (0.0,)
@@ -492,14 +498,14 @@ def test_ess_accounting_power_path_sums_when_all_sources_declare_it():
     """Single power-path source with a declared ess: effective_ess = alpha*ess,
     composed_ess sums it (only contributor), kish_ess=1 for one active weight.
     """
-    src = antecedent.ExternalPriorSourceSpec(
+    src = antecedent.priors.ExternalPriorSourceSpec(
         id="old",
         mean=(2.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.5),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.5),
         ess=40.0,
     )
-    composed = antecedent.compose_external_priors([src], baseline=([0.0], [4.0]))
+    composed = antecedent.priors.compose_external_priors([src], baseline=([0.0], [4.0]))
     assert composed.effective_ess == (20.0,)
     assert composed.composed_ess == pytest.approx(20.0)
     assert composed.kish_ess == pytest.approx(1.0)
@@ -510,21 +516,21 @@ def test_ess_accounting_power_path_partial_coverage_is_none():
     sum would misstate composed strength) even though the other source's own
     effective_ess is reported.
     """
-    src_a = antecedent.ExternalPriorSourceSpec(
+    src_a = antecedent.priors.ExternalPriorSourceSpec(
         id="a",
         mean=(2.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.5),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.5),
         ess=40.0,
     )
-    src_b = antecedent.ExternalPriorSourceSpec(
+    src_b = antecedent.priors.ExternalPriorSourceSpec(
         id="b",
         mean=(3.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.25),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.25),
         ess=None,
     )
-    composed = antecedent.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
+    composed = antecedent.priors.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
     assert composed.effective_ess[0] == pytest.approx(20.0)
     assert composed.effective_ess[1] is None
     assert composed.composed_ess is None
@@ -536,21 +542,21 @@ def test_ess_accounting_dropped_power_source_contributes_nothing():
     """A dropped (alpha=0) power-path source reports effective_ess=0 despite a
     large declared ess, and does not block composed_ess for the other source.
     """
-    src_a = antecedent.ExternalPriorSourceSpec(
+    src_a = antecedent.priors.ExternalPriorSourceSpec(
         id="a",
         mean=(2.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.5),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.5),
         ess=40.0,
     )
-    src_b = antecedent.ExternalPriorSourceSpec(
+    src_b = antecedent.priors.ExternalPriorSourceSpec(
         id="b",
         mean=(5.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.0),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.0),
         ess=999.0,
     )
-    composed = antecedent.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
+    composed = antecedent.priors.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
     assert composed.effective_ess[0] == pytest.approx(20.0)
     assert composed.effective_ess[1] == pytest.approx(0.0)
     assert composed.composed_ess == pytest.approx(20.0)
@@ -561,14 +567,14 @@ def test_ess_accounting_mixture_path_never_sums_but_reports_per_source():
     between-component spread, so summing source ESS would overstate composed
     strength), but the source's own effective_ess is still reported.
     """
-    src = antecedent.ExternalPriorSourceSpec(
+    src = antecedent.priors.ExternalPriorSourceSpec(
         id="s",
         mean=(10.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=1.0, mixture_weight=0.4),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0, mixture_weight=0.4),
         ess=50.0,
     )
-    composed = antecedent.compose_external_priors([src], baseline=([0.0], [100.0]))
+    composed = antecedent.priors.compose_external_priors([src], baseline=([0.0], [100.0]))
     assert composed.composed_ess is None
     assert composed.effective_ess == (50.0,)
     assert composed.kish_ess == pytest.approx(1.0)
@@ -578,19 +584,19 @@ def test_ess_accounting_no_ess_declared_reports_none_but_kish_present():
     """Neither source declares an ess: every effective_ess entry and
     composed_ess are None, but kish_ess (weight-only) is still reported.
     """
-    src_a = antecedent.ExternalPriorSourceSpec(
+    src_a = antecedent.priors.ExternalPriorSourceSpec(
         id="a",
         mean=(2.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.5),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.5),
     )
-    src_b = antecedent.ExternalPriorSourceSpec(
+    src_b = antecedent.priors.ExternalPriorSourceSpec(
         id="b",
         mean=(3.0,),
         variance=(1.0,),
-        weight=antecedent.ExternalPriorWeight(alpha=0.3),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.3),
     )
-    composed = antecedent.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
+    composed = antecedent.priors.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
     assert composed.effective_ess == (None, None)
     assert composed.composed_ess is None
     assert composed.kish_ess is not None and composed.kish_ess > 0.0
@@ -607,13 +613,13 @@ def test_alpha_prior_sensitivity_on_composed_prior():
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
 
     # Design: intercept, treatment, z — bank a tight prior on treatment = 8.
-    src = antecedent.ExternalPriorSourceSpec(
+    src = antecedent.priors.ExternalPriorSourceSpec(
         id="survey_a",
         mean=(0.0, 8.0, 0.0),
         variance=(0.05, 0.05, 0.05),
-        weight=antecedent.ExternalPriorWeight(alpha=1.0),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
     )
-    composed = antecedent.compose_external_priors(
+    composed = antecedent.priors.compose_external_priors(
         [src],
         baseline=([0.0, 0.0, 0.0], [100.0, 100.0, 100.0]),
     )
@@ -647,7 +653,7 @@ def test_beta_from_moments_round_trips_input_moments():
     mean=0.3, variance=0.02: mean*(1-mean)=0.21 > 0.02, so kappa =
     0.21/0.02 - 1 = 9.5, alpha=2.85, beta=6.65, ess = kappa - 2 = 7.5.
     """
-    h = antecedent.beta_from_moments(0.3, 0.02)
+    h = antecedent.priors.beta_from_moments(0.3, 0.02)
     assert h.alpha == pytest.approx(2.85)
     assert h.beta == pytest.approx(6.65)
     assert h.mean == pytest.approx(0.3)
@@ -661,7 +667,7 @@ def test_beta_from_moments_can_report_negative_ess():
     beta stay positive and proper -- a negative ess here is a truthful
     report of a prior weaker than the flat reference, not an error.
     """
-    h = antecedent.beta_from_moments(0.5, 0.24)
+    h = antecedent.priors.beta_from_moments(0.5, 0.24)
     assert h.alpha > 0.0
     assert h.beta > 0.0
     assert h.ess < 0.0
@@ -674,16 +680,16 @@ def test_beta_from_moments_rejects_out_of_support_variance():
     support bound mean*(1-mean); the comparison is exact, no epsilon slack.
     """
     with pytest.raises(ValueError, match="variance"):
-        antecedent.beta_from_moments(0.5, 0.25)
+        antecedent.priors.beta_from_moments(0.5, 0.25)
     with pytest.raises(ValueError, match="variance"):
-        antecedent.beta_from_moments(0.5, 0.3)
+        antecedent.priors.beta_from_moments(0.5, 0.3)
 
 
 def test_beta_from_moments_rejects_mean_outside_open_interval():
     with pytest.raises(ValueError, match="mean"):
-        antecedent.beta_from_moments(0.0, 0.01)
+        antecedent.priors.beta_from_moments(0.0, 0.01)
     with pytest.raises(ValueError, match="mean"):
-        antecedent.beta_from_moments(1.0, 0.01)
+        antecedent.priors.beta_from_moments(1.0, 0.01)
 
 
 def test_beta_from_mean_and_ess_zero_is_beta_1_1_strength():
@@ -691,7 +697,7 @@ def test_beta_from_mean_and_ess_zero_is_beta_1_1_strength():
     mean, never a vanishing or improper prior. There is no variance
     argument here to satisfy any support check.
     """
-    h = antecedent.beta_from_mean_and_ess(0.3, ess=0.0)
+    h = antecedent.priors.beta_from_mean_and_ess(0.3, ess=0.0)
     assert h.alpha == pytest.approx(0.6)
     assert h.beta == pytest.approx(1.4)
     assert h.mean == pytest.approx(0.3)
@@ -705,7 +711,7 @@ def test_beta_from_mean_and_ess_matches_any_nonnegative_request():
     violate, including a value from_moments would reject as an
     out-of-support variance.
     """
-    h = antecedent.beta_from_mean_and_ess(0.5, ess=10.0)
+    h = antecedent.priors.beta_from_mean_and_ess(0.5, ess=10.0)
     assert h.alpha == pytest.approx(6.0)
     assert h.beta == pytest.approx(6.0)
     assert h.mean == pytest.approx(0.5)
@@ -714,19 +720,19 @@ def test_beta_from_mean_and_ess_matches_any_nonnegative_request():
 
 def test_beta_from_mean_and_ess_rejects_mean_outside_open_interval():
     with pytest.raises(ValueError, match="mean"):
-        antecedent.beta_from_mean_and_ess(0.0, ess=1.0)
+        antecedent.priors.beta_from_mean_and_ess(0.0, ess=1.0)
     with pytest.raises(ValueError, match="mean"):
-        antecedent.beta_from_mean_and_ess(1.0, ess=1.0)
+        antecedent.priors.beta_from_mean_and_ess(1.0, ess=1.0)
 
 
 def test_beta_from_mean_and_ess_rejects_negative_ess():
     with pytest.raises(ValueError, match="ess"):
-        antecedent.beta_from_mean_and_ess(0.3, ess=-1.0)
+        antecedent.priors.beta_from_mean_and_ess(0.3, ess=-1.0)
 
 
 def test_gamma_from_moments_round_trips_input_moments():
     """mean=4.0, variance=2.0: shape = 16/2 = 8, rate = 4/2 = 2, ess = 7."""
-    h = antecedent.gamma_from_moments(4.0, 2.0)
+    h = antecedent.priors.gamma_from_moments(4.0, 2.0)
     assert h.shape == pytest.approx(8.0)
     assert h.rate == pytest.approx(2.0)
     assert h.mean == pytest.approx(4.0)
@@ -739,7 +745,7 @@ def test_gamma_from_moments_can_report_negative_ess():
     < 0. shape and rate stay positive and proper -- a negative ess here is
     a truthful report of a prior weaker than the reference exponential.
     """
-    h = antecedent.gamma_from_moments(4.0, 32.0)
+    h = antecedent.priors.gamma_from_moments(4.0, 32.0)
     assert h.shape > 0.0
     assert h.rate > 0.0
     assert h.ess < 0.0
@@ -749,20 +755,20 @@ def test_gamma_from_moments_can_report_negative_ess():
 
 def test_gamma_from_moments_rejects_nonpositive_mean_or_variance():
     with pytest.raises(ValueError, match="mean"):
-        antecedent.gamma_from_moments(0.0, 1.0)
+        antecedent.priors.gamma_from_moments(0.0, 1.0)
     with pytest.raises(ValueError, match="mean"):
-        antecedent.gamma_from_moments(-1.0, 1.0)
+        antecedent.priors.gamma_from_moments(-1.0, 1.0)
     with pytest.raises(ValueError, match="variance"):
-        antecedent.gamma_from_moments(4.0, 0.0)
+        antecedent.priors.gamma_from_moments(4.0, 0.0)
     with pytest.raises(ValueError, match="variance"):
-        antecedent.gamma_from_moments(4.0, -1.0)
+        antecedent.priors.gamma_from_moments(4.0, -1.0)
 
 
 def test_gamma_from_mean_and_ess_zero_is_reference_exponential():
     """ess=0 degrades to Gamma(shape=1, .), the reference exponential
     prior, at the requested mean. There is no variance argument here.
     """
-    h = antecedent.gamma_from_mean_and_ess(4.0, ess=0.0)
+    h = antecedent.priors.gamma_from_mean_and_ess(4.0, ess=0.0)
     assert h.shape == pytest.approx(1.0)
     assert h.rate == pytest.approx(0.25)
     assert h.mean == pytest.approx(4.0)
@@ -770,7 +776,7 @@ def test_gamma_from_mean_and_ess_zero_is_reference_exponential():
 
 
 def test_gamma_from_mean_and_ess_matches_any_nonnegative_request():
-    h = antecedent.gamma_from_mean_and_ess(4.0, ess=7.0)
+    h = antecedent.priors.gamma_from_mean_and_ess(4.0, ess=7.0)
     assert h.shape == pytest.approx(8.0)
     assert h.rate == pytest.approx(2.0)
     assert h.mean == pytest.approx(4.0)
@@ -779,11 +785,11 @@ def test_gamma_from_mean_and_ess_matches_any_nonnegative_request():
 
 def test_gamma_from_mean_and_ess_rejects_nonpositive_mean():
     with pytest.raises(ValueError, match="mean"):
-        antecedent.gamma_from_mean_and_ess(0.0, ess=1.0)
+        antecedent.priors.gamma_from_mean_and_ess(0.0, ess=1.0)
     with pytest.raises(ValueError, match="mean"):
-        antecedent.gamma_from_mean_and_ess(-1.0, ess=1.0)
+        antecedent.priors.gamma_from_mean_and_ess(-1.0, ess=1.0)
 
 
 def test_gamma_from_mean_and_ess_rejects_negative_ess():
     with pytest.raises(ValueError, match="ess"):
-        antecedent.gamma_from_mean_and_ess(4.0, ess=-1.0)
+        antecedent.priors.gamma_from_mean_and_ess(4.0, ess=-1.0)

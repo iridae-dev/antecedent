@@ -190,6 +190,29 @@ pub(crate) struct AnalysisResult {
     pub(crate) mediation_direct: Option<f64>,
     #[pyo3(get)]
     pub(crate) mediation_mediated: Option<f64>,
+    /// Nested identification section — every field is populated on the temporal path
+    /// (unlike `estimate`/`performance`, this DTO carries the full identification set).
+    #[pyo3(get)]
+    pub(crate) identification: IdentificationSection,
+    /// Nested estimate section. `overlap_ess` / `overlap_propensity_min` read `None`
+    /// in practice — every temporal path fixes `OverlapPolicy::ExplicitOverride`,
+    /// under which the shared estimator never computes an overlap report — but this
+    /// reads the real field rather than hardcoding the assumption.
+    #[pyo3(get)]
+    pub(crate) estimate: EstimateSection,
+    /// Nested posterior section — every field is populated on the temporal path.
+    #[pyo3(get)]
+    pub(crate) posterior: PosteriorSection,
+    /// Nested validation section, using the same pass/ran aggregate rule as the
+    /// static DTO.
+    #[pyo3(get)]
+    pub(crate) validation: ValidationSection,
+    /// Nested performance section. `bootstrap_replicates_ok`, `n_draws` (posterior
+    /// draw effort), and `stage_timings` are genuinely never populated on any
+    /// temporal execution path and read as `None` / empty; every other field is
+    /// read from the same `StudyResult.performance` record the static DTO uses.
+    #[pyo3(get)]
+    pub(crate) performance: PerformanceSection,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -1587,12 +1610,92 @@ fn analysis_result_from_run(
     } else {
         (None, None, None, None, None, None, None, None, None)
     };
+
+    // Values shared between an existing flat field and its new nested-section
+    // counterpart are computed once here, then cloned into the section so the flat
+    // field and the section can never drift apart. Mirrors `ate_result_from_analysis`
+    // in `ate_api.rs` — same shared values, same reason.
+    let plan_id = result.logical_plan.plan_id.to_string();
+    let modality = format!("{:?}", result.logical_plan.data_classification);
+    let identification_status = format!("{:?}", result.identification.status);
+    let method = result.estimand.method.to_string();
+    let refutations: Vec<RefutationReportView> =
+        result.refutations.iter().map(RefutationReportView::from).collect();
+
+    let identification = IdentificationSection {
+        status: identification_status.clone(),
+        method: method.clone(),
+        adjustment_set: adjustment_set.clone(),
+        assumption_count: result.estimate.assumptions.len(),
+        derivation_step_count: result.identification.derivation.steps.len(),
+    };
+    let estimate = EstimateSection {
+        ate: result.estimate.ate,
+        se_analytic: result.estimate.se_analytic,
+        se_bootstrap: result.estimate.se_bootstrap,
+        estimator_id: estimator_id.clone(),
+        method: method.clone(),
+        // Every temporal path fixes `OverlapPolicy::ExplicitOverride`, under which
+        // the shared adjustment estimator never populates `overlap_report` — read
+        // it the same way the static DTO does rather than hardcoding `None`, so
+        // this stays correct if a temporal path ever computes one.
+        overlap_ess: result.estimate.overlap_report.as_ref().and_then(|r| r.ess),
+        overlap_propensity_min: result.estimate.overlap_report.as_ref().map(|r| r.propensity_min),
+    };
+    let posterior_section = PosteriorSection {
+        effect_mean: posterior_effect_mean,
+        effect_sd: posterior_effect_sd,
+        q025: posterior_q025,
+        q975: posterior_q975,
+        n_draws: posterior_n_draws,
+        p_below_zero: posterior_p_below_zero,
+        backend: posterior_backend.clone(),
+        artifact: posterior_artifact.clone(),
+        unidentified_mass: posterior_unidentified_mass,
+    };
+    let validation = ValidationSection::from_reports(refutations.clone());
+    let performance = PerformanceSection {
+        plan_id: plan_id.clone(),
+        modality: modality.clone(),
+        peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+        // Every temporal execution path (`execute_temporal`, `execute_temporal_mediation`,
+        // `execute_panel`, ...) populates `result.performance.{wall_time_ns,latency_mode,
+        // bootstrap_replicates_requested,cancelled,early_stopped}` with real data — it is
+        // simply never wired into the flat temporal `AnalysisResult` fields. Read it
+        // straight from the underlying `StudyResult` rather than fabricating `None`.
+        latency_mode: result
+            .performance
+            .latency_mode
+            .as_ref()
+            .map(std::string::ToString::to_string),
+        wall_time_ns: result.performance.wall_time_ns,
+        bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
+        // `bootstrap_replicates_ok` / `n_draws` (draw effort) / per-stage timings are
+        // genuinely never populated on any temporal path (every `AssembleArgs` literal
+        // sets `bootstrap_replicates_ok: None`, `n_draws: None`, `stage_timings_ns:
+        // Vec::new()`) — `None` / empty here is accurate, not a placeholder.
+        bootstrap_replicates_ok: result.performance.bootstrap_replicates_ok,
+        n_draws: result.performance.n_draws,
+        // `execute_temporal`'s frequentist branch shares the same bootstrap machinery
+        // as the static path (`TemporalLinearAdjustment::inner: LinearAdjustmentAte`),
+        // so a bootstrap cancellation surfaces on `estimate.bootstrap_cancelled` here
+        // exactly as it does on the static DTO — OR it in the same way.
+        cancelled: result.performance.cancelled || result.estimate.bootstrap_cancelled,
+        early_stopped: result.performance.early_stopped,
+        stage_timings: result
+            .performance
+            .stage_timings_ns
+            .iter()
+            .map(|(s, ns)| (s.to_string(), *ns))
+            .collect(),
+    };
+
     Ok(AnalysisResult {
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
-        plan_id: result.logical_plan.plan_id.to_string(),
-        modality: format!("{:?}", result.logical_plan.data_classification),
+        plan_id,
+        modality,
         discovery_algorithm: result
             .logical_plan
             .discovery_algorithm
@@ -1615,16 +1718,16 @@ fn analysis_result_from_run(
             .as_ref()
             .map(std::string::ToString::to_string),
         peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-        identification_status: format!("{:?}", result.identification.status),
-        method: result.estimand.method.to_string(),
+        identification_status,
+        method,
         diagnostics: result
             .diagnostics
             .iter()
             .map(|d| format!("{}: {}", d.code, d.message))
             .collect(),
         provenance_node_count: result.provenance.len(),
-        refutation_count: result.refutations.len(),
-        refutations: result.refutations.iter().map(RefutationReportView::from).collect(),
+        refutation_count: refutations.len(),
+        refutations,
         worker_threads: result.physical_plan.worker_threads,
         expected_python_crossings: result.physical_plan.expected_python_crossings,
         adjustment_set,
@@ -1643,6 +1746,11 @@ fn analysis_result_from_run(
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
+        identification,
+        estimate,
+        posterior: posterior_section,
+        validation,
+        performance,
     })
 }
 

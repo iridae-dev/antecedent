@@ -28,12 +28,26 @@ class CausalSerializationError(CausalError): ...
 class CausalCompileError(CausalError): ...
 class CausalResourceError(CausalError): ...
 
+class CausalPendingEdge:
+    """One unreviewed edge carried on a review error (native-constructed)."""
+
+    source: str
+    target: str
+    at_source: str
+    at_target: str
+
 class CausalReviewError(CausalError):
     kind: str
     algorithm: str | None
     pending_edge_count: int
+    # Native raises carry CausalPendingEdge; errors built on the Python side
+    # carry antecedent.errors.PendingEdge. Both expose the same four fields.
+    pending_edges: Sequence[Any]
     hint: str
     message: str
+
+def set_review_error_class(cls: type) -> None:
+    """Register the Python class native code instantiates for review errors."""
 
 class CausalUnsupportedError(CausalError): ...
 class CausalCancelledError(CausalError): ...
@@ -113,6 +127,11 @@ class AteAnalysisResult:
     posterior_ppc_predictive_mean: float | None
     posterior_ppc_predictive_sd: float | None
     posterior_ppc_n_sims: int | None
+    identification: IdentificationSection
+    estimate: EstimateSection
+    posterior: PosteriorSection
+    validation: ValidationSection
+    performance: PerformanceSection
 
 class RefutationReportView:
     refuter: str
@@ -123,6 +142,70 @@ class RefutationReportView:
     passed: bool
     failure_condition: str | None
     replicates: int
+
+class IdentificationSection:
+    """Nested identification section, shared shape on both `AteAnalysisResult` and
+    `AnalysisResult` (temporal populates every field)."""
+
+    status: str
+    method: str
+    adjustment_set: list[str]
+    assumption_count: int
+    derivation_step_count: int
+
+class EstimateSection:
+    """Nested estimate section (top-level scalar fields only)."""
+
+    ate: float
+    se_analytic: float
+    se_bootstrap: float | None
+    estimator_id: str
+    method: str
+    overlap_ess: float | None
+    overlap_propensity_min: float | None
+
+class PosteriorSection:
+    """Nested posterior section. Every field is `None` when no posterior was
+    computed (frequentist inference)."""
+
+    effect_mean: float | None
+    effect_sd: float | None
+    q025: float | None
+    q975: float | None
+    n_draws: int | None
+    p_below_zero: float | None
+    backend: str | None
+    artifact: bytes | list[int] | None
+    unidentified_mass: float | None
+
+class ValidationSection:
+    """Nested validation section. `passed`/`ran` follow the shared aggregate rule:
+    `ran` is whether any refuter ran, `passed` is `ran and all(r.passed for r in reports)`
+    — never `True` when nothing ran."""
+
+    passed: bool
+    ran: bool
+    count: int
+    reports: list[RefutationReportView]
+
+class PerformanceSection:
+    """Nested performance section. Most fields mirror `StudyResult.performance`,
+    which both static and temporal execution paths populate. `bootstrap_replicates_ok`,
+    `n_draws` (posterior draw effort), and `stage_timings` are the exception: no
+    temporal execution path currently records them, so they read `None`/empty on
+    the temporal DTO."""
+
+    plan_id: str
+    modality: str
+    peak_memory_bytes: int | None
+    latency_mode: str | None
+    wall_time_ns: int | None
+    bootstrap_replicates_requested: int | None
+    bootstrap_replicates_ok: int | None
+    n_draws: int | None
+    cancelled: bool
+    early_stopped: bool
+    stage_timings: list[tuple[str, int]]
 
 class PosteriorArtifact:
     n_draws: int
@@ -249,6 +332,11 @@ class AnalysisResult:
     mediation_total: float | None
     mediation_direct: float | None
     mediation_mediated: float | None
+    identification: IdentificationSection
+    estimate: EstimateSection
+    posterior: PosteriorSection
+    validation: ValidationSection
+    performance: PerformanceSection
 
 TemporalAnalysisResult = AnalysisResult
 
@@ -531,6 +619,7 @@ def analyze_ate(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -565,6 +654,7 @@ def analyze_ate_arrow_c(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -1445,6 +1535,8 @@ def analyze_ate_pag(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -1468,6 +1560,8 @@ def analyze_ate_cpdag(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -1491,6 +1585,8 @@ def analyze_ate_admg(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    estimator_config: dict[str, Any] | None = None,
+    latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 50,
     threads: int = 1,
@@ -1563,7 +1659,9 @@ class CausalState:
     def particle_filter_step(self, key: str, y: float) -> None: ...
     def particle_filter_get(self, key: str) -> dict[str, Any]: ...
 
-def antecedent_state_append(n_appends: int = 2, cache_bytes: int = 1_048_576) -> tuple[int, int]: ...
+def antecedent_state_append(
+    n_appends: int = 2, cache_bytes: int = 1_048_576
+) -> tuple[int, int]: ...
 def encode_model_bundle(
     variable_names: list[str],
     edges: list[tuple[int, int]],

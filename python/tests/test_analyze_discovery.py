@@ -23,7 +23,7 @@ def test_analyze_discovery_pcmci_smoke():
     data = _lag1_series()
     result = antecedent.analyze(
         data,
-        discovery=antecedent.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+        discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
         query=antecedent.PulseEffect(
             treatment="x",
             outcome="y",
@@ -56,7 +56,7 @@ def test_analyze_discovery_jpcmci_plus_two_env():
     try:
         result = antecedent.analyze(
             envs,
-            discovery=antecedent.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
+            discovery=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
             query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
@@ -80,7 +80,7 @@ def test_analyze_discovery_rpcmci_regimes():
     try:
         result = antecedent.analyze(
             data,
-            discovery=antecedent.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+            discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
             regimes=regimes,
             query=antecedent.PulseEffect(
                 treatment="x",
@@ -107,7 +107,7 @@ def test_analyze_discovery_pc_smoke():
     try:
         result = antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=antecedent.PC(alpha=0.2, fdr=False, max_cond_size=2),
+            discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             refute=False,
             bootstrap=0,

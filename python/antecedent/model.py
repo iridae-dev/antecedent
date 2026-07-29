@@ -5,7 +5,11 @@ from __future__ import annotations
 from ._native import (
     FittedGcm,
     GcmSampleResult,
+    PredictSummary,
+    decode_model_bundle,
+    encode_model_bundle,
     fit_gcm,
+    predict_intervened_summary,
     sample_do,
     sample_interventional_distribution,
 )
@@ -13,7 +17,11 @@ from ._native import (
 __all__ = [
     "FittedGcm",
     "GcmSampleResult",
+    "PredictSummary",
+    "decode_model_bundle",
+    "encode_model_bundle",
     "fit_gcm",
+    "predict_intervened_summary",
     "sample_do",
     "sample_interventional_distribution",
 ]

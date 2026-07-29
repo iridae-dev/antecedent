@@ -18,19 +18,19 @@ notes = "Semantic coalition cache keyed by mask + tag under CachePolicy (Executi
 id = "attribution.distribution_change"
 status = "done"
 python_facade = "full"
-notes = "pinned baseline-GCM distribution_change via mechanism-swap Shapley; causal.attribute_distribution_change"
+notes = "pinned baseline-GCM distribution_change via mechanism-swap Shapley; antecedent.attribution.attribute_distribution_change"
 
 [[capabilities]]
 id = "attribution.distribution_change_robust"
 status = "done"
 python_facade = "full"
-notes = "Regression-hybrid robust variant; causal.attribute_distribution_change_robust"
+notes = "Regression-hybrid robust variant; antecedent.attribution.attribute_distribution_change_robust"
 
 [[capabilities]]
 id = "attribution.mechanism_change_detection"
 status = "done"
 python_facade = "full"
-notes = "Detection separate from attribution (LR / mean-diff / classifier proxy); causal.mechanism_change_detection"
+notes = "Detection separate from attribution (LR / mean-diff / classifier proxy); antecedent.attribution.mechanism_change_detection"
 
 [[capabilities]]
 id = "attribution.mechanism_change_kernel"
@@ -46,34 +46,34 @@ notes = "Known-split Gaussian change-point on concatenated residuals"
 id = "attribution.unit_change"
 status = "done"
 python_facade = "full"
-notes = "Per-unit input Shapley vs reference parents; causal.attribute_unit_change"
+notes = "Per-unit input Shapley vs reference parents; antecedent.attribution.attribute_unit_change"
 
 [[capabilities]]
 id = "attribution.path_decompose"
 status = "done"
 python_facade = "full"
-notes = "Directed-path product decomposition on DAG; causal.attribute_paths / attribute_path_specific"
+notes = "Directed-path product decomposition on DAG; antecedent.attribution.attribute_paths / attribute_path_specific"
 
 [[capabilities]]
 id = "attribution.feature_relevance"
 status = "done"
 python_facade = "full"
-notes = "Interventional do-contrast relevance scores; causal.attribute_feature_relevance"
+notes = "Interventional do-contrast relevance scores; antecedent.attribution.attribute_feature_relevance"
 
 [[capabilities]]
 id = "attribution.root_cause"
 status = "done"
 python_facade = "full"
-notes = "Ranking + optional graph/posterior contribution blocks; causal.rank_root_causes / anomaly_attribution"
+notes = "Ranking + optional graph/posterior contribution blocks; antecedent.attribution.rank_root_causes / anomaly_attribution"
 
 [[capabilities]]
 id = "attribution.structure"
 status = "done"
 python_facade = "full"
-notes = "Dual-graph parent-set Shapley structure_change; causal.attribute_structure_change"
+notes = "Dual-graph parent-set Shapley structure_change; antecedent.attribution.attribute_structure_change"
 
 [[capabilities]]
 id = "attribution.facade"
 status = "done"
 python_facade = "full"
-notes = "Facade + conformance tests under crates/antecedent/tests/attribution.rs; Python causal.attribution + package helpers"
+notes = "Facade + conformance tests under crates/antecedent/tests/attribution.rs; Python antecedent.attribution + package helpers"

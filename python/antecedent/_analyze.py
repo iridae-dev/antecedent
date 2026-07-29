@@ -6,9 +6,10 @@ extend via a handler rather than growing a monolith.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, Literal, Protocol
 
+from ._coerce import coerce_latency, coerce_refute
 from ._data import as_columns, as_multi_env_columns, try_as_arrow_c_columns
 from ._native import CausalUnsupportedError
 from ._native import (
@@ -107,6 +108,17 @@ _GRAPH_POSTERIOR_DISCOVERY = (
     StructureMcmc,
     CiScreenedPosterior,
 )
+
+
+class EstimatorConfigLike(Protocol):
+    """A typed estimator config from :mod:`antecedent.estimators`."""
+
+    @property
+    def estimator_id(self) -> str: ...
+
+    def _wire(self) -> dict[str, Any]: ...
+
+
 _TEMPORAL_DISCOVERY = (PCMCI, PCMCIPlus, LPCMCI, JPCMCIPlus, RPCMCI)
 
 
@@ -441,6 +453,7 @@ def handle_static_ate(
     running_variable: str | None,
     cutoff: float | None,
     bandwidth: float | None,
+    estimator_config: Mapping[str, Any] | None,
     population_registry: Any | None,
     latency: str | None,
     cancel: Any | None,
@@ -459,6 +472,15 @@ def handle_static_ate(
     if isinstance(inference, Bayesian):
         bayes_kw = _bayesian_inference_kwargs(inference)
     if estimator == "rd.sharp" or any(v is not None for v in (running_variable, cutoff, bandwidth)):
+        # The triple may arrive either as loose kwargs or inside `estimator_config`;
+        # Rust merges the two, so this gate must look at both or it rejects the
+        # typed spelling before it ever reaches the merge.
+        cfg = estimator_config or {}
+        running_variable = (
+            running_variable if running_variable is not None else cfg.get("running_variable")
+        )
+        cutoff = cutoff if cutoff is not None else cfg.get("cutoff")
+        bandwidth = bandwidth if bandwidth is not None else cfg.get("bandwidth")
         if running_variable is None or cutoff is None or bandwidth is None:
             raise ValueError(
                 "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth"
@@ -484,6 +506,8 @@ def handle_static_ate(
         threads=threads,
         **bayes_kw,
     )
+    if estimator_config is not None:
+        common["estimator_config"] = dict(estimator_config)
     if return_posterior_artifact:
         common["return_posterior_artifact"] = True
     if latency is not None:
@@ -555,7 +579,7 @@ def handle_temporal_pulse(
         _wrap_temporal,
     )
 
-    policy = "sustained" if isinstance(query, SustainedEffect) else "pulse"
+    policy = query.kind  # "pulse" | "sustained" — matches the native policy string directly
     _reject_unsupported_temporal(inference=inference, refute=refute, validators=validators)
     bayes_kw = _temporal_inference_kwargs(inference)
     if isinstance(data, EventFrame):
@@ -1021,6 +1045,99 @@ def _handle_series_discover(
     return _wrap_temporal(raw)
 
 
+def _dispatch_conditional(data: Any, query: Any, kw: dict[str, Any]) -> Any:
+    return handle_conditional(
+        data,
+        query,
+        graph=kw["graph"],
+        discovery=kw["discovery"],
+        inference=kw["inference"],
+        refute=kw["refute"],
+        validators=kw["validators"],
+        seed=kw["seed"],
+        bootstrap=kw["bootstrap"],
+        threads=kw["threads"],
+    )
+
+
+def _dispatch_temporal_mediation(data: Any, query: Any, kw: dict[str, Any]) -> Any:
+    return handle_temporal_mediation(
+        data,
+        query,
+        graph=kw["graph"],
+        discovery=kw["discovery"],
+        inference=kw["inference"],
+        seed=kw["seed"],
+        bootstrap=kw["bootstrap"],
+        threads=kw["threads"],
+    )
+
+
+def _dispatch_mediation(data: Any, query: Any, kw: dict[str, Any]) -> Any:
+    return handle_mediation(
+        data,
+        query,
+        graph=kw["graph"],
+        discovery=kw["discovery"],
+        refute=kw["refute"],
+        seed=kw["seed"],
+        bootstrap=kw["bootstrap"],
+        threads=kw["threads"],
+    )
+
+
+def _dispatch_counterfactual(data: Any, query: Any, kw: dict[str, Any]) -> Any:
+    return handle_counterfactual(
+        data,
+        query,
+        graph=kw["graph"],
+        discovery=kw["discovery"],
+        seed=kw["seed"],
+        threads=kw["threads"],
+    )
+
+
+def _dispatch_distribution(data: Any, query: Any, kw: dict[str, Any]) -> Any:
+    return handle_distribution(
+        data,
+        query,
+        graph=kw["graph"],
+        discovery=kw["discovery"],
+        accept_discovered=kw["accept_discovered"],
+        seed=kw["seed"],
+        threads=kw["threads"],
+    )
+
+
+def _dispatch_path_specific(data: Any, query: Any, kw: dict[str, Any]) -> Any:
+    return handle_path_specific(
+        data,
+        query,
+        graph=kw["graph"],
+        discovery=kw["discovery"],
+        accept_discovered=kw["accept_discovered"],
+        seed=kw["seed"],
+        bootstrap=kw["bootstrap"],
+        threads=kw["threads"],
+    )
+
+
+# Kinds whose routing is a pure function of `query.kind` — the handler never
+# depends on `discovery`'s *type*. "average" / "pulse" / "sustained" are
+# deliberately NOT here: a static/graph-posterior `discovery=` value changes
+# which handler runs (or raises) ahead of the query kind for those three, so
+# they stay as explicit sequential checks below, in the original ladder's
+# order, to keep that interaction visible rather than hidden in a table.
+_KIND_HANDLERS: dict[str, Callable[[Any, Any, dict[str, Any]], Any]] = {
+    "conditional": _dispatch_conditional,
+    "temporal_mediation": _dispatch_temporal_mediation,
+    "mediation": _dispatch_mediation,
+    "counterfactual": _dispatch_counterfactual,
+    "distribution": _dispatch_distribution,
+    "path_specific": _dispatch_path_specific,
+}
+
+
 def analyze(
     data: Mapping[str, Any] | Any | Sequence[Mapping[str, Any] | Any],
     *,
@@ -1050,8 +1167,8 @@ def analyze(
     discovery: Any | None = None,
     inference: Frequentist | Bayesian | None = None,
     identifier: str | Identifier | None = None,
-    estimator: str | Estimator | None = None,
-    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] = True,
+    estimator: str | Estimator | EstimatorConfigLike | None = None,
+    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
     validators: Sequence[Any] | None = None,
     accept_discovered: bool = True,
     seed: int = 1,
@@ -1062,6 +1179,7 @@ def analyze(
     cutoff: float | None = None,
     bandwidth: float | None = None,
     population_registry: Any | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     latency: Latency | Literal["interactive", "standard", "report"] | None = None,
     cancel: Any | None = None,
     on_progress: Any | None = None,
@@ -1103,6 +1221,12 @@ def analyze(
         Maps to known-equivalent bootstrap / refute / draws; explicit
         ``bootstrap=`` / ``refute=`` always win. Interactive refuses inline
         ``discovery=`` (artifact-first UX).
+    refute:
+        ``False`` or a suite name (``"full"`` / ``"placebo"`` / ``"cheap"`` /
+        ``"none"``) / :class:`antecedent.Refute` member. Leave unset (``None``)
+        to run the default suite — passing the literal ``True`` raises
+        ``TypeError`` (it carried no information beyond "unset" and was easy
+        to confuse with an explicit choice).
     cancel:
         Optional ``CancellationToken`` from ``antecedent._native``.
     on_progress:
@@ -1117,93 +1241,61 @@ def analyze(
     """
     if isinstance(identifier, Identifier):
         identifier = str(identifier)
+    if not isinstance(estimator, (str, Estimator)) and estimator is not None:
+        # A typed config from `antecedent.estimators` carries both the id and the
+        # config, so accepting both spellings at once would be ambiguous.
+        if estimator_config is not None:
+            raise ValueError(
+                "estimator= already carries its configuration; do not also pass estimator_config="
+            )
+        estimator_config = estimator._wire()
+        estimator = estimator.estimator_id
     if isinstance(estimator, Estimator):
         estimator = str(estimator)
-    if isinstance(latency, Latency):
-        latency = str(latency)  # type: ignore[assignment]
-    if isinstance(refute, Refute):
-        refute = str(refute)  # type: ignore[assignment]
+    if latency is not None:
+        latency = coerce_latency(latency)  # type: ignore[assignment]
+    # Unset preserves the historical default (native's own default suite) via the
+    # same `refute is True` sentinel `_resolve_latency_budget` already keys off.
+    # Only a caller-supplied value goes through `coerce_refute` — that is what
+    # makes an explicit `refute=True` rejectable without breaking every call that
+    # does not pass `refute=`.
+    resolved_refute: bool | str = True if refute is None else coerce_refute(refute)
     inference = inference or Frequentist()
-    bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
+    bootstrap, resolved_refute = _resolve_latency_budget(latency, bootstrap, resolved_refute)
 
     if discovery is not None and latency == "interactive":
         raise CausalUnsupportedError(
             "discovery= is not on the interactive estimate path; "
-            "call discover_* once, accept into AcceptedGraph, then "
+            "run discovery once (Config.accept(data) -> AcceptedGraph), then "
             "analyze(graph=..., latency='interactive')"
         )
 
-    if isinstance(query, ConditionalEffect):
-        return handle_conditional(
+    kind = getattr(query, "kind", "")
+
+    handler = _KIND_HANDLERS.get(kind) if kind else None
+    if handler is not None:
+        return handler(
             data,
             query,
-            graph=graph,
-            discovery=discovery,
-            inference=inference,
-            refute=refute,
-            validators=validators,
-            seed=seed,
-            bootstrap=bootstrap,
-            threads=threads,
+            {
+                "graph": graph,
+                "discovery": discovery,
+                "inference": inference,
+                "refute": resolved_refute,
+                "validators": validators,
+                "accept_discovered": accept_discovered,
+                "seed": seed,
+                "bootstrap": bootstrap,
+                "threads": threads,
+            },
         )
 
-    if isinstance(query, TemporalMediationEffect):
-        return handle_temporal_mediation(
-            data,
-            query,
-            graph=graph,
-            discovery=discovery,
-            inference=inference,
-            seed=seed,
-            bootstrap=bootstrap,
-            threads=threads,
-        )
-
-    if isinstance(query, MediationEffect):
-        return handle_mediation(
-            data,
-            query,
-            graph=graph,
-            discovery=discovery,
-            refute=refute,
-            seed=seed,
-            bootstrap=bootstrap,
-            threads=threads,
-        )
-
-    if isinstance(query, Counterfactual):
-        return handle_counterfactual(
-            data,
-            query,
-            graph=graph,
-            discovery=discovery,
-            seed=seed,
-            threads=threads,
-        )
-
-    if isinstance(query, InterventionalDistribution):
-        return handle_distribution(
-            data,
-            query,
-            graph=graph,
-            discovery=discovery,
-            accept_discovered=accept_discovered,
-            seed=seed,
-            threads=threads,
-        )
-
-    if isinstance(query, PathSpecificEffect):
-        return handle_path_specific(
-            data,
-            query,
-            graph=graph,
-            discovery=discovery,
-            accept_discovered=accept_discovered,
-            seed=seed,
-            bootstrap=bootstrap,
-            threads=threads,
-        )
-
+    # "average" / "pulse" / "sustained" route on `discovery`'s *type*, not just
+    # `query.kind` — a static/graph-posterior `discovery=` preempts even a
+    # Pulse/SustainedEffect query with `handle_static_ate_discover`'s own
+    # "requires AverageEffect" error, ahead of ever reaching the temporal-pulse
+    # handler below. This sequence mirrors the original isinstance ladder
+    # exactly (including that quirk) rather than keying purely on `kind`.
     if discovery is not None and isinstance(
         discovery, _STATIC_DISCOVERY + _GRAPH_POSTERIOR_DISCOVERY
     ):
@@ -1214,7 +1306,7 @@ def analyze(
             inference=inference,
             identifier=identifier,
             estimator=estimator,
-            refute=refute,
+            refute=resolved_refute,
             validators=validators,
             accept_discovered=accept_discovered,
             seed=seed,
@@ -1222,7 +1314,7 @@ def analyze(
             threads=threads,
         )
 
-    if discovery is not None and isinstance(query, AverageEffect):
+    if discovery is not None and kind == "average":
         raise ValueError(
             "AverageEffect with discovery= requires a static algorithm "
             "(PC/GES/LiNGAM/NOTEARS/FCI/RFCI); temporal discovery needs "
@@ -1237,7 +1329,7 @@ def analyze(
             inference=inference,
             identifier=identifier,
             estimator=estimator,
-            refute=refute,
+            refute=resolved_refute,
             validators=validators,
             seed=seed,
             bootstrap=bootstrap,
@@ -1245,6 +1337,7 @@ def analyze(
             running_variable=running_variable,
             cutoff=cutoff,
             bandwidth=bandwidth,
+            estimator_config=estimator_config,
             population_registry=population_registry,
             latency=latency,
             cancel=cancel,
@@ -1260,7 +1353,7 @@ def analyze(
             graph=graph,
             discovery=discovery,
             inference=inference,
-            refute=refute,
+            refute=resolved_refute,
             validators=validators,
             accept_discovered=accept_discovered,
             seed=seed,

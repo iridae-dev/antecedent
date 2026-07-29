@@ -17,7 +17,7 @@ def test_exact_dag_posterior_bayesian_ate_mixture():
 
     result = antecedent.analyze(
         {"t": t, "y": y, "z": z},
-        discovery=antecedent.ExactDagPosterior(),
+        discovery=antecedent.discovery.ExactDagPosterior(),
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         inference=antecedent.Bayesian(n_draws=80, prior_scale=100.0, backend="conjugate"),
         refute=False,
@@ -43,7 +43,7 @@ def test_exact_dag_posterior_rejects_frequentist():
     with pytest.raises(TypeError, match="Bayesian"):
         antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=antecedent.ExactDagPosterior(),
+            discovery=antecedent.discovery.ExactDagPosterior(),
             query=antecedent.AverageEffect(treatment="t", outcome="y"),
             inference=antecedent.Frequentist(),
             refute=False,
@@ -64,7 +64,7 @@ def test_dbn_posterior_bayesian_pulse_mixture():
 
     result = antecedent.analyze(
         {"pressure": pressure, "defect": defect},
-        discovery=antecedent.DbnPosterior(max_lag=1),
+        discovery=antecedent.discovery.DbnPosterior(max_lag=1),
         query=antecedent.PulseEffect(
             treatment="pressure",
             outcome="defect",

@@ -1,8 +1,9 @@
 """Graph types and interchange helpers.
 
-Prefer class methods (``Dag.from_dot``, ``Dag.to_json``, …). Free
-``dag_from_*`` / ``dag_to_*`` functions remain thin aliases that return
-``(node_count, edges[, names])`` for low-level codecs.
+Use the class methods for interchange (``Dag.from_dot``, ``Dag.to_json``,
+``Dag.from_networkx_adjacency``, …, and the equivalents on ``Cpdag``,
+``Pag``, ``Admg``). They return/accept the class's own name-keyed
+representation — no separate integer-index free-function codecs.
 """
 
 from __future__ import annotations
@@ -15,16 +16,6 @@ from ._native import (
     TemporalCpdag,
     TemporalDag,
     TemporalPag,
-    dag_from_dot,
-    dag_from_gml,
-    dag_from_json,
-    dag_from_networkx_adjacency,
-    dag_from_networkx_node_link,
-    dag_to_dot,
-    dag_to_gml,
-    dag_to_json,
-    dag_to_networkx_adjacency,
-    dag_to_networkx_node_link,
 )
 
 __all__ = [
@@ -35,14 +26,4 @@ __all__ = [
     "TemporalCpdag",
     "TemporalDag",
     "TemporalPag",
-    "dag_from_dot",
-    "dag_from_gml",
-    "dag_from_json",
-    "dag_from_networkx_adjacency",
-    "dag_from_networkx_node_link",
-    "dag_to_dot",
-    "dag_to_gml",
-    "dag_to_json",
-    "dag_to_networkx_adjacency",
-    "dag_to_networkx_node_link",
 ]
