@@ -164,17 +164,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pip install python/dist/*.whl numpy pytest
+          pip install python/dist/*.whl numpy pandas pyarrow pytest
           cd "$(mktemp -d)"
           python -c "import antecedent; print(antecedent.__version__)"
+          # Publishing to PyPI must not be gated on a narrower check than CI.
+          # Run the whole suite against the wheel that is about to ship.
           ROOT="${{ github.workspace }}"
-          pytest -q \
-            "$ROOT/python/tests/test_arrow_copy_gate.py" \
-            "$ROOT/python/tests/test_graph_interchange.py" \
-            "$ROOT/python/tests/test_analyze_ate_estimate.py" \
-            "$ROOT/python/tests/test_discover_pcmci.py" \
-            "$ROOT/python/tests/test_discover_pcmci_plus.py" \
-            "$ROOT/python/tests/test_gcm_rich_returns.py"
+          pytest -q "$ROOT/python/tests"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4

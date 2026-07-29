@@ -1,0 +1,58 @@
+# CodeQL SAST. `.github/codeql/codeql-config.yml` and `scripts/gate_codeql.sh`
+# already existed, but no workflow referenced them, so static analysis never ran
+# automatically. `scripts/gate_codeql.sh` remains the local equivalent (it needs
+# the codeql CLI on PATH); CI uses the hosted action with the same config and the
+# same security-and-quality suites.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly Monday 04:00 UTC, so advisory-database updates surface without a push.
+    - cron: "0 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [rust, python, actions]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.85
+        if: matrix.language == 'rust'
+        uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo
+        if: matrix.language == 'rust'
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

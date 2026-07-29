@@ -45,3 +45,8 @@ fuzz/target/
 # CodeQL local databases / SARIF
 .codeql-db/
 .codeql-results/
+
+# coverage artifacts
+.coverage
+coverage.xml
+htmlcov/
