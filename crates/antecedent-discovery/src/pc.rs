@@ -686,6 +686,47 @@ mod tests {
         );
     }
 
+    #[test]
+    fn three_parent_collider_orients_all_legs() {
+        // True: 0→1←2, 3→1. Dependent: (0,1), (1,2), (1,3). Parents 0, 2, 3 are mutually
+        // non-adjacent, so node 1 has three legs converging on it in
+        // `apply_orient_collider`'s `legs` pair loop -- regression for the stale-`legs`
+        // snapshot bug where the second and third pairs sharing an already-oriented leg
+        // re-called `orient_undirected` on it and hit
+        // "orient_undirected requires an undirected Tail–Tail edge", aborting `Pc::run()`.
+        let data = tabular_n(4, 40);
+        let vars = [
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+        ];
+        let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize), (1usize, 3usize)]);
+        let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle));
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(3);
+        let result = pc.run(&data, &vars, &mut ws, &ctx).unwrap();
+        let g = &result.evidence.graph;
+        assert_eq!(
+            g.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+                .unwrap()
+                .parent_child(),
+            Some((DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)))
+        );
+        assert_eq!(
+            g.edge_between(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1))
+                .unwrap()
+                .parent_child(),
+            Some((DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)))
+        );
+        assert_eq!(
+            g.edge_between(DenseNodeId::from_raw(3), DenseNodeId::from_raw(1))
+                .unwrap()
+                .parent_child(),
+            Some((DenseNodeId::from_raw(3), DenseNodeId::from_raw(1)))
+        );
+    }
+
     fn independent_gaussians(ncols: usize, nrows: usize, seed: u64) -> TabularData {
         let mut b = CausalSchemaBuilder::new();
         for i in 0..ncols {
@@ -835,11 +876,13 @@ mod tests {
         let vars: Vec<VariableId> = (0..9u32).map(VariableId::from_raw).collect();
         // Three node-disjoint (and thus edge-disjoint) 3-node chains: 0-1-2, 3-4-5,
         // 6-7-8. Nodes 1, 4, 7 have degree 2 (several degree>=2 nodes) while keeping
-        // every unshielded triple isolated to its own component -- deliberately
-        // avoiding a shared hub/chain edge touched by two different unshielded
-        // triples, which is a separate, pre-existing collider-orientation limitation
-        // (`orient_undirected requires an undirected Tail–Tail edge`) unrelated to
-        // the C1/C2 fixes under test here.
+        // every unshielded triple isolated to its own component. A shared hub/chain
+        // edge touched by two different unshielded triples used to hit a separate
+        // collider-orientation bug (`orient_undirected requires an undirected
+        // Tail–Tail edge`, from a stale `legs` snapshot in `apply_orient_collider`)
+        // that is now fixed -- see `three_parent_collider_orients_all_legs` above --
+        // but this test keeps the disjoint layout since it targets the C1/C2
+        // determinism fixes, not collider orientation.
         let oracle = OracleCi::new([(0usize, 1usize), (1, 2), (3, 4), (4, 5), (6, 7), (7, 8)]);
         let mut constraints = DiscoveryConstraints::default();
         constraints.max_cond_size = 2;
