@@ -209,8 +209,13 @@ pub struct MechanismChangeDetection {
     pub node: String,
     #[pyo3(get)]
     pub statistic: f64,
+    /// Raw per-target p-value, before any multiple-testing correction.
     #[pyo3(get)]
     pub p_value: f64,
+    /// P-value after the correction applied across the target family, or `None` when no
+    /// correction was applied. `changed` is decided from this when present.
+    #[pyo3(get)]
+    pub adjusted_p_value: Option<f64>,
     #[pyo3(get)]
     pub changed: bool,
 }
@@ -219,8 +224,9 @@ pub struct MechanismChangeDetection {
 impl MechanismChangeDetection {
     fn __repr__(&self) -> String {
         format!(
-            "MechanismChangeDetection(node={:?}, statistic={}, p_value={}, changed={})",
-            self.node, self.statistic, self.p_value, self.changed
+            "MechanismChangeDetection(node={:?}, statistic={}, p_value={}, \
+             adjusted_p_value={:?}, changed={})",
+            self.node, self.statistic, self.p_value, self.adjusted_p_value, self.changed
         )
     }
 }
@@ -835,6 +841,7 @@ impl PyFittedGcm {
                     node: var_name(&names, d.variable),
                     statistic: d.statistic,
                     p_value: d.p_value,
+                    adjusted_p_value: d.adjusted_p_value,
                     changed: d.changed,
                 })
                 .collect())

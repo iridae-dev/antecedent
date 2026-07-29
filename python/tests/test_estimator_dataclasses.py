@@ -503,3 +503,28 @@ def test_propensity_weighting_only_exposes_bootstrap_and_glm_options():
     assert cfg._wire() == {"bootstrap_replicates": 10, "glm_options": {"max_iter": 5}}
     with pytest.raises(TypeError):
         PropensityWeighting(se="cluster")  # type: ignore[call-arg]
+
+
+# --- caliper scale (Rust ↔ Python parity) ----------------------------------------------------
+
+
+def test_propensity_matching_caliper_scale_defaults_to_none_meaning_logit():
+    """Unset leaves the wire clean; Rust's own default is `CaliperScale::Logit`.
+
+    The 0.2 rule of thumb (Rosenbaum & Rubin 1985; Austin 2011) is a logit-scale
+    quantity, so logit is the default a caller passing 0.2 expects.
+    """
+    est = PropensityMatching(caliper=0.2)
+    assert est.caliper_scale is None
+    assert "caliper_scale" not in est._wire()
+
+
+def test_propensity_matching_caliper_scale_reaches_the_wire():
+    for scale in ("logit", "raw"):
+        wire = PropensityMatching(caliper=0.2, caliper_scale=scale)._wire()
+        assert wire["caliper_scale"] == scale
+
+
+def test_propensity_matching_rejects_unknown_caliper_scale():
+    with pytest.raises(ValueError, match="caliper_scale"):
+        PropensityMatching(caliper=0.2, caliper_scale="probit")  # type: ignore[arg-type]

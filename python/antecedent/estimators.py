@@ -46,6 +46,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Final, Literal
 
+from .errors import CausalValueError
 from .ids import Estimator
 
 SeKind = Literal[
@@ -332,7 +333,16 @@ class PropensityWeighting:
 
 @dataclass(frozen=True, slots=True)
 class PropensityMatching:
-    """``propensity.matching`` — nearest-neighbor propensity matching."""
+    """``propensity.matching`` — nearest-neighbor propensity matching.
+
+    ``caliper`` is a maximum matching distance, interpreted on ``caliper_scale``.
+    The default scale is ``"logit"``, matching the field convention: the familiar
+    0.2 rule of thumb (Rosenbaum & Rubin 1985; Austin 2011) is 0.2 standard
+    deviations *of the logit* propensity, not of the raw probability. The raw
+    probability scale compresses near 0 and 1, exactly where match quality matters
+    most, so a caliper given on it behaves quite differently. Pass
+    ``caliper_scale="raw"`` to match on the clipped propensity directly.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None
@@ -342,6 +352,7 @@ class PropensityMatching:
     panel_times: Sequence[int] | None = None
     glm_options: GlmOptions | None = None
     caliper: float | None = None
+    caliper_scale: Literal["logit", "raw"] | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -352,6 +363,10 @@ class PropensityMatching:
             multiway_ids=self.multiway_ids,
         )
         _validate_positive("caliper", self.caliper)
+        if self.caliper_scale is not None and self.caliper_scale not in ("logit", "raw"):
+            raise CausalValueError(
+                f'caliper_scale must be "logit" or "raw", got {self.caliper_scale!r}'
+            )
 
     @property
     def estimator_id(self) -> str:
@@ -369,6 +384,8 @@ class PropensityMatching:
         out.update(_wire_glm_options(self.glm_options))
         if self.caliper is not None:
             out["caliper"] = self.caliper
+        if self.caliper_scale is not None:
+            out["caliper_scale"] = self.caliper_scale
         return out
 
 

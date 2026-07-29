@@ -37,7 +37,10 @@ independently needed correction to match reality.
 - Record the actual released version history: **0.1.0** (2026-07-23, day-1
   crates.io facade) → **0.2.0** (2026-07-24, correctness cut) → **0.3.0**
   (2026-07-25, second correctness cut + facade/binding maintainability) →
-  **0.4.0** (2026-07-29, Python API-surface freeze).
+  **0.4.0** (2026-07-30, Python API-surface freeze + algorithmic correctness
+  pass: 25 confirmed defects fixed across identification, discovery,
+  estimation, attribution, and diagnostics — see the 0.4.0 `CHANGELOG.md`
+  entry's *Correctness* section and `docs/release-notes/v0.4.0.md`).
 - Record the actual artifact format freeze: `FormatVersion { major: 0,
   minor: 2 }` (`antecedent_io::STABLE_FORMAT`), unchanged from 0.2.0 through
   0.4.0. `FormatVersion { major: 0, minor: 1 }` remains a supported *source*

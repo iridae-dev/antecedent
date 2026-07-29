@@ -81,6 +81,24 @@ Antecedent treats scientific traceability and behavioural verification as requir
 
 These guarantees establish traceable algorithmic lineage, agreement on defined reference cases, and consistent cross-language behaviour. They do not validate a user's causal assumptions or imply endorsement by the referenced projects.
 
+What that amounts to as of 0.4.0:
+
+| | |
+|---|---|
+| Rust tests | 1323 |
+| Python tests | 503 |
+| Coverage floor | 85%, enforced in CI |
+| Conformance fixtures | 130 documented pages, `-D warnings` clippy and `cargo-deny` on every push |
+| Statistical gates | Type-I error, CI coverage, p-value uniformity, discovery false-positive rate — run on a schedule, too slow for every commit |
+| Platforms | CPython 3.11–3.14 on Linux, macOS, and Windows; Rust 1.85+ |
+
+Every-commit CI runs the full Rust and Python suites, both lint gates, CodeQL, and the
+domain-correctness gates that check conformance fixtures and cross-language parity. The
+statistical calibration gate — which measures whether nominal 95% intervals actually cover
+95% and whether null p-values are actually uniform — runs weekly and before every release.
+See [CHANGELOG.md](CHANGELOG.md) for what the 0.4.0 correctness audit found and fixed, and
+[docs/release-notes/v0.4.0.md](docs/release-notes/v0.4.0.md) for why those findings matter.
+
 ## Platform support
 
 Python wheels cover CPython 3.11–3.14 on Linux, macOS, and Windows:

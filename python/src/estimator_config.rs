@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use antecedent::EstimatorSpec;
 use antecedent_estimate::{
-    AipwAte, AnalyticSeKind, DistanceMatching, FrontDoorTwoStage, GlmAdjustmentAte,
+    AipwAte, AnalyticSeKind, CaliperScale, DistanceMatching, FrontDoorTwoStage, GlmAdjustmentAte,
     LinearAdjustmentAte, LinearFitKind, PropensityMatching, PropensityStratification,
     PropensityWeighting, TwoStageLeastSquares, WaldIv,
 };
@@ -69,6 +69,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "panel_times",
             "glm_options",
             "caliper",
+            "caliper_scale",
         ],
     ),
     ("propensity.stratification", &["bootstrap_replicates", "glm_options", "n_strata"]),
@@ -593,6 +594,21 @@ fn build_configured_spec(
             }
             if let Some(cal) = get_f64(dict, "caliper")? {
                 est = est.with_caliper(cal);
+            }
+            if let Some(scale) = get_string(dict, "caliper_scale")? {
+                // The caliper is a distance on whichever scale matching runs on; the 0.2
+                // rule of thumb (Rosenbaum-Rubin 1985, Austin 2011) is a logit-scale
+                // quantity, which is why `Logit` is the default.
+                let parsed = match scale.as_str() {
+                    "logit" => CaliperScale::Logit,
+                    "raw" => CaliperScale::Raw,
+                    other => {
+                        return Err(PyValueError::new_err(format!(
+                            "caliper_scale must be \"logit\" or \"raw\", got {other:?}"
+                        )));
+                    }
+                };
+                est = est.with_caliper_scale(parsed);
             }
             est.into()
         }

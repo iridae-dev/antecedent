@@ -274,11 +274,45 @@ jobs:
           find wheels -name '*.whl' | sort
           ls -la docs.tar.gz
 
+      # Release notes are maintainer-authored per version. `generate_release_notes` alone
+      # yields a bare commit list, which is the wrong register for a release page: it
+      # cannot say what a change means or who should care. A curated file at
+      # `docs/release-notes/<tag>.md` becomes the Release body, and GitHub's generated
+      # "Full Changelog" section is appended after it (the API appends generated notes to a
+      # supplied body rather than replacing it), so the commit-level detail is not lost.
+      #
+      # Always resolve to a real file so the release step cannot fail on a missing path —
+      # without curated notes we synthesize a short pointer to the CHANGELOG instead.
+      - name: Resolve release notes
+        id: notes
+        run: |
+          set -euo pipefail
+          TAG='${{ needs.prepare.outputs.tag }}'
+          VERSION='${{ needs.prepare.outputs.version }}'
+          CURATED="docs/release-notes/${TAG}.md"
+          if [[ -f "$CURATED" ]]; then
+            echo "using curated release notes: $CURATED"
+            cp "$CURATED" RELEASE_BODY.md
+          else
+            echo "::warning title=No curated release notes::\
+          Expected ${CURATED}. Falling back to a CHANGELOG pointer plus generated notes. \
+          Add the file and re-run to publish curated notes."
+            {
+              echo "Release ${TAG}."
+              echo
+              echo "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/CHANGELOG.md)"
+              echo "for the \`${VERSION}\` entry."
+            } > RELEASE_BODY.md
+          fi
+          echo "--- release body ---"
+          cat RELEASE_BODY.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: ${{ needs.prepare.outputs.tag }}
+          body_path: RELEASE_BODY.md
           generate_release_notes: true
           files: |
             wheels/*.whl

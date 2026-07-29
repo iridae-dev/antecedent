@@ -659,6 +659,7 @@ fn mechanism_change_detection(
                     node: name,
                     statistic: d.statistic,
                     p_value: d.p_value,
+                    adjusted_p_value: d.adjusted_p_value,
                     changed: d.changed,
                 }
             })
