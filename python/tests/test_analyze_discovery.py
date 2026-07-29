@@ -9,6 +9,25 @@ pytest.importorskip("antecedent")
 import antecedent
 
 
+def _two_regime_lag1_series(n: int = 120, seed: int = 3):
+    """Genuinely two-regime series: the lag-1 coefficient flips sign at the midpoint.
+
+    A single-regime series with an artificial half-split no longer exercises the
+    refuse-to-collapse property below: alternating refinement now fits each regime's
+    equation on its own rows, correctly detects that both halves share one model, and
+    merges them — leaving a single graph and nothing to refuse.
+    """
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=n)
+    y = np.empty(n)
+    y[0] = rng.normal()
+    mid = n // 2
+    for t in range(1, n):
+        coef = 0.8 if t < mid else -0.8
+        y[t] = coef * x[t - 1] + 0.05 * rng.normal()
+    return {"x": x, "y": y}
+
+
 def _lag1_series(n: int = 120, seed: int = 3):
     rng = np.random.default_rng(seed)
     x = rng.normal(size=n)
@@ -95,7 +114,7 @@ def test_analyze_discovery_rpcmci_regimes():
     history cap before the review gate — so both are accepted here. What is pinned
     is that one of them fires, with its documented reason.
     """
-    data = _lag1_series(n=100, seed=5)
+    data = _two_regime_lag1_series(n=200, seed=5)
     n = len(data["x"])
     regimes = [0] * (n // 2) + [1] * (n - n // 2)
     with pytest.raises(

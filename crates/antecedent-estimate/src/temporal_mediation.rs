@@ -409,6 +409,21 @@ mod tests {
             let expected = fixture["reference"][field].as_f64().unwrap();
             assert!((actual - expected).abs() <= tolerance, "{field}: {actual} != {expected}");
         }
+        // total = c*delta, direct = c'*delta, mediated = a*b*delta come from three separate
+        // OLS fits, but T is identical across the reduced-form and full regressions, so
+        // c = c' + a*b holds exactly in-sample by Frisch-Waugh-Lovell. This is a guaranteed
+        // identity today, not a live bug -- pin it as a cheap guard against a future change
+        // (switching to WLS, regularizing one fit, altering a design matrix) silently
+        // breaking it.
+        let total = est.total.unwrap();
+        let direct = est.direct.unwrap();
+        let mediated = est.mediated.unwrap();
+        assert!(
+            (total - (direct + mediated)).abs() < 1e-9,
+            "FWL identity violated: total={total} direct={direct} mediated={mediated} \
+             direct+mediated={}",
+            direct + mediated
+        );
     }
 
     #[test]

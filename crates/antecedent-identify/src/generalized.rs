@@ -117,11 +117,11 @@ impl GeneralizedAdjustmentIdentifier {
             }
         };
 
-        let sampler = CompletionSampler::new(pag.clone(), self.config.max_completions)
+        let mut sampler = CompletionSampler::new(pag.clone(), self.config.max_completions)
             .map_err(IdentificationError::from)?;
         let mut cases = Vec::new();
         let w = ProbabilityMass(self.config.per_completion_weight);
-        for completion in sampler {
+        for completion in sampler.by_ref() {
             let result = identify_on_mag_completion(
                 &completion.graph,
                 t,
@@ -136,6 +136,24 @@ impl GeneralizedAdjustmentIdentifier {
         }
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         envelope.push_features(pag_circle_features(pag));
+        // `NonparametricallyIdentified` on this path asserts identification for *every* member
+        // of the equivalence class. When the sampler hit its cap we only saw a deterministic
+        // low-mask prefix of that class, so the assertion is unearned — an unexamined
+        // completion may well be unidentified. Downgrade rather than overclaim.
+        if sampler.hit_cap() {
+            envelope.push_features([GraphFeature {
+                kind: Arc::from("completion_enumeration_capped"),
+                detail: Arc::from(format!(
+                    "examined {} MAG completion(s) under max_completions={}; the class is larger, \
+                     so identification is established only over the examined subset",
+                    envelope.cases.len(),
+                    self.config.max_completions
+                )),
+            }]);
+            if envelope.status == IdentificationStatus::NonparametricallyIdentified {
+                envelope.status = IdentificationStatus::PartiallyIdentified;
+            }
+        }
         Ok(envelope)
     }
 }

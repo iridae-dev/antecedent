@@ -28,6 +28,12 @@ pub enum StatsError {
         /// Context.
         message: &'static str,
     },
+    /// Requested option is not implemented on this code path.
+    #[error("unsupported: {message}")]
+    Unsupported {
+        /// Context.
+        message: &'static str,
+    },
     /// Backend failure.
     #[error("backend error: {0}")]
     Backend(String),

@@ -24,6 +24,7 @@ use antecedent_kernels::{shuffle, unbiased_index};
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
     KnnDependenceWorkspace, PreparedCiTest, nonparametric_permutation_count,
+    reject_unsupported_block_size,
 };
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
@@ -119,6 +120,7 @@ impl ConditionalIndependenceTest for KnnDependence {
         if workspace.block_perm.len() != n {
             workspace.block_perm = workspace.knn.perm.clone();
         }
+        reject_unsupported_block_size(request.significance, "KnnDependence")?;
         let n_perm = nonparametric_permutation_count(request.significance);
         let mut results = Vec::with_capacity(request.queries.len());
         for (qi, q) in request.queries.iter().enumerate() {
@@ -381,6 +383,7 @@ impl ConditionalIndependenceTest for SymbolicCmi {
             let strata = symbol_strata_sorted(request.columns, z, n);
             let mut y_perm = request.columns[q.y].to_vec();
             let mut rng = ctx.rng.stream(0x51C_u64.wrapping_add(qi as u64));
+            reject_unsupported_block_size(request.significance, "SymbolicCmi")?;
             let n_perm = nonparametric_permutation_count(request.significance);
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
@@ -517,6 +520,7 @@ impl ConditionalIndependenceTest for Gpdc {
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
+        reject_unsupported_block_size(request.significance, "Gpdc")?;
         let n_perm = nonparametric_permutation_count(request.significance);
         let policy = &ctx.kernel_policy;
         let mut results = Vec::with_capacity(request.queries.len());
@@ -643,6 +647,55 @@ mod tests {
     use crate::ci::types::{
         CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod,
     };
+
+    /// Tests whose null permutes exchangeably must refuse `block_size > 1`, not discard it.
+    ///
+    /// `KnnDependence`, `SymbolicCmi`, and `Gpdc` read only the *replicate count* out of
+    /// `SignificanceMethod::BlockShuffle` and then permute exchangeably (a full shuffle, or a
+    /// within-Z-stratum exchange). A caller asking for `block_size = 20` to preserve 20-step
+    /// serial dependence silently received an ordinary permutation null, which under-disperses
+    /// relative to the true sampling distribution and inflates Type I error for autocorrelated
+    /// data — the one case the parameter exists for. `block_size = 1` requests no blocking and
+    /// stays accepted.
+    #[test]
+    fn exchangeable_tests_refuse_block_preserving_requests() {
+        let x: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).sin()).collect();
+        let y: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).cos()).collect();
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+
+        let req_for = |block_size: usize| CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::BlockShuffle { replicates: 19, block_size },
+            confidence: ConfidenceMethod::default(),
+        };
+
+        for block_size in [5usize, 20] {
+            let req = req_for(block_size);
+            assert!(
+                KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
+                "KnnDependence accepted block_size={block_size} it cannot honour"
+            );
+            assert!(
+                SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
+                "SymbolicCmi accepted block_size={block_size} it cannot honour"
+            );
+            assert!(
+                Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
+                "Gpdc accepted block_size={block_size} it cannot honour"
+            );
+        }
+
+        // block_size = 1 imposes no blocking, so it must still run.
+        let req = req_for(1);
+        assert!(KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
+        assert!(SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
+        assert!(Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
+    }
 
     #[test]
     fn oracle_marks_dependence() {

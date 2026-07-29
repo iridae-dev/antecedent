@@ -12,7 +12,7 @@ use antecedent_core::{
     AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
     ShapleyConfig, VariableId,
 };
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::TabularData;
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
@@ -97,8 +97,6 @@ pub fn distribution_change(
         template: graph_model.clone(),
         baseline: baseline_mechs,
         comparison: comparison_mechs,
-        baseline_data,
-        comparison_data,
         players: players.clone(),
         player_kinds,
         outcome: outcome_dense,
@@ -157,14 +155,25 @@ pub(crate) fn mechanism_players(
     Ok(players)
 }
 
-/// Kind of Shapley player in joint change attribution.
+/// Why a node is a Shapley player in joint change attribution.
+///
+/// This records provenance, not behavior: on the [`distribution_change`] path every player
+/// is realized the same way — a coalition bit swaps that node's fitted mechanism. For a root
+/// the fitted mechanism *is* its marginal, so a mechanism swap already expresses an input
+/// change; for a non-root, swapping the conditional is the only intervention that keeps the
+/// causal factorization intact.
+///
+/// [`Input`](Self::Input) is currently unreachable here:
+/// [`require_mechanism_or_joint`] rejects [`AttributionComponents::Inputs`] before
+/// [`joint_players`] runs (that component set routes to `unit_change` instead), and
+/// [`AttributionComponents::All`] is rejected too. Only `Mechanism` and `Both` occur.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PlayerKind {
-    /// Swap fitted mechanism for this node.
+    /// Node has a fitted mechanism and is an ancestor of the outcome.
     Mechanism,
-    /// Replace observational draws with comparison/baseline empirical values.
+    /// Outcome parent reached without a mechanism player. Unreachable on this path.
     Input,
-    /// Both mechanism swap and empirical input mix.
+    /// Outcome parent that is also a mechanism player.
     Both,
 }
 
@@ -257,8 +266,6 @@ struct MechanismSwapPayoff<'a> {
     template: CompiledCausalModel,
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
-    baseline_data: TabularData,
-    comparison_data: TabularData,
     players: Vec<ComponentId>,
     player_kinds: Vec<PlayerKind>,
     outcome: DenseNodeId,
@@ -296,9 +303,19 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
 }
 
 impl MechanismSwapPayoff<'_> {
+    /// Outcome law under the hybrid model selected by `mask`.
+    ///
+    /// A coalition bit means "use this player's comparison-fitted mechanism"; everything
+    /// else stays at baseline. That mechanism swap is the *only* lever, and deliberately so.
+    ///
+    /// This previously also hard-set every `Input`/`Both` player to its column mean via
+    /// `Intervention::set`, which `sample_with_overlay` realizes as `out.fill(v)` before
+    /// mechanism sampling, then `continue`s. Two consequences, both wrong: the swapped
+    /// mechanism for a `Both` player was never read (dead code), and the player's whole
+    /// distribution collapsed to a point mass, so a regime difference that preserved the
+    /// mean — a variance shift, a shape change — produced identical coalition values and was
+    /// attributed exactly zero.
     fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        use antecedent_core::{Intervention, Value};
-
         let store = hybrid_mechanisms(
             &self.baseline,
             &self.comparison,
@@ -307,34 +324,11 @@ impl MechanismSwapPayoff<'_> {
             &self.player_kinds,
             mask,
         );
+
         let model = self.template.clone().with_mechanisms(store);
         let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(self.seed));
-
-        // Hard-set input/both players to the mean of the selected population.
-        let mut interventions = Vec::new();
-        for (i, &comp) in self.players.iter().enumerate() {
-            if !matches!(self.player_kinds[i], PlayerKind::Input | PlayerKind::Both) {
-                continue;
-            }
-            let data =
-                if mask & (1u64 << i) != 0 { &self.comparison_data } else { &self.baseline_data };
-            let col = data.float64_values(comp.variable())?;
-            let mean = col.iter().sum::<f64>() / col.len().max(1) as f64;
-            interventions.push(Intervention::set(comp.variable(), Value::f64(mean)));
-        }
-
-        let batch = if interventions.is_empty() {
-            sample_observational(&model, self.n_samples.max(1), &mut rng, &mut self.ws, self.ctx)?
-        } else {
-            antecedent_model::sample_interventional(
-                &model,
-                &interventions,
-                self.n_samples.max(1),
-                &mut rng,
-                &mut self.ws,
-                self.ctx,
-            )?
-        };
+        let batch =
+            sample_observational(&model, self.n_samples.max(1), &mut rng, &mut self.ws, self.ctx)?;
         let col = batch.column(self.outcome.as_usize())?;
         let (mu, var) = mean_var(col);
         Ok((mu, var.max(1e-12)))

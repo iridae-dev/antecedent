@@ -34,7 +34,7 @@ mod stratification;
 pub(crate) mod weighting;
 
 pub use distance::DistanceMatching;
-pub use matching::PropensityMatching;
+pub use matching::{CaliperScale, PropensityMatching};
 pub use prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap,

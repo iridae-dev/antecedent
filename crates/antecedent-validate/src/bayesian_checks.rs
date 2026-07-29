@@ -28,6 +28,13 @@ use crate::common::RefutationReport;
 use crate::error::ValidationError;
 
 /// Result of a prior or posterior predictive check.
+///
+/// Carries **two** discriminating axes so a model cannot pass merely by getting
+/// the predictive mean right: (1) location, via the mean of `mean_y` over
+/// simulations, and (2) dispersion, via the mean of the per-simulation
+/// cross-observation SD of predicted values. A model whose predictive mean is
+/// unbiased but whose predictive spread is badly wrong (e.g. off by 5×) fails
+/// on the dispersion axis even though the location axis looks fine.
 #[derive(Clone, Debug)]
 pub struct PredictiveCheckReport {
     /// Check kind.
@@ -40,32 +47,60 @@ pub struct PredictiveCheckReport {
     pub predictive_sd: f64,
     /// Two-sided tail probability of `observed` under the predictive distribution.
     pub p_value: f64,
+    /// Observed dispersion statistic: sample SD of the outcome across rows.
+    pub observed_dispersion: f64,
+    /// Mean, across simulations, of the per-simulation cross-observation SD of
+    /// predicted values (the dispersion test statistic).
+    pub predictive_dispersion_mean: f64,
+    /// Two-sided Monte Carlo p-value of `observed_dispersion` under the
+    /// simulated dispersion-statistic distribution.
+    pub dispersion_p_value: f64,
     /// Number of predictive simulations.
     pub n_sims: u32,
 }
 
 impl PredictiveCheckReport {
-    /// Convert to a suite [`RefutationReport`] using a two-sided α threshold on `p_value`.
+    /// Convert to a suite [`RefutationReport`] using a two-sided α threshold on both
+    /// the location (`p_value`) and dispersion (`dispersion_p_value`) axes.
+    ///
+    /// A single mean-only statistic cannot distinguish a well-calibrated predictive
+    /// distribution from one with the right mean but the wrong spread (U/M-shaped
+    /// misspecification on variance), so both axes must clear the threshold.
     #[must_use]
     pub fn to_refutation_report(&self, original_ate: f64, alpha: f64) -> RefutationReport {
         let name = match self.kind {
             PredictiveCheckKind::Prior => "prior_predictive",
             PredictiveCheckKind::Posterior => "posterior_predictive",
         };
-        let passed = self.p_value.is_finite() && self.p_value >= alpha;
+        let mean_ok = self.p_value.is_finite() && self.p_value >= alpha;
+        let dispersion_ok = self.dispersion_p_value.is_finite() && self.dispersion_p_value >= alpha;
+        let passed = mean_ok && dispersion_ok;
+        let comparison = self.p_value.min(self.dispersion_p_value);
         RefutationReport {
             refuter: Arc::from(name),
             original_ate,
             refuted_ate: self.predictive_mean,
-            comparison: self.p_value,
+            comparison,
             informative: true,
             passed,
             failure_condition: if passed {
                 None
-            } else {
+            } else if !mean_ok && !dispersion_ok {
+                Some(Arc::from(format!(
+                    "predictive check failed on mean (p={} < alpha={alpha}) and dispersion \
+                     (p={} < alpha={alpha})",
+                    self.p_value, self.dispersion_p_value
+                )))
+            } else if !mean_ok {
                 Some(Arc::from(format!(
                     "predictive check failed (p={} < alpha={alpha})",
                     self.p_value
+                )))
+            } else {
+                Some(Arc::from(format!(
+                    "predictive dispersion check failed (p={} < alpha={alpha}); predictive spread \
+                     does not match observed spread even though the mean matches",
+                    self.dispersion_p_value
                 )))
             },
             replicates: self.n_sims,
@@ -133,15 +168,13 @@ impl PriorPredictiveCheck {
         &self,
         problem: &PreparedBayesianProblem,
         prior: &PriorSet,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<PredictiveCheckReport, ValidationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
         if n == 0 || p == 0 {
             return Err(ValidationError::estimation_msg("empty design for PPC"));
         }
-        let observed = problem.design.outcome.iter().sum::<f64>() / n as f64;
-        let mut rng = CausalRng::from_seed(self.seed);
         let coef_prior = prior.gaussian_coefficients().ok_or_else(|| {
             ValidationError::estimation_msg("prior missing Gaussian coefficients for PPC")
         })?;
@@ -150,25 +183,39 @@ impl PriorPredictiveCheck {
                 "prior coefficient dimension mismatch for PPC",
             ));
         }
-        let mut summaries = Vec::with_capacity(self.n_sims as usize);
+        let mut rng = CausalRng::from_seed(self.seed);
+        let mut mean_summaries = Vec::with_capacity(self.n_sims as usize);
+        let mut disp_summaries = Vec::with_capacity(self.n_sims as usize);
         let mut beta = vec![0.0; p];
+        let mut y_pred = vec![0.0; n];
         for _ in 0..self.n_sims {
             // Draw β ~ prior once per simulation, then μ_i = g^{-1}(x_i'β).
             for c in 0..p {
                 beta[c] =
                     coef_prior.mean[c] + coef_prior.variance[c].sqrt() * standard_normal(&mut rng);
             }
-            let mut mean_y = 0.0;
             for r in 0..n {
                 let mut eta = 0.0;
                 for c in 0..p {
                     eta += problem.design.matrix[c * n + r] * beta[c];
                 }
-                mean_y += self.family.mean_from_eta(eta);
+                y_pred[r] = self.family.mean_from_eta(eta);
             }
-            summaries.push(mean_y / n as f64);
+            push_mean_and_dispersion(
+                &y_pred,
+                ctx.kernel_policy,
+                &mut mean_summaries,
+                &mut disp_summaries,
+            );
         }
-        Ok(summarize_check(PredictiveCheckKind::Prior, observed, &summaries, self.n_sims))
+        Ok(summarize_predictive_check(
+            PredictiveCheckKind::Prior,
+            &problem.design.outcome,
+            ctx.kernel_policy,
+            &mean_summaries,
+            &disp_summaries,
+            self.n_sims,
+        ))
     }
 }
 
@@ -206,14 +253,15 @@ impl PosteriorPredictiveCheck {
     ) -> Result<PredictiveCheckReport, ValidationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
-        let observed = problem.design.outcome.iter().sum::<f64>() / n as f64;
         let n_draws = posterior.draws.n_draws.min(self.n_sims as usize);
         if n_draws == 0 {
             return Err(ValidationError::estimation_msg("no posterior draws for PPC"));
         }
-        let mut summaries = Vec::with_capacity(n_draws);
+        let policy = KernelPolicy::default_policy();
+        let mut mean_summaries = Vec::with_capacity(n_draws);
+        let mut disp_summaries = Vec::with_capacity(n_draws);
+        let mut y_pred = vec![0.0; n];
         for d in 0..n_draws {
-            let mut mean_y = 0.0;
             for r in 0..n {
                 let mut eta = 0.0;
                 for c in 0..p {
@@ -221,11 +269,18 @@ impl PosteriorPredictiveCheck {
                     let b = posterior.draws.get(d, c).map_err(ValidationError::from)?;
                     eta += x * b;
                 }
-                mean_y += self.family.mean_from_eta(eta);
+                y_pred[r] = self.family.mean_from_eta(eta);
             }
-            summaries.push(mean_y / n as f64);
+            push_mean_and_dispersion(&y_pred, policy, &mut mean_summaries, &mut disp_summaries);
         }
-        Ok(summarize_check(PredictiveCheckKind::Posterior, observed, &summaries, n_draws as u32))
+        Ok(summarize_predictive_check(
+            PredictiveCheckKind::Posterior,
+            &problem.design.outcome,
+            policy,
+            &mean_summaries,
+            &disp_summaries,
+            n_draws as u32,
+        ))
     }
 }
 
@@ -483,6 +538,63 @@ fn summarize_check(
         predictive_mean: mean,
         predictive_sd: sd,
         p_value: p,
+        // Populated by [`summarize_predictive_check`], the two-axis wrapper around this
+        // function; callers of `summarize_check` directly (unit tests exercising the
+        // Monte Carlo p-value formula) only care about the location axis above.
+        observed_dispersion: 0.0,
+        predictive_dispersion_mean: 0.0,
+        dispersion_p_value: 1.0,
+        n_sims,
+    }
+}
+
+/// Push the per-simulation location (mean) and dispersion (cross-observation SD)
+/// summary statistics for one simulated/predicted row vector `y_pred`.
+///
+/// Dispersion is the sample SD of `y_pred` *across observations within a single
+/// simulation* — how spread the predicted values are over the design — which is
+/// exactly the axis a mean-only PPC statistic is blind to (see D3 / defect C:
+/// a model with an unbiased predictive mean but a badly wrong predictive spread
+/// must be caught here, not just on the mean axis).
+fn push_mean_and_dispersion(
+    y_pred: &[f64],
+    policy: KernelPolicy,
+    mean_summaries: &mut Vec<f64>,
+    disp_summaries: &mut Vec<f64>,
+) {
+    let n = y_pred.len().max(1) as f64;
+    let mean_y = y_pred.iter().sum::<f64>() / n;
+    let sd_y = reduce_posterior_draws(y_pred, PosteriorReduceOp::Std, &policy).unwrap_or(0.0);
+    mean_summaries.push(mean_y);
+    disp_summaries.push(sd_y);
+}
+
+/// Two-axis predictive check: combines a location (mean) Monte Carlo check with a
+/// dispersion (cross-observation SD) Monte Carlo check via [`summarize_check`], and
+/// merges both into a single [`PredictiveCheckReport`].
+fn summarize_predictive_check(
+    kind: PredictiveCheckKind,
+    outcome: &[f64],
+    policy: KernelPolicy,
+    mean_summaries: &[f64],
+    disp_summaries: &[f64],
+    n_sims: u32,
+) -> PredictiveCheckReport {
+    let n = outcome.len().max(1) as f64;
+    let observed_mean = outcome.iter().sum::<f64>() / n;
+    let observed_dispersion =
+        reduce_posterior_draws(outcome, PosteriorReduceOp::Std, &policy).unwrap_or(0.0);
+    let mean_report = summarize_check(kind, observed_mean, mean_summaries, n_sims);
+    let disp_report = summarize_check(kind, observed_dispersion, disp_summaries, n_sims);
+    PredictiveCheckReport {
+        kind,
+        observed: mean_report.observed,
+        predictive_mean: mean_report.predictive_mean,
+        predictive_sd: mean_report.predictive_sd,
+        p_value: mean_report.p_value,
+        observed_dispersion,
+        predictive_dispersion_mean: disp_report.predictive_mean,
+        dispersion_p_value: disp_report.p_value,
         n_sims,
     }
 }
@@ -739,6 +851,270 @@ mod tests {
         assert!(rep.informative);
         assert!(rep.comparison.is_finite() && rep.comparison > 0.0);
     }
+
+    #[test]
+    fn ppc_catches_variance_misspecification_mean_ok() {
+        // Defect C regression: construct data whose outcome mean is (nearly)
+        // constant across covariates but has large residual spread (SD ~5), so a
+        // model whose predictive draws imply a small cross-observation SD gets the
+        // *mean* right (mean-only PPC would pass) while badly understating the
+        // *dispersion* of the outcome. The added dispersion axis must catch this
+        // even though the location axis does not.
+        let n = 400usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        // t, z are both (near-)constant so the fitted/prior mean function has almost
+        // no cross-observation spread; y has a large, fixed residual (+/- 5) on top of
+        // a tiny signal, so E[y] is well predicted but SD(y) is not.
+        let mut rng = CausalRng::from_seed(99);
+        let t: Vec<f64> = (0..n).map(|_| 0.0).collect();
+        let z: Vec<f64> = (0..n).map(|_| 0.0).collect();
+        let y: Vec<f64> = (0..n).map(|_| 5.0 * standard_normal(&mut rng)).collect();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let data = TabularData::new(storage);
+
+        let bayes = BayesianGComputationAte {
+            backend: BayesianBackendKind::ConjugateGaussian,
+            n_draws: 300,
+            seed: 5,
+            // Tight prior around 0: the mean function is confidently ~0 everywhere,
+            // matching E[y]~0, but says nothing spreads out — the mean axis passes.
+            prior_scale: 0.05,
+            ..BayesianGComputationAte::new()
+        };
+        let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+
+        let rep = PriorPredictiveCheck { n_sims: 300, seed: 6, ..PriorPredictiveCheck::new() }
+            .check(&prep, &ctx)
+            .unwrap();
+
+        assert!(
+            rep.p_value >= 0.05,
+            "expected the mean axis to look fine (unbiased predictive mean), got p={}",
+            rep.p_value
+        );
+        assert!(
+            rep.dispersion_p_value < 0.05,
+            "expected the dispersion axis to catch the 5x variance mismatch, got \
+             dispersion_p_value={}",
+            rep.dispersion_p_value
+        );
+        let refuted = rep.to_refutation_report(0.0, 0.05);
+        assert!(
+            !refuted.passed,
+            "predictive check must fail overall when dispersion is badly wrong even \
+             though the mean matches"
+        );
+    }
+
+    #[test]
+    fn sbc_to_report_gates_on_uniformity_not_just_mean() {
+        // Defect B regression: a U-shaped rank histogram (ranks piled at the two
+        // extremes, overdispersed posterior) is symmetric about the middle bin so its
+        // mean rank fraction lands squarely in [0.35, 0.65] — a mean-only gate would
+        // pass it. The χ² uniformity statistic must catch it.
+        let n_reps = 200u32;
+        let n_draws = 100usize;
+        // Every replicate's rank is pinned at one of the two extremes (bins 0 and 9),
+        // alternating — a textbook U shape.
+        let ranks: Vec<u32> =
+            (0..n_reps).map(|i| if i % 2 == 0 { 0 } else { n_draws as u32 }).collect();
+        let n_d = n_draws as f64;
+        let fracs: Vec<f64> = ranks.iter().map(|&r| f64::from(r) / n_d).collect();
+        let mean_rank_frac = fracs.iter().sum::<f64>() / fracs.len() as f64;
+        assert!(
+            (0.35..=0.65).contains(&mean_rank_frac),
+            "fixture sanity: mean rank frac {mean_rank_frac} should look fine on its own"
+        );
+        let bins = 10usize;
+        let mut counts = vec![0.0; bins];
+        for &r in &ranks {
+            let b = ((u64::from(r) * bins as u64) / (n_draws as u64)).min(bins as u64 - 1) as usize;
+            counts[b] += 1.0;
+        }
+        let expected = f64::from(n_reps) / bins as f64;
+        let mut chi2 = 0.0;
+        for c in counts {
+            let d = c - expected;
+            chi2 += d * d / expected.max(1.0);
+        }
+        assert!(
+            chi2 > SBC_CHI2_CRITICAL_9DF_P99,
+            "fixture sanity: U-shaped ranks should trip the χ² statistic, got {chi2}"
+        );
+        let report = SbcReport { ranks: Arc::from(ranks), mean_rank_frac, uniformity_stat: chi2 };
+        let sbc = SimulationBasedCalibration { n_reps, n_draws, seed: 0 };
+        let rep = sbc.to_report(&report, 2.0);
+        assert!(
+            !rep.passed,
+            "SBC must fail on a U-shaped (non-uniform) rank distribution even though \
+             mean_rank_frac={mean_rank_frac:.3} is in [0.35, 0.65]"
+        );
+    }
+
+    /// Calibration-gate tests for defect A: [`SimulationBasedCalibration`] and
+    /// [`PosteriorCalibrationOnSyntheticScm`] are fully implemented but (prior to this
+    /// change) had zero call sites outside the `lib.rs` re-export — the Bayesian
+    /// posterior had no coverage check at all. `#[ignore]`d for the same reason as
+    /// `antecedent-estimate/src/calibration_coverage.rs`: many refits per test, too
+    /// slow for every `cargo test`. Run via `cargo test -p antecedent-validate
+    /// <name> -- --ignored --nocapture`.
+    mod calibration_gate {
+        use super::*;
+
+        fn coverage_band(n_reps: u32, level: f64) -> (f64, f64) {
+            let se = (level * (1.0 - level) / f64::from(n_reps)).sqrt();
+            let lo = (level - 4.0 * se).max(0.5);
+            let hi = (level + 4.0 * se).min(1.0);
+            (lo, hi)
+        }
+
+        #[test]
+        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        fn sbc_conjugate_gaussian_ranks_are_uniform() {
+            let (data, estimand, query) = toy();
+            let bayes = BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 300,
+                seed: 11,
+                prior_scale: 5.0,
+                ..BayesianGComputationAte::new()
+            };
+            let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = BayesianGCompWorkspace::default();
+            let ctx = ExecutionContext::for_tests(1);
+            let sbc = SimulationBasedCalibration { n_reps: 200, n_draws: 300, seed: 42 };
+            let report = sbc
+                .check(
+                    &bayes,
+                    &prep,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    &mut ws,
+                    &ctx,
+                )
+                .unwrap();
+            let rep = sbc.to_report(&report, 2.0);
+            assert!(
+                rep.passed,
+                "SBC should pass for a correctly specified conjugate Gaussian model: \
+                 mean_rank_frac={:.3} chi2={:.3}",
+                report.mean_rank_frac, report.uniformity_stat
+            );
+            assert!(
+                (0.35..=0.65).contains(&report.mean_rank_frac),
+                "mean_rank_frac={:.3} outside [0.35, 0.65]",
+                report.mean_rank_frac
+            );
+            assert!(
+                report.uniformity_stat < SBC_CHI2_CRITICAL_9DF_P99,
+                "chi2={:.3} exceeds critical value {SBC_CHI2_CRITICAL_9DF_P99:.3}",
+                report.uniformity_stat
+            );
+        }
+
+        #[test]
+        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        fn posterior_calibration_synthetic_scm_nominal_90_coverage() {
+            let (data, estimand, query) = toy();
+            let bayes = BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 300,
+                seed: 21,
+                prior_scale: 5.0,
+                ..BayesianGComputationAte::new()
+            };
+            let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = BayesianGCompWorkspace::default();
+            let ctx = ExecutionContext::for_tests(1);
+            let calib = PosteriorCalibrationOnSyntheticScm {
+                n_reps: 200,
+                n_draws: 300,
+                level: 0.9,
+                seed: 77,
+            };
+            let report = calib
+                .check(
+                    &bayes,
+                    &prep,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    &mut ws,
+                    &ctx,
+                )
+                .unwrap();
+            let (lo, hi) = coverage_band(report.n_reps, 0.9);
+            assert!(
+                report.coverage >= lo && report.coverage <= hi,
+                "nominal 90% credible-interval coverage={:.3} outside [{:.3}, {:.3}] \
+                 ({} reps); mean_abs_error={:.3}",
+                report.coverage,
+                lo,
+                hi,
+                report.n_reps,
+                report.mean_abs_error
+            );
+        }
+    }
 }
 
 /// MCMC chain diagnostics gate (ESS / R-hat / divergences).
@@ -933,10 +1309,20 @@ impl SimulationBasedCalibration {
         Ok(SbcReport { ranks: Arc::from(ranks), mean_rank_frac, uniformity_stat: chi2 })
     }
 
-    /// Convert to a refutation report (passes when mean rank fraction ∈ [0.35, 0.65]).
+    /// Convert to a refutation report.
+    ///
+    /// Passes only when **both** hold:
+    /// - the mean rank fraction is in `[0.35, 0.65]` (catches gross location bias), and
+    /// - the χ² uniformity statistic over the 10 rank bins is below
+    ///   [`SBC_CHI2_CRITICAL_9DF_P99`] (catches symmetric-about-0.5 U/M-shaped rank
+    ///   distributions — overdispersed / underdispersed posteriors — that a mean-only
+    ///   band cannot see because they average out to ≈0.5).
     #[must_use]
     pub fn to_report(&self, report: &SbcReport, original_ate: f64) -> RefutationReport {
-        let passed = (0.35..=0.65).contains(&report.mean_rank_frac);
+        let mean_ok = (0.35..=0.65).contains(&report.mean_rank_frac);
+        let uniform_ok = report.uniformity_stat.is_finite()
+            && report.uniformity_stat <= SBC_CHI2_CRITICAL_9DF_P99;
+        let passed = mean_ok && uniform_ok;
         RefutationReport {
             refuter: Arc::from("sbc"),
             original_ate,
@@ -946,16 +1332,37 @@ impl SimulationBasedCalibration {
             passed,
             failure_condition: if passed {
                 None
-            } else {
+            } else if !mean_ok && !uniform_ok {
+                Some(Arc::from(format!(
+                    "SBC mean rank frac {:.3} outside [0.35, 0.65] and χ²={:.3} exceeds critical \
+                     value {SBC_CHI2_CRITICAL_9DF_P99:.3} (9 df, p=0.99)",
+                    report.mean_rank_frac, report.uniformity_stat
+                )))
+            } else if !mean_ok {
                 Some(Arc::from(format!(
                     "SBC mean rank frac {:.3} outside [0.35, 0.65]",
                     report.mean_rank_frac
+                )))
+            } else {
+                Some(Arc::from(format!(
+                    "SBC rank distribution non-uniform: χ²={:.3} exceeds critical value \
+                     {SBC_CHI2_CRITICAL_9DF_P99:.3} (9 df, p=0.99); mean rank frac {:.3} looked \
+                     fine but ranks are not uniformly distributed (U- or M-shaped)",
+                    report.uniformity_stat, report.mean_rank_frac
                 )))
             },
             replicates: self.n_reps,
         }
     }
 }
+
+/// χ² critical value at the 0.99 quantile with 9 degrees of freedom (10 rank bins − 1).
+///
+/// Used to gate [`SimulationBasedCalibration::to_report`]'s uniformity check: SBC ranks
+/// should be uniform under a well-calibrated posterior, and this is the standard
+/// one-sided χ² goodness-of-fit critical value (e.g. Talts et al. 2018 §3 use the
+/// same chi-square uniformity diagnostic).
+const SBC_CHI2_CRITICAL_9DF_P99: f64 = 21.666;
 
 /// Posterior calibration on synthetic SCMs: known-ATE credible-interval coverage.
 #[derive(Clone, Debug)]

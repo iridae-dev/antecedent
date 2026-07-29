@@ -354,8 +354,12 @@ fn geyer_ess_split(seg_major: &[f64], m: usize, n: usize) -> f64 {
     for &p in &pairs {
         tau += 2.0 * p;
     }
-    tau = tau.max(1.0);
-    (s / tau).min(s)
+    // Stan/ArviZ floor τ̂ at 1/log10(S), not 1, and do not clamp ESS to S: antithetic
+    // (negatively autocorrelated) chains are legitimately super-efficient and can exceed the
+    // raw draw count. Flooring at 1 and clamping at S understates ESS — safe for trusting a
+    // posterior, but it misreports sampler quality and can spuriously fail the ESS gate.
+    tau = tau.max(1.0 / s.log10().max(f64::MIN_POSITIVE));
+    s / tau
 }
 
 fn split_autocovariances(seg_major: &[f64], m: usize, n: usize) -> (f64, Vec<f64>) {

@@ -93,12 +93,37 @@ impl PathSpecificIdentifier {
         let admg = prepared.admg();
         // Enumerate on the directed skeleton (DAG view of directed edges).
         let dag = admg_to_dag(admg)?;
-        let raw_paths =
-            dag.directed_paths(t, y, q.max_paths, q.max_len).map_err(IdentificationError::from)?;
+        let (raw_paths, paths_truncated) = dag
+            .directed_paths_with_budget(t, y, q.max_paths, q.max_len)
+            .map_err(IdentificationError::from)?;
         perf.candidates_examined = perf.candidates_examined.saturating_add(raw_paths.len() as u64);
 
-        let pi: Vec<Vec<DenseNodeId>> =
-            raw_paths.into_iter().filter(|path| path_matches_filter(path, &path_filter)).collect();
+        // The recanting-witness test below concludes "identifiable" from the *absence* of a
+        // witness. That inference is only valid over the complete path set: a witness sitting
+        // on a path the budget dropped would be missed, and the effect declared
+        // nonparametrically identified when Avin–Shpitser–Pearl says it is not. Fail closed.
+        if paths_truncated {
+            derivation.push(
+                "path_specific.truncated",
+                format!(
+                    "path enumeration hit its budget (max_paths={}, max_len={}); the recanting-witness \
+                     check cannot certify absence over an incomplete path set",
+                    q.max_paths, q.max_len
+                ),
+            );
+            return Ok(IdentificationResult::not_identified(
+                query,
+                derivation,
+                prepared.declared_assumptions().clone(),
+                perf,
+            ));
+        }
+
+        // π and its complement come from one enumeration: re-running it would only repeat the
+        // same budgeted search, and the two sets must partition the *same* path set for the
+        // recanting check below to mean anything.
+        let (pi, complement_paths): (Vec<Vec<DenseNodeId>>, Vec<Vec<DenseNodeId>>) =
+            raw_paths.into_iter().partition(|path| path_matches_filter(path, &path_filter));
         if pi.is_empty() {
             derivation.push("path_specific.empty", "no directed paths match path_nodes filter");
             return Ok(IdentificationResult::not_identified(
@@ -111,12 +136,7 @@ impl PathSpecificIdentifier {
         derivation
             .push("path_specific.paths", format!("{} path(s) retained after filter", pi.len()));
 
-        // All directed paths (for complementary / recanting check).
-        let all_paths =
-            dag.directed_paths(t, y, q.max_paths, q.max_len).map_err(IdentificationError::from)?;
-        let pi_set: HashSet<Vec<DenseNodeId>> = pi.iter().cloned().collect();
-        let complement: Vec<&Vec<DenseNodeId>> =
-            all_paths.iter().filter(|p| !pi_set.contains(*p)).collect();
+        let complement: Vec<&Vec<DenseNodeId>> = complement_paths.iter().collect();
 
         if let Some(w) = recanting_descendant(t, y, &pi, &complement) {
             derivation.push(
@@ -295,6 +315,54 @@ mod tests {
         let res = id.identify(&prep, &cq, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands[0].method.as_ref(), EstimandMethod::PathSpecificNatural.as_str());
+    }
+
+    /// A truncated path enumeration must never yield an "identified" verdict.
+    ///
+    /// The recanting-witness rule concludes identifiability from the *absence* of a witness.
+    /// On the graph below `w` is a genuine recanting witness (`w→a` on π, `w→b` off it), so
+    /// the correct answer is `NotIdentified`. Before the fix, `max_paths = 1` enumerated only
+    /// the π path, left the complement empty, found no witness, and returned
+    /// `NonparametricallyIdentified` — licensing an estimand Avin–Shpitser–Pearl forbids.
+    #[test]
+    fn truncated_path_enumeration_never_claims_identification() {
+        // 0=t 1=w 2=a 3=b 4=c 5=y;  t→c→y, t→w→b→y, t→w→a→y.  π = paths through `a`.
+        let mut dag = Dag::with_variables(6);
+        for (u, v) in [(0, 4), (4, 5), (0, 1), (1, 3), (3, 5), (1, 2), (2, 5)] {
+            dag.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v)).unwrap();
+        }
+        let id = PathSpecificIdentifier::new();
+        let prep = id.prepare_dag(&dag).unwrap();
+
+        for max_paths in [1usize, 2, 3, 64] {
+            let q =
+                PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(5))
+                    .with_path_nodes([VariableId::from_raw(2)])
+                    .with_max_paths(max_paths);
+            let cq = CausalQuery::PathSpecific(q);
+            let mut ws = IdentificationWorkspace::default();
+            let res = id.identify(&prep, &cq, &mut ws).unwrap();
+            assert_eq!(
+                res.status,
+                IdentificationStatus::NotIdentified,
+                "max_paths={max_paths} must not identify past a recanting witness"
+            );
+        }
+
+        // The untruncated run must reach the recanting rule itself, not merely fail closed.
+        let q = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(5))
+            .with_path_nodes([VariableId::from_raw(2)]);
+        let cq = CausalQuery::PathSpecific(q);
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &cq, &mut ws).unwrap();
+        assert!(
+            res.derivation
+                .steps
+                .iter()
+                .any(|s| s.rule.contains("recanting") && s.detail.contains("blocks")),
+            "full enumeration should cite the recanting witness, got {:?}",
+            res.derivation.steps
+        );
     }
 
     #[test]

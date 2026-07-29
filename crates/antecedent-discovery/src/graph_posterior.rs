@@ -396,6 +396,47 @@ pub fn edge_forbidden(
     constraints.is_forbidden(link) || constraints.tier_forbids(link.source, link.target)
 }
 
+/// Lagged link `from` at `lag` → `to` contemporaneous.
+#[must_use]
+pub fn lagged_link(variables: &[VariableId], from: usize, lag: u32, to: usize) -> LaggedLink {
+    LaggedLink {
+        source: variables[from],
+        source_lag: Lag::from_raw(lag),
+        target: variables[to],
+        target_lag: Lag::CONTEMPORANEOUS,
+    }
+}
+
+/// Whether constraints forbid the lagged edge `from_{t−lag} → to_t`.
+///
+/// [`edge_forbidden`] pins both endpoints to [`Lag::CONTEMPORANEOUS`] via [`static_link`],
+/// so it structurally cannot express a constraint on a lag > 0 edge. `DiscoveryConstraints`
+/// stores `LaggedLink`s precisely so lag-specific constraints can be written, and callers
+/// that score lagged structure need this variant to honor them.
+#[must_use]
+pub fn lagged_edge_forbidden(
+    constraints: &DiscoveryConstraints,
+    variables: &[VariableId],
+    from: usize,
+    lag: u32,
+    to: usize,
+) -> bool {
+    let link = lagged_link(variables, from, lag, to);
+    constraints.is_forbidden(link) || constraints.tier_forbids(link.source, link.target)
+}
+
+/// Whether constraints require the lagged edge `from_{t−lag} → to_t`.
+#[must_use]
+pub fn lagged_edge_required(
+    constraints: &DiscoveryConstraints,
+    variables: &[VariableId],
+    from: usize,
+    lag: u32,
+    to: usize,
+) -> bool {
+    constraints.is_required(lagged_link(variables, from, lag, to))
+}
+
 /// Whether constraints require directed edge `from → to`.
 #[must_use]
 pub fn edge_required(
@@ -575,7 +616,16 @@ pub fn mcmc_graph_diagnostics(
         ess_tail_min: Some(ess_tail_min),
         rhat_max: Some(rhat_max),
         n_divergences: Some(n_divergences),
-        mean_accept_prob: Some(1.0),
+        // Not fabricated: this function has no accept/reject counts to derive a real mean
+        // Metropolis acceptance probability from. The `rejected` counter threaded through
+        // `FinishMaskPosterior`/`GraphPosterior.rejected_invalid` (see `structure_mcmc.rs`,
+        // `order_mcmc.rs`) counts constraint-invalid proposals (e.g. would-create-a-cycle),
+        // not the sampler's actual per-step Metropolis accept/reject decision -- and it
+        // isn't even threaded into this function's signature. `allows_graph_posterior`
+        // below does not consult `mean_accept_prob`, so this is safe for the publication
+        // gate; callers reading `diagnostics.mean_accept_prob` for reporting get an honest
+        // "unknown" instead of a fabricated constant.
+        mean_accept_prob: None,
         n_warmup_divergences: Some(0),
         n_postwarmup_divergences: Some(n_divergences),
         max_abs_delta_h: Some(0.0),
@@ -597,7 +647,13 @@ pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
     let ess_ok = diagnostics.ess_bulk_min.is_some_and(|e| e.is_finite() && e > 10.0);
     let div_ok =
         diagnostics.n_postwarmup_divergences.or(diagnostics.n_divergences).is_some_and(|n| n == 0);
-    diagnostics.converged && rhat_ok && ess_ok && div_ok
+    // A chain that never accepted a structural move has bit-identical edge traces, which
+    // `graph_chain_diagnostics` reports as R̂ = 1.0 and ESS = `n_chains·n_draws` — perfect
+    // scores that mean "nothing varied", not "everything converged". `all_chains_moved` is
+    // the only signal that separates the two, so it has to be in the conjunction (as it is
+    // in `InferenceDiagnostics::mcmc_publication_ok`).
+    let moved_ok = diagnostics.all_chains_moved == Some(true);
+    diagnostics.converged && rhat_ok && ess_ok && div_ok && moved_ok
 }
 
 /// Set `converged` from [`allows_graph_posterior`]; optionally refuse publication.
@@ -698,6 +754,52 @@ pub fn graph_chain_diagnostics(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A chain that never moved must not publish, however good its other diagnostics look.
+    ///
+    /// When every edge indicator is constant across every chain and draw,
+    /// `graph_chain_diagnostics` reports R̂ = 1.0 and ESS = `n_chains·n_draws` — flawless
+    /// numbers that mean "nothing varied", not "everything converged". `all_chains_moved` is
+    /// the only field that separates the two cases, so the gate has to consult it.
+    #[test]
+    fn stuck_chain_is_refused_despite_perfect_rhat_and_ess() {
+        let stuck = InferenceDiagnostics {
+            converged: true,
+            factorization: HessianFactorization::Mcmc,
+            rhat_max: Some(1.0),
+            ess_bulk_min: Some(8_000.0),
+            ess_tail_min: Some(8_000.0),
+            n_postwarmup_divergences: Some(0),
+            all_chains_moved: Some(false),
+            ..InferenceDiagnostics::analytic("test")
+        };
+        assert!(
+            !allows_graph_posterior(&stuck),
+            "a sampler that never accepted a move must not be published"
+        );
+
+        let moved = InferenceDiagnostics { all_chains_moved: Some(true), ..stuck.clone() };
+        assert!(allows_graph_posterior(&moved), "an otherwise-clean moving chain must publish");
+
+        // Absent (None) is not evidence of movement either.
+        let unknown = InferenceDiagnostics { all_chains_moved: None, ..stuck };
+        assert!(!allows_graph_posterior(&unknown));
+    }
+
+    /// `mcmc_graph_diagnostics` has no accept/reject counts available to it, so it must not
+    /// invent a Metropolis acceptance rate. A caller reading `mean_accept_prob` for
+    /// reporting/debugging should see an honest "unknown" (`None`), not a fabricated
+    /// `Some(1.0)` that would misreport every real chain (which rejects some proposals) as
+    /// having accepted every move.
+    #[test]
+    fn mcmc_graph_diagnostics_does_not_fabricate_accept_prob() {
+        let d = mcmc_graph_diagnostics(4, 100, 500, 200.0, 150.0, 1.01, 0, true, true);
+        assert_eq!(
+            d.mean_accept_prob, None,
+            "mean_accept_prob must be None, not a fabricated constant: {:?}",
+            d.mean_accept_prob
+        );
+    }
 
     #[test]
     fn edge_bit_roundtrip_unique() {

@@ -35,6 +35,7 @@ use crate::adjustment::LinearAdjustmentAte;
 use crate::aipw::AipwAte;
 use crate::iv::WaldIv;
 use crate::propensity::{PropensityEstimationWorkspace, PropensityMatching, PropensityWeighting};
+use crate::rd::{RdWorkspace, SharpRegressionDiscontinuity};
 use crate::se::AnalyticSeKind;
 
 const TRUE_ATE: f64 = 2.0;
@@ -338,6 +339,57 @@ fn wald_iv_analytic_ci_coverage() {
         }
     }
     assert_coverage(covered, N_SIM, "wald_iv");
+}
+
+/// `R ~ U(cutoff-bandwidth, cutoff+bandwidth)` (so every draw lands inside the RD window),
+/// `T = 1{R ≥ cutoff}`, `Y = 1.0 + 0.5(R-c) + TRUE_ATE·T − 0.8·T·(R-c) + 0.3·noise` with a
+/// genuine Gaussian noise term. The jump at the cutoff is `TRUE_ATE`. Reuses `table_tyz`
+/// (treatment column is a required-but-unused placeholder for the RD estimator, which derives
+/// treatment status from the running variable rather than the query's treatment column).
+fn rd_scm(n: usize, seed: u64, cutoff: f64, bandwidth: f64) -> (TabularData, IdentifiedEstimand) {
+    let mut rng = CausalRng::from_seed(seed);
+    let mut t = Vec::with_capacity(n);
+    let mut y = Vec::with_capacity(n);
+    let mut r = Vec::with_capacity(n);
+    for _ in 0..n {
+        let u = rng.next_u64() as f64 / (u64::MAX as f64);
+        let ri = cutoff - bandwidth + 2.0 * bandwidth * u;
+        let centered = ri - cutoff;
+        let ti = if centered >= 0.0 { 1.0 } else { 0.0 };
+        let yi = 1.0 + 0.5 * centered + TRUE_ATE * ti - 0.8 * ti * centered
+            + 0.3 * standard_normal(&mut rng);
+        t.push(0.0);
+        y.push(yi);
+        r.push(ri);
+    }
+    let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
+    (table_tyz(t, y, r), estimand)
+}
+
+/// Sharp-RD analytic SE: `analytic_se_treatment` is the classical homoskedastic
+/// `(X'X)^{-1}σ²` specialised to RD's `[1, T, (R-c), T·(R-c)]` design, read off the
+/// treatment-column diagonal entry. This is the only coverage check the estimator had before
+/// this test — previously only the point estimate (`recovers_jump_of_three`) was calibrated.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn rd_sharp_analytic_ci_coverage() {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let est = SharpRegressionDiscontinuity {
+        bootstrap_replicates: 0,
+        ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+    };
+    let ctx = ExecutionContext::for_tests(6);
+    let mut covered = 0u32;
+    for s in 0..N_SIM {
+        let (data, estimand) = rd_scm(N_OBS, 6000 + u64::from(s), 0.0, 1.0);
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = RdWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        if covers(effect.ate, effect.se_analytic) {
+            covered += 1;
+        }
+    }
+    assert_coverage(covered, N_SIM, "rd_sharp_analytic");
 }
 
 #[test]

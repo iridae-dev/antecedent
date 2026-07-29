@@ -549,6 +549,15 @@ fn ancestral_removal_phase(
                     let (separation, tests) =
                         try_side(engine, pag, idx, x, x_lag, y, Lag::CONTEMPORANEOUS, workspace)?;
                     ci_tests += tests;
+                    // `try_side` returns `tests == 0` exactly when its own search pool was
+                    // smaller than `p_pc`, i.e. this side is exhausted. Any real test means the
+                    // X side still has unexplored subsets at this depth, so the loop has not
+                    // converged — without this the Y side alone decides, and an edge whose Y
+                    // side exhausted first breaks out before `p_pc` ever reaches the depth at
+                    // which the X side would have separated it.
+                    if tests > 0 {
+                        has_converged = false;
+                    }
                     if let Some((cond, stat, p)) = separation {
                         sep_cond = Some(cond);
                         last_stat = stat;

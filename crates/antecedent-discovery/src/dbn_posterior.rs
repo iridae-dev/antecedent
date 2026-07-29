@@ -32,8 +32,8 @@ use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_posterior::{
     EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, accumulate_marginals,
-    analytic_graph_diagnostics, has_edge, kish_ess, log_prior_mask, mask_is_dag, n_directed_edges,
-    normalize_log_weights, parents_of, set_edge,
+    analytic_graph_diagnostics, has_edge, kish_ess, lagged_edge_forbidden, lagged_edge_required,
+    log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights, parents_of, set_edge,
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
@@ -443,7 +443,19 @@ fn score_dbn_template(
         let mut pa: Vec<u32> = parents_of(cmask, p, j);
         for lag in 1..=max_lag {
             for i in 0..p {
-                if has_lag_edge(lmask, p, max_lag, lag, i, j) {
+                let present = has_lag_edge(lmask, p, max_lag, lag, i, j);
+                // `log_prior_mask` above enforces forbidden/required on the contemporaneous
+                // mask only — `edge_forbidden`/`edge_required` build their `LaggedLink` with
+                // both endpoints pinned to `Lag::CONTEMPORANEOUS`, so they structurally
+                // cannot see a lag > 0 constraint. Without this, a forbidden `X_{t-1} → Y_t`
+                // was a complete no-op for this engine and could carry posterior mass.
+                if present && lagged_edge_forbidden(&prior.constraints, variables, i, lag, j) {
+                    return None;
+                }
+                if !present && lagged_edge_required(&prior.constraints, variables, i, lag, j) {
+                    return None;
+                }
+                if present {
                     // Column index for (i, lag) in lagged design.
                     pa.push((lag as usize * p + i) as u32);
                 }
@@ -782,6 +794,60 @@ mod tests {
         assert!(
             lagged[idx_z_to_y] > 0.4,
             "P(z_{{t-1}}→y_t)={} (index {idx_z_to_y})",
+            lagged[idx_z_to_y]
+        );
+    }
+
+    /// A forbidden *lagged* edge must carry zero posterior mass.
+    ///
+    /// `log_prior_mask` only screens the contemporaneous mask, and
+    /// `edge_forbidden`/`edge_required` build their `LaggedLink` through `static_link`, which
+    /// pins both endpoints to `Lag::CONTEMPORANEOUS` — so they structurally cannot express a
+    /// constraint on a lag > 0 edge. The lag-edge loop applied only `max_parents`, making
+    /// `forbidden` a complete no-op for this engine. This is the same fixture as
+    /// `dbn_recovers_multi_parent_lag_edges`, where `x_{t-1} → y_t` is strongly supported by
+    /// the data, so the constraint has to actively suppress it.
+    #[test]
+    fn dbn_honors_forbidden_lagged_edge() {
+        let (data, vars) = multi_parent_lag_series(260);
+        let eng = DbnPosterior::new(1);
+        let mut constraints = crate::constraints::DiscoveryConstraints {
+            temporal: crate::constraints::TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::from_raw(1),
+            },
+            ..Default::default()
+        };
+        constraints.forbidden = Arc::from([crate::result::LaggedLink {
+            source: vars[0],
+            source_lag: Lag::from_raw(1),
+            target: vars[1],
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]);
+        let prior = GraphPrior::uniform().with_constraints(constraints);
+        let post = eng
+            .run(
+                &data,
+                &vars,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
+        let p = 3usize;
+        let idx_x_to_y = lag_bit(p, 1, 1, 0, 1) as usize;
+        let idx_z_to_y = lag_bit(p, 1, 1, 2, 1) as usize;
+        assert!(
+            lagged[idx_x_to_y] == 0.0,
+            "forbidden x_{{t-1}}→y_t still carries mass {}",
+            lagged[idx_x_to_y]
+        );
+        // The unconstrained sibling must survive, so this is a targeted ban and not a
+        // collapse of the whole lagged posterior.
+        assert!(
+            lagged[idx_z_to_y] > 0.4,
+            "P(z_{{t-1}}→y_t)={} should be unaffected",
             lagged[idx_z_to_y]
         );
     }

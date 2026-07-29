@@ -187,9 +187,20 @@ fn residual_summary(
         };
         let mut noise = vec![0.0; n];
         infer_noise_column(slot, &y, parents, &mut noise)?;
-        for &e in &noise {
-            abs_sum += e.abs();
-            abs_count += 1;
+        // A parentless node has no prediction to be residual *from*: its recovered noise is
+        // just its own deviation from its marginal mean, which is the variable's inherent
+        // spread rather than any misfit. Averaging that into `mean_abs_residual` would make
+        // the metric report a large "residual" for a perfectly specified model.
+        //
+        // This only became reachable once roots stopped being fit as `Constant` (which
+        // `residual_summary` skips outright). Roots still contribute their noise column to
+        // `residuals_by_node`, because the residual-independence and local-Markov checks
+        // downstream genuinely want a root's exogenous noise.
+        if gather.n_parents() > 0 {
+            for &e in &noise {
+                abs_sum += e.abs();
+                abs_count += 1;
+            }
         }
         residuals_by_node[node.as_usize()] = Some(noise);
     }
