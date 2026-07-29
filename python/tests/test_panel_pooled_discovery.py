@@ -20,11 +20,11 @@ def _lag1_unit(n: int = 100, seed: int = 3):
 
 
 def test_panel_pooled_pcmci_smoke():
-    panel = antecedent.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
+    panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
     try:
         result = antecedent.analyze(
             panel,
-            discovery=antecedent.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+            discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
             query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",
@@ -42,11 +42,11 @@ def test_panel_pooled_pcmci_smoke():
 
 
 def test_panel_pooled_rejects_rpcmci():
-    panel = antecedent.panel([_lag1_unit(seed=3), _lag1_unit(seed=4)])
+    panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4)])
     with pytest.raises(TypeError, match="PanelFrame discovery supports"):
         antecedent.analyze(
             panel,
-            discovery=antecedent.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+            discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
             query=antecedent.PulseEffect(
                 treatment="x",
                 outcome="y",

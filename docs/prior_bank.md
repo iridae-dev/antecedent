@@ -104,8 +104,8 @@ a residual-variance model. A Gaussian summary cannot itself express a prior
 over a **bounded proportion** or a **non-negative rate**, so
 `BetaHyperparameters` / `GammaHyperparameters`
 (`crates/antecedent-prob/src/conjugate_moment_match.rs`, Python
-`antecedent.prior_bank.beta_from_moments` /
-`antecedent.prior_bank.gamma_from_moments` and their `*_from_mean_and_ess`
+`antecedent.priors.beta_from_moments` /
+`antecedent.priors.gamma_from_moments` and their `*_from_mean_and_ess`
 siblings) convert a Gaussian-shaped summary into the matching conjugate
 family. Each family exposes **two constructors with distinct contracts** —
 reach for the one that matches what you actually know:

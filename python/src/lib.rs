@@ -22,6 +22,7 @@ mod bayesian;
 mod callbacks;
 mod design_api;
 mod discovery_api;
+mod estimator_config;
 mod gcm_api;
 mod graph_build;
 mod graph_io;
@@ -70,6 +71,7 @@ use antecedent::discovery::{
     discover_rpcmci as facade_discover_rpcmci, pag_definite_directed_edge_count,
     two_regime_half_split,
 };
+use antecedent::error::PendingEdge as FacadePendingEdge;
 use antecedent::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
 use antecedent::gcm::{
     CompiledCausalModel, DifferenceMeasure, DistributionChangeOptions, StructureChangeOptions,
@@ -128,6 +130,7 @@ use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
 use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
 use pyo3::types::PyDict;
 
 create_exception!(antecedent._native, CausalError, PyException);
@@ -148,6 +151,93 @@ create_exception!(antecedent._native, CausalResourceError, CausalError);
 create_exception!(antecedent._native, CausalReviewError, CausalError);
 create_exception!(antecedent._native, CausalUnsupportedError, CausalError);
 create_exception!(antecedent._native, CausalCancelledError, CausalError);
+
+/// One entry in a raised `ReviewRequired`'s `pending_edges` sequence.
+///
+/// Read-only wire type mirroring `antecedent::error::PendingEdge`, exposed to Python
+/// as plain attributes so `antecedent.errors.PendingEdge` (a frozen dataclass) can
+/// normalize instances of this into its own type without depending on this class's
+/// identity.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct CausalPendingEdge {
+    #[pyo3(get)]
+    source: String,
+    #[pyo3(get)]
+    target: String,
+    #[pyo3(get)]
+    at_source: String,
+    #[pyo3(get)]
+    at_target: String,
+}
+
+impl From<&FacadePendingEdge> for CausalPendingEdge {
+    fn from(edge: &FacadePendingEdge) -> Self {
+        Self {
+            source: edge.source.clone(),
+            target: edge.target.clone(),
+            at_source: edge.at_source.clone(),
+            at_target: edge.at_target.clone(),
+        }
+    }
+}
+
+/// The Python-defined `ReviewRequired` class, registered by `antecedent.errors` at
+/// import time via [`set_review_error_class`]. `None` when the native module is used
+/// standalone (e.g. `import antecedent._native` without the `antecedent` package),
+/// in which case [`review_required_py_err`] falls back to bare `CausalReviewError`.
+static REVIEW_ERROR_CLASS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+/// Register the Python `ReviewRequired` class the error mapper should instantiate for
+/// `CausalError::ReviewRequired`, collapsing what used to be ad hoc `setattr` calls at
+/// each Python-facing construction site into this one registration.
+///
+/// Called once by `antecedent.errors` at import time. A second call is a silent
+/// no-op: [`PyOnceLock`] only accepts the first `set`, and the intended caller is a
+/// single top-level import.
+#[pyfunction]
+fn set_review_error_class(py: Python<'_>, cls: Py<PyAny>) {
+    let _ = REVIEW_ERROR_CLASS.get_or_init(py, || cls);
+}
+
+/// Build the Python exception for `CausalError::ReviewRequired`.
+///
+/// Instantiates the registered `ReviewRequired` class (see [`set_review_error_class`])
+/// when available, so callers get the real class in `type(err).__mro__` plus a
+/// structured `pending_edges` attribute; falls back to bare `CausalReviewError` when
+/// nothing is registered. Either way this is the single place that builds a
+/// review-required Python exception — `kind` / `algorithm` / `pending_edge_count` /
+/// `pending_edges` / `hint` / `message` are attached identically in both branches, and
+/// `str(err)` stays byte-identical to `message`.
+fn review_required_py_err(
+    kind: String,
+    algorithm: Option<String>,
+    pending_edge_count: usize,
+    pending_edges: Arc<[FacadePendingEdge]>,
+    message: String,
+    hint: String,
+) -> PyErr {
+    Python::attach(|py| {
+        let edges: Vec<Py<CausalPendingEdge>> = pending_edges
+            .iter()
+            .filter_map(|e| Py::new(py, CausalPendingEdge::from(e)).ok())
+            .collect();
+
+        let err: PyErr = REVIEW_ERROR_CLASS
+            .get(py)
+            .and_then(|cls| cls.bind(py).call1((message.as_str(),)).ok())
+            .map_or_else(|| CausalReviewError::new_err(message.clone()), PyErr::from_value);
+
+        let inst = err.value(py);
+        let _ = inst.setattr("kind", kind.as_str());
+        let _ = inst.setattr("algorithm", algorithm.as_deref());
+        let _ = inst.setattr("pending_edge_count", pending_edge_count);
+        let _ = inst.setattr("pending_edges", edges);
+        let _ = inst.setattr("hint", hint.as_str());
+        let _ = inst.setattr("message", message.as_str());
+        err
+    })
+}
 
 /// Parse Python `refute=` — bool or suite name (`"full"` / `"placebo"` / `"none"`).
 /// `None` (omitted kwarg) defaults to PlaceboAndRcc.
@@ -358,18 +448,21 @@ impl IntoCausalPyErr for RustCausalError {
             Self::SchemaMismatch { detail } => CausalDataError::new_err(detail),
             Self::Compile { message } => CausalCompileError::new_err(message),
             Self::Resource { message } => CausalResourceError::new_err(message),
-            Self::ReviewRequired { kind, algorithm, pending_edge_count, message, hint } => {
-                let err = CausalReviewError::new_err(message.clone());
-                Python::attach(|py| {
-                    let inst = err.value(py);
-                    let _ = inst.setattr("kind", kind.as_str());
-                    let _ = inst.setattr("algorithm", algorithm.as_deref());
-                    let _ = inst.setattr("pending_edge_count", pending_edge_count);
-                    let _ = inst.setattr("hint", hint.as_str());
-                    let _ = inst.setattr("message", message.as_str());
-                });
-                err
-            }
+            Self::ReviewRequired {
+                kind,
+                algorithm,
+                pending_edge_count,
+                pending_edges,
+                message,
+                hint,
+            } => review_required_py_err(
+                kind,
+                algorithm,
+                pending_edge_count,
+                pending_edges,
+                message,
+                hint,
+            ),
             Self::Unsupported { message } => CausalUnsupportedError::new_err(message),
             Self::Missing { field } => {
                 CausalCompileError::new_err(format!("missing required field: {field}"))
@@ -615,6 +708,21 @@ pub(crate) struct AteAnalysisResult {
     early_stopped: bool,
     #[pyo3(get)]
     stage_timings: Vec<(String, u64)>,
+    /// Nested identification section (view onto the fields above of the same name).
+    #[pyo3(get)]
+    identification: IdentificationSection,
+    /// Nested estimate section.
+    #[pyo3(get)]
+    estimate: EstimateSection,
+    /// Nested posterior section.
+    #[pyo3(get)]
+    posterior: PosteriorSection,
+    /// Nested validation section.
+    #[pyo3(get)]
+    validation: ValidationSection,
+    /// Nested performance section.
+    #[pyo3(get)]
+    performance: PerformanceSection,
 }
 
 /// One refuter's record: which check ran, its comparison statistic, and pass/fail.
@@ -674,6 +782,175 @@ impl RefutationReportView {
             self.refuter, self.passed, self.comparison, self.replicates
         )
     }
+}
+
+// --- Nested result sections --------------------------------------------------------
+//
+// `AteAnalysisResult` (static) and `temporal_api::AnalysisResult` are both flat DTOs
+// with a lot of field-name overlap. These section pyclasses give both a shared,
+// structured view — `result.identification`, `result.estimate`, `result.posterior`,
+// `result.validation`, `result.performance` — mirroring the nested dataclasses in
+// `antecedent.results._views` field-for-field, so the Python wrapper that used to
+// hand-copy ~60 flat attributes per DTO can instead copy one section object per view.
+//
+// Purely additive: every existing flat field on both DTOs stays exactly where it is.
+// These are read-only companions built from the same underlying `StudyResult`, not a
+// replacement wire format. The temporal DTO genuinely lacks some of the fields the
+// static one has (see each section's doc comment for which); those come through as
+// `None` on the temporal side rather than a fabricated zero or empty string.
+
+/// Identification section (mirrors `antecedent.results.IdentificationView`).
+///
+/// Identical shape on both DTOs — the temporal facade always populates every field.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct IdentificationSection {
+    /// Identification status string (e.g. `"NonparametricallyIdentified"`).
+    #[pyo3(get)]
+    status: String,
+    /// Identification/estimand method id.
+    #[pyo3(get)]
+    method: String,
+    /// Names of variables in the adjustment set.
+    #[pyo3(get)]
+    adjustment_set: Vec<String>,
+    /// Number of assumptions recorded for the estimate.
+    #[pyo3(get)]
+    assumption_count: usize,
+    /// Number of derivation steps in the identification proof.
+    #[pyo3(get)]
+    derivation_step_count: usize,
+}
+
+/// Estimate section (mirrors `antecedent.results.EstimateView`'s top-level scalar
+/// fields; `mediation` is assembled separately by the Python wrapper).
+///
+/// `overlap_ess` / `overlap_propensity_min` are `None` on the temporal DTO — the
+/// temporal facade has no overlap report to draw them from.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct EstimateSection {
+    #[pyo3(get)]
+    ate: f64,
+    #[pyo3(get)]
+    se_analytic: f64,
+    #[pyo3(get)]
+    se_bootstrap: Option<f64>,
+    #[pyo3(get)]
+    estimator_id: String,
+    #[pyo3(get)]
+    method: String,
+    /// Effective sample size under overlap weighting. `None` on the temporal DTO.
+    #[pyo3(get)]
+    overlap_ess: Option<f64>,
+    /// Minimum estimated propensity score. `None` on the temporal DTO.
+    #[pyo3(get)]
+    overlap_propensity_min: Option<f64>,
+}
+
+/// Posterior section (mirrors the top-level scalar fields of
+/// `antecedent.results.PosteriorView`; `envelope` / `conflict` are assembled
+/// separately by the Python wrapper from other raw fields).
+///
+/// Always present as a section; every field is `None` when no posterior was
+/// computed (frequentist inference) — identical shape on both DTOs, since both
+/// flat DTOs already carry these fields as `Option`.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct PosteriorSection {
+    #[pyo3(get)]
+    effect_mean: Option<f64>,
+    #[pyo3(get)]
+    effect_sd: Option<f64>,
+    #[pyo3(get)]
+    q025: Option<f64>,
+    #[pyo3(get)]
+    q975: Option<f64>,
+    #[pyo3(get)]
+    n_draws: Option<usize>,
+    #[pyo3(get)]
+    p_below_zero: Option<f64>,
+    #[pyo3(get)]
+    backend: Option<String>,
+    /// Serialized posterior artifact bytes, when requested and available.
+    #[pyo3(get)]
+    artifact: Option<Vec<u8>>,
+    #[pyo3(get)]
+    unidentified_mass: Option<f64>,
+}
+
+/// Validation section (mirrors the `passed` / `ran` / `count` / `reports` fields of
+/// `antecedent.results.ValidationView`; `prior_predictive` / `posterior_predictive` /
+/// `prior_sensitivity` are assembled separately by the Python wrapper from other raw
+/// fields, which only the static DTO carries).
+///
+/// `passed` / `ran` follow the same aggregate rule on both DTOs: `ran` is whether any
+/// refuter ran at all, and `passed` is `ran && reports.iter().all(|r| r.passed)` —
+/// never `true` when nothing ran, matching the static `refutation_ran` /
+/// `refutation_passed` fields exactly.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct ValidationSection {
+    #[pyo3(get)]
+    passed: bool,
+    #[pyo3(get)]
+    ran: bool,
+    #[pyo3(get)]
+    count: usize,
+    /// Per-refuter records, one per validator run.
+    #[pyo3(get)]
+    reports: Vec<RefutationReportView>,
+}
+
+impl ValidationSection {
+    /// Build from a refutation-report slice, applying the shared pass/ran rule.
+    ///
+    /// The one place both DTOs compute `passed`/`ran` — see the struct doc for the
+    /// rule. Kept as a plain function (not tied to `RefutationReport` internals) so
+    /// both `ate_result_from_analysis` and `analysis_result_from_run` call the exact
+    /// same logic instead of maintaining two copies of the aggregate rule.
+    fn from_reports(reports: Vec<RefutationReportView>) -> Self {
+        let ran = !reports.is_empty();
+        let passed = ran && reports.iter().all(|r| r.passed);
+        let count = reports.len();
+        Self { passed, ran, count, reports }
+    }
+}
+
+/// Performance section (mirrors `antecedent.results.PerformanceView`).
+///
+/// Most fields are read straight from `StudyResult.performance`, which both the
+/// static and temporal execution paths populate. `bootstrap_replicates_ok`,
+/// `n_draws` (posterior draw effort), and `stage_timings` are the exception: no
+/// temporal execution path currently records them, so they come through as
+/// `None` / empty on the temporal DTO (see `analysis_result_from_run` in
+/// `temporal_api.rs` for exactly which fields and why).
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+struct PerformanceSection {
+    #[pyo3(get)]
+    plan_id: String,
+    #[pyo3(get)]
+    modality: String,
+    #[pyo3(get)]
+    peak_memory_bytes: Option<u64>,
+    #[pyo3(get)]
+    latency_mode: Option<String>,
+    #[pyo3(get)]
+    wall_time_ns: Option<u64>,
+    #[pyo3(get)]
+    bootstrap_replicates_requested: Option<u32>,
+    #[pyo3(get)]
+    bootstrap_replicates_ok: Option<u32>,
+    #[pyo3(get)]
+    n_draws: Option<u32>,
+    #[pyo3(get)]
+    cancelled: bool,
+    #[pyo3(get)]
+    early_stopped: bool,
+    /// `(stage name, elapsed nanoseconds)` pairs. Empty when not recorded.
+    #[pyo3(get)]
+    stage_timings: Vec<(String, u64)>,
 }
 
 /// Decoded posterior artifact for Python consumers .
@@ -1067,6 +1344,7 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
 fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
+    m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
     ate_api::register(m)?;
     discovery_api::register(m)?;
     temporal_api::register(m)?;
@@ -1077,9 +1355,15 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<CausalPendingEdge>()?;
     m.add_class::<ArrowLoadInfo>()?;
     m.add_class::<AteAnalysisResult>()?;
     m.add_class::<RefutationReportView>()?;
+    m.add_class::<IdentificationSection>()?;
+    m.add_class::<EstimateSection>()?;
+    m.add_class::<PosteriorSection>()?;
+    m.add_class::<ValidationSection>()?;
+    m.add_class::<PerformanceSection>()?;
     m.add_class::<PyCancellationToken>()?;
     m.add_class::<PosteriorArtifact>()?;
     m.add_class::<AnalysisResult>()?;

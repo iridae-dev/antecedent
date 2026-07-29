@@ -53,7 +53,7 @@ def test_validate_pcmci_block_bootstrap_smoke():
     y[0] = rng.normal()
     for t in range(1, n):
         y[t] = 0.5 * x[t - 1] + 0.2 * rng.normal()
-    report = antecedent.validate_pcmci_block_bootstrap(
+    report = antecedent.validation.validate_pcmci_block_bootstrap(
         {"x": x, "y": y},
         max_lag=1,
         alpha=0.2,
@@ -68,7 +68,7 @@ def test_validate_pcmci_block_bootstrap_smoke():
 
 
 def test_validate_synthetic_null_calibration_smoke():
-    report = antecedent.validate_synthetic_null_calibration(
+    report = antecedent.validation.validate_synthetic_null_calibration(
         max_lag=1,
         alpha=0.2,
         fdr=False,

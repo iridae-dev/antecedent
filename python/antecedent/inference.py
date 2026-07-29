@@ -5,18 +5,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from ._native import (
+    PosteriorArtifact,
+    decode_posterior_artifact,
+    encode_posterior_artifact,
+)
+
 if TYPE_CHECKING:
-    from .prior_bank import ComposedPrior, PriorMapping
+    from .priors import ComposedPrior, PriorMapping
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Frequentist:
     """Frequentist point estimate + bootstrap SE (default)."""
 
     kind: Literal["frequentist"] = "frequentist"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Bayesian:
     """Bayesian g-computation (Laplace / conjugate / HMC backends).
 
@@ -52,4 +58,10 @@ class Bayesian:
     kind: Literal["bayesian"] = "bayesian"
 
 
-__all__ = ["Bayesian", "Frequentist"]
+__all__ = [
+    "Bayesian",
+    "Frequentist",
+    "PosteriorArtifact",
+    "decode_posterior_artifact",
+    "encode_posterior_artifact",
+]

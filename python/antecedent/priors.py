@@ -175,7 +175,7 @@ class ExternalPriorSourceSpec:
     this source (e.g. the original study's N, or an effective N after a
     design discount). It is distinct from MCMC effective sample size and from
     Kish importance-weighting ESS (see ``ComposedPrior.kish_ess``) — see
-    :mod:`antecedent.prior_bank` module docs.
+    :mod:`antecedent.priors` module docs.
     """
 
     id: str

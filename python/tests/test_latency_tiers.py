@@ -78,7 +78,7 @@ def test_cancel_mid_bootstrap_partial():
     else:
         assert full_ok == requested
 
-    token = antecedent.CancellationToken()
+    token = antecedent.state.CancellationToken()
     seen = {"bootstrap": False}
 
     def on_progress(fraction: float, stage: str) -> None:

@@ -61,7 +61,7 @@ def test_sequential_prior_named_subset_when_design_shrinks():
     )
     assert a.posterior is not None
     artifact = bytes(a.posterior.artifact)
-    names = list(antecedent.decode_posterior_artifact(artifact).quantity_names)
+    names = list(antecedent.inference.decode_posterior_artifact(artifact).quantity_names)
     assert "coef_z" in names
 
     data2 = {"t": data["t"], "y": data["y"]}

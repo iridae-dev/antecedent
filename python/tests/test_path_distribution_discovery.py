@@ -38,7 +38,7 @@ def test_path_specific_lingam_discovery_smoke():
     data = _discrete_chain()
     result = antecedent.analyze(
         data,
-        discovery=antecedent.LiNGAM(),
+        discovery=antecedent.discovery.LiNGAM(),
         query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
         refute=False,
         bootstrap=0,
@@ -51,7 +51,7 @@ def test_interventional_lingam_discovery_smoke():
     data = _discrete_chain()
     result = antecedent.analyze(
         data,
-        discovery=antecedent.LiNGAM(),
+        discovery=antecedent.discovery.LiNGAM(),
         query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
         refute=False,
         bootstrap=0,
@@ -64,7 +64,7 @@ def test_path_specific_exact_dag_posterior_map():
     data = _binary_pair()
     result = antecedent.analyze(
         data,
-        discovery=antecedent.ExactDagPosterior(),
+        discovery=antecedent.discovery.ExactDagPosterior(),
         query=antecedent.PathSpecificEffect("x", "y"),
         refute=False,
         bootstrap=0,
@@ -83,7 +83,7 @@ def test_path_specific_fci_rejected():
     with pytest.raises(ValueError, match="oriented DAG|PAG|cannot invent"):
         antecedent.analyze(
             data,
-            discovery=antecedent.FCI(alpha=0.2, fdr=False),
+            discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False),
             query=antecedent.PathSpecificEffect("t", "y"),
             accept_discovered=True,
             refute=False,
@@ -102,7 +102,7 @@ def test_path_specific_incomplete_pc_rejected():
     with pytest.raises(ValueError, match="incomplete|orient|cannot invent|cannot coerce"):
         antecedent.analyze(
             data,
-            discovery=antecedent.PC(alpha=0.5, fdr=False, max_cond_size=0),
+            discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
             query=antecedent.PathSpecificEffect("t", "y"),
             accept_discovered=True,
             refute=False,
@@ -117,10 +117,10 @@ def test_path_specific_accept_discovered_false_review_attrs():
     z = rng.normal(size=n)
     t = z + rng.normal(size=n) * 0.3
     y = 1.2 * t + z + rng.normal(size=n) * 0.3
-    with pytest.raises(antecedent.CausalReviewError) as ei:
+    with pytest.raises(antecedent.errors.CausalReviewError) as ei:
         antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=antecedent.PC(alpha=0.5, fdr=False, max_cond_size=0),
+            discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
             query=antecedent.PathSpecificEffect("t", "y"),
             accept_discovered=False,
             refute=False,

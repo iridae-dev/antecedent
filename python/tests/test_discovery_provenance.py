@@ -79,12 +79,10 @@ def _assert_conditioning_set_shape(links, names):
 
 def test_conditioning_set_present_and_well_typed_across_family():
     names, cols = _chain_series()
-    pc = antecedent.discover_pc(names, cols, alpha=0.1, fdr=False, seed=9)
-    pcmci = antecedent.discover_pcmci(names, cols, max_lag=2, alpha=0.1, fdr=False, seed=9)
-    pcmci_plus = antecedent.discover_pcmci_plus(
-        names, cols, max_lag=2, alpha=0.1, fdr=False, seed=9
-    )
-    lpcmci = antecedent.discover_lpcmci(names, cols, max_lag=2, alpha=0.1, fdr=False, seed=9)
+    pc = PC(alpha=0.1, fdr=False).run((names, cols), seed=9)
+    pcmci = PCMCI(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
+    pcmci_plus = PCMCIPlus(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
+    lpcmci = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
     for result in (pc, pcmci, pcmci_plus, lpcmci):
         assert result.links, "expected at least one retained link for this chain"
         _assert_conditioning_set_shape(result.links, names)
@@ -96,7 +94,7 @@ def test_conditioning_set_empty_on_retained_pc_links():
     empty conditioning set — this is the documented invariant, not an omission.
     """
     names, cols = _chain_series()
-    result = antecedent.discover_pc(names, cols, alpha=0.1, fdr=False, seed=9)
+    result = PC(alpha=0.1, fdr=False).run((names, cols), seed=9)
     assert result.links
     assert all(link.conditioning_set == [] for link in result.links)
 
@@ -107,7 +105,7 @@ def test_conditioning_set_nonempty_and_correct_for_retained_pcmci_link():
     legitimately carries a non-empty conditioning set (see module docstring).
     """
     names, cols = _pruned_conditioning_series()
-    result = antecedent.discover_pcmci(names, cols, max_lag=1, alpha=0.05, fdr=True, seed=1)
+    result = PCMCI(max_lag=1, alpha=0.05, fdr=True).run((names, cols), seed=1)
     by_key = {
         (link.source, link.source_lag, link.target, link.target_lag): link for link in result.links
     }
@@ -132,7 +130,7 @@ def test_lpcmci_links_all_correspond_to_final_pag_edges():
     orientation.
     """
     names, cols = _chain_series()
-    result = antecedent.discover_lpcmci(names, cols, max_lag=2, alpha=0.1, fdr=False, seed=9)
+    result = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
     assert result.links, "expected at least one retained link for this chain"
 
     edge_pairs = {
@@ -156,15 +154,15 @@ def test_max_cond_size_default_matches_pc():
 
 
 @pytest.mark.parametrize(
-    "discover_fn",
-    [antecedent.discover_pcmci, antecedent.discover_pcmci_plus, antecedent.discover_lpcmci],
+    "discover_cls",
+    [PCMCI, PCMCIPlus, LPCMCI],
 )
-def test_max_cond_size_honored_by_native_functions(discover_fn):
+def test_max_cond_size_honored_by_native_functions(discover_cls):
     names, cols = _pruned_conditioning_series()
-    capped = discover_fn(names, cols, max_lag=1, alpha=0.05, max_cond_size=0)
-    default = discover_fn(names, cols, max_lag=1, alpha=0.05, max_cond_size=2)
+    capped = discover_cls(max_lag=1, alpha=0.05, max_cond_size=0).run((names, cols))
+    default = discover_cls(max_lag=1, alpha=0.05, max_cond_size=2).run((names, cols))
     assert capped.ci_tests != default.ci_tests, (
-        f"{discover_fn.__name__}: max_cond_size cap had no effect on ci_tests"
+        f"{discover_cls.__name__}: max_cond_size cap had no effect on ci_tests"
     )
 
 
@@ -206,7 +204,7 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
     data = dict(zip(names, cols, strict=True))
     query = PulseEffect(treatment="v1", outcome="v2", treatment_lag=1, horizon_steps=1)
 
-    with pytest.raises(antecedent.CausalIdentifyError, match="history cap"):
+    with pytest.raises(antecedent.errors.CausalIdentifyError, match="history cap"):
         antecedent.analyze(
             data,
             query=query,

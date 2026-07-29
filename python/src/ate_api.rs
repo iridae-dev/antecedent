@@ -435,6 +435,7 @@ fn parse_population_registry(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
     seed=1,
     bootstrap=50,
     threads=1,
@@ -469,6 +470,7 @@ fn analyze_ate(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -498,12 +500,19 @@ fn analyze_ate(
     let cancel_token = cancel.map(|c| c.inner);
     let progress = callbacks::progress_sink_from_py(on_progress.as_ref())?;
     let stage_sink = callbacks::stage_sink_from_py(on_stage.as_ref())?;
+    // Parsed with the GIL held (dict access requires it); the result is plain owned data
+    // that crosses into `detach_catch` via `move` like `estimator`/`bootstrap` already do.
     let latency_mode = match latency.as_deref() {
         None => None,
         Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
             PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?),
     };
+    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
+        estimator_config.as_ref(),
+        estimator.as_deref(),
+        bootstrap,
+    )?;
     // Drop NumPy borrows before releasing the GIL.
     drop(columns);
 
@@ -520,19 +529,39 @@ fn analyze_ate(
             query = query.with_target_population(pop);
         }
 
+        let crate::estimator_config::ParsedEstimatorConfig {
+            spec: configured_spec,
+            rd_running_variable: configured_rv,
+            rd_cutoff: configured_cutoff,
+            rd_bandwidth: configured_bandwidth,
+        } = parsed_estimator_config;
+        let (merged_rv, merged_cutoff, merged_bandwidth) =
+            crate::estimator_config::merge_rd_triple(
+                running_variable,
+                cutoff,
+                bandwidth,
+                configured_rv,
+                configured_cutoff,
+                configured_bandwidth,
+            )?;
         let rd_ids = parse_rd_config(
             estimator.as_deref(),
-            running_variable.as_deref(),
-            cutoff,
-            bandwidth,
+            merged_rv.as_deref(),
+            merged_cutoff,
+            merged_bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
         let mut builder = Study::tabular(data)
             .graph(dag)
             .query(query)
             .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap);
+            .custom_validators(custom_validators);
+        // A configured estimator already carries its own (default-or-overridden) bootstrap
+        // count; combining it with an explicit `StudyBuilder::bootstrap_replicates` call is
+        // refused at `build()` time (`CausalError::Conflict`), so skip that call here.
+        if configured_spec.is_none() {
+            builder = builder.bootstrap_replicates(bootstrap);
+        }
         if let Some(mode) = latency_mode {
             builder = builder.latency_mode(mode);
         }
@@ -550,7 +579,9 @@ fn analyze_ate(
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
             );
         }
-        if let Some(est) = estimator {
+        if let Some(spec) = configured_spec {
+            builder = builder.estimator(spec);
+        } else if let Some(est) = estimator {
             builder = builder.estimator(
                 est.parse::<antecedent::EstimatorId>()
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
@@ -602,6 +633,7 @@ fn analyze_ate(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
     seed=1,
     bootstrap=50,
     threads=1,
@@ -632,6 +664,7 @@ fn analyze_ate_arrow_c(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -657,6 +690,11 @@ fn analyze_ate_arrow_c(
             PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
         })?),
     };
+    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
+        estimator_config.as_ref(),
+        estimator.as_deref(),
+        bootstrap,
+    )?;
 
     detach_catch(py, move || {
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -666,19 +704,36 @@ fn analyze_ate_arrow_c(
 
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
 
+        let crate::estimator_config::ParsedEstimatorConfig {
+            spec: configured_spec,
+            rd_running_variable: configured_rv,
+            rd_cutoff: configured_cutoff,
+            rd_bandwidth: configured_bandwidth,
+        } = parsed_estimator_config;
+        let (merged_rv, merged_cutoff, merged_bandwidth) =
+            crate::estimator_config::merge_rd_triple(
+                running_variable,
+                cutoff,
+                bandwidth,
+                configured_rv,
+                configured_cutoff,
+                configured_bandwidth,
+            )?;
         let rd_ids = parse_rd_config(
             estimator.as_deref(),
-            running_variable.as_deref(),
-            cutoff,
-            bandwidth,
+            merged_rv.as_deref(),
+            merged_cutoff,
+            merged_bandwidth,
             |rv| data.schema().id_of(rv).map_err(py_err),
         )?;
         let mut builder = Study::tabular(data)
             .graph(dag)
             .query(query)
             .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap);
+            .custom_validators(custom_validators);
+        if configured_spec.is_none() {
+            builder = builder.bootstrap_replicates(bootstrap);
+        }
         if let Some(mode) = latency_mode {
             builder = builder.latency_mode(mode);
         }
@@ -690,7 +745,9 @@ fn analyze_ate_arrow_c(
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
             );
         }
-        if let Some(est) = estimator {
+        if let Some(spec) = configured_spec {
+            builder = builder.estimator(spec);
+        } else if let Some(est) = estimator {
             builder = builder.estimator(
                 est.parse::<antecedent::EstimatorId>()
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
@@ -840,6 +897,8 @@ fn analyze_ate_typed_graph(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
+    latency: Option<String>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -850,6 +909,17 @@ fn analyze_ate_typed_graph(
         refute.as_ref(),
         validators.as_ref(),
         threads,
+    )?;
+    let latency_mode = match latency.as_deref() {
+        None => None,
+        Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
+            PyValueError::new_err(format!("unknown latency={s:?}; use interactive|standard|report"))
+        })?),
+    };
+    let parsed_estimator_config = crate::estimator_config::parse_estimator_config(
+        estimator_config.as_ref(),
+        estimator.as_deref(),
+        bootstrap,
     )?;
     detach_catch(py, move || {
         run_ate_with_graph_input(
@@ -871,6 +941,8 @@ fn analyze_ate_typed_graph(
             running_variable,
             cutoff,
             bandwidth,
+            parsed_estimator_config,
+            latency_mode,
             seed,
             bootstrap,
             threads,
@@ -878,6 +950,7 @@ fn analyze_ate_typed_graph(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_ate_with_graph_input(
     names: &[String],
     batch: RecordBatch,
@@ -897,6 +970,8 @@ fn run_ate_with_graph_input(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    parsed_estimator_config: crate::estimator_config::ParsedEstimatorConfig,
+    latency_mode: Option<antecedent::LatencyMode>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -906,18 +981,32 @@ fn run_ate_with_graph_input(
     let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
     let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
     let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-    let rd_ids = parse_rd_config(
-        estimator.as_deref(),
-        running_variable.as_deref(),
+    let crate::estimator_config::ParsedEstimatorConfig {
+        spec: configured_spec,
+        rd_running_variable: configured_rv,
+        rd_cutoff: configured_cutoff,
+        rd_bandwidth: configured_bandwidth,
+    } = parsed_estimator_config;
+    let (merged_rv, merged_cutoff, merged_bandwidth) = crate::estimator_config::merge_rd_triple(
+        running_variable,
         cutoff,
         bandwidth,
+        configured_rv,
+        configured_cutoff,
+        configured_bandwidth,
+    )?;
+    let rd_ids = parse_rd_config(
+        estimator.as_deref(),
+        merged_rv.as_deref(),
+        merged_cutoff,
+        merged_bandwidth,
         |rv| data.schema().id_of(rv).map_err(py_err),
     )?;
-    let mut builder = Study::tabular(data)
-        .query(query)
-        .refute(suite)
-        .custom_validators(custom_validators)
-        .bootstrap_replicates(bootstrap);
+    let mut builder =
+        Study::tabular(data).query(query).refute(suite).custom_validators(custom_validators);
+    if configured_spec.is_none() {
+        builder = builder.bootstrap_replicates(bootstrap);
+    }
     builder = match graph {
         StaticGraphInput::Pag(pag) => builder.graph(pag),
         StaticGraphInput::Cpdag(cpdag) => {
@@ -933,7 +1022,9 @@ fn run_ate_with_graph_input(
                 .map_err(|e| PyValueError::new_err(e.to_string()))?,
         );
     }
-    if let Some(est) = estimator {
+    if let Some(spec) = configured_spec {
+        builder = builder.estimator(spec);
+    } else if let Some(est) = estimator {
         builder = builder.estimator(
             est.parse::<antecedent::EstimatorId>()
                 .map_err(|e| PyValueError::new_err(e.to_string()))?,
@@ -941,6 +1032,9 @@ fn run_ate_with_graph_input(
     }
     if let Some((rv_id, cut, bw)) = rd_ids {
         builder = builder.rd_config(rv_id, cut, bw);
+    }
+    if let Some(mode) = latency_mode {
+        builder = builder.latency_mode(mode);
     }
     run_static_ate_from_builder(
         names,
@@ -969,8 +1063,11 @@ fn run_ate_with_graph_input(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
+    latency=None,
     seed=1, bootstrap=50, threads=1
 ))]
+#[allow(clippy::too_many_arguments)]
 fn analyze_ate_pag(
     py: Python<'_>,
     names: Vec<String>,
@@ -991,6 +1088,8 @@ fn analyze_ate_pag(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
+    latency: Option<String>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -1015,6 +1114,8 @@ fn analyze_ate_pag(
         running_variable,
         cutoff,
         bandwidth,
+        estimator_config,
+        latency,
         seed,
         bootstrap,
         threads,
@@ -1031,8 +1132,11 @@ fn analyze_ate_pag(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
+    latency=None,
     seed=1, bootstrap=50, threads=1
 ))]
+#[allow(clippy::too_many_arguments)]
 fn analyze_ate_cpdag(
     py: Python<'_>,
     names: Vec<String>,
@@ -1053,6 +1157,8 @@ fn analyze_ate_cpdag(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
+    latency: Option<String>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -1077,6 +1183,8 @@ fn analyze_ate_cpdag(
         running_variable,
         cutoff,
         bandwidth,
+        estimator_config,
+        latency,
         seed,
         bootstrap,
         threads,
@@ -1093,8 +1201,11 @@ fn analyze_ate_cpdag(
     running_variable=None,
     cutoff=None,
     bandwidth=None,
+    estimator_config=None,
+    latency=None,
     seed=1, bootstrap=50, threads=1
 ))]
+#[allow(clippy::too_many_arguments)]
 fn analyze_ate_admg(
     py: Python<'_>,
     names: Vec<String>,
@@ -1115,6 +1226,8 @@ fn analyze_ate_admg(
     running_variable: Option<String>,
     cutoff: Option<f64>,
     bandwidth: Option<f64>,
+    estimator_config: Option<Bound<'_, PyDict>>,
+    latency: Option<String>,
     seed: u64,
     bootstrap: u32,
     threads: u32,
@@ -1139,6 +1252,8 @@ fn analyze_ate_admg(
         running_variable,
         cutoff,
         bandwidth,
+        estimator_config,
+        latency,
         seed,
         bootstrap,
         threads,
@@ -1649,20 +1764,79 @@ pub(crate) fn ate_result_from_analysis(
         conflict_summary_from_result(&result);
     let posterior_unidentified_mass = result.posterior.as_ref().map(|p| p.unidentified_mass);
 
+    // Values shared between an existing flat field and its new nested-section
+    // counterpart are computed once here, then cloned into the section so the
+    // flat field and the section can never drift apart.
+    let identification_status = format!("{:?}", result.identification.status);
+    let method = result.estimand.method.to_string();
+    let refutations: Vec<RefutationReportView> =
+        result.refutations.iter().map(RefutationReportView::from).collect();
+    let plan_id = result.logical_plan.plan_id.to_string();
+    let modality = format!("{:?}", result.logical_plan.data_classification);
+    let latency_mode =
+        result.performance.latency_mode.as_ref().map(std::string::ToString::to_string);
+    let bootstrap_replicates_ok =
+        result.performance.bootstrap_replicates_ok.or(result.estimate.bootstrap_replicates_ok);
+    let cancelled = result.performance.cancelled || result.estimate.bootstrap_cancelled;
+    let stage_timings: Vec<(String, u64)> =
+        result.performance.stage_timings_ns.iter().map(|(s, ns)| (s.to_string(), *ns)).collect();
+
+    let identification = IdentificationSection {
+        status: identification_status.clone(),
+        method: method.clone(),
+        adjustment_set: adjustment_set.clone(),
+        assumption_count: result.estimate.assumptions.len(),
+        derivation_step_count: result.identification.derivation.steps.len(),
+    };
+    let estimate = EstimateSection {
+        ate: result.estimate.ate,
+        se_analytic: result.estimate.se_analytic,
+        se_bootstrap: result.estimate.se_bootstrap,
+        estimator_id: estimator_id.clone(),
+        method: method.clone(),
+        overlap_ess,
+        overlap_propensity_min,
+    };
+    let posterior = PosteriorSection {
+        effect_mean: posterior_effect_mean,
+        effect_sd: posterior_effect_sd,
+        q025: posterior_q025,
+        q975: posterior_q975,
+        n_draws: posterior_n_draws,
+        p_below_zero: posterior_p_below_zero,
+        backend: posterior_backend.clone(),
+        artifact: posterior_artifact.clone(),
+        unidentified_mass: posterior_unidentified_mass,
+    };
+    let validation = ValidationSection::from_reports(refutations.clone());
+    let performance = PerformanceSection {
+        plan_id: plan_id.clone(),
+        modality: modality.clone(),
+        peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+        latency_mode: latency_mode.clone(),
+        wall_time_ns: result.performance.wall_time_ns,
+        bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
+        bootstrap_replicates_ok,
+        n_draws: result.performance.n_draws,
+        cancelled,
+        early_stopped: result.performance.early_stopped,
+        stage_timings: stage_timings.clone(),
+    };
+
     Ok(AteAnalysisResult {
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
         se_bootstrap: result.estimate.se_bootstrap,
         bootstrap_replicates_failed: result.estimate.bootstrap_replicates_failed,
         adjustment_set,
-        identification_status: format!("{:?}", result.identification.status),
+        identification_status,
         refutation_passed,
         refutation_ran,
-        refutation_count: result.refutations.len(),
-        refutations: result.refutations.iter().map(RefutationReportView::from).collect(),
+        refutation_count: refutations.len(),
+        refutations,
         assumption_count: result.estimate.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
-        method: result.estimand.method.to_string(),
+        method,
         estimator_id,
         overlap_ess,
         overlap_propensity_min,
@@ -1680,8 +1854,8 @@ pub(crate) fn ate_result_from_analysis(
             .map(|d| format!("{}: {}", d.code, d.message))
             .collect(),
         provenance_node_count: result.provenance.len(),
-        plan_id: result.logical_plan.plan_id.to_string(),
-        modality: format!("{:?}", result.logical_plan.data_classification),
+        plan_id,
+        modality,
         discovery_algorithm: result
             .logical_plan
             .discovery_algorithm
@@ -1724,26 +1898,19 @@ pub(crate) fn ate_result_from_analysis(
         conflict_alphas_requested,
         conflict_alphas_applied,
         posterior_unidentified_mass,
-        latency_mode: result
-            .performance
-            .latency_mode
-            .as_ref()
-            .map(std::string::ToString::to_string),
+        latency_mode,
         wall_time_ns: result.performance.wall_time_ns,
         bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
-        bootstrap_replicates_ok: result
-            .performance
-            .bootstrap_replicates_ok
-            .or(result.estimate.bootstrap_replicates_ok),
+        bootstrap_replicates_ok,
         n_draws_effort: result.performance.n_draws,
-        cancelled: result.performance.cancelled || result.estimate.bootstrap_cancelled,
+        cancelled,
         early_stopped: result.performance.early_stopped,
-        stage_timings: result
-            .performance
-            .stage_timings_ns
-            .iter()
-            .map(|(s, ns)| (s.to_string(), *ns))
-            .collect(),
+        stage_timings,
+        identification,
+        estimate,
+        posterior,
+        validation,
+        performance,
     })
 }
 

@@ -92,12 +92,17 @@ id_only = antecedent.identify(
     identifier=antecedent.Identifier.BACKDOOR_ADJUSTMENT,
 )
 
-gcm = antecedent.fit_gcm(["z", "t", "y"], columns, list(g.edges()))
+gcm = antecedent.model.fit_gcm(["z", "t", "y"], columns, list(g.edges()))
 draws = gcm.sample_do({"t": 1.0}, n=200)
 
 # Or discover then fit (never invents orientations; refuses incomplete PAG/FCI):
-fitted, edges = antecedent.fit_gcm_discovered(data, discovery=antecedent.PC(alpha=0.05))
+fitted, edges = antecedent.gcm.fit_gcm_discovered(
+    data, discovery=antecedent.discovery.PC(alpha=0.05)
+)
 ```
+
+The root namespace is frozen to 41 names; everything else is reached through a
+stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:
 
@@ -108,15 +113,15 @@ Also exposed:
 - Queries: `AverageEffect`, `MediationEffect`, `Counterfactual`, `PulseEffect`, `SustainedEffect`,
   `InterventionalDistribution`, `PathSpecificEffect`, `ConditionalEffect`,
   `TemporalMediationEffect`
-- `discover_*` (PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors)
-- `validate_pcmci_*` / discovery stability validators (block bootstrap, FPR, grids, …)
-- `FittedGcm` / `counterfactual_ite` / `sample_do` / `mechanism_kinds` — GCM counterfactuals
-- `PopulationRegistry` / `target_*` helpers for named predicates and custom-distribution IPW
-- `fit_gcm_discovered` / `attribute_*_discovered` — discover-then-attribute composition
-- `CausalState` — incremental state with retained batches, events, suff-stats, and particle filter
+- `antecedent.discovery` — PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors
+- `antecedent.validation.validate_pcmci_*` — discovery stability (block bootstrap, FPR, grids, …)
+- `antecedent.model` / `antecedent.counterfactual` — `FittedGcm`, `sample_do`, `counterfactual_ite`
+- `antecedent.population` — `PopulationRegistry` / `target_*` for named predicates and custom-distribution IPW
+- `antecedent.gcm` — `fit_gcm_discovered` / `attribute_*_discovered` discover-then-attribute composition
+- `antecedent.state.CausalState` — incremental state with retained batches, events, suff-stats, particle filter
 - `refute=True|"full"|"placebo"|False` on static and temporal `analyze`
 - RD: `estimator="rd.sharp"` with `running_variable` / `cutoff` / `bandwidth`
-- `dag_from_*` / `dag_to_*` — graph interchange (also `Dag.from_dot` / `.to_dot`)
+- Graph interchange on the classes: `Dag.from_dot` / `.to_dot` and the JSON / GML / NetworkX peers
 - Design / state examples: [`examples/python/rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/rank_designs.py),
   [`examples/python/causal_state_workflow.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/causal_state_workflow.py)
   (see ADR 0016 — no auto-rerun); catalog in [`examples/README.md`](https://github.com/iridae-dev/antecedent/blob/main/examples/README.md)

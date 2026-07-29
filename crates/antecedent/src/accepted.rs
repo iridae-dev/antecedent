@@ -13,13 +13,164 @@
 
 use std::sync::Arc;
 
-use antecedent_core::CausalSchema;
+use antecedent_core::{CausalSchema, NodeRef, TemporalNodeKey, VariableId};
 use antecedent_graph::{
-    Admg, Cpdag, CpdagReview, Dag, DagReview, Pag, PagReview, TemporalCpdag, TemporalCpdagReview,
-    TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview,
+    Admg, Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, Pag, PagReview, TemporalCpdag,
+    TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview,
 };
 
-use crate::error::{CausalError, ReviewKind};
+use crate::error::{CausalError, PendingEdge, ReviewKind};
+
+/// Human-readable identifier for a static [`VariableId`]-addressed node (`"V3"`).
+fn variable_name(id: VariableId) -> String {
+    id.to_string()
+}
+
+/// Identifier for a temporal node key: `"V3@-1"`, or `"V3@0"` for contemporaneous.
+fn temporal_key_name(key: TemporalNodeKey) -> String {
+    format!("{}@{}", key.variable, key.offset)
+}
+
+/// Identifier for a [`NodeRef`], matching [`temporal_key_name`]'s `variable@offset`
+/// scheme (used where only the pre-dense-indexing node identity is available, e.g.
+/// [`TemporalPag`]'s node table).
+fn node_ref_name(node: NodeRef) -> String {
+    match node {
+        NodeRef::Static(v) | NodeRef::Context { variable: v, .. } => variable_name(v),
+        NodeRef::Lagged { variable, lag } if lag.raw() == 0 => format!("{variable}@0"),
+        NodeRef::Lagged { variable, lag } => format!("{variable}@-{}", lag.raw()),
+    }
+}
+
+/// Wire string for an [`Endpoint`] mark: `"tail"`, `"arrow"`, `"circle"`, or
+/// `"conflict"` — the same vocabulary the Python `GraphEdge` binding uses.
+const fn endpoint_str(mark: Endpoint) -> &'static str {
+    match mark {
+        Endpoint::Tail => "tail",
+        Endpoint::Arrow => "arrow",
+        Endpoint::Circle => "circle",
+        Endpoint::Conflict => "conflict",
+    }
+}
+
+/// [`PendingEdge`]s for `(from, to)` pairs that are always tail-at-source,
+/// arrow-at-target: accepted-DAG-edge and directed-CPDAG-edge pending lists only ever
+/// hold Tail-Arrow pairs (see `MarkedEdge::parent_child`), so the marks need no graph
+/// lookup.
+fn pending_directed(edges: &[(VariableId, VariableId)]) -> Vec<PendingEdge> {
+    edges
+        .iter()
+        .map(|&(from, to)| {
+            PendingEdge::new(variable_name(from), variable_name(to), "tail", "arrow")
+        })
+        .collect()
+}
+
+/// [`PendingEdge`]s for undirected `(a, b)` pairs (tail-tail at both ends).
+fn pending_undirected_variable(edges: &[(VariableId, VariableId)]) -> Vec<PendingEdge> {
+    edges
+        .iter()
+        .map(|&(a, b)| PendingEdge::new(variable_name(a), variable_name(b), "tail", "tail"))
+        .collect()
+}
+
+/// Temporal counterpart of [`pending_directed`].
+fn pending_directed_temporal(edges: &[(TemporalNodeKey, TemporalNodeKey)]) -> Vec<PendingEdge> {
+    edges
+        .iter()
+        .map(|&(from, to)| {
+            PendingEdge::new(temporal_key_name(from), temporal_key_name(to), "tail", "arrow")
+        })
+        .collect()
+}
+
+/// Temporal counterpart of [`pending_undirected_variable`].
+fn pending_undirected_temporal(edges: &[(TemporalNodeKey, TemporalNodeKey)]) -> Vec<PendingEdge> {
+    edges
+        .iter()
+        .map(|&(a, b)| PendingEdge::new(temporal_key_name(a), temporal_key_name(b), "tail", "tail"))
+        .collect()
+}
+
+/// [`PendingEdge`]s for circle-bearing static PAG edges, resolving each pair's real
+/// marks from the graph rather than assuming both ends are circles (one side can be a
+/// definite tail or arrow with only the other circled).
+fn pending_pag_circles(graph: &Pag, circles: &[(DenseNodeId, DenseNodeId)]) -> Vec<PendingEdge> {
+    circles
+        .iter()
+        .filter_map(|&(a, b)| {
+            // Pag nodes are positional: DenseNodeId(i) is VariableId(i) (see
+            // AcceptedGraph's own doc comment on this invariant).
+            graph.edge_between(a, b).map(|edge| {
+                PendingEdge::new(
+                    variable_name(VariableId::from_raw(a.raw())),
+                    variable_name(VariableId::from_raw(b.raw())),
+                    endpoint_str(edge.at_a),
+                    endpoint_str(edge.at_b),
+                )
+            })
+        })
+        .collect()
+}
+
+/// Temporal counterpart of [`pending_pag_circles`]. Unlike the static case,
+/// [`TemporalPag`] dense ids are not positional variable ids, so each endpoint's
+/// [`NodeRef`] is read from the graph's node table.
+fn pending_temporal_pag_circles(
+    graph: &TemporalPag,
+    circles: &[(DenseNodeId, DenseNodeId)],
+) -> Vec<PendingEdge> {
+    circles
+        .iter()
+        .filter_map(|&(a, b)| {
+            let edge = graph.edge_between(a, b)?;
+            let source = *graph.nodes().get(a.as_usize())?;
+            let target = *graph.nodes().get(b.as_usize())?;
+            Some(PendingEdge::new(
+                node_ref_name(source),
+                node_ref_name(target),
+                endpoint_str(edge.at_a),
+                endpoint_str(edge.at_b),
+            ))
+        })
+        .collect()
+}
+
+/// [`PendingEdge`]s for a raw (directly asserted) [`Cpdag`]'s undirected and conflict
+/// marks — used by [`AcceptedGraph::cpdag`], which asserts a graph directly rather
+/// than completing a review artifact, so there is no stored pending list to draw from.
+fn pending_cpdag_marks(graph: &Cpdag) -> Vec<PendingEdge> {
+    graph
+        .edges()
+        .into_iter()
+        .filter(|e| e.is_undirected() || e.is_conflict())
+        .map(|e| {
+            let source =
+                graph.variable_id(e.a).map_or_else(|| format!("N{}", e.a.raw()), variable_name);
+            let target =
+                graph.variable_id(e.b).map_or_else(|| format!("N{}", e.b.raw()), variable_name);
+            PendingEdge::new(source, target, endpoint_str(e.at_a), endpoint_str(e.at_b))
+        })
+        .collect()
+}
+
+/// Temporal counterpart of [`pending_cpdag_marks`].
+fn pending_temporal_cpdag_marks(graph: &TemporalCpdag) -> Vec<PendingEdge> {
+    graph
+        .edges()
+        .into_iter()
+        .filter(|e| e.is_undirected() || e.is_conflict())
+        .map(|e| {
+            let source = graph
+                .temporal_key(e.a)
+                .map_or_else(|| format!("N{}", e.a.raw()), temporal_key_name);
+            let target = graph
+                .temporal_key(e.b)
+                .map_or_else(|| format!("N{}", e.b.raw()), temporal_key_name);
+            PendingEdge::new(source, target, endpoint_str(e.at_a), endpoint_str(e.at_b))
+        })
+        .collect()
+}
 
 /// Which graph class an [`AcceptedGraph`] holds.
 ///
@@ -132,10 +283,12 @@ impl AcceptedGraph {
     pub fn temporal_pag(g: TemporalPag) -> Result<Self, CausalError> {
         let pending = TemporalPagReview::from_pag(g, "asserted");
         if !pending.is_complete() {
+            let edges = pending_temporal_pag_circles(&pending.graph, &pending.pending_circles);
             return Err(CausalError::review_required(
                 ReviewKind::TemporalPag.as_str(),
                 None::<String>,
                 pending.pending_circles.len(),
+                edges,
                 "temporal PAG has unresolved circle marks",
                 "orient the circle marks, or supply a fully directed TemporalDag \
                  (no class-aware temporal PAG identifier is wired today)",
@@ -156,10 +309,12 @@ impl AcceptedGraph {
     pub fn cpdag(g: Cpdag) -> Result<Self, CausalError> {
         let pending = g.undirected_edge_count() + g.conflict_edge_count();
         if pending > 0 {
+            let edges = pending_cpdag_marks(&g);
             return Err(CausalError::review_required(
                 ReviewKind::StaticCpdag.as_str(),
                 None::<String>,
                 pending,
+                edges,
                 "CPDAG carries unresolved undirected or conflict marks",
                 "orient undirected marks and resolve conflicts, or supply a fully oriented Cpdag",
             ));
@@ -177,10 +332,12 @@ impl AcceptedGraph {
     pub fn temporal_cpdag(g: TemporalCpdag) -> Result<Self, CausalError> {
         let pending = g.undirected_edge_count() + g.conflict_edge_count();
         if pending > 0 {
+            let edges = pending_temporal_cpdag_marks(&g);
             return Err(CausalError::review_required(
                 ReviewKind::TemporalCpdag.as_str(),
                 None::<String>,
                 pending,
+                edges,
                 "temporal CPDAG carries unresolved undirected or conflict marks",
                 "orient undirected marks and resolve conflicts, or supply a fully oriented TemporalCpdag",
             ));
@@ -392,6 +549,7 @@ impl IntoAccepted for DagReview {
                 ReviewKind::StaticDag.as_str(),
                 Some(self.algorithm.to_string()),
                 self.pending_edges.len(),
+                pending_directed(&self.pending_edges),
                 "static DAG discovery review incomplete: pending directed edges remain",
                 "accept pending directed edges or supply a fully oriented Dag",
             ));
@@ -404,10 +562,13 @@ impl IntoAccepted for CpdagReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
         if !self.is_complete() {
             let pending = self.pending_edges.len() + self.pending_undirected.len();
+            let mut edges = pending_directed(&self.pending_edges);
+            edges.extend(pending_undirected_variable(&self.pending_undirected));
             return Err(CausalError::review_required(
                 ReviewKind::StaticCpdag.as_str(),
                 Some(self.algorithm.to_string()),
                 pending,
+                edges,
                 "static CPDAG review incomplete: pending edges or undirected marks remain",
                 "accept pending edges and orient undirected marks before estimation",
             ));
@@ -419,10 +580,12 @@ impl IntoAccepted for CpdagReview {
 impl IntoAccepted for PagReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
         if !self.is_complete() {
+            let edges = pending_pag_circles(&self.graph, &self.pending_circles);
             return Err(CausalError::review_required(
                 ReviewKind::StaticPag.as_str(),
                 Some(self.algorithm.to_string()),
                 self.pending_circles.len(),
+                edges,
                 "static PAG review incomplete: circle-bearing edges remain unreviewed",
                 "resolve circle marks, or call AcceptedGraph::pag(graph) directly — \
                  circles are safe input for generalized adjustment",
@@ -439,6 +602,7 @@ impl IntoAccepted for TemporalGraphReview {
                 ReviewKind::TemporalDag.as_str(),
                 Some(self.algorithm.to_string()),
                 self.pending_edges.len(),
+                pending_directed_temporal(&self.pending_edges),
                 "temporal DAG discovery review incomplete: pending edges remain",
                 "accept pending edges or supply a fully oriented TemporalDag",
             ));
@@ -451,10 +615,13 @@ impl IntoAccepted for TemporalCpdagReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
         if !self.is_complete() {
             let pending = self.pending_edges.len() + self.pending_undirected.len();
+            let mut edges = pending_directed_temporal(&self.pending_edges);
+            edges.extend(pending_undirected_temporal(&self.pending_undirected));
             return Err(CausalError::review_required(
                 ReviewKind::TemporalCpdag.as_str(),
                 Some(self.algorithm.to_string()),
                 pending,
+                edges,
                 "temporal CPDAG review incomplete: pending edges or undirected marks remain",
                 "accept pending edges and orient undirected marks before estimation",
             ));
@@ -466,10 +633,12 @@ impl IntoAccepted for TemporalCpdagReview {
 impl IntoAccepted for TemporalPagReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
         if !self.is_complete() {
+            let edges = pending_temporal_pag_circles(&self.graph, &self.pending_circles);
             return Err(CausalError::review_required(
                 ReviewKind::TemporalPag.as_str(),
                 Some(self.algorithm.to_string()),
                 self.pending_circles.len(),
+                edges,
                 "temporal PAG review incomplete: circle-bearing edges remain unreviewed",
                 "resolve circle marks, or call AcceptedGraph::temporal_pag(graph) directly — \
                  circles are safe input for generalized adjustment",
@@ -508,9 +677,17 @@ mod tests {
         let review = CpdagReview::from_cpdag(g, "pc");
         let err = AcceptedGraph::accept(review).unwrap_err();
         match err {
-            CausalError::ReviewRequired { kind, pending_edge_count, .. } => {
+            CausalError::ReviewRequired { kind, pending_edge_count, pending_edges, .. } => {
                 assert_eq!(kind, ReviewKind::StaticCpdag.as_str());
                 assert!(pending_edge_count > 0);
+                // The pending edge list must carry the real (undirected, tail-tail)
+                // mark, not just the count.
+                assert_eq!(pending_edges.len(), pending_edge_count);
+                let edge = &pending_edges[0];
+                assert_eq!(edge.at_source, "tail");
+                assert_eq!(edge.at_target, "tail");
+                assert!(!edge.source.is_empty());
+                assert!(!edge.target.is_empty());
             }
             other => panic!("expected ReviewRequired, got {other:?}"),
         }
