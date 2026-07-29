@@ -41,7 +41,13 @@ def test_fci_review_required_attrs():
     assert getattr(err, "kind", None) == "static_pag"
     assert getattr(err, "algorithm", None) == "fci"
     assert isinstance(getattr(err, "pending_edge_count", None), int)
-    assert getattr(err, "hint", None)
+    # Pin the hint content (mirrors PagReview::into_accepted's fixed message in
+    # crates/antecedent/src/accepted.rs), not just its truthiness — a non-empty
+    # string is not an actionable hint.
+    hint = getattr(err, "hint", None)
+    assert hint
+    assert "circle" in hint
+    assert "generalized adjustment" in hint
 
 
 def test_complete_temporal_pag_estimates():

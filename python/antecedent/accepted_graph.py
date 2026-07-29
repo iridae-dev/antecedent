@@ -27,7 +27,7 @@ from .discovery import (
     run_static_discovery,
     run_temporal_discovery,
 )
-from .errors import PendingEdge
+from .errors import CausalTypeError, CausalValueError, PendingEdge
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 
 _AnyDiscovery = StaticDiscovery | TemporalDiscovery
@@ -77,7 +77,7 @@ def _result_to_graph(result: DiscoveryResult, algorithm_id: str) -> Dag | Cpdag 
             a, b = e.source, e.target
             undirected.append((a, b) if a <= b else (b, a))
         else:
-            raise ValueError(
+            raise CausalValueError(
                 f"cannot hold edge {e.source}->{e.target} "
                 f"({e.at_source}/{e.at_target}) as Dag/Cpdag; "
                 "orient under review or use a PAG constructor"
@@ -85,11 +85,27 @@ def _result_to_graph(result: DiscoveryResult, algorithm_id: str) -> Dag | Cpdag 
     return Cpdag.from_directed_undirected(names, directed, undirected)
 
 
-def _result_to_temporal_graph(
-    result: DiscoveryResult, algorithm_id: str
-) -> TemporalDag | TemporalCpdag | TemporalPag:
-    """Coerce a PCMCI-family discovery result into a holdable temporal artifact."""
-    del algorithm_id  # reserved for PAG/LPCMCI mark handling
+def _temporal_names_from_graph_edges(result: DiscoveryResult) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for e in result.graph_edges:
+        for n in (e.source, e.target):
+            if n not in seen:
+                seen.add(n)
+                names.append(n)
+    if not names:
+        cpdag_nodes = getattr(result, "cpdag_nodes", None)
+        names = list(cpdag_nodes) if cpdag_nodes else ["x", "y"]
+    return names
+
+
+def _plain_pcmci_temporal_dag(result: DiscoveryResult) -> TemporalDag:
+    """Build a ``TemporalDag`` from a plain-PCMCI result's ``links``.
+
+    ``graph_edges`` is always empty for lagged-only PCMCI (see
+    ``python/src/discovery_api.rs``) — every retained link is already a
+    directed, time-ordered edge, with no CPDAG/PAG-style mark to resolve.
+    """
     names: list[str] = []
     seen: set[str] = set()
     directed: list[tuple[str, int, str, int]] = []
@@ -104,10 +120,72 @@ def _result_to_temporal_graph(
         cpdag_nodes = getattr(result, "cpdag_nodes", None)
         names = list(cpdag_nodes) if cpdag_nodes else ["x", "y"]
 
-    # Hold as TemporalDag from retained links. Incomplete PCMCI+ orientations
-    # should be completed under review before estimate; directed links still form
-    # a usable completion artifact for pulse estimates on identified paths.
+    # TemporalDag is fully oriented by construction, matching PCMCI having no
+    # CPDAG/PAG-style mark to resolve.
     return TemporalDag.from_lagged_edges(names, directed)
+
+
+def _result_to_temporal_graph(
+    result: DiscoveryResult, algorithm_id: str
+) -> TemporalDag | TemporalCpdag | TemporalPag:
+    """Coerce a PCMCI-family discovery result into a holdable temporal artifact.
+
+    Mirrors ``_result_to_graph``'s directed/undirected split, using
+    ``algorithm_id`` (rather than discarding it) because ``graph_edges`` is
+    populated differently per algorithm on the native side
+    (``python/src/discovery_api.rs``):
+
+    - ``"lpcmci"``: ``graph_edges`` carries genuine ``circle`` marks — LPCMCI's
+      native result is itself a ``TemporalPag`` (an ancestral graph with
+      unresolved circle endpoints). Always held as a ``TemporalPag`` — this
+      mirrors how ``_result_to_graph`` always holds FCI/RFCI as a ``Pag`` even
+      when every mark happens to already be resolved — so incomplete
+      orientations surface through :attr:`AcceptedGraph.pending` instead of
+      silently reporting "nothing to review" (the gate this fixes).
+    - ``"pcmci+"``: ``graph_edges`` carries ``("tail", "arrow")`` /
+      ``("arrow", "tail")`` (oriented) and ``("tail", "tail")`` (unresolved
+      contemporaneous) marks — never ``circle`` (the native ``TemporalCpdag``
+      type structurally rejects it). Held as a ``TemporalDag`` when fully
+      oriented, else a ``TemporalCpdag`` so the unresolved edges are visible
+      via :attr:`AcceptedGraph.pending`.
+    - ``"pcmci"`` (plain): ``graph_edges`` is always empty for lagged-only
+      PCMCI — every retained link is already directed and time-ordered, with
+      no CPDAG/PAG-style mark to resolve. Built from ``result.links`` instead,
+      as before; ``TemporalDag`` is already fully oriented by construction, so
+      there is nothing to gate here.
+    """
+    if algorithm_id == "lpcmci":
+        names = _temporal_names_from_graph_edges(result)
+        marked: list[tuple[str, int, str, int, str, str]] = [
+            (e.source, int(e.source_lag), e.target, int(e.target_lag), e.at_source, e.at_target)
+            for e in result.graph_edges
+        ]
+        return TemporalPag.from_marked_lagged_edges(names, marked)
+
+    if algorithm_id == "pcmci+":
+        names = _temporal_names_from_graph_edges(result)
+        directed: list[tuple[str, int, str, int]] = []
+        undirected: list[tuple[str, int, str, int]] = []
+        for e in result.graph_edges:
+            if e.at_source == "tail" and e.at_target == "arrow":
+                directed.append((e.source, int(e.source_lag), e.target, int(e.target_lag)))
+            elif e.at_source == "arrow" and e.at_target == "tail":
+                directed.append((e.target, int(e.target_lag), e.source, int(e.source_lag)))
+            elif e.at_source == "tail" and e.at_target == "tail":
+                undirected.append((e.source, int(e.source_lag), e.target, int(e.target_lag)))
+            else:
+                raise CausalValueError(
+                    f"cannot hold temporal edge {e.source}@{e.source_lag}->"
+                    f"{e.target}@{e.target_lag} ({e.at_source}/{e.at_target}) as "
+                    "TemporalDag/TemporalCpdag; orient under review or use LPCMCI's "
+                    "TemporalPag constructor"
+                )
+        if undirected:
+            return TemporalCpdag.from_lagged_edges(names, directed, undirected)
+        return TemporalDag.from_lagged_edges(names, directed)
+
+    # "pcmci" (plain) and any other temporal-family caller.
+    return _plain_pcmci_temporal_dag(result)
 
 
 class AcceptedGraph:
@@ -127,7 +205,7 @@ class AcceptedGraph:
         algorithm_id: str | None = None,
     ) -> None:
         if version < 1:
-            raise ValueError("version must be >= 1")
+            raise CausalValueError("version must be >= 1")
         self._graph = graph
         self._version = int(version)
         self._algorithm_id = algorithm_id
@@ -165,7 +243,7 @@ class AcceptedGraph:
     ) -> AcceptedGraph:
         """Accept a standalone ``discover_*`` result into a session artifact."""
         if not algorithm_id:
-            raise ValueError("algorithm_id is required for discovery provenance")
+            raise CausalValueError("algorithm_id is required for discovery provenance")
         algo = algorithm_id.lower().replace("pcmci_plus", "pcmci+")
         if algo in ("pcmci", "pcmci+", "lpcmci"):
             graph: _GraphTypes = _result_to_temporal_graph(result, algo)
@@ -328,7 +406,7 @@ class AcceptedGraph:
         """Restore from :meth:`to_json`."""
         obj = json.loads(s)
         if obj.get("format") != "causal.AcceptedGraph/v1":
-            raise ValueError(f"unsupported AcceptedGraph format: {obj.get('format')!r}")
+            raise CausalValueError(f"unsupported AcceptedGraph format: {obj.get('format')!r}")
         graph = _decode_graph(obj["kind"], obj["payload"])
         return cls(
             graph,
@@ -472,7 +550,7 @@ def _decode_graph(kind: str, payload: Any) -> _GraphTypes:
         return Admg.from_json(payload)
     if kind == "edges":
         return [(str(a), str(b)) for a, b in payload["edges"]]
-    raise ValueError(f"unknown AcceptedGraph kind: {kind!r}")
+    raise CausalValueError(f"unknown AcceptedGraph kind: {kind!r}")
 
 
 def _node_names(graph: _GraphTypes) -> list[str]:
@@ -548,7 +626,7 @@ def _iter_edges(graph: _GraphTypes) -> Iterator[Any]:
                     yield (a, b, "bidirected")
         return
     if isinstance(graph, (TemporalCpdag, TemporalPag)):
-        raise TypeError(
+        raise CausalTypeError(
             f"{type(graph).__name__} exposes no edge accessor in the native layer; "
             "iteration is unsupported for this graph kind"
         )
@@ -631,14 +709,14 @@ def _review_cpdag(
         src, tgt = edge
         key = frozenset((src, tgt))
         if key not in undirected_pairs:
-            raise ValueError(f"({src!r}, {tgt!r}) is not a pending edge on this Cpdag")
+            raise CausalValueError(f"({src!r}, {tgt!r}) is not a pending edge on this Cpdag")
         at_source, at_target = mark
         if (at_source, at_target) == ("tail", "arrow"):
             resolved[key] = (src, tgt)
         elif (at_source, at_target) == ("arrow", "tail"):
             resolved[key] = (tgt, src)
         else:
-            raise ValueError(
+            raise CausalValueError(
                 f"mark {mark!r} for ({src!r}, {tgt!r}) is not a valid Cpdag orientation; "
                 'use ("tail", "arrow") or ("arrow", "tail")'
             )
@@ -655,7 +733,7 @@ def _review_cpdag(
 
     cycle_edge = _find_cycle_edge(new_directed)
     if cycle_edge is not None:
-        raise ValueError(
+        raise CausalValueError(
             f"orienting {cycle_edge[0]!r}->{cycle_edge[1]!r} would create a directed cycle"
         )
 
@@ -680,16 +758,16 @@ def _review_pag(
     for edge, mark in marks.items():
         src, tgt = edge
         if frozenset((src, tgt)) not in pending_pairs:
-            raise ValueError(f"({src!r}, {tgt!r}) is not a pending edge on this Pag")
+            raise CausalValueError(f"({src!r}, {tgt!r}) is not a pending edge on this Pag")
         if src not in index or tgt not in index:
-            raise ValueError(f"({src!r}, {tgt!r}) is not a known edge on this Pag")
+            raise CausalValueError(f"({src!r}, {tgt!r}) is not a known edge on this Pag")
         at_source, at_target = mark
         if at_source not in ("tail", "arrow", "circle") or at_target not in (
             "tail",
             "arrow",
             "circle",
         ):
-            raise ValueError(
+            raise CausalValueError(
                 f"mark {mark!r} for ({src!r}, {tgt!r}) must use tail/arrow/circle endpoints"
             )
         updates[(index[src], index[tgt])] = (at_source, at_target)
@@ -721,7 +799,7 @@ def _review_graph(
     if not marks:
         return accepted.replace(graph)
     edge = next(iter(marks))
-    raise ValueError(
+    raise CausalValueError(
         f"{edge!r} is not a pending edge on {type(graph).__name__} (pending={accepted.pending!r})"
     )
 

@@ -48,6 +48,10 @@ def test_path_specific_lingam_discovery_smoke():
 
 
 def test_interventional_lingam_discovery_smoke():
+    # Same `_discrete_chain()` fixture as `test_path_specific_lingam_discovery_smoke`
+    # above (t, m, y are exact copies of each other, zero noise): do(t=1.0) forces
+    # y=1.0 deterministically, so the interventional mean has known ground truth —
+    # a wildly wrong finite value must not pass.
     data = _discrete_chain()
     result = antecedent.analyze(
         data,
@@ -57,7 +61,7 @@ def test_interventional_lingam_discovery_smoke():
         bootstrap=0,
         seed=1,
     )
-    assert np.isfinite(result.ate)
+    assert abs(result.ate - 1.0) < 0.1
 
 
 def test_path_specific_exact_dag_posterior_map():
@@ -131,7 +135,11 @@ def test_path_specific_accept_discovered_false_review_attrs():
     assert getattr(err, "kind", None) == "static_cpdag"
     assert getattr(err, "algorithm", None) == "pc"
     assert isinstance(getattr(err, "pending_edge_count", None), int)
-    assert getattr(err, "hint", None)
+    # Pin the hint content (mirrors CpdagReview::into_accepted's fixed message in
+    # crates/antecedent/src/accepted.rs), not just its truthiness.
+    hint = getattr(err, "hint", None)
+    assert hint
+    assert "orient remaining edges" in hint and "finish_*_review" in hint
 
 
 def test_analyze_path_specific_graph_cpdag_fully_oriented():

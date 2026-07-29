@@ -20,27 +20,31 @@ def _lag1_series(n: int = 120, seed: int = 3):
 
 
 def test_eventframe_pcmci_discovery_happy_path():
+    """Same fixture and PCMCI config as `test_analyze_discovery_pcmci_smoke`
+    (`test_analyze_discovery.py`), just fed through an EventFrame. Plain PCMCI's
+    discovery is DAG-shaped (`accept_temporal_graph_review` in
+    `python/src/lib.rs`), so `accept_discovered=True` (the default) always
+    accepts, and the strong lag-1 signal here is reliably found regardless of
+    framing — this must succeed, not merely "not crash".
+    """
     data = _lag1_series()
     n = len(data["x"])
     frame = antecedent.data.event(data, np.arange(n, dtype=np.int64), align_interval_ns=1)
-    try:
-        result = antecedent.analyze(
-            frame,
-            discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
-        )
-        assert isinstance(result.ate, float)
-    except Exception as exc:  # noqa: BLE001 — review/ID may fail closed
-        assert str(exc), "expected a non-empty error from the wired path"
+    result = antecedent.analyze(
+        frame,
+        discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+        query=antecedent.PulseEffect(
+            treatment="x",
+            outcome="y",
+            treatment_lag=1,
+            horizon_steps=1,
+            active_level=1.0,
+        ),
+        bootstrap=0,
+        seed=1,
+        refute=False,
+    )
+    assert np.isfinite(result.ate)
 
 
 def test_eventframe_rejects_jpcmci_plus():

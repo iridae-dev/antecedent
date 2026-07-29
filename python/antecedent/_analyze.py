@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Literal, Protocol
 
-from ._coerce import coerce_latency, coerce_refute
+from ._coerce import coerce_latency, coerce_query, coerce_refute
 from ._data import as_columns, as_multi_env_columns, try_as_arrow_c_columns
 from ._native import CausalUnsupportedError
 from ._native import (
@@ -1241,6 +1241,14 @@ def analyze(
         bytes on ``result.posterior.artifact`` (for download / sequential-prior
         hydrate). Default ``False``: UI summaries only.
     """
+    # Single source of truth for "is this one of the nine known query types" —
+    # see `_coerce.coerce_query`'s docstring. Everything past this point in
+    # `analyze()` already implicitly requires one of those nine (the
+    # `_KIND_HANDLERS` dispatch plus the AverageEffect / Pulse-or-Sustained
+    # ladder below cover exactly the same nine kinds), so this makes the
+    # final `raise TypeError` at the bottom of this function unreachable in
+    # practice; it stays as a defensive fallback rather than being deleted.
+    coerce_query(query)
     if isinstance(identifier, Identifier):
         identifier = str(identifier)
     if not isinstance(estimator, (str, Estimator)) and estimator is not None:

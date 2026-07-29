@@ -43,7 +43,16 @@ def _counting_ci(calls: list[int]):
 
 
 def test_panel_discover_pcmci_ci_callback_invoked():
-    """PCMCI branch of `_handle_panel_frame` must forward `ci=` to the native call."""
+    """PCMCI branch of `_handle_panel_frame` must forward `ci=` to the native call.
+
+    The counting callback always reports independence, so discovery finds no
+    edges at all; PCMCI's review is DAG-shaped (`accept_temporal_graph_review`
+    in `python/src/lib.rs`) and accepts an empty graph unconditionally, but the
+    requested x->y pulse can then legitimately be unidentifiable against that
+    empty graph. Either a clean estimate or `CausalIdentifyError` proves the
+    callback reached native discovery; any other exception is a real wiring
+    break, not a "review/ID may fail closed" outcome.
+    """
     calls: list[int] = []
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
     try:
@@ -63,14 +72,27 @@ def test_panel_discover_pcmci_ci_callback_invoked():
             seed=1,
             refute=False,
         )
-    except Exception as exc:  # noqa: BLE001 — review/ID may fail closed
-        assert str(exc), "expected a non-empty error from the wired path"
+    except (
+        antecedent.errors.CausalIdentifyError,
+        antecedent.errors.CausalCompileError,
+    ) as exc:
+        assert str(exc)
     assert calls, "ci callback was never invoked on the PanelFrame + PCMCI discovery path"
     assert sum(calls) > 0
 
 
 def test_panel_discover_jpcmci_plus_ci_callback_invoked():
-    """JPCMCIPlus branch of `_handle_panel_frame` must forward `ci=` to the native call."""
+    """JPCMCIPlus branch of `_handle_panel_frame` must forward `ci=` to the native call.
+
+    The counting callback always reports independence, so discovery finds no
+    edges at all. JPCMCIPlus's review is CPDAG-shaped
+    (`accept_temporal_cpdag_review` in `python/src/lib.rs`); an empty skeleton has
+    no undirected marks to block on, so it accepts unconditionally too, but the
+    requested x->y pulse can then legitimately be unidentifiable against that
+    empty graph. Either a clean estimate or `CausalIdentifyError` proves the
+    callback reached native discovery; any other exception is a real wiring
+    break, not a "review/ID may fail closed" outcome.
+    """
     calls: list[int] = []
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
     try:
@@ -90,7 +112,14 @@ def test_panel_discover_jpcmci_plus_ci_callback_invoked():
             seed=1,
             refute=False,
         )
-    except Exception as exc:  # noqa: BLE001 — review/ID may fail closed
-        assert str(exc), "expected a non-empty error from the wired path"
+    except (
+        antecedent.errors.CausalReviewError,
+        antecedent.errors.CausalIdentifyError,
+        antecedent.errors.CausalCompileError,
+    ) as exc:
+        assert str(exc)
+        if isinstance(exc, antecedent.errors.CausalReviewError):
+            assert exc.kind
+            assert exc.hint
     assert calls, "ci callback was never invoked on the PanelFrame + JPCMCIPlus discovery path"
     assert sum(calls) > 0

@@ -49,6 +49,30 @@ from ._native import (
 from ._native import set_review_error_class as _set_review_error_class
 
 
+class CausalTypeError(CausalValidateError, TypeError):
+    """Input-validation failure: wrong argument type at a public entry point.
+
+    Subclasses both :class:`CausalValidateError` (so ``except
+    antecedent.CausalError`` and ``except CausalValidateError`` catch it) and
+    the builtin ``TypeError`` (so an existing ``except TypeError`` /
+    ``pytest.raises(TypeError)`` call site keeps working unchanged — this is
+    additive, not a replacement for the builtin type). Raised by the
+    coercion helpers in ``_coerce.py`` and the equivalent checks in
+    ``estimation.py`` / ``discovery.py`` / ``accepted_graph.py`` where a
+    caller-supplied argument (``graph=``, ``query=``, ``refute=``,
+    ``latency=``, a discovery config, ...) is the wrong Python type.
+    """
+
+
+class CausalValueError(CausalValidateError, ValueError):
+    """Input-validation failure: right type, invalid value at a public entry point.
+
+    See :class:`CausalTypeError` — same rationale, for value checks (a
+    correctly-typed argument whose value is out of range, missing a required
+    companion, or otherwise not acceptable) rather than type checks.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class PendingEdge:
     """One unreviewed edge from a `ReviewRequired`, with its endpoint marks.
@@ -168,8 +192,10 @@ __all__ = [
     "CausalReviewError",
     "CausalSerializationError",
     "CausalStateError",
+    "CausalTypeError",
     "CausalUnsupportedError",
     "CausalValidateError",
+    "CausalValueError",
     "PendingEdge",
     "ReviewRequired",
     "build_review_error",

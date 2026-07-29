@@ -6,6 +6,20 @@ Every other public function takes one concrete type (a ``Dag``, a ``str``, a
 ``coerce_latency`` — to normalize whatever a caller passes (mapping,
 DataFrame, edge list, ``Dag``, enum, string, bool, …) before it reaches
 concrete-typed internals.
+
+Wiring status, honestly: ``coerce_data`` is used by the discovery config
+``run()`` methods; ``coerce_refute`` / ``coerce_latency`` are used by
+``estimation.py`` (``_resolve_latency_budget``, ``PreparedAnalysis.prepare``)
+and by ``_analyze.analyze`` itself. ``coerce_query`` is called once, at the
+top of ``_analyze.analyze``, as the single "is this one of the nine known
+query types" check. ``coerce_graph`` is **not** on the real ``analyze()``
+path — see its own docstring for why unifying it with the graph-coercion
+logic that IS wired (``estimation._static_edges`` / ``_lagged_edges``, plus
+the ``Pag``/``Cpdag``/``Admg`` special-casing in
+``_analyze.handle_static_ate``) was judged too risky to do blind (no test run
+to confirm no regression across the many call sites those two functions
+already serve). It is kept, tested, and documented as a graph-coercion
+reference implementation rather than deleted.
 """
 
 from __future__ import annotations
@@ -17,6 +31,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .data import EventFrame
+from .errors import CausalTypeError, CausalValueError
 
 
 def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
@@ -54,9 +69,24 @@ def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
 def coerce_graph(value: Any) -> Any:
     """Normalize a graph input to its canonical native representation.
 
-    Mirrors the discrimination logic currently duplicated across
-    ``estimation._static_edges`` / ``estimation._lagged_edges`` and the
-    ``Pag``/``Cpdag``/``Admg`` special-casing in ``_analyze.handle_static_ate``:
+    **Not currently on the live ``analyze()`` path.** This mirrors the
+    discrimination logic actually wired in ``estimation._static_edges`` /
+    ``estimation._lagged_edges`` and the ``Pag``/``Cpdag``/``Admg``
+    special-casing in ``_analyze.handle_static_ate`` — those three are what
+    every real ``analyze()`` call goes through today, and they are not simple
+    aliases of this function: ``_static_edges``/``_lagged_edges`` raise a
+    specific "graph= is required" message for ``None`` (this function falls
+    through to a generic unsupported-type error instead), and several call
+    sites of ``_static_edges``/``_lagged_edges`` intercept ``Pag``/``Admg``/
+    ``TemporalPag`` *before* calling them, so those two functions have never
+    needed to handle the passthrough case this function does. Rewiring
+    ``_static_edges``/``_lagged_edges`` to delegate here would touch every one
+    of their ~10 call sites across ``_analyze.py``/``estimation.py`` at once
+    with no test run available to confirm the edge-case behavior above
+    survives, so this function is kept as a tested, documented reference
+    implementation instead of being force-unified or deleted. If you are
+    adding a new graph-accepting entry point, prefer wiring it through this
+    function rather than adding an eleventh hand-rolled discrimination.
 
     - ``Dag`` -> oriented ``(str, str)`` edge list.
     - ``Cpdag`` -> oriented ``(str, str)`` edge list; raises ``ValueError`` if
@@ -86,7 +116,7 @@ def coerce_graph(value: Any) -> Any:
         try:
             dag = value.try_into_temporal_dag()
         except Exception as exc:  # noqa: BLE001 — surface orientation failures
-            raise ValueError(
+            raise CausalValueError(
                 "TemporalCpdag has undirected/conflict marks; orient edges "
                 "(try_into_temporal_dag) before analyze, or use discovery review"
             ) from exc
@@ -102,7 +132,7 @@ def coerce_graph(value: Any) -> Any:
             return [(str(a), str(b)) for a, b in items]
         if len(first) == 4:
             return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in items]
-    raise TypeError(
+    raise CausalTypeError(
         f"unsupported graph type: {type(value)!r}; use a Dag/Cpdag/Pag/Admg/"
         "TemporalDag/TemporalCpdag/TemporalPag, a (str, str) edge list, or a "
         "(str, int, str, int) lagged edge list"
@@ -141,7 +171,7 @@ def coerce_query(value: Any) -> Any:
     if isinstance(value, valid):
         return value
     names = ", ".join(c.__name__ for c in valid)
-    raise TypeError(f"unsupported query type: {type(value)!r}; use one of {names}")
+    raise CausalTypeError(f"unsupported query type: {type(value)!r}; use one of {names}")
 
 
 def coerce_refute(value: Any) -> str | bool:
@@ -161,7 +191,7 @@ def coerce_refute(value: Any) -> str | bool:
     from .ids import Refute
 
     if value is True:
-        raise TypeError(
+        raise CausalTypeError(
             "refute=True is ambiguous: it does not say which refutation suite "
             'to run. Pass refute="placebo", "cheap", "full", or a Refute enum '
             "member instead (or refute=False for no refutation)."
@@ -172,7 +202,7 @@ def coerce_refute(value: Any) -> str | bool:
         return str(value)
     if isinstance(value, str):
         return value
-    raise TypeError(
+    raise CausalTypeError(
         f"unsupported refute type: {type(value)!r}; use a bool, a Refute enum "
         "member, or a suite name string"
     )
@@ -197,9 +227,11 @@ def coerce_latency(value: Any) -> str | None:
         key = value.strip().lower()
         valid = {str(m) for m in Latency}
         if key not in valid:
-            raise ValueError(f"unknown latency={value!r}; use interactive|standard|report")
+            raise CausalValueError(f"unknown latency={value!r}; use interactive|standard|report")
         return key
-    raise TypeError(f"unsupported latency type: {type(value)!r}; use a str or Latency enum member")
+    raise CausalTypeError(
+        f"unsupported latency type: {type(value)!r}; use a str or Latency enum member"
+    )
 
 
 __all__ = [

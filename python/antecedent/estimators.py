@@ -17,24 +17,27 @@ mismatched config before it reaches the Rust boundary, rather than getting a
 result that quietly didn't honor part of what they asked for.
 
 Every class also exposes ``estimator_id``, the wire id to pass as
-``estimator=``. There is currently no single-argument spelling — the
-`estimator=` and `estimator_config=` kwargs of :func:`antecedent.analyze` are
-independent, so both must be supplied::
+``estimator=``. ``analyze(..., estimator=cfg)`` also works directly with a
+config instance from this module — :func:`antecedent._analyze.analyze`
+detects a non-``str``/``Estimator`` ``estimator=`` value, pulls
+``estimator_id`` and ``cfg._wire()`` off it, and forwards them as
+``estimator=``/``estimator_config=`` — so both spellings below are
+equivalent::
 
     from antecedent import analyze
     from antecedent.estimators import LinearAdjustment
 
     cfg = LinearAdjustment(bootstrap=500, se="cluster", cluster_ids=ids)
+
+    # Single-argument spelling.
+    result = analyze(data, graph=g, query=q, estimator=cfg)
+
+    # Equivalent two-argument spelling.
     result = analyze(
         data, graph=g, query=q,
         estimator=cfg.estimator_id,
         estimator_config=cfg._wire(),
     )
-
-See this module's docstring companion in the P6b report for the exact
-``_analyze.py`` change that would let ``analyze(..., estimator=cfg)`` work
-directly (not implemented here: ``_analyze.py`` is out of scope for this
-change).
 """
 
 from __future__ import annotations
