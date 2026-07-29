@@ -37,7 +37,7 @@ nav:
   - Development: development.md
   - API naming: api_naming.md
   - Artifacts: artifacts.md
-  - Prior bank: prior_bank.md
+  - Prior bank: priors.md
   - Hot paths: hot_paths.md
   - Security review: security_review.md
   - Conformance: conformance/README.md
